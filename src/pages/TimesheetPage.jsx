@@ -6,16 +6,14 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import { ChevronLeft, ChevronRight, Save, Send, AlertCircle } from 'lucide-react';
 
 const statusColors = {
-  'full-day': 'bg-green-500',
-  'half-day': 'bg-yellow-400',
+  'working': 'bg-green-500',
   'leave': 'bg-red-400',
   'holiday': 'bg-purple-400',
   'weekend': 'bg-gray-300',
 };
 
 const statusLabels = {
-  'full-day': 'Full Day',
-  'half-day': 'Half Day',
+  'working': 'Working',
   'leave': 'Leave',
   'holiday': 'Holiday',
   'weekend': 'Weekend',
@@ -40,7 +38,6 @@ export default function TimesheetPage() {
   useEffect(() => {
     api.get('/projects').then(r => {
       setProjects(r.data);
-      // Auto-select user's first assigned project or first available
       if (user?.assignedProjects?.length > 0) {
         const assigned = r.data.find(p => user.assignedProjects.some(ap => (ap._id || ap) === p._id));
         if (assigned) setSelectedProject(assigned._id);
@@ -63,20 +60,23 @@ export default function TimesheetPage() {
           const entryMap = {};
           ts.entries.forEach(e => {
             const d = new Date(e.date).getDate();
-            entryMap[d] = e.status;
+            entryMap[d] = { hours: e.hours || 0, status: e.status || 'working' };
           });
           setEntries(entryMap);
         } else {
           setTimesheet(null);
-          // Pre-fill weekends
+          // Pre-fill: weekends=0h/weekend, weekdays=8h/working
           const daysInMonth = new Date(year, month, 0).getDate();
-          const weekendMap = {};
+          const defaultMap = {};
           for (let d = 1; d <= daysInMonth; d++) {
             const dayOfWeek = new Date(year, month - 1, d).getDay();
-            if (dayOfWeek === 0 || dayOfWeek === 6) weekendMap[d] = 'weekend';
-            else weekendMap[d] = 'full-day';
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+              defaultMap[d] = { hours: 0, status: 'weekend' };
+            } else {
+              defaultMap[d] = { hours: 8, status: 'working' };
+            }
           }
-          setEntries(weekendMap);
+          setEntries(defaultMap);
         }
       })
       .catch(() => setTimesheet(null))
@@ -88,22 +88,35 @@ export default function TimesheetPage() {
 
   const cycleStatus = (day) => {
     if (timesheet && timesheet.status !== 'draft') return;
-    const order = ['full-day', 'half-day', 'leave', 'holiday', 'weekend'];
-    const current = entries[day] || 'full-day';
-    const next = order[(order.indexOf(current) + 1) % order.length];
-    setEntries(prev => ({ ...prev, [day]: next }));
+    const entry = entries[day] || { hours: 8, status: 'working' };
+    if (entry.status === 'weekend') return; // Don't allow changing weekends
+
+    const order = ['working', 'leave', 'holiday'];
+    const next = order[(order.indexOf(entry.status) + 1) % order.length];
+    const newHours = next === 'working' ? 8 : 0;
+    setEntries(prev => ({ ...prev, [day]: { hours: newHours, status: next } }));
+  };
+
+  const setHours = (day, hours) => {
+    if (timesheet && timesheet.status !== 'draft') return;
+    const entry = entries[day] || { hours: 0, status: 'working' };
+    if (entry.status !== 'working') return; // Only working days can have hours
+    const clamped = Math.min(24, Math.max(0, parseFloat(hours) || 0));
+    setEntries(prev => ({ ...prev, [day]: { ...entry, hours: clamped } }));
   };
 
   const buildEntries = () => {
-    return Object.entries(entries).map(([day, status]) => ({
+    return Object.entries(entries).map(([day, entry]) => ({
       date: new Date(year, month - 1, parseInt(day)),
-      status
+      hours: entry.hours || 0,
+      status: entry.status || 'working'
     }));
   };
 
-  const totalFull = Object.values(entries).filter(s => s === 'full-day').length;
-  const totalHalf = Object.values(entries).filter(s => s === 'half-day').length;
-  const totalWorking = totalFull + totalHalf * 0.5;
+  const totalHours = Object.values(entries).reduce((sum, e) => sum + (e.status === 'working' ? (e.hours || 0) : 0), 0);
+  const totalDays = totalHours / 8;
+  const totalLeaves = Object.values(entries).filter(e => e.status === 'leave').length;
+  const totalHolidays = Object.values(entries).filter(e => e.status === 'holiday').length;
 
   const handleSave = async () => {
     setSaving(true);
@@ -166,7 +179,7 @@ export default function TimesheetPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Timesheet</h1>
-          <p className="text-gray-500 text-sm">Click on a date to change status</p>
+          <p className="text-gray-500 text-sm">Enter hours worked per day. Click status label to mark Leave/Holiday.</p>
         </div>
         <select
           value={selectedProject}
@@ -188,7 +201,7 @@ export default function TimesheetPage() {
         }`}>
           <AlertCircle size={16} />
           {timesheet.status === 'submitted' && 'Timesheet submitted — awaiting approval'}
-          {timesheet.status === 'approved' && `Timesheet approved • ${timesheet.totalWorkingDays} working days`}
+          {timesheet.status === 'approved' && `Timesheet approved • ${timesheet.totalHours || 0}h (${timesheet.totalWorkingDays} days)`}
           {timesheet.status === 'rejected' && `Rejected: ${timesheet.rejectionReason || 'No reason given'}`}
         </div>
       )}
@@ -211,25 +224,63 @@ export default function TimesheetPage() {
             </div>
             <div className="grid grid-cols-7">
               {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`empty-${i}`} className="p-2 border-b border-r border-gray-100 min-h-[72px]" />
+                <div key={`empty-${i}`} className="p-1.5 border-b border-r border-gray-100 min-h-[88px]" />
               ))}
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1;
-                const status = entries[day] || 'full-day';
+                const entry = entries[day] || { hours: 8, status: 'working' };
                 const isToday = day === now.getDate() && month === now.getMonth() + 1 && year === now.getFullYear();
+                const isWeekend = entry.status === 'weekend';
+                const isNonWorking = entry.status === 'leave' || entry.status === 'holiday';
+
                 return (
                   <div
                     key={day}
-                    onClick={() => cycleStatus(day)}
-                    className={`p-2 border-b border-r border-gray-100 min-h-[72px] cursor-pointer hover:bg-gray-50 transition-colors ${isReadOnly ? 'cursor-default' : ''}`}
+                    className={`p-1.5 border-b border-r border-gray-100 min-h-[88px] transition-colors ${
+                      isWeekend ? 'bg-gray-50' :
+                      isNonWorking ? (entry.status === 'leave' ? 'bg-red-50/50' : 'bg-purple-50/50') :
+                      entry.hours > 8 ? 'bg-blue-50/50' :
+                      entry.hours > 0 ? 'bg-green-50/50' : ''
+                    }`}
                   >
-                    <span className={`text-sm font-medium ${isToday ? 'bg-accent text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-gray-700'}`}>
-                      {day}
-                    </span>
-                    <div className="mt-1">
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium text-white ${statusColors[status]}`}>
-                        {statusLabels[status]}
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-medium ${isToday ? 'bg-accent text-white w-5 h-5 rounded-full flex items-center justify-center' : 'text-gray-700'}`}>
+                        {day}
                       </span>
+                    </div>
+
+                    {/* Hours input for working days */}
+                    {entry.status === 'working' ? (
+                      <div className="flex items-center justify-center mb-1">
+                        <input
+                          type="number"
+                          value={entry.hours}
+                          onChange={e => setHours(day, e.target.value)}
+                          disabled={isReadOnly}
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          className="w-12 h-7 text-center text-sm font-semibold border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent disabled:bg-gray-50 disabled:text-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-[10px] text-gray-400 ml-0.5">h</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center mb-1">
+                        <span className="text-xs text-gray-400">0h</span>
+                      </div>
+                    )}
+
+                    {/* Status label — clickable for weekdays */}
+                    <div className="text-center">
+                      <button
+                        onClick={() => cycleStatus(day)}
+                        disabled={isReadOnly || isWeekend}
+                        className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-medium text-white ${statusColors[entry.status]} ${
+                          !isReadOnly && !isWeekend ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                        }`}
+                      >
+                        {statusLabels[entry.status]}
+                      </button>
                     </div>
                   </div>
                 );
@@ -245,8 +296,12 @@ export default function TimesheetPage() {
                 <span className="text-xs text-gray-600">{statusLabels[key]}</span>
               </div>
             ))}
-            <div className="ml-auto text-sm font-medium text-gray-900">
-              Total: {totalWorking} working days ({totalFull} full + {totalHalf} half)
+            <div className="ml-auto text-sm font-medium text-gray-900 flex items-center gap-3">
+              <span>{totalHours}h total</span>
+              <span className="text-gray-400">|</span>
+              <span>{totalDays} days</span>
+              {totalLeaves > 0 && <><span className="text-gray-400">|</span><span className="text-red-500">{totalLeaves} leave</span></>}
+              {totalHolidays > 0 && <><span className="text-gray-400">|</span><span className="text-purple-500">{totalHolidays} holiday</span></>}
             </div>
           </div>
 

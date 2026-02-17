@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { IndianRupee, Clock, TrendingUp, Calendar } from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -32,12 +32,12 @@ export default function EarningsPage() {
           <p className="text-xs text-gray-400 mt-1">{data.earnings?.calculation}</p>
           <div className="mt-4 space-y-1.5">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Full Days</span>
-              <span className="font-medium text-gray-900">{data.breakdown?.totalFullDays || 0}</span>
+              <span className="text-gray-500">Total Hours</span>
+              <span className="font-medium text-gray-900">{data.breakdown?.totalHours || 0}h</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Half Days</span>
-              <span className="font-medium text-gray-900">{data.breakdown?.totalHalfDays || 0}</span>
+              <span className="text-gray-500">Working Days</span>
+              <span className="font-medium text-gray-900">{data.breakdown?.totalWorkingDays || 0}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Leaves</span>
@@ -46,10 +46,6 @@ export default function EarningsPage() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Holidays</span>
               <span className="font-medium text-gray-900">{data.breakdown?.totalHolidays || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm border-t pt-1.5">
-              <span className="text-gray-500 font-medium">Working Days</span>
-              <span className="font-bold text-gray-900">{data.breakdown?.totalWorkingDays || 0}</span>
             </div>
           </div>
           {data.timesheetStatus && (
@@ -67,7 +63,7 @@ export default function EarningsPage() {
               {data.projectBreakdowns.map((pb, i) => (
                 <div key={i} className="flex justify-between text-xs py-1">
                   <span className="text-gray-600">{pb.project}</span>
-                  <span className="font-medium">{pb.workingDays} days</span>
+                  <span className="font-medium">{pb.totalHours || 0}h ({pb.workingDays} days)</span>
                 </div>
               ))}
             </div>
@@ -139,6 +135,7 @@ export default function EarningsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Month</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-500">Hours</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-500">Days</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-500">Rate</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-500">Earnings</th>
@@ -153,6 +150,7 @@ export default function EarningsPage() {
                   h.timesheetStatus === 'approved' ? 'bg-yellow-50/50' : ''
                 }>
                   <td className="px-4 py-3 font-medium text-gray-900">{monthNames[h.month]} {h.year}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{h.totalHours || 0}h</td>
                   <td className="px-4 py-3 text-right text-gray-600">{h.totalWorkingDays}</td>
                   <td className="px-4 py-3 text-right text-gray-600">₹{(h.dailyRate || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">₹{(h.grossAmount || 0).toLocaleString()}</td>

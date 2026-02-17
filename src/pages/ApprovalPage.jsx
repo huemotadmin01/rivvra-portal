@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { CheckCircle2, XCircle, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const statusColors = {
-  'full-day': 'bg-green-500',
-  'half-day': 'bg-yellow-400',
+  'working': 'bg-green-500',
   'leave': 'bg-red-400',
   'holiday': 'bg-purple-400',
   'weekend': 'bg-gray-300',
@@ -97,7 +96,7 @@ export default function ApprovalPage() {
                     {ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {ts.project?.name} • {ts.client?.name} • {ts.totalWorkingDays} days
+                    {ts.project?.name} • {ts.client?.name} • {ts.totalHours || 0}h ({ts.totalWorkingDays} days)
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -122,19 +121,31 @@ export default function ApprovalPage() {
                     {Array.from({ length: new Date(ts.year, ts.month - 1, 1).getDay() }).map((_, i) => (
                       <div key={`e-${i}`} />
                     ))}
-                    {ts.entries?.map((entry, i) => (
-                      <div key={i} className="text-center">
-                        <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center text-[10px] text-white font-medium ${statusColors[entry.status] || 'bg-gray-200'}`}>
-                          {new Date(entry.date).getDate()}
+                    {ts.entries?.map((entry, i) => {
+                      const isWorking = entry.status === 'working';
+                      const hours = entry.hours || 0;
+                      return (
+                        <div key={i} className="text-center">
+                          <div
+                            className={`w-7 h-7 mx-auto rounded-full flex items-center justify-center text-[9px] font-medium text-white ${
+                              isWorking && hours > 8 ? 'bg-blue-500' :
+                              isWorking && hours > 0 ? 'bg-green-500' :
+                              statusColors[entry.status] || 'bg-gray-200'
+                            }`}
+                            title={`${hours}h - ${entry.status}`}
+                          >
+                            {isWorking ? hours : new Date(entry.date).getDate()}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center gap-3 text-sm text-gray-600 mb-4">
-                    <span>Full: {ts.totalFullDays}</span>
-                    <span>Half: {ts.totalHalfDays}</span>
-                    <span>Total: {ts.totalWorkingDays}</span>
+                    <span>Hours: {ts.totalHours || 0}h</span>
+                    <span>Days: {ts.totalWorkingDays}</span>
+                    <span>Leaves: {ts.entries?.filter(e => e.status === 'leave').length || 0}</span>
+                    <span>Holidays: {ts.entries?.filter(e => e.status === 'holiday').length || 0}</span>
                   </div>
 
                   {ts.status === 'submitted' && (
