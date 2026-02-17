@@ -114,8 +114,9 @@ export default function TimesheetPage() {
     if (isNaN(num)) return;
     const clamped = Math.min(24, Math.max(0, num));
 
-    // Auto-set status to working when typing hours
-    setEntries(prev => ({ ...prev, [day]: { hours: clamped, status: 'working' } }));
+    // Auto-set status to working only when typing non-zero hours
+    const newStatus = clamped > 0 ? 'working' : (entry.status === 'leave' || entry.status === 'holiday' ? entry.status : null);
+    setEntries(prev => ({ ...prev, [day]: { hours: clamped, status: newStatus } }));
   };
 
   const buildEntries = () => {
