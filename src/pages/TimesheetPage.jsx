@@ -177,19 +177,30 @@ export default function TimesheetPage() {
     }
   };
 
-  const handleReset = () => {
-    const daysInMo = new Date(year, month, 0).getDate();
-    const defaultMap = {};
-    for (let d = 1; d <= daysInMo; d++) {
-      const dayOfWeek = new Date(year, month - 1, d).getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        defaultMap[d] = { hours: 0, status: 'weekend' };
-      } else {
-        defaultMap[d] = { hours: '', status: null };
+  const handleReset = async () => {
+    try {
+      // Delete saved draft from database if it exists
+      if (timesheet && timesheet.status === 'draft') {
+        await api.delete(`/timesheets/${timesheet._id}`);
+        setTimesheet(null);
       }
+
+      // Reset UI to default empty state
+      const daysInMo = new Date(year, month, 0).getDate();
+      const defaultMap = {};
+      for (let d = 1; d <= daysInMo; d++) {
+        const dayOfWeek = new Date(year, month - 1, d).getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          defaultMap[d] = { hours: 0, status: 'weekend' };
+        } else {
+          defaultMap[d] = { hours: '', status: null };
+        }
+      }
+      setEntries(defaultMap);
+      toast.success('Timesheet reset');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Reset failed');
     }
-    setEntries(defaultMap);
-    toast.success('Timesheet reset');
   };
 
   const prevMonth = () => {
