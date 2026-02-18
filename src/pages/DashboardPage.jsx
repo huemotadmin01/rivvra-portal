@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import {
   CalendarDays, IndianRupee, Clock, CheckCircle2, XCircle,
@@ -36,10 +37,20 @@ function ContractorDashboard() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/earnings/current').then(r => setCurrent(r.data)).catch(() => {}),
-      api.get('/earnings/previous').then(r => setPrevious(r.data)).catch(() => {}),
-      api.get('/earnings/disbursement-info').then(r => setDisbursement(r.data)).catch(() => {}),
-      api.get('/timesheets').then(r => setTimesheets(r.data)).catch(() => {}),
+      api.get('/earnings/current').then(r => setCurrent(r.data)).catch(err => {
+        console.error('Failed to load current earnings:', err);
+        toast.error('Failed to load current month data');
+      }),
+      api.get('/earnings/previous').then(r => setPrevious(r.data)).catch(err => {
+        console.error('Failed to load previous earnings:', err);
+      }),
+      api.get('/earnings/disbursement-info').then(r => setDisbursement(r.data)).catch(err => {
+        console.error('Failed to load disbursement info:', err);
+      }),
+      api.get('/timesheets').then(r => setTimesheets(r.data)).catch(err => {
+        console.error('Failed to load timesheets:', err);
+        toast.error('Failed to load timesheets');
+      }),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -164,7 +175,10 @@ function AdminDashboard() {
   useEffect(() => {
     api.get('/timesheets')
       .then(r => setTimesheets(r.data))
-      .catch(() => {})
+      .catch(err => {
+        console.error('Failed to load timesheets:', err);
+        toast.error('Failed to load timesheets');
+      })
       .finally(() => setLoading(false));
   }, []);
 

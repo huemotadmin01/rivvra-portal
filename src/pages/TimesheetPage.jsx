@@ -120,11 +120,20 @@ export default function TimesheetPage() {
   };
 
   const buildEntries = () => {
-    return Object.entries(entries).map(([day, entry]) => ({
-      date: new Date(year, month - 1, parseInt(day)),
-      hours: entry.hours === '' || entry.hours === null || entry.hours === undefined ? 0 : entry.hours,
-      status: entry.status || 'working'
-    }));
+    return Object.entries(entries).map(([day, entry]) => {
+      const hours = entry.hours === '' || entry.hours === null || entry.hours === undefined ? 0 : parseFloat(entry.hours) || 0;
+      // Keep explicit status; for untouched weekdays (null status), determine from day of week
+      let status = entry.status;
+      if (!status) {
+        const dayOfWeek = new Date(year, month - 1, parseInt(day)).getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          status = 'weekend';
+        } else {
+          status = 'working'; // Weekday with 0h is still 'working', backend counts hours correctly
+        }
+      }
+      return { date: new Date(year, month - 1, parseInt(day)), hours, status };
+    });
   };
 
   const totalHours = Object.values(entries).reduce((sum, e) => sum + (e.status === 'working' ? (parseFloat(e.hours) || 0) : 0), 0);

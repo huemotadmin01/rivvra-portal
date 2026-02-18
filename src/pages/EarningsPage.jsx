@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { Clock } from 'lucide-react';
 
@@ -14,10 +15,20 @@ export default function EarningsPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/earnings/current').then(r => setCurrent(r.data)).catch(() => {}),
-      api.get('/earnings/previous').then(r => setPrevious(r.data)).catch(() => {}),
-      api.get('/earnings/history').then(r => setHistory(r.data)).catch(() => {}),
-      api.get('/earnings/disbursement-info').then(r => setDisbursement(r.data)).catch(() => {}),
+      api.get('/earnings/current').then(r => setCurrent(r.data)).catch(err => {
+        console.error('Failed to load current earnings:', err);
+        toast.error('Failed to load current earnings');
+      }),
+      api.get('/earnings/previous').then(r => setPrevious(r.data)).catch(err => {
+        console.error('Failed to load previous earnings:', err);
+      }),
+      api.get('/earnings/history').then(r => setHistory(r.data)).catch(err => {
+        console.error('Failed to load earnings history:', err);
+        toast.error('Failed to load earnings history');
+      }),
+      api.get('/earnings/disbursement-info').then(r => setDisbursement(r.data)).catch(err => {
+        console.error('Failed to load disbursement info:', err);
+      }),
     ]).finally(() => setLoading(false));
   }, []);
 

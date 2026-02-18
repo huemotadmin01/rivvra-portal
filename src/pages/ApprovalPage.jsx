@@ -31,6 +31,7 @@ export default function ApprovalPage() {
   useEffect(() => { load(); }, []);
 
   const handleApprove = async (id) => {
+    if (!window.confirm('Are you sure you want to approve this timesheet?')) return;
     try {
       await api.patch(`/timesheets/${id}/approve`);
       toast.success('Timesheet approved');
@@ -41,6 +42,7 @@ export default function ApprovalPage() {
   };
 
   const handleRevert = async (id) => {
+    if (!window.confirm('Are you sure you want to revert this timesheet to draft? This will clear approval status.')) return;
     try {
       await api.patch(`/timesheets/${id}/revert`);
       toast.success('Timesheet reverted to draft');
@@ -51,8 +53,12 @@ export default function ApprovalPage() {
   };
 
   const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
     try {
-      await api.patch(`/timesheets/${rejectId}/reject`, { rejectionReason: rejectReason });
+      await api.patch(`/timesheets/${rejectId}/reject`, { rejectionReason: rejectReason.trim() });
       toast.success('Timesheet rejected');
       setRejectId(null);
       setRejectReason('');
