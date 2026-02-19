@@ -50,7 +50,10 @@ export default function TimesheetPage() {
 
   // Load timesheet for selected month/project
   useEffect(() => {
-    if (!selectedProject) return;
+    if (!selectedProject) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     api.get('/timesheets', { params: { month, year, contractor: user._id } })
       .then(r => {
@@ -262,7 +265,13 @@ export default function TimesheetPage() {
         <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight size={20} /></button>
       </div>
 
-      {loading ? <LoadingSpinner /> : (
+      {loading ? <LoadingSpinner /> : !selectedProject ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <AlertCircle size={40} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500 font-medium">No project assigned</p>
+          <p className="text-gray-400 text-sm mt-1">Please ask your admin to assign a project to your account.</p>
+        </div>
+      ) : (
         <>
           {/* Calendar Grid */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

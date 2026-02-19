@@ -163,7 +163,11 @@ export default function EarningsPage() {
                   <td className="px-4 py-3 font-medium text-gray-900">{monthNames[h.month]} {h.year}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{h.totalHours || 0}h</td>
                   <td className="px-4 py-3 text-right text-gray-600">{h.totalWorkingDays}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">₹{(h.dailyRate || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">
+                    {h.payType === 'monthly'
+                      ? `₹${(h.monthlyRate || 0).toLocaleString()}/mo`
+                      : `₹${(h.dailyRate || 0).toLocaleString()}/day`}
+                  </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">₹{(h.grossAmount || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
