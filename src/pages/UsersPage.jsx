@@ -13,7 +13,8 @@ export default function UsersPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
     fullName: '', email: '', password: '', role: 'contractor',
-    employeeId: '', phone: '', dailyRate: '', clientBillingRate: '',
+    employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '',
+    paidLeavePerMonth: 0, clientBillingRate: '',
     assignedClient: '', assignedProjects: []
   });
 
@@ -30,7 +31,7 @@ export default function UsersPage() {
   useEffect(() => { load(); }, []);
 
   const resetForm = () => {
-    setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', dailyRate: '', clientBillingRate: '', assignedClient: '', assignedProjects: [] });
+    setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '', paidLeavePerMonth: 0, clientBillingRate: '', assignedClient: '', assignedProjects: [] });
     setEditing(null);
     setShowForm(false);
   };
@@ -43,7 +44,10 @@ export default function UsersPage() {
       role: user.role,
       employeeId: user.employeeId || '',
       phone: user.phone || '',
+      payType: user.payType || 'daily',
       dailyRate: user.dailyRate || '',
+      monthlyRate: user.monthlyRate || '',
+      paidLeavePerMonth: user.paidLeavePerMonth || 0,
       clientBillingRate: user.clientBillingRate || '',
       assignedClient: user.assignedClient?._id || user.assignedClient || '',
       assignedProjects: user.assignedProjects?.map(p => p._id || p) || []
@@ -57,6 +61,8 @@ export default function UsersPage() {
     try {
       const data = { ...form };
       if (data.dailyRate) data.dailyRate = Number(data.dailyRate);
+      if (data.monthlyRate) data.monthlyRate = Number(data.monthlyRate);
+      data.paidLeavePerMonth = Number(data.paidLeavePerMonth) || 0;
       if (data.clientBillingRate) data.clientBillingRate = Number(data.clientBillingRate);
       if (!data.assignedClient) delete data.assignedClient;
 
@@ -112,7 +118,8 @@ export default function UsersPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Employee ID</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-500">Daily Rate</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-500">Pay Type</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-500">Rate</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-500">Billing Rate</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-500">Status</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-500">Actions</th>
@@ -131,7 +138,23 @@ export default function UsersPage() {
                     }`}>{u.role}</span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{u.employeeId || '—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{u.dailyRate ? `₹${u.dailyRate.toLocaleString()}` : '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      u.payType === 'monthly' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {u.payType === 'monthly' ? 'Monthly' : 'Daily'}
+                    </span>
+                    {u.paidLeavePerMonth > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
+                        {u.paidLeavePerMonth} PL
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-600">
+                    {u.payType === 'monthly'
+                      ? (u.monthlyRate ? `₹${u.monthlyRate.toLocaleString()}/mo` : '—')
+                      : (u.dailyRate ? `₹${u.dailyRate.toLocaleString()}/day` : '—')}
+                  </td>
                   <td className="px-4 py-3 text-right text-gray-600">{u.clientBillingRate ? `₹${u.clientBillingRate.toLocaleString()}` : '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActive(u)} className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -194,17 +217,64 @@ export default function UsersPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-accent" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Daily Rate (₹)</label>
-                  <input type="number" value={form.dailyRate} onChange={e => setForm({...form, dailyRate: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-accent" />
+              {/* Pay Configuration */}
+              <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <label className="block text-sm font-semibold text-gray-700">Pay Configuration</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setForm({...form, payType: 'daily'})}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                      form.payType === 'daily'
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}>
+                    Fixed Daily Rate
+                  </button>
+                  <button type="button" onClick={() => setForm({...form, payType: 'monthly'})}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                      form.payType === 'monthly'
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}>
+                    Fixed Monthly Rate
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Client Billing Rate (₹)</label>
-                  <input type="number" value={form.clientBillingRate} onChange={e => setForm({...form, clientBillingRate: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-accent" />
+
+                {form.payType === 'daily' ? (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Daily Rate (₹)</label>
+                    <input type="number" value={form.dailyRate} onChange={e => setForm({...form, dailyRate: e.target.value})}
+                      placeholder="e.g. 3000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-accent" />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Monthly Rate (₹)</label>
+                    <input type="number" value={form.monthlyRate} onChange={e => setForm({...form, monthlyRate: e.target.value})}
+                      placeholder="e.g. 60000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-accent" />
+                    <p className="text-[11px] text-gray-400 mt-1">Payable = (Actual days worked / Working days in month) × Monthly rate</p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <label className="block text-xs text-gray-500">Paid Leave / Month</label>
+                    <p className="text-[11px] text-gray-400">Days counted as worked for pay calculation</p>
+                  </div>
+                  <select value={form.paidLeavePerMonth} onChange={e => setForm({...form, paidLeavePerMonth: Number(e.target.value)})}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-accent w-20">
+                    <option value={0}>0</option>
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
+                    <option value={3}>3</option>
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client Billing Rate (₹/day)</label>
+                <input type="number" value={form.clientBillingRate} onChange={e => setForm({...form, clientBillingRate: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-accent" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Client</label>
