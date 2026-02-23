@@ -330,9 +330,9 @@ export default function OrgLoginPage() {
       <div className="max-w-md mx-auto w-full">
         {/* Org Branding */}
         <div className="flex flex-col items-center mb-10">
-          {orgInfo?.logo ? (
+          {orgInfo?.logoAvailable ? (
             <img
-              src={orgInfo.logo}
+              src={`${api.baseUrl}/api/org/${slug}/logo`}
               alt={orgInfo.name}
               className="w-16 h-16 rounded-2xl object-contain bg-dark-800 mb-4"
             />
