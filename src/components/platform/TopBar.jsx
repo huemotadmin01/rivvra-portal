@@ -1,8 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
-import { LayoutGrid, LogOut, Settings, Crown } from 'lucide-react';
-import RivvraLogo from '../BrynsaLogo';
+import { LayoutGrid, LogOut, Settings, Crown, Building2 } from 'lucide-react';
+import api from '../../utils/api';
 
 const appColorMap = {
   rivvra: 'text-rivvra-400',
@@ -14,8 +15,13 @@ const appColorMap = {
 function TopBar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { currentOrg } = useOrg();
   const { currentApp, orgPath } = usePlatform();
   const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+
+  const orgLogoUrl = currentOrg?.logoAvailable && currentOrg?.slug
+    ? `${api.baseUrl}/api/org/${currentOrg.slug}/logo`
+    : null;
 
   const handleLogout = () => {
     logout();
@@ -25,13 +31,21 @@ function TopBar() {
   return (
     <header className="h-14 border-b border-dark-800/50 bg-dark-950/80 backdrop-blur-xl sticky top-0 z-40">
       <div className="h-full px-4 flex items-center justify-between">
-        {/* Left: Logo + App Badge */}
+        {/* Left: Org Logo + Name + App Badge */}
         <div className="flex items-center gap-4">
           <Link to={orgPath('/home')} className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-dark-800 flex items-center justify-center">
-              <RivvraLogo className="w-5 h-5" />
-            </div>
-            <span className="text-base font-bold text-white">Rivvra</span>
+            {orgLogoUrl ? (
+              <img
+                src={orgLogoUrl}
+                alt={currentOrg?.name || ''}
+                className="w-8 h-8 rounded-lg object-contain bg-dark-800"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-dark-800 flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-rivvra-400" />
+              </div>
+            )}
+            <span className="text-base font-bold text-white">{currentOrg?.name || 'Rivvra'}</span>
           </Link>
 
           {currentApp && (
