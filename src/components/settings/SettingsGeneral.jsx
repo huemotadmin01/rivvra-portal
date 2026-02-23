@@ -5,9 +5,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useOrg } from '../../context/OrgContext';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
-  Mail, Building2, Crown, Briefcase, Check
+  Mail, Building2, Crown, Briefcase, Check, Users, Globe, Calendar, CreditCard
 } from 'lucide-react';
 import api from '../../utils/api';
 import ComingSoonModal from '../ComingSoonModal';
@@ -15,6 +16,17 @@ import ComingSoonModal from '../ComingSoonModal';
 export default function SettingsGeneral() {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
+  const { currentOrg, membership, isOrgAdmin, isOrgOwner, trial } = useOrg();
+
+  // License data (fetched for org owners/admins)
+  const [licenses, setLicenses] = useState(null);
+  useEffect(() => {
+    if (isOrgAdmin || isOrgOwner) {
+      api.getTeamMembers().then(res => {
+        if (res.licenses) setLicenses(res.licenses);
+      }).catch(() => {});
+    }
+  }, [isOrgAdmin, isOrgOwner]);
 
   // Title
   const [senderTitle, setSenderTitle] = useState(user?.senderTitle || '');
@@ -254,6 +266,139 @@ export default function SettingsGeneral() {
             ))}
           </div>
         </div>
+
+        {/* Organization Details — visible to owner/admin */}
+        {currentOrg && (isOrgOwner || isOrgAdmin) && (
+          <div className="card p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-rivvra-500/10 flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-rivvra-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">Organization</h2>
+                <p className="text-sm text-dark-400">{currentOrg.name}</p>
+              </div>
+              {currentOrg.plan && (
+                <span className={`ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                  currentOrg.plan === 'pro' ? 'bg-amber-500/20 text-amber-300' :
+                  currentOrg.plan === 'enterprise' ? 'bg-purple-500/20 text-purple-300' :
+                  currentOrg.plan === 'trial' ? 'bg-rivvra-500/20 text-rivvra-300' :
+                  'bg-dark-700 text-dark-300'
+                }`}>
+                  <Crown className="w-3 h-3" />
+                  {currentOrg.plan === 'pro' ? 'Pro Plan' :
+                   currentOrg.plan === 'enterprise' ? 'Enterprise' :
+                   currentOrg.plan === 'trial' ? 'Trial' : 'Free Plan'}
+                </span>
+              )}
+            </div>
+
+            {/* Org Info Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                <Globe className="w-5 h-5 text-dark-500 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-dark-500">Org URL</p>
+                  <p className="text-sm text-white truncate">rivvra.com/#/org/{currentOrg.slug}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                <Mail className="w-5 h-5 text-dark-500 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-dark-500">Domain</p>
+                  <p className="text-sm text-white">{currentOrg.domain || '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                <Calendar className="w-5 h-5 text-dark-500 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-dark-500">Created</p>
+                  <p className="text-sm text-white">{currentOrg.createdAt ? new Date(currentOrg.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                <CreditCard className="w-5 h-5 text-dark-500 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-dark-500">Enabled Apps</p>
+                  <p className="text-sm text-white">{currentOrg.enabledApps?.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ') || '-'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* License Usage */}
+            {licenses && (
+              <div>
+                <h3 className="text-sm font-medium text-dark-400 mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  User Licenses
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="p-4 bg-dark-800/50 rounded-xl">
+                    <p className="text-2xl font-bold text-white">{licenses.used || 0}</p>
+                    <p className="text-sm text-dark-400">Active Users</p>
+                  </div>
+                  <div className="p-4 bg-dark-800/50 rounded-xl">
+                    <p className="text-2xl font-bold text-white">{licenses.total || 0}</p>
+                    <p className="text-sm text-dark-400">Total Licenses</p>
+                  </div>
+                  <div className="p-4 bg-dark-800/50 rounded-xl">
+                    <p className="text-2xl font-bold text-rivvra-400">{licenses.remaining || 0}</p>
+                    <p className="text-sm text-dark-400">Available</p>
+                  </div>
+                  <div className="p-4 bg-dark-800/50 rounded-xl">
+                    <p className="text-2xl font-bold text-amber-400">{licenses.pendingInvites || 0}</p>
+                    <p className="text-sm text-dark-400">Pending Invites</p>
+                  </div>
+                </div>
+                {/* Usage Bar */}
+                <div className="relative h-2 bg-dark-700 rounded-full overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-rivvra-500 rounded-full transition-all"
+                    style={{ width: `${licenses.total ? Math.min(100, ((licenses.used || 0) / licenses.total) * 100) : 0}%` }}
+                  />
+                </div>
+                <p className="text-xs text-dark-500 mt-2">
+                  {licenses.used || 0} of {licenses.total || 0} licenses used ({licenses.total ? Math.round(((licenses.used || 0) / licenses.total) * 100) : 0}%)
+                </p>
+              </div>
+            )}
+
+            {/* Trial Status */}
+            {trial && trial.status !== 'none' && trial.status !== 'converted' && (
+              <div className={`mt-6 p-4 rounded-xl border ${
+                trial.status === 'active' ? 'bg-rivvra-500/5 border-rivvra-500/20' :
+                trial.status === 'grace' ? 'bg-amber-500/5 border-amber-500/20' :
+                'bg-red-500/5 border-red-500/20'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      trial.status === 'active' ? 'text-rivvra-300' :
+                      trial.status === 'grace' ? 'text-amber-300' : 'text-red-300'
+                    }`}>
+                      {trial.status === 'active' && `Free Trial — ${trial.daysRemaining ?? 0} days remaining`}
+                      {trial.status === 'grace' && 'Trial ended — Read-only mode'}
+                      {trial.status === 'archived' && 'Organization archived'}
+                    </p>
+                    <p className="text-xs text-dark-500 mt-1">
+                      {trial.status === 'active' && 'All features are unlocked during your trial period.'}
+                      {trial.status === 'grace' && 'Upgrade to continue creating and modifying data.'}
+                      {trial.status === 'archived' && 'Upgrade to restore access to your data.'}
+                    </p>
+                  </div>
+                  {(trial.status === 'grace' || trial.status === 'archived' || (trial.status === 'active' && (trial.daysRemaining ?? 14) <= 5)) && (
+                    <button
+                      onClick={() => navigate(`/org/${currentOrg.slug}/upgrade`)}
+                      className="px-4 py-2 bg-rivvra-500 text-dark-950 rounded-lg text-sm font-semibold hover:bg-rivvra-400 transition-colors flex-shrink-0"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Security */}
         <div className="card p-6">
