@@ -211,7 +211,8 @@ export default function TimesheetPayConfig() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Role</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Pay Type</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Assignments</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Client</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Project</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Candidate Rate</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Paid Leave</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Actions</th>
@@ -289,17 +290,31 @@ export default function TimesheetPayConfig() {
                       )}
                     </td>
 
-                    {/* Assignments (read-only, from Employee Directory) */}
+                    {/* Client (from Employee assignments) */}
+                    <td className="px-4 py-3">
+                      {activeAssignments.length > 0 ? (
+                        <div className="space-y-1">
+                          {[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].slice(0, 2).map((name, i) => (
+                            <span key={i} className="block text-xs text-white truncate max-w-[120px]">{name}</span>
+                          ))}
+                          {[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].length > 2 && (
+                            <span className="text-[10px] text-dark-500">+{[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].length - 2} more</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-dark-600">{'\u2014'}</span>
+                      )}
+                    </td>
+
+                    {/* Project (from Employee assignments) */}
                     <td className="px-4 py-3">
                       {activeAssignments.length > 0 ? (
                         <div className="space-y-1">
                           {activeAssignments.slice(0, 2).map((a, i) => (
-                            <div key={i} className="flex items-center gap-1.5 text-xs">
-                              <span className="text-dark-400">{a.clientName || 'Client'}</span>
-                              <span className="text-dark-600">&rarr;</span>
-                              <span className="text-white">{a.projectName || 'Project'}</span>
+                            <div key={i} className="flex items-center gap-1.5">
+                              <span className="text-xs text-white truncate max-w-[120px]">{a.projectName || '\u2014'}</span>
                               {a.clientBillingRate > 0 && (
-                                <span className="text-dark-500 ml-1">({'\u20B9'}{Number(a.clientBillingRate).toLocaleString('en-IN')}/day)</span>
+                                <span className="text-[10px] text-dark-500">({'\u20B9'}{Number(a.clientBillingRate).toLocaleString('en-IN')}/d)</span>
                               )}
                             </div>
                           ))}

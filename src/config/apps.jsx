@@ -91,7 +91,6 @@ export const APP_REGISTRY = {
         // Admin only
         ...(isAdmin ? [
           { type: 'item', path: '/timesheet/pay-config', label: 'Pay Config', icon: Wallet },
-          { type: 'item', path: '/timesheet/projects', label: 'Projects & Clients', icon: Briefcase },
           { type: 'item', path: '/timesheet/export', label: 'Export Data', icon: Download },
         ] : []),
       ];
