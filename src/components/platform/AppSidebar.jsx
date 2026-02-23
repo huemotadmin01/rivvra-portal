@@ -63,23 +63,6 @@ function AppSidebar() {
       isImpersonating ? 'top-24' : 'top-14'
     } ${isImpersonating ? 'h-[calc(100vh-6rem)]' : 'h-[calc(100vh-3.5rem)]'}`}>
 
-      {/* Org Badge — shown when in org context */}
-      {orgSlug && orgName && (
-        <div className="px-4 pt-3 pb-2 border-b border-dark-800/50">
-          <Link
-            to={orgPath('/home')}
-            className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-dark-800/50 transition-colors group"
-          >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-rivvra-500/20 to-rivvra-600/20 border border-rivvra-500/30 flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-3.5 h-3.5 text-rivvra-400" />
-            </div>
-            <span className="text-xs font-semibold text-dark-300 group-hover:text-white truncate uppercase tracking-wider">
-              {orgName}
-            </span>
-          </Link>
-        </div>
-      )}
-
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto min-h-0">
         {sidebarItems.map((item, idx) => {
