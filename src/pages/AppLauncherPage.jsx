@@ -2,6 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { Building2 } from 'lucide-react';
 import AppGrid from '../components/platform/AppGrid';
+import RivvraLogo from '../components/BrynsaLogo';
 import api from '../utils/api';
 
 function AppLauncherPage() {
@@ -43,6 +44,12 @@ function AppLauncherPage() {
 
         {/* App Grid */}
         <AppGrid />
+
+        {/* Powered by Rivvra */}
+        <div className="flex items-center justify-center gap-1.5 mt-12 opacity-40">
+          <RivvraLogo className="w-3.5 h-3.5" />
+          <span className="text-xs text-dark-500">Powered by Rivvra</span>
+        </div>
       </div>
 
       {/* Keyframes for animations */}

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { LayoutGrid, LogOut, Settings, Crown, Building2 } from 'lucide-react';
+import RivvraLogo from '../BrynsaLogo';
 import api from '../../utils/api';
 
 const appColorMap = {
@@ -59,8 +60,16 @@ function TopBar() {
           )}
         </div>
 
-        {/* Right: Grid + User */}
+        {/* Right: Powered by Rivvra + Grid + User */}
         <div className="flex items-center gap-2">
+          {/* Powered by Rivvra */}
+          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md mr-1" title="Powered by Rivvra">
+            <RivvraLogo className="w-3.5 h-3.5" />
+            <span className="text-[11px] text-dark-500">Rivvra</span>
+          </div>
+
+          <div className="w-px h-4 bg-dark-800 hidden md:block" />
+
           {/* App grid button */}
           <button
             onClick={() => navigate(orgPath('/home'))}
