@@ -270,6 +270,12 @@ function LoginPage() {
                     Sign up
                   </Link>
                 </p>
+                <p className="text-dark-500 text-sm">
+                  Forgot your workspace URL?{' '}
+                  <Link to="/find-workspace" className="text-rivvra-400 hover:underline">
+                    Find it here
+                  </Link>
+                </p>
               </div>
 
               <p className="text-center text-xs text-dark-500 pt-4">

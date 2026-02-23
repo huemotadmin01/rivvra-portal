@@ -18,6 +18,7 @@ import OrgLoginPage from './pages/OrgLoginPage';
 import PrivacyPage from './pages/PrivacyPage';
 import FeaturesPage from './pages/FeaturesPage';
 import PricingPage from './pages/PricingPage';
+import FindWorkspacePage from './pages/FindWorkspacePage';
 import AppLauncherPage from './pages/AppLauncherPage';
 import UpgradePage from './pages/UpgradePage';
 
@@ -111,6 +112,7 @@ function App() {
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/find-workspace" element={<FindWorkspacePage />} />
 
             {/* Org-specific login — public, no auth required */}
             <Route path="/org/:slug/login" element={<OrgLoginPage />} />

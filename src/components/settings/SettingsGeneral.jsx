@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
-  Mail, Building2, Crown, Briefcase, Check, Users, Globe, Calendar, CreditCard
+  Mail, Building2, Crown, Briefcase, Check, Users, Globe, Calendar, CreditCard, Send
 } from 'lucide-react';
 import api from '../../utils/api';
 import ComingSoonModal from '../ComingSoonModal';
@@ -112,6 +112,23 @@ export default function SettingsGeneral() {
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const CONFIRM_TEXT = 'DELETE MY ACCOUNT';
+
+  // Resend welcome email
+  const [resendingWelcome, setResendingWelcome] = useState(false);
+  const [welcomeResent, setWelcomeResent] = useState(false);
+
+  const handleResendWelcome = async () => {
+    setResendingWelcome(true);
+    try {
+      const res = await api.resendWelcomeEmail();
+      if (res.success) {
+        setWelcomeResent(true);
+        setTimeout(() => setWelcomeResent(false), 3000);
+      }
+    } catch { /* ignore */ } finally {
+      setResendingWelcome(false);
+    }
+  };
 
   // Coming soon
   const [showComingSoon, setShowComingSoon] = useState(false);
@@ -323,6 +340,25 @@ export default function SettingsGeneral() {
                   <p className="text-sm text-white">{currentOrg.enabledApps?.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ') || '-'}</p>
                 </div>
               </div>
+            </div>
+
+            {/* Resend Workspace URL Email */}
+            <div className="flex items-center gap-3 mb-6">
+              <button
+                onClick={handleResendWelcome}
+                disabled={resendingWelcome || welcomeResent}
+                className="flex items-center gap-2 px-4 py-2 bg-dark-800 text-dark-300 rounded-lg hover:bg-dark-700 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {resendingWelcome ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : welcomeResent ? (
+                  <Check className="w-4 h-4 text-rivvra-400" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                {welcomeResent ? 'Email sent!' : 'Resend workspace URL email'}
+              </button>
+              <span className="text-xs text-dark-600">Sends your org login URL to your email</span>
             </div>
 
             {/* License Usage */}

@@ -230,8 +230,8 @@ function AdminEmailTemplatesPage() {
                     <textarea
                       value={editHtmlBody}
                       onChange={(e) => setEditHtmlBody(e.target.value)}
-                      rows={16}
-                      className="input-field text-sm font-mono leading-relaxed resize-y"
+                      rows={30}
+                      className="input-field text-sm font-mono leading-relaxed resize-y min-h-[400px]"
                       placeholder="<div>...</div>"
                     />
                   </div>
@@ -278,7 +278,7 @@ function AdminEmailTemplatesPage() {
                         </div>
                       )}
                       <div
-                        className="p-4 bg-white min-h-[200px]"
+                        className="p-4 bg-white min-h-[200px] max-h-[600px] overflow-y-auto"
                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
                       />
                     </div>
@@ -309,6 +309,8 @@ function getSampleValue(placeholder) {
     enabledAppNames: 'Outreach, Timesheet',
     inviteLink: 'https://www.rivvra.com/#/invite?token=sample-token',
     upgradeLink: 'https://www.rivvra.com/#/org/acme-corp/upgrade',
+    userName: 'Jane Smith',
+    orgLoginUrl: 'https://www.rivvra.com/#/org/acme-corp/login',
   };
   return samples[placeholder] || `[${placeholder}]`;
 }

@@ -894,6 +894,24 @@ class ApiClient {
       body: JSON.stringify({ sampleData }),
     });
   }
+
+  // ── Workspace Recovery ──
+  async findWorkspace(email) {
+    return this.request('/api/auth/find-workspace', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async checkDomain(email) {
+    return this.request(`/api/auth/check-domain?email=${encodeURIComponent(email)}`);
+  }
+
+  async resendWelcomeEmail() {
+    return this.request('/api/user/resend-welcome', {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiClient();

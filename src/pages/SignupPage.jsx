@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowRight, ArrowLeft, Mail, Check,
   Building2, Briefcase, Users, Target, Loader2,
-  Eye, EyeOff, AlertCircle
+  Eye, EyeOff, AlertCircle, Info
 } from 'lucide-react';
 import RivvraLogo from '../components/BrynsaLogo';
 import api from '../utils/api';
@@ -127,6 +127,19 @@ function SignupPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingCompanies, setSearchingCompanies] = useState(false);
 
+  // Domain-based workspace detection
+  const [domainMatch, setDomainMatch] = useState(null);
+
+  // Check if email domain has existing workspace (non-blocking)
+  const checkDomainForExistingOrg = useCallback((emailToCheck) => {
+    if (!emailToCheck || inviteToken) return; // Skip for invite flows
+    api.checkDomain(emailToCheck).then(res => {
+      if (res.success && res.match) {
+        setDomainMatch({ orgName: res.orgName });
+      }
+    }).catch(() => {}); // Fail silently
+  }, [inviteToken]);
+
   // Check for invite token in URL and validate it
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash?.split('?')[1] || '');
@@ -182,6 +195,7 @@ function SignupPage() {
         navigate('/home');
       } else {
         setCurrentStep(STEPS.COMPANY);
+        checkDomainForExistingOrg(user.email || email);
       }
     }
   }, [isAuthenticated]);
@@ -315,9 +329,10 @@ function SignupPage() {
     try {
       // Complete signup with password (pass inviteToken if from invite flow)
       const result = await signupWithPassword(email, otp.join(''), fullName.trim(), password, inviteToken || undefined);
-      
+
       if (result.success) {
         setCurrentStep(STEPS.COMPANY);
+        checkDomainForExistingOrg(email);
       } else {
         setError(result.error || 'Failed to create account');
       }
@@ -342,6 +357,7 @@ function SignupPage() {
           navigate('/home');
         } else {
           setCurrentStep(STEPS.COMPANY);
+          checkDomainForExistingOrg(user.email || email);
         }
       } else {
         setError(result.error || 'Google sign up failed');
@@ -844,6 +860,24 @@ function SignupPage() {
                   This helps us set up your workspace.
                 </p>
               </div>
+
+              {/* Domain match warning */}
+              {domainMatch && !inviteToken && !inviteCompanyName && (
+                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-white font-medium">
+                        Your team at {domainMatch.orgName} is already on Rivvra
+                      </p>
+                      <p className="text-xs text-dark-400 mt-1">
+                        Ask your admin to send you an invite instead of creating a new workspace.
+                        If you need a separate workspace, continue below.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Company Name — locked if user joined via invite */}
               <div className="relative">
