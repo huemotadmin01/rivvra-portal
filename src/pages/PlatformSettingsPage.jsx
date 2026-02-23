@@ -3,20 +3,22 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Settings, Users, Mail, Clock, User, Shield,
-  Bell, CreditCard, ChevronRight
+  Bell, CreditCard, ChevronRight, UserCircle
 } from 'lucide-react';
 import { getActiveApps } from '../config/apps';
 
 // Lazy import sections to keep bundle manageable
+import SettingsProfile from '../components/settings/SettingsProfile';
 import SettingsGeneral from '../components/settings/SettingsGeneral';
 import SettingsTeam from '../components/settings/SettingsTeam';
 import SettingsOutreach from '../components/settings/SettingsOutreach';
 import SettingsTimesheet from '../components/settings/SettingsTimesheet';
+import SettingsEmployee from '../components/settings/SettingsEmployee';
 
 export default function PlatformSettingsPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'general';
+  const activeTab = searchParams.get('tab') || 'profile';
 
   const setTab = (tab) => {
     setSearchParams({ tab }, { replace: true });
@@ -26,13 +28,15 @@ export default function PlatformSettingsPage() {
   const activeApps = getActiveApps();
   const hasOutreach = activeApps.some(a => a.id === 'outreach');
   const hasTimesheet = activeApps.some(a => a.id === 'timesheet');
+  const hasEmployee = activeApps.some(a => a.id === 'employee');
 
   // Build tab sections
   const sections = [
     {
       label: 'GENERAL',
       items: [
-        { id: 'general', label: 'General Settings', icon: Settings, description: 'Profile, account & security' },
+        { id: 'profile', label: 'My Profile', icon: UserCircle, description: 'Your account & preferences' },
+        { id: 'general', label: 'General Settings', icon: Settings, description: 'Organization & branding' },
         { id: 'users', label: 'Users & Teams', icon: Users, description: 'Manage members & roles', adminOnly: true },
       ],
     },
@@ -47,6 +51,10 @@ export default function PlatformSettingsPage() {
           id: 'timesheet', label: 'Timesheet', icon: Clock, description: 'Payroll & time tracking',
           color: 'blue', adminOnly: true,
         }] : []),
+        ...(hasEmployee ? [{
+          id: 'employee', label: 'Employee', icon: User, description: 'Employee management',
+          color: 'purple', adminOnly: true,
+        }] : []),
       ],
     },
   ];
@@ -54,6 +62,7 @@ export default function PlatformSettingsPage() {
   const colorMap = {
     rivvra: { bg: 'bg-rivvra-500/10', text: 'text-rivvra-400', activeBg: 'bg-rivvra-500/15', border: 'border-rivvra-500/30' },
     blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', activeBg: 'bg-blue-500/15', border: 'border-blue-500/30' },
+    purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', activeBg: 'bg-purple-500/15', border: 'border-purple-500/30' },
     default: { bg: 'bg-dark-800/50', text: 'text-dark-400', activeBg: 'bg-rivvra-500/10', border: 'border-rivvra-500/30' },
   };
 
@@ -114,10 +123,12 @@ export default function PlatformSettingsPage() {
 
         {/* Right content area */}
         <div className="flex-1 min-w-0">
+          {activeTab === 'profile' && <SettingsProfile />}
           {activeTab === 'general' && <SettingsGeneral />}
           {activeTab === 'users' && isAdmin && <SettingsTeam />}
           {activeTab === 'outreach' && <SettingsOutreach />}
           {activeTab === 'timesheet' && <SettingsTimesheet />}
+          {activeTab === 'employee' && <SettingsEmployee />}
         </div>
       </div>
     </div>
