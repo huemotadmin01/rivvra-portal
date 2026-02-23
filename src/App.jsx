@@ -32,6 +32,7 @@ import TeamContactsPage from './pages/TeamContactsPage';
 import TeamListsPage from './pages/TeamListsPage';
 
 // Platform settings
+import SettingsProfile from './components/settings/SettingsProfile';
 import SettingsGeneral from './components/settings/SettingsGeneral';
 import SettingsTeam from './components/settings/SettingsTeam';
 import SettingsOutreach from './components/settings/SettingsOutreach';
@@ -88,7 +89,7 @@ function OrgPlatformLayout() {
 // Helper: redirect from /org/:slug/settings to /org/:slug/settings/general
 function OrgSettingsRedirect() {
   const { slug } = useParams();
-  return <Navigate to={`/org/${slug}/settings/general`} replace />;
+  return <Navigate to={`/org/${slug}/settings/profile`} replace />;
 }
 
 // Helper: redirect from /org/:slug/outreach/settings to /org/:slug/settings
@@ -140,9 +141,10 @@ function App() {
                 <Route path="/org/:slug/outreach/team-lists" element={<TeamListsPage />} />
               </Route>
 
-              {/* Platform settings — gated by org admin/owner role */}
+              {/* Platform settings — profile is accessible to all, rest gated by admin */}
+              <Route path="/org/:slug/settings" element={<OrgSettingsRedirect />} />
+              <Route path="/org/:slug/settings/profile" element={<SettingsPageWrapper><SettingsProfile /></SettingsPageWrapper>} />
               <Route element={<OrgAdminGate />}>
-                <Route path="/org/:slug/settings" element={<OrgSettingsRedirect />} />
                 <Route path="/org/:slug/settings/general" element={<SettingsPageWrapper><SettingsGeneral /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/users" element={<SettingsPageWrapper><SettingsTeam /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><SettingsOutreach /></SettingsPageWrapper>} />

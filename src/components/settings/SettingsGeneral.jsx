@@ -4,9 +4,10 @@
  * Personal profile stuff has been moved to SettingsProfile.jsx.
  */
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
+import { usePlatform } from '../../context/PlatformContext';
 import {
   Loader2, Check, Users, Globe, Calendar, CreditCard, Send,
   Upload, Building2, Crown, Phone, Link2, Image, ChevronRight, Mail
@@ -24,7 +25,7 @@ function SectionHeader({ title }) {
 
 export default function SettingsGeneral() {
   const navigate = useNavigate();
-  const [, setSearchParams] = useSearchParams();
+  const { orgPath } = usePlatform();
   const { user } = useAuth();
   const { currentOrg, isOrgAdmin, isOrgOwner, trial } = useOrg();
 
@@ -367,7 +368,7 @@ export default function SettingsGeneral() {
 
       {/* Action link: Manage Users */}
       <button
-        onClick={() => setSearchParams({ tab: 'users' }, { replace: true })}
+        onClick={() => navigate(orgPath('/settings/users'))}
         className="flex items-center gap-2 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
       >
         <ChevronRight className="w-3.5 h-3.5" />

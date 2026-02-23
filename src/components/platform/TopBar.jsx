@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
-import { LayoutGrid, LogOut, Settings, Crown, Building2 } from 'lucide-react';
+import { LayoutGrid, LogOut, Settings, Crown, Building2, UserCircle } from 'lucide-react';
 import RivvraLogo from '../BrynsaLogo';
 import api from '../../utils/api';
 
@@ -106,7 +106,14 @@ function TopBar() {
                   </span>
                 </div>
                 <Link
-                  to={orgPath('/settings')}
+                  to={orgPath('/settings/profile')}
+                  className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
+                >
+                  <UserCircle className="w-4 h-4" />
+                  My Profile
+                </Link>
+                <Link
+                  to={orgPath('/settings/general')}
                   className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
                 >
                   <Settings className="w-4 h-4" />
