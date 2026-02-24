@@ -54,6 +54,26 @@ function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
 
+  const handleDownload = async (doc) => {
+    try {
+      const url = employeeApi.getAssignmentDocUrl(orgSlug, employeeId, doc._id);
+      const token = localStorage.getItem('rivvra_token');
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = doc.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
+  };
+
   return (
     <div>
       <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">Documents</p>
@@ -68,14 +88,13 @@ function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
               {docs.map(doc => (
                 <div key={doc._id} className="flex items-center gap-2 bg-dark-900/50 rounded-lg px-3 py-1.5 group">
                   <FileText size={14} className="text-dark-400 flex-shrink-0" />
-                  <a
-                    href={employeeApi.getAssignmentDocUrl(orgSlug, employeeId, doc._id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:underline truncate flex-1"
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(doc)}
+                    className="text-xs text-blue-400 hover:underline truncate flex-1 text-left"
                   >
                     {doc.filename}
-                  </a>
+                  </button>
                   <span className="text-[10px] text-dark-500">{formatSize(doc.size)}</span>
                   <button type="button" onClick={() => handleDelete(doc._id)} className="p-0.5 text-dark-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                     <X size={12} />
