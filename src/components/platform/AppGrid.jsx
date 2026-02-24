@@ -5,8 +5,23 @@ import AppCard from './AppCard';
 
 function AppGrid() {
   const { user } = useAuth();
-  const { hasAppAccess, currentOrg, isOrgAdmin, isOrgOwner } = useOrg();
+  const { hasAppAccess, currentOrg, isOrgAdmin, isOrgOwner, loading } = useOrg();
   const apps = getAllApps(user);
+
+  // While org context is loading, show skeleton placeholders to prevent flash of all apps
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-36 rounded-xl bg-dark-800/50 animate-pulse"
+            style={{ animationDelay: `${i * 100}ms` }}
+          />
+        ))}
+      </div>
+    );
+  }
 
   // Filter apps:
   // 1. Remove "coming_soon" apps entirely
