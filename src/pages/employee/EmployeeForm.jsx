@@ -172,6 +172,7 @@ export default function EmployeeForm() {
   const [tsProjects, setTsProjects] = useState([]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [savingAssignment, setSavingAssignment] = useState(null);
   const [error, setError] = useState('');
 
   // Fetch departments + timesheet options (clients/projects for assignment dropdowns)
@@ -237,6 +238,7 @@ export default function EmployeeForm() {
                   hourly: cbr.hourly ?? '',
                   monthly: cbr.monthly ?? '',
                 },
+                paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
                 startDate: a.startDate ? a.startDate.slice(0, 10) : '',
                 endDate: a.endDate ? a.endDate.slice(0, 10) : '',
                 status: a.status || 'active',
@@ -296,6 +298,7 @@ export default function EmployeeForm() {
           clientId: '', clientName: '', projectId: '', projectName: '',
           billingRate: { daily: '', hourly: '', monthly: '' },
           clientBillingRate: { daily: '', hourly: '', monthly: '' },
+          paidLeavePerMonth: 0,
           startDate: new Date().toISOString().slice(0, 10), endDate: '', status: 'active',
         },
       ],
@@ -385,6 +388,22 @@ export default function EmployeeForm() {
       setError(err.message || 'Failed to save employee.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveAssignment = async (idx) => {
+    setError('');
+    setSavingAssignment(idx);
+    try {
+      const result = await employeeApi.update(orgSlug, employeeId, form);
+      if (!result.success) {
+        setError(result.message || 'Failed to save assignment.');
+      }
+    } catch (err) {
+      console.error('Save assignment failed:', err);
+      setError(err.message || 'Failed to save assignment.');
+    } finally {
+      setSavingAssignment(null);
     }
   };
 
@@ -650,6 +669,17 @@ export default function EmployeeForm() {
                     <option value="active">Active</option>
                     <option value="ended">Ended</option>
                   </select>
+                  {isEdit && (
+                    <button
+                      type="button"
+                      onClick={() => saveAssignment(idx)}
+                      disabled={savingAssignment === idx}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors disabled:opacity-50"
+                    >
+                      {savingAssignment === idx ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                      {savingAssignment === idx ? 'Saving...' : 'Save'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => removeAssignment(idx)}
@@ -679,7 +709,7 @@ export default function EmployeeForm() {
                   <ComboSelect
                     value={assignment.projectId}
                     displayValue={assignment.projectName}
-                    options={tsProjects.filter(p => !assignment.clientId || p.clientId === assignment.clientId)}
+                    options={tsProjects.filter(p => !assignment.clientId || !p.clientId || p.clientId === assignment.clientId)}
                     onChange={(id, name) => setAssignmentProject(idx, id, name)}
                     placeholder="Search or create project..."
                   />
@@ -742,8 +772,20 @@ export default function EmployeeForm() {
                 </div>
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* Paid Leave + Dates */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Paid Leave (days/month)</label>
+                  <select
+                    value={assignment.paidLeavePerMonth ?? 0}
+                    onChange={(e) => updateAssignment(idx, 'paidLeavePerMonth', Number(e.target.value))}
+                    className="input-field w-full text-sm"
+                  >
+                    {[0, 1, 2, 3].map(n => (
+                      <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/month</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-dark-400 mb-1">Start Date</label>
                   <input type="date" value={assignment.startDate} onChange={(e) => updateAssignment(idx, 'startDate', e.target.value)} className="input-field w-full text-sm" />

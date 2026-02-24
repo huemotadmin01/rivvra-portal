@@ -1,27 +1,15 @@
 /**
- * TimesheetPayConfig — Pay Configuration page
+ * TimesheetPayConfig — Pay Configuration page (READ-ONLY)
  * Shows employees from Employee Directory with their timesheet-specific config.
- * Replaces the old "User Management" (TimesheetUsers.jsx) page.
- * Employee identity lives in the Employee app; pay config lives in ts_users.
+ * All pay data is managed in the Employee Directory.
+ * Roles are managed in Settings > Users & Teams.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import {
-  Search, Loader2, Edit3, X, Check, Save, RefreshCw,
-  IndianRupee, Users, ChevronDown, Building2, Briefcase,
+  Search, Loader2, RefreshCw, Users,
 } from 'lucide-react';
-import { getPayConfig, updatePayConfig, syncAllPayConfig } from '../../utils/timesheetApi';
-
-const ROLES = [
-  { value: 'contractor', label: 'Contractor' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'admin', label: 'Admin' },
-];
-
-const PAY_TYPES = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'monthly', label: 'Monthly' },
-];
+import { getPayConfig, syncAllPayConfig } from '../../utils/timesheetApi';
 
 /** Pick the first non-zero billing rate from an object { daily, hourly, monthly } */
 function pickBillingRate(rateObj) {
@@ -48,10 +36,7 @@ export default function TimesheetPayConfig() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterSynced, setFilterSynced] = useState('all'); // all | synced | not_synced
-  const [editingEmail, setEditingEmail] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [filterSynced, setFilterSynced] = useState('all');
   const [syncing, setSyncing] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -63,32 +48,6 @@ export default function TimesheetPayConfig() {
   }, []);
 
   useEffect(() => { if (isAdmin) fetchData(); else setLoading(false); }, [isAdmin, fetchData]);
-
-  const startEdit = (emp) => {
-    setEditingEmail(emp.email);
-    setEditForm({
-      role: emp.tsConfig.role,
-      payType: emp.tsConfig.payType,
-      dailyRate: emp.tsConfig.dailyRate,
-      monthlyRate: emp.tsConfig.monthlyRate,
-      paidLeavePerMonth: emp.tsConfig.paidLeavePerMonth,
-      assignedClient: emp.tsConfig.assignedClient || '',
-      assignedProjects: emp.tsConfig.assignedProjects || [],
-    });
-  };
-
-  const cancelEdit = () => { setEditingEmail(null); setEditForm({}); };
-
-  const handleSave = async (email) => {
-    setSaving(true);
-    try {
-      const res = await updatePayConfig(email, editForm);
-      if (res.success) {
-        setEditingEmail(null);
-        await fetchData();
-      }
-    } catch {} finally { setSaving(false); }
-  };
 
   const handleSyncAll = async () => {
     setSyncing(true);
@@ -110,15 +69,13 @@ export default function TimesheetPayConfig() {
     return (
       <div className="p-6">
         <div className="card p-8 text-center">
-          <p className="text-dark-400">You need admin access to manage pay configuration.</p>
+          <p className="text-dark-400">You need admin access to view pay configuration.</p>
         </div>
       </div>
     );
   }
 
   const employees = data?.employees || [];
-  const projects = data?.projects || [];
-  const clients = data?.clients || [];
 
   // Filter
   const filtered = employees.filter(emp => {
@@ -146,8 +103,8 @@ export default function TimesheetPayConfig() {
         <div>
           <h1 className="text-2xl font-bold text-white">Pay Configuration</h1>
           <p className="text-dark-400 text-sm mt-1">
-            Configure pay rates and timesheet roles for your employees.
-            Employee records are managed in the <span className="text-rivvra-400">Employee Directory</span>.
+            View pay rates and timesheet roles. Pay data is managed in the <span className="text-rivvra-400">Employee Directory</span>.
+            Roles are managed in <span className="text-rivvra-400">Settings</span>.
           </p>
         </div>
         {unsyncedCount > 0 && (
@@ -215,18 +172,16 @@ export default function TimesheetPayConfig() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Project</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Candidate Rate</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Paid Leave</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-800">
               {filtered.map(emp => {
-                const isEditing = editingEmail === emp.email;
                 const tc = emp.tsConfig;
                 const assignments = emp.assignments || [];
                 const activeAssignments = assignments.filter(a => a.status === 'active');
                 const candidateRate = pickBillingRate(emp.billingRate);
                 return (
-                  <tr key={emp._id} className={`transition-colors ${isEditing ? 'bg-dark-800/50' : 'hover:bg-dark-800/30'}`}>
+                  <tr key={emp._id} className="transition-colors hover:bg-dark-800/30">
                     {/* Employee Info */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -260,34 +215,20 @@ export default function TimesheetPayConfig() {
                       </span>
                     </td>
 
-                    {/* Role */}
+                    {/* Role (read-only — managed in Settings) */}
                     <td className="px-4 py-3">
-                      {isEditing ? (
-                        <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})}
-                          className="input-field w-auto text-xs py-1">
-                          {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                        </select>
-                      ) : (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          tc.role === 'admin' ? 'bg-purple-500/10 text-purple-400' :
-                          tc.role === 'manager' ? 'bg-blue-500/10 text-blue-400' :
-                          'bg-dark-700 text-dark-300'
-                        }`}>{tc.role?.charAt(0).toUpperCase() + tc.role?.slice(1)}</span>
-                      )}
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        tc.role === 'admin' ? 'bg-purple-500/10 text-purple-400' :
+                        tc.role === 'manager' ? 'bg-blue-500/10 text-blue-400' :
+                        'bg-dark-700 text-dark-300'
+                      }`}>{tc.role ? tc.role.charAt(0).toUpperCase() + tc.role.slice(1) : 'Contractor'}</span>
                     </td>
 
-                    {/* Pay Type */}
+                    {/* Pay Type (read-only) */}
                     <td className="px-4 py-3">
-                      {isEditing ? (
-                        <select value={editForm.payType} onChange={e => setEditForm({...editForm, payType: e.target.value})}
-                          className="input-field w-auto text-xs py-1">
-                          {PAY_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                        </select>
-                      ) : (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          tc.payType === 'monthly' ? 'bg-blue-500/10 text-blue-400' : 'bg-dark-700 text-dark-300'
-                        }`}>{tc.payType === 'monthly' ? 'Monthly' : 'Daily'}</span>
-                      )}
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        tc.payType === 'monthly' ? 'bg-blue-500/10 text-blue-400' : 'bg-dark-700 text-dark-300'
+                      }`}>{tc.payType === 'monthly' ? 'Monthly' : 'Daily'}</span>
                     </td>
 
                     {/* Client (from Employee assignments) */}
@@ -334,36 +275,21 @@ export default function TimesheetPayConfig() {
                       </span>
                     </td>
 
-                    {/* Paid Leave */}
+                    {/* Paid Leave (read-only — from Employee assignments) */}
                     <td className="px-4 py-3 text-center">
-                      {isEditing ? (
-                        <select value={editForm.paidLeavePerMonth} onChange={e => setEditForm({...editForm, paidLeavePerMonth: Number(e.target.value)})}
-                          className="input-field w-16 text-xs py-1 text-center">
-                          {[0,1,2,3].map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                      ) : (
-                        <span className="text-sm text-dark-300">{tc.paidLeavePerMonth || 0}/mo</span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-3 text-right">
-                      {isEditing ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handleSave(emp.email)} disabled={saving}
-                            className="p-1.5 bg-rivvra-500 text-dark-950 rounded-md hover:bg-rivvra-400 transition-colors disabled:opacity-50">
-                            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                          </button>
-                          <button onClick={cancelEdit}
-                            className="p-1.5 bg-dark-700 text-dark-300 rounded-md hover:bg-dark-600 transition-colors">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                      {activeAssignments.length > 0 ? (
+                        <div className="space-y-1">
+                          {activeAssignments.slice(0, 2).map((a, i) => (
+                            <span key={i} className="block text-xs text-dark-300">
+                              {a.paidLeavePerMonth ?? tc.paidLeavePerMonth ?? 0}/mo
+                            </span>
+                          ))}
+                          {activeAssignments.length > 2 && (
+                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+                          )}
                         </div>
                       ) : (
-                        <button onClick={() => startEdit(emp)}
-                          className="p-1.5 text-dark-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors">
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
+                        <span className="text-sm text-dark-300">{tc.paidLeavePerMonth || 0}/mo</span>
                       )}
                     </td>
                   </tr>
@@ -388,7 +314,7 @@ export default function TimesheetPayConfig() {
 
       <p className="text-xs text-dark-600">
         Showing {filtered.length} of {employees.length} employees.
-        Employee records are managed in the Employee app.
+        Pay data is managed in the Employee app. Roles are managed in Settings.
       </p>
     </div>
   );
