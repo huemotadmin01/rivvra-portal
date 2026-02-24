@@ -81,8 +81,10 @@ export default function TimesheetEntry() {
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
 
+  const canEdit = !timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected';
+
   const cycleStatus = (day) => {
-    if (timesheet && timesheet.status !== 'draft') return;
+    if (!canEdit) return;
     const entry = entries[day] || { hours: '', status: null };
     if (entry.status === 'weekend') return;
     const order = ['working', 'leave', 'holiday'];
@@ -93,7 +95,7 @@ export default function TimesheetEntry() {
   };
 
   const setHours = (day, value) => {
-    if (timesheet && timesheet.status !== 'draft') return;
+    if (!canEdit) return;
     const entry = entries[day] || { hours: '', status: null };
     if (entry.status === 'weekend') return;
     if (value === '' || value === undefined) {
@@ -160,7 +162,7 @@ export default function TimesheetEntry() {
 
   const handleReset = async () => {
     try {
-      if (timesheet && timesheet.status === 'draft') {
+      if (timesheet && (timesheet.status === 'draft' || timesheet.status === 'rejected')) {
         await timesheetApi.delete(`/timesheets/${timesheet._id}`);
         setTimesheet(null);
       }
@@ -179,7 +181,7 @@ export default function TimesheetEntry() {
   const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); };
 
-  const isReadOnly = timesheet && timesheet.status !== 'draft';
+  const isReadOnly = !canEdit;
 
   return (
     <div className="p-6 space-y-6">

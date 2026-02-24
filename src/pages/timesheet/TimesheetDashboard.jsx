@@ -71,7 +71,10 @@ function ContractorDashboard() {
             </>
           ) : <p className="text-2xl font-bold text-white">—</p>}
           <p className="text-xs text-dark-500 mt-1">{current?.earnings?.calculation || ''}</p>
-          {current?.statusLabel && <p className="text-xs text-blue-400 mt-2 font-medium">{current.statusLabel}</p>}
+          {current?.statusLabel && <p className={`text-xs mt-2 font-medium ${current?.timesheetStatus === 'rejected' ? 'text-red-400' : 'text-blue-400'}`}>{current.statusLabel}</p>}
+          {current?.timesheetStatus === 'rejected' && current?.rejectionReason && (
+            <p className="text-xs text-red-400/70 mt-1">Reason: {current.rejectionReason}</p>
+          )}
         </div>
 
         <div className="card p-5">
@@ -137,6 +140,9 @@ function ContractorDashboard() {
                 <div>
                   <p className="text-sm font-medium text-white">{monthNames[ts.month]} {ts.year} — {ts.project?.name}</p>
                   <p className="text-xs text-dark-500">{ts.totalWorkingDays} working days</p>
+                  {ts.status === 'rejected' && ts.rejectionReason && (
+                    <p className="text-xs text-red-400/70 mt-0.5">Reason: {ts.rejectionReason}</p>
+                  )}
                 </div>
                 <StatusBadge status={ts.status} />
               </div>
