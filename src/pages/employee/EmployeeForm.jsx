@@ -549,7 +549,7 @@ export default function EmployeeForm() {
                   .filter(m => m._id !== employeeId) // Exclude self
                   .map((m) => (
                     <option key={m._id} value={m._id}>
-                      {m.fullName} ({m.email})
+                      {m.fullName}
                     </option>
                   ))}
               </select>
