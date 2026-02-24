@@ -106,7 +106,7 @@ export default function SettingsTimesheet() {
       <div className="card p-6">
         <div className="flex items-center gap-3 text-dark-400">
           <AlertCircle className="w-5 h-5" />
-          <p className="text-sm">You need Timesheet admin access to manage these settings.</p>
+          <p className="text-sm">You need ESS admin access to manage these settings.</p>
         </div>
       </div>
     );

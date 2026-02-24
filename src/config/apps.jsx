@@ -49,8 +49,8 @@ export const APP_REGISTRY = {
 
   timesheet: {
     id: 'timesheet',
-    name: 'Timesheet',
-    description: 'Track hours & manage payroll',
+    name: 'Employee Self Service',
+    description: 'Timesheets, earnings & payslips',
     icon: Clock,
     color: 'blue',
     basePath: '/timesheet',
@@ -162,7 +162,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/general', label: 'General Settings', icon: Settings },
         ...(isAdmin ? [{ type: 'item', path: '/settings/users', label: 'Users & Teams', icon: Users }] : []),
         { type: 'item', path: '/settings/outreach', label: 'Outreach', icon: Mail },
-        { type: 'item', path: '/settings/timesheet', label: 'Timesheet', icon: Clock },
+        { type: 'item', path: '/settings/timesheet', label: 'ESS', icon: Clock },
         { type: 'item', path: '/settings/employee', label: 'Employee', icon: UsersRound },
       ];
     },
