@@ -327,10 +327,17 @@ export default function EmployeeForm() {
     setForm(prev => {
       const updated = [...prev.assignments];
       updated[idx] = { ...updated[idx], clientId: id, clientName: name };
-      // Reset project when client changes
-      if (id !== prev.assignments[idx]?.clientId) {
-        updated[idx].projectId = '';
-        updated[idx].projectName = '';
+      // Only clear project if switching from one client to ANOTHER (not from empty → value)
+      const prevClientId = prev.assignments[idx]?.clientId;
+      if (prevClientId && id !== prevClientId) {
+        // Check if current project is still compatible with new client
+        const currentProjectId = updated[idx].projectId;
+        const proj = currentProjectId ? tsProjects.find(p => (p._id?.toString?.() || p._id) === currentProjectId) : null;
+        // Clear only if the project belongs to the old client (not org-wide)
+        if (proj && proj.clientId && proj.clientId !== id) {
+          updated[idx].projectId = '';
+          updated[idx].projectName = '';
+        }
       }
       return { ...prev, assignments: updated };
     });
