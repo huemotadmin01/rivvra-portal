@@ -62,12 +62,12 @@ function ComboSelect({ value, displayValue, options, onChange, placeholder, disa
       {open && (
         <div className="absolute z-50 top-full mt-1 w-full bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
           {filtered.length > 0 ? (
-            filtered.map(o => (
+            filtered.map((o, i) => (
               <button
-                key={o._id}
+                key={o._id || `name-${i}`}
                 type="button"
                 onClick={() => {
-                  onChange(o._id, o.name);
+                  onChange(o._id || '', o.name);
                   setInputValue(o.name);
                   setOpen(false);
                 }}
