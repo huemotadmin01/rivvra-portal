@@ -190,6 +190,7 @@ export default function EmployeeForm() {
   const [saving, setSaving] = useState(false);
   const [savingAssignment, setSavingAssignment] = useState(null);
   const [error, setError] = useState('');
+  const [showSensitive, setShowSensitive] = useState(false);
 
   // Fetch departments + timesheet options (clients/projects for assignment dropdowns)
   useEffect(() => {
@@ -1040,22 +1041,32 @@ export default function EmployeeForm() {
 
         {/* ── Bank Details ──────────────────────────────────────────── */}
         <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-white font-semibold text-lg">Bank Details</h2>
-            <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-              <AlertTriangle size={12} />
-              Sensitive Data
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-white font-semibold text-lg">Bank Details</h2>
+              <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                <AlertTriangle size={12} />
+                Sensitive Data
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSensitive(!showSensitive)}
+              className="text-xs text-dark-400 hover:text-white transition-colors"
+            >
+              {showSensitive ? 'Hide' : 'Show'} values
+            </button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Account Number</label>
               <input
-                type="text"
+                type={showSensitive ? 'text' : 'password'}
                 value={form.bankDetails.accountNumber}
                 onChange={(e) => setNested('bankDetails', 'accountNumber', e.target.value)}
                 className="input-field w-full"
                 placeholder="1234567890"
+                autoComplete="off"
               />
             </div>
             <div>
@@ -1071,11 +1082,12 @@ export default function EmployeeForm() {
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">PAN</label>
               <input
-                type="text"
+                type={showSensitive ? 'text' : 'password'}
                 value={form.bankDetails.pan}
                 onChange={(e) => setNested('bankDetails', 'pan', e.target.value)}
                 className="input-field w-full"
                 placeholder="ABCDE1234F"
+                autoComplete="off"
               />
             </div>
             <div>

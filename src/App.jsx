@@ -9,6 +9,7 @@ import PlatformLayout from './components/platform/PlatformLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import OrgRedirect from './components/OrgRedirect';
 import AppAccessGate from './components/AppAccessGate';
+import AppRoleGate from './components/AppRoleGate';
 import OrgAdminGate from './components/OrgAdminGate';
 import { Loader2 } from 'lucide-react';
 
@@ -177,8 +178,11 @@ function App() {
               <Route element={<AppAccessGate appId="employee" />}>
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                {/* Add/Edit require employee admin role */}
+                <Route element={<AppRoleGate appId="employee" requiredRole="admin" />}>
+                  <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                </Route>
                 <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><EmployeeDetail /></ErrorBoundary>} />
               </Route>
             </Route>
