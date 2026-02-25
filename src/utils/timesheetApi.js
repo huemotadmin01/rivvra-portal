@@ -1,41 +1,110 @@
-import axios from 'axios';
 import { TIMESHEET_API_URL } from './config';
 
-const timesheetApi = axios.create({
-  baseURL: TIMESHEET_API_URL,
-  timeout: 30000, // 30s timeout for cold-start tolerance
-});
+// ─── Fetch-based API client (replaces axios) ────────────────────────────────
 
-// Use rivvra_token for unified platform auth
-timesheetApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('rivvra_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+class ApiError extends Error {
+  constructor(message, status, data) {
+    super(message);
+    this.name = 'ApiError';
+    // Match axios error shape so existing catch blocks work unchanged:
+    //   err.response?.data?.error || err.response?.data?.message || err.message
+    this.response = { status, data };
   }
-  return config;
-});
+}
 
-timesheetApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      console.error('Timesheet API auth failed — session expired');
-      // Clear stale tokens and redirect to login
-      localStorage.removeItem('rivvra_token');
-      localStorage.removeItem('rivvra_user');
-      const currentHash = window.location.hash || '';
-      // Avoid redirect loop if already on login page
-      if (!currentHash.includes('/login')) {
-        window.location.hash = '#/login';
-      }
+async function request(method, url, { body, params, signal, responseType } = {}) {
+  // Build full URL with query params
+  let fullUrl = `${TIMESHEET_API_URL}${url}`;
+  if (params) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) qs.append(k, v);
     }
-    return Promise.reject(error);
+    const qsStr = qs.toString();
+    if (qsStr) fullUrl += `?${qsStr}`;
   }
-);
+
+  // Build headers
+  const headers = {};
+  const token = localStorage.getItem('rivvra_token');
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  // Create an AbortController for timeout (30s)
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
+
+  // Combine caller signal + timeout signal
+  let combinedSignal = timeoutController.signal;
+  if (signal) {
+    const combined = new AbortController();
+    const onAbort = () => combined.abort();
+    signal.addEventListener('abort', onAbort);
+    timeoutController.signal.addEventListener('abort', onAbort);
+    combinedSignal = combined.signal;
+  }
+
+  let res;
+  try {
+    res = await fetch(fullUrl, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: combinedSignal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    // Re-throw AbortErrors as-is (for useEffect cleanup)
+    throw err;
+  }
+  clearTimeout(timeoutId);
+
+  // Handle 401 — session expired
+  if (res.status === 401) {
+    console.error('Timesheet API auth failed — session expired');
+    localStorage.removeItem('rivvra_token');
+    localStorage.removeItem('rivvra_user');
+    const currentHash = window.location.hash || '';
+    if (!currentHash.includes('/login')) {
+      window.location.hash = '#/login';
+    }
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
+    throw new ApiError(data.error || 'Unauthorized', 401, data);
+  }
+
+  // Handle non-OK responses
+  if (!res.ok) {
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
+    throw new ApiError(data.error || data.message || res.statusText, res.status, data);
+  }
+
+  // Parse response
+  if (responseType === 'blob') {
+    return { data: await res.blob() };
+  }
+
+  // Try JSON, fallback to text
+  const text = await res.text();
+  try {
+    return { data: JSON.parse(text) };
+  } catch {
+    return { data: text };
+  }
+}
+
+// Axios-compatible interface
+const timesheetApi = {
+  get:    (url, opts) => request('GET', url, opts),
+  post:   (url, body, opts) => request('POST', url, { ...opts, body }),
+  put:    (url, body, opts) => request('PUT', url, { ...opts, body }),
+  patch:  (url, body, opts) => request('PATCH', url, { ...opts, body }),
+  delete: (url, opts) => request('DELETE', url, opts),
+};
 
 /**
- * Create an AbortController-linked cancel token for use in useEffect cleanup.
- * Usage:
+ * AbortController usage (unchanged from axios version):
  *   useEffect(() => {
  *     const controller = new AbortController();
  *     timesheetApi.get('/endpoint', { signal: controller.signal }).then(...);

@@ -163,23 +163,23 @@ function App() {
 
               {/* Timesheet app routes — gated by timesheet access */}
               <Route element={<AppAccessGate appId="timesheet" />}>
-                <Route path="/org/:slug/timesheet/dashboard" element={<TimesheetDashboard />} />
-                <Route path="/org/:slug/timesheet/my-timesheet" element={<TimesheetEntry />} />
-                <Route path="/org/:slug/timesheet/earnings" element={<TimesheetEarnings />} />
-                <Route path="/org/:slug/timesheet/approvals" element={<TimesheetApprovals />} />
-                <Route path="/org/:slug/timesheet/users" element={<TimesheetUsers />} />
-                <Route path="/org/:slug/timesheet/pay-config" element={<TimesheetPayConfig />} />
-                <Route path="/org/:slug/timesheet/projects" element={<TimesheetProjects />} />
-                <Route path="/org/:slug/timesheet/export" element={<TimesheetExport />} />
+                <Route path="/org/:slug/timesheet/dashboard" element={<ErrorBoundary><TimesheetDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/my-timesheet" element={<ErrorBoundary><TimesheetEntry /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><TimesheetEarnings /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/approvals" element={<ErrorBoundary><TimesheetApprovals /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/users" element={<ErrorBoundary><TimesheetUsers /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/pay-config" element={<ErrorBoundary><TimesheetPayConfig /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/projects" element={<ErrorBoundary><TimesheetProjects /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
               </Route>
 
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
-                <Route path="/org/:slug/employee/directory" element={<EmployeeDirectory />} />
-                <Route path="/org/:slug/employee/departments" element={<EmployeeDepartments />} />
-                <Route path="/org/:slug/employee/add" element={<EmployeeForm />} />
-                <Route path="/org/:slug/employee/edit/:employeeId" element={<EmployeeForm />} />
-                <Route path="/org/:slug/employee/:employeeId" element={<EmployeeDetail />} />
+                <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><EmployeeDetail /></ErrorBoundary>} />
               </Route>
             </Route>
 

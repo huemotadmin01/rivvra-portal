@@ -292,8 +292,10 @@ export default function TimesheetUsers() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) resetForm(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') resetForm(); }}>
+          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between p-5 border-b border-dark-800">
               <h3 className="text-lg font-semibold text-white">{editing ? 'Edit User' : 'Add New User'}</h3>
               <button onClick={resetForm} className="text-dark-400 hover:text-white"><X size={20} /></button>

@@ -154,8 +154,10 @@ export default function TimesheetProjects() {
       )}
 
       {showClientForm && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowClientForm(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowClientForm(false); }}>
+          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between p-5 border-b border-dark-800">
               <h3 className="text-lg font-semibold text-white">{editingClient ? 'Edit Client' : 'Add Client'}</h3>
               <button onClick={() => setShowClientForm(false)} className="text-dark-400 hover:text-white"><X size={20} /></button>
@@ -180,8 +182,10 @@ export default function TimesheetProjects() {
       )}
 
       {showProjectForm && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowProjectForm(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowProjectForm(false); }}>
+          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between p-5 border-b border-dark-800">
               <h3 className="text-lg font-semibold text-white">{editingProject ? 'Edit Project' : 'Add Project'}</h3>
               <button onClick={() => setShowProjectForm(false)} className="text-dark-400 hover:text-white"><X size={20} /></button>

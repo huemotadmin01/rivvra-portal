@@ -169,8 +169,10 @@ export default function TimesheetApprovals() {
       </div>
 
       {rejectId && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm flex items-center justify-center z-50"
+          onClick={(e) => { if (e.target === e.currentTarget) setRejectId(null); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setRejectId(null); }}>
+          <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4" role="dialog" aria-modal="true">
             <h3 className="text-lg font-semibold text-white mb-4">Reject Timesheet</h3>
             <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection..."
               className="w-full bg-dark-800/50 border border-dark-700 rounded-lg p-3 text-sm text-white placeholder-dark-500 mb-4 min-h-[100px] outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
