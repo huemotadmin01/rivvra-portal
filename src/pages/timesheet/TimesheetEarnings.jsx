@@ -487,9 +487,11 @@ export default function TimesheetEarnings() {
                   <td className="px-4 py-3 text-right text-red-400">-₹{(h.tdsAmount || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right font-medium text-emerald-400">₹{(h.netAmount || h.grossAmount || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                       h.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                      h.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
+                      h.status === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
+                      h.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                      h.status === 'draft' ? 'bg-blue-500/10 text-blue-400' :
                       'bg-dark-700 text-dark-500'
                     }`}>{h.status}</span>
                   </td>
