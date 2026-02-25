@@ -311,6 +311,22 @@ function getSampleValue(placeholder) {
     upgradeLink: 'https://www.rivvra.com/#/org/acme-corp/upgrade',
     userName: 'Jane Smith',
     orgLoginUrl: 'https://www.rivvra.com/#/org/acme-corp/login',
+    // Timesheet placeholders
+    employeeName: 'Priya Sharma',
+    monthName: 'January',
+    year: '2026',
+    totalHours: '168',
+    totalWorkingDays: '21',
+    projectName: 'Acme Web Platform',
+    reviewLink: 'https://www.rivvra.com/#/org/acme-corp/timesheet/approvals',
+    timesheetLink: 'https://www.rivvra.com/#/org/acme-corp/timesheet/my-timesheet',
+    approvedByName: 'John Doe',
+    contractorPayable: '\u20B985,000',
+    rejectionReason: 'Hours for Dec 25 need correction — it was a public holiday.',
+    revertedByName: 'John Doe',
+    pendingCount: '3',
+    managerName: 'John Doe',
+    payslipLink: 'https://www.rivvra.com/#/org/acme-corp/timesheet/payslips',
   };
   return samples[placeholder] || `[${placeholder}]`;
 }
