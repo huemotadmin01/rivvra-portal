@@ -56,7 +56,15 @@ export default function TimesheetEntry() {
         const ts = r.data.find(t => t.project?._id === selectedProject || t.project === selectedProject);
         if (ts) {
           setTimesheet(ts);
+          // Start with a blank month, then overlay saved entries
+          const daysInMo = new Date(year, month, 0).getDate();
           const entryMap = {};
+          for (let d = 1; d <= daysInMo; d++) {
+            const dayOfWeek = new Date(year, month - 1, d).getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) entryMap[d] = { hours: 0, status: 'weekend' };
+            else entryMap[d] = { hours: '', status: null };
+          }
+          // Overlay saved entries (only days that were actually saved)
           ts.entries.forEach(e => {
             const d = new Date(e.date).getDate();
             entryMap[d] = { hours: e.hours || 0, status: e.status || 'working' };
@@ -110,15 +118,23 @@ export default function TimesheetEntry() {
   };
 
   const buildEntries = () => {
-    return Object.entries(entries).map(([day, entry]) => {
-      const hours = entry.hours === '' || entry.hours === null || entry.hours === undefined ? 0 : parseFloat(entry.hours) || 0;
-      let status = entry.status;
-      if (!status) {
-        const dayOfWeek = new Date(year, month - 1, parseInt(day)).getDay();
-        status = (dayOfWeek === 0 || dayOfWeek === 6) ? 'weekend' : 'working';
-      }
-      return { date: new Date(year, month - 1, parseInt(day)), hours, status };
-    });
+    return Object.entries(entries)
+      .filter(([, entry]) => {
+        // Only include entries the user explicitly set (has a status or non-empty hours)
+        if (entry.status === 'weekend') return false; // weekends are display-only, never save
+        if (entry.status === 'leave' || entry.status === 'holiday') return true;
+        if (entry.status === 'working' && (parseFloat(entry.hours) || 0) >= 0) return true;
+        // Skip unfilled entries (status: null, hours: '')
+        if (!entry.status && (entry.hours === '' || entry.hours === null || entry.hours === undefined)) return false;
+        // Include if hours explicitly set to a number (even 0)
+        if (typeof entry.hours === 'number') return true;
+        return false;
+      })
+      .map(([day, entry]) => {
+        const hours = entry.hours === '' || entry.hours === null || entry.hours === undefined ? 0 : parseFloat(entry.hours) || 0;
+        const status = entry.status || 'working';
+        return { date: new Date(year, month - 1, parseInt(day)), hours, status };
+      });
   };
 
   const totalHours = Object.values(entries).reduce((sum, e) => sum + (e.status === 'working' ? (parseFloat(e.hours) || 0) : 0), 0);
