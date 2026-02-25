@@ -48,7 +48,10 @@ export default function TimesheetPayConfig() {
     try {
       const res = await getPayConfig();
       if (res.success) setData(res);
-    } catch {} finally { setLoading(false); }
+    } catch (err) {
+      console.error('Pay config fetch failed:', err);
+      setData(null);
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { if (isAdmin) fetchData(); else setLoading(false); }, [isAdmin, fetchData]);
@@ -58,7 +61,9 @@ export default function TimesheetPayConfig() {
     try {
       await syncAllPayConfig();
       await fetchData();
-    } catch {} finally { setSyncing(false); }
+    } catch (err) {
+      console.error('Sync all failed:', err);
+    } finally { setSyncing(false); }
   };
 
   if (loading) {

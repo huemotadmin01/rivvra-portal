@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { API_BASE_URL } from '../../utils/config';
+import DOMPurify from 'dompurify';
 import { Clock, Loader2, Download, FileText } from 'lucide-react';
+
+/** Sanitize a string for safe HTML interpolation */
+const esc = (str) => DOMPurify.sanitize(String(str ?? ''), { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -192,6 +196,15 @@ async function downloadPayslipHTML(month, year, showToast) {
   const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
 
+  // Sanitize all user/org-supplied strings to prevent stored XSS
+  const s = {
+    coName: esc(co.name) || 'Company', coAddr: esc(co.address), coPhone: esc(co.phone), coWebsite: esc(co.website),
+    empName: esc(emp.name), empId: esc(emp.employeeId) || '\u2014',
+    empDesig: esc(emp.designation) || '\u2014', empDept: esc(emp.department) || '\u2014',
+    bankName: esc(emp.bankDetails?.bankName) || '\u2014', bankAcc: esc(emp.bankDetails?.accountNumber) || '\u2014',
+    bankPan: esc(emp.bankDetails?.pan) || '\u2014',
+  };
+
   // Logo: use org logo endpoint if available
   const logoUrl = co.logoUrl ? `${API_BASE_URL}${co.logoUrl}` : '';
   const logoImg = logoUrl ? `<img src="${logoUrl}" style="max-height:50px;max-width:160px;object-fit:contain;" crossorigin="anonymous" />` : '';
@@ -237,10 +250,10 @@ async function downloadPayslipHTML(month, year, showToast) {
   <div class="header-left">
     ${logoImg}
     <div class="company-info">
-      <h1>${co.name || 'Company'}</h1>
-      ${co.address ? `<p>${co.address}</p>` : ''}
-      ${co.phone ? `<p>Phone: ${co.phone}</p>` : ''}
-      ${co.website ? `<p>${co.website}</p>` : ''}
+      <h1>${s.coName}</h1>
+      ${s.coAddr ? `<p>${s.coAddr}</p>` : ''}
+      ${s.coPhone ? `<p>Phone: ${s.coPhone}</p>` : ''}
+      ${s.coWebsite ? `<p>${s.coWebsite}</p>` : ''}
     </div>
   </div>
   <div class="header-right">
@@ -255,18 +268,18 @@ async function downloadPayslipHTML(month, year, showToast) {
   <div class="two-col">
     <div>
       <table class="info-table">
-        <tr><td class="lbl">Employee Name</td><td class="val">${emp.name}</td></tr>
-        <tr><td class="lbl">Employee ID</td><td class="val">${emp.employeeId || '\u2014'}</td></tr>
-        <tr><td class="lbl">Designation</td><td class="val">${emp.designation || '\u2014'}</td></tr>
-        <tr><td class="lbl">Department</td><td class="val">${emp.department || '\u2014'}</td></tr>
+        <tr><td class="lbl">Employee Name</td><td class="val">${s.empName}</td></tr>
+        <tr><td class="lbl">Employee ID</td><td class="val">${s.empId}</td></tr>
+        <tr><td class="lbl">Designation</td><td class="val">${s.empDesig}</td></tr>
+        <tr><td class="lbl">Department</td><td class="val">${s.empDept}</td></tr>
         <tr><td class="lbl">Date of Joining</td><td class="val">${joinDate}</td></tr>
       </table>
     </div>
     <div>
       <table class="info-table">
-        <tr><td class="lbl">Bank Name</td><td class="val">${emp.bankDetails?.bankName || '\u2014'}</td></tr>
-        <tr><td class="lbl">Bank A/c No.</td><td class="val">${emp.bankDetails?.accountNumber || '\u2014'}</td></tr>
-        <tr><td class="lbl">PAN No.</td><td class="val">${emp.bankDetails?.pan || '\u2014'}</td></tr>
+        <tr><td class="lbl">Bank Name</td><td class="val">${s.bankName}</td></tr>
+        <tr><td class="lbl">Bank A/c No.</td><td class="val">${s.bankAcc}</td></tr>
+        <tr><td class="lbl">PAN No.</td><td class="val">${s.bankPan}</td></tr>
         <tr><td class="lbl">Pay Type</td><td class="val">${emp.payType === 'monthly' ? 'Monthly' : 'Daily'}</td></tr>
         <tr><td class="lbl">Working Days</td><td class="val">${brk.totalWorkingDays} of ${brk.totalWorkingDaysInMonth}${brk.paidLeave ? ` (${brk.paidLeave} paid leave)` : ''}</td></tr>
       </table>
@@ -312,11 +325,62 @@ async function downloadPayslipHTML(month, year, showToast) {
 
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-  const printWindow = window.open(url, '_blank');
+  const printWindow = window.open(url, '_blank', 'noopener');
   if (printWindow) {
     printWindow.onload = () => { printWindow.print(); };
   }
   showToast('Payslip opened for printing');
+}
+
+function EarningsCard({ data, title, onDownload, downloading }) {
+  return (
+    <div className="card p-5">
+      <h3 className="text-sm font-medium text-dark-400 mb-3">{title}</h3>
+      {data ? (
+        <>
+          <p className="text-lg font-semibold text-dark-300">Gross: ₹{(data.earnings?.grossAmount || 0).toLocaleString()}</p>
+          <p className="text-sm text-red-400 mt-1">TDS (2%): -₹{(data.earnings?.tdsAmount || 0).toLocaleString()}</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-1">Net: ₹{(data.earnings?.netAmount || data.earnings?.grossAmount || 0).toLocaleString()}</p>
+          <p className="text-xs text-dark-500 mt-1">{data.earnings?.calculation}</p>
+          <div className="mt-4 space-y-1.5">
+            <div className="flex justify-between text-sm"><span className="text-dark-400">Total Hours</span><span className="font-medium text-white">{data.breakdown?.totalHours || 0}h</span></div>
+            <div className="flex justify-between text-sm"><span className="text-dark-400">Working Days</span><span className="font-medium text-white">{data.breakdown?.totalWorkingDays || 0}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-dark-400">Leaves</span><span className="font-medium text-white">{data.breakdown?.totalLeaves || 0}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-dark-400">Holidays</span><span className="font-medium text-white">{data.breakdown?.totalHolidays || 0}</span></div>
+          </div>
+          {data.timesheetStatus && (
+            <div className="mt-3 flex items-center justify-between">
+              <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${
+                data.timesheetStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                data.timesheetStatus === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
+                'bg-dark-700 text-dark-400'
+              }`}>{data.timesheetStatus}</span>
+              {data.month && data.year && data.timesheetStatus === 'approved' && (
+                <button onClick={() => onDownload(data.month, data.year)} disabled={downloading === `${data.month}-${data.year}`}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50">
+                  {downloading === `${data.month}-${data.year}` ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  Payslip
+                </button>
+              )}
+            </div>
+          )}
+          {data.projectBreakdowns?.length > 1 && (
+            <div className="mt-4 border-t border-dark-800 pt-3">
+              <p className="text-xs font-medium text-dark-400 mb-2">Per Project</p>
+              {data.projectBreakdowns.map((pb, i) => (
+                <div key={i} className="flex justify-between text-xs py-1">
+                  <span className="text-dark-300">{pb.project}</span>
+                  <span className="font-medium text-white">{pb.totalHours || 0}h ({pb.workingDays} days)</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-dark-500">No data available</p>
+      )}
+    </div>
+  );
 }
 
 export default function TimesheetEarnings() {
@@ -348,75 +412,6 @@ export default function TimesheetEarnings() {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
 
-  const EarningsCard = ({ data, title }) => (
-    <div className="card p-5">
-      <h3 className="text-sm font-medium text-dark-400 mb-3">{title}</h3>
-      {data ? (
-        <>
-          {/* Gross */}
-          <p className="text-lg font-semibold text-dark-300">Gross: ₹{(data.earnings?.grossAmount || 0).toLocaleString()}</p>
-          {/* TDS */}
-          <p className="text-sm text-red-400 mt-1">TDS (2%): -₹{(data.earnings?.tdsAmount || 0).toLocaleString()}</p>
-          {/* Net Pay */}
-          <p className="text-2xl font-bold text-emerald-400 mt-1">Net: ₹{(data.earnings?.netAmount || data.earnings?.grossAmount || 0).toLocaleString()}</p>
-          <p className="text-xs text-dark-500 mt-1">{data.earnings?.calculation}</p>
-          <div className="mt-4 space-y-1.5">
-            <div className="flex justify-between text-sm">
-              <span className="text-dark-400">Total Hours</span>
-              <span className="font-medium text-white">{data.breakdown?.totalHours || 0}h</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-dark-400">Working Days</span>
-              <span className="font-medium text-white">{data.breakdown?.totalWorkingDays || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-dark-400">Leaves</span>
-              <span className="font-medium text-white">{data.breakdown?.totalLeaves || 0}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-dark-400">Holidays</span>
-              <span className="font-medium text-white">{data.breakdown?.totalHolidays || 0}</span>
-            </div>
-          </div>
-          {data.timesheetStatus && (
-            <div className="mt-3 flex items-center justify-between">
-              <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${
-                data.timesheetStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                data.timesheetStatus === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
-                'bg-dark-700 text-dark-400'
-              }`}>
-                {data.timesheetStatus}
-              </span>
-              {data.month && data.year && data.timesheetStatus === 'approved' && (
-                <button
-                  onClick={() => handleDownloadPayslip(data.month, data.year)}
-                  disabled={downloading === `${data.month}-${data.year}`}
-                  className="flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
-                >
-                  {downloading === `${data.month}-${data.year}` ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                  Payslip
-                </button>
-              )}
-            </div>
-          )}
-          {data.projectBreakdowns?.length > 1 && (
-            <div className="mt-4 border-t border-dark-800 pt-3">
-              <p className="text-xs font-medium text-dark-400 mb-2">Per Project</p>
-              {data.projectBreakdowns.map((pb, i) => (
-                <div key={i} className="flex justify-between text-xs py-1">
-                  <span className="text-dark-300">{pb.project}</span>
-                  <span className="font-medium text-white">{pb.totalHours || 0}h ({pb.workingDays} days)</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="text-dark-500">No data available</p>
-      )}
-    </div>
-  );
-
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -425,8 +420,8 @@ export default function TimesheetEarnings() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <EarningsCard data={current} title={current ? `${monthNames[current.month]} ${current.year} (Current)` : 'Current Month'} />
-        <EarningsCard data={previous} title={previous ? `${monthNames[previous.month]} ${previous.year} (Previous)` : 'Previous Month'} />
+        <EarningsCard data={current} title={current ? `${monthNames[current.month]} ${current.year} (Current)` : 'Current Month'} onDownload={handleDownloadPayslip} downloading={downloading} />
+        <EarningsCard data={previous} title={previous ? `${monthNames[previous.month]} ${previous.year} (Previous)` : 'Previous Month'} onDownload={handleDownloadPayslip} downloading={downloading} />
       </div>
 
       <div className="card p-5">

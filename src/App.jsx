@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -9,7 +10,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import OrgRedirect from './components/OrgRedirect';
 import AppAccessGate from './components/AppAccessGate';
 import OrgAdminGate from './components/OrgAdminGate';
+import { Loader2 } from 'lucide-react';
 
+// Public pages (always loaded)
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
@@ -21,48 +24,53 @@ import FindWorkspacePage from './pages/FindWorkspacePage';
 import AppLauncherPage from './pages/AppLauncherPage';
 import UpgradePage from './pages/UpgradePage';
 
-// Outreach app pages
-import DashboardPage from './pages/DashboardPage';
-import EngagePage from './pages/EngagePage';
-import SequenceWizardPage from './pages/SequenceWizardPage';
-import LeadsPage from './pages/LeadsPage';
-import MyListsPage from './pages/MyListsPage';
-import TeamDashboardPage from './pages/TeamDashboardPage';
-import TeamContactsPage from './pages/TeamContactsPage';
-import TeamListsPage from './pages/TeamListsPage';
+// Lazy-loaded: Outreach app pages
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const EngagePage = lazy(() => import('./pages/EngagePage'));
+const SequenceWizardPage = lazy(() => import('./pages/SequenceWizardPage'));
+const LeadsPage = lazy(() => import('./pages/LeadsPage'));
+const MyListsPage = lazy(() => import('./pages/MyListsPage'));
+const TeamDashboardPage = lazy(() => import('./pages/TeamDashboardPage'));
+const TeamContactsPage = lazy(() => import('./pages/TeamContactsPage'));
+const TeamListsPage = lazy(() => import('./pages/TeamListsPage'));
 
-// Platform settings
-import SettingsProfile from './components/settings/SettingsProfile';
-import SettingsGeneral from './components/settings/SettingsGeneral';
-import SettingsTeam from './components/settings/SettingsTeam';
-import SettingsOutreach from './components/settings/SettingsOutreach';
-import SettingsTimesheet from './components/settings/SettingsTimesheet';
-import SettingsEmployee from './components/settings/SettingsEmployee';
+// Lazy-loaded: Platform settings
+const SettingsProfile = lazy(() => import('./components/settings/SettingsProfile'));
+const SettingsGeneral = lazy(() => import('./components/settings/SettingsGeneral'));
+const SettingsTeam = lazy(() => import('./components/settings/SettingsTeam'));
+const SettingsOutreach = lazy(() => import('./components/settings/SettingsOutreach'));
+const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimesheet'));
+const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
 
-// Timesheet app pages
-import TimesheetDashboard from './pages/timesheet/TimesheetDashboard';
-import TimesheetEntry from './pages/timesheet/TimesheetEntry';
-import TimesheetEarnings from './pages/timesheet/TimesheetEarnings';
-import TimesheetApprovals from './pages/timesheet/TimesheetApprovals';
-import TimesheetUsers from './pages/timesheet/TimesheetUsers';
-import TimesheetPayConfig from './pages/timesheet/TimesheetPayConfig';
-import TimesheetProjects from './pages/timesheet/TimesheetProjects';
-import TimesheetExport from './pages/timesheet/TimesheetExport';
+// Lazy-loaded: Timesheet app pages
+const TimesheetDashboard = lazy(() => import('./pages/timesheet/TimesheetDashboard'));
+const TimesheetEntry = lazy(() => import('./pages/timesheet/TimesheetEntry'));
+const TimesheetEarnings = lazy(() => import('./pages/timesheet/TimesheetEarnings'));
+const TimesheetApprovals = lazy(() => import('./pages/timesheet/TimesheetApprovals'));
+const TimesheetUsers = lazy(() => import('./pages/timesheet/TimesheetUsers'));
+const TimesheetPayConfig = lazy(() => import('./pages/timesheet/TimesheetPayConfig'));
+const TimesheetProjects = lazy(() => import('./pages/timesheet/TimesheetProjects'));
+const TimesheetExport = lazy(() => import('./pages/timesheet/TimesheetExport'));
 
-// Employee app pages
-import EmployeeDirectory from './pages/employee/EmployeeDirectory';
-import EmployeeDepartments from './pages/employee/EmployeeDepartments';
-import EmployeeDetail from './pages/employee/EmployeeDetail';
-import EmployeeForm from './pages/employee/EmployeeForm';
+// Lazy-loaded: Employee app pages
+const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
+const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
+const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
+const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
 
-// Super Admin
+// Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
-import AdminLayout from './components/admin/AdminLayout';
-import AdminLoginPage from './pages/admin/AdminLoginPage';
-import AdminOverviewPage from './pages/admin/AdminOverviewPage';
-import AdminWorkspacesPage from './pages/admin/AdminWorkspacesPage';
-import AdminWorkspaceDetailPage from './pages/admin/AdminWorkspaceDetailPage';
-import AdminEmailTemplatesPage from './pages/admin/AdminEmailTemplatesPage';
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
+const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'));
+const AdminWorkspacesPage = lazy(() => import('./pages/admin/AdminWorkspacesPage'));
+const AdminWorkspaceDetailPage = lazy(() => import('./pages/admin/AdminWorkspaceDetailPage'));
+const AdminEmailTemplatesPage = lazy(() => import('./pages/admin/AdminEmailTemplatesPage'));
+
+// Suspense fallback for lazy-loaded routes
+function PageLoader() {
+  return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;
+}
 
 // Simple wrapper for settings pages — adds consistent header + padding
 function SettingsPageWrapper({ children }) {
@@ -105,6 +113,7 @@ function App() {
       <ErrorBoundary>
       <Router>
         <PlatformProvider>
+          <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
@@ -215,6 +224,7 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </PlatformProvider>
       </Router>
       </ErrorBoundary>

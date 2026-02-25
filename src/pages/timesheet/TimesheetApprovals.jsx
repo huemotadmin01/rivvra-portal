@@ -18,6 +18,7 @@ export default function TimesheetApprovals() {
   const [expanded, setExpanded] = useState(null);
   const [rejectId, setRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(null); // tracks which ID is being acted on
   const [filter, setFilter] = useState('submitted');
 
   const controllerRef = { current: null };
@@ -35,30 +36,36 @@ export default function TimesheetApprovals() {
 
   const handleApprove = async (id) => {
     if (!window.confirm('Are you sure you want to approve this timesheet?')) return;
+    setActionLoading(id);
     try {
       await timesheetApi.patch(`/timesheets/${id}/approve`);
       showToast('Timesheet approved');
       load();
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Approval failed', 'error'); }
+    finally { setActionLoading(null); }
   };
 
   const handleRevert = async (id) => {
     if (!window.confirm('Revert this timesheet to draft?')) return;
+    setActionLoading(id);
     try {
       await timesheetApi.patch(`/timesheets/${id}/revert`);
       showToast('Timesheet reverted to draft');
       load();
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Revert failed', 'error'); }
+    finally { setActionLoading(null); }
   };
 
   const handleReject = async () => {
     if (!rejectReason.trim()) { showToast('Please provide a reason', 'error'); return; }
+    setActionLoading(rejectId);
     try {
       await timesheetApi.patch(`/timesheets/${rejectId}/reject`, { rejectionReason: rejectReason.trim() });
       showToast('Timesheet rejected');
       setRejectId(null); setRejectReason('');
       load();
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Rejection failed', 'error'); }
+    finally { setActionLoading(null); }
   };
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);
@@ -137,21 +144,21 @@ export default function TimesheetApprovals() {
 
                   {ts.status === 'submitted' && (
                     <div className="flex gap-2">
-                      <button onClick={() => handleApprove(ts._id)}
-                        className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-400 flex items-center gap-2 transition-colors">
-                        <CheckCircle2 size={16} /> Approve
+                      <button onClick={() => handleApprove(ts._id)} disabled={!!actionLoading}
+                        className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        {actionLoading === ts._id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} Approve
                       </button>
-                      <button onClick={() => setRejectId(ts._id)}
-                        className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-400 flex items-center gap-2 transition-colors">
+                      <button onClick={() => setRejectId(ts._id)} disabled={!!actionLoading}
+                        className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         <XCircle size={16} /> Reject
                       </button>
                     </div>
                   )}
 
                   {ts.status === 'approved' && (
-                    <button onClick={() => handleRevert(ts._id)}
-                      className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-400 flex items-center gap-2 transition-colors">
-                      <RotateCcw size={16} /> Revert to Draft
+                    <button onClick={() => handleRevert(ts._id)} disabled={!!actionLoading}
+                      className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {actionLoading === ts._id ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />} Revert to Draft
                     </button>
                   )}
                 </div>
