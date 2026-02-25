@@ -126,24 +126,57 @@ export default function TimesheetEntry() {
   const totalLeaves = Object.values(entries).filter(e => e.status === 'leave').length;
   const totalHolidays = Object.values(entries).filter(e => e.status === 'holiday').length;
 
+  // Helper: fetch existing timesheet for current month/year/project and sync state
+  const refreshTimesheet = async () => {
+    try {
+      const r = await timesheetApi.get('/timesheets', { params: { month, year, contractor: timesheetUser._id } });
+      const ts = r.data.find(t => (t.project?._id || t.project) === selectedProject);
+      if (ts) {
+        setTimesheet(ts);
+        return ts;
+      }
+    } catch { /* ignore refresh errors */ }
+    return null;
+  };
+
   const handleSave = async () => {
+    if (!selectedProject) { showToast('Please select a project first', 'error'); return; }
     setSaving(true);
     try {
       const entryData = buildEntries();
       const project = projects.find(p => p._id === selectedProject);
       if (timesheet) {
+        // Update existing timesheet
         await timesheetApi.put(`/timesheets/${timesheet._id}`, { entries: entryData });
         showToast('Timesheet saved as draft');
       } else {
-        const res = await timesheetApi.post('/timesheets', {
-          project: selectedProject, client: project?.client?._id || project?.client, month, year, entries: entryData
-        });
-        setTimesheet(res.data);
-        showToast('Timesheet created');
+        // Create new timesheet
+        try {
+          const res = await timesheetApi.post('/timesheets', {
+            project: selectedProject, client: project?.client?._id || project?.client, month, year, entries: entryData
+          });
+          setTimesheet(res.data);
+          showToast('Timesheet created');
+        } catch (postErr) {
+          // If duplicate exists (e.g. previous save partially succeeded), recover by fetching it and updating
+          const errMsg = postErr.response?.data?.error || '';
+          if (postErr.response?.status === 400 && errMsg.toLowerCase().includes('already exists')) {
+            const existing = await refreshTimesheet();
+            if (existing && (existing.status === 'draft' || existing.status === 'rejected')) {
+              await timesheetApi.put(`/timesheets/${existing._id}`, { entries: entryData });
+              showToast('Timesheet saved as draft');
+            } else if (existing) {
+              showToast(`Timesheet already ${existing.status} — cannot overwrite`, 'error');
+              return;
+            } else {
+              throw postErr; // Re-throw if we can't find the duplicate
+            }
+          } else {
+            throw postErr; // Re-throw non-duplicate errors
+          }
+        }
       }
-      const r = await timesheetApi.get('/timesheets', { params: { month, year, contractor: timesheetUser._id } });
-      const ts = r.data.find(t => (t.project?._id || t.project) === selectedProject);
-      if (ts) setTimesheet(ts);
+      await refreshTimesheet();
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Save failed', 'error');
     } finally { setSaving(false); }
@@ -154,10 +187,8 @@ export default function TimesheetEntry() {
     try {
       await timesheetApi.patch(`/timesheets/${timesheet._id}/submit`);
       showToast('Timesheet submitted for approval');
-      const r = await timesheetApi.get('/timesheets', { params: { month, year, contractor: timesheetUser._id } });
-      const ts = r.data.find(t => (t.project?._id || t.project) === selectedProject);
-      if (ts) setTimesheet(ts);
-    } catch (err) { showToast(err.response?.data?.message || 'Submit failed', 'error'); }
+      await refreshTimesheet();
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Submit failed', 'error'); }
   };
 
   const handleReset = async () => {
@@ -175,7 +206,7 @@ export default function TimesheetEntry() {
       }
       setEntries(defaultMap);
       showToast('Timesheet reset');
-    } catch (err) { showToast(err.response?.data?.message || 'Reset failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Reset failed', 'error'); }
   };
 
   const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };

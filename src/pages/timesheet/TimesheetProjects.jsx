@@ -33,13 +33,13 @@ export default function TimesheetProjects() {
       else { await timesheetApi.post('/clients', clientForm); showToast('Client created'); }
       setShowClientForm(false); setEditingClient(null);
       setClientForm({ name: '', contactPerson: '', contactEmail: '', billingCurrency: 'INR' }); load();
-    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
   const deleteClient = async (id) => {
     if (!confirm('Delete this client?')) return;
     try { await timesheetApi.delete(`/clients/${id}`); showToast('Client deleted'); load(); }
-    catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
   const saveProject = async (e) => {
@@ -49,13 +49,13 @@ export default function TimesheetProjects() {
       else { await timesheetApi.post('/projects', projectForm); showToast('Project created'); }
       setShowProjectForm(false); setEditingProject(null);
       setProjectForm({ name: '', client: '', description: '' }); load();
-    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
   const deleteProject = async (id) => {
     if (!confirm('Delete this project?')) return;
     try { await timesheetApi.delete(`/projects/${id}`); showToast('Project deleted'); load(); }
-    catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;

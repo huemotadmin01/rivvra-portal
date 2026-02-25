@@ -36,7 +36,7 @@ export default function TimesheetApprovals() {
       await timesheetApi.patch(`/timesheets/${id}/approve`);
       showToast('Timesheet approved');
       load();
-    } catch (err) { showToast(err.response?.data?.message || 'Approval failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Approval failed', 'error'); }
   };
 
   const handleRevert = async (id) => {
@@ -45,7 +45,7 @@ export default function TimesheetApprovals() {
       await timesheetApi.patch(`/timesheets/${id}/revert`);
       showToast('Timesheet reverted to draft');
       load();
-    } catch (err) { showToast(err.response?.data?.message || 'Revert failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Revert failed', 'error'); }
   };
 
   const handleReject = async () => {
@@ -55,7 +55,7 @@ export default function TimesheetApprovals() {
       showToast('Timesheet rejected');
       setRejectId(null); setRejectReason('');
       load();
-    } catch (err) { showToast(err.response?.data?.message || 'Rejection failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Rejection failed', 'error'); }
   };
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);

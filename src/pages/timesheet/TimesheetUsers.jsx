@@ -140,7 +140,7 @@ export default function TimesheetUsers() {
         showToast('User created');
       }
       resetForm(); load();
-    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
   const toggleActive = async (user) => {
