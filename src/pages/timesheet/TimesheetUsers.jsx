@@ -212,6 +212,7 @@ export default function TimesheetUsers() {
           <option value="">All Roles</option>
           <option value="admin">Admin</option>
           <option value="manager">Manager</option>
+          <option value="employee">Employee</option>
           <option value="contractor">Contractor</option>
         </select>
         <select
@@ -380,6 +381,7 @@ export default function TimesheetUsers() {
                   <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}
                     className="input-field">
                     <option value="contractor">Contractor</option>
+                    <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
                     <option value="admin">Admin</option>
                   </select>
