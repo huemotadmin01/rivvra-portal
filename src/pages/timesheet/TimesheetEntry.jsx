@@ -215,6 +215,26 @@ export default function TimesheetEntry() {
       showToast('Please enter hours for at least one day before submitting', 'error');
       return;
     }
+
+    // Validate: all past weekdays must have a status (working with hours > 0, leave, or holiday)
+    const today = new Date();
+    const unfilledDays = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month - 1, d);
+      if (date > today) continue; // skip future days
+      const entry = entries[d] || { hours: '', status: null };
+      if (entry.status === 'weekend') continue;
+      if (entry.status === 'leave' || entry.status === 'holiday') continue;
+      if (entry.status === 'working' && (parseFloat(entry.hours) || 0) > 0) continue;
+      // This day is unfilled or has 0 hours — needs attention
+      unfilledDays.push(d);
+    }
+    if (unfilledDays.length > 0) {
+      const daysList = unfilledDays.slice(0, 5).join(', ') + (unfilledDays.length > 5 ? ` and ${unfilledDays.length - 5} more` : '');
+      showToast(`Please fill all past workdays before submitting. Unfilled: ${monthNames[month - 1]} ${daysList}. Enter hours or mark as Leave/Holiday.`, 'error');
+      return;
+    }
+
     if (!window.confirm('Submit this timesheet for approval? You won\'t be able to edit it until it\'s reviewed.')) return;
     setSaving(true);
     try {
@@ -324,9 +344,12 @@ export default function TimesheetEntry() {
                 const isNonWorking = entry.status === 'leave' || entry.status === 'holiday';
                 const hasStatus = entry.status !== null;
                 const hoursNum = parseFloat(entry.hours) || 0;
+                const dateObj = new Date(year, month - 1, day);
+                const isPastUnfilled = dateObj < new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !isWeekend && !hasStatus;
 
                 return (
                   <div key={day} className={`p-1.5 border-b border-r border-dark-800/50 min-h-[88px] transition-colors ${
+                    isPastUnfilled ? 'bg-amber-500/5 border-amber-500/20' :
                     isWeekend ? 'bg-dark-800/30' :
                     isNonWorking ? (entry.status === 'leave' ? 'bg-red-500/5' : 'bg-purple-500/5') :
                     entry.status === 'working' && hoursNum > 8 ? 'bg-blue-500/5' :
