@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Users, UserPlus, UserX, Mail, Loader2, Check,
   ChevronDown, Clock, X, ArrowLeftRight, Shield, ShieldCheck,
@@ -40,6 +41,7 @@ export default function SettingsTeam() {
   const { user, impersonateUser } = useAuth();
   const { orgPath } = usePlatform();
   const { currentOrg, isOrgAdmin, isOrgOwner, refetchOrg } = useOrg();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
   const canManage = isOrgAdmin || isOrgOwner;
@@ -270,15 +272,12 @@ export default function SettingsTeam() {
     try {
       const res = await api.sendWorkspaceLink(orgSlug, userId);
       if (res.success) {
-        setError('✅ Workspace link sent');
-        setTimeout(() => setError(''), 3000);
+        showToast(res.message || 'Invitation sent successfully', 'success');
       } else {
-        setError(res.error || 'Failed to send workspace link');
-        setTimeout(() => setError(''), 3000);
+        showToast(res.error || 'Failed to send invitation', 'error');
       }
     } catch (err) {
-      setError(err.message || 'Failed to send workspace link');
-      setTimeout(() => setError(''), 3000);
+      showToast(err.message || 'Failed to send invitation', 'error');
     } finally {
       setSendingLink(null);
     }
