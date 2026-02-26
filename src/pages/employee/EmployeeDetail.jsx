@@ -16,6 +16,7 @@ import {
   IndianRupee,
   Loader2,
   Briefcase,
+  Link2,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -269,6 +270,20 @@ export default function EmployeeDetail() {
           <InfoRow label="Employee ID" value={emp.employeeId} />
           <InfoRow label="Department" value={emp.departmentName} />
           <InfoRow label="Manager" value={emp.managerName} />
+          <InfoRow
+            label="Related User"
+            value={
+              emp.linkedUserName ? (
+                <span className="flex items-center gap-1.5">
+                  <Link2 size={12} className="text-rivvra-400" />
+                  {emp.linkedUserName}
+                  {emp.linkedUserEmail && (
+                    <span className="text-dark-400">({emp.linkedUserEmail})</span>
+                  )}
+                </span>
+              ) : null
+            }
+          />
           <InfoRow
             label="Monthly Gross"
             value={formatCurrency(emp.monthlyGrossSalary)}

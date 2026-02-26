@@ -742,6 +742,21 @@ class ApiClient {
     });
   }
 
+  // ─── Member ↔ Employee Linking ──────────────────────────────────────────────
+
+  async linkMemberEmployee(orgSlug, userId, employeeId) {
+    return this.request(`/api/org/${orgSlug}/members/${userId}/link-employee`, {
+      method: 'PUT',
+      body: JSON.stringify({ employeeId }),
+    });
+  }
+
+  async unlinkMemberEmployee(orgSlug, userId) {
+    return this.request(`/api/org/${orgSlug}/members/${userId}/unlink-employee`, {
+      method: 'PUT',
+    });
+  }
+
   // Org invite validation + acceptance (public endpoints for invite flow)
   async validateOrgInvite(token) {
     return this.request('/api/org/invite/validate', {

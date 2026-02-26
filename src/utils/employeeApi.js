@@ -148,6 +148,20 @@ const employeeApi = {
   getAssignmentDocUrl(orgSlug, employeeId, docId) {
     return `${API_BASE_URL}/api/org/${orgSlug}/employee/employees/${employeeId}/documents/${docId}`;
   },
+
+  // ── Employee ↔ User Linking ───────────────────────────────────────────────
+  linkUser(orgSlug, employeeId, userId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/link-user`, {
+      method: 'PUT',
+      body: JSON.stringify({ userId }),
+    });
+  },
+
+  unlinkUser(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/unlink-user`, {
+      method: 'PUT',
+    });
+  },
 };
 
 export default employeeApi;

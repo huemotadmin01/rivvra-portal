@@ -4,7 +4,8 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X } from 'lucide-react';
+import api from '../../utils/api';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
 
 // ── Per-assignment document manager ─────────────────────────────────────────
@@ -196,6 +197,11 @@ export default function EmployeeForm() {
   const [error, setError] = useState('');
   const [showSensitive, setShowSensitive] = useState(false);
 
+  // ── Related User (Employee ↔ Portal User linking) ──
+  const [orgMembers, setOrgMembers] = useState([]);
+  const [linkedUser, setLinkedUser] = useState(null); // { _id, name, email, picture }
+  const [linkingUser, setLinkingUser] = useState(false);
+
   // Fetch departments + timesheet options (clients/projects for assignment dropdowns)
   useEffect(() => {
     if (!orgSlug) return;
@@ -214,8 +220,16 @@ export default function EmployeeForm() {
     employeeApi.getManagerOptions(orgSlug)
       .then((res) => { if (!cancelled && res.success) setManagerOptions(res.managers || []); })
       .catch(() => {});
+    // Fetch org members for Related User dropdown (edit mode)
+    if (isEdit) {
+      api.getOrgMembers(orgSlug)
+        .then((res) => {
+          if (!cancelled && res.success) setOrgMembers(res.members || []);
+        })
+        .catch(() => {});
+    }
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, isEdit]);
 
   // Fetch employee data in edit mode
   useEffect(() => {
@@ -289,6 +303,17 @@ export default function EmployeeForm() {
             },
           });
           setSavedAssignmentCount((emp.assignments || []).length);
+          // Capture linked user info from enriched response
+          if (emp.linkedUserId) {
+            setLinkedUser({
+              _id: emp.linkedUserId,
+              name: emp.linkedUserName || '',
+              email: emp.linkedUserEmail || '',
+              picture: emp.linkedUserPicture || '',
+            });
+          } else {
+            setLinkedUser(null);
+          }
         }
       })
       .catch((err) => {
@@ -389,6 +414,49 @@ export default function EmployeeForm() {
         i === idx ? { ...a, [group]: { ...a[group], [field]: value } } : a
       ),
     }));
+  };
+
+  // ── Link / Unlink portal user ────────────────────────────────────────
+  const handleLinkUser = async (userId) => {
+    if (!userId || linkingUser) return;
+    setLinkingUser(true);
+    try {
+      const res = await employeeApi.linkUser(orgSlug, employeeId, userId);
+      if (res.success && res.employee) {
+        setLinkedUser({
+          _id: userId,
+          name: res.employee.linkedUserName || '',
+          email: res.employee.linkedUserEmail || '',
+          picture: res.employee.linkedUserPicture || '',
+        });
+        showToast('User linked successfully', 'success');
+      } else {
+        showToast(res.error || 'Failed to link user', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to link user', 'error');
+    } finally {
+      setLinkingUser(false);
+    }
+  };
+
+  const handleUnlinkUser = async () => {
+    if (!linkedUser || linkingUser) return;
+    if (!window.confirm(`Unlink ${linkedUser.name || linkedUser.email} from this employee?`)) return;
+    setLinkingUser(true);
+    try {
+      const res = await employeeApi.unlinkUser(orgSlug, employeeId);
+      if (res.success) {
+        setLinkedUser(null);
+        showToast('User unlinked', 'success');
+      } else {
+        showToast(res.error || 'Failed to unlink user', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to unlink user', 'error');
+    } finally {
+      setLinkingUser(false);
+    }
   };
 
   // Submit
@@ -661,6 +729,61 @@ export default function EmployeeForm() {
                   ))}
               </select>
             </div>
+
+            {/* Related User (edit mode only) */}
+            {isEdit && (
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">
+                  Related User
+                </label>
+                {linkedUser ? (
+                  <div className="flex items-center gap-3 bg-dark-800/60 rounded-lg px-3 py-2.5 border border-dark-700">
+                    {linkedUser.picture ? (
+                      <img src={linkedUser.picture} alt="" className="w-7 h-7 rounded-full" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-rivvra-500/20 flex items-center justify-center text-rivvra-400 text-xs font-bold">
+                        {(linkedUser.name || linkedUser.email || '?')[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{linkedUser.name || 'Unnamed'}</p>
+                      <p className="text-xs text-dark-400 truncate">{linkedUser.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleUnlinkUser}
+                      disabled={linkingUser}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                    >
+                      {linkingUser ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />}
+                      Unlink
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value=""
+                      onChange={(e) => handleLinkUser(e.target.value)}
+                      disabled={linkingUser}
+                      className="input-field w-full"
+                    >
+                      <option value="">Select a portal user…</option>
+                      {orgMembers
+                        .filter(m => m.userId) // Only members with a user account
+                        .map((m) => (
+                          <option key={m.userId} value={m.userId}>
+                            {m.name || m.email} {m.email ? `(${m.email})` : ''}
+                          </option>
+                        ))}
+                    </select>
+                    {linkingUser && <Loader2 size={16} className="animate-spin text-dark-400 flex-shrink-0" />}
+                  </div>
+                )}
+                <p className="text-xs text-dark-500 mt-1">
+                  {linkedUser ? 'This employee is linked to a portal user account.' : 'Link this employee to a portal user for timesheet access.'}
+                </p>
+              </div>
+            )}
 
             {/* Designation */}
             <div>
