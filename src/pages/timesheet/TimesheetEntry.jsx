@@ -70,7 +70,10 @@ export default function TimesheetEntry() {
           // Overlay saved entries (only days that were actually saved)
           ts.entries.forEach(e => {
             const d = new Date(e.date).getDate();
-            entryMap[d] = { hours: e.hours || 0, status: e.status || 'working' };
+            const hours = e.hours || 0;
+            const status = e.status || 'working';
+            // Don't show "Working" for 0-hour entries — treat as unfilled
+            entryMap[d] = { hours, status: (status === 'working' && hours <= 0) ? null : status };
           });
           setEntries(entryMap);
         } else {
@@ -127,7 +130,7 @@ export default function TimesheetEntry() {
         // Only include entries the user explicitly set (has a status or non-empty hours)
         if (entry.status === 'weekend') return false; // weekends are display-only, never save
         if (entry.status === 'leave' || entry.status === 'holiday') return true;
-        if (entry.status === 'working' && (parseFloat(entry.hours) || 0) >= 0) return true;
+        if (entry.status === 'working' && (parseFloat(entry.hours) || 0) > 0) return true;
         // Skip unfilled entries (status: null, hours: '')
         if (!entry.status && (entry.hours === '' || entry.hours === null || entry.hours === undefined)) return false;
         // Include if hours explicitly set to a number (even 0)
