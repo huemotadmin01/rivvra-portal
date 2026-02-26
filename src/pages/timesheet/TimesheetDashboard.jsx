@@ -37,17 +37,25 @@ function ContractorDashboard() {
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Temporary: hide earnings for confirmed+billable employees (pending payroll deductions)
+  const hideEarnings = timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable;
+
   useEffect(() => {
     const controller = new AbortController();
     const sig = { signal: controller.signal };
-    Promise.all([
-      timesheetApi.get('/earnings/current', sig).then(r => setCurrent(r.data)).catch(() => {}),
-      timesheetApi.get('/earnings/previous', sig).then(r => setPrevious(r.data)).catch(() => {}),
-      timesheetApi.get('/earnings/disbursement-info', sig).then(r => setDisbursement(r.data)).catch(() => {}),
+    const fetches = [
       timesheetApi.get('/timesheets', sig).then(r => setTimesheets(r.data)).catch(() => {}),
-    ]).finally(() => setLoading(false));
+    ];
+    if (!hideEarnings) {
+      fetches.push(
+        timesheetApi.get('/earnings/current', sig).then(r => setCurrent(r.data)).catch(() => {}),
+        timesheetApi.get('/earnings/previous', sig).then(r => setPrevious(r.data)).catch(() => {}),
+        timesheetApi.get('/earnings/disbursement-info', sig).then(r => setDisbursement(r.data)).catch(() => {}),
+      );
+    }
+    Promise.all(fetches).finally(() => setLoading(false));
     return () => controller.abort();
-  }, []);
+  }, [hideEarnings]);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
 
@@ -58,76 +66,81 @@ function ContractorDashboard() {
         <p className="text-dark-400 mt-1">Here's your timesheet summary</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-dark-400">
-              {current ? `${monthNames[current.month]} ${current.year}` : 'Current Month'}
-            </span>
-            <StatusBadge status={current?.timesheetStatus} />
+      {/* Earnings cards — hidden for confirmed+billable employees (temporary) */}
+      {!hideEarnings && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-dark-400">
+                {current ? `${monthNames[current.month]} ${current.year}` : 'Current Month'}
+              </span>
+              <StatusBadge status={current?.timesheetStatus} />
+            </div>
+            {current?.earnings?.grossAmount != null ? (
+              <>
+                <p className="text-sm text-dark-400">Gross: ₹{current.earnings.grossAmount.toLocaleString()}</p>
+                {current.earnings.tdsAmount > 0 && <p className="text-xs text-red-400">TDS (2%): -₹{current.earnings.tdsAmount.toLocaleString()}</p>}
+                <p className="text-2xl font-bold text-emerald-400 mt-1">₹{(current.earnings.netAmount || current.earnings.grossAmount).toLocaleString()}</p>
+              </>
+            ) : <p className="text-2xl font-bold text-white">—</p>}
+            <p className="text-xs text-dark-500 mt-1">{current?.earnings?.calculation || ''}</p>
+            {current?.statusLabel && <p className={`text-xs mt-2 font-medium ${current?.timesheetStatus === 'rejected' ? 'text-red-400' : 'text-blue-400'}`}>{current.statusLabel}</p>}
+            {current?.timesheetStatus === 'rejected' && current?.rejectionReason && (
+              <p className="text-xs text-red-400/70 mt-1">Reason: {current.rejectionReason}</p>
+            )}
           </div>
-          {current?.earnings?.grossAmount != null ? (
-            <>
-              <p className="text-sm text-dark-400">Gross: ₹{current.earnings.grossAmount.toLocaleString()}</p>
-              {current.earnings.tdsAmount > 0 && <p className="text-xs text-red-400">TDS (2%): -₹{current.earnings.tdsAmount.toLocaleString()}</p>}
-              <p className="text-2xl font-bold text-emerald-400 mt-1">₹{(current.earnings.netAmount || current.earnings.grossAmount).toLocaleString()}</p>
-            </>
-          ) : <p className="text-2xl font-bold text-white">—</p>}
-          <p className="text-xs text-dark-500 mt-1">{current?.earnings?.calculation || ''}</p>
-          {current?.statusLabel && <p className={`text-xs mt-2 font-medium ${current?.timesheetStatus === 'rejected' ? 'text-red-400' : 'text-blue-400'}`}>{current.statusLabel}</p>}
-          {current?.timesheetStatus === 'rejected' && current?.rejectionReason && (
-            <p className="text-xs text-red-400/70 mt-1">Reason: {current.rejectionReason}</p>
-          )}
-        </div>
 
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-dark-400">
-              {previous ? `${monthNames[previous.month]} ${previous.year}` : 'Previous Month'}
-            </span>
-            <StatusBadge status={previous?.timesheetStatus} />
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-dark-400">
+                {previous ? `${monthNames[previous.month]} ${previous.year}` : 'Previous Month'}
+              </span>
+              <StatusBadge status={previous?.timesheetStatus} />
+            </div>
+            {previous?.earnings?.grossAmount != null ? (
+              <>
+                <p className="text-sm text-dark-400">Gross: ₹{previous.earnings.grossAmount.toLocaleString()}</p>
+                {previous.earnings.tdsAmount > 0 && <p className="text-xs text-red-400">TDS (2%): -₹{previous.earnings.tdsAmount.toLocaleString()}</p>}
+                <p className="text-2xl font-bold text-emerald-400 mt-1">₹{(previous.earnings.netAmount || previous.earnings.grossAmount).toLocaleString()}</p>
+              </>
+            ) : <p className="text-2xl font-bold text-white">—</p>}
+            <p className="text-xs text-dark-500 mt-1">{previous?.breakdown?.totalWorkingDays || 0} working days</p>
+            {previous?.disbursement?.status && (
+              <span className={`text-xs font-medium mt-2 inline-block ${previous.disbursement.status === 'paid' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {previous.disbursement.status === 'paid' ? 'Paid' : 'Payment Pending'}
+              </span>
+            )}
           </div>
-          {previous?.earnings?.grossAmount != null ? (
-            <>
-              <p className="text-sm text-dark-400">Gross: ₹{previous.earnings.grossAmount.toLocaleString()}</p>
-              {previous.earnings.tdsAmount > 0 && <p className="text-xs text-red-400">TDS (2%): -₹{previous.earnings.tdsAmount.toLocaleString()}</p>}
-              <p className="text-2xl font-bold text-emerald-400 mt-1">₹{(previous.earnings.netAmount || previous.earnings.grossAmount).toLocaleString()}</p>
-            </>
-          ) : <p className="text-2xl font-bold text-white">—</p>}
-          <p className="text-xs text-dark-500 mt-1">{previous?.breakdown?.totalWorkingDays || 0} working days</p>
-          {previous?.disbursement?.status && (
-            <span className={`text-xs font-medium mt-2 inline-block ${previous.disbursement.status === 'paid' ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {previous.disbursement.status === 'paid' ? 'Paid' : 'Payment Pending'}
-            </span>
-          )}
-        </div>
 
-        <div className={`card p-5 ${disbursement?.daysUntil <= 7 ? 'border-blue-500/20' : ''}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <Clock size={16} className="text-blue-400" />
-            <span className="text-sm text-dark-400">Next Salary</span>
+          <div className={`card p-5 ${disbursement?.daysUntil <= 7 ? 'border-blue-500/20' : ''}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Clock size={16} className="text-blue-400" />
+              <span className="text-sm text-dark-400">Next Salary</span>
+            </div>
+            {disbursement?.nextDisbursementDate ? (
+              <>
+                <p className="text-2xl font-bold text-white">
+                  {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                </p>
+                {disbursement.countdown && <p className="text-sm text-blue-400 font-medium mt-1">{disbursement.countdown}</p>}
+                {disbursement.note && <p className="text-xs text-dark-500 mt-1">{disbursement.note}</p>}
+              </>
+            ) : (
+              <p className="text-dark-500">Not configured</p>
+            )}
           </div>
-          {disbursement?.nextDisbursementDate ? (
-            <>
-              <p className="text-2xl font-bold text-white">
-                {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-              </p>
-              {disbursement.countdown && <p className="text-sm text-blue-400 font-medium mt-1">{disbursement.countdown}</p>}
-              {disbursement.note && <p className="text-xs text-dark-500 mt-1">{disbursement.note}</p>}
-            </>
-          ) : (
-            <p className="text-dark-500">Not configured</p>
-          )}
         </div>
-      </div>
+      )}
 
       <div className="flex gap-3">
         <Link to={orgPath('/timesheet/my-timesheet')} className="bg-rivvra-500 text-dark-950 px-4 py-2 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-2 transition-colors">
           <CalendarDays size={16} /> Fill Timesheet
         </Link>
-        <Link to={orgPath('/timesheet/earnings')} className="bg-dark-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-2 transition-colors">
-          <IndianRupee size={16} /> View Earnings
-        </Link>
+        {!hideEarnings && (
+          <Link to={orgPath('/timesheet/earnings')} className="bg-dark-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-2 transition-colors">
+            <IndianRupee size={16} /> View Earnings
+          </Link>
+        )}
       </div>
 
       <div className="card">

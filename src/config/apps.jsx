@@ -80,9 +80,12 @@ export const APP_REGISTRY = {
         ...((isAdmin || isManager) ? [
           { type: 'item', path: '/timesheet/approvals', label: 'Approvals', icon: CheckCircle2 },
         ] : []),
-        // Everyone gets their own timesheet and earnings (members, managers, admins)
+        // Everyone gets their own timesheet (members, managers, admins)
         { type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays },
-        { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
+        // Hide earnings for confirmed+billable employees (temporary — pending payroll deductions)
+        ...((timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable) ? [] : [
+          { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
+        ]),
         // Admin only
         ...(isAdmin ? [
           { type: 'item', path: '/timesheet/pay-config', label: 'Pay Config', icon: Wallet },
