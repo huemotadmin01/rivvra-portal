@@ -5,7 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
 
 // ── Per-assignment document manager ─────────────────────────────────────────
@@ -201,6 +201,8 @@ export default function EmployeeForm() {
   const [orgMembers, setOrgMembers] = useState([]);
   const [linkedUser, setLinkedUser] = useState(null); // { _id, name, email, picture }
   const [linkingUser, setLinkingUser] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   // Fetch departments + timesheet options (clients/projects for assignment dropdowns)
   useEffect(() => {
@@ -760,23 +762,43 @@ export default function EmployeeForm() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <select
-                      value=""
-                      onChange={(e) => handleLinkUser(e.target.value)}
-                      disabled={linkingUser}
-                      className="input-field w-full"
-                    >
-                      <option value="">Select a portal user…</option>
-                      {orgMembers
-                        .filter(m => m.userId) // Only members with a user account
-                        .map((m) => (
-                          <option key={m.userId} value={m.userId}>
-                            {m.name || m.email} {m.email ? `(${m.email})` : ''}
-                          </option>
-                        ))}
-                    </select>
-                    {linkingUser && <Loader2 size={16} className="animate-spin text-dark-400 flex-shrink-0" />}
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
+                      <input
+                        type="text"
+                        placeholder="Search portal users by name or email…"
+                        value={userDropdownOpen ? userSearchQuery : ''}
+                        onChange={(e) => { setUserSearchQuery(e.target.value); setUserDropdownOpen(true); }}
+                        onFocus={() => { setUserDropdownOpen(true); setUserSearchQuery(''); }}
+                        onBlur={() => setTimeout(() => setUserDropdownOpen(false), 200)}
+                        disabled={linkingUser}
+                        className="input-field w-full pl-9"
+                      />
+                      {linkingUser && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-dark-400" />}
+                    </div>
+                    {userDropdownOpen && (() => {
+                      const q = userSearchQuery.toLowerCase();
+                      const filtered = orgMembers
+                        .filter(m => m.userId)
+                        .filter(m => !q || (m.name || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q));
+                      return (
+                        <div className="absolute z-50 top-full mt-1 w-full bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                          {filtered.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-dark-500">No users found</p>
+                          ) : filtered.map(m => (
+                            <button key={m.userId} type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { handleLinkUser(m.userId); setUserDropdownOpen(false); setUserSearchQuery(''); }}
+                              className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors"
+                            >
+                              <p className="text-sm text-white">{m.name || 'Unnamed'}</p>
+                              <p className="text-xs text-dark-400">{m.email || ''}</p>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 <p className="text-xs text-dark-500 mt-1">

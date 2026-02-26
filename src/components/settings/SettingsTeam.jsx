@@ -12,7 +12,7 @@ import { useOrg } from '../../context/OrgContext';
 import {
   Users, UserPlus, UserX, Mail, Loader2, Check,
   ChevronDown, Clock, X, ArrowLeftRight, Shield, ShieldCheck,
-  Crown, Link2, Unlink, Search, RotateCcw,
+  Crown, Link2, Unlink, Search, RotateCcw, Trash2,
 } from 'lucide-react';
 import api from '../../utils/api';
 import employeeApi from '../../utils/employeeApi';
@@ -64,10 +64,13 @@ export default function SettingsTeam() {
 
   // Resend invite
   const [resendingInvite, setResendingInvite] = useState(null); // email being resent
+  const [cancellingInvite, setCancellingInvite] = useState(null); // email being cancelled
 
   // Related Employee linking
   const [employees, setEmployees] = useState([]);
   const [linkingEmployee, setLinkingEmployee] = useState(null); // userId being linked
+  const [empSearchQuery, setEmpSearchQuery] = useState('');
+  const [empDropdownOpen, setEmpDropdownOpen] = useState(null); // userId of open dropdown
 
   // Rate limits
   const [editingRateLimits, setEditingRateLimits] = useState(null);
@@ -234,6 +237,27 @@ export default function SettingsTeam() {
       setTimeout(() => setError(''), 3000);
     } finally {
       setResendingInvite(null);
+    }
+  }
+
+  async function handleCancelInvite(email) {
+    if (cancellingInvite) return;
+    setCancellingInvite(email);
+    try {
+      const res = await api.cancelOrgInvite(orgSlug, email);
+      if (res.success) {
+        setMembers(prev => prev.filter(m => !(m.status === 'invited' && m.email === email)));
+        setError('✅ Invitation cancelled');
+        setTimeout(() => setError(''), 3000);
+      } else {
+        setError(res.error || 'Failed to cancel invitation');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to cancel invitation');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setCancellingInvite(null);
     }
   }
 
@@ -596,21 +620,47 @@ export default function SettingsTeam() {
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <select
-                              value=""
-                              onChange={(e) => handleLinkEmployee(member.userId?.toString(), e.target.value)}
-                              disabled={linkingEmployee === member.userId?.toString()}
-                              className="flex-1 px-2 py-2 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white focus:outline-none focus:border-rivvra-500"
-                            >
-                              <option value="">Select an employee…</option>
-                              {employees.map(emp => (
-                                <option key={emp._id} value={emp._id}>
-                                  {emp.fullName} {emp.designation ? `(${emp.designation})` : ''} {emp.employeeId ? `— ${emp.employeeId}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                            {linkingEmployee === member.userId?.toString() && <Loader2 className="w-4 h-4 animate-spin text-dark-400 flex-shrink-0" />}
+                          <div className="relative">
+                            <div className="relative flex items-center gap-2">
+                              <div className="flex-1 relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-dark-500" />
+                                <input
+                                  type="text"
+                                  placeholder="Search employees..."
+                                  value={empDropdownOpen === member.userId?.toString() ? empSearchQuery : ''}
+                                  onChange={(e) => { setEmpSearchQuery(e.target.value); setEmpDropdownOpen(member.userId?.toString()); }}
+                                  onFocus={() => { setEmpDropdownOpen(member.userId?.toString()); setEmpSearchQuery(''); }}
+                                  onBlur={() => setTimeout(() => setEmpDropdownOpen(null), 200)}
+                                  disabled={linkingEmployee === member.userId?.toString()}
+                                  className="w-full pl-8 pr-2 py-2 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
+                                />
+                              </div>
+                              {linkingEmployee === member.userId?.toString() && <Loader2 className="w-4 h-4 animate-spin text-dark-400 flex-shrink-0" />}
+                            </div>
+                            {empDropdownOpen === member.userId?.toString() && (() => {
+                              const q = empSearchQuery.toLowerCase();
+                              const filtered = employees.filter(emp =>
+                                !q || emp.fullName?.toLowerCase().includes(q) || emp.email?.toLowerCase().includes(q) || emp.employeeId?.toLowerCase().includes(q) || emp.designation?.toLowerCase().includes(q)
+                              );
+                              return (
+                                <div className="absolute z-50 top-full mt-1 w-full bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                  {filtered.length === 0 ? (
+                                    <p className="px-3 py-2 text-xs text-dark-500">No employees found</p>
+                                  ) : filtered.map(emp => (
+                                    <button
+                                      key={emp._id}
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => { handleLinkEmployee(member.userId?.toString(), emp._id); setEmpDropdownOpen(null); setEmpSearchQuery(''); }}
+                                      className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors"
+                                    >
+                                      <p className="text-xs text-white">{emp.fullName}</p>
+                                      <p className="text-[10px] text-dark-400">{emp.designation || ''} {emp.employeeId ? `· ${emp.employeeId}` : ''}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                         <p className="text-[10px] text-dark-500 mt-1">
@@ -718,6 +768,19 @@ export default function SettingsTeam() {
                       <RotateCcw className="w-3 h-3" />
                     )}
                     Resend
+                  </button>
+                  {/* Cancel invite */}
+                  <button
+                    onClick={() => handleCancelInvite(invite.email)}
+                    disabled={cancellingInvite === invite.email}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0"
+                  >
+                    {cancellingInvite === invite.email ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3" />
+                    )}
+                    Delete
                   </button>
                 </div>
               ))}

@@ -749,6 +749,13 @@ class ApiClient {
     });
   }
 
+  async cancelOrgInvite(orgSlug, email) {
+    return this.request(`/api/org/${orgSlug}/invite/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // ─── Member ↔ Employee Linking ──────────────────────────────────────────────
 
   async linkMemberEmployee(orgSlug, userId, employeeId) {
