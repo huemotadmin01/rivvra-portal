@@ -161,6 +161,10 @@ export default function TimesheetEntry() {
 
   const handleSave = async () => {
     if (!selectedProject) { showToast('Please select a project first', 'error'); return; }
+    if (totalHours <= 0 && totalLeaves === 0 && totalHolidays === 0) {
+      showToast('Please enter hours for at least one day before saving', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const entryData = buildEntries();
@@ -204,6 +208,10 @@ export default function TimesheetEntry() {
 
   const handleSubmit = async () => {
     if (!selectedProject) { showToast('Please select a project first', 'error'); return; }
+    if (totalHours <= 0 && totalLeaves === 0 && totalHolidays === 0) {
+      showToast('Please enter hours for at least one day before submitting', 'error');
+      return;
+    }
     if (!window.confirm('Submit this timesheet for approval? You won\'t be able to edit it until it\'s reviewed.')) return;
     setSaving(true);
     try {
