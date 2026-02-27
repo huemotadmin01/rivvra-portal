@@ -304,7 +304,9 @@ export default function EmployeeDetail() {
               ) : null
             }
           />
-          <InfoRow label="Joining Date" value={formatDate(emp.joiningDate)} />
+          {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
+            <InfoRow label="Joining Date" value={formatDate(emp.joiningDate)} />
+          )}
           <InfoRow
             label="Salary Disbursement"
             value={
@@ -319,7 +321,9 @@ export default function EmployeeDetail() {
         <SectionCard title="Personal Information" icon={User}>
           <InfoRow label="Private Email" value={emp.privateEmail} />
           <InfoRow label="Private Phone" value={emp.privatePhone} />
-          <InfoRow label="Date of Birth" value={formatDate(emp.dateOfBirth)} />
+          {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
+            <InfoRow label="Date of Birth" value={formatDate(emp.dateOfBirth)} />
+          )}
           <InfoRow label="Nationality" value={emp.nationality} />
           <InfoRow label="Marital Status" value={emp.maritalStatus} />
         </SectionCard>

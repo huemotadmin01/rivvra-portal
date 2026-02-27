@@ -1178,23 +1178,58 @@ export default function EmployeeForm() {
           ))}
         </div>
 
-        {/* ── Dates ─────────────────────────────────────────────────── */}
-        <div className="card p-5 space-y-4">
-          <h2 className="text-white font-semibold text-lg">Dates</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Joining Date */}
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Joining Date</label>
-              <input
-                type="date"
-                value={form.joiningDate}
-                onChange={(e) => setField('joiningDate', e.target.value)}
-                className="input-field w-full"
-              />
-            </div>
+        {/* ── Dates — only for confirmed/intern; consultants only see LWD when separating ── */}
+        {(form.employmentType === 'confirmed' || form.employmentType === 'intern') ? (
+          <div className="card p-5 space-y-4">
+            <h2 className="text-white font-semibold text-lg">Dates</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Joining Date */}
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Joining Date</label>
+                <input
+                  type="date"
+                  value={form.joiningDate}
+                  onChange={(e) => setField('joiningDate', e.target.value)}
+                  className="input-field w-full"
+                />
+              </div>
 
-            {/* Last Working Date */}
-            {(form.status === 'resigned' || form.status === 'terminated') && (
+              {/* Last Working Date */}
+              {(form.status === 'resigned' || form.status === 'terminated') && (
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">
+                    Last Working Date <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={form.lastWorkingDate}
+                    onChange={(e) => setField('lastWorkingDate', e.target.value)}
+                    className="input-field w-full"
+                    required
+                  />
+                  {!form.lastWorkingDate && (
+                    <p className="text-xs text-red-400 mt-1">Required for resigned/terminated employees</p>
+                  )}
+                </div>
+              )}
+
+              {/* Date of Birth */}
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Date of Birth</label>
+                <input
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={(e) => setField('dateOfBirth', e.target.value)}
+                  className="input-field w-full"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (form.status === 'resigned' || form.status === 'terminated') ? (
+          /* Consultants: only show LWD when being separated */
+          <div className="card p-5 space-y-4">
+            <h2 className="text-white font-semibold text-lg">Separation</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-dark-300 mb-1">
                   Last Working Date <span className="text-red-400">*</span>
@@ -1210,20 +1245,9 @@ export default function EmployeeForm() {
                   <p className="text-xs text-red-400 mt-1">Required for resigned/terminated employees</p>
                 )}
               </div>
-            )}
-
-            {/* Date of Birth */}
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Date of Birth</label>
-              <input
-                type="date"
-                value={form.dateOfBirth}
-                onChange={(e) => setField('dateOfBirth', e.target.value)}
-                className="input-field w-full"
-              />
             </div>
           </div>
-        </div>
+        ) : null}
 
         {/* ── Address ───────────────────────────────────────────────── */}
         <div className="card p-5 space-y-4">
