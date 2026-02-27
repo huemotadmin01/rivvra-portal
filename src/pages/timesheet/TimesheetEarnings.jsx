@@ -200,6 +200,9 @@ function EarningsCard({ data, title, onDownload, downloading }) {
           <p className="text-sm text-red-400 mt-1">TDS (2%): -₹{(data.earnings?.tdsAmount || 0).toLocaleString()}</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">Net: ₹{(data.earnings?.netAmount || data.earnings?.grossAmount || 0).toLocaleString()}</p>
           <p className="text-xs text-dark-500 mt-1">{data.earnings?.calculation}</p>
+          {data.estimateNote && (
+            <p className="text-xs text-amber-400/80 italic mt-1">{data.estimateNote}</p>
+          )}
           <div className="mt-4 space-y-1.5">
             <div className="flex justify-between text-sm"><span className="text-dark-400">Total Hours</span><span className="font-medium text-white">{data.breakdown?.totalHours || 0}h</span></div>
             <div className="flex justify-between text-sm"><span className="text-dark-400">Working Days</span><span className="font-medium text-white">{data.breakdown?.totalWorkingDays || 0}</span></div>
