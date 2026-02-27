@@ -409,12 +409,19 @@ export default function EmployeeForm() {
   };
 
   // Update a nested field inside an assignment (e.g. billingRate.daily)
+  // For rate groups (billingRate, clientBillingRate): only one field at a time
   const updateAssignmentNested = (idx, group, field, value) => {
+    const isRateGroup = group === 'billingRate' || group === 'clientBillingRate';
     setForm(prev => ({
       ...prev,
-      assignments: prev.assignments.map((a, i) =>
-        i === idx ? { ...a, [group]: { ...a[group], [field]: value } } : a
-      ),
+      assignments: prev.assignments.map((a, i) => {
+        if (i !== idx) return a;
+        if (isRateGroup) {
+          // Clear other rate fields when one is set
+          return { ...a, [group]: { daily: '', hourly: '', monthly: '', [field]: value } };
+        }
+        return { ...a, [group]: { ...a[group], [field]: value } };
+      }),
     }));
   };
 
@@ -492,7 +499,7 @@ export default function EmployeeForm() {
       return;
     }
 
-    // Validate all assignments: client, project, start date, end date required
+    // Validate all assignments: client, project, start date, end date, rates required
     for (let i = 0; i < form.assignments.length; i++) {
       const a = form.assignments[i];
       const missing = [];
@@ -502,6 +509,18 @@ export default function EmployeeForm() {
       if (!a.endDate) missing.push('End Date');
       if (missing.length > 0) {
         setError(`Assignment ${i + 1}: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required.`);
+        return;
+      }
+      // At least one candidate rate required
+      const br = a.billingRate || {};
+      if (!br.daily && !br.hourly && !br.monthly) {
+        setError(`Assignment ${i + 1}: At least one Candidate Rate (₹/day, $/hour, or ₹/month) is required.`);
+        return;
+      }
+      // At least one client billing rate required
+      const cbr = a.clientBillingRate || {};
+      if (!cbr.daily && !cbr.hourly && !cbr.monthly) {
+        setError(`Assignment ${i + 1}: At least one Client Billing Rate (₹/day, $/hour, or ₹/month) is required.`);
         return;
       }
     }
@@ -992,59 +1011,55 @@ export default function EmployeeForm() {
                 </div>
               </div>
 
-              {/* Candidate Rate */}
+              {/* Candidate Rate — fill only one */}
               <div>
-                <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2 mt-1">Candidate Rate</p>
+                <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2 mt-1">
+                  Candidate Rate <span className="text-red-400">*</span>
+                  <span className="normal-case tracking-normal text-dark-600 ml-1">(fill any one)</span>
+                </p>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">{'\u20B9'}/day</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{'\u20B9'}</span>
-                      <input type="number" value={assignment.billingRate?.daily ?? ''} onChange={(e) => updateAssignmentNested(idx, 'billingRate', 'daily', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">$/hour</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">$</span>
-                      <input type="number" value={assignment.billingRate?.hourly ?? ''} onChange={(e) => updateAssignmentNested(idx, 'billingRate', 'hourly', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">{'\u20B9'}/month</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{'\u20B9'}</span>
-                      <input type="number" value={assignment.billingRate?.monthly ?? ''} onChange={(e) => updateAssignmentNested(idx, 'billingRate', 'monthly', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
-                    </div>
-                  </div>
+                  {[
+                    { key: 'daily', label: '\u20B9/day', symbol: '\u20B9' },
+                    { key: 'hourly', label: '$/hour', symbol: '$' },
+                    { key: 'monthly', label: '\u20B9/month', symbol: '\u20B9' },
+                  ].map(({ key, label, symbol }) => {
+                    const otherFilled = Object.entries(assignment.billingRate || {}).some(([k, v]) => k !== key && v);
+                    return (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark-400 mb-1">{label}</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{symbol}</span>
+                          <input type="number" value={assignment.billingRate?.[key] ?? ''} onChange={(e) => updateAssignmentNested(idx, 'billingRate', key, e.target.value)} className={`input-field w-full pl-7 text-sm ${otherFilled ? 'opacity-40' : ''}`} placeholder="0" min="0" />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Client Billing Rate */}
+              {/* Client Billing Rate — fill only one */}
               <div>
-                <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">Client Billing Rate</p>
+                <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">
+                  Client Billing Rate <span className="text-red-400">*</span>
+                  <span className="normal-case tracking-normal text-dark-600 ml-1">(fill any one)</span>
+                </p>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">{'\u20B9'}/day</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{'\u20B9'}</span>
-                      <input type="number" value={assignment.clientBillingRate?.daily ?? ''} onChange={(e) => updateAssignmentNested(idx, 'clientBillingRate', 'daily', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">$/hour</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">$</span>
-                      <input type="number" value={assignment.clientBillingRate?.hourly ?? ''} onChange={(e) => updateAssignmentNested(idx, 'clientBillingRate', 'hourly', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">{'\u20B9'}/month</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{'\u20B9'}</span>
-                      <input type="number" value={assignment.clientBillingRate?.monthly ?? ''} onChange={(e) => updateAssignmentNested(idx, 'clientBillingRate', 'monthly', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
-                    </div>
-                  </div>
+                  {[
+                    { key: 'daily', label: '\u20B9/day', symbol: '\u20B9' },
+                    { key: 'hourly', label: '$/hour', symbol: '$' },
+                    { key: 'monthly', label: '\u20B9/month', symbol: '\u20B9' },
+                  ].map(({ key, label, symbol }) => {
+                    const otherFilled = Object.entries(assignment.clientBillingRate || {}).some(([k, v]) => k !== key && v);
+                    return (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark-400 mb-1">{label}</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{symbol}</span>
+                          <input type="number" value={assignment.clientBillingRate?.[key] ?? ''} onChange={(e) => updateAssignmentNested(idx, 'clientBillingRate', key, e.target.value)} className={`input-field w-full pl-7 text-sm ${otherFilled ? 'opacity-40' : ''}`} placeholder="0" min="0" />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
