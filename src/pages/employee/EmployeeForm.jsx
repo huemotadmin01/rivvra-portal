@@ -480,6 +480,32 @@ export default function EmployeeForm() {
       return;
     }
 
+    // Non-billable: salary is required
+    if (!form.billable && !form.monthlyGrossSalary) {
+      setError('Monthly Gross Salary is required for non-billable employees.');
+      return;
+    }
+
+    // Non-billable: at least one assignment is required
+    if (!form.billable && form.assignments.length === 0) {
+      setError('At least one project assignment is required for non-billable employees.');
+      return;
+    }
+
+    // Validate all assignments: client, project, start date, end date required
+    for (let i = 0; i < form.assignments.length; i++) {
+      const a = form.assignments[i];
+      const missing = [];
+      if (!a.clientId && !a.clientName?.trim()) missing.push('Client');
+      if (!a.projectId && !a.projectName?.trim()) missing.push('Project');
+      if (!a.startDate) missing.push('Start Date');
+      if (!a.endDate) missing.push('End Date');
+      if (missing.length > 0) {
+        setError(`Assignment ${i + 1}: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required.`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const result = isEdit
@@ -510,6 +536,14 @@ export default function EmployeeForm() {
     }
     if (!assignment.projectName?.trim() && !assignment.projectId) {
       setError(`Assignment ${idx + 1}: Project is required.`);
+      return;
+    }
+    if (!assignment.startDate) {
+      setError(`Assignment ${idx + 1}: Start Date is required.`);
+      return;
+    }
+    if (!assignment.endDate) {
+      setError(`Assignment ${idx + 1}: End Date is required.`);
       return;
     }
 
@@ -821,10 +855,10 @@ export default function EmployeeForm() {
               />
             </div>
 
-            {/* Monthly Gross Salary */}
+            {/* Monthly Gross Salary — editable only for non-billable */}
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">
-                Monthly Gross Salary
+                Monthly Gross Salary {!form.billable && <span className="text-red-400">*</span>}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">
@@ -834,11 +868,18 @@ export default function EmployeeForm() {
                   type="number"
                   value={form.monthlyGrossSalary}
                   onChange={(e) => setField('monthlyGrossSalary', e.target.value)}
-                  className="input-field w-full pl-7"
+                  className={`input-field w-full pl-7 ${form.billable ? 'opacity-50 cursor-not-allowed' : ''}`}
                   placeholder="0"
                   min="0"
+                  disabled={form.billable}
                 />
               </div>
+              {form.billable && (
+                <p className="text-xs text-dark-500 mt-1">Derived from assignment billing rates for billable employees.</p>
+              )}
+              {!form.billable && !form.monthlyGrossSalary && (
+                <p className="text-xs text-amber-400/80 mt-1">Required for non-billable employees.</p>
+              )}
             </div>
 
             {/* Billable */}
@@ -878,9 +919,11 @@ export default function EmployeeForm() {
           </div>
 
           {form.assignments.length === 0 && (
-            <div className="text-center py-6 border border-dashed border-dark-700 rounded-xl">
-              <Briefcase size={24} className="mx-auto mb-2 text-dark-600" />
-              <p className="text-dark-500 text-sm">No project assignments yet.</p>
+            <div className={`text-center py-6 border border-dashed rounded-xl ${!form.billable ? 'border-amber-500/30 bg-amber-500/5' : 'border-dark-700'}`}>
+              <Briefcase size={24} className={`mx-auto mb-2 ${!form.billable ? 'text-amber-500/50' : 'text-dark-600'}`} />
+              <p className={`text-sm ${!form.billable ? 'text-amber-400/80' : 'text-dark-500'}`}>
+                No project assignments yet.{!form.billable && ' At least one is required for non-billable employees.'}
+              </p>
               <p className="text-dark-600 text-xs mt-1">Click "Add Assignment" to assign this employee to a client project.</p>
             </div>
           )}
@@ -927,7 +970,7 @@ export default function EmployeeForm() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {/* Client (ComboSelect — lookup + create) */}
                 <div>
-                  <label className="block text-xs font-medium text-dark-400 mb-1">Client</label>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Client <span className="text-red-400">*</span></label>
                   <ComboSelect
                     value={assignment.clientId}
                     displayValue={assignment.clientName}
@@ -938,7 +981,7 @@ export default function EmployeeForm() {
                 </div>
                 {/* Project (ComboSelect — all projects, not filtered by client) */}
                 <div>
-                  <label className="block text-xs font-medium text-dark-400 mb-1">Project</label>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Project <span className="text-red-400">*</span></label>
                   <ComboSelect
                     value={assignment.projectId}
                     displayValue={assignment.projectName}
@@ -1020,11 +1063,11 @@ export default function EmployeeForm() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-dark-400 mb-1">Start Date</label>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Start Date <span className="text-red-400">*</span></label>
                   <input type="date" value={assignment.startDate} onChange={(e) => updateAssignment(idx, 'startDate', e.target.value)} className="input-field w-full text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-dark-400 mb-1">End Date</label>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">End Date <span className="text-red-400">*</span></label>
                   <input type="date" value={assignment.endDate || ''} onChange={(e) => updateAssignment(idx, 'endDate', e.target.value)} className="input-field w-full text-sm" />
                 </div>
               </div>
