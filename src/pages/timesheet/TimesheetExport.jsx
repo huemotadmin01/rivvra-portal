@@ -114,7 +114,7 @@ export default function TimesheetExport() {
               </div>
             </div>
             <p className="text-sm text-dark-300 mb-4">
-              Exports: Client, Project, Contractor, Working Days, Billing Rate, Billable Amount
+              Exports: Client, Project, Contractor, Working Days, Billing Rate, Currency
             </p>
             <button onClick={() => downloadCSV('invoice')}
               className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-400 flex items-center justify-center gap-2 transition-colors">
