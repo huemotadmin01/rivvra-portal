@@ -196,6 +196,8 @@ export default function EmployeeForm() {
   const [savedAssignmentCount, setSavedAssignmentCount] = useState(0);
   const [error, setError] = useState('');
   const [showSensitive, setShowSensitive] = useState(false);
+  const [originalStatus, setOriginalStatus] = useState('active'); // track loaded status for separation detection
+  const [showSeparationConfirm, setShowSeparationConfirm] = useState(false);
 
   // ── Related User (Employee ↔ Portal User linking) ──
   const [orgMembers, setOrgMembers] = useState([]);
@@ -305,6 +307,7 @@ export default function EmployeeForm() {
             },
           });
           setSavedAssignmentCount((emp.assignments || []).length);
+          setOriginalStatus(emp.status || 'active');
           // Capture linked user info from enriched response
           if (emp.linkedUserId) {
             setLinkedUser({
@@ -468,35 +471,36 @@ export default function EmployeeForm() {
     }
   };
 
-  // Submit
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  // Detect if this save is a separation (status changing to resigned/terminated)
+  const isSeparating = isEdit &&
+    (form.status === 'resigned' || form.status === 'terminated') &&
+    originalStatus !== 'resigned' && originalStatus !== 'terminated';
 
-    // Validate required fields
+  // Validate form (shared between normal submit and separation confirm)
+  const validateForm = () => {
     if (!form.fullName.trim()) {
       setError('Full Name is required.');
-      return;
+      return false;
     }
     if (!form.email.trim()) {
       setError('Email is required.');
-      return;
+      return false;
     }
     if ((form.status === 'resigned' || form.status === 'terminated') && !form.lastWorkingDate) {
       setError('Last Working Date is required when status is Resigned or Terminated.');
-      return;
+      return false;
     }
 
     // Non-billable: salary is required
     if (!form.billable && !form.monthlyGrossSalary) {
       setError('Monthly Gross Salary is required for non-billable employees.');
-      return;
+      return false;
     }
 
-    // Billable: at least one assignment is required
-    if (form.billable && form.assignments.length === 0) {
+    // Billable: at least one assignment is required (skip if separating — assignments will be auto-ended)
+    if (form.billable && form.assignments.length === 0 && !isSeparating) {
       setError('At least one project assignment is required for billable employees.');
-      return;
+      return false;
     }
 
     // Validate all assignments: client, project, start date, end date, rates required
@@ -509,22 +513,26 @@ export default function EmployeeForm() {
       if (!a.endDate) missing.push('End Date');
       if (missing.length > 0) {
         setError(`Assignment ${i + 1}: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required.`);
-        return;
+        return false;
       }
       // At least one candidate rate required
       const br = a.billingRate || {};
       if (!br.daily && !br.hourly && !br.monthly) {
         setError(`Assignment ${i + 1}: At least one Candidate Rate (₹/day, $/hour, or ₹/month) is required.`);
-        return;
+        return false;
       }
       // At least one client billing rate required
       const cbr = a.clientBillingRate || {};
       if (!cbr.daily && !cbr.hourly && !cbr.monthly) {
         setError(`Assignment ${i + 1}: At least one Client Billing Rate (₹/day, $/hour, or ₹/month) is required.`);
-        return;
+        return false;
       }
     }
+    return true;
+  };
 
+  // Actually perform the save
+  const performSave = async () => {
     setSaving(true);
     try {
       const result = isEdit
@@ -532,7 +540,44 @@ export default function EmployeeForm() {
         : await employeeApi.create(orgSlug, form);
 
       if (result.success && result.employee?._id) {
-        showToast(isEdit ? 'Employee updated' : 'Employee created', 'success');
+        if (result.separated) {
+          showToast('Employee separated — assignments ended, user unlinked', 'success');
+          // Update local state to reflect backend changes
+          setLinkedUser(null);
+          setOriginalStatus(form.status);
+          const emp = result.employee;
+          setForm(prev => ({
+            ...prev,
+            assignments: (emp.assignments || []).map(a => {
+              const cbr = typeof a.clientBillingRate === 'number'
+                ? { daily: a.clientBillingRate || '', hourly: '', monthly: '' }
+                : a.clientBillingRate || {};
+              return {
+                clientId: a.clientId || '',
+                clientName: a.clientName || '',
+                projectId: a.projectId || '',
+                projectName: a.projectName || '',
+                billingRate: {
+                  daily: a.billingRate?.daily ?? '',
+                  hourly: a.billingRate?.hourly ?? '',
+                  monthly: a.billingRate?.monthly ?? '',
+                },
+                clientBillingRate: {
+                  daily: cbr.daily ?? '',
+                  hourly: cbr.hourly ?? '',
+                  monthly: cbr.monthly ?? '',
+                },
+                paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+                startDate: a.startDate ? a.startDate.slice(0, 10) : '',
+                endDate: a.endDate ? a.endDate.slice(0, 10) : '',
+                status: a.status || 'active',
+              };
+            }),
+          }));
+          setSavedAssignmentCount((emp.assignments || []).length);
+        } else {
+          showToast(isEdit ? 'Employee updated' : 'Employee created', 'success');
+        }
         navigate(orgPath('/employee/' + result.employee._id));
       } else {
         setError(result.message || 'Something went wrong.');
@@ -543,6 +588,27 @@ export default function EmployeeForm() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Submit handler
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!validateForm()) return;
+
+    // If this is a separation, show confirmation dialog first
+    if (isSeparating) {
+      setShowSeparationConfirm(true);
+      return;
+    }
+
+    await performSave();
+  };
+
+  // Separation confirmed — proceed with save
+  const handleSeparationConfirmed = async () => {
+    setShowSeparationConfirm(false);
+    await performSave();
   };
 
   const saveAssignment = async (idx) => {
@@ -733,7 +799,7 @@ export default function EmployeeForm() {
                 <select
                   value={form.status}
                   onChange={(e) => setField('status', e.target.value)}
-                  className="input-field w-full"
+                  className={`input-field w-full ${isSeparating ? 'border-red-500/50 text-red-400' : ''}`}
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -743,6 +809,19 @@ export default function EmployeeForm() {
               </div>
             )}
           </div>
+
+          {/* Separation warning banner */}
+          {isSeparating && (
+            <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-3">
+              <AlertTriangle size={18} className="text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="text-red-400 font-medium">Separation will be triggered on save</p>
+                <p className="text-dark-400 mt-1">
+                  All active assignments will be ended{linkedUser ? ', portal user will be unlinked,' : ''} and timesheet access will be blocked.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Organization ──────────────────────────────────────────── */}
@@ -1342,6 +1421,64 @@ export default function EmployeeForm() {
           </button>
         </div>
       </form>
+
+      {/* ── Separation Confirmation Dialog ──────────────────────────── */}
+      {showSeparationConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-red-400" />
+              </div>
+              <h3 className="text-white font-semibold text-lg">Confirm Employee Separation</h3>
+            </div>
+
+            <p className="text-dark-300 text-sm mb-4">
+              You are marking <strong className="text-white">{form.fullName}</strong> as <strong className="text-red-400 capitalize">{form.status}</strong>.
+              This will:
+            </p>
+
+            <ul className="text-sm text-dark-300 space-y-2 mb-6">
+              <li className="flex items-start gap-2">
+                <span className="text-red-400 mt-0.5">•</span>
+                <span>End all active project assignments (end date set to LWD: <strong className="text-white">{form.lastWorkingDate}</strong>)</span>
+              </li>
+              {linkedUser && (
+                <li className="flex items-start gap-2">
+                  <span className="text-red-400 mt-0.5">•</span>
+                  <span>Unlink portal user <strong className="text-white">{linkedUser.name || linkedUser.email}</strong> — they will lose timesheet access</span>
+                </li>
+              )}
+              <li className="flex items-start gap-2">
+                <span className="text-red-400 mt-0.5">•</span>
+                <span>Block future timesheet submissions for this employee</span>
+              </li>
+            </ul>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSeparationConfirm(false)}
+                className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSeparationConfirmed}
+                disabled={saving}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                {saving ? (
+                  <><Loader2 size={14} className="animate-spin" /> Processing...</>
+                ) : (
+                  <>Confirm Separation</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
