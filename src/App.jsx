@@ -74,6 +74,15 @@ const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
 const AtsReporting = lazy(() => import('./pages/ats/AtsReporting'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
+// Lazy-loaded: Sign app pages
+const SignDashboard = lazy(() => import('./pages/sign/SignDashboard'));
+const SignTemplates = lazy(() => import('./pages/sign/SignTemplates'));
+const SignTemplateEditor = lazy(() => import('./pages/sign/SignTemplateEditor'));
+const SignRequests = lazy(() => import('./pages/sign/SignRequests'));
+const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
+const SignConfig = lazy(() => import('./pages/sign/SignConfig'));
+const PublicSigningPage = lazy(() => import('./pages/sign/PublicSigningPage'));
+
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
@@ -225,7 +234,24 @@ function App() {
                   <Route path="/org/:slug/ats/config" element={<ErrorBoundary><AtsConfig /></ErrorBoundary>} />
                 </Route>
               </Route>
+
+              {/* Sign app routes — gated by sign access */}
+              <Route element={<AppAccessGate appId="sign" />}>
+                <Route path="/org/:slug/sign/dashboard" element={<ErrorBoundary><SignDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/requests" element={<ErrorBoundary><SignRequests /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/requests/:requestId" element={<ErrorBoundary><SignRequestDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/templates" element={<ErrorBoundary><SignTemplates /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/templates/:templateId/edit" element={<ErrorBoundary><SignTemplateEditor /></ErrorBoundary>} />
+                <Route element={<AppRoleGate appId="sign" requiredRole="admin" />}>
+                  <Route path="/org/:slug/sign/config" element={<ErrorBoundary><SignConfig /></ErrorBoundary>} />
+                </Route>
+              </Route>
             </Route>
+
+            {/* ============================================================ */}
+            {/* PUBLIC SIGNING PAGE — no auth required, token-based access    */}
+            {/* ============================================================ */}
+            <Route path="/sign/public/:requestId/:signerId/:token" element={<PublicSigningPage />} />
 
             {/* ============================================================ */}
             {/* LEGACY ROUTES — /home, /outreach/*, /timesheet/*, /settings/* */}
@@ -238,6 +264,7 @@ function App() {
             <Route path="/employee/*" element={<OrgRedirect />} />
             <Route path="/contacts/*" element={<OrgRedirect />} />
             <Route path="/ats/*" element={<OrgRedirect />} />
+            <Route path="/sign/*" element={<OrgRedirect />} />
             <Route path="/settings" element={<OrgRedirect to="/settings" />} />
             <Route path="/settings/*" element={<OrgRedirect />} />
 

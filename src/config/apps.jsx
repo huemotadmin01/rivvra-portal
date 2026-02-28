@@ -2,7 +2,7 @@ import {
   Send, Users, List, Home, BarChart3, UsersRound, Layers,
   Clock, Briefcase, UserSearch, Mail, CalendarDays, IndianRupee,
   CheckCircle2, Download, Settings, Building2, UserPlus, Wallet,
-  Contact, Kanban, FileText, GripVertical
+  Contact, Kanban, FileText, GripVertical, PenTool, FileSignature
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -188,6 +188,32 @@ export const APP_REGISTRY = {
     },
   },
 
+  sign: {
+    id: 'sign',
+    name: 'Sign',
+    description: 'Digital signatures & document signing',
+    icon: PenTool,
+    color: 'indigo',
+    basePath: '/sign',
+    status: 'active',
+    defaultRoute: '/sign/dashboard',
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'indigo' },
+      { value: 'member', label: 'Member', color: 'dark' },
+    ],
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/sign/dashboard', label: 'Dashboard', icon: Home },
+        { type: 'item', path: '/sign/requests', label: 'Requests', icon: FileText },
+        { type: 'item', path: '/sign/templates', label: 'Templates', icon: FileSignature },
+        ...(isAdmin ? [
+          { type: 'item', path: '/sign/config', label: 'Configuration', icon: Settings },
+        ] : []),
+      ];
+    },
+  },
+
   settings: {
     id: 'settings',
     name: 'Settings',
@@ -209,6 +235,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/employee', label: 'Employee', icon: UsersRound },
         { type: 'item', path: '/settings/contacts', label: 'Contacts', icon: Contact },
         { type: 'item', path: '/settings/ats', label: 'ATS', icon: UserSearch },
+        { type: 'item', path: '/settings/sign', label: 'Sign', icon: PenTool },
       ];
     },
   },

@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import signApi from '../../utils/signApi';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import {
@@ -11,7 +12,7 @@ import {
   Mail, Phone, Linkedin, User, Briefcase,
   Calendar, Edit3, Check, XCircle, Award,
   Clock, Tag, MessageSquare, Plus, CheckCircle2,
-  DollarSign, Circle,
+  DollarSign, Circle, PenTool, FileSignature,
 } from 'lucide-react';
 
 /* ── Evaluation Stars ─────────────────────────────────────────────────── */
@@ -367,6 +368,62 @@ function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect 
   );
 }
 
+/* ── Sign Requests Panel ─────────────────────────────────────────────── */
+function SignRequestsPanel({ orgSlug, applicationId, orgPath }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!orgSlug || !applicationId) return;
+    (async () => {
+      try {
+        const res = await signApi.listRequests(orgSlug, {
+          linkedModel: 'ats_application',
+          linkedId: applicationId,
+        });
+        if (res.success) setRequests(res.requests || []);
+      } catch (_) {}
+      setLoading(false);
+    })();
+  }, [orgSlug, applicationId]);
+
+  if (loading) return <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-dark-500" /></div>;
+  if (!requests.length) return <p className="text-dark-500 text-xs">No signature requests yet.</p>;
+
+  const stateColors = {
+    draft: 'bg-dark-700 text-dark-300',
+    sent: 'bg-blue-500/10 text-blue-400',
+    signed: 'bg-emerald-500/10 text-emerald-400',
+    refused: 'bg-red-500/10 text-red-400',
+    cancelled: 'bg-dark-700 text-dark-400',
+    expired: 'bg-amber-500/10 text-amber-400',
+  };
+
+  return (
+    <div className="space-y-2">
+      {requests.map((r) => (
+        <a
+          key={r._id}
+          href={`#${orgPath('/sign/requests/' + r._id)}`}
+          className="flex items-center justify-between p-2.5 rounded-lg bg-dark-800/50 hover:bg-dark-800 transition-colors group"
+        >
+          <div className="min-w-0">
+            <p className="text-sm text-white truncate group-hover:text-rivvra-400 transition-colors">
+              {r.reference || r.templateName || 'Untitled'}
+            </p>
+            <p className="text-xs text-dark-500 mt-0.5">
+              {r.progress?.completed || 0}/{r.progress?.total || 0} signed
+            </p>
+          </div>
+          <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${stateColors[r.state] || stateColors.draft}`}>
+            {r.state?.charAt(0).toUpperCase() + r.state?.slice(1)}
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsApplicationDetail() {
   const { applicationId } = useParams();
@@ -688,6 +745,13 @@ export default function AtsApplicationDetail() {
           {/* Action buttons */}
           {isAdmin && application.status !== 'hired' && application.status !== 'refused' && (
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => navigate(orgPath('/sign/requests?create=true&linkedModel=ats_application&linkedId=' + applicationId))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+              >
+                <PenTool size={14} />
+                Request Signature
+              </button>
               <MoveStageDropdown
                 stages={stages}
                 currentStageId={currentStageId}
@@ -868,6 +932,30 @@ export default function AtsApplicationDetail() {
               orgSlug={orgSlug}
               applicationId={id}
               readOnly={!isAdmin}
+            />
+          </div>
+
+          {/* Sign Requests */}
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider flex items-center gap-2">
+                <FileSignature size={14} />
+                Signature Requests
+              </h2>
+              {isAdmin && (
+                <button
+                  onClick={() => navigate(orgPath('/sign/requests?create=true&linkedModel=ats_application&linkedId=' + applicationId))}
+                  className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                  title="Request Signature"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+            </div>
+            <SignRequestsPanel
+              orgSlug={orgSlug}
+              applicationId={applicationId}
+              orgPath={orgPath}
             />
           </div>
 
