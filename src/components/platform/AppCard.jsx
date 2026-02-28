@@ -29,6 +29,12 @@ const colorConfig = {
     iconBgHover: 'rgba(249, 115, 22, 0.2)',
     iconColor: '#fb923c',
   },
+  cyan: {
+    rgb: '6, 182, 212',
+    iconBg: 'rgba(6, 182, 212, 0.1)',
+    iconBgHover: 'rgba(6, 182, 212, 0.2)',
+    iconColor: '#22d3ee',
+  },
 };
 
 function AppCard({ app, index = 0, locked = false }) {
