@@ -4,6 +4,8 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import SkillsPicker from '../../components/ats/SkillsPicker';
+import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import {
   ArrowLeft, Loader2, Star, X, ChevronDown,
   Mail, Phone, Linkedin, User, Briefcase,
@@ -847,6 +849,26 @@ export default function AtsApplicationDetail() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Candidate Skills */}
+          {application.candidateId && (
+            <div className="card p-5">
+              <SkillsPicker
+                orgSlug={orgSlug}
+                candidateId={application.candidateId}
+                readOnly={!isAdmin}
+              />
+            </div>
+          )}
+
+          {/* Attachments */}
+          <div className="card p-5">
+            <AttachmentsPanel
+              orgSlug={orgSlug}
+              applicationId={id}
+              readOnly={!isAdmin}
+            />
           </div>
 
           {/* Job info card */}

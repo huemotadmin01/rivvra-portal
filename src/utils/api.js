@@ -94,6 +94,24 @@ class ApiClient {
     }
   }
 
+  /**
+   * Upload a file via multipart/form-data.
+   * @param {string} endpoint - API endpoint
+   * @param {FormData} formData - FormData object with file and fields
+   * @returns {Promise<Object>} parsed JSON response
+   */
+  async uploadFile(endpoint, formData) {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers = {};
+    const token = localStorage.getItem('rivvra_token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+    // Do NOT set Content-Type — browser sets it with boundary for multipart
+    const response = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Upload failed (${response.status})`);
+    return data;
+  }
+
   // Auth endpoints
   async sendOtp(email, isSignup = false, inviteToken = undefined) {
     const payload = { email, isSignup };

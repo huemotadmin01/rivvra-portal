@@ -5,7 +5,7 @@ import atsApi from '../../utils/atsApi';
 import {
   Plus, Edit2, X, Loader2, Trash2,
   Layers, Tag, Globe, ThumbsDown, GraduationCap, Briefcase,
-  GripVertical, Check,
+  GripVertical, Check, Zap, Award, BarChart3,
 } from 'lucide-react';
 
 /* ── Tab definitions ──────────────────────────────────────────────────── */
@@ -16,6 +16,9 @@ const TABS = [
   { key: 'refuse_reasons',  label: 'Refuse Reasons',   icon: ThumbsDown },
   { key: 'degrees',         label: 'Degrees',          icon: GraduationCap },
   { key: 'employment_types', label: 'Employment Types', icon: Briefcase },
+  { key: 'skill_types',     label: 'Skill Types',      icon: Zap },
+  { key: 'skills',          label: 'Skills',           icon: Award },
+  { key: 'skill_levels',    label: 'Skill Levels',     icon: BarChart3 },
 ];
 
 /* ── Reusable ConfigSection (Tags, Sources, Refuse Reasons, Degrees, Employment Types) */
@@ -567,6 +570,471 @@ function StagesSection({ orgSlug, showToast }) {
   );
 }
 
+/* ── Skill Types Section ──────────────────────────────────────────────── */
+function SkillTypesSection({ orgSlug, showToast }) {
+  const modalRef = useRef(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form, setForm] = useState({ name: '' });
+
+  const fetchItems = useCallback(async () => {
+    if (!orgSlug) return;
+    try {
+      setLoading(true);
+      const res = await atsApi.listSkillTypes(orgSlug);
+      if (res.success) setItems(res.items || []);
+    } catch {
+      showToast('Failed to load skill types', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug, showToast]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const openAdd = () => { setEditingItem(null); setForm({ name: '' }); setShowModal(true); setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50); };
+  const openEdit = (item) => { setEditingItem(item); setForm({ name: item.name }); setShowModal(true); setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50); };
+  const closeModal = () => { setShowModal(false); setEditingItem(null); setForm({ name: '' }); };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    try {
+      setSaving(true);
+      if (editingItem) {
+        await atsApi.updateSkillType(orgSlug, editingItem._id, { name: form.name.trim() });
+        showToast('Skill type updated');
+      } else {
+        await atsApi.createSkillType(orgSlug, { name: form.name.trim() });
+        showToast('Skill type created');
+      }
+      closeModal(); fetchItems();
+    } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!editingItem) return;
+    try {
+      setDeleting(true);
+      await atsApi.deleteSkillType(orgSlug, editingItem._id);
+      showToast('Skill type deleted'); closeModal(); fetchItems();
+    } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
+  };
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-dark-400" /></div>;
+
+  return (
+    <>
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Zap size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Skill Types</h3>
+            <span className="text-xs bg-dark-700 text-dark-400 px-2 py-0.5 rounded-full">{items.length}</span>
+          </div>
+          <button onClick={openAdd} className="bg-rivvra-500 text-dark-950 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors">
+            <Plus size={14} /> Add Skill Type
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Zap className="w-10 h-10 text-dark-500 mb-3" />
+            <p className="text-dark-300 font-medium mb-1">No skill types yet</p>
+            <p className="text-dark-500 text-sm">Add categories like IT, Languages, Soft Skills, etc.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-700">
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
+                  <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+                        <span className="text-white">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => openEdit(item)} className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"><Edit2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }} onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}>
+          <div ref={modalRef} role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-white">{editingItem ? 'Edit Skill Type' : 'Add Skill Type'}</h3>
+              <button onClick={closeModal} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Name <span className="text-red-400">*</span></label>
+                <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Programming, Soft Skills" className="input-field" />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="button" onClick={closeModal} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Close</button>
+                <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {saving && <Loader2 size={16} className="animate-spin" />}
+                  {editingItem ? 'Save Changes' : 'Create Skill Type'}
+                </button>
+              </div>
+              {editingItem && (
+                <div className="pt-3 border-t border-dark-700">
+                  <button type="button" onClick={handleDelete} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Skill Type
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Skills Section (with type dropdown) ─────────────────────────────── */
+function SkillsSection({ orgSlug, showToast }) {
+  const modalRef = useRef(null);
+  const [items, setItems] = useState([]);
+  const [skillTypes, setSkillTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form, setForm] = useState({ name: '', skillTypeId: '' });
+  const [filterType, setFilterType] = useState('');
+
+  const fetchData = useCallback(async () => {
+    if (!orgSlug) return;
+    try {
+      setLoading(true);
+      const [skillsRes, typesRes] = await Promise.all([
+        atsApi.listSkills(orgSlug, filterType ? { skillTypeId: filterType } : {}),
+        atsApi.listSkillTypes(orgSlug),
+      ]);
+      if (skillsRes.success) setItems(skillsRes.items || []);
+      if (typesRes.success) setSkillTypes(typesRes.items || []);
+    } catch {
+      showToast('Failed to load skills', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug, filterType, showToast]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const openAdd = () => { setEditingItem(null); setForm({ name: '', skillTypeId: skillTypes[0]?._id || '' }); setShowModal(true); setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50); };
+  const openEdit = (item) => { setEditingItem(item); setForm({ name: item.name, skillTypeId: item.skillTypeId || '' }); setShowModal(true); setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50); };
+  const closeModal = () => { setShowModal(false); setEditingItem(null); setForm({ name: '', skillTypeId: '' }); };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.skillTypeId) return;
+    try {
+      setSaving(true);
+      const payload = { name: form.name.trim(), skillTypeId: form.skillTypeId };
+      if (editingItem) {
+        await atsApi.updateSkill(orgSlug, editingItem._id, payload);
+        showToast('Skill updated');
+      } else {
+        await atsApi.createSkill(orgSlug, payload);
+        showToast('Skill created');
+      }
+      closeModal(); fetchData();
+    } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!editingItem) return;
+    try {
+      setDeleting(true);
+      await atsApi.deleteSkill(orgSlug, editingItem._id);
+      showToast('Skill deleted'); closeModal(); fetchData();
+    } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
+  };
+
+  const typeMap = Object.fromEntries(skillTypes.map((t) => [t._id, t.name]));
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-dark-400" /></div>;
+
+  return (
+    <>
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Award size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Skills</h3>
+            <span className="text-xs bg-dark-700 text-dark-400 px-2 py-0.5 rounded-full">{items.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={filterType}
+              onChange={(e) => { setFilterType(e.target.value); }}
+              className="input-field text-sm py-1.5 px-2"
+            >
+              <option value="">All Types</option>
+              {skillTypes.map((t) => (
+                <option key={t._id} value={t._id}>{t.name}</option>
+              ))}
+            </select>
+            <button onClick={openAdd} className="bg-rivvra-500 text-dark-950 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors">
+              <Plus size={14} /> Add Skill
+            </button>
+          </div>
+        </div>
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Award className="w-10 h-10 text-dark-500 mb-3" />
+            <p className="text-dark-300 font-medium mb-1">No skills yet</p>
+            <p className="text-dark-500 text-sm">Add skills like JavaScript, Python, Communication, etc.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-700">
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Type</th>
+                  <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                        <span className="text-white">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs bg-dark-700 text-dark-300 px-2 py-0.5 rounded-full">
+                        {item.skillTypeName || typeMap[item.skillTypeId] || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => openEdit(item)} className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"><Edit2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }} onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}>
+          <div ref={modalRef} role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-white">{editingItem ? 'Edit Skill' : 'Add Skill'}</h3>
+              <button onClick={closeModal} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Skill Type <span className="text-red-400">*</span></label>
+                <select required value={form.skillTypeId} onChange={(e) => setForm({ ...form, skillTypeId: e.target.value })} className="input-field">
+                  <option value="">Select type...</option>
+                  {skillTypes.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Skill Name <span className="text-red-400">*</span></label>
+                <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. JavaScript, Python" className="input-field" />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="button" onClick={closeModal} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Close</button>
+                <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {saving && <Loader2 size={16} className="animate-spin" />}
+                  {editingItem ? 'Save Changes' : 'Create Skill'}
+                </button>
+              </div>
+              {editingItem && (
+                <div className="pt-3 border-t border-dark-700">
+                  <button type="button" onClick={handleDelete} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Skill
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Skill Levels Section ────────────────────────────────────────────── */
+function SkillLevelsSection({ orgSlug, showToast }) {
+  const modalRef = useRef(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form, setForm] = useState({ name: '', sequence: 0 });
+
+  const fetchItems = useCallback(async () => {
+    if (!orgSlug) return;
+    try {
+      setLoading(true);
+      const res = await atsApi.listSkillLevels(orgSlug);
+      if (res.success) setItems((res.items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
+    } catch {
+      showToast('Failed to load skill levels', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug, showToast]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const openAdd = () => {
+    const nextSeq = items.length > 0 ? Math.max(...items.map((i) => i.sequence ?? 0)) + 1 : 1;
+    setEditingItem(null); setForm({ name: '', sequence: nextSeq }); setShowModal(true);
+    setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
+  };
+  const openEdit = (item) => { setEditingItem(item); setForm({ name: item.name, sequence: item.sequence ?? 0 }); setShowModal(true); setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50); };
+  const closeModal = () => { setShowModal(false); setEditingItem(null); setForm({ name: '', sequence: 0 }); };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    try {
+      setSaving(true);
+      const payload = { name: form.name.trim(), sequence: Number(form.sequence) || 0 };
+      if (editingItem) {
+        await atsApi.updateSkillLevel(orgSlug, editingItem._id, payload);
+        showToast('Skill level updated');
+      } else {
+        await atsApi.createSkillLevel(orgSlug, payload);
+        showToast('Skill level created');
+      }
+      closeModal(); fetchItems();
+    } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!editingItem) return;
+    try {
+      setDeleting(true);
+      await atsApi.deleteSkillLevel(orgSlug, editingItem._id);
+      showToast('Skill level deleted'); closeModal(); fetchItems();
+    } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
+  };
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-dark-400" /></div>;
+
+  return (
+    <>
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <BarChart3 size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Skill Levels</h3>
+            <span className="text-xs bg-dark-700 text-dark-400 px-2 py-0.5 rounded-full">{items.length}</span>
+          </div>
+          <button onClick={openAdd} className="bg-rivvra-500 text-dark-950 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors">
+            <Plus size={14} /> Add Skill Level
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <BarChart3 className="w-10 h-10 text-dark-500 mb-3" />
+            <p className="text-dark-300 font-medium mb-1">No skill levels yet</p>
+            <p className="text-dark-500 text-sm">Add levels like Beginner, Intermediate, Advanced, Expert.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-700">
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium w-16">#</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
+                  <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <GripVertical size={14} className="text-dark-600" />
+                        <span className="text-dark-400 text-xs font-mono">{item.sequence ?? 0}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                        <span className="text-white">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => openEdit(item)} className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"><Edit2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }} onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}>
+          <div ref={modalRef} role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-white">{editingItem ? 'Edit Skill Level' : 'Add Skill Level'}</h3>
+              <button onClick={closeModal} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Name <span className="text-red-400">*</span></label>
+                <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Beginner, Expert" className="input-field" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Sequence</label>
+                <input type="number" value={form.sequence} onChange={(e) => setForm({ ...form, sequence: e.target.value })} className="input-field" min="0" />
+                <p className="text-dark-500 text-xs mt-1">Higher sequence = higher proficiency level.</p>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="button" onClick={closeModal} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Close</button>
+                <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {saving && <Loader2 size={16} className="animate-spin" />}
+                  {editingItem ? 'Save Changes' : 'Create Skill Level'}
+                </button>
+              </div>
+              {editingItem && (
+                <div className="pt-3 border-t border-dark-700">
+                  <button type="button" onClick={handleDelete} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Skill Level
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Main AtsConfig Component ─────────────────────────────────────────── */
 export default function AtsConfig() {
   const { currentOrg, getAppRole } = useOrg();
@@ -641,6 +1109,15 @@ export default function AtsConfig() {
       )}
       {activeTab === 'employment_types' && (
         <ConfigSection entity="employment_types" entityLabel="Employment Types" orgSlug={orgSlug} showToast={showToast} />
+      )}
+      {activeTab === 'skill_types' && (
+        <SkillTypesSection orgSlug={orgSlug} showToast={showToast} />
+      )}
+      {activeTab === 'skills' && (
+        <SkillsSection orgSlug={orgSlug} showToast={showToast} />
+      )}
+      {activeTab === 'skill_levels' && (
+        <SkillLevelsSection orgSlug={orgSlug} showToast={showToast} />
       )}
     </div>
   );

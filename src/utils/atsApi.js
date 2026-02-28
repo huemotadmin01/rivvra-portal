@@ -238,6 +238,103 @@ const atsApi = {
   listRecruiters(orgSlug) {
     return api.request(`/api/org/${orgSlug}/ats/recruiters`);
   },
+
+  // ── Attachments ──────────────────────────────────────────────────────
+  listAttachments(orgSlug, applicationId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/attachments`);
+  },
+  uploadAttachment(orgSlug, applicationId, file, isResume = false) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('isResume', String(isResume));
+    return api.uploadFile(`/api/org/${orgSlug}/ats/applications/${applicationId}/attachments`, formData);
+  },
+  toggleResume(orgSlug, attachmentId) {
+    return api.request(`/api/org/${orgSlug}/ats/attachments/${attachmentId}/resume`, {
+      method: 'PUT',
+    });
+  },
+  deleteAttachment(orgSlug, attachmentId) {
+    return api.request(`/api/org/${orgSlug}/ats/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ── Skills Config ───────────────────────────────────────────────────
+  listSkillTypes(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-types`);
+  },
+  createSkillType(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-types`, {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
+  updateSkillType(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-types/${id}`, {
+      method: 'PUT', body: JSON.stringify(data),
+    });
+  },
+  deleteSkillType(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-types/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  listSkills(orgSlug, params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return api.request(`/api/org/${orgSlug}/ats/config/skills${qs ? '?' + qs : ''}`);
+  },
+  createSkill(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skills`, {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
+  updateSkill(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skills/${id}`, {
+      method: 'PUT', body: JSON.stringify(data),
+    });
+  },
+  deleteSkill(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skills/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  listSkillLevels(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-levels`);
+  },
+  createSkillLevel(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-levels`, {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
+  updateSkillLevel(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-levels/${id}`, {
+      method: 'PUT', body: JSON.stringify(data),
+    });
+  },
+  deleteSkillLevel(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/config/skill-levels/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ── Candidate Skills ────────────────────────────────────────────────
+  listCandidateSkills(orgSlug, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${candidateId}/skills`);
+  },
+  addCandidateSkill(orgSlug, candidateId, data) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${candidateId}/skills`, {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
+  removeCandidateSkill(orgSlug, candidateId, assignmentId) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${candidateId}/skills/${assignmentId}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 export default atsApi;
