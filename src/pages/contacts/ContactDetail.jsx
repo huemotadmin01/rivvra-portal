@@ -138,14 +138,14 @@ export default function ContactDetail() {
       mobile: contact.mobile || '',
       website: contact.website || '',
       jobTitle: contact.jobTitle || '',
-      parentCompany: contact.parentCompany || '',
+      parentCompany: contact.parentCompanyId || '',
       street: addr.street || '',
       city: addr.city || '',
       state: addr.state || '',
       zip: addr.zip || '',
       country: addr.country || '',
       tags: contact.tags || [],
-      notes: contact.notes || '',
+      notes: contact.internalNotes || '',
     });
     setEditing(true);
   };
@@ -184,7 +184,7 @@ export default function ContactDetail() {
         mobile: form.mobile.trim(),
         website: form.website.trim(),
         jobTitle: contact.type === 'individual' ? form.jobTitle.trim() : '',
-        parentCompany: contact.type === 'individual' ? form.parentCompany : '',
+        parentCompanyId: contact.type === 'individual' ? form.parentCompany : '',
         address: {
           street: form.street.trim(),
           city: form.city.trim(),
@@ -193,7 +193,7 @@ export default function ContactDetail() {
           country: form.country.trim(),
         },
         tags: form.tags,
-        notes: form.notes.trim(),
+        internalNotes: form.notes.trim(),
       };
 
       const res = await contactsApi.update(orgSlug, contactId, payload);
@@ -464,7 +464,7 @@ export default function ContactDetail() {
                     value={
                       contact.parentCompanyName ? (
                         <Link
-                          to={orgPath(`/contacts/${contact.parentCompany}`)}
+                          to={orgPath(`/contacts/${contact.parentCompanyId}`)}
                           className="text-rivvra-400 hover:underline"
                         >
                           {contact.parentCompanyName}
@@ -638,7 +638,7 @@ export default function ContactDetail() {
             />
           ) : (
             <div className="text-dark-300 text-sm whitespace-pre-wrap min-h-[100px]">
-              {contact.notes || (
+              {contact.internalNotes || (
                 <span className="text-dark-500 italic">No notes yet.</span>
               )}
             </div>

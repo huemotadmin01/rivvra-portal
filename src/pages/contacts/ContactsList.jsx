@@ -117,7 +117,7 @@ function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags }) {
         mobile: form.mobile.trim(),
         website: form.website.trim(),
         jobTitle: form.type === 'individual' ? form.jobTitle.trim() : '',
-        parentCompany: form.type === 'individual' ? form.parentCompany : '',
+        parentCompanyId: form.type === 'individual' ? form.parentCompany : '',
         address: {
           street: form.street.trim(),
           city: form.city.trim(),
@@ -126,7 +126,7 @@ function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags }) {
           country: form.country.trim(),
         },
         tags: form.tags,
-        notes: form.notes.trim(),
+        internalNotes: form.notes.trim(),
       };
       const res = await contactsApi.create(orgSlug, payload);
       if (res.success) {
