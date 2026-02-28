@@ -59,6 +59,21 @@ const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartme
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
 
+// Lazy-loaded: Contacts app pages
+const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
+const ContactDetail = lazy(() => import('./pages/contacts/ContactDetail'));
+const ContactsConfig = lazy(() => import('./pages/contacts/ContactsConfig'));
+
+// Lazy-loaded: ATS app pages
+const AtsPipeline = lazy(() => import('./pages/ats/AtsPipeline'));
+const AtsApplications = lazy(() => import('./pages/ats/AtsApplications'));
+const AtsApplicationDetail = lazy(() => import('./pages/ats/AtsApplicationDetail'));
+const AtsJobPositions = lazy(() => import('./pages/ats/AtsJobPositions'));
+const AtsJobDetail = lazy(() => import('./pages/ats/AtsJobDetail'));
+const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
+const AtsReporting = lazy(() => import('./pages/ats/AtsReporting'));
+const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
+
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
@@ -185,6 +200,31 @@ function App() {
                 </Route>
                 <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><EmployeeDetail /></ErrorBoundary>} />
               </Route>
+
+              {/* Contacts app routes — gated by contacts access */}
+              <Route element={<AppAccessGate appId="contacts" />}>
+                <Route path="/org/:slug/contacts/list" element={<ErrorBoundary><ContactsList /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/companies" element={<ErrorBoundary><ContactsList filterType="company" /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/individuals" element={<ErrorBoundary><ContactsList filterType="individual" /></ErrorBoundary>} />
+                <Route element={<AppRoleGate appId="contacts" requiredRole="admin" />}>
+                  <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><ContactsConfig /></ErrorBoundary>} />
+                </Route>
+                <Route path="/org/:slug/contacts/:contactId" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
+              </Route>
+
+              {/* ATS app routes — gated by ats access */}
+              <Route element={<AppAccessGate appId="ats" />}>
+                <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><AtsPipeline /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><AtsApplications /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><AtsApplicationDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><AtsJobPositions /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><AtsCandidates /></ErrorBoundary>} />
+                <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
+                  <Route path="/org/:slug/ats/reporting" element={<ErrorBoundary><AtsReporting /></ErrorBoundary>} />
+                  <Route path="/org/:slug/ats/config" element={<ErrorBoundary><AtsConfig /></ErrorBoundary>} />
+                </Route>
+              </Route>
             </Route>
 
             {/* ============================================================ */}
@@ -196,6 +236,8 @@ function App() {
             <Route path="/outreach/*" element={<OrgRedirect />} />
             <Route path="/timesheet/*" element={<OrgRedirect />} />
             <Route path="/employee/*" element={<OrgRedirect />} />
+            <Route path="/contacts/*" element={<OrgRedirect />} />
+            <Route path="/ats/*" element={<OrgRedirect />} />
             <Route path="/settings" element={<OrgRedirect to="/settings" />} />
             <Route path="/settings/*" element={<OrgRedirect />} />
 

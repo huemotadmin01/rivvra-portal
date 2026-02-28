@@ -1,7 +1,8 @@
 import {
   Send, Users, List, Home, BarChart3, UsersRound, Layers,
   Clock, Briefcase, UserSearch, Mail, CalendarDays, IndianRupee,
-  CheckCircle2, Download, Settings, Building2, UserPlus, Wallet
+  CheckCircle2, Download, Settings, Building2, UserPlus, Wallet,
+  Contact, Kanban, FileText, GripVertical
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -120,6 +121,32 @@ export const APP_REGISTRY = {
     },
   },
 
+  contacts: {
+    id: 'contacts',
+    name: 'Contacts',
+    description: 'Company & individual contacts directory',
+    icon: Contact,
+    color: 'cyan',
+    basePath: '/contacts',
+    status: 'active',
+    defaultRoute: '/contacts/list',
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'cyan' },
+      { value: 'member', label: 'Member', color: 'dark' },
+    ],
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/contacts/list', label: 'All Contacts', icon: Contact },
+        { type: 'item', path: '/contacts/companies', label: 'Companies', icon: Building2 },
+        { type: 'item', path: '/contacts/individuals', label: 'Individuals', icon: Users },
+        ...(isAdmin ? [
+          { type: 'item', path: '/contacts/config', label: 'Configuration', icon: Settings },
+        ] : []),
+      ];
+    },
+  },
+
   crm: {
     id: 'crm',
     name: 'CRM',
@@ -135,13 +162,30 @@ export const APP_REGISTRY = {
   ats: {
     id: 'ats',
     name: 'ATS',
-    description: 'Applicant tracking & hiring',
+    description: 'Applicant tracking & recruitment',
     icon: UserSearch,
-    color: 'orange',
+    color: 'purple',
     basePath: '/ats',
-    status: 'coming_soon',
-    defaultRoute: '/ats/dashboard',
-    getSidebarItems: () => [],
+    status: 'active',
+    defaultRoute: '/ats/pipeline',
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'purple' },
+      { value: 'recruiter', label: 'Recruiter', color: 'blue' },
+      { value: 'member', label: 'Member', color: 'dark' },
+    ],
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/ats/pipeline', label: 'Pipeline', icon: Kanban },
+        { type: 'item', path: '/ats/applications', label: 'Applications', icon: FileText },
+        { type: 'item', path: '/ats/jobs', label: 'Job Positions', icon: Briefcase },
+        { type: 'item', path: '/ats/candidates', label: 'Candidates', icon: Users },
+        ...(isAdmin ? [
+          { type: 'item', path: '/ats/reporting', label: 'Reporting', icon: BarChart3 },
+          { type: 'item', path: '/ats/config', label: 'Configuration', icon: Settings },
+        ] : []),
+      ];
+    },
   },
 
   settings: {
@@ -163,6 +207,8 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/outreach', label: 'Outreach', icon: Mail },
         { type: 'item', path: '/settings/timesheet', label: 'ESS', icon: Clock },
         { type: 'item', path: '/settings/employee', label: 'Employee', icon: UsersRound },
+        { type: 'item', path: '/settings/contacts', label: 'Contacts', icon: Contact },
+        { type: 'item', path: '/settings/ats', label: 'ATS', icon: UserSearch },
       ];
     },
   },
