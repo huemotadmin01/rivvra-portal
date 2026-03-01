@@ -185,7 +185,7 @@ export default function SignDashboard() {
               <tbody>
                 {recentRequests.map((req) => {
                   const totalSigners = req.signers?.length || 0;
-                  const signedCount = req.signers?.filter((s) => s.status === 'signed').length || 0;
+                  const signedCount = req.signers?.filter((s) => s.state === 'completed').length || 0;
 
                   return (
                     <tr
@@ -204,7 +204,7 @@ export default function SignDashboard() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={req.status} />
+                        <StatusBadge status={req.state} />
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <div className="flex items-center gap-2">

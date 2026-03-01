@@ -174,7 +174,7 @@ export default function SignRequestDetail() {
 
   const signers = request.signers || [];
   const totalSigners = signers.length;
-  const signedCount = signers.filter((s) => s.status === 'signed').length;
+  const signedCount = signers.filter((s) => s.state === 'completed').length;
   const pdfUrl = request.pdfUrl || template?.pdfUrl || null;
 
   return (
@@ -199,7 +199,7 @@ export default function SignRequestDetail() {
               <h1 className="text-2xl font-bold text-white">
                 {request.reference || request.name || 'Untitled Request'}
               </h1>
-              <StatusBadge status={request.status} size="lg" />
+              <StatusBadge status={request.state} size="lg" />
             </div>
             <p className="text-dark-400 text-sm mt-1">
               {template?.name || request.templateName || 'Unknown template'}
@@ -209,7 +209,7 @@ export default function SignRequestDetail() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          {request.status === 'sent' && (
+          {request.state === 'sent' && (
             <>
               <button
                 onClick={handleRemind}
@@ -269,7 +269,7 @@ export default function SignRequestDetail() {
                 <InfoRow
                   icon={CheckCircle2}
                   label="Completed"
-                  value={request.status === 'signed' ? formatDate(request.completedAt || request.updatedAt) : '\u2014'}
+                  value={request.state === 'signed' ? formatDate(request.completedAt || request.updatedAt) : '\u2014'}
                 />
                 <InfoRow icon={Clock} label="Valid Until" value={request.validityDate ? formatDateShort(request.validityDate) : 'No expiry'} />
               </div>
@@ -368,13 +368,13 @@ export default function SignRequestDetail() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={signer.status || 'pending'} />
+                          <StatusBadge status={signer.state || 'pending'} />
                         </td>
                         <td className="px-4 py-3 text-dark-400 text-xs hidden lg:table-cell">
-                          {signer.signedAt ? formatDate(signer.signedAt) : '\u2014'}
+                          {signer.signingDate ? formatDate(signer.signingDate) : '\u2014'}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {request.status === 'sent' && signer.status !== 'signed' && (
+                          {request.state === 'sent' && signer.state !== 'completed' && (
                             <button
                               onClick={async () => {
                                 try {
@@ -412,7 +412,7 @@ export default function SignRequestDetail() {
           </div>
 
           {/* Signed Values */}
-          {request.status === 'signed' && values.length > 0 && (
+          {request.state === 'signed' && values.length > 0 && (
             <div className="card p-5">
               <h2 className="text-lg font-semibold text-white mb-4">Signed Values</h2>
               <div className="space-y-3">
@@ -491,7 +491,7 @@ export default function SignRequestDetail() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-dark-400 text-sm">Status</span>
-                <StatusBadge status={request.status} />
+                <StatusBadge status={request.state} />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-dark-400 text-sm">Signers</span>
