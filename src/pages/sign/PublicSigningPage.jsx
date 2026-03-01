@@ -355,7 +355,8 @@ function PdfPageWithFields({
   }, [pdfDoc, pageNum, scale]);
 
   // Filter sign items for this page
-  const pageItems = signItems.filter((item) => item.page === pageNum);
+  // signItems use 0-indexed page, but pageNum is 1-indexed (for PDF.js)
+  const pageItems = signItems.filter((item) => item.page === pageNum - 1);
 
   return (
     <div className="relative mx-auto shadow-lg bg-white" style={{ width: pageDims.width || 'auto', height: pageDims.height || 'auto' }}>
@@ -370,11 +371,11 @@ function PdfPageWithFields({
         const meta = FIELD_META[item.type] || FIELD_META.text;
         const Icon = meta.icon;
 
-        // Position & size from item (percentages of page dimensions)
-        const left = (item.x / 100) * pageDims.width;
-        const top = (item.y / 100) * pageDims.height;
-        const width = (item.width / 100) * pageDims.width;
-        const height = (item.height / 100) * pageDims.height;
+        // Position & size from item (fractions 0–1 of page dimensions)
+        const left = (item.posX ?? item.x ?? 0) * pageDims.width;
+        const top = (item.posY ?? item.y ?? 0) * pageDims.height;
+        const width = (item.width ?? 0.2) * pageDims.width;
+        const height = (item.height ?? 0.05) * pageDims.height;
 
         // For signature/initials: show image if filled, else clickable placeholder
         if (isSignatureType) {

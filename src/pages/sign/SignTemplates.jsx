@@ -95,7 +95,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
     try {
       setSaving(true);
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('pdf', file);
       formData.append('name', name.trim());
       formData.append('tags', JSON.stringify(selectedTags));
 

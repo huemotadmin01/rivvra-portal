@@ -78,7 +78,7 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
 }
 
 /* ── New Request Modal ────────────────────────────────────────────────── */
-const EMPTY_SIGNER = { name: '', email: '', role: '' };
+const EMPTY_SIGNER = { name: '', email: '', roleId: '', roleName: '' };
 
 function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   const modalRef = useRef(null);
@@ -86,6 +86,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
 
   const [step, setStep] = useState(1);
   const [templates, setTemplates] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [signers, setSigners] = useState([{ ...EMPTY_SIGNER }]);
@@ -105,25 +106,37 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
       setValidityDate('');
       setCcEmails('');
       setLoadingTemplates(true);
-      signApi.listTemplates(orgSlug)
-        .then((res) => setTemplates(res.templates || []))
-        .catch(() => setTemplates([]))
-        .finally(() => setLoadingTemplates(false));
+      Promise.all([
+        signApi.listTemplates(orgSlug).then((res) => res.templates || []).catch(() => []),
+        signApi.listRoles(orgSlug).then((res) => res.roles || []).catch(() => []),
+      ]).then(([tmpls, rls]) => {
+        setTemplates(tmpls);
+        setRoles(rls);
+      }).finally(() => setLoadingTemplates(false));
     }
   }, [show, orgSlug]);
 
-  // When template is selected, prefill signers from template roles
+  // When template is selected, prefill signers from template's signItem roles
   useEffect(() => {
     if (selectedTemplate) {
-      const roles = selectedTemplate.roles || [];
-      if (roles.length > 0) {
-        setSigners(roles.map((r) => ({ name: '', email: '', role: r.name || r })));
+      // Extract unique roleIds from this template's signItems
+      const roleIdSet = new Set();
+      (selectedTemplate.signItems || []).forEach((item) => {
+        if (item.roleId) roleIdSet.add(item.roleId);
+      });
+      const uniqueRoleIds = [...roleIdSet];
+
+      if (uniqueRoleIds.length > 0) {
+        setSigners(uniqueRoleIds.map((rid) => {
+          const role = roles.find((r) => (r._id || r.id) === rid);
+          return { name: '', email: '', roleId: rid, roleName: role?.name || 'Signer' };
+        }));
       } else {
         setSigners([{ ...EMPTY_SIGNER }]);
       }
       setSubject(selectedTemplate.name ? `Please sign: ${selectedTemplate.name}` : '');
     }
-  }, [selectedTemplate]);
+  }, [selectedTemplate, roles]);
 
   const updateSigner = (idx, field, value) => {
     setSigners((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
@@ -153,11 +166,12 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
         signers: signers.map((s) => ({
           name: s.name.trim(),
           email: s.email.trim(),
-          role: s.role.trim() || undefined,
+          roleId: s.roleId || undefined,
+          roleName: s.roleName || undefined,
         })),
         subject: subject.trim() || undefined,
         message: message.trim() || undefined,
-        validityDate: validityDate || undefined,
+        validity: validityDate || undefined,
         ccEmails: ccEmails
           .split(',')
           .map((e) => e.trim())
@@ -297,7 +311,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-dark-400 uppercase tracking-wide">
                       Signer {idx + 1}
-                      {signer.role ? ` \u2014 ${signer.role}` : ''}
+                      {signer.roleName ? ` \u2014 ${signer.roleName}` : ''}
                     </span>
                     {signers.length > 1 && (
                       <button
@@ -338,13 +352,29 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-dark-400 mb-1">Role</label>
-                    <input
-                      type="text"
-                      value={signer.role}
-                      onChange={(e) => updateSigner(idx, 'role', e.target.value)}
-                      placeholder="e.g. Employee, Manager, Witness"
-                      className="input-field text-sm"
-                    />
+                    {signer.roleId ? (
+                      <div className="px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-sm text-dark-300 flex items-center gap-2">
+                        <User size={14} className="text-indigo-400" />
+                        {signer.roleName || 'Assigned Role'}
+                      </div>
+                    ) : (
+                      <select
+                        value={signer.roleId || ''}
+                        onChange={(e) => {
+                          const role = roles.find((r) => (r._id || r.id) === e.target.value);
+                          updateSigner(idx, 'roleId', e.target.value);
+                          updateSigner(idx, 'roleName', role?.name || '');
+                        }}
+                        className="input-field text-sm"
+                      >
+                        <option value="">Select role (optional)</option>
+                        {roles.map((r) => (
+                          <option key={r._id || r.id} value={r._id || r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
               ))}
@@ -468,9 +498,9 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
                         <p className="text-white text-sm font-medium truncate">{s.name}</p>
                         <p className="text-dark-400 text-xs truncate">{s.email}</p>
                       </div>
-                      {s.role && (
+                      {s.roleName && (
                         <span className="px-2 py-0.5 rounded-full text-xs bg-dark-700 text-dark-400">
-                          {s.role}
+                          {s.roleName}
                         </span>
                       )}
                     </div>
