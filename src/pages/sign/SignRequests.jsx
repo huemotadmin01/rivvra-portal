@@ -285,7 +285,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
                     <div className="min-w-0 flex-1">
                       <p className="text-white font-medium truncate">{tpl.name}</p>
                       <p className="text-dark-400 text-xs mt-0.5">
-                        {tpl.pageCount || tpl.pages || 0} pages
+                        {tpl.numPages || tpl.pageCount || tpl.pages || 0} pages
                         {tpl.signItems?.length ? ` \u2022 ${tpl.signItems.length} fields` : ''}
                       </p>
                     </div>
