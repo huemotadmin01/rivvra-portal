@@ -382,12 +382,12 @@ export default function SignRequestDetail() {
                           </span>
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
-                          {signer.role ? (
+                          {signer.roleName ? (
                             <span className="px-2 py-0.5 rounded-full text-xs bg-dark-700 text-dark-400">
-                              {signer.role}
+                              {signer.roleName}
                             </span>
                           ) : (
-                            <span className="text-dark-500">\u2014</span>
+                            <span className="text-dark-500">{'\u2014'}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -490,7 +490,7 @@ export default function SignRequestDetail() {
             {(request.signedPdfUrl || pdfUrl) ? (
               <div className="aspect-[3/4] bg-dark-900">
                 <iframe
-                  src={request.signedPdfUrl || pdfUrl}
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(request.signedPdfUrl || pdfUrl)}&embedded=true`}
                   className="w-full h-full border-0"
                   title="PDF Preview"
                 />
