@@ -141,12 +141,12 @@ function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, re
       setSaving(true);
       const payload = {
         candidateName: form.candidateName.trim(),
-        candidateEmail: form.candidateEmail.trim(),
-        candidatePhone: form.candidatePhone.trim(),
+        email: form.candidateEmail.trim(),
+        phone: form.candidatePhone.trim(),
         linkedinProfile: form.linkedinProfile.trim(),
-        jobId: form.jobId || undefined,
+        jobPositionId: form.jobId || undefined,
         stageId: form.stageId || undefined,
-        recruiter: form.recruiter || undefined,
+        recruiterId: form.recruiter || undefined,
         employmentType: form.employmentType.trim(),
         source: form.source.trim(),
         evaluation: form.evaluation,

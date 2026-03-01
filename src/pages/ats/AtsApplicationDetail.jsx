@@ -564,11 +564,11 @@ export default function AtsApplicationDetail() {
       setSaving(true);
       const payload = {
         candidateName: editForm.candidateName,
-        candidateEmail: editForm.candidateEmail,
-        candidatePhone: editForm.candidatePhone,
+        email: editForm.candidateEmail,
+        phone: editForm.candidatePhone,
         linkedinProfile: editForm.linkedinProfile,
         evaluation: editForm.evaluation,
-        recruiterName: editForm.recruiterName,
+        recruiterId: editForm.recruiterId || undefined,
         employmentType: editForm.employmentType,
         source: editForm.source,
         medium: editForm.medium,
