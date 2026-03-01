@@ -40,7 +40,7 @@ import {
 // ---------------------------------------------------------------------------
 // PDF.js worker setup — use CDN for the matching version
 // ---------------------------------------------------------------------------
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -203,7 +203,7 @@ export default function SignTemplateEditor() {
       try {
         const doc = await pdfjsLib.getDocument({
           url: pdfUrl,
-          cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`,
+          cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
           cMapPacked: true,
         }).promise;
 
