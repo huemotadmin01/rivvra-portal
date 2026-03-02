@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import { API_BASE_URL } from '../../utils/config';
+import * as pdfjsLib from 'pdfjs-dist';
 import {
   Loader2, ArrowLeft, FileText, XCircle, Bell,
   Download, User, Calendar, Clock, Send,
   Mail, CheckCircle2, X, ExternalLink,
-  Eye, Link as LinkIcon,
+  Eye, Link as LinkIcon, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
@@ -21,6 +25,8 @@ const STATUS_STYLES = {
   draft:     'bg-dark-700 text-dark-400',
   refused:   'bg-red-500/10 text-red-400',
   pending:   'bg-amber-500/10 text-amber-400',
+  waiting:   'bg-amber-500/10 text-amber-400',
+  completed: 'bg-emerald-500/10 text-emerald-400',
 };
 
 function StatusBadge({ status, size = 'sm' }) {
@@ -33,6 +39,135 @@ function StatusBadge({ status, size = 'sm' }) {
     <span className={`rounded-full font-medium ${cls} ${sizeClass}`}>
       {label}
     </span>
+  );
+}
+
+/* ── Inline PDF Viewer ────────────────────────────────────────────────── */
+function InlinePdfViewer({ fetchUrl, token }) {
+  const canvasRef = useRef(null);
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [rendering, setRendering] = useState(false);
+  const containerRef = useRef(null);
+
+  // Load PDF from authenticated proxy endpoint
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    setPdfDoc(null);
+    setCurrentPage(1);
+
+    async function load() {
+      try {
+        const resp = await fetch(fetchUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!resp.ok) throw new Error('Failed to fetch PDF');
+        const arrayBuffer = await resp.arrayBuffer();
+        if (cancelled) return;
+        const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        if (cancelled) return;
+        setPdfDoc(doc);
+        setNumPages(doc.numPages);
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load PDF');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [fetchUrl, token]);
+
+  // Render current page to canvas
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+    let cancelled = false;
+    setRendering(true);
+
+    async function renderPage() {
+      try {
+        const page = await pdfDoc.getPage(currentPage);
+        if (cancelled) return;
+        // Fit to container width
+        const containerWidth = containerRef.current?.clientWidth || 400;
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        const scale = (containerWidth - 16) / unscaledViewport.width; // 16px for padding
+        const viewport = page.getViewport({ scale });
+
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      } catch (err) {
+        console.error('Failed to render PDF page:', err);
+      } finally {
+        if (!cancelled) setRendering(false);
+      }
+    }
+    renderPage();
+    return () => { cancelled = true; };
+  }, [pdfDoc, currentPage]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
+        <span className="ml-2 text-dark-400 text-sm">Loading PDF...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4">
+        <FileText className="w-10 h-10 text-dark-500 mb-3" />
+        <p className="text-dark-400 text-sm text-center">Failed to load PDF</p>
+        <p className="text-dark-500 text-xs text-center mt-1">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="flex flex-col">
+      {/* Page navigation */}
+      {numPages > 1 && (
+        <div className="flex items-center justify-center gap-3 py-2 border-b border-dark-700 bg-dark-900/50">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="p-1 rounded text-dark-400 hover:text-white hover:bg-dark-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-dark-300 text-xs font-medium">
+            {currentPage} / {numPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+            disabled={currentPage >= numPages}
+            className="p-1 rounded text-dark-400 hover:text-white hover:bg-dark-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+      {/* Canvas */}
+      <div className="overflow-auto max-h-[500px] p-2 bg-dark-950 relative">
+        {rendering && (
+          <div className="absolute inset-0 flex items-center justify-center bg-dark-950/60 z-10">
+            <Loader2 className="w-5 h-5 animate-spin text-dark-400" />
+          </div>
+        )}
+        <canvas ref={canvasRef} className="mx-auto rounded" style={{ maxWidth: '100%' }} />
+      </div>
+    </div>
   );
 }
 
@@ -66,6 +201,7 @@ export default function SignRequestDetail() {
   const [cancelling, setCancelling] = useState(false);
   const [reminding, setReminding] = useState(false);
   const [remindingSigner, setRemindingSigner] = useState(null);
+  const [docTab, setDocTab] = useState('signed'); // 'signed' | 'certificate'
 
   const fetchRequest = useCallback(async () => {
     if (!orgSlug || !requestId) return;
@@ -375,6 +511,7 @@ export default function SignRequestDetail() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-dark-700">
+                      <th className="text-center px-2 py-3 text-dark-400 font-medium w-10">#</th>
                       <th className="text-left px-4 py-3 text-dark-400 font-medium">Signer</th>
                       <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Email</th>
                       <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Role</th>
@@ -386,6 +523,11 @@ export default function SignRequestDetail() {
                   <tbody>
                     {signers.map((signer, idx) => (
                       <tr key={signer._id || idx} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
+                        <td className="px-2 py-3 text-center">
+                          <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold inline-flex items-center justify-center">
+                            {signer.order || idx + 1}
+                          </span>
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
@@ -503,32 +645,64 @@ export default function SignRequestDetail() {
         {/* Right: PDF Preview */}
         <div className="space-y-6">
           <div className="card overflow-hidden">
-            <div className="px-5 py-4 border-b border-dark-700">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Eye size={16} className="text-dark-400" />
-                {request.state === 'signed' && request.signedPdfUrl ? 'Signed Document' : 'Document Preview'}
-              </h2>
-            </div>
-            {(request.signedPdfUrl || pdfUrl) ? (
-              <div className="flex flex-col items-center justify-center py-12 px-6">
-                <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
-                  <FileText size={32} className="text-emerald-400" />
-                </div>
-                <p className="text-white font-medium text-sm mb-1">
-                  {request.state === 'signed' ? 'Signed document ready' : 'Document available'}
-                </p>
-                <p className="text-dark-500 text-xs text-center mb-5">
-                  Open the PDF in a new tab to view the full document
-                </p>
-                {request.signedPdfUrl ? (
+            {/* Tabs for signed requests */}
+            {request.state === 'signed' && (request.signedPdfUrl || request.certificateUrl) ? (
+              <>
+                <div className="flex border-b border-dark-700">
+                  {request.signedPdfUrl && (
+                    <button
+                      onClick={() => setDocTab('signed')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                        docTab === 'signed'
+                          ? 'text-indigo-400 border-b-2 border-indigo-500 bg-dark-800/50'
+                          : 'text-dark-400 hover:text-dark-200'
+                      }`}
+                    >
+                      Signed PDF
+                    </button>
+                  )}
+                  {request.certificateUrl && (
+                    <button
+                      onClick={() => setDocTab('certificate')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                        docTab === 'certificate'
+                          ? 'text-indigo-400 border-b-2 border-indigo-500 bg-dark-800/50'
+                          : 'text-dark-400 hover:text-dark-200'
+                      }`}
+                    >
+                      Certificate
+                    </button>
+                  )}
                   <button
-                    onClick={() => openProxyPdf('signed')}
-                    className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors"
+                    onClick={() => openProxyPdf(docTab === 'certificate' ? 'certificate' : 'signed')}
+                    className="px-3 py-3 text-dark-400 hover:text-white transition-colors"
+                    title="Open in new tab"
                   >
                     <ExternalLink size={14} />
-                    Open Document
                   </button>
-                ) : (
+                </div>
+                <InlinePdfViewer
+                  key={docTab}
+                  fetchUrl={`${API_BASE_URL}/api/org/${orgSlug}/sign/requests/${requestId}/${docTab === 'certificate' ? 'certificate' : 'signed-pdf'}`}
+                  token={localStorage.getItem('rivvra_token')}
+                />
+              </>
+            ) : pdfUrl ? (
+              <>
+                <div className="px-5 py-4 border-b border-dark-700">
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Eye size={16} className="text-dark-400" />
+                    Document Preview
+                  </h2>
+                </div>
+                <div className="flex flex-col items-center justify-center py-12 px-6">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
+                    <FileText size={32} className="text-emerald-400" />
+                  </div>
+                  <p className="text-white font-medium text-sm mb-1">Document available</p>
+                  <p className="text-dark-500 text-xs text-center mb-5">
+                    Open the PDF in a new tab to view the full document
+                  </p>
                   <a
                     href={pdfUrl}
                     target="_blank"
@@ -538,18 +712,26 @@ export default function SignRequestDetail() {
                     <ExternalLink size={14} />
                     Open Document
                   </a>
-                )}
-              </div>
+                </div>
+              </>
             ) : (
-              <div className="flex flex-col items-center justify-center py-16">
-                <FileText className="w-10 h-10 text-dark-500 mb-3" />
-                <p className="text-dark-400 text-sm text-center">
-                  PDF preview not available
-                </p>
-                <p className="text-dark-500 text-xs text-center mt-1">
-                  The document will be available after the template is processed.
-                </p>
-              </div>
+              <>
+                <div className="px-5 py-4 border-b border-dark-700">
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Eye size={16} className="text-dark-400" />
+                    Document Preview
+                  </h2>
+                </div>
+                <div className="flex flex-col items-center justify-center py-16">
+                  <FileText className="w-10 h-10 text-dark-500 mb-3" />
+                  <p className="text-dark-400 text-sm text-center">
+                    PDF preview not available
+                  </p>
+                  <p className="text-dark-500 text-xs text-center mt-1">
+                    The document will be available after the template is processed.
+                  </p>
+                </div>
+              </>
             )}
           </div>
 

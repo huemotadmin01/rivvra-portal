@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../../utils/config';
 import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
   CheckSquare, AlignLeft, Loader2, Check, X, AlertTriangle,
-  ChevronDown, ChevronUp, FileText
+  ChevronDown, ChevronUp, FileText, Clock
 } from 'lucide-react';
 
 // Configure PDF.js worker
@@ -492,7 +492,7 @@ export default function PublicSigningPage() {
   const { requestId, signerId, token } = useParams();
 
   // State
-  const [status, setStatus] = useState('loading'); // loading | signing | success | refused | error
+  const [status, setStatus] = useState('loading'); // loading | signing | success | refused | error | waiting
   const [error, setError] = useState('');
   const [request, setRequest] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -515,7 +515,19 @@ export default function PublicSigningPage() {
   useEffect(() => {
     async function verify() {
       try {
-        const data = await signApi.verifySigningLink(requestId, signerId, token);
+        // Use raw fetch to detect signerState: 'waiting' from 403 responses
+        const res = await fetch(`${API_BASE_URL}/api/sign/verify/${requestId}/${signerId}/${token}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          // Sequential signing: signer must wait for their turn
+          if (data.signerState === 'waiting') {
+            setStatus('waiting');
+            return;
+          }
+          throw new Error(data.error || 'This signing link is invalid or has expired.');
+        }
+
         setRequest(data.request);
         setSigner(data.signer);
         setTemplate(data.template);
@@ -683,6 +695,29 @@ export default function PublicSigningPage() {
   }
 
   // ── Error state ─────────────────────────────────────────────────────
+  // ── Waiting state (sequential signing — not your turn yet) ──────────
+  if (status === 'waiting') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+            <Clock className="w-8 h-8 text-amber-600" />
+          </div>
+          <h2 className="mt-5 text-xl font-semibold text-gray-900">Not Your Turn Yet</h2>
+          <p className="mt-3 text-sm text-gray-600">
+            This document requires signatures in a specific order. Other signers need to complete their signatures before you.
+          </p>
+          <p className="mt-4 text-sm text-gray-500">
+            You'll receive an email when it's your turn to sign.
+          </p>
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400">Powered by Rivvra Sign</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'error') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

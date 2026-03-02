@@ -42,6 +42,7 @@ const SettingsTeam = lazy(() => import('./components/settings/SettingsTeam'));
 const SettingsOutreach = lazy(() => import('./components/settings/SettingsOutreach'));
 const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimesheet'));
 const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
+const SettingsEmailLogs = lazy(() => import('./components/settings/SettingsEmailLogs'));
 
 // Lazy-loaded: Timesheet app pages
 const TimesheetDashboard = lazy(() => import('./pages/timesheet/TimesheetDashboard'));
@@ -184,6 +185,7 @@ function App() {
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><SettingsOutreach /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheet /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/employee" element={<SettingsPageWrapper><SettingsEmployee /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/email-logs" element={<SettingsPageWrapper><SettingsEmailLogs /></SettingsPageWrapper>} />
               </Route>
 
               {/* Timesheet app routes — gated by timesheet access */}

@@ -9,8 +9,11 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Bell, XCircle, Send, User, Calendar,
   ArrowRight, ArrowLeft, Check, Mail,
-  MessageSquare,
+  MessageSquare, GripVertical,
 } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
@@ -77,8 +80,115 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
   );
 }
 
+/* ── Sortable Signer Card (drag-to-reorder) ──────────────────────────── */
+function SortableSignerCard({ signer, idx, totalSigners, updateSigner, removeSigner, roles }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: signer._dragId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="bg-dark-900 rounded-xl p-4 border border-dark-700 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="cursor-grab active:cursor-grabbing text-dark-500 hover:text-dark-300 transition-colors touch-none"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical size={16} />
+          </button>
+          <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">
+            {idx + 1}
+          </span>
+          <span className="text-xs font-semibold text-dark-400 uppercase tracking-wide">
+            Signer {idx + 1}
+            {signer.roleName ? ` \u2014 ${signer.roleName}` : ''}
+          </span>
+        </div>
+        {totalSigners > 1 && (
+          <button
+            onClick={() => removeSigner(idx)}
+            className="text-dark-500 hover:text-red-400 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-dark-400 mb-1">
+            Name <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            required
+            value={signer.name}
+            onChange={(e) => updateSigner(idx, 'name', e.target.value)}
+            placeholder="John Doe"
+            className="input-field text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-dark-400 mb-1">
+            Email <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="email"
+            required
+            value={signer.email}
+            onChange={(e) => updateSigner(idx, 'email', e.target.value)}
+            placeholder="john@example.com"
+            className="input-field text-sm"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-dark-400 mb-1">Role</label>
+        {signer.roleId ? (
+          <div className="px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-sm text-dark-300 flex items-center gap-2">
+            <User size={14} className="text-indigo-400" />
+            {signer.roleName || 'Assigned Role'}
+          </div>
+        ) : (
+          <select
+            value={signer.roleId || ''}
+            onChange={(e) => {
+              const role = roles.find((r) => (r._id || r.id) === e.target.value);
+              updateSigner(idx, 'roleId', e.target.value);
+              updateSigner(idx, 'roleName', role?.name || '');
+            }}
+            className="input-field text-sm"
+          >
+            <option value="">Select role (optional)</option>
+            {roles.map((r) => (
+              <option key={r._id || r.id} value={r._id || r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── New Request Modal ────────────────────────────────────────────────── */
-const EMPTY_SIGNER = { name: '', email: '', roleId: '', roleName: '' };
+let _signerIdCounter = 0;
+const makeSignerId = () => `signer_${++_signerIdCounter}_${Date.now()}`;
+const EMPTY_SIGNER = () => ({ _dragId: makeSignerId(), name: '', email: '', roleId: '', roleName: '' });
 
 function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   const modalRef = useRef(null);
@@ -89,7 +199,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   const [roles, setRoles] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [signers, setSigners] = useState([{ ...EMPTY_SIGNER }]);
+  const [signers, setSigners] = useState([EMPTY_SIGNER()]);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [validityDate, setValidityDate] = useState('');
@@ -100,7 +210,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
     if (show && orgSlug) {
       setStep(1);
       setSelectedTemplate(null);
-      setSigners([{ ...EMPTY_SIGNER }]);
+      setSigners([EMPTY_SIGNER()]);
       setSubject('');
       setMessage('');
       setValidityDate('');
@@ -129,10 +239,10 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
       if (uniqueRoleIds.length > 0) {
         setSigners(uniqueRoleIds.map((rid) => {
           const role = roles.find((r) => (r._id || r.id) === rid);
-          return { name: '', email: '', roleId: rid, roleName: role?.name || 'Signer' };
+          return { _dragId: makeSignerId(), name: '', email: '', roleId: rid, roleName: role?.name || 'Signer' };
         }));
       } else {
-        setSigners([{ ...EMPTY_SIGNER }]);
+        setSigners([EMPTY_SIGNER()]);
       }
       setSubject(selectedTemplate.name ? `Please sign: ${selectedTemplate.name}` : '');
     }
@@ -143,7 +253,26 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   };
 
   const addSigner = () => {
-    setSigners((prev) => [...prev, { ...EMPTY_SIGNER }]);
+    setSigners((prev) => [...prev, EMPTY_SIGNER()]);
+  };
+
+  // dnd-kit sensors — require 8px drag before activating (prevents accidental drags)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setSigners((prev) => {
+      const oldIdx = prev.findIndex((s) => s._dragId === active.id);
+      const newIdx = prev.findIndex((s) => s._dragId === over.id);
+      if (oldIdx === -1 || newIdx === -1) return prev;
+      const updated = [...prev];
+      const [moved] = updated.splice(oldIdx, 1);
+      updated.splice(newIdx, 0, moved);
+      return updated;
+    });
   };
 
   const removeSigner = (idx) => {
@@ -299,86 +428,29 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
           </div>
         )}
 
-        {/* Step 2: Add Signers */}
+        {/* Step 2: Add Signers (drag to reorder) */}
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-sm text-dark-400 mb-2">
-              Add the signers for this document. Each signer will receive an email with a link to sign.
+              Add signers and drag to reorder. They will sign in this order.
             </p>
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {signers.map((signer, idx) => (
-                <div key={idx} className="bg-dark-900 rounded-xl p-4 border border-dark-700 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-dark-400 uppercase tracking-wide">
-                      Signer {idx + 1}
-                      {signer.roleName ? ` \u2014 ${signer.roleName}` : ''}
-                    </span>
-                    {signers.length > 1 && (
-                      <button
-                        onClick={() => removeSigner(idx)}
-                        className="text-dark-500 hover:text-red-400 transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-dark-400 mb-1">
-                        Name <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={signer.name}
-                        onChange={(e) => updateSigner(idx, 'name', e.target.value)}
-                        placeholder="John Doe"
-                        className="input-field text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-dark-400 mb-1">
-                        Email <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={signer.email}
-                        onChange={(e) => updateSigner(idx, 'email', e.target.value)}
-                        placeholder="john@example.com"
-                        className="input-field text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-dark-400 mb-1">Role</label>
-                    {signer.roleId ? (
-                      <div className="px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-sm text-dark-300 flex items-center gap-2">
-                        <User size={14} className="text-indigo-400" />
-                        {signer.roleName || 'Assigned Role'}
-                      </div>
-                    ) : (
-                      <select
-                        value={signer.roleId || ''}
-                        onChange={(e) => {
-                          const role = roles.find((r) => (r._id || r.id) === e.target.value);
-                          updateSigner(idx, 'roleId', e.target.value);
-                          updateSigner(idx, 'roleName', role?.name || '');
-                        }}
-                        className="input-field text-sm"
-                      >
-                        <option value="">Select role (optional)</option>
-                        {roles.map((r) => (
-                          <option key={r._id || r.id} value={r._id || r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={signers.map((s) => s._dragId)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {signers.map((signer, idx) => (
+                    <SortableSignerCard
+                      key={signer._dragId}
+                      signer={signer}
+                      idx={idx}
+                      totalSigners={signers.length}
+                      updateSigner={updateSigner}
+                      removeSigner={removeSigner}
+                      roles={roles}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
             <button
               type="button"
               onClick={addSigner}
@@ -483,17 +555,17 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
                 </div>
               )}
 
-              {/* Signers */}
+              {/* Signers (with signing order) */}
               <div>
                 <p className="text-xs text-dark-500 uppercase tracking-wide mb-2">
-                  Signers ({signers.length})
+                  Signing Order ({signers.length} {signers.length === 1 ? 'signer' : 'signers'})
                 </p>
                 <div className="space-y-2">
                   {signers.map((s, i) => (
-                    <div key={i} className="flex items-center gap-3 bg-dark-800 rounded-lg px-3 py-2">
-                      <div className="w-7 h-7 rounded-full bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                        <User size={12} className="text-indigo-400" />
-                      </div>
+                    <div key={s._dragId || i} className="flex items-center gap-3 bg-dark-800 rounded-lg px-3 py-2">
+                      <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                        {i + 1}
+                      </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-white text-sm font-medium truncate">{s.name}</p>
                         <p className="text-dark-400 text-xs truncate">{s.email}</p>
