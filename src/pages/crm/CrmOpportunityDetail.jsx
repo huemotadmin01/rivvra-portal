@@ -139,11 +139,12 @@ export default function CrmOpportunityDetail() {
   };
 
   const handleStageChange = async (stageId) => {
+    if (opp?.stageId === stageId) return; // already on this stage
     try {
       const res = await crmApi.moveStage(slug, opportunityId, stageId);
       if (res.isWonStage) addToast('Marked as Won!', 'success');
       else addToast('Stage updated', 'success');
-      fetchAll();
+      await fetchAll();
     } catch {
       addToast('Failed to move stage', 'error');
     }
