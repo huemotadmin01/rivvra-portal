@@ -12,7 +12,7 @@ import {
   Mail, Phone, Linkedin, User, Briefcase,
   Calendar, Edit3, Check, XCircle, Award,
   Clock, Tag, MessageSquare, Plus, CheckCircle2,
-  DollarSign, Circle, PenTool, FileSignature,
+  DollarSign, Circle, PenTool, FileSignature, UserPlus, ExternalLink,
 } from 'lucide-react';
 
 /* ── Evaluation Stars ─────────────────────────────────────────────────── */
@@ -455,6 +455,7 @@ export default function AtsApplicationDetail() {
   const [showHireModal, setShowHireModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+  const [creatingEmployee, setCreatingEmployee] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -571,6 +572,25 @@ export default function AtsApplicationDetail() {
       showToast(err.message || 'Failed to hire candidate', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateEmployee = async () => {
+    try {
+      setCreatingEmployee(true);
+      const res = await atsApi.createEmployeeFromApplication(orgSlug, applicationId);
+      if (res.success) {
+        if (res.existing) {
+          showToast('Linked to existing employee');
+        } else {
+          showToast(`Employee "${res.employeeName}" created!`);
+        }
+        fetchApplication();
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to create employee', 'error');
+    } finally {
+      setCreatingEmployee(false);
     }
   };
 
@@ -788,6 +808,25 @@ export default function AtsApplicationDetail() {
                 <Award size={14} />
                 Hire
               </button>
+              {application.hireDate && !application.employeeId && (
+                <button
+                  onClick={handleCreateEmployee}
+                  disabled={creatingEmployee}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 disabled:opacity-50"
+                >
+                  {creatingEmployee ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                  Create Employee
+                </button>
+              )}
+              {application.employeeId && (
+                <button
+                  onClick={() => navigate(`/org/${orgSlug}/employee/${application.employeeId}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
+                >
+                  <ExternalLink size={14} />
+                  Employee
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (editing) {

@@ -682,6 +682,7 @@ export default function AtsJobPositions() {
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Approval</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Client</th>
+                    <th className="text-center px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Published</th>
                     <th className="text-center px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applications</th>
                     <th className="text-center px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Expected</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Created</th>
@@ -742,6 +743,15 @@ export default function AtsJobPositions() {
                       {/* Client */}
                       <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
                         {job.clientName || '\u2014'}
+                      </td>
+
+                      {/* Published */}
+                      <td className="px-4 py-3 text-center hidden xl:table-cell">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          job.published ? 'bg-emerald-500/10 text-emerald-400' : 'bg-dark-700 text-dark-500'
+                        }`}>
+                          {job.published ? 'Yes' : 'No'}
+                        </span>
                       </td>
 
                       {/* Applications count */}

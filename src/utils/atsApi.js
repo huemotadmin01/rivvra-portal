@@ -129,6 +129,12 @@ const atsApi = {
     });
   },
 
+  createEmployeeFromApplication(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/create-employee`, {
+      method: 'POST',
+    });
+  },
+
   deleteApplication(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}`, {
       method: 'DELETE',

@@ -305,6 +305,8 @@ export default function AtsJobDetail() {
         hiringMode: editForm.hiringMode || '',
         accountOwnerId: editForm.accountOwnerId || '',
         accountManagerId: editForm.accountManagerId || '',
+        approverComment: editForm.approverComment || '',
+        published: !!editForm.published,
       };
       const res = await atsApi.updateJob(orgSlug, jobId, payload);
       if (res.success) {
@@ -781,7 +783,41 @@ export default function AtsJobDetail() {
               {resolveUserName(job.approverId, job.approverName)}
             </p>
           </div>
+          <div>
+            <p className="text-dark-500 text-xs mb-1">Approver Comment</p>
+            {editing ? (
+              <textarea
+                value={editForm.approverComment || ''}
+                onChange={(e) => handleEditChange('approverComment', e.target.value)}
+                className="input-field text-sm min-h-[60px]"
+                placeholder="Approval notes..."
+              />
+            ) : (
+              <p className="text-dark-300 text-sm">{job.approverComment || '—'}</p>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Published Toggle */}
+      <div className="flex items-center justify-between px-1 py-2">
+        <div>
+          <p className="text-dark-200 text-sm font-medium">Published</p>
+          <p className="text-dark-500 text-xs">Make this position visible on the careers page</p>
+        </div>
+        <button
+          onClick={() => {
+            if (!editing) return;
+            handleEditChange('published', !editForm.published);
+          }}
+          className={`relative w-10 h-5 rounded-full transition-colors ${
+            (editing ? editForm.published : job.published) ? 'bg-rivvra-500' : 'bg-dark-600'
+          } ${!editing ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+            (editing ? editForm.published : job.published) ? 'translate-x-5' : ''
+          }`} />
+        </button>
       </div>
 
       {/* Mini Pipeline */}
