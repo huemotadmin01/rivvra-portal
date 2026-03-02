@@ -8,9 +8,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import {
   Mail, Search, Loader2, ChevronLeft, ChevronRight,
-  AlertCircle, CheckCircle2, Clock, Filter, X, RefreshCw,
+  AlertCircle, CheckCircle2, Clock, Filter, X, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import api from '../../utils/api';
+
+// ── Delivery status badge colors ──────────────────────────────────
+const DELIVERY_COLORS = {
+  delivered:  { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', label: 'Delivered' },
+  sent:       { bg: 'bg-blue-500/10',    text: 'text-blue-400',    border: 'border-blue-500/20',    label: 'Sent' },
+  bounced:    { bg: 'bg-red-500/10',      text: 'text-red-400',      border: 'border-red-500/20',      label: 'Bounced' },
+  complained: { bg: 'bg-orange-500/10',  text: 'text-orange-400',  border: 'border-orange-500/20',  label: 'Complained' },
+  opened:     { bg: 'bg-cyan-500/10',    text: 'text-cyan-400',    border: 'border-cyan-500/20',    label: 'Opened' },
+  clicked:    { bg: 'bg-teal-500/10',    text: 'text-teal-400',    border: 'border-teal-500/20',    label: 'Clicked' },
+  unknown:    { bg: 'bg-dark-700/50',    text: 'text-dark-400',    border: 'border-dark-600/50',    label: 'Unknown' },
+  check_failed: { bg: 'bg-amber-500/10', text: 'text-amber-400',  border: 'border-amber-500/20',  label: 'Check Failed' },
+};
 
 // ── App badge colors ────────────────────────────────────────────────
 const APP_COLORS = {
@@ -53,6 +65,10 @@ export default function SettingsEmailLogs() {
 
   // Expanded row
   const [expandedId, setExpandedId] = useState(null);
+
+  // Delivery status checking
+  const [checkingStatus, setCheckingStatus] = useState(null); // logId being checked
+  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { logId: { status, lastEvent, ... } }
 
   // ── Fetch logs ─────────────────────────────────────────────────────
   const fetchLogs = useCallback(async () => {
@@ -107,6 +123,21 @@ export default function SettingsEmailLogs() {
   };
 
   const hasFilters = search || appFilter || statusFilter || fromDate || toDate;
+
+  const checkDeliveryStatus = async (logId) => {
+    if (!orgSlug) return;
+    setCheckingStatus(logId);
+    try {
+      const res = await api.request(`/api/org/${orgSlug}/email-logs/${logId}/check-status`);
+      if (res.success) {
+        setDeliveryStatuses(prev => ({ ...prev, [logId]: res }));
+      }
+    } catch (err) {
+      console.error('Failed to check delivery status:', err);
+    } finally {
+      setCheckingStatus(null);
+    }
+  };
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -311,42 +342,90 @@ export default function SettingsEmailLogs() {
               </button>
 
               {/* Expanded details */}
-              {isExpanded && (
-                <div className="px-4 py-4 bg-dark-800/20 border-b border-dark-700/30 space-y-2">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-dark-500 text-xs">From</span>
-                      <p className="text-dark-200">{log.from || '—'}</p>
+              {isExpanded && (() => {
+                const deliveryInfo = deliveryStatuses[log._id];
+                const savedStatus = log.deliveryStatus || deliveryInfo?.deliveryStatus;
+                const statusColors = DELIVERY_COLORS[savedStatus] || DELIVERY_COLORS.unknown;
+
+                return (
+                  <div className="px-4 py-4 bg-dark-800/20 border-b border-dark-700/30 space-y-2">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-dark-500 text-xs">From</span>
+                        <p className="text-dark-200">{log.from || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-dark-500 text-xs">To</span>
+                        <p className="text-dark-200">{toList.join(', ')}</p>
+                      </div>
+                      <div>
+                        <span className="text-dark-500 text-xs">Subject</span>
+                        <p className="text-dark-200">{log.subject || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-dark-500 text-xs">Template Key</span>
+                        <p className="text-dark-200 font-mono text-xs">{log.templateKey || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-dark-500 text-xs">Sent At</span>
+                        <p className="text-dark-200">{formatDate(log.sentAt)}</p>
+                      </div>
+                      <div>
+                        <span className="text-dark-500 text-xs">App</span>
+                        <p className="text-dark-200 capitalize">{log.app || '—'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-dark-500 text-xs">To</span>
-                      <p className="text-dark-200">{toList.join(', ')}</p>
+
+                    {/* Resend ID + Delivery Status */}
+                    <div className="mt-3 bg-dark-900/50 border border-dark-700/50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-dark-500 text-xs font-semibold uppercase tracking-wider">Delivery Tracking</span>
+                        {log.resendId || deliveryInfo?.resendId ? (
+                          <button
+                            onClick={() => checkDeliveryStatus(log._id)}
+                            disabled={checkingStatus === log._id}
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-rivvra-400 hover:text-rivvra-300 bg-rivvra-500/10 hover:bg-rivvra-500/15 border border-rivvra-500/20 rounded-md transition-colors disabled:opacity-50"
+                          >
+                            {checkingStatus === log._id ? (
+                              <><Loader2 className="w-3 h-3 animate-spin" /> Checking...</>
+                            ) : (
+                              <><ExternalLink className="w-3 h-3" /> Check Delivery</>
+                            )}
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-dark-500 text-xs">Resend ID</span>
+                          <p className="text-dark-300 font-mono text-xs">{log.resendId || deliveryInfo?.resendId || 'Not tracked'}</p>
+                        </div>
+                        <div>
+                          <span className="text-dark-500 text-xs">Delivery Status</span>
+                          {savedStatus ? (
+                            <p className={`inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 text-[10px] font-medium rounded-md border ${statusColors.bg} ${statusColors.text} ${statusColors.border}`}>
+                              {savedStatus === 'delivered' && <CheckCircle2 className="w-3 h-3" />}
+                              {savedStatus === 'bounced' && <AlertCircle className="w-3 h-3" />}
+                              {statusColors.label}
+                            </p>
+                          ) : (
+                            <p className="text-dark-400 text-xs mt-0.5">{log.resendId ? 'Click "Check Delivery" to verify' : 'Not available'}</p>
+                          )}
+                        </div>
+                      </div>
+                      {log.lastCheckedAt && (
+                        <p className="text-dark-600 text-[10px] mt-2">Last checked: {formatDate(log.lastCheckedAt)}</p>
+                      )}
                     </div>
-                    <div>
-                      <span className="text-dark-500 text-xs">Subject</span>
-                      <p className="text-dark-200">{log.subject || '—'}</p>
-                    </div>
-                    <div>
-                      <span className="text-dark-500 text-xs">Template Key</span>
-                      <p className="text-dark-200 font-mono text-xs">{log.templateKey || '—'}</p>
-                    </div>
-                    <div>
-                      <span className="text-dark-500 text-xs">Sent At</span>
-                      <p className="text-dark-200">{formatDate(log.sentAt)}</p>
-                    </div>
-                    <div>
-                      <span className="text-dark-500 text-xs">App</span>
-                      <p className="text-dark-200 capitalize">{log.app || '—'}</p>
-                    </div>
+
+                    {log.error && (
+                      <div className="mt-2 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                        <span className="text-red-400 text-xs font-semibold">Error</span>
+                        <p className="text-red-300 text-sm mt-1 font-mono">{log.error}</p>
+                      </div>
+                    )}
                   </div>
-                  {log.error && (
-                    <div className="mt-2 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                      <span className="text-red-400 text-xs font-semibold">Error</span>
-                      <p className="text-red-300 text-sm mt-1 font-mono">{log.error}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}
