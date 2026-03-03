@@ -8,6 +8,7 @@ import ComboSelect from '../../components/ComboSelect';
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors,
+  useDroppable,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -133,9 +134,10 @@ function KanbanCardOverlay({ opp }) {
 
 // ── Kanban Column ────────────────────────────────────────────────────────
 function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, onCardClick }) {
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage._id });
   const items = opportunities.map(o => o._id);
   return (
-    <div className="flex-shrink-0 w-[280px] flex flex-col max-h-full">
+    <div ref={setDropRef} className={`flex-shrink-0 w-[280px] flex flex-col max-h-full ${isOver ? 'ring-1 ring-rivvra-500/40 rounded-lg' : ''}`}>
       <div className="bg-dark-850 border border-dark-700 rounded-t-lg px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -328,7 +328,7 @@ export default function AtsJobDetail() {
     try {
       await atsApi.deleteJob(orgSlug, jobId);
       showToast('Job position deleted', 'success');
-      navigate(`${orgPath}/ats/jobs`);
+      navigate(orgPath('/ats/jobs'));
     } catch (err) {
       setDeleting(false);
       showToast(err.message || 'Failed to delete job position', 'error');

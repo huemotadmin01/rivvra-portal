@@ -196,13 +196,13 @@ export default function CrmOpportunityDetail() {
     try {
       const res = await crmApi.convertToJob(slug, opportunityId);
       if (res.success) {
-        addToast(`Job Position "${res.jobName}" created!`, 'success');
+        setConverting(false);
         fetchAll();
+        addToast(`Job Position "${res.jobName}" created!`, 'success');
       }
     } catch (err) {
-      addToast('Failed to convert', 'error');
-    } finally {
       setConverting(false);
+      addToast('Failed to convert', 'error');
     }
   };
 
