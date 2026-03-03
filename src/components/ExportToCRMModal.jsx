@@ -5,7 +5,7 @@ import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
 import crmApi from '../utils/crmApi';
 
-function ExportToCRMModal({ isOpen, onClose, lead }) {
+function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   const { user } = useAuth();
   const { orgSlug } = useOrg();
   const isPro = user?.plan === 'pro' || user?.plan === 'premium';
@@ -157,27 +157,37 @@ function ExportToCRMModal({ isOpen, onClose, lead }) {
   const handleRivvraExport = async () => {
     setStep('exporting');
     try {
-      const oppData = {
-        name: `${name.trim()} — ${company.trim() || 'Opportunity'}`,
+      const convertData = {
         contactName: name.trim(),
-        contactEmail: email.trim(),
-        contactPhone: phone.trim(),
         companyName: company.trim(),
+        contactEmail: email.trim() || undefined,
+        contactPhone: phone.trim() || undefined,
+        expectedRole: expectedRole.trim() || undefined,
+        linkedinUrl: lead.linkedinUrl || undefined,
         clientType: profileType === 'client' ? 'existing' : 'new',
-        expectedRole: expectedRole.trim() || null,
-        linkedinUrl: lead.linkedinUrl || null,
-        source: 'Outreach',
-        salespersonName: user?.name || user?.email || null,
-        notes: lead.notes?.length ? lead.notes.map(n => typeof n === 'string' ? n : n.text || '').join('\n') : null,
+        notes: lead.notes?.length ? lead.notes.map(n => typeof n === 'string' ? n : n.text || '').join('\n') : undefined,
+        opportunityName: `${name.trim()} — ${company.trim() || 'Opportunity'}`,
       };
 
-      const result = await crmApi.createOpportunity(orgSlug, oppData);
+      const result = await crmApi.convertLead(orgSlug, convertData);
 
       if (result.success) {
+        // Update lead status to 'converted' (non-fatal if fails)
+        try {
+          await api.updateLead(lead._id, { outreachStatus: 'converted' });
+        } catch (e) {
+          console.warn('Failed to update lead status to converted:', e);
+        }
+
+        // Notify parent to update local state
+        onSuccess?.(lead._id);
+
         setExportResult({
-          message: 'Contact exported as a CRM opportunity.',
+          message: 'Lead converted — opportunity, company & contact created.',
           opportunityId: result.opportunity?._id,
           opportunityName: result.opportunity?.name,
+          individualContact: result.individualContact,
+          companyContact: result.companyContact,
         });
         setStep('success');
       } else {
@@ -554,6 +564,42 @@ function ExportToCRMModal({ isOpen, onClose, lead }) {
             </p>
             {exportResult?.crmId && (
               <p className="text-dark-500 text-sm mb-4">CRM ID: {exportResult.crmId}</p>
+            )}
+            {isRivvra && (exportResult?.companyContact || exportResult?.individualContact) && (
+              <div className="mb-4 mx-auto max-w-xs text-left">
+                <div className="bg-dark-800/60 border border-dark-700 rounded-xl p-3 space-y-2">
+                  {exportResult.companyContact && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-dark-400">Company</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white font-medium">{exportResult.companyContact.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          exportResult.companyContact.created
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : 'bg-blue-500/10 text-blue-400'
+                        }`}>
+                          {exportResult.companyContact.created ? 'Created' : 'Linked'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {exportResult.individualContact && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-dark-400">Contact</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white font-medium">{exportResult.individualContact.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          exportResult.individualContact.created
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : 'bg-blue-500/10 text-blue-400'
+                        }`}>
+                          {exportResult.individualContact.created ? 'Created' : 'Linked'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
             {isRivvra && exportResult?.opportunityId && orgSlug && (
               <a

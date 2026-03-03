@@ -483,6 +483,7 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, teamMember
             <option value="replied">Interested</option>
             <option value="replied_not_interested">Not Interested</option>
             <option value="no_response">No Response</option>
+            <option value="converted">Converted</option>
           </select>
           <p className="text-[10px] text-dark-500 mt-1.5">
             Override status when leads reply via LinkedIn DM or other channels

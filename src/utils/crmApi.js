@@ -41,6 +41,9 @@ const crmApi = {
   createOpportunity(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities`, { method: 'POST', body: JSON.stringify(data) });
   },
+  convertLead(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/crm/convert-lead`, { method: 'POST', body: JSON.stringify(data) });
+  },
   updateOpportunity(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },
