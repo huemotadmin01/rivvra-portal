@@ -184,6 +184,14 @@ export default function CrmOpportunityDetail() {
   };
 
   const handleConvert = async () => {
+    if (!opp.expectedRole?.trim()) {
+      addToast('Please set the Expected Role first — it becomes the Job Position name in ATS', 'error');
+      return;
+    }
+    if (!opp.expectedRevenue) {
+      addToast('Please set the Expected Revenue first — it becomes the Client Budget on the Job Position', 'error');
+      return;
+    }
     setConverting(true);
     try {
       const res = await crmApi.convertToJob(slug, opportunityId);

@@ -171,6 +171,7 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, onCardCl
 function CreateModal({ stages, orgSlug, onClose, onCreate }) {
   const [form, setForm] = useState({
     name: '', contactId: '', contactName: '', companyId: '', companyName: '',
+    contactEmail: '', contactPhone: '',
     expectedRole: '', expectedRevenue: '', requirementType: '', stageId: stages[0]?._id || '',
   });
   const [loading, setLoading] = useState(false);
@@ -179,7 +180,7 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
 
   // Fetch contacts for dropdowns on mount
   useEffect(() => {
-    contactsApi.list(orgSlug, { type: 'individual', limit: 100 })
+    contactsApi.list(orgSlug, { type: 'individual', limit: 200 })
       .then(res => { if (res.success) setIndividualContacts(res.contacts || []); })
       .catch(() => {});
     contactsApi.listCompanies(orgSlug)
@@ -187,23 +188,42 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
       .catch(() => {});
   }, [orgSlug]);
 
-  const handleContactChange = (id, name) => {
+  // Build POC options — "Company, Contact Name" format (like Odoo)
+  const pocOptions = individualContacts.map(c => ({
+    _id: c._id,
+    name: c.parentCompanyName ? `${c.parentCompanyName}, ${c.name}` : c.name,
+  }));
+
+  // When POC is selected/changed
+  const handlePocChange = (id, displayName) => {
     if (id) {
+      // Existing contact — auto-fill company + contact details
       const contact = individualContacts.find(c => c._id === id);
       setForm(f => ({
         ...f,
-        contactId: id, contactName: name,
-        companyId: contact?.parentCompanyId || f.companyId,
-        companyName: contact?.parentCompanyName || f.companyName,
+        contactId: id,
+        contactName: contact?.name || displayName,
+        companyId: contact?.parentCompanyId || '',
+        companyName: contact?.parentCompanyName || '',
+        contactEmail: contact?.email || f.contactEmail,
+        contactPhone: contact?.phone || f.contactPhone,
       }));
     } else {
-      setForm(f => ({ ...f, contactId: '', contactName: name }));
+      // Free-text (create new) — displayName is the raw typed text
+      setForm(f => ({ ...f, contactId: '', contactName: displayName, companyId: '', companyName: '' }));
     }
   };
+
+  // POC display value
+  const pocDisplayValue = form.contactId
+    ? (form.companyName ? `${form.companyName}, ${form.contactName}` : form.contactName)
+    : form.contactName;
 
   const handleCompanyChange = (id, name) => {
     setForm(f => ({ ...f, companyId: id, companyName: name }));
   };
+
+  const isCreatingNew = !form.contactId && form.contactName.trim();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -233,28 +253,73 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
               required autoFocus
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-dark-400 mb-1">Contact Name</label>
-              <ComboSelect
-                value={form.contactId}
-                displayValue={form.contactName}
-                options={individualContacts.map(c => ({ _id: c._id, name: c.name }))}
-                onChange={handleContactChange}
-                placeholder="Search or type name"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-dark-400 mb-1">Company</label>
-              <ComboSelect
-                value={form.companyId}
-                displayValue={form.companyName}
-                options={companyContacts}
-                onChange={handleCompanyChange}
-                placeholder="Search or type company"
-              />
-            </div>
+
+          {/* Customer's POC — single searchable field showing "Company, Contact Name" */}
+          <div>
+            <label className="block text-xs text-dark-400 mb-1">
+              Customer&apos;s POC *
+            </label>
+            <ComboSelect
+              value={form.contactId}
+              displayValue={pocDisplayValue}
+              options={pocOptions}
+              onChange={handlePocChange}
+              placeholder="Search by company or contact name..."
+            />
+            {form.contactId && form.companyName && (
+              <p className="mt-1 text-[10px] text-dark-500 flex items-center gap-1">
+                <Building2 size={10} /> {form.companyName} &middot; <User size={10} /> {form.contactName}
+              </p>
+            )}
           </div>
+
+          {/* When creating new contact — show expanded fields */}
+          {isCreatingNew && (
+            <div className="bg-dark-900/50 border border-dark-700 rounded-lg p-3 space-y-3">
+              <p className="text-[10px] text-dark-500 uppercase tracking-wider font-medium">New Contact Details</p>
+              <div>
+                <label className="block text-xs text-dark-400 mb-1">Contact Name</label>
+                <input
+                  value={form.contactName}
+                  onChange={e => setForm({ ...form, contactName: e.target.value })}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-dark-400 mb-1">Company *</label>
+                <ComboSelect
+                  value={form.companyId}
+                  displayValue={form.companyName}
+                  options={companyContacts}
+                  onChange={handleCompanyChange}
+                  placeholder="Search or type company name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-dark-400 mb-1">Email</label>
+                  <input
+                    value={form.contactEmail}
+                    onChange={e => setForm({ ...form, contactEmail: e.target.value })}
+                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
+                    placeholder="email@company.com"
+                    type="email"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-dark-400 mb-1">Phone</label>
+                  <input
+                    value={form.contactPhone}
+                    onChange={e => setForm({ ...form, contactPhone: e.target.value })}
+                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
+                    placeholder="+91..."
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-dark-400 mb-1">Expected Role</label>
@@ -299,7 +364,7 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-dark-300 hover:text-dark-100 transition-colors">Cancel</button>
-            <button type="submit" disabled={loading || !form.name.trim()}
+            <button type="submit" disabled={loading || !form.name.trim() || !form.contactName.trim() || (isCreatingNew && !form.companyName.trim())}
               className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2">
               {loading && <Loader2 size={14} className="animate-spin" />} Create
             </button>
