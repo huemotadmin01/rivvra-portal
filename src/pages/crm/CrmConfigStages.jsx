@@ -102,7 +102,9 @@ export default function CrmConfigStages() {
         await crmApi.createStage(orgSlug, { name: trimmed });
         addToast('Stage created', 'success');
       }
-      closeModal();
+      // Directly reset state instead of closeModal() to avoid guard issues
+      setModalOpen(false);
+      setEditingStage(null);
       fetchStages();
     } catch (err) {
       addToast(err.message || 'Failed to save stage', 'error');
@@ -118,7 +120,8 @@ export default function CrmConfigStages() {
     try {
       await crmApi.deleteStage(orgSlug, editingStage._id);
       addToast('Stage deleted', 'success');
-      closeModal();
+      setModalOpen(false);
+      setEditingStage(null);
       fetchStages();
     } catch (err) {
       addToast(err.message || 'Cannot delete stage', 'error');

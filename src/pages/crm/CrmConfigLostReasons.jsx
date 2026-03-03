@@ -56,6 +56,7 @@ export default function CrmConfigLostReasons() {
   };
 
   const closeModal = () => {
+    if (saving) return;
     setModalOpen(false);
     setEditingReason(null);
     setFormName('');
@@ -66,11 +67,11 @@ export default function CrmConfigLostReasons() {
   useEffect(() => {
     if (!modalOpen) return;
     const handler = (e) => {
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape' && !saving) closeModal();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [modalOpen]);
+  }, [modalOpen, saving]);
 
   // ── Save (create or update) ────────────────────────────────────────────
   const handleSave = async () => {
@@ -86,14 +87,16 @@ export default function CrmConfigLostReasons() {
         const res = await crmApi.updateLostReason(orgSlug, editingReason._id, { name: trimmed });
         if (res.success) {
           addToast('Lost reason updated', 'success');
-          closeModal();
+          setModalOpen(false);
+          setEditingReason(null);
           fetchReasons();
         }
       } else {
         const res = await crmApi.createLostReason(orgSlug, { name: trimmed });
         if (res.success) {
           addToast('Lost reason created', 'success');
-          closeModal();
+          setModalOpen(false);
+          setEditingReason(null);
           fetchReasons();
         }
       }
@@ -112,7 +115,8 @@ export default function CrmConfigLostReasons() {
       const res = await crmApi.deleteLostReason(orgSlug, editingReason._id);
       if (res.success) {
         addToast('Lost reason deleted', 'success');
-        closeModal();
+        setModalOpen(false);
+        setEditingReason(null);
         fetchReasons();
       }
     } catch (err) {
@@ -234,7 +238,7 @@ export default function CrmConfigLostReasons() {
       {modalOpen && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={e => { if (e.target === e.currentTarget) closeModal(); }}
+          onClick={e => { if (e.target === e.currentTarget && !saving) closeModal(); }}
         >
           <div className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md mx-4">
             {/* Modal Header */}
@@ -244,7 +248,8 @@ export default function CrmConfigLostReasons() {
               </h2>
               <button
                 onClick={closeModal}
-                className="text-dark-500 hover:text-dark-300 transition-colors"
+                disabled={saving}
+                className="text-dark-500 hover:text-dark-300 transition-colors disabled:opacity-50"
               >
                 <X size={18} />
               </button>

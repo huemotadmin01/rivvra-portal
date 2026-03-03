@@ -78,6 +78,7 @@ export default function CrmConfigTags() {
   };
 
   const closeModal = () => {
+    if (saving) return;
     setModalOpen(false);
     setEditingTag(null);
     setFormName('');
@@ -87,11 +88,11 @@ export default function CrmConfigTags() {
   // ── Escape key to close modal ───────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === 'Escape' && modalOpen) closeModal();
+      if (e.key === 'Escape' && modalOpen && !saving) closeModal();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [modalOpen]);
+  }, [modalOpen, saving]);
 
   // ── Save (create or update) ─────────────────────────────────────────────
   const handleSave = async () => {
@@ -106,7 +107,8 @@ export default function CrmConfigTags() {
         await crmApi.createTag(orgSlug, { name, color: formColor });
         addToast('Tag created', 'success');
       }
-      closeModal();
+      setModalOpen(false);
+      setEditingTag(null);
       fetchTags();
     } catch (err) {
       addToast(err.message || 'Failed to save tag', 'error');
@@ -123,7 +125,7 @@ export default function CrmConfigTags() {
     try {
       await crmApi.deleteTag(orgSlug, target._id);
       addToast('Tag deleted', 'success');
-      if (modalOpen) closeModal();
+      if (modalOpen) { setModalOpen(false); setEditingTag(null); }
       fetchTags();
     } catch (err) {
       addToast(err.message || 'Failed to delete tag', 'error');
@@ -251,7 +253,7 @@ export default function CrmConfigTags() {
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
           onClick={(e) => {
-            if (e.target === e.currentTarget) closeModal();
+            if (e.target === e.currentTarget && !saving) closeModal();
           }}
         >
           <div className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md mx-4">
@@ -262,7 +264,8 @@ export default function CrmConfigTags() {
               </h2>
               <button
                 onClick={closeModal}
-                className="p-1 text-dark-500 hover:text-dark-300 rounded transition-colors"
+                disabled={saving}
+                className="p-1 text-dark-500 hover:text-dark-300 rounded transition-colors disabled:opacity-50"
               >
                 <X size={16} />
               </button>
