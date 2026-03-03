@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import contactsApi from '../../utils/contactsApi';
+import ComboSelect from '../../components/ComboSelect';
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors,
@@ -166,9 +168,42 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, onCardCl
 }
 
 // ── Create Opportunity Modal ─────────────────────────────────────────────
-function CreateModal({ stages, onClose, onCreate }) {
-  const [form, setForm] = useState({ name: '', companyName: '', contactName: '', expectedRole: '', expectedRevenue: '', stageId: stages[0]?._id || '' });
+function CreateModal({ stages, orgSlug, onClose, onCreate }) {
+  const [form, setForm] = useState({
+    name: '', contactId: '', contactName: '', companyId: '', companyName: '',
+    expectedRole: '', expectedRevenue: '', stageId: stages[0]?._id || '',
+  });
   const [loading, setLoading] = useState(false);
+  const [individualContacts, setIndividualContacts] = useState([]);
+  const [companyContacts, setCompanyContacts] = useState([]);
+
+  // Fetch contacts for dropdowns on mount
+  useEffect(() => {
+    contactsApi.list(orgSlug, { type: 'individual', limit: 100 })
+      .then(res => { if (res.success) setIndividualContacts(res.contacts || []); })
+      .catch(() => {});
+    contactsApi.listCompanies(orgSlug)
+      .then(res => { if (res.success) setCompanyContacts(res.companies || []); })
+      .catch(() => {});
+  }, [orgSlug]);
+
+  const handleContactChange = (id, name) => {
+    if (id) {
+      const contact = individualContacts.find(c => c._id === id);
+      setForm(f => ({
+        ...f,
+        contactId: id, contactName: name,
+        companyId: contact?.parentCompanyId || f.companyId,
+        companyName: contact?.parentCompanyName || f.companyName,
+      }));
+    } else {
+      setForm(f => ({ ...f, contactId: '', contactName: name }));
+    }
+  };
+
+  const handleCompanyChange = (id, name) => {
+    setForm(f => ({ ...f, companyId: id, companyName: name }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -200,19 +235,23 @@ function CreateModal({ stages, onClose, onCreate }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-dark-400 mb-1">Company</label>
-              <input
-                value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })}
-                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                placeholder="Company name"
+              <label className="block text-xs text-dark-400 mb-1">Contact Name</label>
+              <ComboSelect
+                value={form.contactId}
+                displayValue={form.contactName}
+                options={individualContacts.map(c => ({ _id: c._id, name: c.name }))}
+                onChange={handleContactChange}
+                placeholder="Search or type name"
               />
             </div>
             <div>
-              <label className="block text-xs text-dark-400 mb-1">Contact Name</label>
-              <input
-                value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })}
-                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                placeholder="Contact person"
+              <label className="block text-xs text-dark-400 mb-1">Company</label>
+              <ComboSelect
+                value={form.companyId}
+                displayValue={form.companyName}
+                options={companyContacts}
+                onChange={handleCompanyChange}
+                placeholder="Search or type company"
               />
             </div>
           </div>
@@ -441,7 +480,7 @@ export default function CrmPipeline() {
       </DndContext>
 
       {/* Create modal */}
-      {showCreate && <CreateModal stages={stages} onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
+      {showCreate && <CreateModal stages={stages} orgSlug={slug} onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
     </div>
   );
 }
