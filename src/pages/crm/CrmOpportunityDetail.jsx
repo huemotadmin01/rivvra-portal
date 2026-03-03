@@ -144,9 +144,14 @@ export default function CrmOpportunityDetail() {
     if (opp?.stageId === stageId) return; // already on this stage
     try {
       const res = await crmApi.moveStage(slug, opportunityId, stageId);
-      if (res.isWonStage) addToast('Marked as Won!', 'success');
-      else addToast('Stage updated', 'success');
       await fetchAll();
+      if (res.jobCreated) {
+        addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
+      } else if (res.isWonStage) {
+        addToast('Marked as Won!', 'success');
+      } else {
+        addToast('Stage updated', 'success');
+      }
     } catch {
       addToast('Failed to move stage', 'error');
     }

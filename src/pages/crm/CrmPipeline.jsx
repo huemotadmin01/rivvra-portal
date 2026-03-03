@@ -480,7 +480,12 @@ export default function CrmPipeline() {
 
     try {
       const res = await crmApi.moveStage(slug, active.id, destStageId);
-      if (res.isWonStage) addToast('Opportunity marked as Won!', 'success');
+      if (res.jobCreated) {
+        fetchKanban();
+        addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
+      } else if (res.isWonStage) {
+        addToast('Opportunity marked as Won!', 'success');
+      }
     } catch {
       addToast('Failed to move', 'error');
       fetchKanban();
