@@ -2,7 +2,8 @@ import {
   Send, Users, List, Home, BarChart3, UsersRound, Layers,
   Clock, Briefcase, UserSearch, Mail, CalendarDays, IndianRupee,
   CheckCircle2, Download, Settings, Building2, UserPlus, Wallet,
-  Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox
+  Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
+  Tag, AlertTriangle,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -169,7 +170,14 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/crm/opportunities', label: 'Opportunities', icon: Briefcase },
         ...(isAdmin ? [
           { type: 'item', path: '/crm/reporting', label: 'Reporting', icon: BarChart3 },
-          { type: 'item', path: '/crm/config', label: 'Configuration', icon: Settings },
+          {
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/crm/config/stages', label: 'Stages', icon: Layers },
+              { path: '/crm/config/tags', label: 'Tags', icon: Tag },
+              { path: '/crm/config/lost-reasons', label: 'Lost Reasons', icon: AlertTriangle },
+            ],
+          },
         ] : []),
       ];
     },

@@ -81,7 +81,9 @@ const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
 const CrmReporting = lazy(() => import('./pages/crm/CrmReporting'));
-const CrmConfig = lazy(() => import('./pages/crm/CrmConfig'));
+const CrmConfigStages = lazy(() => import('./pages/crm/CrmConfigStages'));
+const CrmConfigTags = lazy(() => import('./pages/crm/CrmConfigTags'));
+const CrmConfigLostReasons = lazy(() => import('./pages/crm/CrmConfigLostReasons'));
 
 // Lazy-loaded: Sign app pages
 const SignDashboard = lazy(() => import('./pages/sign/SignDashboard'));
@@ -138,6 +140,11 @@ function OrgSettingsRedirect() {
 function OrgOutreachSettingsRedirect() {
   const { slug } = useParams();
   return <Navigate to={`/org/${slug}/settings`} replace />;
+}
+
+function CrmConfigRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/crm/config/stages`} replace />;
 }
 
 function App() {
@@ -239,7 +246,10 @@ function App() {
                 <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><CrmOpportunityDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="crm" requiredRole="admin" />}>
                   <Route path="/org/:slug/crm/reporting" element={<ErrorBoundary><CrmReporting /></ErrorBoundary>} />
-                  <Route path="/org/:slug/crm/config" element={<ErrorBoundary><CrmConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/crm/config" element={<CrmConfigRedirect />} />
+                  <Route path="/org/:slug/crm/config/stages" element={<ErrorBoundary><CrmConfigStages /></ErrorBoundary>} />
+                  <Route path="/org/:slug/crm/config/tags" element={<ErrorBoundary><CrmConfigTags /></ErrorBoundary>} />
+                  <Route path="/org/:slug/crm/config/lost-reasons" element={<ErrorBoundary><CrmConfigLostReasons /></ErrorBoundary>} />
                 </Route>
               </Route>
 

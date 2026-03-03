@@ -104,6 +104,9 @@ const crmApi = {
   createLostReason(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/crm/lost-reasons`, { method: 'POST', body: JSON.stringify(data) });
   },
+  updateLostReason(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/crm/lost-reasons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
   deleteLostReason(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/lost-reasons/${id}`, { method: 'DELETE' });
   },
