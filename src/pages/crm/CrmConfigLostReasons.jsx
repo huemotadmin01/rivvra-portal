@@ -82,28 +82,21 @@ export default function CrmConfigLostReasons() {
     }
 
     setSaving(true);
+    const isEdit = !!editingReason;
     try {
       if (editingReason) {
-        const res = await crmApi.updateLostReason(orgSlug, editingReason._id, { name: trimmed });
-        if (res.success) {
-          addToast('Lost reason updated', 'success');
-          setModalOpen(false);
-          setEditingReason(null);
-          fetchReasons();
-        }
+        await crmApi.updateLostReason(orgSlug, editingReason._id, { name: trimmed });
       } else {
-        const res = await crmApi.createLostReason(orgSlug, { name: trimmed });
-        if (res.success) {
-          addToast('Lost reason created', 'success');
-          setModalOpen(false);
-          setEditingReason(null);
-          fetchReasons();
-        }
+        await crmApi.createLostReason(orgSlug, { name: trimmed });
       }
-    } catch (err) {
-      addToast(err.message || 'Failed to save', 'error');
-    } finally {
+      setModalOpen(false);
+      setEditingReason(null);
       setSaving(false);
+      fetchReasons();
+      addToast(isEdit ? 'Lost reason updated' : 'Lost reason created', 'success');
+    } catch (err) {
+      setSaving(false);
+      addToast(err.message || 'Failed to save', 'error');
     }
   };
 
@@ -112,17 +105,15 @@ export default function CrmConfigLostReasons() {
     if (!editingReason) return;
     setSaving(true);
     try {
-      const res = await crmApi.deleteLostReason(orgSlug, editingReason._id);
-      if (res.success) {
-        addToast('Lost reason deleted', 'success');
-        setModalOpen(false);
-        setEditingReason(null);
-        fetchReasons();
-      }
-    } catch (err) {
-      addToast(err.message || 'Failed to delete', 'error');
-    } finally {
+      await crmApi.deleteLostReason(orgSlug, editingReason._id);
+      setModalOpen(false);
+      setEditingReason(null);
       setSaving(false);
+      fetchReasons();
+      addToast('Lost reason deleted', 'success');
+    } catch (err) {
+      setSaving(false);
+      addToast(err.message || 'Failed to delete', 'error');
     }
   };
 

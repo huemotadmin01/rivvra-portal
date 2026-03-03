@@ -99,21 +99,21 @@ export default function CrmConfigTags() {
     const name = formName.trim();
     if (!name) return;
     setSaving(true);
+    const isEdit = !!editingTag;
     try {
       if (editingTag) {
         await crmApi.updateTag(orgSlug, editingTag._id, { name, color: formColor });
-        addToast('Tag updated', 'success');
       } else {
         await crmApi.createTag(orgSlug, { name, color: formColor });
-        addToast('Tag created', 'success');
       }
       setModalOpen(false);
       setEditingTag(null);
-      fetchTags();
-    } catch (err) {
-      addToast(err.message || 'Failed to save tag', 'error');
-    } finally {
       setSaving(false);
+      fetchTags();
+      addToast(isEdit ? 'Tag updated' : 'Tag created', 'success');
+    } catch (err) {
+      setSaving(false);
+      addToast(err.message || 'Failed to save tag', 'error');
     }
   };
 
@@ -124,13 +124,13 @@ export default function CrmConfigTags() {
     setSaving(true);
     try {
       await crmApi.deleteTag(orgSlug, target._id);
-      addToast('Tag deleted', 'success');
       if (modalOpen) { setModalOpen(false); setEditingTag(null); }
-      fetchTags();
-    } catch (err) {
-      addToast(err.message || 'Failed to delete tag', 'error');
-    } finally {
       setSaving(false);
+      fetchTags();
+      addToast('Tag deleted', 'success');
+    } catch (err) {
+      setSaving(false);
+      addToast(err.message || 'Failed to delete tag', 'error');
     }
   };
 

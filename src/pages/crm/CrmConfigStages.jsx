@@ -83,7 +83,6 @@ export default function CrmConfigStages() {
 
   // ── Save (create or update) ────────────────────────────────────────────
   const handleSave = async () => {
-    console.log('[handleSave] called, formName:', formName, 'editingStage:', !!editingStage);
     const trimmed = formName.trim();
     if (!trimmed) {
       setFormError('Stage name is required');
@@ -91,34 +90,26 @@ export default function CrmConfigStages() {
     }
     setFormError('');
     setSaving(true);
+    const isEdit = !!editingStage;
 
     try {
       if (editingStage) {
-        console.log('[handleSave] calling updateStage...');
-        const res = await crmApi.updateStage(orgSlug, editingStage._id, {
+        await crmApi.updateStage(orgSlug, editingStage._id, {
           name: trimmed,
           isWonStage: formIsWon,
         });
-        console.log('[handleSave] updateStage returned:', res);
-        addToast('Stage updated', 'success');
       } else {
-        console.log('[handleSave] calling createStage...');
-        const res = await crmApi.createStage(orgSlug, { name: trimmed });
-        console.log('[handleSave] createStage returned:', res);
-        addToast('Stage created', 'success');
+        await crmApi.createStage(orgSlug, { name: trimmed });
       }
-      console.log('[handleSave] about to close modal');
-      // Directly reset state instead of closeModal() to avoid guard issues
+      // Close modal and refresh — do this before toast to ensure modal closes
       setModalOpen(false);
       setEditingStage(null);
-      console.log('[handleSave] modal closed, fetching stages');
-      fetchStages();
-    } catch (err) {
-      console.error('[handleSave] error:', err);
-      addToast(err.message || 'Failed to save stage', 'error');
-    } finally {
-      console.log('[handleSave] finally block');
       setSaving(false);
+      fetchStages();
+      addToast(isEdit ? 'Stage updated' : 'Stage created', 'success');
+    } catch (err) {
+      setSaving(false);
+      addToast(err.message || 'Failed to save stage', 'error');
     }
   };
 
@@ -128,14 +119,14 @@ export default function CrmConfigStages() {
     setDeleting(true);
     try {
       await crmApi.deleteStage(orgSlug, editingStage._id);
-      addToast('Stage deleted', 'success');
       setModalOpen(false);
       setEditingStage(null);
-      fetchStages();
-    } catch (err) {
-      addToast(err.message || 'Cannot delete stage', 'error');
-    } finally {
       setDeleting(false);
+      fetchStages();
+      addToast('Stage deleted', 'success');
+    } catch (err) {
+      setDeleting(false);
+      addToast(err.message || 'Cannot delete stage', 'error');
     }
   };
 
