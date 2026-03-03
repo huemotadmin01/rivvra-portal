@@ -105,6 +105,8 @@ export default function CrmOpportunityDetail() {
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [activityForm, setActivityForm] = useState({ type: 'note', summary: '', note: '', dueDate: '' });
   const [converting, setConverting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -193,6 +195,24 @@ export default function CrmOpportunityDetail() {
       addToast('Failed to convert', 'error');
     } finally {
       setConverting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await crmApi.deleteOpportunity(slug, opportunityId);
+      if (res.success) {
+        addToast('Opportunity deleted', 'success');
+        navigate(-1);
+      } else {
+        addToast(res.error || 'Failed to delete', 'error');
+      }
+    } catch {
+      addToast('Failed to delete opportunity', 'error');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -323,6 +343,12 @@ export default function CrmOpportunityDetail() {
             <ExternalLink size={12} /> View Job Position
           </button>
         )}
+        {/* Delete — always available, pushed to the right */}
+        <div className="flex-1" />
+        <button onClick={() => setShowDeleteModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-dark-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-colors">
+          <Trash2 size={12} /> Delete
+        </button>
       </div>
 
       {/* Two-column Layout */}
@@ -529,6 +555,30 @@ export default function CrmOpportunityDetail() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-2">Delete Opportunity</h2>
+            <p className="text-xs text-dark-400 mb-1">
+              Are you sure you want to permanently delete <span className="text-dark-200 font-medium">{opp.name}</span>?
+            </p>
+            <p className="text-xs text-dark-500 mb-5">This will also remove all related activities. Linked contacts will not be affected.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lost Modal */}
       {showLostModal && (
