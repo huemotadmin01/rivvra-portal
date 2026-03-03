@@ -162,6 +162,7 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
         companyName: company.trim(),
         contactEmail: email.trim() || undefined,
         contactPhone: phone.trim() || undefined,
+        contactJobTitle: lead.title || lead.headline || lead.currentTitle || undefined,
         expectedRole: expectedRole.trim() || undefined,
         linkedinUrl: lead.linkedinUrl || undefined,
         clientType: profileType === 'client' ? 'existing' : 'new',

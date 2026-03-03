@@ -5,7 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import {
-  ArrowLeft, Edit2, Save, X, Loader2,
+  ArrowLeft, Edit2, Save, X, Loader2, Trash2,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users,
 } from 'lucide-react';
@@ -77,6 +77,8 @@ export default function ContactDetail() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Dropdown data for edit
   const [companies, setCompanies] = useState([]);
@@ -220,6 +222,30 @@ export default function ContactDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await contactsApi.delete(orgSlug, contactId);
+      if (res.success) {
+        const count = res.childrenDeleted || 0;
+        showToast(
+          contact.type === 'company' && count > 0
+            ? `Company and ${count} related contact(s) deleted`
+            : 'Contact deleted successfully',
+        );
+        navigate(`${orgPath}/contacts/list`, { replace: true });
+      } else {
+        showToast(res.error || 'Failed to delete', 'error');
+        setDeleting(false);
+        setShowDeleteModal(false);
+      }
+    } catch {
+      showToast('Failed to delete contact', 'error');
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
   // ── Loading state ─────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -337,15 +363,24 @@ export default function ContactDetail() {
                 </div>
               </div>
 
-              {/* Edit / Save / Cancel buttons */}
+              {/* Edit / Delete / Save / Cancel buttons */}
               {isAdmin && !editing && (
-                <button
-                  onClick={startEditing}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors flex-shrink-0"
-                >
-                  <Edit2 size={14} />
-                  Edit
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={startEditing}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-dark-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-sm transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                </div>
               )}
               {editing && (
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -730,6 +765,35 @@ export default function ContactDetail() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-2">Delete {contact.type === 'company' ? 'Company' : 'Contact'}</h2>
+            <p className="text-xs text-dark-400 mb-1">
+              Are you sure you want to permanently delete <span className="text-dark-200 font-medium">{contact.name}</span>?
+            </p>
+            {contact.type === 'company' && childContacts.length > 0 && (
+              <p className="text-xs text-red-400/80 mb-1">
+                This will also delete {childContacts.length} related individual contact{childContacts.length !== 1 ? 's' : ''}.
+              </p>
+            )}
+            <p className="text-xs text-dark-500 mb-5">This action cannot be undone.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
