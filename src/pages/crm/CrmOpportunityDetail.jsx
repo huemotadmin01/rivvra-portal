@@ -209,17 +209,26 @@ export default function CrmOpportunityDetail() {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      const res = await crmApi.deleteOpportunity(slug, opportunityId);
+      // Add 15s timeout to prevent infinite spinner
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out')), 15000)
+      );
+      const res = await Promise.race([
+        crmApi.deleteOpportunity(slug, opportunityId),
+        timeoutPromise,
+      ]);
       if (res.success) {
         addToast('Opportunity deleted successfully', 'success');
         navigate(`/org/${slug}/crm/opportunities`, { replace: true });
       } else {
         addToast(res.error || 'Failed to delete', 'error');
-        setDeleting(false);
-        setShowDeleteModal(false);
       }
-    } catch {
-      addToast('Failed to delete opportunity', 'error');
+    } catch (err) {
+      console.error('Delete opportunity error:', err);
+      addToast(err.message === 'Request timed out'
+        ? 'Delete request timed out — please check if the API server is running'
+        : 'Failed to delete opportunity', 'error');
+    } finally {
       setDeleting(false);
       setShowDeleteModal(false);
     }
