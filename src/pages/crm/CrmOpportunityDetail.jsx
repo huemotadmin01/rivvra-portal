@@ -333,8 +333,40 @@ export default function CrmOpportunityDetail() {
           <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Contact & Company</h3>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-              <EditableField label="Contact Name" field="contactName" value={opp.contactName} icon={User} />
-              <EditableField label="Company" field="companyName" value={opp.companyName} icon={Building2} />
+              {/* Contact Name — link to contact record if contactId exists */}
+              {opp.contactId ? (
+                <div className="flex items-start gap-2 py-1.5">
+                  <User size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-dark-500 uppercase tracking-wider">Contact Name</p>
+                    <a
+                      href={`/#/org/${slug}/contacts/${opp.contactId}`}
+                      className="text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors flex items-center gap-1"
+                    >
+                      {opp.contactName || 'View Contact'} <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <EditableField label="Contact Name" field="contactName" value={opp.contactName} icon={User} />
+              )}
+              {/* Company — link to company contact record if companyId exists */}
+              {opp.companyId ? (
+                <div className="flex items-start gap-2 py-1.5">
+                  <Building2 size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-dark-500 uppercase tracking-wider">Company</p>
+                    <a
+                      href={`/#/org/${slug}/contacts/${opp.companyId}`}
+                      className="text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors flex items-center gap-1"
+                    >
+                      {opp.companyName || 'View Company'} <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <EditableField label="Company" field="companyName" value={opp.companyName} icon={Building2} />
+              )}
               <EditableField label="Email" field="contactEmail" value={opp.contactEmail} icon={Mail} />
               <EditableField label="Phone" field="contactPhone" value={opp.contactPhone} icon={Phone} />
               <EditableField label="LinkedIn" field="linkedinUrl" value={opp.linkedinUrl} icon={Linkedin} />
