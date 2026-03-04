@@ -1,12 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
-import { LayoutGrid, LogOut, Settings, Crown, Building2, UserCircle, Menu, X, ChevronDown, Check } from 'lucide-react';
-import RivvraLogo from '../BrynsaLogo';
-import api from '../../utils/api';
+import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check } from 'lucide-react';
 
 const appColorMap = {
   rivvra: 'text-rivvra-400',
@@ -18,7 +15,6 @@ const appColorMap = {
 function TopBar({ onToggleSidebar, sidebarOpen }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { currentOrg } = useOrg();
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
   const isPro = user?.plan === 'pro' || user?.plan === 'premium';
@@ -36,10 +32,6 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const orgLogoUrl = currentOrg?.logoAvailable && currentOrg?.slug
-    ? `${api.baseUrl}/api/org/${currentOrg.slug}/logo`
-    : null;
-
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -48,7 +40,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   return (
     <header className="h-14 border-b border-dark-800/50 bg-dark-950/80 backdrop-blur-xl sticky top-0 z-40">
       <div className="h-full px-4 flex items-center justify-between">
-        {/* Left: Hamburger + Org Logo + Name + App Badge */}
+        {/* Left: Hamburger + Rivvra Brand + Grid + Company Switcher + App Badge */}
         <div className="flex items-center gap-2 md:gap-4">
           {currentApp && (
             <button
@@ -59,19 +51,10 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           )}
-          <Link to={orgPath('/home')} className="flex items-center gap-2">
-            {orgLogoUrl ? (
-              <img
-                src={orgLogoUrl}
-                alt={currentOrg?.name || ''}
-                className="w-8 h-8 rounded-lg object-contain bg-dark-800"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-lg bg-dark-800 flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-rivvra-400" />
-              </div>
-            )}
-            <span className="text-base font-bold text-white">{currentOrg?.name || 'Rivvra'}</span>
+          <Link to={orgPath('/home')} className="flex items-center gap-2.5">
+            <span className="text-base font-bold text-white tracking-tight">Rivvra</span>
+            <div className="w-px h-4 bg-dark-700" />
+            <LayoutGrid className="w-5 h-5 text-dark-400" />
           </Link>
 
           {/* Company Switcher */}
@@ -128,25 +111,8 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
           )}
         </div>
 
-        {/* Right: Powered by Rivvra + Grid + User */}
+        {/* Right: User */}
         <div className="flex items-center gap-2">
-          {/* Powered by Rivvra */}
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md mr-1" title="Powered by Rivvra">
-            <RivvraLogo className="w-3.5 h-3.5" />
-            <span className="text-[11px] text-dark-500">Rivvra</span>
-          </div>
-
-          <div className="w-px h-4 bg-dark-800 hidden md:block" />
-
-          {/* App grid button */}
-          <button
-            onClick={() => navigate(orgPath('/home'))}
-            className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
-            title="All Apps"
-          >
-            <LayoutGrid className="w-5 h-5" />
-          </button>
-
           {/* User dropdown */}
           <div className="relative group">
             <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-dark-800/50 transition-colors">

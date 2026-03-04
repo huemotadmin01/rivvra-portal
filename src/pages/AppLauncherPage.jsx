@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext';
-import { useOrg } from '../context/OrgContext';
+import { useCompany } from '../context/CompanyContext';
 import { Building2 } from 'lucide-react';
 import AppGrid from '../components/platform/AppGrid';
 import RivvraLogo from '../components/BrynsaLogo';
@@ -7,24 +7,24 @@ import api from '../utils/api';
 
 function AppLauncherPage() {
   const { user } = useAuth();
-  const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const firstName = user?.name?.split(' ')[0] || 'there';
 
-  const orgLogoUrl = currentOrg?.logoAvailable && currentOrg?.slug
-    ? `${api.baseUrl}/api/org/${currentOrg.slug}/logo`
+  const companyLogoUrl = currentCompany?.hasLogo && currentCompany?._id
+    ? `${api.baseUrl}/api/org-company/${currentCompany._id}/logo`
     : null;
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center px-6 py-12">
       <div className="max-w-3xl w-full">
-        {/* Org Branding + Welcome — fade in + slide up */}
+        {/* Company Branding + Welcome — fade in + slide up */}
         <div className="text-center mb-10" style={{ animation: 'fadeSlideUp 0.5s ease-out both' }}>
-          {/* Org Logo */}
+          {/* Company Logo */}
           <div className="flex justify-center mb-4">
-            {orgLogoUrl ? (
+            {companyLogoUrl ? (
               <img
-                src={orgLogoUrl}
-                alt={currentOrg?.name || ''}
+                src={companyLogoUrl}
+                alt={currentCompany?.name || ''}
                 className="w-16 h-16 rounded-2xl object-contain bg-dark-800"
               />
             ) : (
@@ -38,7 +38,7 @@ function AppLauncherPage() {
             Welcome back, {firstName}
           </h1>
           <p className="text-dark-400 text-lg">
-            {currentOrg?.name || 'Your staffing agency command center'}
+            {currentCompany?.name || 'Your staffing agency command center'}
           </p>
         </div>
 
