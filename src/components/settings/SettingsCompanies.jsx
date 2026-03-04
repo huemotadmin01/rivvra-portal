@@ -6,9 +6,8 @@ import { usePlatform } from '../../context/PlatformContext';
 import { API_BASE_URL } from '../../utils/config';
 import api from '../../utils/api';
 import {
-  Building2, Plus, Loader2, Pencil, Trash2, X, Save, Star,
-  ChevronLeft, Upload, Camera, Globe, Phone, Mail, MapPin,
-  Hash, FileText, CreditCard, Image,
+  Building2, Plus, Loader2, Trash2, Save, Star,
+  ChevronLeft, ChevronRight, Camera, Image,
 } from 'lucide-react';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -25,14 +24,14 @@ const GST_TREATMENT_OPTIONS = [
 ];
 
 const CURRENCY_OPTIONS = [
-  { value: 'INR', label: 'INR — Indian Rupee' },
-  { value: 'USD', label: 'USD — US Dollar' },
-  { value: 'CAD', label: 'CAD — Canadian Dollar' },
-  { value: 'EUR', label: 'EUR — Euro' },
-  { value: 'GBP', label: 'GBP — British Pound' },
-  { value: 'AED', label: 'AED — UAE Dirham' },
-  { value: 'SGD', label: 'SGD — Singapore Dollar' },
-  { value: 'AUD', label: 'AUD — Australian Dollar' },
+  { value: 'INR', label: 'INR' },
+  { value: 'USD', label: 'USD' },
+  { value: 'CAD', label: 'CAD' },
+  { value: 'EUR', label: 'EUR' },
+  { value: 'GBP', label: 'GBP' },
+  { value: 'AED', label: 'AED' },
+  { value: 'SGD', label: 'SGD' },
+  { value: 'AUD', label: 'AUD' },
 ];
 
 const EMPTY_FORM = {
@@ -47,6 +46,7 @@ const EMPTY_FORM = {
   gstin: '',
   pan: '',
   address: { street: '', street2: '', city: '', state: '', zip: '', country: 'India', countryCode: 'IN' },
+  socialMedia: { x: '', facebook: '', github: '', linkedin: '', youtube: '', instagram: '' },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -54,6 +54,17 @@ const EMPTY_FORM = {
 function getLogoUrl(company) {
   if (!company?._id) return null;
   return `${API_BASE_URL}/api/org-company/${company._id}/logo?t=${company.updatedAt || ''}`;
+}
+
+// ─── Reusable Field Row (Odoo label:value style) ────────────────────────────
+
+function FieldRow({ label, children, className = '' }) {
+  return (
+    <div className={`flex items-start py-2 min-h-[38px] ${className}`}>
+      <label className="w-[140px] flex-shrink-0 text-sm text-dark-400 pt-1.5">{label}</label>
+      <div className="flex-1">{children}</div>
+    </div>
+  );
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -67,11 +78,13 @@ export default function SettingsCompanies() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoError, setLogoError] = useState({});
+  const [activeTab, setActiveTab] = useState('general');
   const fileInputRef = useRef(null);
 
   // ─── Data Fetching ─────────────────────────────────────────────────────────
@@ -83,12 +96,12 @@ export default function SettingsCompanies() {
       if (res.success) {
         const list = res.companies || [];
         setCompanies(list);
-        // If we're viewing a company, refresh it
         if (selectedCompany) {
-          const updated = list.find((c) => c._id === selectedCompany._id);
-          if (updated) {
-            setSelectedCompany(updated);
-            populateForm(updated);
+          const idx = list.findIndex((c) => c._id === selectedCompany._id);
+          if (idx >= 0) {
+            setSelectedCompany(list[idx]);
+            setSelectedIndex(idx);
+            populateForm(list[idx]);
           }
         }
       }
@@ -121,6 +134,14 @@ export default function SettingsCompanies() {
         country: company.address?.country || 'India',
         countryCode: company.address?.countryCode || 'IN',
       },
+      socialMedia: {
+        x: company.socialMedia?.x || '',
+        facebook: company.socialMedia?.facebook || '',
+        github: company.socialMedia?.github || '',
+        linkedin: company.socialMedia?.linkedin || '',
+        youtube: company.socialMedia?.youtube || '',
+        instagram: company.socialMedia?.instagram || '',
+      },
     });
   };
 
@@ -132,25 +153,50 @@ export default function SettingsCompanies() {
     setForm((prev) => ({ ...prev, address: { ...prev.address, [field]: value } }));
   };
 
-  // ─── CRUD Actions ──────────────────────────────────────────────────────────
+  const handleSocialChange = (field, value) => {
+    setForm((prev) => ({ ...prev, socialMedia: { ...prev.socialMedia, [field]: value } }));
+  };
+
+  // ─── Navigation ────────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setSelectedCompany(null);
+    setSelectedIndex(-1);
     setIsCreating(true);
     setForm(EMPTY_FORM);
+    setActiveTab('general');
   };
 
-  const openDetail = (company) => {
+  const openDetail = (company, index) => {
     setIsCreating(false);
     setSelectedCompany(company);
+    setSelectedIndex(index);
     populateForm(company);
+    setActiveTab('general');
   };
 
   const goBack = () => {
     setSelectedCompany(null);
+    setSelectedIndex(-1);
     setIsCreating(false);
     setForm(EMPTY_FORM);
   };
+
+  const navigatePrev = () => {
+    if (selectedIndex > 0) {
+      const prev = companies[selectedIndex - 1];
+      openDetail(prev, selectedIndex - 1);
+    }
+  };
+
+  const navigateNext = () => {
+    if (selectedIndex < companies.length - 1) {
+      const next = companies[selectedIndex + 1];
+      openDetail(next, selectedIndex + 1);
+    }
+  };
+
+  // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!form.name.trim()) { showToast('Company name is required', 'error'); return; }
@@ -174,7 +220,6 @@ export default function SettingsCompanies() {
 
       if (res.success) {
         showToast(selectedCompany ? 'Company updated' : 'Company created');
-        // After create, switch to detail view for the new company
         if (!selectedCompany && res.company) {
           setIsCreating(false);
           setSelectedCompany(res.company);
@@ -245,7 +290,6 @@ export default function SettingsCompanies() {
 
       if (data.success) {
         showToast('Logo uploaded');
-        // Clear logo error cache for this company
         setLogoError((prev) => ({ ...prev, [selectedCompany._id]: false }));
         fetchCompanies();
         refreshCompanies();
@@ -260,7 +304,7 @@ export default function SettingsCompanies() {
     }
   };
 
-  // ─── Loading State ─────────────────────────────────────────────────────────
+  // ─── Loading ───────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -270,7 +314,9 @@ export default function SettingsCompanies() {
     );
   }
 
-  // ─── Detail / Create View ──────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DETAIL / CREATE VIEW (Odoo-style)
+  // ═══════════════════════════════════════════════════════════════════════════
 
   if (selectedCompany || isCreating) {
     const company = selectedCompany;
@@ -280,416 +326,470 @@ export default function SettingsCompanies() {
 
     return (
       <div>
-        {/* Top bar: back + title + actions */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={goBack}
-              className="p-2 text-dark-400 hover:text-white rounded-lg hover:bg-dark-800 transition-colors"
-            >
-              <ChevronLeft size={20} />
+        {/* ─── Breadcrumb Bar (Odoo style) ─── */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-sm">
+            <button onClick={goBack} className="text-rivvra-400 hover:text-rivvra-300 font-medium transition-colors">
+              Companies
             </button>
-            <div>
-              <h2 className="text-lg font-semibold text-white">
-                {isEdit ? company.name : 'New Company'}
-              </h2>
-              {isEdit && company.isDefault && (
-                <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-medium mt-0.5">
-                  <Star size={10} /> Default Company
-                </span>
-              )}
-            </div>
+            <span className="text-dark-500">/</span>
+            <span className="text-dark-300 font-medium truncate max-w-[300px]">
+              {isEdit ? company.name : 'New'}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Save / Delete */}
             {isEdit && !company.isDefault && (
               <button
                 onClick={() => handleDelete(company)}
-                className="bg-dark-800 hover:bg-red-500/15 text-dark-400 hover:text-red-400 rounded-lg px-3 py-2 text-sm transition-colors flex items-center gap-1.5"
+                className="text-dark-500 hover:text-red-400 text-sm transition-colors flex items-center gap-1"
               >
-                <Trash2 size={14} /> Delete
+                <Trash2 size={13} /> Delete
               </button>
             )}
             <button
               onClick={handleSave}
               disabled={saving}
-              className="btn-primary flex items-center gap-2 px-4 py-2 text-sm"
+              className="btn-primary flex items-center gap-2 px-4 py-1.5 text-sm"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {isEdit ? 'Save Changes' : 'Create Company'}
+              {isEdit ? 'Save' : 'Create'}
+            </button>
+
+            {/* Pagination (like Odoo) */}
+            {isEdit && companies.length > 1 && (
+              <div className="flex items-center gap-1 text-sm text-dark-400 ml-2 border-l border-dark-700 pl-3">
+                <span>{selectedIndex + 1} / {companies.length}</span>
+                <button
+                  onClick={navigatePrev}
+                  disabled={selectedIndex <= 0}
+                  className="p-1 rounded hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={navigateNext}
+                  disabled={selectedIndex >= companies.length - 1}
+                  className="p-1 rounded hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Header: Company Name + Logo ─── */}
+        <div className="card p-6 mb-0 rounded-b-none border-b-0">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-xs text-dark-500 uppercase tracking-wide mb-1">Company</p>
+              {isCreating ? (
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  placeholder="Company Name"
+                  className="text-2xl font-bold text-white bg-transparent border-b border-dark-600 focus:border-rivvra-500 outline-none pb-1 w-full max-w-lg transition-colors"
+                  autoFocus
+                />
+              ) : (
+                <h1 className="text-2xl font-bold text-white leading-tight">{company.name}</h1>
+              )}
+              {isEdit && company.isDefault && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded font-medium mt-2">
+                  <Star size={10} /> Default Company
+                </span>
+              )}
+            </div>
+
+            {/* Logo (top-right, Odoo style) */}
+            <div
+              onClick={() => isEdit && fileInputRef.current?.click()}
+              className={`relative w-[90px] h-[90px] rounded-lg border border-dark-700 flex items-center justify-center overflow-hidden flex-shrink-0 ml-6 group transition-all ${
+                isEdit ? 'cursor-pointer hover:border-rivvra-500/50' : 'cursor-default opacity-50'
+              }`}
+            >
+              {uploadingLogo ? (
+                <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
+              ) : hasLogo && logoUrl ? (
+                <>
+                  <img
+                    src={logoUrl}
+                    alt={company.name}
+                    className="w-full h-full object-contain p-1.5"
+                    onError={() => setLogoError((prev) => ({ ...prev, [company._id]: true }))}
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <Image className="w-6 h-6 text-dark-600 mx-auto" />
+                  {isEdit && <p className="text-[9px] text-dark-500 mt-1">Upload</p>}
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+          </div>
+        </div>
+
+        {/* ─── Tab Bar ─── */}
+        <div className="card rounded-t-none rounded-b-none border-b-0 px-6 pt-0 pb-0">
+          <div className="flex gap-0 border-b border-dark-700">
+            <button
+              onClick={() => setActiveTab('general')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                activeTab === 'general'
+                  ? 'border-rivvra-500 text-white'
+                  : 'border-transparent text-dark-400 hover:text-dark-300'
+              }`}
+            >
+              General Information
             </button>
           </div>
         </div>
 
-        {/* Main content: 2-column Odoo-style layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ─── Form Body (Odoo 2-column label:value layout) ─── */}
+        {activeTab === 'general' && (
+          <div className="card rounded-t-none p-6 pt-5">
 
-          {/* ─── Left Column: Logo + Key Info (1/3) ─── */}
-          <div className="space-y-5">
+            {/* 2-column grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
 
-            {/* Logo Upload Card */}
-            <div className="card p-5">
-              <label className="block text-xs font-medium text-dark-400 uppercase tracking-wide mb-3">
-                Company Logo
-              </label>
-              <div className="flex flex-col items-center">
-                <div
-                  onClick={() => isEdit && fileInputRef.current?.click()}
-                  className={`relative w-32 h-32 rounded-xl border-2 border-dashed border-dark-600 flex items-center justify-center overflow-hidden transition-all group ${
-                    isEdit ? 'cursor-pointer hover:border-rivvra-500/50 hover:bg-dark-800/50' : 'cursor-default opacity-60'
-                  }`}
-                >
-                  {uploadingLogo ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
-                  ) : hasLogo && logoUrl ? (
-                    <>
-                      <img
-                        src={logoUrl}
-                        alt={company.name}
-                        className="w-full h-full object-contain p-2"
-                        onError={() => setLogoError((prev) => ({ ...prev, [company._id]: true }))}
-                      />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Camera className="w-6 h-6 text-white" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center">
-                      <Image className="w-8 h-8 text-dark-500 mx-auto mb-1" />
-                      <span className="text-[11px] text-dark-500">
-                        {isEdit ? 'Click to upload' : 'Save first'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleLogoUpload}
-                />
+              {/* ─── LEFT COLUMN ─── */}
+              <div className="divide-y divide-dark-800">
+
+                {/* Company Name (only in edit mode — create uses header input) */}
                 {isEdit && (
-                  <p className="text-[11px] text-dark-500 mt-2 text-center">
-                    PNG, JPG, SVG — max 2 MB
-                  </p>
+                  <FieldRow label="Company Name">
+                    <input
+                      type="text"
+                      value={form.name}
+                      onChange={(e) => handleChange('name', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="Company Name"
+                    />
+                  </FieldRow>
                 )}
+
+                <FieldRow label="Address">
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={form.address.street}
+                      onChange={(e) => handleAddressChange('street', e.target.value)}
+                      placeholder="Street"
+                      className="input-field text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={form.address.street2}
+                      onChange={(e) => handleAddressChange('street2', e.target.value)}
+                      placeholder="Street 2"
+                      className="input-field text-sm"
+                    />
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <input
+                        type="text"
+                        value={form.address.city}
+                        onChange={(e) => handleAddressChange('city', e.target.value)}
+                        placeholder="City"
+                        className="input-field text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={form.address.state}
+                        onChange={(e) => handleAddressChange('state', e.target.value)}
+                        placeholder="State"
+                        className="input-field text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={form.address.zip}
+                        onChange={(e) => handleAddressChange('zip', e.target.value)}
+                        placeholder="ZIP"
+                        className="input-field text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        value={form.address.country}
+                        onChange={(e) => handleAddressChange('country', e.target.value)}
+                        placeholder="Country"
+                        className="input-field text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={form.address.countryCode}
+                        onChange={(e) => handleAddressChange('countryCode', e.target.value.toUpperCase())}
+                        placeholder="Code (IN)"
+                        maxLength={2}
+                        className="input-field text-sm"
+                      />
+                    </div>
+                  </div>
+                </FieldRow>
+
+                <FieldRow label="Tax ID (GSTIN)">
+                  <input
+                    type="text"
+                    value={form.gstin}
+                    onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
+                    className="input-field text-sm"
+                    placeholder="29AALCR0152L1Z2"
+                    maxLength={15}
+                  />
+                </FieldRow>
+
+                <FieldRow label="PAN">
+                  <input
+                    type="text"
+                    value={form.pan}
+                    onChange={(e) => handleChange('pan', e.target.value.toUpperCase())}
+                    className="input-field text-sm"
+                    placeholder="AALCR0152L"
+                    maxLength={10}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Company ID">
+                  <input
+                    type="text"
+                    value={form.registrationNumber}
+                    onChange={(e) => handleChange('registrationNumber', e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="e.g. BC1546216"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Currency">
+                  <select
+                    value={form.currency}
+                    onChange={(e) => handleChange('currency', e.target.value)}
+                    className="input-field text-sm"
+                  >
+                    {CURRENCY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="GST Treatment">
+                  <select
+                    value={form.gstTreatment}
+                    onChange={(e) => handleChange('gstTreatment', e.target.value)}
+                    className="input-field text-sm"
+                  >
+                    {GST_TREATMENT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </FieldRow>
+              </div>
+
+              {/* ─── RIGHT COLUMN ─── */}
+              <div className="divide-y divide-dark-800">
+
+                <FieldRow label="Phone">
+                  <input
+                    type="text"
+                    value={form.phone}
+                    onChange={(e) => handleChange('phone', e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="+91 7553138975"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Mobile">
+                  <input
+                    type="text"
+                    value={form.mobile}
+                    onChange={(e) => handleChange('mobile', e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="+91 98765 43210"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Email">
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="info@company.com"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Website">
+                  <input
+                    type="text"
+                    value={form.website}
+                    onChange={(e) => handleChange('website', e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="https://company.com"
+                  />
+                </FieldRow>
               </div>
             </div>
 
-            {/* Quick Info Card */}
-            <div className="card p-5 space-y-4">
-              <label className="block text-xs font-medium text-dark-400 uppercase tracking-wide">
-                Quick Info
-              </label>
-
-              {/* Currency */}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">Currency</label>
-                <select
-                  value={form.currency}
-                  onChange={(e) => handleChange('currency', e.target.value)}
-                  className="input-field text-sm"
-                >
-                  {CURRENCY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Registration Number */}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">
-                  <Hash size={11} className="inline mr-1 -mt-0.5" />
-                  Company ID / Registration No.
-                </label>
-                <input
-                  type="text"
-                  value={form.registrationNumber}
-                  onChange={(e) => handleChange('registrationNumber', e.target.value)}
-                  className="input-field text-sm"
-                  placeholder="e.g. BC1546216"
-                />
-              </div>
-
-              {/* GST Treatment */}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">GST Treatment</label>
-                <select
-                  value={form.gstTreatment}
-                  onChange={(e) => handleChange('gstTreatment', e.target.value)}
-                  className="input-field text-sm"
-                >
-                  {GST_TREATMENT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* GSTIN */}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">GSTIN</label>
-                <input
-                  type="text"
-                  value={form.gstin}
-                  onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
-                  className="input-field text-sm"
-                  placeholder="29AALCR0152L1Z2"
-                  maxLength={15}
-                />
-              </div>
-
-              {/* PAN */}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">PAN</label>
-                <input
-                  type="text"
-                  value={form.pan}
-                  onChange={(e) => handleChange('pan', e.target.value.toUpperCase())}
-                  className="input-field text-sm"
-                  placeholder="AALCR0152L"
-                  maxLength={10}
-                />
+            {/* ─── SOCIAL MEDIA Section (full width, Odoo style) ─── */}
+            <div className="mt-8 pt-5 border-t border-dark-700">
+              <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Social Media</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
+                <div className="divide-y divide-dark-800">
+                  <FieldRow label="X (Twitter)">
+                    <input
+                      type="text"
+                      value={form.socialMedia.x}
+                      onChange={(e) => handleSocialChange('x', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="https://x.com/company"
+                    />
+                  </FieldRow>
+                  <FieldRow label="Facebook">
+                    <input
+                      type="text"
+                      value={form.socialMedia.facebook}
+                      onChange={(e) => handleSocialChange('facebook', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="https://facebook.com/company"
+                    />
+                  </FieldRow>
+                  <FieldRow label="GitHub">
+                    <input
+                      type="text"
+                      value={form.socialMedia.github}
+                      onChange={(e) => handleSocialChange('github', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="https://github.com/company"
+                    />
+                  </FieldRow>
+                </div>
+                <div className="divide-y divide-dark-800">
+                  <FieldRow label="LinkedIn">
+                    <input
+                      type="text"
+                      value={form.socialMedia.linkedin}
+                      onChange={(e) => handleSocialChange('linkedin', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="https://linkedin.com/company/..."
+                    />
+                  </FieldRow>
+                  <FieldRow label="YouTube">
+                    <input
+                      type="text"
+                      value={form.socialMedia.youtube}
+                      onChange={(e) => handleSocialChange('youtube', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="https://youtube.com/@company"
+                    />
+                  </FieldRow>
+                  <FieldRow label="Instagram">
+                    <input
+                      type="text"
+                      value={form.socialMedia.instagram}
+                      onChange={(e) => handleSocialChange('instagram', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="https://instagram.com/company"
+                    />
+                  </FieldRow>
+                </div>
               </div>
             </div>
+
           </div>
-
-          {/* ─── Right Column: Details (2/3) ─── */}
-          <div className="lg:col-span-2 space-y-5">
-
-            {/* General Information */}
-            <div className="card p-5">
-              <label className="block text-xs font-medium text-dark-400 uppercase tracking-wide mb-4">
-                General Information
-              </label>
-              <div className="space-y-4">
-                {/* Company Name */}
-                <div>
-                  <label className="block text-sm text-dark-400 mb-1">Company Name *</label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => handleChange('name', e.target.value)}
-                    className="input-field"
-                    placeholder="HUEMOT TECHNOLOGY PVT LTD"
-                  />
-                </div>
-
-                {/* Contact Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">
-                      <Phone size={12} className="inline mr-1.5 -mt-0.5" />
-                      Phone
-                    </label>
-                    <input
-                      type="text"
-                      value={form.phone}
-                      onChange={(e) => handleChange('phone', e.target.value)}
-                      className="input-field"
-                      placeholder="+91 98765 43210"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">
-                      <Phone size={12} className="inline mr-1.5 -mt-0.5" />
-                      Mobile
-                    </label>
-                    <input
-                      type="text"
-                      value={form.mobile}
-                      onChange={(e) => handleChange('mobile', e.target.value)}
-                      className="input-field"
-                      placeholder="+91 98765 43210"
-                    />
-                  </div>
-                </div>
-
-                {/* Email + Website */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">
-                      <Mail size={12} className="inline mr-1.5 -mt-0.5" />
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => handleChange('email', e.target.value)}
-                      className="input-field"
-                      placeholder="info@company.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">
-                      <Globe size={12} className="inline mr-1.5 -mt-0.5" />
-                      Website
-                    </label>
-                    <input
-                      type="text"
-                      value={form.website}
-                      onChange={(e) => handleChange('website', e.target.value)}
-                      className="input-field"
-                      placeholder="https://company.com"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Address */}
-            <div className="card p-5">
-              <label className="block text-xs font-medium text-dark-400 uppercase tracking-wide mb-4">
-                <MapPin size={12} className="inline mr-1.5 -mt-0.5" />
-                Address
-              </label>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={form.address.street}
-                  onChange={(e) => handleAddressChange('street', e.target.value)}
-                  placeholder="Street Address"
-                  className="input-field"
-                />
-                <input
-                  type="text"
-                  value={form.address.street2}
-                  onChange={(e) => handleAddressChange('street2', e.target.value)}
-                  placeholder="Street Address Line 2"
-                  className="input-field"
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={form.address.city}
-                    onChange={(e) => handleAddressChange('city', e.target.value)}
-                    placeholder="City"
-                    className="input-field"
-                  />
-                  <input
-                    type="text"
-                    value={form.address.state}
-                    onChange={(e) => handleAddressChange('state', e.target.value)}
-                    placeholder="State / Province"
-                    className="input-field"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <input
-                    type="text"
-                    value={form.address.zip}
-                    onChange={(e) => handleAddressChange('zip', e.target.value)}
-                    placeholder="ZIP / Postal"
-                    className="input-field"
-                  />
-                  <input
-                    type="text"
-                    value={form.address.country}
-                    onChange={(e) => handleAddressChange('country', e.target.value)}
-                    placeholder="Country"
-                    className="input-field"
-                  />
-                  <input
-                    type="text"
-                    value={form.address.countryCode}
-                    onChange={(e) => handleAddressChange('countryCode', e.target.value.toUpperCase())}
-                    placeholder="Code (IN)"
-                    maxLength={2}
-                    className="input-field"
-                  />
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
+        )}
       </div>
     );
   }
 
-  // ─── List View ─────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LIST VIEW (Odoo-style table)
+  // ═══════════════════════════════════════════════════════════════════════════
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      {/* Header bar */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-white">Companies</h2>
-          <p className="text-sm text-dark-400 mt-0.5">Manage legal entities within your organization</p>
+          <span className="text-sm text-dark-500">{companies.length} {companies.length === 1 ? 'company' : 'companies'}</span>
         </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-          <Plus size={16} />
-          Add Company
+        <button onClick={openCreate} className="btn-primary flex items-center gap-2 text-sm px-3 py-1.5">
+          <Plus size={15} />
+          New
         </button>
       </div>
 
-      {/* Company Cards */}
-      <div className="grid gap-3">
-        {companies.map((c) => (
-          <div
-            key={c._id}
-            onClick={() => openDetail(c)}
-            className="card p-4 flex items-center justify-between cursor-pointer hover:border-dark-600 transition-colors group"
-          >
-            <div className="flex items-center gap-4">
-              {/* Logo or icon */}
-              <div className="w-12 h-12 rounded-xl bg-dark-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {c.hasLogo && !logoError[c._id] ? (
-                  <img
-                    src={getLogoUrl(c)}
-                    alt={c.name}
-                    className="w-full h-full object-contain p-1.5"
-                    onError={() => setLogoError((prev) => ({ ...prev, [c._id]: true }))}
-                  />
-                ) : (
-                  <Building2 className="w-6 h-6 text-rivvra-400" />
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-white font-semibold group-hover:text-rivvra-400 transition-colors">{c.name}</h3>
-                  {c.isDefault && (
-                    <span className="flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-medium">
-                      <Star size={10} /> Default
+      {/* Table */}
+      {companies.length > 0 ? (
+        <div className="card overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-dark-700">
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-dark-400 uppercase tracking-wide">
+                  Company Name
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-dark-400 uppercase tracking-wide">
+                  Currency
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-dark-400 uppercase tracking-wide">
+                  Location
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-dark-400 uppercase tracking-wide">
+                  Tax ID
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-dark-800">
+              {companies.map((c, i) => (
+                <tr
+                  key={c._id}
+                  onClick={() => openDetail(c, i)}
+                  className="hover:bg-dark-800/50 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm text-white font-medium">{c.name}</span>
+                      {c.isDefault && (
+                        <span className="flex items-center gap-0.5 text-[9px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-medium leading-none">
+                          <Star size={8} /> Default
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-dark-300">{c.currency || '—'}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-dark-400">
+                      {[c.address?.city, c.address?.state, c.address?.country].filter(Boolean).join(', ') || '—'}
                     </span>
-                  )}
-                  {c.currency && (
-                    <span className="text-[10px] bg-dark-700 text-dark-400 px-1.5 py-0.5 rounded font-mono">
-                      {c.currency}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-dark-400">
-                  {c.email && <span className="flex items-center gap-1"><Mail size={11} /> {c.email}</span>}
-                  {c.phone && <span className="flex items-center gap-1"><Phone size={11} /> {c.phone}</span>}
-                  {c.address?.city && (
-                    <span className="flex items-center gap-1">
-                      <MapPin size={11} />
-                      {c.address.city}{c.address.state ? `, ${c.address.state}` : ''}{c.address.country ? ` — ${c.address.country}` : ''}
-                    </span>
-                  )}
-                </div>
-                {(c.gstin || c.pan || c.registrationNumber) && (
-                  <div className="flex flex-wrap gap-x-3 mt-1 text-xs text-dark-500">
-                    {c.registrationNumber && <span>Reg: {c.registrationNumber}</span>}
-                    {c.gstin && <span>GSTIN: {c.gstin}</span>}
-                    {c.pan && <span>PAN: {c.pan}</span>}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Pencil size={14} className="text-dark-400" />
-            </div>
-          </div>
-        ))}
-
-        {companies.length === 0 && (
-          <div className="text-center py-16 text-dark-400">
-            <Building2 className="w-14 h-14 mx-auto mb-3 text-dark-600" />
-            <p className="text-base">No companies yet</p>
-            <p className="text-sm mt-1">Click "Add Company" to create your first legal entity.</p>
-          </div>
-        )}
-      </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-dark-400 font-mono">{c.gstin || c.pan || '—'}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-16 text-dark-400">
+          <Building2 className="w-14 h-14 mx-auto mb-3 text-dark-600" />
+          <p className="text-base">No companies yet</p>
+          <p className="text-sm mt-1">Click "New" to create your first legal entity.</p>
+        </div>
+      )}
     </div>
   );
 }
