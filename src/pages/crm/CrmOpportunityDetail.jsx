@@ -398,14 +398,14 @@ export default function CrmOpportunityDetail() {
               ) : (
                 <EditableField label="Contact Name" field="contactName" value={opp.contactName} icon={User} />
               )}
-              {/* Company — link to company contact record if companyId exists */}
-              {opp.companyId ? (
+              {/* Company — link to company contact record if contactCompanyId exists */}
+              {opp.contactCompanyId ? (
                 <div className="flex items-start gap-2 py-1.5">
                   <Building2 size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] text-dark-500 uppercase tracking-wider">Company</p>
                     <Link
-                      to={`/org/${slug}/contacts/${opp.companyId}`}
+                      to={`/org/${slug}/contacts/${opp.contactCompanyId}`}
                       className="text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors flex items-center gap-1"
                     >
                       {opp.companyName || 'View Company'} <ExternalLink size={10} />

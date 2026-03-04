@@ -20,7 +20,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const { user, logout } = useAuth();
   const { currentOrg } = useOrg();
   const { currentApp, orgPath } = usePlatform();
-  const { companies, currentCompany, switchCompany, hasMultipleCompanies } = useCompany();
+  const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
   const isPro = user?.plan === 'pro' || user?.plan === 'premium';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
@@ -89,22 +89,29 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
               {companyDropdownOpen && (
                 <div className="absolute left-0 top-full mt-1.5 w-72 bg-dark-900 border border-dark-700 rounded-xl p-1.5 shadow-xl z-50">
                   <p className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dark-500 font-semibold">Companies</p>
-                  {companies.map((c) => (
-                    <button
-                      key={c._id}
-                      onClick={() => { setCompanyDropdownOpen(false); if (c._id !== currentCompany?._id) switchCompany(c._id); }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
-                        c._id === currentCompany?._id
-                          ? 'bg-rivvra-500/10 text-rivvra-400'
-                          : 'text-dark-300 hover:text-white hover:bg-dark-800/50'
-                      }`}
-                    >
-                      <Building2 className="w-4 h-4 flex-shrink-0" />
-                      <span className="flex-1 truncate">{c.name}</span>
-                      {c.currency && <span className="text-[10px] text-dark-500 font-mono">{c.currency}</span>}
-                      {c._id === currentCompany?._id && <Check className="w-4 h-4 text-rivvra-400 flex-shrink-0" />}
-                    </button>
-                  ))}
+                  {companies.map((c) => {
+                    const isActive = String(c._id) === String(currentCompany?._id);
+                    return (
+                      <button
+                        key={c._id}
+                        disabled={switching}
+                        onClick={() => {
+                          setCompanyDropdownOpen(false);
+                          if (!isActive) switchCompany(c._id);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                          isActive
+                            ? 'bg-rivvra-500/10 text-rivvra-400'
+                            : 'text-dark-300 hover:text-white hover:bg-dark-800/50'
+                        } ${switching ? 'opacity-50 cursor-wait' : ''}`}
+                      >
+                        <Building2 className="w-4 h-4 flex-shrink-0" />
+                        <span className="flex-1 truncate">{c.name}</span>
+                        {c.currency && <span className="text-[10px] text-dark-500 font-mono">{c.currency}</span>}
+                        {isActive && <Check className="w-4 h-4 text-rivvra-400 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

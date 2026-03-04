@@ -22,26 +22,30 @@ const CompanyContext = createContext(null);
 
 export function CompanyProvider({ children }) {
   const { currentOrg, membership } = useOrg();
-  const { orgSlug } = usePlatform();
+  const { orgSlug: platformOrgSlug } = usePlatform();
+
+  // Use org slug from OrgContext (authoritative) with PlatformContext as fallback
+  const orgSlug = currentOrg?.slug || platformOrgSlug;
 
   const [companies, setCompanies] = useState([]);
   const [currentCompanyId, setCurrentCompanyId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
 
-  // Derive current company from ID
+  // Derive current company from ID — use string comparison to handle ObjectId serialization
   const currentCompany = useMemo(() => {
     if (!currentCompanyId || companies.length === 0) {
       // Default to first company (the default one)
       return companies[0] || null;
     }
-    return companies.find(c => c._id === currentCompanyId) || companies[0] || null;
+    return companies.find(c => String(c._id) === String(currentCompanyId)) || companies[0] || null;
   }, [currentCompanyId, companies]);
 
   // Persist currentCompanyId to localStorage for the api.js header
   useEffect(() => {
     const effectiveId = currentCompany?._id || null;
     if (effectiveId) {
-      localStorage.setItem('rivvra_current_company', effectiveId);
+      localStorage.setItem('rivvra_current_company', String(effectiveId));
     } else {
       localStorage.removeItem('rivvra_current_company');
     }
@@ -75,27 +79,35 @@ export function CompanyProvider({ children }) {
   // Initialize currentCompanyId from membership
   useEffect(() => {
     if (membership?.currentCompanyId) {
-      setCurrentCompanyId(membership.currentCompanyId.toString());
+      setCurrentCompanyId(String(membership.currentCompanyId));
     }
   }, [membership]);
 
   // Switch company
   const switchCompany = useCallback(async (companyId) => {
-    if (!orgSlug || !companyId) return;
+    if (!orgSlug || !companyId) {
+      console.warn('switchCompany: missing orgSlug or companyId', { orgSlug, companyId });
+      return;
+    }
 
+    setSwitching(true);
     try {
       const res = await api.request(`/api/org/${orgSlug}/my-company`, {
         method: 'PUT',
-        body: JSON.stringify({ companyId }),
+        body: JSON.stringify({ companyId: String(companyId) }),
       });
 
       if (res.success) {
-        setCurrentCompanyId(companyId);
+        setCurrentCompanyId(String(companyId));
         // Force page reload to refetch all data with new company context
         window.location.reload();
+      } else {
+        console.error('switchCompany: API returned failure', res);
+        setSwitching(false);
       }
     } catch (err) {
       console.error('Failed to switch company:', err);
+      setSwitching(false);
     }
   }, [orgSlug]);
 
@@ -115,8 +127,9 @@ export function CompanyProvider({ children }) {
     switchCompany,
     refreshCompanies,
     loading,
+    switching,
     hasMultipleCompanies: companies.length > 1,
-  }), [companies, currentCompany, switchCompany, refreshCompanies, loading]);
+  }), [companies, currentCompany, switchCompany, refreshCompanies, loading, switching]);
 
   return (
     <CompanyContext.Provider value={value}>

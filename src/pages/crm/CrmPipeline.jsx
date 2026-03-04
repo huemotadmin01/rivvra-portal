@@ -172,7 +172,7 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, onCardCl
 // ── Create Opportunity Modal ─────────────────────────────────────────────
 function CreateModal({ stages, orgSlug, onClose, onCreate }) {
   const [form, setForm] = useState({
-    name: '', contactId: '', contactName: '', companyId: '', companyName: '',
+    name: '', contactId: '', contactName: '', contactCompanyId: '', companyName: '',
     contactEmail: '', contactPhone: '',
     expectedRole: '', expectedRevenue: '', requirementType: '', stageId: stages[0]?._id || '',
   });
@@ -205,14 +205,14 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
         ...f,
         contactId: id,
         contactName: contact?.name || displayName,
-        companyId: contact?.parentCompanyId || '',
+        contactCompanyId: contact?.parentCompanyId || '',
         companyName: contact?.parentCompanyName || '',
         contactEmail: contact?.email || f.contactEmail,
         contactPhone: contact?.phone || f.contactPhone,
       }));
     } else {
       // Free-text (create new) — displayName is the raw typed text
-      setForm(f => ({ ...f, contactId: '', contactName: displayName, companyId: '', companyName: '' }));
+      setForm(f => ({ ...f, contactId: '', contactName: displayName, contactCompanyId: '', companyName: '' }));
     }
   };
 
@@ -222,7 +222,7 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
     : form.contactName;
 
   const handleCompanyChange = (id, name) => {
-    setForm(f => ({ ...f, companyId: id, companyName: name }));
+    setForm(f => ({ ...f, contactCompanyId: id, companyName: name }));
   };
 
   const isCreatingNew = !form.contactId && form.contactName.trim();
@@ -291,7 +291,7 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
               <div>
                 <label className="block text-xs text-dark-400 mb-1">Company *</label>
                 <ComboSelect
-                  value={form.companyId}
+                  value={form.contactCompanyId}
                   displayValue={form.companyName}
                   options={companyContacts}
                   onChange={handleCompanyChange}
