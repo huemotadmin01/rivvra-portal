@@ -104,12 +104,13 @@ export default function ContactDetail() {
       } else {
         setNotFound(true);
       }
-    } catch {
+    } catch (err) {
+      showToast('Failed to load contact', 'error');
       setNotFound(true);
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, contactId]);
+  }, [orgSlug, contactId, showToast]);
 
   useEffect(() => {
     fetchContact();

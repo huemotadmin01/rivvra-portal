@@ -78,6 +78,10 @@ export default function ContactsConfig() {
         });
         if (res.success) {
           showToast('Tag updated');
+          closeModal();
+          fetchTags();
+        } else {
+          showToast(res.error || 'Failed to update tag', 'error');
         }
       } else {
         const res = await contactsApi.createTag(orgSlug, {
@@ -85,10 +89,12 @@ export default function ContactsConfig() {
         });
         if (res.success) {
           showToast('Tag created');
+          closeModal();
+          fetchTags();
+        } else {
+          showToast(res.error || 'Failed to create tag', 'error');
         }
       }
-      closeModal();
-      fetchTags();
     } catch (err) {
       showToast(err.message || 'Failed to save tag', 'error');
     } finally {
@@ -99,6 +105,7 @@ export default function ContactsConfig() {
   // ── Delete ──────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!editingTag) return;
+    if (!window.confirm(`Delete tag "${editingTag.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
       const res = await contactsApi.deleteTag(orgSlug, editingTag._id);
