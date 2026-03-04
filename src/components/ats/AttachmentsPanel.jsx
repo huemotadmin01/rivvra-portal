@@ -92,8 +92,10 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
   };
 
   const handleDelete = async (att) => {
+    if (!window.confirm(`Delete "${att.fileName}"? This cannot be undone.`)) return;
     try {
-      await atsApi.deleteAttachment(orgSlug, att._id);
+      const res = await atsApi.deleteAttachment(orgSlug, att._id);
+      if (!res.success) { showToast(res.error || 'Failed to delete attachment', 'error'); return; }
       showToast('Attachment deleted');
       fetchAttachments();
     } catch (err) {

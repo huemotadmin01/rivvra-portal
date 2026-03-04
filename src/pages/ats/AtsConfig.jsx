@@ -79,13 +79,23 @@ function ConfigSection({ entity, entityLabel, orgSlug, showToast }) {
       setSaving(true);
       if (editingItem) {
         const res = await atsApi.updateConfig(orgSlug, entity, editingItem._id, { name: form.name.trim() });
-        if (res.success) showToast(`${entityLabel.slice(0, -1)} updated`);
+        if (res.success) {
+          showToast(`${entityLabel.slice(0, -1)} updated`);
+          closeModal();
+          fetchItems();
+        } else {
+          showToast(res.error || `Failed to update ${entityLabel.toLowerCase()}`, 'error');
+        }
       } else {
         const res = await atsApi.createConfig(orgSlug, entity, { name: form.name.trim() });
-        if (res.success) showToast(`${entityLabel.slice(0, -1)} created`);
+        if (res.success) {
+          showToast(`${entityLabel.slice(0, -1)} created`);
+          closeModal();
+          fetchItems();
+        } else {
+          showToast(res.error || `Failed to create ${entityLabel.toLowerCase()}`, 'error');
+        }
       }
-      closeModal();
-      fetchItems();
     } catch (err) {
       showToast(err.message || `Failed to save ${entityLabel.toLowerCase()}`, 'error');
     } finally {
@@ -95,6 +105,7 @@ function ConfigSection({ entity, entityLabel, orgSlug, showToast }) {
 
   const handleDelete = async () => {
     if (!editingItem) return;
+    if (!window.confirm(`Delete "${editingItem.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
       const res = await atsApi.deleteConfig(orgSlug, entity, editingItem._id);
@@ -327,13 +338,23 @@ function StagesSection({ orgSlug, showToast }) {
       };
       if (editingStage) {
         const res = await atsApi.updateStage(orgSlug, editingStage._id, payload);
-        if (res.success) showToast('Stage updated');
+        if (res.success) {
+          showToast('Stage updated');
+          closeModal();
+          fetchStages();
+        } else {
+          showToast(res.error || 'Failed to update stage', 'error');
+        }
       } else {
         const res = await atsApi.createStage(orgSlug, payload);
-        if (res.success) showToast('Stage created');
+        if (res.success) {
+          showToast('Stage created');
+          closeModal();
+          fetchStages();
+        } else {
+          showToast(res.error || 'Failed to create stage', 'error');
+        }
       }
-      closeModal();
-      fetchStages();
     } catch (err) {
       showToast(err.message || 'Failed to save stage', 'error');
     } finally {
@@ -343,6 +364,7 @@ function StagesSection({ orgSlug, showToast }) {
 
   const handleDelete = async () => {
     if (!editingStage) return;
+    if (!window.confirm(`Delete stage "${editingStage.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
       const res = await atsApi.deleteStage(orgSlug, editingStage._id);
@@ -608,22 +630,36 @@ function SkillTypesSection({ orgSlug, showToast }) {
     try {
       setSaving(true);
       if (editingItem) {
-        await atsApi.updateSkillType(orgSlug, editingItem._id, { name: form.name.trim() });
-        showToast('Skill type updated');
+        const res = await atsApi.updateSkillType(orgSlug, editingItem._id, { name: form.name.trim() });
+        if (res.success) {
+          showToast('Skill type updated');
+          closeModal(); fetchItems();
+        } else {
+          showToast(res.error || 'Failed to update skill type', 'error');
+        }
       } else {
-        await atsApi.createSkillType(orgSlug, { name: form.name.trim() });
-        showToast('Skill type created');
+        const res = await atsApi.createSkillType(orgSlug, { name: form.name.trim() });
+        if (res.success) {
+          showToast('Skill type created');
+          closeModal(); fetchItems();
+        } else {
+          showToast(res.error || 'Failed to create skill type', 'error');
+        }
       }
-      closeModal(); fetchItems();
     } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!editingItem) return;
+    if (!window.confirm(`Delete skill type "${editingItem.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
-      await atsApi.deleteSkillType(orgSlug, editingItem._id);
-      showToast('Skill type deleted'); closeModal(); fetchItems();
+      const res = await atsApi.deleteSkillType(orgSlug, editingItem._id);
+      if (res.success) {
+        showToast('Skill type deleted'); closeModal(); fetchItems();
+      } else {
+        showToast(res.error || 'Failed to delete skill type', 'error');
+      }
     } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
   };
 
@@ -753,22 +789,36 @@ function SkillsSection({ orgSlug, showToast }) {
       setSaving(true);
       const payload = { name: form.name.trim(), skillTypeId: form.skillTypeId };
       if (editingItem) {
-        await atsApi.updateSkill(orgSlug, editingItem._id, payload);
-        showToast('Skill updated');
+        const res = await atsApi.updateSkill(orgSlug, editingItem._id, payload);
+        if (res.success) {
+          showToast('Skill updated');
+          closeModal(); fetchData();
+        } else {
+          showToast(res.error || 'Failed to update skill', 'error');
+        }
       } else {
-        await atsApi.createSkill(orgSlug, payload);
-        showToast('Skill created');
+        const res = await atsApi.createSkill(orgSlug, payload);
+        if (res.success) {
+          showToast('Skill created');
+          closeModal(); fetchData();
+        } else {
+          showToast(res.error || 'Failed to create skill', 'error');
+        }
       }
-      closeModal(); fetchData();
     } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!editingItem) return;
+    if (!window.confirm(`Delete skill "${editingItem.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
-      await atsApi.deleteSkill(orgSlug, editingItem._id);
-      showToast('Skill deleted'); closeModal(); fetchData();
+      const res = await atsApi.deleteSkill(orgSlug, editingItem._id);
+      if (res.success) {
+        showToast('Skill deleted'); closeModal(); fetchData();
+      } else {
+        showToast(res.error || 'Failed to delete skill', 'error');
+      }
     } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
   };
 
@@ -923,22 +973,36 @@ function SkillLevelsSection({ orgSlug, showToast }) {
       setSaving(true);
       const payload = { name: form.name.trim(), sequence: Number(form.sequence) || 0 };
       if (editingItem) {
-        await atsApi.updateSkillLevel(orgSlug, editingItem._id, payload);
-        showToast('Skill level updated');
+        const res = await atsApi.updateSkillLevel(orgSlug, editingItem._id, payload);
+        if (res.success) {
+          showToast('Skill level updated');
+          closeModal(); fetchItems();
+        } else {
+          showToast(res.error || 'Failed to update skill level', 'error');
+        }
       } else {
-        await atsApi.createSkillLevel(orgSlug, payload);
-        showToast('Skill level created');
+        const res = await atsApi.createSkillLevel(orgSlug, payload);
+        if (res.success) {
+          showToast('Skill level created');
+          closeModal(); fetchItems();
+        } else {
+          showToast(res.error || 'Failed to create skill level', 'error');
+        }
       }
-      closeModal(); fetchItems();
     } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!editingItem) return;
+    if (!window.confirm(`Delete skill level "${editingItem.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
-      await atsApi.deleteSkillLevel(orgSlug, editingItem._id);
-      showToast('Skill level deleted'); closeModal(); fetchItems();
+      const res = await atsApi.deleteSkillLevel(orgSlug, editingItem._id);
+      if (res.success) {
+        showToast('Skill level deleted'); closeModal(); fetchItems();
+      } else {
+        showToast(res.error || 'Failed to delete skill level', 'error');
+      }
     } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
   };
 

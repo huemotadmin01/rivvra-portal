@@ -966,7 +966,7 @@ export default function AtsJobDetail() {
             <p className="text-xs text-dark-400 mb-1">
               Are you sure you want to permanently delete <span className="text-dark-200 font-medium">{job.name}</span>?
             </p>
-            <p className="text-xs text-dark-500 mb-5">This will also remove all related applications. This action cannot be undone.</p>
+            <p className="text-xs text-dark-500 mb-5">This action cannot be undone. Jobs with existing applications cannot be deleted.</p>
             <div className="flex gap-2">
               <button onClick={() => setShowDeleteModal(false)}
                 className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
