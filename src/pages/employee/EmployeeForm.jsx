@@ -185,9 +185,9 @@ export default function EmployeeForm() {
   const { showToast } = useToast();
   const isEdit = !!employeeId;
   const orgSlug = currentOrg?.slug;
-  usePageTitle(isEdit ? (form?.name || 'Edit Employee') : 'Add Employee');
 
   const [form, setForm] = useState(INITIAL_FORM);
+  usePageTitle(isEdit ? (form?.fullName || 'Edit Employee') : 'Add Employee');
   const [departments, setDepartments] = useState([]);
   const [managerOptions, setManagerOptions] = useState([]);
   const [tsClients, setTsClients] = useState([]);
