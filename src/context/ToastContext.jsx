@@ -18,7 +18,7 @@ export function ToastProvider({ children }) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, addToast: showToast }}>
       {children}
       {/* Toast container - fixed bottom-right */}
       <div className="fixed bottom-6 right-6 z-[9999] space-y-2 pointer-events-none">

@@ -71,7 +71,7 @@ export default function CrmConfigLostReasons() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [modalOpen, saving]);
+  }, [modalOpen]);
 
   // ── Save (create or update) ────────────────────────────────────────────
   const handleSave = async () => {

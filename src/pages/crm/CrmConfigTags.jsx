@@ -92,7 +92,7 @@ export default function CrmConfigTags() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [modalOpen, saving]);
+  }, [modalOpen]);
 
   // ── Save (create or update) ─────────────────────────────────────────────
   const handleSave = async () => {

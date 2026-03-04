@@ -90,7 +90,7 @@ export default function CrmOpportunities() {
     </th>
   );
 
-  if (loading) {
+  if (!slug || loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;
   }
 

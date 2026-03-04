@@ -245,14 +245,18 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.markActivityDone(slug, id, isDone);
       setActivities(prev => prev.map(a => a._id === id ? { ...a, isDone, doneAt: isDone ? new Date() : null } : a));
-    } catch {}
+    } catch {
+      addToast('Failed to update activity', 'error');
+    }
   };
 
   const handleDeleteActivity = async (id) => {
     try {
       await crmApi.deleteActivity(slug, id);
       setActivities(prev => prev.filter(a => a._id !== id));
-    } catch {}
+    } catch {
+      addToast('Failed to delete activity', 'error');
+    }
   };
 
   // Inline editable field
@@ -293,7 +297,7 @@ export default function CrmOpportunityDetail() {
     );
   };
 
-  if (loading) {
+  if (!slug || loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;
   }
 

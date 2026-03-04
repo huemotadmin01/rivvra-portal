@@ -79,7 +79,7 @@ export default function CrmConfigStages() {
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [modalOpen, saving, deleting]);
+  }, [modalOpen]);
 
   // ── Save (create or update) ────────────────────────────────────────────
   const handleSave = async () => {
