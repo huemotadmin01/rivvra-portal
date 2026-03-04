@@ -3,9 +3,11 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { TimesheetProvider } from '../../context/TimesheetContext';
+import { BreadcrumbProvider } from '../../context/BreadcrumbContext';
 import TopBar from './TopBar';
 import AppSidebar from './AppSidebar';
 import TrialBanner from './TrialBanner';
+import Breadcrumbs from './Breadcrumbs';
 import { ArrowLeftRight, X } from 'lucide-react';
 
 function ImpersonationBanner() {
@@ -44,17 +46,20 @@ function PlatformLayout() {
 
   return (
     <TimesheetProvider>
-      <div className={`min-h-screen bg-dark-950 ${isImpersonating ? 'pt-10' : ''}`}>
-        <ImpersonationBanner />
-        <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
-        <TrialBanner />
-        <div className="flex">
-          <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${currentApp ? 'md:ml-64' : ''}`}>
-            <Outlet />
-          </main>
+      <BreadcrumbProvider>
+        <div className={`min-h-screen bg-dark-950 ${isImpersonating ? 'pt-10' : ''}`}>
+          <ImpersonationBanner />
+          <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
+          <TrialBanner />
+          <div className="flex">
+            <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${currentApp ? 'md:ml-64' : ''}`}>
+              <Breadcrumbs />
+              <Outlet />
+            </main>
+          </div>
         </div>
-      </div>
+      </BreadcrumbProvider>
     </TimesheetProvider>
   );
 }

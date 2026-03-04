@@ -4,8 +4,9 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  ArrowLeft, Edit2, Save, X, Loader2, Trash2,
+  Edit2, Save, X, Loader2, Trash2,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users,
 } from 'lucide-react';
@@ -66,6 +67,7 @@ export default function ContactDetail() {
   const { showToast } = useToast();
 
   const [contact, setContact] = useState(null);
+  usePageTitle(contact?.name || contact?.companyName);
   const [childContacts, setChildContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -259,13 +261,6 @@ export default function ContactDetail() {
   if (notFound || !contact) {
     return (
       <div className="p-6">
-        <button
-          onClick={() => navigate(orgPath('/contacts/list'))}
-          className="flex items-center gap-1.5 text-dark-400 hover:text-white transition-colors mb-6"
-        >
-          <ArrowLeft size={18} />
-          <span>Back to Contacts</span>
-        </button>
         <div className="flex flex-col items-center justify-center h-72 text-dark-400">
           <User size={48} className="mb-4 opacity-40" />
           <p className="text-lg">Contact not found</p>
@@ -287,15 +282,6 @@ export default function ContactDetail() {
   // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="p-6 max-w-5xl">
-      {/* Back button */}
-      <button
-        onClick={() => navigate(orgPath('/contacts/list'))}
-        className="flex items-center gap-1.5 text-dark-400 hover:text-white transition-colors mb-6"
-      >
-        <ArrowLeft size={18} />
-        <span>Back to Contacts</span>
-      </button>
-
       {/* ── Header Card ──────────────────────────────────────────────── */}
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-5">

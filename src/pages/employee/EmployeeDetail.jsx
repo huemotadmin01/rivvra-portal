@@ -3,8 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import employeeApi from '../../utils/employeeApi';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  ArrowLeft,
   Edit2,
   Building2,
   Calendar,
@@ -128,6 +128,7 @@ export default function EmployeeDetail() {
   const { orgPath } = usePlatform();
 
   const [employee, setEmployee] = useState(null);
+  usePageTitle(employee?.name);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -175,13 +176,6 @@ export default function EmployeeDetail() {
   if (notFound || !employee) {
     return (
       <div className="p-6">
-        <button
-          onClick={() => navigate(orgPath('/employee/directory'))}
-          className="flex items-center gap-1.5 text-dark-400 hover:text-white transition-colors mb-6"
-        >
-          <ArrowLeft size={18} />
-          <span>Back to Directory</span>
-        </button>
         <div className="flex flex-col items-center justify-center h-72 text-dark-400">
           <User size={48} className="mb-4 opacity-40" />
           <p className="text-lg">Employee not found</p>
@@ -208,15 +202,6 @@ export default function EmployeeDetail() {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="p-6 max-w-5xl">
-      {/* Back button */}
-      <button
-        onClick={() => navigate(orgPath('/employee/directory'))}
-        className="flex items-center gap-1.5 text-dark-400 hover:text-white transition-colors mb-6"
-      >
-        <ArrowLeft size={18} />
-        <span>Back to Directory</span>
-      </button>
-
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-5">

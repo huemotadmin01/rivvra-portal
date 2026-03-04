@@ -5,7 +5,8 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search } from 'lucide-react';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
 
 // ── Per-assignment document manager ─────────────────────────────────────────
@@ -184,6 +185,7 @@ export default function EmployeeForm() {
   const { showToast } = useToast();
   const isEdit = !!employeeId;
   const orgSlug = currentOrg?.slug;
+  usePageTitle(isEdit ? (form?.name || 'Edit Employee') : 'Add Employee');
 
   const [form, setForm] = useState(INITIAL_FORM);
   const [departments, setDepartments] = useState([]);
@@ -696,12 +698,6 @@ export default function EmployeeForm() {
     <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(orgPath('/employee/directory'))}
-          className="p-2 rounded-lg hover:bg-dark-700 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-400" />
-        </button>
         <h1 className="text-2xl font-bold text-white">
           {isEdit ? 'Edit Employee' : 'Add Employee'}
         </h1>

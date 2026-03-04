@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  ArrowLeft, Star, Building2, User, Phone, Mail, Briefcase, Trophy, X,
+  Star, Building2, User, Phone, Mail, Briefcase, Trophy, X,
   Globe, Linkedin, IndianRupee, Calendar, Tag, MessageSquare, Plus,
   Check, Clock, Edit3, Trash2, ChevronRight, Loader2, XCircle, RotateCcw,
   ExternalLink, Save,
@@ -95,6 +96,7 @@ export default function CrmOpportunityDetail() {
   const navigate = useNavigate();
 
   const [opp, setOpp] = useState(null);
+  usePageTitle(opp?.name);
   const [stages, setStages] = useState([]);
   const [activities, setActivities] = useState([]);
   const [lostReasons, setLostReasons] = useState([]);
@@ -307,9 +309,8 @@ export default function CrmOpportunityDetail() {
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
-      {/* Back + Header */}
+      {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => navigate(-1)} className="text-dark-400 hover:text-dark-200"><ArrowLeft size={18} /></button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold text-dark-100 truncate">{opp.name}</h1>

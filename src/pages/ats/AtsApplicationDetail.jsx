@@ -7,8 +7,9 @@ import atsApi from '../../utils/atsApi';
 import signApi from '../../utils/signApi';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  ArrowLeft, Loader2, Star, X, ChevronDown,
+  Loader2, Star, X, ChevronDown,
   Mail, Phone, Linkedin, User, Briefcase,
   Calendar, Edit3, Check, XCircle, Award,
   Clock, Tag, MessageSquare, Plus, CheckCircle2,
@@ -433,6 +434,7 @@ export default function AtsApplicationDetail() {
   const navigate = useNavigate();
 
   const [application, setApplication] = useState(null);
+  usePageTitle(application?.candidateName);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -718,13 +720,6 @@ export default function AtsApplicationDetail() {
   if (!application) {
     return (
       <div className="p-6 md:p-8">
-        <button
-          onClick={() => navigate(orgPath('/ats/applications'))}
-          className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors mb-6"
-        >
-          <ArrowLeft size={16} />
-          Back to Applications
-        </button>
         <div className="flex flex-col items-center justify-center py-20">
           <h3 className="text-lg font-semibold text-white mb-2">Application not found</h3>
           <p className="text-dark-400 text-sm">The application may have been deleted or you don't have access.</p>
@@ -741,16 +736,8 @@ export default function AtsApplicationDetail() {
 
   return (
     <div className="p-6 md:p-8 space-y-6">
-      {/* Back + Header */}
+      {/* Header */}
       <div>
-        <button
-          onClick={() => navigate(orgPath('/ats/applications'))}
-          className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors mb-4"
-        >
-          <ArrowLeft size={16} />
-          Back to Applications
-        </button>
-
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">

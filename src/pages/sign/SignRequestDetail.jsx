@@ -6,8 +6,9 @@ import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import { API_BASE_URL } from '../../utils/config';
 import * as pdfjsLib from 'pdfjs-dist';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  Loader2, ArrowLeft, FileText, XCircle, Bell,
+  Loader2, FileText, XCircle, Bell,
   Download, User, Calendar, Clock, Send,
   Mail, CheckCircle2, X, ExternalLink,
   Eye, Link as LinkIcon, ChevronLeft, ChevronRight,
@@ -196,6 +197,7 @@ export default function SignRequestDetail() {
 
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState(null);
+  usePageTitle(request?.reference || request?.name);
   const [template, setTemplate] = useState(null);
   const [values, setValues] = useState([]);
   const [cancelling, setCancelling] = useState(false);
@@ -291,13 +293,6 @@ export default function SignRequestDetail() {
   if (!request) {
     return (
       <div className="p-6 md:p-8">
-        <button
-          onClick={() => navigate(orgPath('/sign/requests'))}
-          className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors mb-6"
-        >
-          <ArrowLeft size={16} />
-          Back to Requests
-        </button>
         <div className="flex flex-col items-center justify-center py-20">
           <FileText className="w-12 h-12 text-dark-500 mb-4" />
           <h3 className="text-lg font-semibold text-white mb-2">Request not found</h3>
@@ -341,15 +336,6 @@ export default function SignRequestDetail() {
 
   return (
     <div className="p-6 md:p-8 space-y-6">
-      {/* Back button */}
-      <button
-        onClick={() => navigate(orgPath('/sign/requests'))}
-        className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors"
-      >
-        <ArrowLeft size={16} />
-        Back to Requests
-      </button>
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-4">

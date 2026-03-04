@@ -4,8 +4,9 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  ArrowLeft, Loader2, Star, ChevronDown, X,
+  Loader2, Star, ChevronDown, X,
   Edit3, Check, Briefcase, Users, Calendar,
   DollarSign, MapPin, Shield, UserCheck, Trash2,
 } from 'lucide-react';
@@ -175,6 +176,7 @@ export default function AtsJobDetail() {
   const navigate = useNavigate();
 
   const [job, setJob] = useState(null);
+  usePageTitle(job?.name);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -374,13 +376,6 @@ export default function AtsJobDetail() {
   if (!job) {
     return (
       <div className="p-6 md:p-8">
-        <button
-          onClick={() => navigate(orgPath('/ats/jobs'))}
-          className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors mb-6"
-        >
-          <ArrowLeft size={16} />
-          Back to Job Positions
-        </button>
         <div className="flex flex-col items-center justify-center py-20">
           <h3 className="text-lg font-semibold text-white mb-2">Job position not found</h3>
           <p className="text-dark-400 text-sm">The position may have been deleted or you don't have access.</p>
@@ -393,16 +388,8 @@ export default function AtsJobDetail() {
 
   return (
     <div className="p-6 md:p-8 space-y-6">
-      {/* Back + Header */}
+      {/* Header */}
       <div>
-        <button
-          onClick={() => navigate(orgPath('/ats/jobs'))}
-          className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors mb-4"
-        >
-          <ArrowLeft size={16} />
-          Back to Job Positions
-        </button>
-
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">

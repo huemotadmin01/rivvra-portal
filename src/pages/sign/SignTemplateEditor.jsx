@@ -16,9 +16,9 @@ import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
 import signApi from '../../utils/signApi';
 import * as pdfjsLib from 'pdfjs-dist';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Save,
-  ArrowLeft,
   Plus,
   Trash2,
   Loader2,
@@ -112,6 +112,7 @@ export default function SignTemplateEditor() {
 
   // ── Template state ──────────────────────────────────────────────────
   const [templateName, setTemplateName] = useState('');
+  usePageTitle(templateName || 'New Template');
   const [pdfUrl, setPdfUrl] = useState(null);
   const [signItems, setSignItems] = useState([]);
   const [numPages, setNumPages] = useState(0);
@@ -603,16 +604,6 @@ export default function SignTemplateEditor() {
       {/* ── Header Bar ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-dark-900 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={() => navigate(orgPath('/sign/templates'))}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back to Templates</span>
-          </button>
-
-          <div className="w-px h-5 bg-dark-700 shrink-0" />
-
           {/* Editable template name */}
           {editingName ? (
             <input
