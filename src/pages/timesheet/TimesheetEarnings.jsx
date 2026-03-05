@@ -188,22 +188,21 @@ async function downloadPayslipPDF(month, year, showToast) {
   const safeName = (emp.name || 'Employee').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_');
   const filename = `Payslip_${safeName}_${monthNames[data.month]}_${data.year}.pdf`;
 
-  // Render HTML into a hidden container, then convert to PDF
+  // Render into a visible (but behind-everything) container so html2canvas can capture it
   const container = document.createElement('div');
   container.innerHTML = htmlContent;
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.width = '800px';
-  container.style.background = '#fff';
+  Object.assign(container.style, {
+    position: 'fixed', left: '0', top: '0', width: '800px',
+    background: '#fff', zIndex: '-9999', opacity: '1',
+  });
   document.body.appendChild(container);
 
   try {
     await html2pdf().set({
-      margin: 0,
+      margin: [10, 0, 10, 0],
       filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 800 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     }).from(container).save();
     showToast('Payslip downloaded');
