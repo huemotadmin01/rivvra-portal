@@ -108,42 +108,49 @@ async function downloadPayslipPDF(month, year, showToast) {
   doc.text('EMPLOYEE DETAILS', margin + 4, y + 5);
   y += 9;
 
-  // Two-column employee info with gap between columns
-  const colGap = 6;               // gap between left and right columns
-  const col1X = margin;
-  const halfW = (contentW - colGap) / 2;
-  const col2X = margin + halfW + colGap;
-  const lblW = 24;                 // label width
+  // Helpers
   const rowH = 5.5;
-
-  const drawInfoRow = (x, yy, label, value, maxColW) => {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...lightGray);
-    doc.text(label, x + 3, yy);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...black);
-    // Truncate long values to fit within column (including ".." suffix)
-    const valStr = String(value);
-    const valMaxW = maxColW - lblW - 3;
-    let displayVal = valStr;
+  const truncate = (text, maxW) => {
+    let val = String(text);
+    if (doc.getTextWidth(val) <= maxW) return val;
     const dotW = doc.getTextWidth('..');
-    if (doc.getTextWidth(displayVal) > valMaxW) {
-      while (doc.getTextWidth(displayVal) + dotW > valMaxW && displayVal.length > 1) {
-        displayVal = displayVal.slice(0, -1);
-      }
-      displayVal = displayVal.trim() + '..';
-    }
-    doc.text(displayVal, x + lblW, yy);
-    drawLine(x, yy + 1.5, x + maxColW, yy + 1.5);
+    while (doc.getTextWidth(val) + dotW > maxW && val.length > 1) val = val.slice(0, -1);
+    return val.trim() + '..';
   };
 
-  const leftRows = [
-    ['Name', s.empName], ['Employee ID', s.empId], ['Designation', s.empDesig],
-    ['Department', s.empDept], ['Start Date', joinDate],
-  ];
+  // --- Full-width name row (spans entire width — no overlap) ---
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...lightGray);
+  doc.text('Employee Name', margin + 3, y);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...black);
+  doc.text(truncate(s.empName, contentW - 30), margin + 30, y);
+  drawLine(margin, y + 1.5, margin + contentW, y + 1.5);
+  y += rowH;
+
+  // --- Two-column layout for remaining details ---
+  const colGap = 8;
+  const leftW = contentW * 0.52;
+  const rightW = contentW - leftW - colGap;
+  const col1X = margin;
+  const col2X = margin + leftW + colGap;
+  const lLblW = 22;
+  const rLblW = 24;
+
+  const drawRow = (x, yy, label, value, labelW, colWidth) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...lightGray);
+    doc.text(label, x + 3, yy);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...black);
+    doc.text(truncate(value, colWidth - labelW - 3), x + labelW, yy);
+    drawLine(x, yy + 1.5, x + colWidth, yy + 1.5);
+  };
 
   let workingDaysVal = `${brk.totalWorkingDays} of ${brk.totalWorkingDaysInMonth}`;
   if (brk.holidays) workingDaysVal += ` + ${brk.holidays} holiday${brk.holidays > 1 ? 's' : ''}`;
   if (brk.paidLeave) workingDaysVal += ` + ${brk.paidLeave} paid leave`;
 
+  const leftRows = [
+    ['Employee ID', s.empId], ['Designation', s.empDesig],
+    ['Department', s.empDept], ['Start Date', joinDate],
+  ];
   const rightRows = [
     ['Bank Name', s.bankName], ['A/c No.', s.bankAcc], ['PAN No.', s.bankPan],
     ['Pay Type', emp.payType === 'monthly' ? 'Monthly' : 'Daily'],
@@ -153,8 +160,8 @@ async function downloadPayslipPDF(month, year, showToast) {
 
   const maxRows = Math.max(leftRows.length, rightRows.length);
   for (let i = 0; i < maxRows; i++) {
-    if (leftRows[i]) drawInfoRow(col1X, y, leftRows[i][0], leftRows[i][1], halfW);
-    if (rightRows[i]) drawInfoRow(col2X, y, rightRows[i][0], rightRows[i][1], halfW);
+    if (leftRows[i]) drawRow(col1X, y, leftRows[i][0], leftRows[i][1], lLblW, leftW);
+    if (rightRows[i]) drawRow(col2X, y, rightRows[i][0], rightRows[i][1], rLblW, rightW);
     y += rowH;
   }
   y += 4;
