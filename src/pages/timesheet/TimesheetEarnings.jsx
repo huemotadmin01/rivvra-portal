@@ -111,20 +111,30 @@ async function downloadPayslipPDF(month, year, showToast) {
   // Two-column employee info
   const col1X = margin;
   const col2X = margin + contentW / 2;
-  const lblW = 32;
+  const colW = contentW / 2 - 2;  // usable width per column
+  const lblW = 28;                 // label width
+  const valW = colW - lblW - 3;   // value max width (for text wrapping)
   const rowH = 5.5;
 
   const drawInfoRow = (x, yy, label, value) => {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...lightGray);
     doc.text(label, x + 3, yy);
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...black);
-    doc.text(String(value), x + lblW, yy);
-    drawLine(x, yy + 1.5, x + contentW / 2 - 2, yy + 1.5);
+    // Truncate long values to fit within column
+    const valStr = String(value);
+    const maxW = valW;
+    let displayVal = valStr;
+    while (doc.getTextWidth(displayVal) > maxW && displayVal.length > 3) {
+      displayVal = displayVal.slice(0, -1);
+    }
+    if (displayVal !== valStr) displayVal = displayVal.trim() + '..';
+    doc.text(displayVal, x + lblW, yy);
+    drawLine(x, yy + 1.5, x + colW, yy + 1.5);
   };
 
   const leftRows = [
-    ['Employee Name', s.empName], ['Employee ID', s.empId], ['Designation', s.empDesig],
-    ['Department', s.empDept], ['Date of Joining', joinDate],
+    ['Name', s.empName], ['Employee ID', s.empId], ['Designation', s.empDesig],
+    ['Department', s.empDept], ['Start Date', joinDate],
   ];
 
   let workingDaysVal = `${brk.totalWorkingDays} of ${brk.totalWorkingDaysInMonth}`;
@@ -132,7 +142,7 @@ async function downloadPayslipPDF(month, year, showToast) {
   if (brk.paidLeave) workingDaysVal += ` + ${brk.paidLeave} paid leave`;
 
   const rightRows = [
-    ['Bank Name', s.bankName], ['Bank A/c No.', s.bankAcc], ['PAN No.', s.bankPan],
+    ['Bank Name', s.bankName], ['A/c No.', s.bankAcc], ['PAN No.', s.bankPan],
     ['Pay Type', emp.payType === 'monthly' ? 'Monthly' : 'Daily'],
   ];
   if (rateDisplay) rightRows.push(['Rate', rateDisplay]);
@@ -205,7 +215,7 @@ async function downloadPayslipPDF(month, year, showToast) {
   // ===== NET PAY BOX =====
   fillRect(margin, y, contentW, 12, primary);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...white);
-  doc.text('Net Pay (A \u2212 B)', margin + 6, y + 8);
+  doc.text('Net Pay (A - B)', margin + 6, y + 8);
   doc.setFontSize(14);
   doc.text(`Rs. ${fmt(earn.netAmount)}`, pageW - margin - 6, y + 8, { align: 'right' });
   y += 15;
