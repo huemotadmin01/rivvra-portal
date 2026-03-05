@@ -188,26 +188,30 @@ async function downloadPayslipPDF(month, year, showToast) {
   const safeName = (emp.name || 'Employee').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_');
   const filename = `Payslip_${safeName}_${monthNames[data.month]}_${data.year}.pdf`;
 
-  // Render into a visible (but behind-everything) container so html2canvas can capture it
-  const container = document.createElement('div');
-  container.innerHTML = htmlContent;
-  Object.assign(container.style, {
-    position: 'fixed', left: '0', top: '0', width: '800px',
-    background: '#fff', zIndex: '-9999', opacity: '1',
-  });
-  document.body.appendChild(container);
+  // Use an iframe so the payslip HTML renders in a clean, isolated document
+  const iframe = document.createElement('iframe');
+  Object.assign(iframe.style, { position: 'fixed', left: '0', top: '0', width: '800px', height: '1200px', opacity: '0', pointerEvents: 'none' });
+  document.body.appendChild(iframe);
 
   try {
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#fff">${htmlContent}</body></html>`);
+    doc.close();
+
+    // Wait for images (logo) to load
+    await new Promise(r => setTimeout(r, 500));
+
     await html2pdf().set({
       margin: [10, 0, 10, 0],
       filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 800 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(container).save();
+    }).from(doc.body).save();
     showToast('Payslip downloaded');
   } finally {
-    document.body.removeChild(container);
+    document.body.removeChild(iframe);
   }
 }
 
