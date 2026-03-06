@@ -21,6 +21,7 @@ import api from '../../utils/api';
 import employeeApi from '../../utils/employeeApi';
 import { APP_REGISTRY } from '../../config/apps';
 import InviteTeamMemberModal from '../InviteTeamMemberModal';
+import ReassignDataModal from './ReassignDataModal';
 
 // Active apps that have roles (exclude coming_soon and settings)
 const MANAGEABLE_APPS = Object.values(APP_REGISTRY).filter(
@@ -59,8 +60,8 @@ export default function SettingsTeam() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  // Confirm action modals
-  const [confirmAction, setConfirmAction] = useState(null);
+  // Member removal modal
+  const [removingMember, setRemovingMember] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
 
   // Search
@@ -211,21 +212,7 @@ export default function SettingsTeam() {
     }
   }
 
-  async function handleRemoveMember(member) {
-    setActionLoading(member.userId?.toString());
-    setConfirmAction(null);
-    try {
-      const res = await api.removeOrgMember(orgSlug, member.userId);
-      if (res.success) {
-        setMembers(prev => prev.filter(m => m.userId?.toString() !== member.userId?.toString()));
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to remove member');
-      setTimeout(() => setError(''), 3000);
-    } finally {
-      setActionLoading(null);
-    }
-  }
+  // Member removal is now handled by ReassignDataModal
 
   async function handleImpersonate(memberId) {
     const result = await impersonateUser(memberId);
@@ -837,7 +824,7 @@ export default function SettingsTeam() {
                               </button>
                               {!isMemberOwner && (
                                 <button
-                                  onClick={() => setConfirmAction({ type: 'remove', member })}
+                                  onClick={() => setRemovingMember(member)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                 >
                                   <UserX className="w-3.5 h-3.5" />
@@ -945,21 +932,18 @@ export default function SettingsTeam() {
 
       {/* ─── Modals ───────────────────────────────────────────────────── */}
 
-      {confirmAction && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={() => setConfirmAction(null)} />
-          <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/10"><UserX className="w-5 h-5 text-red-400" /></div>
-              <div><h3 className="text-white font-semibold">Remove Member</h3><p className="text-dark-400 text-sm">{confirmAction.member.name || confirmAction.member.email}</p></div>
-            </div>
-            <p className="text-dark-300 text-sm mb-6">This will remove this user from your organization. They will lose access to all apps and data.</p>
-            <div className="flex items-center justify-end gap-3">
-              <button onClick={() => setConfirmAction(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white">Cancel</button>
-              <button onClick={() => handleRemoveMember(confirmAction.member)} className="px-5 py-2 rounded-xl text-sm font-semibold bg-red-500 text-white hover:bg-red-400">Remove</button>
-            </div>
-          </div>
-        </div>
+      {removingMember && (
+        <ReassignDataModal
+          member={removingMember}
+          members={members.filter(m => m.status === 'active' && m.userId?.toString() !== removingMember.userId?.toString())}
+          orgSlug={orgSlug}
+          onClose={() => setRemovingMember(null)}
+          onRemoved={(userId) => {
+            setMembers(prev => prev.filter(m => m.userId?.toString() !== userId?.toString()));
+            setRemovingMember(null);
+            refetchOrg();
+          }}
+        />
       )}
 
       <InviteTeamMemberModal

@@ -755,10 +755,16 @@ class ApiClient {
     });
   }
 
-  async removeOrgMember(orgSlug, userId) {
-    return this.request(`/api/org/${orgSlug}/members/${userId}`, {
-      method: 'DELETE',
-    });
+  async removeOrgMember(orgSlug, userId, reassignTo = null) {
+    const options = { method: 'DELETE' };
+    if (reassignTo) {
+      options.body = JSON.stringify({ reassignTo });
+    }
+    return this.request(`/api/org/${orgSlug}/members/${userId}`, options);
+  }
+
+  async getMemberDataSummary(orgSlug, userId) {
+    return this.request(`/api/org/${orgSlug}/members/${userId}/data-summary`);
   }
 
   async inviteOrgMember(orgSlug, data) {
