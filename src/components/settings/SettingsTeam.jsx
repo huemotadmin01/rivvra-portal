@@ -15,7 +15,7 @@ import {
   Users, UserPlus, UserX, Mail, Loader2, Check,
   ChevronDown, Clock, X, ArrowLeftRight, Shield, ShieldCheck,
   Crown, Link2, Unlink, Search, RotateCcw, Trash2, Building2,
-  Lock, KeyRound,
+  Lock, KeyRound, Pencil,
 } from 'lucide-react';
 import api from '../../utils/api';
 import employeeApi from '../../utils/employeeApi';
@@ -155,6 +155,9 @@ export default function SettingsTeam() {
     setEditData({
       orgRole: member.orgRole,
       appAccess: { ...member.appAccess },
+      authMethods: member.authMethods ? [...member.authMethods] : [],
+      email: member.email || '',
+      editingEmail: false,
     });
   }
 
@@ -190,12 +193,27 @@ export default function SettingsTeam() {
       if (editData.allowedCompanyIds) {
         payload.allowedCompanyIds = editData.allowedCompanyIds;
       }
+      // Include authMethods if changed
+      if (editData.authMethods && JSON.stringify(editData.authMethods.sort()) !== JSON.stringify((member.authMethods || []).sort())) {
+        payload.authMethods = editData.authMethods;
+      }
+      // Include email if changed
+      if (editData.email && editData.email.trim().toLowerCase() !== (member.email || '').trim().toLowerCase()) {
+        payload.email = editData.email.trim().toLowerCase();
+      }
       const res = await api.updateOrgMember(orgSlug, member.userId, payload);
       if (res.success) {
         // Update local state
         setMembers(prev => prev.map(m =>
           m.userId?.toString() === member.userId?.toString()
-            ? { ...m, orgRole: editData.orgRole, appAccess: editData.appAccess, allowedCompanyIds: editData.allowedCompanyIds || m.allowedCompanyIds }
+            ? {
+                ...m,
+                orgRole: editData.orgRole,
+                appAccess: editData.appAccess,
+                allowedCompanyIds: editData.allowedCompanyIds || m.allowedCompanyIds,
+                authMethods: editData.authMethods || m.authMethods,
+                email: payload.email || m.email,
+              }
             : m
         ));
         setExpandedMember(null);
@@ -579,29 +597,106 @@ export default function SettingsTeam() {
                         </div>
                       </div>
 
+                      {/* Member Email */}
+                      <div>
+                        <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Member Email</label>
+                        {editData.editingEmail ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="email"
+                              value={editData.email}
+                              onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
+                              className="flex-1 px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
+                              placeholder="user@example.com"
+                            />
+                            <button
+                              onClick={() => setEditData(prev => ({ ...prev, editingEmail: false }))}
+                              className="px-2 py-2 text-dark-400 hover:text-white transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-dark-200">{editData.email || member.email}</span>
+                            <button
+                              onClick={() => setEditData(prev => ({ ...prev, editingEmail: true, email: prev.email || member.email }))}
+                              className="p-1 text-dark-500 hover:text-rivvra-400 transition-colors"
+                              title="Edit email"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            {editData.email && editData.email.trim().toLowerCase() !== (member.email || '').trim().toLowerCase() && (
+                              <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Changed</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Authentication Methods */}
                       <div>
                         <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Authentication Methods</label>
-                        <div className="flex items-center gap-2">
-                          {member.hasGoogle && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-dark-800/50 border border-dark-700/50 rounded-lg text-xs text-dark-300">
-                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/></svg>
-                              Google
-                            </span>
+                        <div className="space-y-2">
+                          {/* Google toggle */}
+                          {(currentOrg?.authSettings?.allowedMethods || ['google']).includes('google') && (
+                            <div className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
+                              <svg className="w-4 h-4 text-dark-400 flex-shrink-0" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/></svg>
+                              <span className="text-sm text-white font-medium flex-1">Google</span>
+                              <button
+                                onClick={() => {
+                                  const hasGoogle = editData.authMethods.includes('google');
+                                  if (hasGoogle && editData.authMethods.length <= 1) return; // Can't remove last method
+                                  setEditData(prev => ({
+                                    ...prev,
+                                    authMethods: hasGoogle
+                                      ? prev.authMethods.filter(m => m !== 'google')
+                                      : [...prev.authMethods, 'google'],
+                                  }));
+                                }}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+                                  editData.authMethods.includes('google') ? 'bg-rivvra-500' : 'bg-dark-600'
+                                }`}
+                              >
+                                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                  editData.authMethods.includes('google') ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
+                              </button>
+                              {member.hasGoogle && (
+                                <span className="text-[10px] text-rivvra-400 bg-rivvra-500/10 px-1.5 py-0.5 rounded">Active</span>
+                              )}
+                            </div>
                           )}
-                          {member.hasPassword && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-dark-800/50 border border-dark-700/50 rounded-lg text-xs text-dark-300">
-                              <Lock className="w-3.5 h-3.5" />
-                              Password
-                            </span>
+                          {/* Password toggle */}
+                          {(currentOrg?.authSettings?.allowedMethods || ['google']).includes('password') && (
+                            <div className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
+                              <Lock className="w-4 h-4 text-dark-400 flex-shrink-0" />
+                              <span className="text-sm text-white font-medium flex-1">Password</span>
+                              <button
+                                onClick={() => {
+                                  const hasPassword = editData.authMethods.includes('password');
+                                  if (hasPassword && editData.authMethods.length <= 1) return; // Can't remove last method
+                                  setEditData(prev => ({
+                                    ...prev,
+                                    authMethods: hasPassword
+                                      ? prev.authMethods.filter(m => m !== 'password')
+                                      : [...prev.authMethods, 'password'],
+                                  }));
+                                }}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+                                  editData.authMethods.includes('password') ? 'bg-rivvra-500' : 'bg-dark-600'
+                                }`}
+                              >
+                                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                  editData.authMethods.includes('password') ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
+                              </button>
+                              {member.hasPassword && (
+                                <span className="text-[10px] text-rivvra-400 bg-rivvra-500/10 px-1.5 py-0.5 rounded">Active</span>
+                              )}
+                            </div>
                           )}
-                          {!member.hasGoogle && !member.hasPassword && (
-                            <span className="text-xs text-dark-500">No auth methods configured</span>
-                          )}
-                          {member.authMethods && (
-                            <span className="text-[10px] text-dark-500 ml-2">
-                              Allowed: {member.authMethods.join(', ')}
-                            </span>
+                          {editData.authMethods.length === 0 && (
+                            <p className="text-xs text-amber-400">At least one auth method must be enabled</p>
                           )}
                         </div>
                       </div>
