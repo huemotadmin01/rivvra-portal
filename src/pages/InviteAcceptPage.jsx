@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, UserPlus, Loader2, AlertTriangle, LogIn, CheckCircle, Mail, Shield, Lock } from 'lucide-react';
+import { Building2, Loader2, AlertTriangle, LogIn, CheckCircle, Shield, Lock, Eye, EyeOff, User } from 'lucide-react';
 import { GOOGLE_CLIENT_ID } from '../utils/config';
 import api from '../utils/api';
 
@@ -9,7 +9,7 @@ function InviteAcceptPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { slug } = useParams(); // present when accessed via /org/:slug/invite
-  const { user, isAuthenticated, updateUser } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [inviteToken, setInviteToken] = useState('');
   const [invite, setInvite] = useState(null);
@@ -18,6 +18,12 @@ function InviteAcceptPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Password form state (CASE 3: new user)
+  const [fullName, setFullName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwVisible, setPwVisible] = useState(false);
 
   // Extract token from URL
   useEffect(() => {
@@ -35,7 +41,6 @@ function InviteAcceptPage() {
   // Dual-path validation: try org invite first, fall back to legacy
   async function validateToken(t) {
     try {
-      // Try org invite first
       const orgRes = await api.validateOrgInvite(t);
       if (orgRes.success) {
         setInvite(orgRes.invite);
@@ -62,20 +67,12 @@ function InviteAcceptPage() {
     }
   }
 
-  // Helper to handle successful accept
+  // Helper to handle successful accept — go straight to workspace
   function handleAcceptSuccess(res) {
     localStorage.setItem('rivvra_token', res.token);
     localStorage.setItem('rivvra_user', JSON.stringify(res.user));
-
-    // If onboarding is not completed, redirect to signup page for onboarding questionnaire
-    if (!res.user.onboarding?.completed) {
-      window.location.href = '/#/signup';
-      window.location.reload();
-    } else {
-      // Onboarding already done — go to home (OrgRedirect will handle org-scoping)
-      window.location.href = '/#/home';
-      window.location.reload();
-    }
+    window.location.href = '/#/home';
+    window.location.reload();
   }
 
   // ── Google Auth Handler ──
@@ -105,11 +102,10 @@ function InviteAcceptPage() {
   useEffect(() => {
     if (!invite || loading) return;
 
-    // For existing users who are already logged in, don't need Google button
     const isLoggedInAsInvitee = isAuthenticated && user?.email?.toLowerCase() === invite.email?.toLowerCase();
     if (invite.userExists && isLoggedInAsInvitee) return;
 
-    // Only load Google SDK if google auth is allowed for this invite
+    // Only load Google SDK if google auth is allowed
     const methods = invite.authMethods || ['google', 'password'];
     if (!methods.includes('google')) return;
 
@@ -175,9 +171,42 @@ function InviteAcceptPage() {
     }
   }
 
-  // ── Navigate to Signup Page with invite context ──
-  function handleSignupWithEmail() {
-    navigate(`/signup?inviteToken=${inviteToken}`);
+  // ── Create Password (new user — inline form) ──
+  async function handleCreatePassword(e) {
+    e.preventDefault();
+    setError('');
+
+    if (!fullName.trim()) {
+      setError('Please enter your full name');
+      return;
+    }
+    if (password.length < 10) {
+      setError('Password must be at least 10 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let res;
+      if (inviteType === 'org') {
+        res = await api.acceptOrgInvite({ token: inviteToken, name: fullName.trim(), password });
+      } else {
+        res = await api.acceptInvite({ token: inviteToken, name: fullName.trim(), password });
+      }
+      if (res.success) {
+        handleAcceptSuccess(res);
+      } else {
+        setError(res.error || 'Failed to create account');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to create account');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // ── Loading State ──
@@ -215,29 +244,26 @@ function InviteAcceptPage() {
   const alreadyInTeam = invite?.alreadyInTeam || invite?.alreadyMember;
   const isLoggedInAsInvitee = isAuthenticated && user?.email?.toLowerCase() === invite?.email?.toLowerCase();
 
-  // Display name: org invites show orgName, legacy show companyName
   const displayName = invite?.orgName || invite?.companyName || 'the team';
 
-  // App access badges for org invites
   const appBadges = inviteType === 'org' && invite?.appAccess
     ? Object.entries(invite.appAccess)
         .filter(([, v]) => v.enabled)
         .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1))
     : [];
 
-  // Role display
   const roleLabel = invite?.orgRole === 'admin' ? 'Admin' :
     invite?.orgRole === 'owner' ? 'Owner' :
     invite?.role === 'team_lead' ? 'Team Lead' :
     'Member';
 
-  // Auth method gating — show/hide Google and Password options based on admin config
+  // Auth method gating
   const authMethods = invite?.authMethods || ['google', 'password'];
   const showGoogle = authMethods.includes('google');
   const showPassword = authMethods.includes('password');
   const showDivider = showGoogle && showPassword;
 
-  // Workspace branding — use org logo when available
+  // Workspace branding
   const orgSlug = invite?.orgSlug || slug;
   const hasOrgLogo = invite?.orgLogoAvailable && orgSlug;
 
@@ -276,7 +302,6 @@ function InviteAcceptPage() {
             <p className="text-dark-500 text-xs mt-1">Invited by {invite.invitedByName}</p>
           )}
 
-          {/* App access badges for org invites */}
           {appBadges.length > 0 && !alreadyInTeam && (
             <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
               <Shield className="w-3.5 h-3.5 text-dark-500" />
@@ -304,7 +329,6 @@ function InviteAcceptPage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {userExists && isLoggedInAsInvitee ? (
           <div className="space-y-4">
-            {/* User card */}
             <div className="flex items-center gap-3 p-4 bg-dark-800/60 border border-dark-700/50 rounded-xl">
               {user?.picture ? (
                 <img src={user.picture} alt="" className="w-11 h-11 rounded-xl object-cover" referrerPolicy="no-referrer" />
@@ -328,15 +352,9 @@ function InviteAcceptPage() {
               className="w-full py-3 bg-rivvra-500 text-dark-950 rounded-xl text-sm font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Joining...
-                </>
+                <><Loader2 className="w-4 h-4 animate-spin" /> Joining...</>
               ) : (
-                <>
-                  <LogIn className="w-4 h-4" />
-                  {alreadyInTeam ? 'Continue to Dashboard' : `Join ${displayName}`}
-                </>
+                <><LogIn className="w-4 h-4" /> {alreadyInTeam ? 'Continue to Dashboard' : `Join ${displayName}`}</>
               )}
             </button>
           </div>
@@ -355,13 +373,11 @@ function InviteAcceptPage() {
               </p>
             </div>
 
-            {/* Google Sign-in — only if allowed */}
             {showGoogle && (
               <div className="flex justify-center">
                 {googleLoading ? (
                   <div className="flex items-center gap-2 py-3 text-dark-400 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Signing in with Google...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Signing in with Google...
                   </div>
                 ) : (
                   <div id="invite-google-button" />
@@ -369,7 +385,6 @@ function InviteAcceptPage() {
               </div>
             )}
 
-            {/* Divider — only if both methods enabled */}
             {showDivider && (
               <div className="flex items-center gap-3 my-2">
                 <div className="flex-1 h-px bg-dark-700" />
@@ -378,38 +393,26 @@ function InviteAcceptPage() {
               </div>
             )}
 
-            {/* Password login — only if allowed */}
             {showPassword && (
               <button
                 onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/invite?token=${inviteToken}`)}`)}
                 className="w-full py-3 bg-dark-800 text-white border border-dark-600 rounded-xl text-sm font-semibold hover:bg-dark-700 transition-colors flex items-center justify-center gap-2"
               >
-                <LogIn className="w-4 h-4" />
-                Sign in with Password
+                <LogIn className="w-4 h-4" /> Sign in with Password
               </button>
             )}
           </div>
 
-        /* ═══════════════════════════════════════════════════════════ */
-        /* CASE 3: New user — Google button + Create Password        */
-        /* ═══════════════════════════════════════════════════════════ */
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* CASE 3: New user — Google + inline password creation form     */
+        /* ═══════════════════════════════════════════════════════════════ */
         ) : (
           <div className="space-y-4">
-            {/* Info text */}
-            <div className="p-4 bg-dark-800/40 border border-dark-700/30 rounded-xl">
-              <p className="text-dark-300 text-sm text-center">
-                Create your account to join <span className="text-white font-medium">{displayName}</span>
-              </p>
-              <p className="text-dark-500 text-xs text-center mt-1">{invite.email}</p>
-            </div>
-
-            {/* Google Signup — only if allowed */}
             {showGoogle && (
               <div className="flex justify-center">
                 {googleLoading ? (
                   <div className="flex items-center gap-2 py-3 text-dark-400 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating account with Google...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Creating account with Google...
                   </div>
                 ) : (
                   <div id="invite-google-button" />
@@ -417,24 +420,84 @@ function InviteAcceptPage() {
               </div>
             )}
 
-            {/* Divider — only if both methods enabled */}
             {showDivider && (
               <div className="flex items-center gap-3 my-2">
                 <div className="flex-1 h-px bg-dark-700" />
-                <span className="text-dark-500 text-xs">or</span>
+                <span className="text-dark-500 text-xs">or create a password</span>
                 <div className="flex-1 h-px bg-dark-700" />
               </div>
             )}
 
-            {/* Create Password — only if allowed */}
             {showPassword && (
-              <button
-                onClick={handleSignupWithEmail}
-                className="w-full py-3 bg-dark-800 text-white border border-dark-600 rounded-xl text-sm font-semibold hover:bg-dark-700 transition-colors flex items-center justify-center gap-2"
-              >
-                <Lock className="w-4 h-4" />
-                Create Password
-              </button>
+              <form onSubmit={handleCreatePassword} className="space-y-3">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1.5">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="John Doe"
+                      className="w-full pl-10 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
+                      disabled={submitting}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1.5">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
+                    <input
+                      type={pwVisible ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min. 10 characters"
+                      className="w-full pl-10 pr-10 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
+                      disabled={submitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPwVisible(!pwVisible)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300"
+                    >
+                      {pwVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1.5">Confirm Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
+                    <input
+                      type={pwVisible ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter password"
+                      className="w-full pl-10 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
+                      disabled={submitting}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || !fullName.trim() || !password || !confirmPassword}
+                  className="w-full py-3 bg-rivvra-500 text-dark-950 rounded-xl text-sm font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-1"
+                >
+                  {submitting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Creating account...</>
+                  ) : (
+                    <><LogIn className="w-4 h-4" /> Join {displayName}</>
+                  )}
+                </button>
+              </form>
             )}
           </div>
         )}
@@ -449,7 +512,6 @@ function InviteAcceptPage() {
           </p>
         )}
 
-        {/* Powered by Rivvra */}
         <p className="text-center text-xs text-dark-600 mt-4">
           Powered by <span className="text-dark-500">Rivvra</span>
         </p>
