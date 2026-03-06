@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
+import { useOrg } from '../../context/OrgContext';
 import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check } from 'lucide-react';
 import RivvraLogo from '../BrynsaLogo';
 
@@ -18,7 +19,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const { user, logout } = useAuth();
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  const { currentOrg } = useOrg();
+  const orgPlan = currentOrg?.plan || user?.plan || 'free';
+  const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
 
