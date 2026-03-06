@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, UserPlus, Loader2, AlertTriangle, LogIn, CheckCircle, Mail, Shield } from 'lucide-react';
+import { Building2, UserPlus, Loader2, AlertTriangle, LogIn, CheckCircle, Mail, Shield, Lock } from 'lucide-react';
 import { GOOGLE_CLIENT_ID } from '../utils/config';
 import api from '../utils/api';
 
 function InviteAcceptPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { slug } = useParams(); // present when accessed via /org/:slug/invite
   const { user, isAuthenticated, updateUser } = useAuth();
 
   const [inviteToken, setInviteToken] = useState('');
@@ -107,6 +108,10 @@ function InviteAcceptPage() {
     // For existing users who are already logged in, don't need Google button
     const isLoggedInAsInvitee = isAuthenticated && user?.email?.toLowerCase() === invite.email?.toLowerCase();
     if (invite.userExists && isLoggedInAsInvitee) return;
+
+    // Only load Google SDK if google auth is allowed for this invite
+    const methods = invite.authMethods || ['google', 'password'];
+    if (!methods.includes('google')) return;
 
     const loadGoogleScript = () => {
       if (window.google?.accounts) {
@@ -226,18 +231,36 @@ function InviteAcceptPage() {
     invite?.role === 'team_lead' ? 'Team Lead' :
     'Member';
 
+  // Auth method gating — show/hide Google and Password options based on admin config
+  const authMethods = invite?.authMethods || ['google', 'password'];
+  const showGoogle = authMethods.includes('google');
+  const showPassword = authMethods.includes('password');
+  const showDivider = showGoogle && showPassword;
+
+  // Workspace branding — use org logo when available
+  const orgSlug = invite?.orgSlug || slug;
+  const hasOrgLogo = invite?.orgLogoAvailable && orgSlug;
+
   return (
-    <div className="min-h-screen bg-dark-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-dark-950 mesh-gradient grid-pattern flex items-center justify-center p-4">
       <div className="bg-dark-900 border border-dark-700 rounded-2xl p-8 max-w-md w-full">
-        {/* Header */}
+        {/* Header with workspace branding */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-rivvra-500/10 flex items-center justify-center mx-auto mb-4">
-            {alreadyInTeam ? (
-              <CheckCircle className="w-7 h-7 text-rivvra-400" />
-            ) : (
-              <Building2 className="w-7 h-7 text-rivvra-400" />
-            )}
-          </div>
+          {hasOrgLogo ? (
+            <img
+              src={`${api.baseUrl}/api/org/${orgSlug}/logo`}
+              alt={displayName}
+              className="w-16 h-16 rounded-2xl object-contain bg-dark-800 mx-auto mb-4"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-rivvra-500/10 flex items-center justify-center mx-auto mb-4">
+              {alreadyInTeam ? (
+                <CheckCircle className="w-7 h-7 text-rivvra-400" />
+              ) : (
+                <Building2 className="w-7 h-7 text-rivvra-400" />
+              )}
+            </div>
+          )}
           <h1 className="text-xl font-bold text-white mb-2">
             {alreadyInTeam ? `Welcome to ${displayName}` : `Join ${displayName}`}
           </h1>
@@ -255,7 +278,7 @@ function InviteAcceptPage() {
 
           {/* App access badges for org invites */}
           {appBadges.length > 0 && !alreadyInTeam && (
-            <div className="flex items-center justify-center gap-2 mt-3">
+            <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
               <Shield className="w-3.5 h-3.5 text-dark-500" />
               <span className="text-dark-500 text-xs">Access to:</span>
               {appBadges.map((app) => (
@@ -332,36 +355,43 @@ function InviteAcceptPage() {
               </p>
             </div>
 
-            {/* Google Sign-in */}
-            <div className="flex justify-center">
-              {googleLoading ? (
-                <div className="flex items-center gap-2 py-3 text-dark-400 text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Signing in with Google...
-                </div>
-              ) : (
-                <div id="invite-google-button" />
-              )}
-            </div>
+            {/* Google Sign-in — only if allowed */}
+            {showGoogle && (
+              <div className="flex justify-center">
+                {googleLoading ? (
+                  <div className="flex items-center gap-2 py-3 text-dark-400 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Signing in with Google...
+                  </div>
+                ) : (
+                  <div id="invite-google-button" />
+                )}
+              </div>
+            )}
 
-            <div className="flex items-center gap-3 my-2">
-              <div className="flex-1 h-px bg-dark-700" />
-              <span className="text-dark-500 text-xs">or sign in with password</span>
-              <div className="flex-1 h-px bg-dark-700" />
-            </div>
+            {/* Divider — only if both methods enabled */}
+            {showDivider && (
+              <div className="flex items-center gap-3 my-2">
+                <div className="flex-1 h-px bg-dark-700" />
+                <span className="text-dark-500 text-xs">or sign in with password</span>
+                <div className="flex-1 h-px bg-dark-700" />
+              </div>
+            )}
 
-            {/* Redirect to login */}
-            <button
-              onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/invite?token=${inviteToken}`)}`)}
-              className="w-full py-3 bg-dark-800 text-white border border-dark-600 rounded-xl text-sm font-semibold hover:bg-dark-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <LogIn className="w-4 h-4" />
-              Sign in with Email & Password
-            </button>
+            {/* Password login — only if allowed */}
+            {showPassword && (
+              <button
+                onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/invite?token=${inviteToken}`)}`)}
+                className="w-full py-3 bg-dark-800 text-white border border-dark-600 rounded-xl text-sm font-semibold hover:bg-dark-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Sign in with Password
+              </button>
+            )}
           </div>
 
         /* ═══════════════════════════════════════════════════════════ */
-        /* CASE 3: New user — Google button + Sign up with Email link */
+        /* CASE 3: New user — Google button + Create Password        */
         /* ═══════════════════════════════════════════════════════════ */
         ) : (
           <div className="space-y-4">
@@ -373,32 +403,39 @@ function InviteAcceptPage() {
               <p className="text-dark-500 text-xs text-center mt-1">{invite.email}</p>
             </div>
 
-            {/* Google Signup */}
-            <div className="flex justify-center">
-              {googleLoading ? (
-                <div className="flex items-center gap-2 py-3 text-dark-400 text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating account with Google...
-                </div>
-              ) : (
-                <div id="invite-google-button" />
-              )}
-            </div>
+            {/* Google Signup — only if allowed */}
+            {showGoogle && (
+              <div className="flex justify-center">
+                {googleLoading ? (
+                  <div className="flex items-center gap-2 py-3 text-dark-400 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating account with Google...
+                  </div>
+                ) : (
+                  <div id="invite-google-button" />
+                )}
+              </div>
+            )}
 
-            <div className="flex items-center gap-3 my-2">
-              <div className="flex-1 h-px bg-dark-700" />
-              <span className="text-dark-500 text-xs">or</span>
-              <div className="flex-1 h-px bg-dark-700" />
-            </div>
+            {/* Divider — only if both methods enabled */}
+            {showDivider && (
+              <div className="flex items-center gap-3 my-2">
+                <div className="flex-1 h-px bg-dark-700" />
+                <span className="text-dark-500 text-xs">or</span>
+                <div className="flex-1 h-px bg-dark-700" />
+              </div>
+            )}
 
-            {/* Sign up with Email — navigates to SignupPage with invite context */}
-            <button
-              onClick={handleSignupWithEmail}
-              className="w-full py-3 bg-dark-800 text-white border border-dark-600 rounded-xl text-sm font-semibold hover:bg-dark-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <Mail className="w-4 h-4" />
-              Sign up with Email & Password
-            </button>
+            {/* Create Password — only if allowed */}
+            {showPassword && (
+              <button
+                onClick={handleSignupWithEmail}
+                className="w-full py-3 bg-dark-800 text-white border border-dark-600 rounded-xl text-sm font-semibold hover:bg-dark-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Lock className="w-4 h-4" />
+                Create Password
+              </button>
+            )}
           </div>
         )}
 
@@ -411,6 +448,11 @@ function InviteAcceptPage() {
             </button>
           </p>
         )}
+
+        {/* Powered by Rivvra */}
+        <p className="text-center text-xs text-dark-600 mt-4">
+          Powered by <span className="text-dark-500">Rivvra</span>
+        </p>
       </div>
     </div>
   );

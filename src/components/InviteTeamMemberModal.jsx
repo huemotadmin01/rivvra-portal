@@ -149,7 +149,7 @@ function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlu
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 p-1 text-dark-400 hover:text-white transition-colors z-10"
@@ -169,7 +169,7 @@ function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlu
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* License info banner */}
           {licenses && (
             <div className={`px-4 py-3 rounded-xl text-sm flex items-center gap-2 ${

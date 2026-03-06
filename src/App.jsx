@@ -178,8 +178,9 @@ function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            {/* Org-specific login — public, no auth required */}
+            {/* Org-specific public pages — no auth required */}
             <Route path="/org/:slug/login" element={<OrgLoginPage />} />
+            <Route path="/org/:slug/invite" element={<InviteAcceptPage />} />
 
             {/* ============================================================ */}
             {/* ORG-SCOPED ROUTES — /org/:slug/...                           */}
