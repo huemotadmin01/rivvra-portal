@@ -70,6 +70,8 @@ export default function SettingsTeam() {
   // Resend invite
   const [resendingInvite, setResendingInvite] = useState(null); // email being resent
   const [cancellingInvite, setCancellingInvite] = useState(null); // email being cancelled
+  const [editingInviteEmail, setEditingInviteEmail] = useState(null); // invite _id being edited
+  const [inviteEmailDraft, setInviteEmailDraft] = useState(''); // draft email value
 
   // Send workspace link
   const [sendingLink, setSendingLink] = useState(null); // userId being sent
@@ -240,13 +242,23 @@ export default function SettingsTeam() {
 
   // ─── Resend Invitation ──────────────────────────────────────────────────
 
-  async function handleResendInvite(email) {
+  async function handleResendInvite(originalEmail, newEmail = null) {
     if (resendingInvite) return;
-    setResendingInvite(email);
+    setResendingInvite(originalEmail);
     try {
-      const res = await api.resendOrgInvite(orgSlug, email);
+      const res = await api.resendOrgInvite(orgSlug, originalEmail, newEmail);
       if (res.success) {
-        setError('✅ Invitation resent successfully');
+        // Update local state if email was changed
+        if (res.newEmail && res.newEmail !== originalEmail) {
+          setMembers(prev => prev.map(m =>
+            m.status === 'invited' && m.email === originalEmail
+              ? { ...m, email: res.newEmail }
+              : m
+          ));
+        }
+        setEditingInviteEmail(null);
+        setInviteEmailDraft('');
+        setError(`✅ Invitation resent to ${res.newEmail || originalEmail}`);
         setTimeout(() => setError(''), 3000);
       } else {
         setError(res.error || 'Failed to resend invitation');
@@ -945,13 +957,48 @@ export default function SettingsTeam() {
           <div className="card p-6">
             <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2"><Clock className="w-4 h-4 text-dark-400" />Pending Invites</h3>
             <div className="space-y-2">
-              {invitedMembers.map((invite) => (
+              {invitedMembers.map((invite) => {
+                const isEditingEmail = editingInviteEmail === invite._id;
+                const emailChanged = isEditingEmail && inviteEmailDraft.trim().toLowerCase() !== invite.email;
+                return (
                 <div key={invite._id} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-dark-800/40 border border-dark-700/50">
                   <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0"><Mail className="w-4 h-4 text-amber-400" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">{invite.email}</p>
+                    {isEditingEmail ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="email"
+                          value={inviteEmailDraft}
+                          onChange={(e) => setInviteEmailDraft(e.target.value)}
+                          className="flex-1 px-2 py-1 bg-dark-800 border border-dark-600 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
+                          placeholder="new@email.com"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === 'Escape') { setEditingInviteEmail(null); setInviteEmailDraft(''); } }}
+                        />
+                        <button
+                          onClick={() => { setEditingInviteEmail(null); setInviteEmailDraft(''); }}
+                          className="p-1 text-dark-400 hover:text-white"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm text-white truncate">{invite.email}</p>
+                        <button
+                          onClick={() => { setEditingInviteEmail(invite._id); setInviteEmailDraft(invite.email); }}
+                          className="p-0.5 text-dark-500 hover:text-rivvra-400 transition-colors flex-shrink-0"
+                          title="Edit email"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                     <p className="text-xs text-dark-500">
                       Invited as {invite.orgRole || 'member'}
+                      {invite.authMethods?.[0] && (
+                        <span className="ml-1">· {invite.authMethods[0] === 'google' ? 'Google' : 'Password'} auth</span>
+                      )}
                       {invite.appAccess && (
                         <span className="ml-1">
                           · {Object.entries(invite.appAccess).filter(([, a]) => a.enabled).map(([id]) => APP_REGISTRY[id]?.name).filter(Boolean).join(', ') || 'No apps'}
@@ -974,18 +1021,22 @@ export default function SettingsTeam() {
                       );
                     })}
                   </div>
-                  {/* Resend invite */}
+                  {/* Resend invite (with email change support) */}
                   <button
-                    onClick={() => handleResendInvite(invite.email)}
+                    onClick={() => handleResendInvite(invite.email, emailChanged ? inviteEmailDraft.trim().toLowerCase() : null)}
                     disabled={resendingInvite === invite.email}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors flex-shrink-0"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg transition-colors flex-shrink-0 ${
+                      emailChanged
+                        ? 'text-rivvra-400 bg-rivvra-500/10 hover:bg-rivvra-500/20 font-medium'
+                        : 'text-amber-400 hover:bg-amber-500/10'
+                    }`}
                   >
                     {resendingInvite === invite.email ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
                       <RotateCcw className="w-3 h-3" />
                     )}
-                    Resend
+                    {emailChanged ? 'Update & Resend' : 'Resend'}
                   </button>
                   {/* Cancel invite */}
                   <button
@@ -1001,7 +1052,8 @@ export default function SettingsTeam() {
                     Delete
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

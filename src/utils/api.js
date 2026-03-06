@@ -774,10 +774,12 @@ class ApiClient {
     });
   }
 
-  async resendOrgInvite(orgSlug, email) {
+  async resendOrgInvite(orgSlug, email, newEmail = null) {
+    const payload = { email };
+    if (newEmail) payload.newEmail = newEmail;
     return this.request(`/api/org/${orgSlug}/invite/resend`, {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(payload),
     });
   }
 
