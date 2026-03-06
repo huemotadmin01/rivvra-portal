@@ -171,12 +171,14 @@ function InviteAcceptPage() {
     }
   }
 
-  // ── Create Password (new user — inline form) ──
+  // ── Create Password (new user or existing user setting password) ──
   async function handleCreatePassword(e) {
     e.preventDefault();
     setError('');
 
-    if (!fullName.trim()) {
+    // Name is only required for truly new users (not logged-in existing users)
+    const needsName = !isLoggedInAsInvitee && !userExists;
+    if (needsName && !fullName.trim()) {
       setError('Please enter your full name');
       return;
     }
@@ -191,11 +193,15 @@ function InviteAcceptPage() {
 
     setSubmitting(true);
     try {
+      const payload = { token: inviteToken, password };
+      // Include name for new users, use existing name for logged-in users
+      payload.name = isLoggedInAsInvitee ? (user?.name || user?.email) : fullName.trim();
+
       let res;
       if (inviteType === 'org') {
-        res = await api.acceptOrgInvite({ token: inviteToken, name: fullName.trim(), password });
+        res = await api.acceptOrgInvite(payload);
       } else {
-        res = await api.acceptInvite({ token: inviteToken, name: fullName.trim(), password });
+        res = await api.acceptInvite(payload);
       }
       if (res.success) {
         handleAcceptSuccess(res);
@@ -326,8 +332,9 @@ function InviteAcceptPage() {
 
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* CASE 1: Existing user, already logged in — One-click join */}
+        {/*   Only if Google auth is allowed; password-only → show pw form */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        {userExists && isLoggedInAsInvitee ? (
+        {userExists && isLoggedInAsInvitee && showGoogle ? (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-4 bg-dark-800/60 border border-dark-700/50 rounded-xl">
               {user?.picture ? (
@@ -357,6 +364,69 @@ function InviteAcceptPage() {
                 <><LogIn className="w-4 h-4" /> {alreadyInTeam ? 'Continue to Dashboard' : `Join ${displayName}`}</>
               )}
             </button>
+          </div>
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* CASE 1b: Logged in but password-only — must set a password    */
+        /* ═══════════════════════════════════════════════════════════════ */
+        ) : userExists && isLoggedInAsInvitee && !showGoogle ? (
+          <div className="space-y-4">
+            <div className="p-4 bg-dark-800/40 border border-dark-700/30 rounded-xl">
+              <p className="text-dark-300 text-sm text-center">
+                <span className="text-white font-medium">{user?.name || user?.email}</span>, your admin requires a password for this workspace.
+              </p>
+              <p className="text-dark-500 text-xs text-center mt-1">Create a password to join</p>
+            </div>
+
+            <form onSubmit={handleCreatePassword} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-dark-400 mb-1.5">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
+                  <input
+                    type={pwVisible ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min. 10 characters"
+                    className="w-full pl-10 pr-10 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
+                    disabled={submitting}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPwVisible(!pwVisible)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300"
+                  >
+                    {pwVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-dark-400 mb-1.5">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
+                  <input
+                    type={pwVisible ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter password"
+                    className="w-full pl-10 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={submitting || !password || !confirmPassword}
+                className="w-full py-3 bg-rivvra-500 text-dark-950 rounded-xl text-sm font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-1"
+              >
+                {submitting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Joining...</>
+                ) : (
+                  <><LogIn className="w-4 h-4" /> Create Password & Join</>
+                )}
+              </button>
+            </form>
           </div>
 
         /* ═══════════════════════════════════════════════════════════ */

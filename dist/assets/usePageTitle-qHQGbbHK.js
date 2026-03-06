@@ -1,1 +1,0 @@
-import{z as o,ar as n,r as c,as as i}from"./index-CAkPuyBd.js";function p(t){const a=o(),{setDetailLabel:e,clearDetailLabel:r}=n();c.useEffect(()=>{if(!t)return;const s=i(a.pathname);return e(s,t),()=>r(s)},[t,a.pathname,e,r])}export{p as u};
