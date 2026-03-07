@@ -24,7 +24,8 @@ function AppSidebar({ isOpen, onClose }) {
 
   // If user doesn't have access to this app, don't render sidebar
   // (AppAccessGate will show NoAccessPage instead of the app content)
-  if (currentOrg && currentApp.id !== 'settings' && !hasAppAccess(currentApp.id)) {
+  // Admin-only apps (settings, payroll) use OrgAdminGate instead of AppAccessGate
+  if (currentOrg && !currentApp.adminOnly && !hasAppAccess(currentApp.id)) {
     return null;
   }
 
