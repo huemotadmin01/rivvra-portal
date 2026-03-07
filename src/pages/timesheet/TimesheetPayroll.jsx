@@ -5,8 +5,8 @@ import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import {
   Loader2, Download, ChevronDown, ChevronUp, CheckCircle2, RotateCcw,
-  IndianRupee, Users, TrendingUp, Banknote, Search, FileSpreadsheet, Package,
-  ChevronLeft, ChevronRight, ShieldCheck,
+  IndianRupee, Users, TrendingUp, Search, FileSpreadsheet, Package,
+  ChevronLeft, ChevronRight, ShieldCheck, CalendarDays,
 } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -90,12 +90,9 @@ export default function TimesheetPayroll() {
   // Filtered summary
   const filteredSummary = useMemo(() => {
     const totalPayable = filteredEmployees.reduce((s, e) => s + e.grossPay, 0);
-    const totalBillable = filteredEmployees.reduce((s, e) => s + e.totalBillable, 0);
     const paidCount = filteredEmployees.filter(e => e.paymentStatus === 'paid').length;
     return {
       totalPayable: Math.round(totalPayable),
-      totalBillable: Math.round(totalBillable),
-      margin: Math.round(totalBillable - totalPayable),
       employeeCount: filteredEmployees.length,
       paidCount,
       unpaidCount: filteredEmployees.length - paidCount,
@@ -255,41 +252,40 @@ export default function TimesheetPayroll() {
           <h1 className="text-xl sm:text-2xl font-bold text-white">Payroll</h1>
           <p className="text-dark-400 text-sm">Salary overview for approved timesheets</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => goMonth(-1)} className="p-2 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors">
-            <ChevronDown size={16} className="rotate-90" />
+        <div className="flex items-center">
+          <button onClick={() => goMonth(-1)} className="p-2.5 rounded-l-xl bg-dark-800/80 border border-dark-700 border-r-0 text-dark-400 hover:text-white hover:bg-dark-700 transition-all">
+            <ChevronLeft size={18} />
           </button>
-          <div className="flex items-center gap-2">
-            <select value={month} onChange={e => { setMonth(Number(e.target.value)); setExpandedEmployee(null); }}
-              className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-rivvra-500">
-              {monthNames.slice(1).map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-            </select>
-            <select value={year} onChange={e => { setYear(Number(e.target.value)); setExpandedEmployee(null); }}
-              className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-rivvra-500">
-              {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+          <div className="relative bg-gradient-to-b from-dark-800 to-dark-900 border-y border-dark-700 px-5 py-2 flex items-center gap-3 min-w-[200px] justify-center">
+            <CalendarDays size={18} className="text-rivvra-500 shrink-0" />
+            <div className="flex items-baseline gap-2">
+              <select value={month} onChange={e => { setMonth(Number(e.target.value)); setExpandedEmployee(null); }}
+                className="bg-transparent text-white font-semibold text-base outline-none cursor-pointer appearance-none pr-4 hover:text-rivvra-400 transition-colors"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2366666680' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}>
+                {monthNames.slice(1).map((m, i) => <option key={i + 1} value={i + 1} className="bg-dark-900">{m}</option>)}
+              </select>
+              <select value={year} onChange={e => { setYear(Number(e.target.value)); setExpandedEmployee(null); }}
+                className="bg-transparent text-dark-400 font-medium text-sm outline-none cursor-pointer appearance-none pr-4 hover:text-dark-200 transition-colors"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2366666680' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}>
+                {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map(y => <option key={y} value={y} className="bg-dark-900">{y}</option>)}
+              </select>
+            </div>
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-rivvra-500/50 rounded-full" />
           </div>
-          <button onClick={() => goMonth(1)} className="p-2 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors">
-            <ChevronDown size={16} className="-rotate-90" />
+          <button onClick={() => goMonth(1)} className="p-2.5 rounded-r-xl bg-dark-800/80 border border-dark-700 border-l-0 text-dark-400 hover:text-white hover:bg-dark-700 transition-all">
+            <ChevronRight size={18} />
           </button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <div className="card p-4 sm:p-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs sm:text-sm text-dark-400">Total Payable</span>
             <IndianRupee size={16} className="text-amber-500" />
           </div>
           <p className="text-lg sm:text-2xl font-bold text-white">{'\u20B9'}{fmt(filteredSummary.totalPayable)}</p>
-        </div>
-        <div className="card p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs sm:text-sm text-dark-400">Total Billable</span>
-            <Banknote size={16} className="text-blue-500" />
-          </div>
-          <p className="text-lg sm:text-2xl font-bold text-white">{'\u20B9'}{fmt(filteredSummary.totalBillable)}</p>
         </div>
         <div className="card p-4 sm:p-5">
           <div className="flex items-center justify-between mb-2">
@@ -474,22 +470,6 @@ export default function TimesheetPayroll() {
                               </div>
                             </div>
 
-                            {/* Client Billable */}
-                            {emp.totalBillable > 0 && (
-                              <div className="bg-dark-900 rounded-lg p-3 text-sm">
-                                <div className="flex justify-between font-medium">
-                                  <span className="text-dark-400">Client Billable</span>
-                                  <span className="text-blue-400">{'\u20B9'}{fmtDecimal(emp.totalBillable)}</span>
-                                </div>
-                                <div className="flex justify-between mt-1">
-                                  <span className="text-dark-500 text-xs">Margin</span>
-                                  <span className={`text-xs ${emp.totalBillable - emp.grossPay >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {'\u20B9'}{fmtDecimal(emp.totalBillable - emp.grossPay)}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
                             {/* Multi-project breakdown */}
                             {emp.projects.length > 1 && (
                               <div className="space-y-2">
@@ -502,7 +482,6 @@ export default function TimesheetPayroll() {
                                         <th className="text-left px-3 py-2 text-dark-400 font-medium text-xs">Client</th>
                                         <th className="text-right px-3 py-2 text-dark-400 font-medium text-xs">Days</th>
                                         <th className="text-right px-3 py-2 text-dark-400 font-medium text-xs">Payable</th>
-                                        <th className="text-right px-3 py-2 text-dark-400 font-medium text-xs">Billable</th>
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-dark-800/50">
@@ -512,7 +491,6 @@ export default function TimesheetPayroll() {
                                           <td className="px-3 py-2 text-dark-300">{p.clientName}</td>
                                           <td className="px-3 py-2 text-right text-dark-300">{p.workingDays}</td>
                                           <td className="px-3 py-2 text-right text-dark-200">{'\u20B9'}{fmt(p.contractorPayable)}</td>
-                                          <td className="px-3 py-2 text-right text-blue-400">{'\u20B9'}{fmt(p.clientBillable)}</td>
                                         </tr>
                                       ))}
                                     </tbody>
