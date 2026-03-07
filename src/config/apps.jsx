@@ -99,7 +99,7 @@ export const APP_REGISTRY = {
         // Admin only
         ...(isAdmin ? [
           { type: 'item', path: '/timesheet/pay-config', label: 'Pay Config', icon: Wallet },
-          { type: 'item', path: '/timesheet/payroll', label: 'Process Payroll', icon: Banknote },
+          { type: 'item', path: '/timesheet/payroll', label: 'Payroll', icon: Banknote },
           { type: 'item', path: '/timesheet/export', label: 'Export Data', icon: Download },
           {
             type: 'group', label: 'Configuration', icon: Settings,

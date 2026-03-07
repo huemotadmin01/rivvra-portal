@@ -6,6 +6,7 @@ import { generatePayslipPDF } from '../../utils/payslipPdf';
 import {
   Loader2, Download, ChevronDown, ChevronUp, CheckCircle2, RotateCcw,
   IndianRupee, Users, TrendingUp, Banknote, Search, FileSpreadsheet, Package,
+  ChevronLeft, ChevronRight, ShieldCheck,
 } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -44,6 +45,8 @@ export default function TimesheetPayroll() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [downloadingPayslip, setDownloadingPayslip] = useState(null);
   const [batchDownloading, setBatchDownloading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Check admin access
   if (timesheetUser && timesheetUser.role !== 'admin') {
@@ -62,7 +65,9 @@ export default function TimesheetPayroll() {
     }
   };
 
-  useEffect(() => { loadPayroll(); }, [month, year]);
+  useEffect(() => { loadPayroll(); setCurrentPage(1); }, [month, year]);
+  // Reset page on filter/search change
+  useEffect(() => { setCurrentPage(1); }, [activeTab, searchQuery]);
 
   // Filtering
   const filteredEmployees = useMemo(() => {
@@ -96,6 +101,13 @@ export default function TimesheetPayroll() {
       unpaidCount: filteredEmployees.length - paidCount,
     };
   }, [filteredEmployees]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
+  const paginatedEmployees = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredEmployees.slice(start, start + PAGE_SIZE);
+  }, [filteredEmployees, currentPage]);
 
   const tabCounts = useMemo(() => {
     if (!data?.employees) return {};
@@ -240,8 +252,8 @@ export default function TimesheetPayroll() {
       {/* Header + Month Selector */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Process Payroll</h1>
-          <p className="text-dark-400 text-sm">Review and process employee payroll</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Payroll</h1>
+          <p className="text-dark-400 text-sm">Salary overview for approved timesheets</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => goMonth(-1)} className="p-2 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors">
@@ -264,7 +276,7 @@ export default function TimesheetPayroll() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="card p-4 sm:p-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs sm:text-sm text-dark-400">Total Payable</span>
@@ -281,15 +293,6 @@ export default function TimesheetPayroll() {
         </div>
         <div className="card p-4 sm:p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs sm:text-sm text-dark-400">Margin</span>
-            <TrendingUp size={16} className="text-emerald-500" />
-          </div>
-          <p className={`text-lg sm:text-2xl font-bold ${filteredSummary.margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {'\u20B9'}{fmt(filteredSummary.margin)}
-          </p>
-        </div>
-        <div className="card p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-2">
             <span className="text-xs sm:text-sm text-dark-400">Employees</span>
             <Users size={16} className="text-purple-500" />
           </div>
@@ -300,6 +303,14 @@ export default function TimesheetPayroll() {
           </p>
         </div>
       </div>
+
+      {/* Approved timesheets indicator */}
+      {data?.employees?.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-dark-400">
+          <ShieldCheck size={14} className="text-emerald-500" />
+          <span>Showing payroll data from <span className="text-emerald-400 font-medium">{data.employees.reduce((s, e) => s + e.projects.length, 0)} approved timesheet{data.employees.reduce((s, e) => s + e.projects.length, 0) !== 1 ? 's' : ''}</span> for {monthNames[month]} {year}</span>
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -366,7 +377,7 @@ export default function TimesheetPayroll() {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-800/50">
-              {filteredEmployees.map(emp => {
+              {paginatedEmployees.map(emp => {
                 const isExpanded = expandedEmployee === emp.employeeObjId;
                 return (
                   <Fragment key={emp.employeeObjId}>
@@ -577,6 +588,46 @@ export default function TimesheetPayroll() {
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {filteredEmployees.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-dark-500">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredEmployees.length)} of {filteredEmployees.length}
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+              className="p-1.5 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === '...' ? (
+                  <span key={`dot-${i}`} className="px-1 text-dark-500 text-sm">...</span>
+                ) : (
+                  <button key={p} onClick={() => setCurrentPage(p)}
+                    className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
+                      currentPage === p
+                        ? 'bg-rivvra-500 text-dark-950'
+                        : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
+                    }`}>
+                    {p}
+                  </button>
+                )
+              )}
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+              className="p-1.5 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       )}
     </div>
