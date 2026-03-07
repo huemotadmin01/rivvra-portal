@@ -5,9 +5,10 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
+import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import {
   CalendarDays, IndianRupee, Clock, CheckCircle2,
-  FileText, AlertCircle, ArrowRight, Loader2
+  FileText, AlertCircle, ArrowRight
 } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -57,7 +58,14 @@ function ContractorDashboard() {
     return () => controller.abort();
   }, [hideEarnings]);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton titleW="w-52" subtitleW="w-48" />
+      <CardGridSkeleton count={3} />
+      <TwoCardSkeleton />
+      <CardListSkeleton count={3} />
+    </PageSkeleton>
+  );
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
@@ -196,7 +204,13 @@ function AdminDashboard() {
     return timesheets.filter(t => t.status === 'approved' && t.month === now.getMonth() + 1 && t.year === now.getFullYear());
   }, [timesheets]);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton titleW="w-52" subtitleW="w-36" />
+      <CardGridSkeleton count={3} />
+      <PendingListSkeleton count={4} />
+    </PageSkeleton>
+  );
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
@@ -258,7 +272,12 @@ export default function TimesheetDashboard() {
   const { timesheetUser, loading, error, refetch } = useTimesheetContext();
   const { getAppRole, currentOrg } = useOrg();
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton titleW="w-44" subtitleW="w-36" />
+      <CardGridSkeleton count={3} />
+    </PageSkeleton>
+  );
 
   if (!timesheetUser) {
     return (

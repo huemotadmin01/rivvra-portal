@@ -15,6 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
+import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TableSkeleton } from '../components/Skeletons';
 
 // Only real statuses that exist in the system
 const STATUS_CONFIG = {
@@ -213,17 +214,13 @@ export default function TeamDashboardPage() {
     );
   }
 
-  if (loading) {
-    return (
-      <>
-        <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] gap-3">
-          <Loader2 className="w-8 h-8 text-rivvra-500 animate-spin" />
-          <p className="text-sm text-dark-400">Loading dashboard...</p>
-        </div>
-      </>
-    );
-  }
-
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton titleW="w-44" subtitleW="w-60" />
+      <CardGridSkeleton count={3} />
+      <TableSkeleton rows={6} cols={4} />
+    </PageSkeleton>
+  );
   // Prepare chart data
   const statusData = Object.entries(STATUS_CONFIG)
     .map(([key, cfg]) => ({

@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { usePlatform } from '../context/PlatformContext';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../utils/api';
+import { CardListSkeleton } from '../components/Skeletons';
 import {
   Plus,
   Send,
@@ -675,10 +676,7 @@ function SequencesTab({
 
       {/* Table */}
       {loading ? (
-        <div className="py-16 text-center">
-          <Loader2 className="w-6 h-6 text-dark-500 animate-spin mx-auto mb-3" />
-          <p className="text-dark-400 text-sm">Loading sequences...</p>
-        </div>
+        <div className="animate-pulse py-2"><CardListSkeleton count={4} /></div>
       ) : sequences.length === 0 ? (
         <EmptyState onNewSequence={onNewSequence} setupComplete={setupComplete} />
       ) : (

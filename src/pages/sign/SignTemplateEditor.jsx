@@ -36,6 +36,7 @@ import {
   Palette,
   MousePointer,
 } from 'lucide-react';
+import { EditorSkeleton } from '../../components/Skeletons';
 
 // ---------------------------------------------------------------------------
 // PDF.js worker setup — use CDN for the matching version
@@ -588,14 +589,7 @@ export default function SignTemplateEditor() {
   // ────────────────────────────────────────────────────────────────────
   // Loading state
   // ────────────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-rivvra-500" />
-      </div>
-    );
-  }
-
+  if (loading) return <EditorSkeleton />;
   // ====================================================================
   // RENDER
   // ====================================================================

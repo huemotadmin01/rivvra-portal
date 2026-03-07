@@ -3,6 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import { Plus, Edit2, X, Loader2, Tag, Trash2 } from 'lucide-react';
+import { PageSkeleton, HeaderSkeleton, ConfigSkeleton } from '../../components/Skeletons';
 
 const EMPTY_FORM = { name: '' };
 
@@ -122,13 +123,12 @@ export default function ContactsConfig() {
   };
 
   // ── Loading state ───────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton subtitleW="w-64" />
+      <ConfigSkeleton sections={1} />
+    </PageSkeleton>
+  );
 
   // ── Non-admin guard ─────────────────────────────────────────────────
   if (!isAdmin) {

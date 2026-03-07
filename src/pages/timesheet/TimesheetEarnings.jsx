@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
+import { PageSkeleton, HeaderSkeleton, TwoCardSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -123,7 +124,13 @@ export default function TimesheetEarnings() {
     setDownloading(null);
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton subtitleW="w-56" />
+      <TwoCardSkeleton />
+      <CardListSkeleton count={4} />
+    </PageSkeleton>
+  );
 
   return (
     <div className="p-6 space-y-6">

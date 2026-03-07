@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { InlineSkeleton } from '../../components/Skeletons';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -663,7 +664,7 @@ function SkillTypesSection({ orgSlug, showToast }) {
     } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
   };
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-dark-400" /></div>;
+  if (loading) return <InlineSkeleton rows={5} />;
 
   return (
     <>
@@ -824,7 +825,7 @@ function SkillsSection({ orgSlug, showToast }) {
 
   const typeMap = Object.fromEntries(skillTypes.map((t) => [t._id, t.name]));
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-dark-400" /></div>;
+  if (loading) return <InlineSkeleton rows={5} />;
 
   return (
     <>
@@ -1006,7 +1007,7 @@ function SkillLevelsSection({ orgSlug, showToast }) {
     } catch (err) { showToast(err.message || 'Failed to delete', 'error'); } finally { setDeleting(false); }
   };
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-dark-400" /></div>;
+  if (loading) return <InlineSkeleton rows={5} />;
 
   return (
     <>

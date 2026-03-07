@@ -25,6 +25,7 @@ import {
 } from './wizard/wizardConstants';
 import RichBodyEditor, { isBodyEmpty, stripHtml } from './wizard/RichBodyEditor';
 import EmailStepEditor from './wizard/EmailStepEditor';
+import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, CardListSkeleton } from './Skeletons';
 
 const ENROLLMENT_STATUS = {
   active: { text: 'text-green-400', label: 'Active' },
@@ -424,15 +425,13 @@ function SequenceDetailPage({ sequenceId, onBack }) {
     const res = await api.getSequenceEnrollments(sequenceId, 1, 50, { search });
     return res.success ? res.enrollments : [];
   }, [sequenceId]);
-
-  if (loading) {
-    return (
-      <div className="py-16 text-center">
-        <Loader2 className="w-6 h-6 text-dark-500 animate-spin mx-auto mb-3" />
-        <p className="text-dark-400 text-sm">Loading sequence...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton titleW="w-48" withButton />
+      <CardGridSkeleton count={3} />
+      <CardListSkeleton count={3} />
+    </PageSkeleton>
+  );
 
   if (!sequence) return null;
 

@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, X,
   Mail, Phone, MapPin, Tag,
 } from 'lucide-react';
+import { TableSkeleton } from '../../components/Skeletons';
 
 /* ── Inline FilterChip component ─────────────────────────────────────── */
 function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
@@ -762,9 +763,7 @@ export default function ContactsList({ filterType }) {
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
-        </div>
+        <div className="animate-pulse"><TableSkeleton rows={8} cols={5} /></div>
       ) : contacts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">

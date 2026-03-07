@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
+import { PageSkeleton, HeaderSkeleton, TabsSkeleton, TableSkeleton } from '../../components/Skeletons';
 import { Plus, Edit2, Trash2, X, Building2, FolderKanban, Loader2 } from 'lucide-react';
 
 export default function TimesheetProjects() {
@@ -58,7 +59,13 @@ export default function TimesheetProjects() {
     catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed', 'error'); }
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton titleW="w-44" />
+      <TabsSkeleton widths={[88, 84]} />
+      <TableSkeleton rows={5} cols={4} />
+    </PageSkeleton>
+  );
 
   return (
     <div className="p-6 space-y-6">

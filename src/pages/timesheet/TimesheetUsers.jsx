@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useOrg } from '../../context/OrgContext';
 import timesheetApi from '../../utils/timesheetApi';
+import { PageSkeleton, HeaderSkeleton, SearchBarSkeleton, TableSkeleton } from '../../components/Skeletons';
 import employeeApi from '../../utils/employeeApi';
 import { UserPlus, Edit2, X, Loader2, UserCheck, Search, ChevronDown, Hash, Filter } from 'lucide-react';
 
@@ -177,7 +178,13 @@ export default function TimesheetUsers() {
     return true;
   });
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton withButton />
+      <SearchBarSkeleton buttons={2} />
+      <TableSkeleton rows={8} cols={5} />
+    </PageSkeleton>
+  );
 
   return (
     <div className="p-6 space-y-6">

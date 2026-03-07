@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
+import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2 } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -70,7 +71,13 @@ export default function TimesheetApprovals() {
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-dark-400" /></div>;
+  if (loading) return (
+    <PageSkeleton>
+      <HeaderSkeleton subtitleW="w-64" />
+      <TabsSkeleton widths={[80, 76, 56, 44]} />
+      <CardListSkeleton count={5} />
+    </PageSkeleton>
+  );
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
