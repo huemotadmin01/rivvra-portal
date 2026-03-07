@@ -96,10 +96,26 @@ export default function TimesheetEntry() {
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
 
+  // Compute project start date — days before this are disabled
+  const projectStartDate = (() => {
+    const startStr = timesheetUser?.projectStartDates?.[selectedProject];
+    if (!startStr) return null;
+    const d = new Date(startStr);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+
+  const isBeforeProjectStart = (day) => {
+    if (!projectStartDate) return false;
+    const date = new Date(year, month - 1, day);
+    // Compare date-only (ignore time)
+    const startDateOnly = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
+    return date < startDateOnly;
+  };
+
   const canEdit = !timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected';
 
   const cycleStatus = (day) => {
-    if (!canEdit) return;
+    if (!canEdit || isBeforeProjectStart(day)) return;
     const entry = entries[day] || { hours: '', status: null };
     const dayOfWeek = new Date(year, month - 1, day).getDay();
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
@@ -122,7 +138,7 @@ export default function TimesheetEntry() {
   };
 
   const setHours = (day, value) => {
-    if (!canEdit) return;
+    if (!canEdit || isBeforeProjectStart(day)) return;
     const entry = entries[day] || { hours: '', status: null };
     const dayOfWeek = new Date(year, month - 1, day).getDay();
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
@@ -146,7 +162,8 @@ export default function TimesheetEntry() {
 
   const buildEntries = () => {
     return Object.entries(entries)
-      .filter(([, entry]) => {
+      .filter(([day, entry]) => {
+        if (isBeforeProjectStart(parseInt(day))) return false; // skip days before project start
         // Only include entries the user explicitly set (has a status or non-empty hours)
         if (entry.status === 'weekend') return false; // weekends are display-only, never save
         if (entry.status === 'leave' || entry.status === 'holiday') return true;
@@ -164,10 +181,13 @@ export default function TimesheetEntry() {
       });
   };
 
-  const totalHours = Object.values(entries).reduce((sum, e) => sum + (e.status === 'working' ? (parseFloat(e.hours) || 0) : 0), 0);
+  const totalHours = Object.entries(entries).reduce((sum, [d, e]) => {
+    if (isBeforeProjectStart(parseInt(d))) return sum;
+    return sum + (e.status === 'working' ? (parseFloat(e.hours) || 0) : 0);
+  }, 0);
   const totalDays = totalHours / 8;
-  const totalLeaves = Object.values(entries).filter(e => e.status === 'leave').length;
-  const totalHolidays = Object.values(entries).filter(e => e.status === 'holiday').length;
+  const totalLeaves = Object.entries(entries).filter(([d, e]) => !isBeforeProjectStart(parseInt(d)) && e.status === 'leave').length;
+  const totalHolidays = Object.entries(entries).filter(([d, e]) => !isBeforeProjectStart(parseInt(d)) && e.status === 'holiday').length;
 
   // Helper: fetch existing timesheet for current month/year/project and sync state
   const refreshTimesheet = async () => {
@@ -240,6 +260,7 @@ export default function TimesheetEntry() {
     const today = new Date();
     const unfilledDays = [];
     for (let d = 1; d <= daysInMonth; d++) {
+      if (isBeforeProjectStart(d)) continue; // skip days before project start
       const date = new Date(year, month - 1, d);
       if (date > today) continue; // skip future days
       const entry = entries[d] || { hours: '', status: null };
@@ -370,6 +391,24 @@ export default function TimesheetEntry() {
                 const dateObj = new Date(year, month - 1, day);
                 const isPastUnfilled = dateObj < new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !isWeekendDay && !hasStatus;
                 const isWeekendWorking = isWeekendDay && entry.status === 'working' && hoursNum > 0;
+                const isPreStart = isBeforeProjectStart(day);
+
+                // Days before project start — render as disabled/greyed out
+                if (isPreStart) {
+                  return (
+                    <div key={day} className="p-1 sm:p-1.5 border-b border-r border-dark-800/50 min-h-[72px] sm:min-h-[88px] bg-dark-900/60 opacity-40">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-dark-600">{day}</span>
+                        {isWeekendDay && (
+                          <span className="text-[7px] sm:text-[8px] font-medium text-dark-600 bg-dark-800/50 px-1 py-0.5 rounded">WE</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-center mb-1">
+                        <span className="text-xs text-dark-700">—</span>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={day} className={`p-1 sm:p-1.5 border-b border-r border-dark-800/50 min-h-[72px] sm:min-h-[88px] transition-colors ${
