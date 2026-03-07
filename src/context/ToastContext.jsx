@@ -20,12 +20,12 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ showToast, addToast: showToast }}>
       {children}
-      {/* Toast container - fixed bottom-right */}
-      <div className="fixed bottom-6 right-6 z-[9999] space-y-2 pointer-events-none">
+      {/* Toast container - fixed bottom, responsive */}
+      <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-md z-[9999] space-y-2 pointer-events-none">
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-sm font-medium animate-slide-up cursor-pointer
+            className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl shadow-xl text-sm font-medium animate-slide-up cursor-pointer
               ${toast.type === 'error'
                 ? 'bg-red-500/90 text-white border border-red-400/30'
                 : toast.type === 'warning'
@@ -34,10 +34,10 @@ export function ToastProvider({ children }) {
               }`}
             onClick={() => dismissToast(toast.id)}
           >
-            <span>
+            <span className="shrink-0 mt-0.5">
               {toast.type === 'error' ? '\u2717' : toast.type === 'warning' ? '\u26A0' : '\u2713'}
             </span>
-            <span>{toast.message}</span>
+            <span className="break-words">{toast.message}</span>
           </div>
         ))}
       </div>
