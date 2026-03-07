@@ -4,13 +4,13 @@
  * and project assignment dates. All pay data is managed in the Employee Directory.
  * Roles are managed in Settings > Users & Teams.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useOrg } from '../../context/OrgContext';
 import {
-  Search, Loader2, RefreshCw, Users,
+  Search, Users, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { getPayConfig, syncAllPayConfig } from '../../utils/timesheetApi';
+import { getPayConfig } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, SearchBarSkeleton, TableSkeleton } from '../../components/Skeletons';
 
 /** Pick the first non-zero billing rate from an object { daily, hourly, monthly } */
@@ -39,6 +39,8 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+const PAGE_SIZE = 20;
+
 export default function TimesheetPayConfig() {
   const { timesheetUser } = useTimesheetContext();
   const { getAppRole, currentOrg } = useOrg();
@@ -50,7 +52,7 @@ export default function TimesheetPayConfig() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterSynced, setFilterSynced] = useState('all');
-  const [syncing, setSyncing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -65,15 +67,38 @@ export default function TimesheetPayConfig() {
 
   useEffect(() => { if (isAdmin) fetchData(); else setLoading(false); }, [isAdmin, fetchData]);
 
-  const handleSyncAll = async () => {
-    setSyncing(true);
-    try {
-      await syncAllPayConfig();
-      await fetchData();
-    } catch (err) {
-      console.error('Sync all failed:', err);
-    } finally { setSyncing(false); }
-  };
+  const employees = useMemo(() => data?.employees || [], [data]);
+
+  const syncedCount = useMemo(() => employees.filter(e => e.tsConfig.synced).length, [employees]);
+  const unsyncedCount = employees.length - syncedCount;
+
+  // Filter
+  const filtered = useMemo(() => {
+    return employees.filter(emp => {
+      if (search) {
+        const q = search.toLowerCase();
+        if (
+          !emp.fullName?.toLowerCase().includes(q) &&
+          !emp.email?.toLowerCase().includes(q) &&
+          !emp.employeeId?.toLowerCase().includes(q) &&
+          !emp.designation?.toLowerCase().includes(q)
+        ) return false;
+      }
+      if (filterSynced === 'synced' && !emp.tsConfig.synced) return false;
+      if (filterSynced === 'not_synced' && emp.tsConfig.synced) return false;
+      return true;
+    });
+  }, [employees, search, filterSynced]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
+
+  // Reset page on filter/search change
+  useEffect(() => { setCurrentPage(1); }, [search, filterSynced]);
 
   if (loading) {
     return (
@@ -96,27 +121,6 @@ export default function TimesheetPayConfig() {
     );
   }
 
-  const employees = data?.employees || [];
-
-  // Filter
-  const filtered = employees.filter(emp => {
-    if (search) {
-      const q = search.toLowerCase();
-      if (
-        !emp.fullName?.toLowerCase().includes(q) &&
-        !emp.email?.toLowerCase().includes(q) &&
-        !emp.employeeId?.toLowerCase().includes(q) &&
-        !emp.designation?.toLowerCase().includes(q)
-      ) return false;
-    }
-    if (filterSynced === 'synced' && !emp.tsConfig.synced) return false;
-    if (filterSynced === 'not_synced' && emp.tsConfig.synced) return false;
-    return true;
-  });
-
-  const syncedCount = employees.filter(e => e.tsConfig.synced).length;
-  const unsyncedCount = employees.length - syncedCount;
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -127,16 +131,6 @@ export default function TimesheetPayConfig() {
             Employee pay rates, client billing & project assignments. Managed in the <span className="text-rivvra-400">Employee Directory</span>.
           </p>
         </div>
-        {unsyncedCount > 0 && (
-          <button
-            onClick={handleSyncAll}
-            disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2 bg-rivvra-500 text-dark-950 rounded-lg text-sm font-semibold hover:bg-rivvra-400 disabled:opacity-50 transition-colors"
-          >
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Sync All ({unsyncedCount})
-          </button>
-        )}
       </div>
 
       {/* Stats */}
@@ -178,202 +172,28 @@ export default function TimesheetPayConfig() {
         </select>
       </div>
 
-      {/* Table */}
+      {/* Table with sticky Employee column */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1100px]">
             <thead>
               <tr className="border-b border-dark-700">
-                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Employee</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider sticky left-0 bg-dark-900 z-10 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:pointer-events-none after:bg-gradient-to-r after:from-dark-900/80 after:to-transparent min-w-[240px]">Employee</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Role</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Pay Type</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Client</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Candidate Rate</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Client Rate</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Start Date</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">End Date</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Paid Leave</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider min-w-[120px]">Client</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider whitespace-nowrap">Candidate Rate</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider whitespace-nowrap">Client Rate</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider whitespace-nowrap">Start Date</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider whitespace-nowrap">End Date</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider whitespace-nowrap">Paid Leave</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-800">
-              {filtered.map(emp => {
-                const tc = emp.tsConfig;
-                const assignments = emp.assignments || [];
-                const activeAssignments = assignments.filter(a => a.status === 'active');
-                // Read candidate rate from assignments (new architecture), fallback to top-level (legacy)
-                const candidateRate = activeAssignments.length > 0
-                  ? pickBillingRate(activeAssignments[0].billingRate)
-                  : pickBillingRate(emp.billingRate);
-                return (
-                  <tr key={emp._id} className="transition-colors hover:bg-dark-800/30">
-                    {/* Employee Info */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400/20 to-blue-500/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-blue-300">
-                            {emp.fullName?.charAt(0)?.toUpperCase() || '?'}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{emp.fullName}</p>
-                          <p className="text-xs text-dark-500 truncate">{emp.email}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {emp.employeeId && (
-                              <span className="text-[10px] text-dark-500">#{emp.employeeId}</span>
-                            )}
-                            {emp.department && (
-                              <span className="text-[10px] bg-dark-700 text-dark-400 px-1.5 py-0.5 rounded">{emp.department}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Sync Status */}
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        tc.synced ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${tc.synced ? 'bg-green-400' : 'bg-amber-400'}`} />
-                        {tc.synced ? 'Synced' : 'Not synced'}
-                      </span>
-                    </td>
-
-                    {/* Role (read-only — managed in Settings) */}
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        tc.role === 'admin' ? 'bg-purple-500/10 text-purple-400' :
-                        tc.role === 'manager' ? 'bg-blue-500/10 text-blue-400' :
-                        'bg-dark-700 text-dark-300'
-                      }`}>{tc.role ? tc.role.charAt(0).toUpperCase() + tc.role.slice(1) : 'Contractor'}</span>
-                    </td>
-
-                    {/* Pay Type (read-only) */}
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        tc.payType === 'monthly' ? 'bg-blue-500/10 text-blue-400' : 'bg-dark-700 text-dark-300'
-                      }`}>{tc.payType === 'monthly' ? 'Monthly' : 'Daily'}</span>
-                    </td>
-
-                    {/* Client (from Employee assignments) */}
-                    <td className="px-4 py-3">
-                      {activeAssignments.length > 0 ? (
-                        <div className="space-y-1">
-                          {[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].slice(0, 2).map((name, i) => (
-                            <span key={i} className="block text-xs text-white truncate max-w-[120px]">{name}</span>
-                          ))}
-                          {[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-dark-600">{'\u2014'}</span>
-                      )}
-                    </td>
-
-                    {/* Candidate Billing Rate (read-only, from Employee assignments) */}
-                    <td className="px-4 py-3 text-right">
-                      {activeAssignments.length > 1 ? (
-                        <div className="space-y-1">
-                          {activeAssignments.slice(0, 2).map((a, i) => {
-                            const rate = pickBillingRate(a.billingRate);
-                            return (
-                              <span key={i} className={`block text-xs font-medium ${rate ? 'text-white' : 'text-dark-600'}`}>
-                                {formatRate(rate)}
-                              </span>
-                            );
-                          })}
-                          {activeAssignments.length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className={`text-sm font-medium ${candidateRate ? 'text-white' : 'text-dark-600'}`}>
-                          {formatRate(candidateRate)}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Client Billing Rate (from Employee assignments) */}
-                    <td className="px-4 py-3 text-right">
-                      {activeAssignments.length > 0 ? (
-                        <div className="space-y-1">
-                          {activeAssignments.slice(0, 2).map((a, i) => {
-                            const clientRate = pickBillingRate(
-                              typeof a.clientBillingRate === 'object' ? a.clientBillingRate : { daily: a.clientBillingRate || 0 }
-                            );
-                            return (
-                              <span key={i} className={`block text-xs font-medium ${clientRate ? 'text-blue-400' : 'text-dark-600'}`}>
-                                {formatRate(clientRate)}
-                              </span>
-                            );
-                          })}
-                          {activeAssignments.length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-dark-600">{'\u2014'}</span>
-                      )}
-                    </td>
-
-                    {/* Project Start Date */}
-                    <td className="px-4 py-3">
-                      {activeAssignments.length > 0 ? (
-                        <div className="space-y-1">
-                          {activeAssignments.slice(0, 2).map((a, i) => (
-                            <span key={i} className="block text-xs text-dark-300">
-                              {formatDate(a.startDate) || '\u2014'}
-                            </span>
-                          ))}
-                          {activeAssignments.length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-dark-600">{'\u2014'}</span>
-                      )}
-                    </td>
-
-                    {/* Project End Date */}
-                    <td className="px-4 py-3">
-                      {activeAssignments.length > 0 ? (
-                        <div className="space-y-1">
-                          {activeAssignments.slice(0, 2).map((a, i) => (
-                            <span key={i} className={`block text-xs ${a.endDate ? 'text-dark-300' : 'text-emerald-400/70'}`}>
-                              {formatDate(a.endDate) || 'Ongoing'}
-                            </span>
-                          ))}
-                          {activeAssignments.length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-dark-600">{'\u2014'}</span>
-                      )}
-                    </td>
-
-                    {/* Paid Leave (read-only — from Employee assignments) */}
-                    <td className="px-4 py-3 text-center">
-                      {activeAssignments.length > 0 ? (
-                        <div className="space-y-1">
-                          {activeAssignments.slice(0, 2).map((a, i) => (
-                            <span key={i} className="block text-xs text-dark-300">
-                              {a.paidLeavePerMonth ?? tc.paidLeavePerMonth ?? 0}/mo
-                            </span>
-                          ))}
-                          {activeAssignments.length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-dark-300">{tc.paidLeavePerMonth || 0}/mo</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {paginated.map(emp => (
+                <EmployeeRow key={emp._id} emp={emp} />
+              ))}
             </tbody>
           </table>
         </div>
@@ -391,10 +211,229 @@ export default function TimesheetPayConfig() {
         )}
       </div>
 
-      <p className="text-xs text-dark-600">
-        Showing {filtered.length} of {employees.length} employees.
-        Pay data is managed in the Employee Directory. Roles are managed in Settings.
-      </p>
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-dark-500">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} employees
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+              className="p-1.5 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === '...' ? (
+                  <span key={`dot-${i}`} className="px-1 text-dark-500 text-xs">...</span>
+                ) : (
+                  <button key={p} onClick={() => setCurrentPage(p)}
+                    className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
+                      currentPage === p
+                        ? 'bg-rivvra-500 text-dark-950'
+                        : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
+                    }`}>{p}</button>
+                )
+              )}
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+              className="p-1.5 rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {filtered.length <= PAGE_SIZE && (
+        <p className="text-xs text-dark-600">
+          Showing {filtered.length} of {employees.length} employees.
+          Pay data is managed in the Employee Directory. Roles are managed in Settings.
+        </p>
+      )}
     </div>
   );
 }
+
+/** Memoized employee row to prevent unnecessary re-renders */
+const EmployeeRow = ({ emp }) => {
+  const tc = emp.tsConfig;
+  const assignments = emp.assignments || [];
+  const activeAssignments = assignments.filter(a => a.status === 'active');
+  const candidateRate = activeAssignments.length > 0
+    ? pickBillingRate(activeAssignments[0].billingRate)
+    : pickBillingRate(emp.billingRate);
+
+  return (
+    <tr className="group transition-colors hover:bg-dark-800/30">
+      {/* Employee Info — sticky */}
+      <td className="px-4 py-3 sticky left-0 bg-dark-900 group-hover:bg-dark-800/30 z-10 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:pointer-events-none after:bg-gradient-to-r after:from-dark-900/80 after:to-transparent">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400/20 to-blue-500/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-bold text-blue-300">
+              {emp.fullName?.charAt(0)?.toUpperCase() || '?'}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white truncate max-w-[180px]">{emp.fullName}</p>
+            <p className="text-xs text-dark-500 truncate max-w-[180px]">{emp.email}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              {emp.employeeId && (
+                <span className="text-[10px] text-dark-500">#{emp.employeeId}</span>
+              )}
+              {emp.department && (
+                <span className="text-[10px] bg-dark-700 text-dark-400 px-1.5 py-0.5 rounded">{emp.department}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Sync Status */}
+      <td className="px-4 py-3">
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+          tc.synced ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${tc.synced ? 'bg-green-400' : 'bg-amber-400'}`} />
+          {tc.synced ? 'Synced' : 'Not synced'}
+        </span>
+      </td>
+
+      {/* Role */}
+      <td className="px-4 py-3">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          tc.role === 'admin' ? 'bg-purple-500/10 text-purple-400' :
+          tc.role === 'manager' ? 'bg-blue-500/10 text-blue-400' :
+          'bg-dark-700 text-dark-300'
+        }`}>{tc.role ? tc.role.charAt(0).toUpperCase() + tc.role.slice(1) : 'Contractor'}</span>
+      </td>
+
+      {/* Pay Type */}
+      <td className="px-4 py-3">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          tc.payType === 'monthly' ? 'bg-blue-500/10 text-blue-400' : 'bg-dark-700 text-dark-300'
+        }`}>{tc.payType === 'monthly' ? 'Monthly' : 'Daily'}</span>
+      </td>
+
+      {/* Client */}
+      <td className="px-4 py-3">
+        {activeAssignments.length > 0 ? (
+          <div className="space-y-1">
+            {[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].slice(0, 2).map((name, i) => (
+              <span key={i} className="block text-xs text-white truncate max-w-[120px]">{name}</span>
+            ))}
+            {[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].length > 2 && (
+              <span className="text-[10px] text-dark-500">+{[...new Set(activeAssignments.map(a => a.clientName).filter(Boolean))].length - 2} more</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-dark-600">{'\u2014'}</span>
+        )}
+      </td>
+
+      {/* Candidate Rate */}
+      <td className="px-4 py-3 text-right">
+        {activeAssignments.length > 1 ? (
+          <div className="space-y-1">
+            {activeAssignments.slice(0, 2).map((a, i) => {
+              const rate = pickBillingRate(a.billingRate);
+              return (
+                <span key={i} className={`block text-xs font-medium ${rate ? 'text-white' : 'text-dark-600'}`}>
+                  {formatRate(rate)}
+                </span>
+              );
+            })}
+            {activeAssignments.length > 2 && (
+              <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+            )}
+          </div>
+        ) : (
+          <span className={`text-sm font-medium ${candidateRate ? 'text-white' : 'text-dark-600'}`}>
+            {formatRate(candidateRate)}
+          </span>
+        )}
+      </td>
+
+      {/* Client Rate */}
+      <td className="px-4 py-3 text-right">
+        {activeAssignments.length > 0 ? (
+          <div className="space-y-1">
+            {activeAssignments.slice(0, 2).map((a, i) => {
+              const clientRate = pickBillingRate(
+                typeof a.clientBillingRate === 'object' ? a.clientBillingRate : { daily: a.clientBillingRate || 0 }
+              );
+              return (
+                <span key={i} className={`block text-xs font-medium ${clientRate ? 'text-blue-400' : 'text-dark-600'}`}>
+                  {formatRate(clientRate)}
+                </span>
+              );
+            })}
+            {activeAssignments.length > 2 && (
+              <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-dark-600">{'\u2014'}</span>
+        )}
+      </td>
+
+      {/* Start Date */}
+      <td className="px-4 py-3">
+        {activeAssignments.length > 0 ? (
+          <div className="space-y-1">
+            {activeAssignments.slice(0, 2).map((a, i) => (
+              <span key={i} className="block text-xs text-dark-300 whitespace-nowrap">
+                {formatDate(a.startDate) || '\u2014'}
+              </span>
+            ))}
+            {activeAssignments.length > 2 && (
+              <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-dark-600">{'\u2014'}</span>
+        )}
+      </td>
+
+      {/* End Date */}
+      <td className="px-4 py-3">
+        {activeAssignments.length > 0 ? (
+          <div className="space-y-1">
+            {activeAssignments.slice(0, 2).map((a, i) => (
+              <span key={i} className={`block text-xs whitespace-nowrap ${a.endDate ? 'text-dark-300' : 'text-emerald-400/70'}`}>
+                {formatDate(a.endDate) || 'Ongoing'}
+              </span>
+            ))}
+            {activeAssignments.length > 2 && (
+              <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-dark-600">{'\u2014'}</span>
+        )}
+      </td>
+
+      {/* Paid Leave */}
+      <td className="px-4 py-3 text-center">
+        {activeAssignments.length > 0 ? (
+          <div className="space-y-1">
+            {activeAssignments.slice(0, 2).map((a, i) => (
+              <span key={i} className="block text-xs text-dark-300">
+                {a.paidLeavePerMonth ?? tc.paidLeavePerMonth ?? 0}/mo
+              </span>
+            ))}
+            {activeAssignments.length > 2 && (
+              <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-sm text-dark-300">{tc.paidLeavePerMonth || 0}/mo</span>
+        )}
+      </td>
+    </tr>
+  );
+};
