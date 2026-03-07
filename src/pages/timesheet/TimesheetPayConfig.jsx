@@ -1,7 +1,7 @@
 /**
- * TimesheetPayConfig — Pay Configuration page (READ-ONLY)
- * Shows employees from Employee Directory with their timesheet-specific config.
- * All pay data is managed in the Employee Directory.
+ * TimesheetPayConfig — Pay Overview page (READ-ONLY)
+ * Shows employees from Employee Directory with their pay details, client rates,
+ * and project assignment dates. All pay data is managed in the Employee Directory.
  * Roles are managed in Settings > Users & Teams.
  */
 import { useState, useEffect, useCallback } from 'react';
@@ -11,6 +11,7 @@ import {
   Search, Loader2, RefreshCw, Users,
 } from 'lucide-react';
 import { getPayConfig, syncAllPayConfig } from '../../utils/timesheetApi';
+import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, SearchBarSkeleton, TableSkeleton } from '../../components/Skeletons';
 
 /** Pick the first non-zero billing rate from an object { daily, hourly, monthly } */
 function pickBillingRate(rateObj) {
@@ -28,6 +29,14 @@ function pickBillingRate(rateObj) {
 function formatRate(rate) {
   if (!rate) return '\u2014';
   return `${rate.prefix}${rate.value.toLocaleString('en-IN')}${rate.suffix}`;
+}
+
+/** Format a date string as DD MMM YYYY */
+function formatDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function TimesheetPayConfig() {
@@ -68,9 +77,12 @@ export default function TimesheetPayConfig() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-      </div>
+      <PageSkeleton>
+        <HeaderSkeleton titleW="w-40" subtitleW="w-72" />
+        <CardGridSkeleton count={3} />
+        <SearchBarSkeleton buttons={1} />
+        <TableSkeleton rows={8} cols={5} />
+      </PageSkeleton>
     );
   }
 
@@ -110,10 +122,9 @@ export default function TimesheetPayConfig() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Pay Configuration</h1>
+          <h1 className="text-2xl font-bold text-white">Pay Overview</h1>
           <p className="text-dark-400 text-sm mt-1">
-            View pay rates and timesheet roles. Pay data is managed in the <span className="text-rivvra-400">Employee Directory</span>.
-            Roles are managed in <span className="text-rivvra-400">Settings</span>.
+            Employee pay rates, client billing & project assignments. Managed in the <span className="text-rivvra-400">Employee Directory</span>.
           </p>
         </div>
         {unsyncedCount > 0 && (
@@ -136,7 +147,7 @@ export default function TimesheetPayConfig() {
         </div>
         <div className="card p-4">
           <p className="text-2xl font-bold text-rivvra-400">{syncedCount}</p>
-          <p className="text-sm text-dark-400">Synced to Timesheet</p>
+          <p className="text-sm text-dark-400">Active Employees</p>
         </div>
         <div className="card p-4">
           <p className="text-2xl font-bold text-amber-400">{unsyncedCount}</p>
@@ -178,8 +189,10 @@ export default function TimesheetPayConfig() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Role</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Pay Type</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Client</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Project</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Candidate Rate</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Client Rate</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Start Date</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">End Date</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Paid Leave</th>
               </tr>
             </thead>
@@ -259,27 +272,6 @@ export default function TimesheetPayConfig() {
                       )}
                     </td>
 
-                    {/* Project (from Employee assignments) */}
-                    <td className="px-4 py-3">
-                      {activeAssignments.length > 0 ? (
-                        <div className="space-y-1">
-                          {activeAssignments.slice(0, 2).map((a, i) => (
-                            <div key={i} className="flex items-center gap-1.5">
-                              <span className="text-xs text-white truncate max-w-[120px]">{a.projectName || '\u2014'}</span>
-                              {a.clientBillingRate > 0 && (
-                                <span className="text-[10px] text-dark-500">({'\u20B9'}{Number(a.clientBillingRate).toLocaleString('en-IN')}/d)</span>
-                              )}
-                            </div>
-                          ))}
-                          {activeAssignments.length > 2 && (
-                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-dark-600">{'\u2014'}</span>
-                      )}
-                    </td>
-
                     {/* Candidate Billing Rate (read-only, from Employee assignments) */}
                     <td className="px-4 py-3 text-right">
                       {activeAssignments.length > 1 ? (
@@ -300,6 +292,65 @@ export default function TimesheetPayConfig() {
                         <span className={`text-sm font-medium ${candidateRate ? 'text-white' : 'text-dark-600'}`}>
                           {formatRate(candidateRate)}
                         </span>
+                      )}
+                    </td>
+
+                    {/* Client Billing Rate (from Employee assignments) */}
+                    <td className="px-4 py-3 text-right">
+                      {activeAssignments.length > 0 ? (
+                        <div className="space-y-1">
+                          {activeAssignments.slice(0, 2).map((a, i) => {
+                            const clientRate = pickBillingRate(
+                              typeof a.clientBillingRate === 'object' ? a.clientBillingRate : { daily: a.clientBillingRate || 0 }
+                            );
+                            return (
+                              <span key={i} className={`block text-xs font-medium ${clientRate ? 'text-blue-400' : 'text-dark-600'}`}>
+                                {formatRate(clientRate)}
+                              </span>
+                            );
+                          })}
+                          {activeAssignments.length > 2 && (
+                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-dark-600">{'\u2014'}</span>
+                      )}
+                    </td>
+
+                    {/* Project Start Date */}
+                    <td className="px-4 py-3">
+                      {activeAssignments.length > 0 ? (
+                        <div className="space-y-1">
+                          {activeAssignments.slice(0, 2).map((a, i) => (
+                            <span key={i} className="block text-xs text-dark-300">
+                              {formatDate(a.startDate) || '\u2014'}
+                            </span>
+                          ))}
+                          {activeAssignments.length > 2 && (
+                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-dark-600">{'\u2014'}</span>
+                      )}
+                    </td>
+
+                    {/* Project End Date */}
+                    <td className="px-4 py-3">
+                      {activeAssignments.length > 0 ? (
+                        <div className="space-y-1">
+                          {activeAssignments.slice(0, 2).map((a, i) => (
+                            <span key={i} className={`block text-xs ${a.endDate ? 'text-dark-300' : 'text-emerald-400/70'}`}>
+                              {formatDate(a.endDate) || 'Ongoing'}
+                            </span>
+                          ))}
+                          {activeAssignments.length > 2 && (
+                            <span className="text-[10px] text-dark-500">+{activeAssignments.length - 2} more</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-dark-600">{'\u2014'}</span>
                       )}
                     </td>
 
@@ -342,7 +393,7 @@ export default function TimesheetPayConfig() {
 
       <p className="text-xs text-dark-600">
         Showing {filtered.length} of {employees.length} employees.
-        Pay data is managed in the Employee app. Roles are managed in Settings.
+        Pay data is managed in the Employee Directory. Roles are managed in Settings.
       </p>
     </div>
   );

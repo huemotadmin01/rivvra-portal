@@ -222,18 +222,27 @@ function App() {
                 <Route path="/org/:slug/settings/companies" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
               </Route>
 
-              {/* Timesheet app routes — gated by timesheet access */}
+              {/* Timesheet (ESS) app routes — gated by timesheet access */}
               <Route element={<AppAccessGate appId="timesheet" />}>
                 <Route path="/org/:slug/timesheet/dashboard" element={<ErrorBoundary><TimesheetDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/my-timesheet" element={<ErrorBoundary><TimesheetEntry /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><TimesheetEarnings /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/approvals" element={<ErrorBoundary><TimesheetApprovals /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/users" element={<ErrorBoundary><TimesheetUsers /></ErrorBoundary>} />
-                <Route path="/org/:slug/timesheet/pay-config" element={<ErrorBoundary><TimesheetPayConfig /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/projects" element={<ErrorBoundary><TimesheetProjects /></ErrorBoundary>} />
-                <Route path="/org/:slug/timesheet/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
-                <Route path="/org/:slug/timesheet/payroll" element={<ErrorBoundary><TimesheetPayroll /></ErrorBoundary>} />
               </Route>
+
+              {/* Payroll app routes — org admin only */}
+              <Route element={<OrgAdminGate />}>
+                <Route path="/org/:slug/payroll/process" element={<ErrorBoundary><TimesheetPayroll /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><TimesheetPayConfig /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
+              </Route>
+
+              {/* Legacy payroll redirects — old /timesheet/ paths → new /payroll/ paths */}
+              <Route path="/org/:slug/timesheet/payroll" element={<Navigate to="../../payroll/process" replace />} />
+              <Route path="/org/:slug/timesheet/pay-config" element={<Navigate to="../../payroll/pay-overview" replace />} />
+              <Route path="/org/:slug/timesheet/export" element={<Navigate to="../../payroll/export" replace />} />
 
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
@@ -312,6 +321,11 @@ function App() {
             {/* ============================================================ */}
             <Route path="/home" element={<OrgRedirect to="/home" />} />
             <Route path="/outreach/*" element={<OrgRedirect />} />
+            {/* Payroll app legacy redirects — moved from /timesheet/ */}
+            <Route path="/timesheet/payroll" element={<OrgRedirect to="/payroll/process" />} />
+            <Route path="/timesheet/pay-config" element={<OrgRedirect to="/payroll/pay-overview" />} />
+            <Route path="/timesheet/export" element={<OrgRedirect to="/payroll/export" />} />
+            <Route path="/payroll/*" element={<OrgRedirect />} />
             <Route path="/timesheet/*" element={<OrgRedirect />} />
             <Route path="/employee/*" element={<OrgRedirect />} />
             <Route path="/contacts/*" element={<OrgRedirect />} />

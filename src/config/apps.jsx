@@ -97,10 +97,8 @@ export const APP_REGISTRY = {
           { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
         ]),
         // Admin only
+        // Admin: link to Settings for timesheet configuration
         ...(isAdmin ? [
-          { type: 'item', path: '/timesheet/pay-config', label: 'Pay Config', icon: Wallet },
-          { type: 'item', path: '/timesheet/payroll', label: 'Payroll', icon: Banknote },
-          { type: 'item', path: '/timesheet/export', label: 'Export Data', icon: Download },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
@@ -110,6 +108,32 @@ export const APP_REGISTRY = {
         ] : []),
       ];
     },
+  },
+
+  payroll: {
+    id: 'payroll',
+    name: 'Payroll',
+    description: 'Payroll processing, pay overview & exports',
+    icon: Banknote,
+    color: 'amber',
+    basePath: '/payroll',
+    status: 'active',
+    adminOnly: true,
+    defaultRoute: '/payroll/process',
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'amber' },
+    ],
+    getSidebarItems: () => [
+      { type: 'item', path: '/payroll/process', label: 'Process Payroll', icon: Banknote },
+      { type: 'item', path: '/payroll/pay-overview', label: 'Pay Overview', icon: Wallet },
+      { type: 'item', path: '/payroll/export', label: 'Export & Reports', icon: Download },
+      {
+        type: 'group', label: 'Configuration', icon: Settings,
+        children: [
+          { path: '/settings/timesheet', label: 'Settings', icon: Settings },
+        ],
+      },
+    ],
   },
 
   employee: {
