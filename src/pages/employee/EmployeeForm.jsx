@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
 
 // ── Per-assignment document manager ─────────────────────────────────────────
@@ -201,6 +201,12 @@ export default function EmployeeForm() {
   const [originalStatus, setOriginalStatus] = useState('active'); // track loaded status for separation detection
   const [showSeparationConfirm, setShowSeparationConfirm] = useState(false);
 
+  // ── Rate Revision ──
+  const [reviseModal, setReviseModal] = useState(null); // { assignmentIndex, currentRates }
+  const [reviseForm, setReviseForm] = useState({ effectiveDate: '', billingRate: { daily: '', hourly: '', monthly: '' }, clientBillingRate: { daily: '', hourly: '', monthly: '' }, paidLeavePerMonth: '', reason: '' });
+  const [revisingRate, setRevisingRate] = useState(false);
+  const [expandedHistory, setExpandedHistory] = useState({}); // { [idx]: true/false }
+
   // ── Related User (Employee ↔ Portal User linking) ──
   const [orgMembers, setOrgMembers] = useState([]);
   const [linkedUser, setLinkedUser] = useState(null); // { _id, name, email, picture }
@@ -283,6 +289,7 @@ export default function EmployeeForm() {
                 startDate: a.startDate ? a.startDate.slice(0, 10) : '',
                 endDate: a.endDate ? a.endDate.slice(0, 10) : '',
                 status: a.status || 'active',
+                rateHistory: a.rateHistory || [],
               };
             }),
             joiningDate: emp.joiningDate ? emp.joiningDate.slice(0, 10) : '',
@@ -573,6 +580,7 @@ export default function EmployeeForm() {
                 startDate: a.startDate ? a.startDate.slice(0, 10) : '',
                 endDate: a.endDate ? a.endDate.slice(0, 10) : '',
                 status: a.status || 'active',
+                rateHistory: a.rateHistory || [],
               };
             }),
           }));
@@ -666,6 +674,7 @@ export default function EmployeeForm() {
               startDate: a.startDate ? a.startDate.slice(0, 10) : '',
               endDate: a.endDate ? a.endDate.slice(0, 10) : '',
               status: a.status || 'active',
+              rateHistory: a.rateHistory || [],
             };
           }),
         }));
@@ -684,6 +693,100 @@ export default function EmployeeForm() {
     } finally {
       setSavingAssignment(null);
     }
+  };
+
+  // ── Rate Revision Handlers ──
+  const openReviseModal = (idx) => {
+    const assignment = form.assignments[idx];
+    setReviseModal({ assignmentIndex: idx, currentRates: assignment });
+    setReviseForm({
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      billingRate: { daily: '', hourly: '', monthly: '' },
+      clientBillingRate: { daily: '', hourly: '', monthly: '' },
+      paidLeavePerMonth: assignment.paidLeavePerMonth ?? 0,
+      reason: '',
+    });
+  };
+
+  const handleReviseRate = async () => {
+    if (!reviseModal || !employeeId) return;
+    if (!reviseForm.effectiveDate) {
+      showToast('Effective date is required', 'error');
+      return;
+    }
+    const hasBR = Object.values(reviseForm.billingRate).some(v => v && Number(v) > 0);
+    const hasCBR = Object.values(reviseForm.clientBillingRate).some(v => v && Number(v) > 0);
+    if (!hasBR && !hasCBR) {
+      showToast('Please enter at least one new rate', 'error');
+      return;
+    }
+
+    setRevisingRate(true);
+    try {
+      const payload = {
+        effectiveDate: reviseForm.effectiveDate,
+        reason: reviseForm.reason,
+        paidLeavePerMonth: Number(reviseForm.paidLeavePerMonth) || 0,
+      };
+      if (hasBR) {
+        payload.billingRate = {
+          daily: Number(reviseForm.billingRate.daily) || 0,
+          hourly: Number(reviseForm.billingRate.hourly) || 0,
+          monthly: Number(reviseForm.billingRate.monthly) || 0,
+        };
+      }
+      if (hasCBR) {
+        payload.clientBillingRate = {
+          daily: Number(reviseForm.clientBillingRate.daily) || 0,
+          hourly: Number(reviseForm.clientBillingRate.hourly) || 0,
+          monthly: Number(reviseForm.clientBillingRate.monthly) || 0,
+        };
+      }
+
+      const result = await employeeApi.reviseRate(orgSlug, employeeId, reviseModal.assignmentIndex, payload);
+      if (result.success && result.employee) {
+        const emp = result.employee;
+        setForm(prev => ({
+          ...prev,
+          assignments: (emp.assignments || []).map(a => {
+            const cbr = typeof a.clientBillingRate === 'number'
+              ? { daily: a.clientBillingRate || '', hourly: '', monthly: '' }
+              : a.clientBillingRate || {};
+            return {
+              clientId: a.clientId || '',
+              clientName: a.clientName || '',
+              projectId: a.projectId || '',
+              projectName: a.projectName || '',
+              billingRate: { daily: a.billingRate?.daily ?? '', hourly: a.billingRate?.hourly ?? '', monthly: a.billingRate?.monthly ?? '' },
+              clientBillingRate: { daily: cbr.daily ?? '', hourly: cbr.hourly ?? '', monthly: cbr.monthly ?? '' },
+              paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+              startDate: a.startDate ? a.startDate.slice(0, 10) : '',
+              endDate: a.endDate ? a.endDate.slice(0, 10) : '',
+              status: a.status || 'active',
+              rateHistory: a.rateHistory || [],
+            };
+          }),
+        }));
+        setSavedAssignmentCount((emp.assignments || []).length);
+        setReviseModal(null);
+        showToast('Rate revised successfully', 'success');
+      } else {
+        showToast(result.error || 'Failed to revise rate', 'error');
+      }
+    } catch (err) {
+      console.error('Revise rate error:', err);
+      showToast(err.message || 'Failed to revise rate', 'error');
+    } finally {
+      setRevisingRate(false);
+    }
+  };
+
+  const formatRate = (rate) => {
+    if (!rate) return '\u2014';
+    if (rate.monthly) return `\u20B9${Number(rate.monthly).toLocaleString('en-IN')}/month`;
+    if (rate.daily) return `\u20B9${Number(rate.daily).toLocaleString('en-IN')}/day`;
+    if (rate.hourly) return `$${Number(rate.hourly).toLocaleString()}/hour`;
+    return '\u2014';
   };
 
   if (loading) {
@@ -1040,15 +1143,27 @@ export default function EmployeeForm() {
                     <option value="ended">Ended</option>
                   </select>
                   {isEdit && (
-                    <button
-                      type="button"
-                      onClick={() => saveAssignment(idx)}
-                      disabled={savingAssignment === idx}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors disabled:opacity-50"
-                    >
-                      {savingAssignment === idx ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                      {savingAssignment === idx ? 'Saving...' : 'Save'}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => saveAssignment(idx)}
+                        disabled={savingAssignment === idx}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors disabled:opacity-50"
+                      >
+                        {savingAssignment === idx ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        {savingAssignment === idx ? 'Saving...' : 'Save'}
+                      </button>
+                      {idx < savedAssignmentCount && assignment.status === 'active' && (
+                        <button
+                          type="button"
+                          onClick={() => openReviseModal(idx)}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg text-xs font-medium hover:bg-amber-500/20 transition-colors"
+                        >
+                          <TrendingUp size={12} />
+                          Revise Rate
+                        </button>
+                      )}
+                    </>
                   )}
                   <button
                     type="button"
@@ -1161,6 +1276,46 @@ export default function EmployeeForm() {
                   <input type="date" value={assignment.endDate || ''} onChange={(e) => updateAssignment(idx, 'endDate', e.target.value)} className="input-field w-full text-sm" />
                 </div>
               </div>
+
+              {/* Rate History Timeline */}
+              {assignment.rateHistory?.length > 0 && (
+                <div className="border-t border-dark-700/50 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedHistory(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                    className="flex items-center gap-2 text-xs text-dark-400 hover:text-dark-200 transition-colors w-full"
+                  >
+                    <Clock size={12} />
+                    <span className="font-medium">Rate History ({assignment.rateHistory.length} {assignment.rateHistory.length === 1 ? 'entry' : 'entries'})</span>
+                    {expandedHistory[idx] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                  {expandedHistory[idx] && (
+                    <div className="mt-2 space-y-2 pl-2 border-l-2 border-dark-700/50 ml-1.5">
+                      {[...assignment.rateHistory].reverse().map((entry, hIdx) => {
+                        const effDate = entry.effectiveDate ? new Date(entry.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                        const endDate = entry.endDate ? new Date(entry.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Current';
+                        return (
+                          <div key={hIdx} className="py-1.5 pl-3">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className={`font-medium ${!entry.endDate ? 'text-emerald-400' : 'text-dark-300'}`}>
+                                {effDate} → {endDate}
+                              </span>
+                            </div>
+                            <div className="text-xs text-dark-400 mt-0.5">
+                              Candidate: {formatRate(entry.billingRate)} | Client: {formatRate(entry.clientBillingRate)}
+                            </div>
+                            {entry.reason && (
+                              <div className="text-xs text-dark-500 mt-0.5 italic">
+                                {entry.reason} — by {entry.changedByName || 'System'}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Documents — only for assignments already saved to DB */}
               {isEdit && idx < savedAssignmentCount ? (
@@ -1441,6 +1596,147 @@ export default function EmployeeForm() {
           </button>
         </div>
       </form>
+
+      {/* ── Revise Rate Modal ────────────────────────────────────────── */}
+      {reviseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <TrendingUp size={20} className="text-amber-400" />
+                </div>
+                <h3 className="text-white font-semibold text-lg">Revise Rate</h3>
+              </div>
+              <button type="button" onClick={() => setReviseModal(null)} className="text-dark-400 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Current Rates (read-only) */}
+            <div className="bg-dark-900/50 rounded-lg p-3 mb-4">
+              <p className="text-xs text-dark-500 uppercase tracking-wider font-medium mb-1">Current Rates</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><span className="text-dark-400">Candidate:</span> <span className="text-white">{formatRate(reviseModal.currentRates?.billingRate)}</span></div>
+                <div><span className="text-dark-400">Client:</span> <span className="text-white">{formatRate(reviseModal.currentRates?.clientBillingRate)}</span></div>
+              </div>
+            </div>
+
+            {/* Effective Date */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-dark-400 mb-1">Effective Date <span className="text-red-400">*</span></label>
+              <input
+                type="date"
+                value={reviseForm.effectiveDate}
+                onChange={(e) => setReviseForm(prev => ({ ...prev, effectiveDate: e.target.value }))}
+                className="input-field w-full text-sm"
+              />
+            </div>
+
+            {/* New Candidate Rate */}
+            <div className="mb-4">
+              <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">New Candidate Rate <span className="normal-case tracking-normal text-dark-600 ml-1">(fill any one)</span></p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { key: 'daily', label: '₹/day', symbol: '₹' },
+                  { key: 'hourly', label: '$/hour', symbol: '$' },
+                  { key: 'monthly', label: '₹/month', symbol: '₹' },
+                ].map(({ key, label, symbol }) => (
+                  <div key={key}>
+                    <label className="block text-xs text-dark-400 mb-1">{label}</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{symbol}</span>
+                      <input
+                        type="number"
+                        value={reviseForm.billingRate[key]}
+                        onChange={(e) => setReviseForm(prev => ({ ...prev, billingRate: { ...prev.billingRate, [key]: e.target.value } }))}
+                        className="input-field w-full pl-7 text-sm"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* New Client Billing Rate */}
+            <div className="mb-4">
+              <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">New Client Billing Rate <span className="normal-case tracking-normal text-dark-600 ml-1">(fill any one)</span></p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { key: 'daily', label: '₹/day', symbol: '₹' },
+                  { key: 'hourly', label: '$/hour', symbol: '$' },
+                  { key: 'monthly', label: '₹/month', symbol: '₹' },
+                ].map(({ key, label, symbol }) => (
+                  <div key={key}>
+                    <label className="block text-xs text-dark-400 mb-1">{label}</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{symbol}</span>
+                      <input
+                        type="number"
+                        value={reviseForm.clientBillingRate[key]}
+                        onChange={(e) => setReviseForm(prev => ({ ...prev, clientBillingRate: { ...prev.clientBillingRate, [key]: e.target.value } }))}
+                        className="input-field w-full pl-7 text-sm"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Paid Leave */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-dark-400 mb-1">Paid Leave (days/month)</label>
+              <select
+                value={reviseForm.paidLeavePerMonth}
+                onChange={(e) => setReviseForm(prev => ({ ...prev, paidLeavePerMonth: Number(e.target.value) }))}
+                className="input-field w-full text-sm"
+              >
+                {[0, 1, 2, 3].map(n => (
+                  <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/month</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reason */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-dark-400 mb-1">Reason (optional)</label>
+              <input
+                type="text"
+                value={reviseForm.reason}
+                onChange={(e) => setReviseForm(prev => ({ ...prev, reason: e.target.value }))}
+                className="input-field w-full text-sm"
+                placeholder="e.g., Annual increment"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setReviseModal(null)}
+                className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReviseRate}
+                disabled={revisingRate}
+                className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {revisingRate ? (
+                  <><Loader2 size={14} className="animate-spin" /> Applying...</>
+                ) : (
+                  <><TrendingUp size={14} /> Apply Revision</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Separation Confirmation Dialog ──────────────────────────── */}
       {showSeparationConfirm && (

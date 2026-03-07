@@ -4,7 +4,7 @@ import { useTimesheetContext } from '../../context/TimesheetContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
-import { Clock, Loader2, Download, FileText } from 'lucide-react';
+import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -240,6 +240,16 @@ async function downloadPayslipPDF(month, year, showToast) {
   doc.text(numberToWords(earn.netAmount), margin + 30, y + 5);
   y += 14;
 
+  // ===== PRO-RATA NOTE (if rate revised mid-month) =====
+  if (data.revisionData?.revisionApplied) {
+    fillRect(margin, y, contentW, 8, [255, 251, 235]);
+    doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.3);
+    doc.rect(margin, y, contentW, 8, 'S');
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(146, 64, 14);
+    doc.text('* Salary pro-rated due to rate revision during this month.', margin + 3, y + 5);
+    y += 12;
+  }
+
   // ===== FOOTER =====
   drawLine(margin, y, pageW - margin, y, lineColor, 0.3);
   y += 5;
@@ -265,6 +275,20 @@ function EarningsCard({ data, title, onDownload, downloading }) {
           <p className="text-sm text-red-400 mt-1">TDS (2%): -₹{(data.earnings?.tdsAmount || 0).toLocaleString()}</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">Net: ₹{(data.earnings?.netAmount || data.earnings?.grossAmount || 0).toLocaleString()}</p>
           <p className="text-xs text-dark-500 mt-1">{data.earnings?.calculation}</p>
+          {data.revisionData?.revisionApplied && (
+            <div className="mt-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-amber-400 mb-1">
+                <TrendingUp size={11} />
+                Pro-rated: Rate revised mid-month
+              </div>
+              {data.revisionData.ratePeriods?.map((p, pi) => (
+                <div key={pi} className="text-xs text-dark-400">
+                  Day {p.startDay}–{p.endDay}: ₹{(p.billingRate?.monthly || p.billingRate?.daily || 0).toLocaleString('en-IN')}
+                  {p.periodAmount ? ` → ₹${Math.round(p.periodAmount).toLocaleString('en-IN')}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
           {data.estimateNote && (
             <p className="text-xs text-amber-400/80 italic mt-1">{data.estimateNote}</p>
           )}
@@ -326,6 +350,8 @@ export default function TimesheetEarnings() {
   const [disbursement, setDisbursement] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null);
+  const [rateHistory, setRateHistory] = useState([]);
+  const [showRateHistory, setShowRateHistory] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -335,6 +361,7 @@ export default function TimesheetEarnings() {
       timesheetApi.get('/earnings/previous', sig).then(r => setPrevious(r.data)).catch(() => {}),
       timesheetApi.get('/earnings/history', sig).then(r => setHistory(r.data)).catch(() => {}),
       timesheetApi.get('/earnings/disbursement-info', sig).then(r => setDisbursement(r.data)).catch(() => {}),
+      timesheetApi.get('/earnings/rate-history', sig).then(r => setRateHistory(r.data?.revisions || [])).catch(() => {}),
     ]).finally(() => setLoading(false));
     return () => controller.abort();
   }, []);
@@ -358,6 +385,45 @@ export default function TimesheetEarnings() {
         <EarningsCard data={current} title={current ? `${monthNames[current.month]} ${current.year} (Current)` : 'Current Month'} onDownload={handleDownloadPayslip} downloading={downloading} />
         <EarningsCard data={previous} title={previous ? `${monthNames[previous.month]} ${previous.year} (Previous)` : 'Previous Month'} onDownload={handleDownloadPayslip} downloading={downloading} />
       </div>
+
+      {/* Rate Revision History */}
+      {rateHistory.length > 0 && (
+        <div className="card p-5">
+          <button
+            onClick={() => setShowRateHistory(prev => !prev)}
+            className="flex items-center gap-2 w-full"
+          >
+            <TrendingUp size={18} className="text-amber-400" />
+            <h3 className="font-semibold text-white flex-1 text-left">Rate Revisions</h3>
+            <span className="text-xs text-dark-400 mr-1">{rateHistory.length} {rateHistory.length === 1 ? 'revision' : 'revisions'}</span>
+            {showRateHistory ? <ChevronUp size={16} className="text-dark-400" /> : <ChevronDown size={16} className="text-dark-400" />}
+          </button>
+          {showRateHistory && (
+            <div className="mt-4 space-y-3 border-l-2 border-amber-500/30 pl-4 ml-2">
+              {rateHistory.map((rev, i) => (
+                <div key={i} className="relative">
+                  <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-dark-800" />
+                  <div className="text-sm">
+                    <span className="text-white font-medium">
+                      {rev.effectiveDate ? new Date(rev.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    </span>
+                    <span className="text-dark-500 mx-2">•</span>
+                    <span className="text-dark-300">{rev.projectName || 'Assignment'}</span>
+                  </div>
+                  <div className="text-xs text-dark-400 mt-0.5">
+                    {rev.previousRate?.monthly ? `₹${Number(rev.previousRate.monthly).toLocaleString('en-IN')}` : rev.previousRate?.daily ? `₹${Number(rev.previousRate.daily).toLocaleString('en-IN')}/day` : '—'}
+                    <span className="mx-1.5 text-dark-600">→</span>
+                    <span className="text-emerald-400 font-medium">
+                      {rev.newRate?.monthly ? `₹${Number(rev.newRate.monthly).toLocaleString('en-IN')}/month` : rev.newRate?.daily ? `₹${Number(rev.newRate.daily).toLocaleString('en-IN')}/day` : '—'}
+                    </span>
+                  </div>
+                  {rev.reason && <div className="text-xs text-dark-500 italic mt-0.5">{rev.reason}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-4">

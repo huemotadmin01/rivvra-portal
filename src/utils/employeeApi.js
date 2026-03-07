@@ -149,6 +149,18 @@ const employeeApi = {
     return `${API_BASE_URL}/api/org/${orgSlug}/employee/employees/${employeeId}/documents/${docId}`;
   },
 
+  // ── Rate Revision ──────────────────────────────────────────────────────────
+  reviseRate(orgSlug, employeeId, assignmentIndex, data) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/assignments/${assignmentIndex}/revise-rate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getRateHistory(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/rate-history`);
+  },
+
   // ── Employee ↔ User Linking ───────────────────────────────────────────────
   linkUser(orgSlug, employeeId, userId) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/link-user`, {
