@@ -196,7 +196,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                             <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${ACT_TYPE_BADGES[a.type] || ACT_TYPE_BADGES.note}`}>
                               {a.type}
                             </span>
-                            <span className="text-[9px] text-dark-600">{ENTITY_LABELS[a.entityType] || a.entityType}</span>
+                            <span className="text-[9px] text-dark-500">
+                              {a.entityName || (ENTITY_LABELS[a.entityType] || a.entityType)}
+                            </span>
                             {a.dueDate && (
                               <span className="text-[9px] text-dark-500 flex items-center gap-0.5">
                                 <Calendar size={8} /> {new Date(a.dueDate).toLocaleDateString()}
