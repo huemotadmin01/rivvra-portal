@@ -16,7 +16,7 @@ export function useBreadcrumbs() {
   const location = useLocation();
   const { currentApp, orgPath } = usePlatform();
   const { user } = useAuth();
-  const { getAppRole } = useOrg();
+  const { getAppRole, isOrgAdmin } = useOrg();
   const { timesheetUser } = useTimesheetContext();
   const { getDetailLabel } = useBreadcrumbContext();
 
@@ -26,7 +26,9 @@ export function useBreadcrumbs() {
     const appPath = stripOrgPrefix(location.pathname);
 
     // Build sidebar lookup: flatten all items into { path -> label }
-    const orgAppRole = currentApp?.id ? getAppRole(currentApp.id) : null;
+    const orgAppRole = currentApp?.adminOnly && isOrgAdmin
+      ? 'admin'
+      : (currentApp?.id ? getAppRole(currentApp.id) : null);
     const sidebarItems = currentApp.getSidebarItems?.(user, timesheetUser, orgAppRole) || [];
     const pathLabelMap = {};
     const flattenItems = (items) => {

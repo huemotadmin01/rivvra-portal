@@ -16,7 +16,7 @@ function AppSidebar({ isOpen, onClose }) {
   const { user, logout, isImpersonating } = useAuth();
   const { currentApp, orgPath, orgSlug } = usePlatform();
   const { timesheetUser } = useTimesheetContext();
-  const { hasAppAccess, getAppRole, currentOrg } = useOrg();
+  const { hasAppAccess, getAppRole, currentOrg, isOrgAdmin } = useOrg();
   const [showWipModal, setShowWipModal] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
 
@@ -30,7 +30,10 @@ function AppSidebar({ isOpen, onClose }) {
   }
 
   // Pass org membership role so apps can use it as source of truth
-  const orgAppRole = currentApp?.id && currentOrg ? getAppRole(currentApp.id) : null;
+  // For admin-only apps (settings), use org-level role since they're not in appAccess
+  const orgAppRole = currentApp.adminOnly && isOrgAdmin
+    ? 'admin'
+    : (currentApp?.id && currentOrg ? getAppRole(currentApp.id) : null);
   const sidebarItems = currentApp.getSidebarItems(user, timesheetUser, orgAppRole);
 
   // Use stripOrgPrefix for active matching so /org/slug/outreach/dashboard matches /outreach/dashboard
