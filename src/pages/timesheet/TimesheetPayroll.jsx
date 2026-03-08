@@ -4,7 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import {
-  Loader2, Download, ChevronDown, ChevronUp, CheckCircle2, RotateCcw,
+  Loader2, Download, ChevronDown, ChevronUp,
   IndianRupee, Users, TrendingUp, Search, FileSpreadsheet, Package,
   ChevronLeft, ChevronRight, ShieldCheck, CalendarDays,
 } from 'lucide-react';
@@ -41,8 +41,6 @@ export default function TimesheetPayroll() {
   const [expandedEmployee, setExpandedEmployee] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [actionLoading, setActionLoading] = useState(null);
-  const [batchLoading, setBatchLoading] = useState(false);
   const [downloadingPayslip, setDownloadingPayslip] = useState(null);
   const [batchDownloading, setBatchDownloading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,49 +112,6 @@ export default function TimesheetPayroll() {
     }
     return counts;
   }, [data]);
-
-  // Actions
-  const handleMarkPaid = async (emp) => {
-    const tsIds = emp.projects.map(p => p.timesheetId);
-    setActionLoading(emp.employeeObjId);
-    try {
-      await timesheetApi.patch('/payroll/mark-paid', { timesheetIds: tsIds });
-      showToast(`${emp.name} marked as paid`);
-      loadPayroll();
-    } catch (err) {
-      showToast(err.response?.data?.error || 'Failed to mark as paid', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleMarkUnpaid = async (emp) => {
-    const tsIds = emp.projects.map(p => p.timesheetId);
-    setActionLoading(emp.employeeObjId);
-    try {
-      await timesheetApi.patch('/payroll/mark-unpaid', { timesheetIds: tsIds });
-      showToast(`${emp.name} marked as unpaid`);
-      loadPayroll();
-    } catch (err) {
-      showToast(err.response?.data?.error || 'Failed', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleBatchMarkPaid = async () => {
-    if (!window.confirm(`Mark all ${filteredSummary.unpaidCount} unpaid employees as paid for ${monthNames[month]} ${year}?`)) return;
-    setBatchLoading(true);
-    try {
-      const res = await timesheetApi.patch('/payroll/batch-mark-paid', { month, year });
-      showToast(`${res.data.updatedCount} timesheet(s) marked as paid`);
-      loadPayroll();
-    } catch (err) {
-      showToast(err.response?.data?.error || 'Batch mark failed', 'error');
-    } finally {
-      setBatchLoading(false);
-    }
-  };
 
   const handleDownloadPayslip = async (emp) => {
     setDownloadingPayslip(emp.employeeObjId);
@@ -379,13 +334,6 @@ export default function TimesheetPayroll() {
             className="w-full bg-dark-800/50 border border-dark-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-dark-500 outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
         </div>
         <div className="flex flex-wrap gap-2">
-          {filteredSummary.unpaidCount > 0 && (
-            <button onClick={handleBatchMarkPaid} disabled={batchLoading}
-              className="bg-emerald-500 text-dark-950 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-400 flex items-center gap-1.5 transition-colors disabled:opacity-50">
-              {batchLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              Mark All Paid
-            </button>
-          )}
           <button onClick={handleBatchDownloadPayslips} disabled={batchDownloading || filteredEmployees.length === 0}
             className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors disabled:opacity-50">
             {batchDownloading ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
@@ -580,21 +528,6 @@ export default function TimesheetPayroll() {
                                 {downloadingPayslip === emp.employeeObjId ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                                 Download Payslip
                               </button>
-                              {emp.paymentStatus !== 'paid' ? (
-                                <button onClick={(e) => { e.stopPropagation(); handleMarkPaid(emp); }}
-                                  disabled={actionLoading === emp.employeeObjId}
-                                  className="bg-emerald-500 text-dark-950 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-emerald-400 flex items-center gap-1.5 transition-colors disabled:opacity-50">
-                                  {actionLoading === emp.employeeObjId ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                                  Mark as Paid
-                                </button>
-                              ) : (
-                                <button onClick={(e) => { e.stopPropagation(); handleMarkUnpaid(emp); }}
-                                  disabled={actionLoading === emp.employeeObjId}
-                                  className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors disabled:opacity-50">
-                                  {actionLoading === emp.employeeObjId ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                                  Mark as Unpaid
-                                </button>
-                              )}
                             </div>
                           </div>
                         </td>
