@@ -8,7 +8,7 @@ import {
   Loader2, Download, ChevronDown, ChevronUp,
   IndianRupee, Users, TrendingUp, Search, FileSpreadsheet, Package,
   ChevronLeft, ChevronRight, ShieldCheck, CalendarDays, FileDown,
-  X, AlertTriangle, UserX,
+  X, AlertTriangle, UserX, Lock, Unlock, Play, CheckCircle2, Circle,
 } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -53,6 +53,11 @@ export default function TimesheetPayroll() {
     return <div className="p-6 text-center text-dark-400">Access denied. Admin only.</div>;
   }
 
+  // Payroll run lifecycle
+  const [payrollRun, setPayrollRun] = useState({ status: 'open' });
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+
   // Missing submissions data + popup states
   const [missingData, setMissingData] = useState(null);
   const [showMissingPopup, setShowMissingPopup] = useState(false);
@@ -66,6 +71,7 @@ export default function TimesheetPayroll() {
         timesheetApi.get('/dashboard/missing-submissions').catch(() => null),
       ]);
       setData(payrollRes.data);
+      setPayrollRun(payrollRes.data?.payrollRun || { status: 'open' });
       if (missingRes?.data?.months) {
         // Find the month matching current selection
         const match = missingRes.data.months.find(m => m.month === month && m.year === year);
@@ -380,6 +386,60 @@ export default function TimesheetPayroll() {
     }
   };
 
+  // ── Payroll Run Actions ──
+  const handleLockPayroll = async () => {
+    setActionLoading(true);
+    try {
+      await timesheetApi.post('/payroll/run/lock', { month, year });
+      showToast(`Payroll locked for ${monthNames[month]} ${year}`);
+      await loadPayroll();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to lock payroll', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnlockPayroll = async () => {
+    setActionLoading(true);
+    try {
+      await timesheetApi.post('/payroll/run/unlock', { month, year });
+      showToast(`Payroll unlocked for ${monthNames[month]} ${year}`);
+      await loadPayroll();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to unlock payroll', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleProcessPayrollRun = async () => {
+    setActionLoading(true);
+    try {
+      await timesheetApi.post('/payroll/run/process', { month, year });
+      showToast(`Payroll processed for ${monthNames[month]} ${year}`);
+      await loadPayroll();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to process payroll', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleFinalizePayroll = async () => {
+    setActionLoading(true);
+    try {
+      await timesheetApi.post('/payroll/run/finalize', { month, year });
+      showToast(`Payroll finalized for ${monthNames[month]} ${year}`);
+      setShowFinalizeConfirm(false);
+      await loadPayroll();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to finalize payroll', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Month navigation
   const goMonth = (dir) => {
     let m = month + dir, y = year;
@@ -497,6 +557,112 @@ export default function TimesheetPayroll() {
         </div>
       </div>
 
+      {/* ── Payroll Run Status Banner ── */}
+      {(() => {
+        const status = payrollRun?.status || 'open';
+        const steps = [
+          { key: 'open', label: 'Open' },
+          { key: 'locked', label: 'Locked' },
+          { key: 'processed', label: 'Processed' },
+          { key: 'finalized', label: 'Finalized' },
+        ];
+        const statusIndex = steps.findIndex(s => s.key === status);
+
+        const statusColors = {
+          open: 'border-dark-700 bg-dark-800/50',
+          locked: 'border-amber-500/30 bg-amber-500/5',
+          processed: 'border-blue-500/30 bg-blue-500/5',
+          finalized: 'border-emerald-500/30 bg-emerald-500/5',
+        };
+
+        const statusInfo = {
+          open: { text: 'Lock payroll to freeze timesheet inputs before processing.', color: 'text-dark-400' },
+          locked: { text: 'Inputs frozen. Employees cannot submit or edit timesheets for this period.', color: 'text-amber-400/80' },
+          processed: { text: 'Payroll processed. Review and finalize to close the month.', color: 'text-blue-400/80' },
+          finalized: { text: `Payroll finalized for ${monthNames[month]} ${year}. No further changes allowed.`, color: 'text-emerald-400/80' },
+        };
+
+        return (
+          <div className={`card border ${statusColors[status]} p-4 space-y-3`}>
+            {/* Step Indicator */}
+            <div className="flex items-center gap-1 sm:gap-2">
+              {steps.map((step, i) => {
+                const isActive = step.key === status;
+                const isPast = i < statusIndex;
+                const isFuture = i > statusIndex;
+
+                return (
+                  <div key={step.key} className="flex items-center flex-1">
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                        isActive ? 'bg-rivvra-500 text-dark-950 ring-2 ring-rivvra-500/30' :
+                        isPast ? 'bg-emerald-500/20 text-emerald-400' :
+                        'bg-dark-700 text-dark-500'
+                      }`}>
+                        {isPast ? <CheckCircle2 size={12} /> : isActive ? <Circle size={8} className="fill-current" /> : <Circle size={8} />}
+                      </div>
+                      <span className={`text-xs font-medium hidden sm:block ${
+                        isActive ? 'text-white' : isPast ? 'text-emerald-400/70' : 'text-dark-500'
+                      }`}>{step.label}</span>
+                    </div>
+                    {i < steps.length - 1 && (
+                      <div className={`flex-1 h-px mx-1 sm:mx-2 ${isPast ? 'bg-emerald-500/30' : 'bg-dark-700'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Info + Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className={`text-xs ${statusInfo[status].color}`}>{statusInfo[status].text}</p>
+              <div className="flex items-center gap-2">
+                {status === 'open' && (
+                  <button onClick={handleLockPayroll} disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-dark-950 hover:bg-amber-400 transition-colors disabled:opacity-50">
+                    {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Lock size={12} />}
+                    Lock Payroll
+                  </button>
+                )}
+                {status === 'locked' && (
+                  <>
+                    <button onClick={handleUnlockPayroll} disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors disabled:opacity-50">
+                      {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Unlock size={12} />}
+                      Unlock
+                    </button>
+                    <button onClick={handleProcessPayrollRun} disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-400 transition-colors disabled:opacity-50">
+                      {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                      Process Payroll
+                    </button>
+                  </>
+                )}
+                {status === 'processed' && (
+                  <>
+                    <button onClick={handleUnlockPayroll} disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700 transition-colors disabled:opacity-50">
+                      {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Unlock size={12} />}
+                      Unlock to Locked
+                    </button>
+                    <button onClick={() => setShowFinalizeConfirm(true)} disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-dark-950 hover:bg-emerald-400 transition-colors disabled:opacity-50">
+                      <CheckCircle2 size={12} />
+                      Finalize
+                    </button>
+                  </>
+                )}
+                {status === 'finalized' && (
+                  <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                    <CheckCircle2 size={14} /> Finalized
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Approved timesheets indicator + missing submissions link */}
       {data?.employees?.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-dark-400">
@@ -551,9 +717,9 @@ export default function TimesheetPayroll() {
             <FileSpreadsheet size={14} /> Export CSV
           </button>
           <button onClick={handleProcessPayroll} disabled={processingPayroll || !data?.employees?.length}
-            className="bg-rivvra-500 text-dark-950 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors disabled:opacity-50">
+            className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors disabled:opacity-50">
             {processingPayroll ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
-            Process Payroll
+            Export Excel
           </button>
         </div>
       </div>
@@ -884,6 +1050,47 @@ export default function TimesheetPayroll() {
                   <span className="text-emerald-400 text-xs font-medium shrink-0">₹{fmt(emp.grossPay)}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finalize Confirmation Modal */}
+      {showFinalizeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowFinalizeConfirm(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <AlertTriangle size={20} className="text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">Finalize Payroll?</h3>
+                  <p className="text-xs text-dark-400">{monthNames[month]} {year}</p>
+                </div>
+              </div>
+              <p className="text-sm text-dark-300 leading-relaxed">
+                This will permanently close the payroll period. Once finalized, no further changes can be made to timesheets or payroll for this month.
+              </p>
+              {payrollRun?.snapshot && (
+                <div className="bg-dark-800/50 rounded-lg p-3 space-y-1 text-sm">
+                  <div className="flex justify-between"><span className="text-dark-400">Employees</span><span className="text-white">{payrollRun.snapshot.totalEmployees}</span></div>
+                  <div className="flex justify-between"><span className="text-dark-400">Total Gross</span><span className="text-white">{'\u20B9'}{fmt(payrollRun.snapshot.totalGross)}</span></div>
+                  <div className="flex justify-between"><span className="text-dark-400">Total Net</span><span className="text-emerald-400 font-medium">{'\u20B9'}{fmt(payrollRun.snapshot.totalNet)}</span></div>
+                </div>
+              )}
+              <div className="flex items-center gap-3 pt-2">
+                <button onClick={() => setShowFinalizeConfirm(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 border border-dark-700 text-dark-300 text-sm font-medium hover:bg-dark-700 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleFinalizePayroll} disabled={actionLoading}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 text-dark-950 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                  {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  Finalize
+                </button>
+              </div>
             </div>
           </div>
         </div>

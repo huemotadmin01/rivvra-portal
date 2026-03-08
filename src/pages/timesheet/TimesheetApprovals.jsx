@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
-import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const statusColors = {
@@ -21,6 +21,7 @@ export default function TimesheetApprovals() {
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState(null); // tracks which ID is being acted on
   const [filter, setFilter] = useState('submitted');
+  const [lockedMonths, setLockedMonths] = useState({}); // { "3-2026": { locked, status } }
 
   const controllerRef = { current: null };
   const load = () => {
@@ -68,6 +69,22 @@ export default function TimesheetApprovals() {
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Rejection failed', 'error'); }
     finally { setActionLoading(null); }
   };
+
+  // Fetch payroll lock status for each unique month/year in timesheets
+  useEffect(() => {
+    if (!timesheets.length) return;
+    const uniqueKeys = [...new Set(timesheets.map(t => `${t.month}-${t.year}`))];
+    Promise.all(uniqueKeys.map(key => {
+      const [m, y] = key.split('-');
+      return timesheetApi.get('/payroll/run/status', { params: { month: m, year: y } })
+        .then(r => ({ key, ...r.data }))
+        .catch(() => ({ key, locked: false, status: 'open' }));
+    })).then(results => {
+      const map = {};
+      results.forEach(r => { map[r.key] = r; });
+      setLockedMonths(map);
+    });
+  }, [timesheets]);
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);
 
@@ -185,12 +202,22 @@ export default function TimesheetApprovals() {
                     </div>
                   )}
 
-                  {ts.status === 'approved' && (
-                    <button onClick={() => handleRevert(ts._id)} disabled={!!actionLoading}
-                      className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      {actionLoading === ts._id ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />} Revert to Draft
-                    </button>
-                  )}
+                  {ts.status === 'approved' && (() => {
+                    const monthKey = `${ts.month}-${ts.year}`;
+                    const lockInfo = lockedMonths[monthKey];
+                    const isRevertBlocked = lockInfo && ['processed', 'finalized'].includes(lockInfo.status);
+                    return isRevertBlocked ? (
+                      <div className="flex items-center gap-2 text-xs text-dark-500">
+                        <Lock size={14} className="text-amber-400/60" />
+                        <span>Cannot revert — payroll is {lockInfo.status} for this month</span>
+                      </div>
+                    ) : (
+                      <button onClick={() => handleRevert(ts._id)} disabled={!!actionLoading}
+                        className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        {actionLoading === ts._id ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />} Revert to Draft
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
             </div>

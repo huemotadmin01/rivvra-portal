@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
-import { ChevronLeft, ChevronRight, Save, Send, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Send, AlertCircle, RotateCcw, Loader2, Lock } from 'lucide-react';
 
 const statusColors = {
   'working': 'bg-emerald-500',
@@ -33,6 +33,7 @@ export default function TimesheetEntry() {
   const [entries, setEntries] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [periodLocked, setPeriodLocked] = useState(false);
 
   useEffect(() => {
     if (!timesheetUser) return;
@@ -93,6 +94,14 @@ export default function TimesheetEntry() {
     return () => controller.abort();
   }, [month, year, selectedProject, timesheetUser]);
 
+  // Check if payroll period is locked
+  useEffect(() => {
+    setPeriodLocked(false);
+    timesheetApi.get('/payroll/run/status', { params: { month, year } })
+      .then(r => setPeriodLocked(r.data?.locked || false))
+      .catch(() => setPeriodLocked(false));
+  }, [month, year]);
+
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
 
@@ -112,7 +121,7 @@ export default function TimesheetEntry() {
     return date < startDateOnly;
   };
 
-  const canEdit = !timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected';
+  const canEdit = !periodLocked && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
 
   const cycleStatus = (day) => {
     if (!canEdit || isBeforeProjectStart(day)) return;
@@ -338,6 +347,13 @@ export default function TimesheetEntry() {
           {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
         </select>
       </div>
+
+      {periodLocked && (
+        <div className="rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium border bg-amber-500/5 text-amber-400 border-amber-500/20">
+          <Lock size={16} />
+          Payroll for {monthNames[month - 1]} {year} is locked. You cannot edit or submit timesheets for this period.
+        </div>
+      )}
 
       {timesheet && timesheet.status !== 'draft' && (
         <div className={`rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium border ${
