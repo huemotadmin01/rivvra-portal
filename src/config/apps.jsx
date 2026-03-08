@@ -44,7 +44,7 @@ export const APP_REGISTRY = {
           icon: Layers,
           children: [
             { path: '/outreach/lists', label: 'My Lists', icon: List },
-            ...(isAdminOrLead ? [{ path: '/outreach/team-lists', label: 'Team Lists', icon: Layers }] : []),
+            { path: '/outreach/team-lists', label: 'Team Lists', icon: Layers },
           ],
         },
         ...(isAdminOrLead ? [
