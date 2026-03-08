@@ -4,8 +4,27 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
-import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check } from 'lucide-react';
+import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar } from 'lucide-react';
 import RivvraLogo from '../BrynsaLogo';
+import activityApi from '../../utils/activityApi';
+
+const ACT_TYPE_BADGES = {
+  note:        'bg-dark-700 text-dark-300',
+  call:        'bg-blue-500/10 text-blue-400',
+  meeting:     'bg-purple-500/10 text-purple-400',
+  email:       'bg-amber-500/10 text-amber-400',
+  task:        'bg-emerald-500/10 text-emerald-400',
+  onboarding:  'bg-rivvra-500/10 text-rivvra-400',
+  offboarding: 'bg-orange-500/10 text-orange-400',
+};
+
+const ENTITY_LABELS = {
+  employee: 'Employee',
+  crm_opportunity: 'Opportunity',
+  crm_contact: 'Contact',
+  ats_application: 'Application',
+  ats_job: 'Job',
+};
 
 const appColorMap = {
   rivvra: 'text-rivvra-400',
@@ -24,12 +43,33 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
+  const orgSlug = currentOrg?.slug;
 
-  // Close company dropdown on outside click
+  // Activities dropdown
+  const [activities, setActivities] = useState([]);
+  const [actOpen, setActOpen] = useState(false);
+  const actRef = useRef(null);
+
+  useEffect(() => {
+    if (!orgSlug) return;
+    activityApi.my(orgSlug, { isDone: false, limit: 10 })
+      .then(res => { if (res.success) setActivities(res.activities || []); })
+      .catch(() => {});
+  }, [orgSlug]);
+
+  const handleMarkDone = async (id) => {
+    await activityApi.markDone(orgSlug, id, true).catch(() => {});
+    setActivities(prev => prev.filter(a => a._id !== id));
+  };
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
       if (companyDropdownRef.current && !companyDropdownRef.current.contains(e.target)) {
         setCompanyDropdownOpen(false);
+      }
+      if (actRef.current && !actRef.current.contains(e.target)) {
+        setActOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -116,8 +156,63 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
           )}
         </div>
 
-        {/* Right: User */}
-        <div className="flex items-center gap-2">
+        {/* Right: Activities + User */}
+        <div className="flex items-center gap-1">
+          {/* Activities dropdown */}
+          <div className="relative" ref={actRef}>
+            <button
+              onClick={() => setActOpen(!actOpen)}
+              className="relative p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
+              aria-label="My Activities"
+            >
+              <Clock className="w-5 h-5" />
+              {activities.length > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-rivvra-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {activities.length > 9 ? '9+' : activities.length}
+                </span>
+              )}
+            </button>
+
+            {actOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-80 bg-dark-900 border border-dark-700 rounded-xl shadow-xl z-50">
+                <div className="px-4 py-2.5 border-b border-dark-700">
+                  <p className="text-xs font-semibold text-dark-300">My Activities</p>
+                </div>
+                {activities.length === 0 ? (
+                  <div className="px-4 py-6 text-center">
+                    <Clock className="w-6 h-6 text-dark-600 mx-auto mb-1.5" />
+                    <p className="text-xs text-dark-500">No pending activities</p>
+                  </div>
+                ) : (
+                  <div className="max-h-[360px] overflow-y-auto p-1.5">
+                    {activities.map(a => (
+                      <div key={a._id} className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-dark-800/50 group">
+                        <button
+                          onClick={() => handleMarkDone(a._id)}
+                          className="mt-0.5 w-4 h-4 rounded border border-dark-600 hover:border-rivvra-400 hover:bg-rivvra-500/20 flex items-center justify-center flex-shrink-0 transition-colors"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${ACT_TYPE_BADGES[a.type] || ACT_TYPE_BADGES.note}`}>
+                              {a.type}
+                            </span>
+                            <span className="text-[9px] text-dark-600">{ENTITY_LABELS[a.entityType] || a.entityType}</span>
+                            {a.dueDate && (
+                              <span className="text-[9px] text-dark-500 flex items-center gap-0.5">
+                                <Calendar size={8} /> {new Date(a.dueDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          {a.summary && <p className="text-xs text-dark-200 mt-0.5 truncate">{a.summary}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* User dropdown */}
           <div className="relative group">
             <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-dark-800/50 transition-colors">
