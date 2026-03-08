@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import employeeApi from '../../utils/employeeApi';
+import api from '../../utils/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Plus, Edit2, Trash2, Loader2, FileText, ChevronDown, ChevronUp,
-  UserCheck, User, Shield, Monitor, Clock, CheckCircle,
+  UserCheck, User, Shield, Monitor, Clock, CheckCircle, Users,
 } from 'lucide-react';
 
 const RESPONSIBLE_TYPES = [
@@ -26,14 +27,25 @@ function Badge({ children, className }) {
 // ---------------------------------------------------------------------------
 // Task Editor (used inside template form)
 // ---------------------------------------------------------------------------
-function TaskEditor({ tasks, onChange }) {
+function TaskEditor({ tasks, onChange, members = [] }) {
   const addTask = () => {
-    onChange([...tasks, { title: '', description: '', responsibleType: 'hr', relativeDays: 0, isMandatory: false }]);
+    onChange([...tasks, { title: '', description: '', responsibleType: 'hr', relativeDays: 0, isMandatory: false, assignedToUserId: '', assignedToName: '' }]);
   };
 
   const updateTask = (idx, key, value) => {
     const copy = [...tasks];
     copy[idx] = { ...copy[idx], [key]: value };
+    onChange(copy);
+  };
+
+  const handleAssignedChange = (idx, userId) => {
+    const copy = [...tasks];
+    if (!userId) {
+      copy[idx] = { ...copy[idx], assignedToUserId: '', assignedToName: '' };
+    } else {
+      const member = members.find(m => m.userId === userId);
+      copy[idx] = { ...copy[idx], assignedToUserId: userId, assignedToName: member?.name || '' };
+    }
     onChange(copy);
   };
 
@@ -89,11 +101,27 @@ function TaskEditor({ tasks, onChange }) {
                 <span className="text-xs text-dark-400">Required</span>
               </label>
             </div>
-            <input
-              type="text" value={task.description || ''} placeholder="Description (optional)"
-              onChange={(e) => updateTask(i, 'description', e.target.value)}
-              className="w-full mt-2 px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-dark-300 text-xs placeholder-dark-600 focus:outline-none focus:border-rivvra-500"
-            />
+            {/* Row 2: Description + Assigned to */}
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 mt-2">
+              <input
+                type="text" value={task.description || ''} placeholder="Description (optional)"
+                onChange={(e) => updateTask(i, 'description', e.target.value)}
+                className="w-full px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-dark-300 text-xs placeholder-dark-600 focus:outline-none focus:border-rivvra-500"
+              />
+              <div className="flex items-center gap-1">
+                <Users size={12} className="text-dark-500 flex-shrink-0" />
+                <select
+                  value={task.assignedToUserId || ''}
+                  onChange={(e) => handleAssignedChange(i, e.target.value)}
+                  className="px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-dark-300 text-xs focus:outline-none focus:border-rivvra-500 min-w-[140px]"
+                >
+                  <option value="">Auto (by role)</option>
+                  {members.map(m => (
+                    <option key={m.userId} value={m.userId}>{m.name || m.email}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -113,6 +141,7 @@ export default function PlanTemplates() {
   const [formData, setFormData] = useState({ name: '', description: '', planType: 'onboarding', tasks: [] });
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [members, setMembers] = useState([]);
 
   const loadTemplates = async () => {
     if (!currentOrg?.slug) return;
@@ -123,7 +152,15 @@ export default function PlanTemplates() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadTemplates(); }, [currentOrg?.slug]);
+  const loadMembers = async () => {
+    if (!currentOrg?.slug) return;
+    try {
+      const res = await api.getOrgMembers(currentOrg.slug);
+      if (res.success) setMembers(res.members?.filter(m => m.status === 'active') || []);
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => { loadTemplates(); loadMembers(); }, [currentOrg?.slug]);
 
   const startCreate = () => {
     setEditingId('new');
@@ -210,7 +247,7 @@ export default function PlanTemplates() {
                 className="w-full px-3 py-2.5 bg-dark-800 border border-dark-600 rounded-xl text-white text-sm placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
                 placeholder="Brief description" />
             </div>
-            <TaskEditor tasks={formData.tasks} onChange={(tasks) => setFormData({ ...formData, tasks })} />
+            <TaskEditor tasks={formData.tasks} onChange={(tasks) => setFormData({ ...formData, tasks })} members={members} />
             <div className="flex items-center justify-end gap-3 pt-2">
               <button type="button" onClick={cancelEdit} className="px-4 py-2 text-sm text-dark-400 hover:text-white">Cancel</button>
               <button type="button" onClick={handleSave} disabled={saving || !formData.name.trim()}
@@ -279,6 +316,11 @@ export default function PlanTemplates() {
                           <span className="text-dark-500 text-xs w-5">{i + 1}.</span>
                           <span className="text-white flex-1">{task.title}</span>
                           <Badge className="bg-dark-700 text-dark-400">{rt?.label || task.responsibleType}</Badge>
+                          {task.assignedToName && (
+                            <span className="text-dark-400 text-xs flex items-center gap-1">
+                              <User size={10} /> {task.assignedToName}
+                            </span>
+                          )}
                           <span className="text-dark-500 text-xs">Day {task.relativeDays}</span>
                           {task.isMandatory && <Badge className="bg-red-500/10 text-red-400">Required</Badge>}
                         </div>
