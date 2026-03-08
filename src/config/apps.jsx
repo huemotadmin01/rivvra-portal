@@ -339,18 +339,20 @@ export function getAppById(id) {
 export function getAllApps(user, orgMembership) {
   // When no user given (e.g. from PlatformContext), return all apps
   if (!user) return Object.values(APP_REGISTRY);
-  const orgRole = orgMembership?.role;
+  const orgRole = orgMembership?.orgRole;
   return Object.values(APP_REGISTRY).filter(app =>
-    !app.adminOnly || orgRole === 'admin' || user?.role === 'admin' || user?.role === 'team_lead'
+    !app.adminOnly || orgRole === 'admin' || orgRole === 'owner' || user?.role === 'admin' || user?.role === 'team_lead'
+    || orgMembership?.appAccess?.[app.id]?.enabled
   );
 }
 
 export function getActiveApps(user, orgMembership) {
   // When no user given, return all active apps
   if (!user) return Object.values(APP_REGISTRY).filter(app => app.status === 'active');
-  const orgRole = orgMembership?.role;
+  const orgRole = orgMembership?.orgRole;
   return Object.values(APP_REGISTRY).filter(app =>
-    app.status === 'active' && (!app.adminOnly || orgRole === 'admin' || user?.role === 'admin' || user?.role === 'team_lead')
+    app.status === 'active' && (!app.adminOnly || orgRole === 'admin' || orgRole === 'owner' || user?.role === 'admin' || user?.role === 'team_lead'
+    || orgMembership?.appAccess?.[app.id]?.enabled)
   );
 }
 
