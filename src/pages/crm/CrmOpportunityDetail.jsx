@@ -3,11 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import ActivityPanel from '../../components/shared/ActivityPanel';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Star, Building2, User, Phone, Mail, Briefcase, Trophy, X,
-  Globe, Linkedin, IndianRupee, Calendar, Tag, MessageSquare, Plus,
-  Check, Clock, Edit3, Trash2, ChevronRight, Loader2, XCircle, RotateCcw,
+  Globe, Linkedin, IndianRupee, Calendar, Tag,
+  Check, Edit3, Trash2, ChevronRight, Loader2, XCircle, RotateCcw,
   ExternalLink, Save,
 } from 'lucide-react';
 
@@ -52,43 +53,6 @@ function StageBar({ stages, currentStageId, isLost, isWon, onStageClick }) {
   );
 }
 
-function ActivityItem({ activity, onToggle, onDelete }) {
-  return (
-    <div className={`flex items-start gap-3 px-3 py-2 rounded-lg ${activity.isDone ? 'opacity-50' : ''}`}>
-      <button onClick={() => onToggle(activity._id, !activity.isDone)}
-        className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-          activity.isDone ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'border-dark-600 hover:border-dark-400'
-        }`}>
-        {activity.isDone && <Check size={10} />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-            activity.type === 'call' ? 'bg-blue-500/10 text-blue-400' :
-            activity.type === 'meeting' ? 'bg-purple-500/10 text-purple-400' :
-            activity.type === 'email' ? 'bg-amber-500/10 text-amber-400' :
-            activity.type === 'task' ? 'bg-emerald-500/10 text-emerald-400' :
-            'bg-dark-700 text-dark-300'
-          }`}>
-            {activity.type}
-          </span>
-          {activity.dueDate && (
-            <span className="text-[10px] text-dark-500 flex items-center gap-0.5">
-              <Calendar size={9} /> {new Date(activity.dueDate).toLocaleDateString()}
-            </span>
-          )}
-        </div>
-        {activity.summary && <p className="text-xs text-dark-200 mt-0.5">{activity.summary}</p>}
-        {activity.note && <p className="text-xs text-dark-400 mt-0.5">{activity.note}</p>}
-        <p className="text-[10px] text-dark-600 mt-0.5">{activity.createdByName} · {new Date(activity.createdAt).toLocaleDateString()}</p>
-      </div>
-      <button onClick={() => onDelete(activity._id)} className="text-dark-600 hover:text-red-400 flex-shrink-0">
-        <Trash2 size={12} />
-      </button>
-    </div>
-  );
-}
-
 export default function CrmOpportunityDetail() {
   const { orgSlug: slug } = useOrg();
   const { opportunityId } = useParams();
@@ -98,29 +62,24 @@ export default function CrmOpportunityDetail() {
   const [opp, setOpp] = useState(null);
   usePageTitle(opp?.name);
   const [stages, setStages] = useState([]);
-  const [activities, setActivities] = useState([]);
   const [lostReasons, setLostReasons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // field name being edited
   const [editValue, setEditValue] = useState('');
   const [showLostModal, setShowLostModal] = useState(false);
-  const [showActivityForm, setShowActivityForm] = useState(false);
-  const [activityForm, setActivityForm] = useState({ type: 'note', summary: '', note: '', dueDate: '' });
   const [converting, setConverting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [oppRes, stagesRes, activitiesRes, reasonsRes] = await Promise.all([
+      const [oppRes, stagesRes, reasonsRes] = await Promise.all([
         crmApi.getOpportunity(slug, opportunityId),
         crmApi.listStages(slug),
-        crmApi.listActivities(slug, { opportunityId }),
         crmApi.listLostReasons(slug),
       ]);
       if (oppRes.success) setOpp(oppRes.opportunity);
       if (stagesRes.success) setStages(stagesRes.stages || []);
-      if (activitiesRes.success) setActivities(activitiesRes.activities || []);
       if (reasonsRes.success) setLostReasons(reasonsRes.reasons || []);
     } catch {
       addToast('Failed to load opportunity', 'error');
@@ -226,38 +185,6 @@ export default function CrmOpportunityDetail() {
       setDeleting(false);
       setShowDeleteModal(false);
       addToast('Failed to delete opportunity', 'error');
-    }
-  };
-
-  const handleCreateActivity = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await crmApi.createActivity(slug, { ...activityForm, opportunityId });
-      if (res.success) {
-        setActivities(prev => [res.activity, ...prev]);
-        setShowActivityForm(false);
-        setActivityForm({ type: 'note', summary: '', note: '', dueDate: '' });
-      }
-    } catch {
-      addToast('Failed to create activity', 'error');
-    }
-  };
-
-  const handleToggleActivity = async (id, isDone) => {
-    try {
-      await crmApi.markActivityDone(slug, id, isDone);
-      setActivities(prev => prev.map(a => a._id === id ? { ...a, isDone, doneAt: isDone ? new Date() : null } : a));
-    } catch {
-      addToast('Failed to update activity', 'error');
-    }
-  };
-
-  const handleDeleteActivity = async (id) => {
-    try {
-      await crmApi.deleteActivity(slug, id);
-      setActivities(prev => prev.filter(a => a._id !== id));
-    } catch {
-      addToast('Failed to delete activity', 'error');
     }
   };
 
@@ -527,49 +454,7 @@ export default function CrmOpportunityDetail() {
           </div>
 
           {/* Activities */}
-          <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Activities</h3>
-              <button onClick={() => setShowActivityForm(!showActivityForm)}
-                className="text-dark-400 hover:text-rivvra-400">
-                <Plus size={14} />
-              </button>
-            </div>
-
-            {showActivityForm && (
-              <form onSubmit={handleCreateActivity} className="mb-3 space-y-2 bg-dark-900 rounded-lg p-3">
-                <div className="flex gap-2">
-                  <select value={activityForm.type} onChange={e => setActivityForm(f => ({ ...f, type: e.target.value }))}
-                    className="bg-dark-800 border border-dark-600 rounded px-2 py-1 text-xs text-dark-200 focus:outline-none">
-                    <option value="note">Note</option>
-                    <option value="call">Call</option>
-                    <option value="meeting">Meeting</option>
-                    <option value="email">Email</option>
-                    <option value="task">Task</option>
-                  </select>
-                  <input type="date" value={activityForm.dueDate} onChange={e => setActivityForm(f => ({ ...f, dueDate: e.target.value }))}
-                    className="bg-dark-800 border border-dark-600 rounded px-2 py-1 text-xs text-dark-200 focus:outline-none" />
-                </div>
-                <input value={activityForm.summary} onChange={e => setActivityForm(f => ({ ...f, summary: e.target.value }))}
-                  placeholder="Summary" className="w-full bg-dark-800 border border-dark-600 rounded px-2 py-1 text-xs text-dark-200 focus:outline-none" />
-                <textarea value={activityForm.note} onChange={e => setActivityForm(f => ({ ...f, note: e.target.value }))}
-                  placeholder="Details..." className="w-full bg-dark-800 border border-dark-600 rounded px-2 py-1 text-xs text-dark-200 focus:outline-none min-h-[50px]" />
-                <div className="flex justify-end gap-1">
-                  <button type="button" onClick={() => setShowActivityForm(false)} className="px-2 py-1 text-[10px] text-dark-400">Cancel</button>
-                  <button type="submit" className="px-2 py-1 text-[10px] bg-rivvra-500 text-white rounded">Add</button>
-                </div>
-              </form>
-            )}
-
-            <div className="space-y-1 max-h-[400px] overflow-y-auto">
-              {activities.map(a => (
-                <ActivityItem key={a._id} activity={a} onToggle={handleToggleActivity} onDelete={handleDeleteActivity} />
-              ))}
-              {activities.length === 0 && (
-                <p className="text-center text-xs text-dark-600 py-4">No activities yet</p>
-              )}
-            </div>
-          </div>
+          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
 
           {/* Stage History */}
           {opp.stageHistory?.length > 0 && (

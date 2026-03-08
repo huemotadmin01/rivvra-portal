@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
+import ActivityPanel from '../../components/shared/ActivityPanel';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Edit2, Save, X, Loader2, Trash2,
@@ -308,6 +309,7 @@ export default function ContactDetail() {
 
   const tabs = [
     { id: 'details', label: 'Details' },
+    { id: 'activities', label: 'Activities' },
     { id: 'notes', label: 'Notes' },
   ];
 
@@ -831,6 +833,11 @@ export default function ContactDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Activities Tab ─────────────────────────────────────────── */}
+      {activeTab === 'activities' && (
+        <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} />
       )}
 
       {/* ── Notes Tab ────────────────────────────────────────────────── */}

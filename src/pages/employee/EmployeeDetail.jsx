@@ -27,6 +27,7 @@ import {
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import PlanProgress from '../../components/employee/PlanProgress';
+import ActivityPanel from '../../components/shared/ActivityPanel';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -524,6 +525,11 @@ export default function EmployeeDetail() {
           </SectionCard>
         </div>
       )}
+
+      {/* ── Activities & Log Notes ─────────────────────────────────────── */}
+      <div className="mt-5">
+        <ActivityPanel orgSlug={currentOrg?.slug} entityType="employee" entityId={employeeId} />
+      </div>
 
       {/* ── Project Assignments (full-width) ────────────────────────────── */}
       {Array.isArray(emp.assignments) && emp.assignments.length > 0 && (

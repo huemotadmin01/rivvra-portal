@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import ActivityPanel from '../../components/shared/ActivityPanel';
 import signApi from '../../utils/signApi';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
@@ -12,7 +13,7 @@ import {
   Loader2, Star, X, ChevronDown,
   Mail, Phone, Linkedin, User, Briefcase,
   Calendar, Edit3, Check, XCircle, Award,
-  Clock, Tag, MessageSquare, Plus, CheckCircle2,
+  Tag, Plus,
   DollarSign, Circle, PenTool, FileSignature, UserPlus, ExternalLink,
 } from 'lucide-react';
 
@@ -229,112 +230,6 @@ function HireModal({ show, onClose, onConfirm, saving }) {
   );
 }
 
-/* ── Add Activity Modal ───────────────────────────────────────────────── */
-function AddActivityModal({ show, onClose, onSaved, orgSlug, applicationId }) {
-  const modalRef = useRef(null);
-  const { showToast } = useToast();
-  const [summary, setSummary] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (show) {
-      setSummary('');
-      setDueDate('');
-      setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
-    }
-  }, [show]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!summary.trim()) return;
-
-    try {
-      setSaving(true);
-      const res = await atsApi.createActivity(orgSlug, {
-        applicationId,
-        summary: summary.trim(),
-        dueDate: dueDate || undefined,
-      });
-      if (res.success) {
-        showToast('Activity added');
-        onSaved();
-        onClose();
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to add activity', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!show) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-semibold text-white">Add Activity</h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Summary <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              placeholder="e.g. Schedule interview, Follow up..."
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="input-field"
-            />
-          </div>
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {saving && <Loader2 size={16} className="animate-spin" />}
-              Add Activity
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 /* ── Move-to-Stage Dropdown ───────────────────────────────────────────── */
 function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect }) {
   return (
@@ -448,14 +343,9 @@ export default function AtsApplicationDetail() {
   const [refuseReasons, setRefuseReasons] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
 
-  // Activities
-  const [activities, setActivities] = useState([]);
-  const [activitiesLoading, setActivitiesLoading] = useState(false);
-
   // Modals
   const [showRefuseModal, setShowRefuseModal] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
-  const [showActivityModal, setShowActivityModal] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [creatingEmployee, setCreatingEmployee] = useState(false);
 
@@ -512,27 +402,8 @@ export default function AtsApplicationDetail() {
     }
   }, [orgSlug]);
 
-  // ── Fetch activities ───────────────────────────────────────────────────
-  const fetchActivities = useCallback(async () => {
-    if (!orgSlug || !applicationId) return;
-    setActivitiesLoading(true);
-    try {
-      const res = await atsApi.listActivities(orgSlug, applicationId);
-      if (res.success) {
-        setActivities(res.activities || []);
-      }
-    } catch (err) {
-      console.error('Failed to load activities:', err);
-    } finally {
-      setActivitiesLoading(false);
-    }
-  }, [orgSlug, applicationId]);
-
   useEffect(() => { fetchApplication(); }, [fetchApplication]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
-  useEffect(() => {
-    if (activeTab === 'activities') fetchActivities();
-  }, [activeTab, fetchActivities]);
 
   // ── Actions ────────────────────────────────────────────────────────────
   const handleMoveStage = async (stageId) => {
@@ -642,16 +513,6 @@ export default function AtsApplicationDetail() {
       showToast(err.message || 'Failed to update application', 'error');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleMarkActivityDone = async (activityId) => {
-    try {
-      await atsApi.markActivityDone(orgSlug, activityId);
-      showToast('Activity marked as done');
-      fetchActivities();
-    } catch (err) {
-      showToast(err.message || 'Failed to update activity', 'error');
     }
   };
 
@@ -1431,69 +1292,7 @@ export default function AtsApplicationDetail() {
 
             {/* Activities Tab */}
             {activeTab === 'activities' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-dark-400 uppercase tracking-wider">
-                    Activities
-                  </h3>
-                  {isAdmin && (
-                    <button
-                      onClick={() => setShowActivityModal(true)}
-                      className="flex items-center gap-1.5 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
-                    >
-                      <Plus size={14} />
-                      Add Activity
-                    </button>
-                  )}
-                </div>
-
-                {activitiesLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
-                  </div>
-                ) : activities.length === 0 ? (
-                  <div className="card p-8 text-center">
-                    <MessageSquare className="w-8 h-8 text-dark-500 mx-auto mb-2" />
-                    <p className="text-dark-400 text-sm">No activities yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {activities.map((activity) => (
-                      <div
-                        key={activity._id}
-                        className={`card p-4 flex items-start gap-3 ${
-                          activity.done ? 'opacity-60' : ''
-                        }`}
-                      >
-                        <button
-                          onClick={() => !activity.done && handleMarkActivityDone(activity._id)}
-                          disabled={activity.done}
-                          className={`mt-0.5 flex-shrink-0 transition-colors ${
-                            activity.done
-                              ? 'text-emerald-400'
-                              : 'text-dark-600 hover:text-emerald-400'
-                          }`}
-                        >
-                          <CheckCircle2 size={18} />
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm ${activity.done ? 'text-dark-400 line-through' : 'text-white'}`}>
-                            {activity.summary}
-                          </p>
-                          {activity.dueDate && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <Clock size={10} className="text-dark-500" />
-                              <span className="text-dark-500 text-xs">
-                                Due {formatDate(activity.dueDate)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <ActivityPanel orgSlug={orgSlug} entityType="ats_application" entityId={applicationId} />
             )}
           </div>
         </div>
@@ -1580,13 +1379,6 @@ export default function AtsApplicationDetail() {
         onClose={() => setShowHireModal(false)}
         onConfirm={handleHire}
         saving={saving}
-      />
-      <AddActivityModal
-        show={showActivityModal}
-        onClose={() => setShowActivityModal(false)}
-        onSaved={fetchActivities}
-        orgSlug={orgSlug}
-        applicationId={applicationId}
       />
     </div>
   );
