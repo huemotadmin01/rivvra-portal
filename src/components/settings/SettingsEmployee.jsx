@@ -6,8 +6,9 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import { Save, Loader2, AlertCircle, Users, UserCog, CalendarClock } from 'lucide-react';
+import { Save, Loader2, AlertCircle, Users, UserCog, CalendarClock, Shield } from 'lucide-react';
 import employeeApi from '../../utils/employeeApi';
+import api from '../../utils/api';
 
 function ToggleSwitch({ checked, onChange, disabled }) {
   return (
@@ -36,18 +37,21 @@ export default function SettingsEmployee() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const [members, setMembers] = useState([]);
 
   useEffect(() => {
     if (!isAdmin || !currentOrg?.slug) { setLoading(false); return; }
     let cancelled = false;
-    employeeApi.getAppSettings(currentOrg.slug)
-      .then((res) => {
-        if (cancelled) return;
-        // Extract settings data from wrapped response
-        if (res.success && res.settings) setSettings(res.settings);
-        else if (res && !res.success) setSettings(res); // legacy fallback
-        else setSettings(res);
-      })
+    Promise.all([
+      employeeApi.getAppSettings(currentOrg.slug),
+      api.getOrgMembers(currentOrg.slug),
+    ]).then(([settingsRes, membersRes]) => {
+      if (cancelled) return;
+      if (settingsRes.success && settingsRes.settings) setSettings(settingsRes.settings);
+      else if (settingsRes && !settingsRes.success) setSettings(settingsRes);
+      else setSettings(settingsRes);
+      if (membersRes.success) setMembers(membersRes.members?.filter(m => m.status === 'active') || []);
+    })
       .catch(() => { if (!cancelled) setFetchError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -144,6 +148,51 @@ export default function SettingsEmployee() {
                 checked={settings?.requireManager ?? false}
                 onChange={v => update('requireManager', v)}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Plan Roles */}
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield size={18} className="text-green-400" />
+            <h3 className="font-semibold text-white">Plan Roles</h3>
+          </div>
+          <p className="text-xs text-dark-500 mb-5">Default assignees for onboarding/offboarding plan tasks. Per-task overrides in templates take priority.</p>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Default HR Officer</label>
+              <p className="text-xs text-dark-500 mb-2">Handles HR-type tasks (document collection, orientation, etc.)</p>
+              <select
+                value={settings?.defaultHrUserId ?? ''}
+                onChange={e => {
+                  const m = members.find(m => m.userId === e.target.value);
+                  update('defaultHrUserId', e.target.value || null);
+                  update('defaultHrUserName', m?.name || null);
+                }}
+                className="input-field w-full">
+                <option value="">Not set (falls back to launcher)</option>
+                {members.map(m => (
+                  <option key={m.userId} value={m.userId}>{m.name || m.email}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Default IT Admin</label>
+              <p className="text-xs text-dark-500 mb-2">Handles IT-type tasks (email setup, workspace access, etc.)</p>
+              <select
+                value={settings?.defaultItUserId ?? ''}
+                onChange={e => {
+                  const m = members.find(m => m.userId === e.target.value);
+                  update('defaultItUserId', e.target.value || null);
+                  update('defaultItUserName', m?.name || null);
+                }}
+                className="input-field w-full">
+                <option value="">Not set (falls back to launcher)</option>
+                {members.map(m => (
+                  <option key={m.userId} value={m.userId}>{m.name || m.email}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
