@@ -3,10 +3,11 @@ import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
+import ExcelJS from 'exceljs';
 import {
   Loader2, Download, ChevronDown, ChevronUp,
   IndianRupee, Users, TrendingUp, Search, FileSpreadsheet, Package,
-  ChevronLeft, ChevronRight, ShieldCheck, CalendarDays,
+  ChevronLeft, ChevronRight, ShieldCheck, CalendarDays, FileDown,
 } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -188,6 +189,183 @@ export default function TimesheetPayroll() {
     }
   };
 
+  // Process Payroll — generate Excel for internal/external consultants
+  const [processingPayroll, setProcessingPayroll] = useState(false);
+
+  const handleProcessPayroll = async () => {
+    if (!data?.employees?.length) return;
+    setProcessingPayroll(true);
+    try {
+      // Filter to internal + external consultants only
+      const consultants = data.employees.filter(e =>
+        e.employmentType === 'internal_consultant' || e.employmentType === 'external_consultant'
+      );
+
+      if (consultants.length === 0) {
+        showToast('No consultant employees found for this month', 'error');
+        setProcessingPayroll(false);
+        return;
+      }
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Rivvra';
+      wb.created = new Date();
+      const ws = wb.addWorksheet('Salary Statement');
+
+      const statusLabel = (t) => t === 'internal_consultant' ? 'Internal Consultant' : 'External Consultant';
+      const fmtDate = (d) => {
+        if (!d) return '';
+        const dt = new Date(d);
+        if (isNaN(dt)) return '';
+        return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      };
+
+      // Row 1: Created On timestamp
+      const createdRow = ws.addRow([`Created On: ${new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`]);
+      createdRow.getCell(1).font = { italic: true, color: { argb: '888888' }, size: 10 };
+
+      // Row 2: Title
+      const titleRow = ws.addRow([`Salary Statement For The Month Of ${monthNames[month]} ${year}`]);
+      titleRow.getCell(1).font = { bold: true, size: 14 };
+      ws.mergeCells(2, 1, 2, 14);
+
+      // Row 3: blank
+      ws.addRow([]);
+
+      // Row 4: Column headers
+      const headers = [
+        'Employee No', 'Name', 'Join Date', 'Status',
+        'Days In Month', 'LOP', 'Effective Workdays',
+        'Gross Pay', 'TDS (2%)', 'Other Deductions', 'Total Deductions', 'Net Pay',
+        'Disbursement Date', 'Payment Status',
+      ];
+      const headerRow = ws.addRow(headers);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2D5F2D' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' },
+        };
+      });
+      headerRow.height = 24;
+
+      // Data rows
+      let totDaysInMonth = 0, totLOP = 0, totEffective = 0;
+      let totGross = 0, totTDS = 0, totOther = 0, totDeductions = 0, totNet = 0;
+
+      consultants.forEach((emp) => {
+        const daysInMonth = emp.totalWorkingDaysInMonth || 0;
+        const lop = emp.leaveDays || 0;
+        const effective = emp.totalWorkingDays || 0;
+        const gross = emp.grossPay || 0;
+        const tds = emp.tdsAmount || 0;
+        const otherDed = 0; // Not tracked yet
+        const totalDed = -(tds + otherDed);
+        const net = emp.netPay || 0;
+
+        totDaysInMonth += daysInMonth;
+        totLOP += lop;
+        totEffective += effective;
+        totGross += gross;
+        totTDS += tds;
+        totOther += otherDed;
+        totDeductions += totalDed;
+        totNet += net;
+
+        const row = ws.addRow([
+          emp.employeeId || '',
+          emp.name || '',
+          fmtDate(emp.joiningDate),
+          statusLabel(emp.employmentType),
+          daysInMonth,
+          lop,
+          effective,
+          Math.round(gross * 100) / 100,
+          Math.round(tds * 100) / 100,
+          otherDed,
+          Math.round(totalDed * 100) / 100,
+          Math.round(net * 100) / 100,
+          fmtDate(emp.disbursementDate),
+          emp.paymentStatus === 'paid' ? 'Paid' : 'Unpaid',
+        ]);
+
+        row.eachCell((cell, colNumber) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'DDDDDD' } },
+            bottom: { style: 'thin', color: { argb: 'DDDDDD' } },
+            left: { style: 'thin', color: { argb: 'DDDDDD' } },
+            right: { style: 'thin', color: { argb: 'DDDDDD' } },
+          };
+          // Currency columns (8-12)
+          if (colNumber >= 8 && colNumber <= 12) {
+            cell.numFmt = '#,##0.00';
+            cell.alignment = { horizontal: 'right' };
+          }
+          // Number columns (5-7)
+          if (colNumber >= 5 && colNumber <= 7) {
+            cell.alignment = { horizontal: 'center' };
+          }
+          // Status column
+          if (colNumber === 14) {
+            cell.font = { color: { argb: cell.value === 'Paid' ? '228B22' : 'CC5500' }, bold: true };
+            cell.alignment = { horizontal: 'center' };
+          }
+        });
+      });
+
+      // Grand Total row
+      const totalRow = ws.addRow([
+        '', '', '', 'Grand Total',
+        totDaysInMonth, totLOP, totEffective,
+        Math.round(totGross * 100) / 100,
+        Math.round(totTDS * 100) / 100,
+        totOther,
+        Math.round(totDeductions * 100) / 100,
+        Math.round(totNet * 100) / 100,
+        '', '',
+      ]);
+      totalRow.eachCell((cell, colNumber) => {
+        cell.font = { bold: true, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F0F0F0' } };
+        cell.border = {
+          top: { style: 'medium' }, bottom: { style: 'medium' },
+          left: { style: 'thin' }, right: { style: 'thin' },
+        };
+        if (colNumber >= 8 && colNumber <= 12) {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { horizontal: 'right' };
+        }
+      });
+
+      // Auto-width columns
+      const minWidths = [14, 30, 14, 20, 14, 8, 18, 14, 12, 16, 16, 14, 16, 14];
+      ws.columns.forEach((col, i) => {
+        col.width = minWidths[i] || 14;
+      });
+
+      // Freeze header row
+      ws.views = [{ state: 'frozen', ySplit: 4 }];
+
+      // Generate and download
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `SalaryStatement_${monthNames[month]}_${year}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Payroll processed — ${consultants.length} consultant(s) exported`);
+    } catch (err) {
+      console.error('Process payroll error:', err);
+      showToast('Failed to process payroll', 'error');
+    } finally {
+      setProcessingPayroll(false);
+    }
+  };
+
   // Month navigation
   const goMonth = (dir) => {
     let m = month + dir, y = year;
@@ -342,6 +520,11 @@ export default function TimesheetPayroll() {
           <button onClick={handleExportCSV}
             className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors">
             <FileSpreadsheet size={14} /> Export CSV
+          </button>
+          <button onClick={handleProcessPayroll} disabled={processingPayroll || !data?.employees?.length}
+            className="bg-rivvra-500 text-dark-950 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors disabled:opacity-50">
+            {processingPayroll ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+            Process Payroll
           </button>
         </div>
       </div>
