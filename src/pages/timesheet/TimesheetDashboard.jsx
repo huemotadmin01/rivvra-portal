@@ -8,7 +8,7 @@ import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import {
   CalendarDays, IndianRupee, Clock, CheckCircle2,
-  FileText, AlertCircle, ArrowRight
+  FileText, AlertCircle, ArrowRight, UserX
 } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -181,19 +181,37 @@ function ContractorDashboard() {
   );
 }
 
+const fullMonthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const empTypeBadge = {
+  confirmed: 'bg-blue-500/10 text-blue-400',
+  internal_consultant: 'bg-purple-500/10 text-purple-400',
+  external_consultant: 'bg-amber-500/10 text-amber-400',
+  intern: 'bg-emerald-500/10 text-emerald-400',
+};
+const empTypeLabel = {
+  confirmed: 'Confirmed',
+  internal_consultant: 'Internal',
+  external_consultant: 'External',
+  intern: 'Intern',
+};
+
 function AdminDashboard() {
   const { timesheetUser } = useTimesheetContext();
   const { showToast } = useToast();
   const { orgPath } = usePlatform();
   const [timesheets, setTimesheets] = useState([]);
+  const [missingData, setMissingData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [missingTab, setMissingTab] = useState(0); // index into missingData.months
 
   useEffect(() => {
     const controller = new AbortController();
-    timesheetApi.get('/timesheets', { signal: controller.signal })
-      .then(r => setTimesheets(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const sig = { signal: controller.signal };
+    Promise.all([
+      timesheetApi.get('/timesheets', sig).then(r => setTimesheets(r.data)).catch(() => {}),
+      timesheetApi.get('/dashboard/missing-submissions', sig).then(r => setMissingData(r.data)).catch(() => {}),
+    ]).finally(() => setLoading(false));
     return () => controller.abort();
   }, []);
 
@@ -203,6 +221,8 @@ function AdminDashboard() {
     const now = new Date();
     return timesheets.filter(t => t.status === 'approved' && t.month === now.getMonth() + 1 && t.year === now.getFullYear());
   }, [timesheets]);
+
+  const selectedMonth = missingData?.months?.[missingTab] || null;
 
   if (loading) return (
     <PageSkeleton>
@@ -262,6 +282,76 @@ function AdminDashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Missing Timesheets — month-wise */}
+      {missingData?.months?.length > 0 && (
+        <div className="card">
+          <div className="p-4 border-b border-dark-800">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <UserX size={18} className="text-red-400" />
+                <h3 className="font-semibold text-white">Missing Timesheets</h3>
+              </div>
+              {selectedMonth && (
+                <span className="text-xs text-dark-500">
+                  {selectedMonth.submittedCount} of {selectedMonth.totalBillable} submitted
+                </span>
+              )}
+            </div>
+            {/* Month tabs */}
+            <div className="flex gap-1.5">
+              {missingData.months.map((m, i) => (
+                <button key={`${m.month}-${m.year}`} onClick={() => setMissingTab(i)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    missingTab === i
+                      ? 'bg-rivvra-500 text-dark-950'
+                      : 'bg-dark-800 text-dark-400 hover:bg-dark-700 hover:text-dark-200'
+                  }`}>
+                  {monthNames[m.month]} {m.year}
+                  {m.missingCount > 0 && (
+                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${
+                      missingTab === i ? 'bg-dark-950/20 text-dark-950' : 'bg-red-500/10 text-red-400'
+                    }`}>{m.missingCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedMonth?.missingCount === 0 ? (
+            <div className="p-6 text-center">
+              <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-400" />
+              <p className="text-sm text-dark-400">All {selectedMonth.totalBillable} billable employees have submitted for {fullMonthNames[selectedMonth.month]} {selectedMonth.year}</p>
+            </div>
+          ) : selectedMonth ? (
+            <div className="divide-y divide-dark-800">
+              <div className="px-4 py-2 bg-dark-800/30">
+                <p className="text-xs text-red-400 font-medium">
+                  {selectedMonth.missingCount} of {selectedMonth.totalBillable} billable employee{selectedMonth.missingCount !== 1 ? 's' : ''} haven't submitted for {fullMonthNames[selectedMonth.month]} {selectedMonth.year}
+                </p>
+              </div>
+              {selectedMonth.missingEmployees.map((emp, i) => (
+                <div key={emp.email || i} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-400/20 to-red-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-red-300">{emp.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{emp.name}</p>
+                      <p className="text-xs text-dark-500">{emp.employeeId || emp.email}</p>
+                    </div>
+                  </div>
+                  {emp.employmentType && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${empTypeBadge[emp.employmentType] || 'bg-dark-700 text-dark-400'}`}>
+                      {empTypeLabel[emp.employmentType] || emp.employmentType}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
