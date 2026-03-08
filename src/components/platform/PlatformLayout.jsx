@@ -44,6 +44,10 @@ function PlatformLayout() {
   // Close sidebar on route change (mobile)
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
+  // Full-screen focused pages — hide sidebar for distraction-free experience
+  const isFullScreenPage = location.pathname.includes('/employee/onboarding');
+  const showSidebar = currentApp && !isFullScreenPage;
+
   return (
     <TimesheetProvider>
       <BreadcrumbProvider>
@@ -52,9 +56,9 @@ function PlatformLayout() {
           <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
           <TrialBanner />
           <div className="flex">
-            <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-            <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${currentApp ? 'md:ml-64' : ''}`}>
-              <Breadcrumbs />
+            {showSidebar && <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
+            <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${showSidebar ? 'md:ml-64' : ''}`}>
+              {!isFullScreenPage && <Breadcrumbs />}
               <Outlet />
             </main>
           </div>
