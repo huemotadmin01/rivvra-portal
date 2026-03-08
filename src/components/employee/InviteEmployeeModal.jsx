@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Mail, UserPlus, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Mail, UserPlus, Loader2, CheckCircle, AlertTriangle, Chrome, KeyRound } from 'lucide-react';
 import { APP_REGISTRY } from '../../config/apps';
 import employeeApi from '../../utils/employeeApi';
 
@@ -9,6 +9,7 @@ const INVITABLE_APPS = Object.values(APP_REGISTRY).filter(
 
 export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, employee, orgSlug }) {
   const [orgRole, setOrgRole] = useState('member');
+  const [authMethod, setAuthMethod] = useState('google');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -57,6 +58,7 @@ export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, emp
 
       const res = await employeeApi.inviteToWorkspace(orgSlug, employee._id, {
         orgRole,
+        authMethod,
         appAccess: accessPayload,
       });
 
@@ -78,6 +80,7 @@ export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, emp
     setError('');
     setSuccess('');
     setOrgRole('member');
+    setAuthMethod('google');
     onClose();
   };
 
@@ -152,6 +155,32 @@ export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, emp
                       : 'bg-dark-800 border border-dark-600 text-dark-400 hover:text-white hover:border-dark-500'
                   }`}
                 >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Authentication Method */}
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1.5">Authentication Method</label>
+            <p className="text-xs text-dark-500 mb-2">Select which sign-in method this user will use.</p>
+            <div className="flex gap-2">
+              {[
+                { value: 'google', label: 'Google', icon: Chrome },
+                { value: 'password', label: 'Password', icon: KeyRound },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setAuthMethod(opt.value)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    authMethod === opt.value
+                      ? 'bg-rivvra-500/10 border border-rivvra-500/30 text-rivvra-400'
+                      : 'bg-dark-800 border border-dark-600 text-dark-400 hover:text-white hover:border-dark-500'
+                  }`}
+                >
+                  <opt.icon className="w-4 h-4" />
                   {opt.label}
                 </button>
               ))}
