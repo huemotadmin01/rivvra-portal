@@ -174,6 +174,84 @@ const employeeApi = {
       method: 'PUT',
     });
   },
+
+  // ── Invite from Employee Page ──────────────────────────────────────────────
+  inviteToWorkspace(orgSlug, employeeId, options = {}) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/invite`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ── Onboarding ─────────────────────────────────────────────────────────────
+  checkOnboarding(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/employee/onboarding-check`);
+  },
+
+  getMyProfile(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/employee/my-profile`);
+  },
+
+  submitOnboarding(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/employee/my-profile/onboarding`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ── Plan Templates ─────────────────────────────────────────────────────────
+  listPlanTemplates(orgSlug, planType) {
+    const qs = planType ? `?planType=${planType}` : '';
+    return api.request(`/api/org/${orgSlug}/employee/plan-templates${qs}`);
+  },
+
+  createPlanTemplate(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/employee/plan-templates`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updatePlanTemplate(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/employee/plan-templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePlanTemplate(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/employee/plan-templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ── Plan Instances ─────────────────────────────────────────────────────────
+  launchPlan(orgSlug, employeeId, templateId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/launch-plan`, {
+      method: 'POST',
+      body: JSON.stringify({ templateId }),
+    });
+  },
+
+  listEmployeePlans(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/plans`);
+  },
+
+  getPlanInstance(orgSlug, instanceId) {
+    return api.request(`/api/org/${orgSlug}/employee/plan-instances/${instanceId}`);
+  },
+
+  updatePlanTask(orgSlug, instanceId, taskId, data) {
+    return api.request(`/api/org/${orgSlug}/employee/plan-instances/${instanceId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getMyTasks(orgSlug, status) {
+    const qs = status ? `?status=${status}` : '';
+    return api.request(`/api/org/${orgSlug}/employee/my-tasks${qs}`);
+  },
 };
 
 export default employeeApi;

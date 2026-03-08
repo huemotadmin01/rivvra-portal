@@ -17,7 +17,15 @@ import {
   Loader2,
   Briefcase,
   Link2,
+  UserPlus,
+  Rocket,
+  GraduationCap,
+  Users,
+  FileText,
 } from 'lucide-react';
+import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
+import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
+import PlanProgress from '../../components/employee/PlanProgress';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -131,6 +139,8 @@ export default function EmployeeDetail() {
   usePageTitle(employee?.name);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showLaunchPlanModal, setShowLaunchPlanModal] = useState(false);
 
   const isAdmin = getAppRole('employee') === 'admin';
 
@@ -231,15 +241,36 @@ export default function EmployeeDetail() {
                 </div>
               </div>
 
-              {/* Edit button (admin only) */}
+              {/* Action buttons (admin only) */}
               {isAdmin && (
-                <button
-                  onClick={() => navigate(orgPath(`/employee/edit/${emp._id}`))}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors flex-shrink-0"
-                >
-                  <Edit2 size={14} />
-                  Edit
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Invite to Workspace */}
+                  {emp.email && !emp.linkedUserId && emp.status === 'active' && (
+                    <button
+                      onClick={() => setShowInviteModal(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-400 text-dark-950 text-sm font-medium transition-colors"
+                    >
+                      <UserPlus size={14} />
+                      Invite to Workspace
+                    </button>
+                  )}
+                  {/* Launch Plan */}
+                  <button
+                    onClick={() => setShowLaunchPlanModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors"
+                  >
+                    <Rocket size={14} />
+                    Launch Plan
+                  </button>
+                  {/* Edit */}
+                  <button
+                    onClick={() => navigate(orgPath(`/employee/edit/${emp._id}`))}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -305,12 +336,17 @@ export default function EmployeeDetail() {
         {/* Personal Information */}
         <SectionCard title="Personal Information" icon={User}>
           <InfoRow label="Private Email" value={emp.privateEmail} />
-          <InfoRow label="Private Phone" value={emp.privatePhone} />
+          <InfoRow label="Private Phone" value={emp.privatePhone || emp.alternatePhone} />
           {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
             <InfoRow label="Date of Birth" value={formatDate(emp.dateOfBirth)} />
           )}
+          <InfoRow label="Gender" value={emp.gender} />
+          <InfoRow label="Blood Group" value={emp.bloodGroup} />
+          <InfoRow label="Father's Name" value={emp.fatherName} />
           <InfoRow label="Nationality" value={emp.nationality} />
           <InfoRow label="Marital Status" value={emp.maritalStatus} />
+          {emp.maritalStatus === 'Married' && <InfoRow label="Spouse Name" value={emp.spouseName} />}
+          <InfoRow label="Religion" value={emp.religion} />
         </SectionCard>
 
         {/* Address */}
@@ -335,6 +371,63 @@ export default function EmployeeDetail() {
           </SectionCard>
         )}
       </div>
+
+      {/* ── Statutory Details (admin only) ──────────────────────────────── */}
+      {isAdmin && emp.statutory && (emp.statutory.aadhaar || emp.statutory.uan || emp.statutory.pfNumber || emp.statutory.esicNumber) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
+          <SectionCard title="Statutory Details" icon={FileText}>
+            <InfoRow label="Aadhaar" value={emp.statutory.aadhaar} />
+            <InfoRow label="UAN" value={emp.statutory.uan} />
+            <InfoRow label="PF Number" value={emp.statutory.pfNumber} />
+            <InfoRow label="ESIC" value={emp.statutory.esicNumber} />
+          </SectionCard>
+        </div>
+      )}
+
+      {/* ── Family Members ─────────────────────────────────────────────── */}
+      {Array.isArray(emp.familyMembers) && emp.familyMembers.length > 0 && (
+        <div className="mt-5">
+          <SectionCard title={`Family Members (${emp.familyMembers.length})`} icon={Users}>
+            <div className="space-y-2">
+              {emp.familyMembers.map((fm, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-dark-800 last:border-0">
+                  <div>
+                    <span className="text-white text-sm">{fm.name}</span>
+                    {fm.relation && <span className="text-dark-400 text-xs ml-2">({fm.relation})</span>}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-dark-500">
+                    {fm.phone && <span>{fm.phone}</span>}
+                    {fm.isDependent && <Badge className="bg-blue-500/10 text-blue-400">Dependent</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {/* ── Education ──────────────────────────────────────────────────── */}
+      {Array.isArray(emp.education) && emp.education.length > 0 && (
+        <div className="mt-5">
+          <SectionCard title={`Education (${emp.education.length})`} icon={GraduationCap}>
+            <div className="space-y-2">
+              {emp.education.map((ed, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-dark-800 last:border-0">
+                  <div>
+                    <span className="text-white text-sm font-medium">{ed.degree}</span>
+                    {ed.institution && <span className="text-dark-400 text-sm ml-2">— {ed.institution}</span>}
+                    {ed.specialization && <span className="text-dark-500 text-xs ml-2">({ed.specialization})</span>}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-dark-500">
+                    {ed.yearOfPassing && <span>{ed.yearOfPassing}</span>}
+                    {ed.percentage && <span>{ed.percentage}%</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      )}
 
       {/* ── Project Assignments (full-width) ────────────────────────────── */}
       {Array.isArray(emp.assignments) && emp.assignments.length > 0 && (
@@ -396,6 +489,36 @@ export default function EmployeeDetail() {
           </div>
         </div>
       )}
+
+      {/* ── Onboarding/Offboarding Plans ─────────────────────────────── */}
+      <div className="mt-5">
+        <PlanProgress employeeId={emp._id} isAdmin={isAdmin} />
+      </div>
+
+      {/* ── Modals ───────────────────────────────────────────────────── */}
+      <InviteEmployeeModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onInviteSent={() => {
+          employeeApi.get(currentOrg.slug, employeeId).then((res) => {
+            if (res.success && res.employee) setEmployee(res.employee);
+          });
+        }}
+        employee={emp}
+        orgSlug={currentOrg?.slug}
+      />
+
+      <LaunchPlanModal
+        isOpen={showLaunchPlanModal}
+        onClose={() => setShowLaunchPlanModal(false)}
+        onLaunched={() => {
+          employeeApi.get(currentOrg.slug, employeeId).then((res) => {
+            if (res.success && res.employee) setEmployee(res.employee);
+          });
+        }}
+        employee={emp}
+        orgSlug={currentOrg?.slug}
+      />
     </div>
   );
 }

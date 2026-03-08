@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock, GraduationCap, Users, Building2 } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
 
 // ── Per-assignment document manager ─────────────────────────────────────────
@@ -174,6 +174,30 @@ const INITIAL_FORM = {
     pan: '',
     bankName: '',
   },
+  // ── New onboarding fields ──
+  gender: '',
+  bloodGroup: '',
+  fatherName: '',
+  spouseName: '',
+  religion: '',
+  alternatePhone: '',
+  permanentAddress: {
+    street: '',
+    street2: '',
+    city: '',
+    state: '',
+    zip: '',
+    country: 'India',
+  },
+  familyMembers: [],
+  statutory: {
+    aadhaar: '',
+    uan: '',
+    pfNumber: '',
+    esicNumber: '',
+  },
+  education: [],
+  previousEmployment: [],
 };
 
 export default function EmployeeForm() {
@@ -314,6 +338,49 @@ export default function EmployeeForm() {
               pan: emp.bankDetails?.pan || '',
               bankName: emp.bankDetails?.bankName || '',
             },
+            // ── New onboarding fields ──
+            gender: emp.gender || '',
+            bloodGroup: emp.bloodGroup || '',
+            fatherName: emp.fatherName || '',
+            spouseName: emp.spouseName || '',
+            religion: emp.religion || '',
+            alternatePhone: emp.alternatePhone || '',
+            permanentAddress: {
+              street: emp.permanentAddress?.street || '',
+              street2: emp.permanentAddress?.street2 || '',
+              city: emp.permanentAddress?.city || '',
+              state: emp.permanentAddress?.state || '',
+              zip: emp.permanentAddress?.zip || '',
+              country: emp.permanentAddress?.country || 'India',
+            },
+            familyMembers: (emp.familyMembers || []).map(fm => ({
+              name: fm.name || '',
+              relation: fm.relation || '',
+              dateOfBirth: fm.dateOfBirth ? fm.dateOfBirth.slice(0, 10) : '',
+              isDependent: fm.isDependent || false,
+              phone: fm.phone || '',
+            })),
+            statutory: {
+              aadhaar: emp.statutory?.aadhaar || '',
+              uan: emp.statutory?.uan || '',
+              pfNumber: emp.statutory?.pfNumber || '',
+              esicNumber: emp.statutory?.esicNumber || '',
+            },
+            education: (emp.education || []).map(ed => ({
+              degree: ed.degree || '',
+              institution: ed.institution || '',
+              yearOfPassing: ed.yearOfPassing || '',
+              percentage: ed.percentage || '',
+              specialization: ed.specialization || '',
+            })),
+            previousEmployment: (emp.previousEmployment || []).map(pe => ({
+              company: pe.company || '',
+              designation: pe.designation || '',
+              fromDate: pe.fromDate ? pe.fromDate.slice(0, 10) : '',
+              toDate: pe.toDate ? pe.toDate.slice(0, 10) : '',
+              reasonForLeaving: pe.reasonForLeaving || '',
+              lastCTC: pe.lastCTC || '',
+            })),
           });
           setSavedAssignmentCount((emp.assignments || []).length);
           setOriginalStatus(emp.status || 'active');
@@ -350,6 +417,42 @@ export default function EmployeeForm() {
       ...prev,
       [section]: { ...prev[section], [key]: value },
     }));
+  };
+
+  // ── Dynamic array helpers (family, education, prev employment) ─────
+  const addFamilyMember = () => {
+    setForm(prev => ({ ...prev, familyMembers: [...prev.familyMembers, { name: '', relation: '', dateOfBirth: '', isDependent: false, phone: '' }] }));
+  };
+  const removeFamilyMember = (idx) => {
+    setForm(prev => ({ ...prev, familyMembers: prev.familyMembers.filter((_, i) => i !== idx) }));
+  };
+  const updateFamilyMember = (idx, field, value) => {
+    setForm(prev => ({ ...prev, familyMembers: prev.familyMembers.map((fm, i) => i === idx ? { ...fm, [field]: value } : fm) }));
+  };
+
+  const addEducation = () => {
+    setForm(prev => ({ ...prev, education: [...prev.education, { degree: '', institution: '', yearOfPassing: '', percentage: '', specialization: '' }] }));
+  };
+  const removeEducation = (idx) => {
+    setForm(prev => ({ ...prev, education: prev.education.filter((_, i) => i !== idx) }));
+  };
+  const updateEducation = (idx, field, value) => {
+    setForm(prev => ({ ...prev, education: prev.education.map((ed, i) => i === idx ? { ...ed, [field]: value } : ed) }));
+  };
+
+  const addPreviousEmployment = () => {
+    setForm(prev => ({ ...prev, previousEmployment: [...prev.previousEmployment, { company: '', designation: '', fromDate: '', toDate: '', reasonForLeaving: '', lastCTC: '' }] }));
+  };
+  const removePreviousEmployment = (idx) => {
+    setForm(prev => ({ ...prev, previousEmployment: prev.previousEmployment.filter((_, i) => i !== idx) }));
+  };
+  const updatePreviousEmployment = (idx, field, value) => {
+    setForm(prev => ({ ...prev, previousEmployment: prev.previousEmployment.map((pe, i) => i === idx ? { ...pe, [field]: value } : pe) }));
+  };
+
+  // Copy current address to permanent address
+  const copyAddressToPermanent = () => {
+    setForm(prev => ({ ...prev, permanentAddress: { ...prev.address } }));
   };
 
   // ── Assignment helpers ──────────────────────────────────────────────
@@ -923,6 +1026,90 @@ export default function EmployeeForm() {
           )}
         </div>
 
+        {/* ── Personal Details ─────────────────────────────────────── */}
+        <div className="card p-5 space-y-4">
+          <h2 className="text-white font-semibold text-lg">Personal Details</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Gender */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Gender</label>
+              <select
+                value={form.gender}
+                onChange={(e) => setField('gender', e.target.value)}
+                className="input-field w-full"
+              >
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            {/* Blood Group */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Blood Group</label>
+              <select
+                value={form.bloodGroup}
+                onChange={(e) => setField('bloodGroup', e.target.value)}
+                className="input-field w-full"
+              >
+                <option value="">Select Blood Group</option>
+                {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                  <option key={bg} value={bg}>{bg}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Father's Name */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Father's Name</label>
+              <input
+                type="text"
+                value={form.fatherName}
+                onChange={(e) => setField('fatherName', e.target.value)}
+                className="input-field w-full"
+                placeholder="Father's full name"
+              />
+            </div>
+
+            {/* Spouse Name */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Spouse Name</label>
+              <input
+                type="text"
+                value={form.spouseName}
+                onChange={(e) => setField('spouseName', e.target.value)}
+                className="input-field w-full"
+                placeholder="Spouse's full name"
+              />
+            </div>
+
+            {/* Religion */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Religion</label>
+              <input
+                type="text"
+                value={form.religion}
+                onChange={(e) => setField('religion', e.target.value)}
+                className="input-field w-full"
+                placeholder="e.g., Hindu, Muslim, Christian"
+              />
+            </div>
+
+            {/* Alternate Phone */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Alternate Phone</label>
+              <input
+                type="text"
+                value={form.alternatePhone}
+                onChange={(e) => setField('alternatePhone', e.target.value)}
+                className="input-field w-full"
+                placeholder="+91 98765 43210"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* ── Organization ──────────────────────────────────────────── */}
         <div className="card p-5 space-y-4">
           <h2 className="text-white font-semibold text-lg">Organization</h2>
@@ -1467,6 +1654,82 @@ export default function EmployeeForm() {
           </div>
         </div>
 
+        {/* ── Permanent Address ────────────────────────────────────── */}
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-semibold text-lg">Permanent Address</h2>
+            <button
+              type="button"
+              onClick={copyAddressToPermanent}
+              className="text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
+            >
+              Same as Current Address
+            </button>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Street</label>
+              <input
+                type="text"
+                value={form.permanentAddress.street}
+                onChange={(e) => setNested('permanentAddress', 'street', e.target.value)}
+                className="input-field w-full"
+                placeholder="123 Main Street"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Street 2</label>
+              <input
+                type="text"
+                value={form.permanentAddress.street2}
+                onChange={(e) => setNested('permanentAddress', 'street2', e.target.value)}
+                className="input-field w-full"
+                placeholder="Apt, Suite, Floor"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">City</label>
+              <input
+                type="text"
+                value={form.permanentAddress.city}
+                onChange={(e) => setNested('permanentAddress', 'city', e.target.value)}
+                className="input-field w-full"
+                placeholder="Mumbai"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">State</label>
+              <input
+                type="text"
+                value={form.permanentAddress.state}
+                onChange={(e) => setNested('permanentAddress', 'state', e.target.value)}
+                className="input-field w-full"
+                placeholder="Maharashtra"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">ZIP / Pincode</label>
+              <input
+                type="text"
+                value={form.permanentAddress.zip}
+                onChange={(e) => setNested('permanentAddress', 'zip', e.target.value)}
+                className="input-field w-full"
+                placeholder="400001"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
+              <input
+                type="text"
+                value={form.permanentAddress.country}
+                onChange={(e) => setNested('permanentAddress', 'country', e.target.value)}
+                className="input-field w-full"
+                placeholder="India"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* ── Emergency Contact ─────────────────────────────────────── */}
         <div className="card p-5 space-y-4">
           <h2 className="text-white font-semibold text-lg">Emergency Contact</h2>
@@ -1566,6 +1829,248 @@ export default function EmployeeForm() {
               />
             </div>
           </div>
+
+          {/* Statutory Details sub-section */}
+          <div className="border-t border-dark-700 pt-4 mt-4">
+            <h3 className="text-white font-medium text-sm mb-3">Statutory Details</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Aadhaar Number</label>
+                <input
+                  type={showSensitive ? 'text' : 'password'}
+                  value={form.statutory.aadhaar}
+                  onChange={(e) => setNested('statutory', 'aadhaar', e.target.value)}
+                  className="input-field w-full"
+                  placeholder="1234 5678 9012"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">UAN</label>
+                <input
+                  type="text"
+                  value={form.statutory.uan}
+                  onChange={(e) => setNested('statutory', 'uan', e.target.value)}
+                  className="input-field w-full"
+                  placeholder="100123456789"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">PF Number</label>
+                <input
+                  type="text"
+                  value={form.statutory.pfNumber}
+                  onChange={(e) => setNested('statutory', 'pfNumber', e.target.value)}
+                  className="input-field w-full"
+                  placeholder="MH/BAN/12345/123"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">ESIC Number</label>
+                <input
+                  type="text"
+                  value={form.statutory.esicNumber}
+                  onChange={(e) => setNested('statutory', 'esicNumber', e.target.value)}
+                  className="input-field w-full"
+                  placeholder="31-00-123456-000-0001"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Family Members ──────────────────────────────────────────── */}
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2">
+              <Users size={18} className="text-blue-400" />
+              Family Members
+            </h2>
+            <button
+              type="button"
+              onClick={addFamilyMember}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-sm font-medium hover:bg-blue-500/20 transition-colors"
+            >
+              <Plus size={14} />
+              Add Member
+            </button>
+          </div>
+
+          {form.familyMembers.length === 0 && (
+            <div className="text-center py-6 border border-dashed border-dark-700 rounded-xl">
+              <Users size={24} className="mx-auto mb-2 text-dark-600" />
+              <p className="text-sm text-dark-500">No family members added yet.</p>
+            </div>
+          )}
+
+          {form.familyMembers.map((fm, idx) => (
+            <div key={idx} className="border border-dark-700 rounded-xl p-4 space-y-3 bg-dark-800/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-dark-400">Family Member {idx + 1}</span>
+                <button type="button" onClick={() => removeFamilyMember(idx)} className="p-1 text-dark-500 hover:text-red-400 transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Name</label>
+                  <input type="text" value={fm.name} onChange={(e) => updateFamilyMember(idx, 'name', e.target.value)} className="input-field w-full text-sm" placeholder="Full name" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Relation</label>
+                  <select value={fm.relation} onChange={(e) => updateFamilyMember(idx, 'relation', e.target.value)} className="input-field w-full text-sm">
+                    <option value="">Select</option>
+                    <option value="father">Father</option>
+                    <option value="mother">Mother</option>
+                    <option value="spouse">Spouse</option>
+                    <option value="son">Son</option>
+                    <option value="daughter">Daughter</option>
+                    <option value="brother">Brother</option>
+                    <option value="sister">Sister</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Date of Birth</label>
+                  <input type="date" value={fm.dateOfBirth} onChange={(e) => updateFamilyMember(idx, 'dateOfBirth', e.target.value)} className="input-field w-full text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Phone</label>
+                  <input type="text" value={fm.phone} onChange={(e) => updateFamilyMember(idx, 'phone', e.target.value)} className="input-field w-full text-sm" placeholder="+91 98765 43210" />
+                </div>
+                <div className="flex items-center gap-3 pt-5">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" checked={fm.isDependent} onChange={(e) => updateFamilyMember(idx, 'isDependent', e.target.checked)} className="sr-only peer" />
+                    <div className="w-9 h-5 bg-dark-600 rounded-full peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
+                  </label>
+                  <span className="text-sm text-dark-300">Dependent</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Education ───────────────────────────────────────────────── */}
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2">
+              <GraduationCap size={18} className="text-purple-400" />
+              Education
+            </h2>
+            <button
+              type="button"
+              onClick={addEducation}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-sm font-medium hover:bg-purple-500/20 transition-colors"
+            >
+              <Plus size={14} />
+              Add Education
+            </button>
+          </div>
+
+          {form.education.length === 0 && (
+            <div className="text-center py-6 border border-dashed border-dark-700 rounded-xl">
+              <GraduationCap size={24} className="mx-auto mb-2 text-dark-600" />
+              <p className="text-sm text-dark-500">No education records added yet.</p>
+            </div>
+          )}
+
+          {form.education.map((ed, idx) => (
+            <div key={idx} className="border border-dark-700 rounded-xl p-4 space-y-3 bg-dark-800/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-dark-400">Education {idx + 1}</span>
+                <button type="button" onClick={() => removeEducation(idx)} className="p-1 text-dark-500 hover:text-red-400 transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Degree / Qualification</label>
+                  <input type="text" value={ed.degree} onChange={(e) => updateEducation(idx, 'degree', e.target.value)} className="input-field w-full text-sm" placeholder="e.g., B.Tech, MBA" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Institution</label>
+                  <input type="text" value={ed.institution} onChange={(e) => updateEducation(idx, 'institution', e.target.value)} className="input-field w-full text-sm" placeholder="University name" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Specialization</label>
+                  <input type="text" value={ed.specialization} onChange={(e) => updateEducation(idx, 'specialization', e.target.value)} className="input-field w-full text-sm" placeholder="e.g., Computer Science" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Year of Passing</label>
+                  <input type="text" value={ed.yearOfPassing} onChange={(e) => updateEducation(idx, 'yearOfPassing', e.target.value)} className="input-field w-full text-sm" placeholder="2020" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Percentage / CGPA</label>
+                  <input type="text" value={ed.percentage} onChange={(e) => updateEducation(idx, 'percentage', e.target.value)} className="input-field w-full text-sm" placeholder="e.g., 85% or 8.5 CGPA" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Previous Employment ─────────────────────────────────────── */}
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2">
+              <Building2 size={18} className="text-cyan-400" />
+              Previous Employment
+            </h2>
+            <button
+              type="button"
+              onClick={addPreviousEmployment}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-lg text-sm font-medium hover:bg-cyan-500/20 transition-colors"
+            >
+              <Plus size={14} />
+              Add Employment
+            </button>
+          </div>
+
+          {form.previousEmployment.length === 0 && (
+            <div className="text-center py-6 border border-dashed border-dark-700 rounded-xl">
+              <Building2 size={24} className="mx-auto mb-2 text-dark-600" />
+              <p className="text-sm text-dark-500">No previous employment records added yet.</p>
+            </div>
+          )}
+
+          {form.previousEmployment.map((pe, idx) => (
+            <div key={idx} className="border border-dark-700 rounded-xl p-4 space-y-3 bg-dark-800/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-dark-400">Employment {idx + 1}</span>
+                <button type="button" onClick={() => removePreviousEmployment(idx)} className="p-1 text-dark-500 hover:text-red-400 transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Company</label>
+                  <input type="text" value={pe.company} onChange={(e) => updatePreviousEmployment(idx, 'company', e.target.value)} className="input-field w-full text-sm" placeholder="Company name" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Designation</label>
+                  <input type="text" value={pe.designation} onChange={(e) => updatePreviousEmployment(idx, 'designation', e.target.value)} className="input-field w-full text-sm" placeholder="Job title" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Last CTC (Annual)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">₹</span>
+                    <input type="number" value={pe.lastCTC} onChange={(e) => updatePreviousEmployment(idx, 'lastCTC', e.target.value)} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">From Date</label>
+                  <input type="date" value={pe.fromDate} onChange={(e) => updatePreviousEmployment(idx, 'fromDate', e.target.value)} className="input-field w-full text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">To Date</label>
+                  <input type="date" value={pe.toDate} onChange={(e) => updatePreviousEmployment(idx, 'toDate', e.target.value)} className="input-field w-full text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Reason for Leaving</label>
+                  <input type="text" value={pe.reasonForLeaving} onChange={(e) => updatePreviousEmployment(idx, 'reasonForLeaving', e.target.value)} className="input-field w-full text-sm" placeholder="e.g., Better opportunity" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* ── Actions ───────────────────────────────────────────────── */}

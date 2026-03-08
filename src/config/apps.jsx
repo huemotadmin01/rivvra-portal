@@ -156,6 +156,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/employee/departments', label: 'Departments', icon: Building2 },
         ...(isAdmin ? [
           { type: 'item', path: '/employee/add', label: 'Add Employee', icon: UserPlus },
+          { type: 'item', path: '/employee/plan-templates', label: 'Plan Templates', icon: FileText },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [

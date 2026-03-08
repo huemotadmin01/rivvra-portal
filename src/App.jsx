@@ -26,6 +26,7 @@ import FindWorkspacePage from './pages/FindWorkspacePage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import AppLauncherPage from './pages/AppLauncherPage';
+import OnboardingGate from './components/OnboardingGate';
 import UpgradePage from './pages/UpgradePage';
 
 // Lazy-loaded: Outreach app pages
@@ -68,6 +69,8 @@ const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
+const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
+const PlanTemplates = lazy(() => import('./pages/employee/PlanTemplates'));
 
 // Lazy-loaded: Contacts app pages
 const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
@@ -188,7 +191,10 @@ function App() {
             {/* These are the primary routes for multi-tenant navigation.     */}
             {/* ============================================================ */}
             <Route element={<ProtectedRoute><OrgPlatformLayout /></ProtectedRoute>}>
-              <Route path="/org/:slug/home" element={<AppLauncherPage />} />
+              <Route path="/org/:slug/home" element={<OnboardingGate><AppLauncherPage /></OnboardingGate>} />
+
+              {/* Employee onboarding wizard — outside AppAccessGate (any authenticated employee can access) */}
+              <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><EmployeeOnboardingWizard /></ErrorBoundary>} />
               <Route path="/org/:slug/upgrade" element={<UpgradePage />} />
 
               {/* Outreach app routes — gated by outreach access */}
@@ -248,10 +254,11 @@ function App() {
               <Route element={<AppAccessGate appId="employee" />}>
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
-                {/* Add/Edit require employee admin role */}
+                {/* Add/Edit/Plan Templates require employee admin role */}
                 <Route element={<AppRoleGate appId="employee" requiredRole="admin" />}>
                   <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PlanTemplates /></ErrorBoundary>} />
                 </Route>
                 <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><EmployeeDetail /></ErrorBoundary>} />
               </Route>
