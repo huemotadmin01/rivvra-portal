@@ -264,20 +264,10 @@ export default function EmployeeDetail() {
               {/* Action buttons (admin only) */}
               {isAdmin && (
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Invite to Workspace */}
-                  {emp.email && !emp.linkedUserId && emp.status === 'active' && (
+                  {/* Request Details — smart button: invite if not linked, send form if linked */}
+                  {emp.email && emp.status === 'active' && (
                     <button
-                      onClick={() => setShowInviteModal(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-400 text-dark-950 text-sm font-medium transition-colors"
-                    >
-                      <UserPlus size={14} />
-                      Invite to Workspace
-                    </button>
-                  )}
-                  {/* Request Onboarding Details — for employees already on portal */}
-                  {emp.linkedUserId && emp.email && emp.status === 'active' && (
-                    <button
-                      onClick={handleSendOnboardingLink}
+                      onClick={() => emp.linkedUserId ? handleSendOnboardingLink() : setShowInviteModal(true)}
                       disabled={sendingOnboardingLink}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
                     >
