@@ -12,6 +12,7 @@ import LeadDetailPanel from '../components/LeadDetailPanel';
 import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import ComingSoonModal from '../components/ComingSoonModal';
+import { useExtensionDetector } from '../hooks/useExtensionDetector';
 
 // ==================== Lead Search Card ====================
 function LeadSearchCard({ lead, onClick, onSave, onAddToList, isSaved, saving }) {
@@ -351,6 +352,8 @@ function AddToListModal({ isOpen, onClose, lists, onSelect, onCreateList, lead }
 function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
   const { orgPath } = usePlatform();
+  const { installed: extInstalled, dismiss: dismissExt, isDismissed: isExtDismissed, chromeStoreUrl } = useExtensionDetector();
+  const [extBannerDismissed, setExtBannerDismissed] = useState(false);
   const [features, setFeatures] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showComingSoon, setShowComingSoon] = useState(false);
@@ -766,6 +769,42 @@ function DashboardPage() {
           ) : (
             /* ==================== DEFAULT DASHBOARD VIEW ==================== */
             <>
+              {/* Extension Install Banner */}
+              {!extInstalled && !extBannerDismissed && !isExtDismissed() && (
+                <div className="mb-8 relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/5 via-rivvra-500/5 to-blue-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.08),transparent_60%)]" />
+                  <div className="relative flex items-center gap-6 p-6">
+                    <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                      <Chrome className="w-7 h-7 text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-white mb-1">Install the Rivvra Chrome Extension</h3>
+                      <p className="text-sm text-dark-400 leading-relaxed">
+                        Extract contacts directly from LinkedIn profiles, searches, and Sales Navigator. The extension is required for the Outreach app.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <button
+                        onClick={() => { dismissExt(); setExtBannerDismissed(true); }}
+                        className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors"
+                      >
+                        Remind Me Later
+                      </button>
+                      <a
+                        href={chromeStoreUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-500 text-white font-medium text-sm hover:bg-blue-400 transition-colors"
+                      >
+                        <Chrome className="w-4 h-4" />
+                        Install Extension
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Recommended Leads Section */}
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-6">
@@ -900,28 +939,43 @@ function DashboardPage() {
                 </div>
 
                 {/* Chrome Extension CTA */}
-                <div className="card p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-rivvra-500/20 flex items-center justify-center">
-                      <Chrome className="w-6 h-6 text-rivvra-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white">Chrome Extension</h3>
-                      <p className="text-sm text-dark-400">Extract contacts directly from LinkedIn</p>
+                {extInstalled ? (
+                  <div className="card p-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white">Extension Connected</h3>
+                        <p className="text-sm text-dark-400">Rivvra Chrome Extension is active</p>
+                      </div>
                     </div>
                   </div>
-                  <p className="text-dark-400 text-sm mb-4">
-                    Install our Chrome extension to start extracting contacts from LinkedIn profiles, searches, and Sales Navigator.
-                  </p>
-                  <a
-                    href="#"
-                    target="_blank"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 text-dark-950 font-medium text-sm hover:bg-rivvra-400 transition-colors"
-                  >
-                    Install Extension
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
+                ) : (
+                  <div className="card p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-rivvra-500/20 flex items-center justify-center">
+                        <Chrome className="w-6 h-6 text-rivvra-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white">Chrome Extension</h3>
+                        <p className="text-sm text-dark-400">Extract contacts directly from LinkedIn</p>
+                      </div>
+                    </div>
+                    <p className="text-dark-400 text-sm mb-4">
+                      Install our Chrome extension to start extracting contacts from LinkedIn profiles, searches, and Sales Navigator.
+                    </p>
+                    <a
+                      href={chromeStoreUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 text-dark-950 font-medium text-sm hover:bg-rivvra-400 transition-colors"
+                    >
+                      Install Extension
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                )}
               </div>
             </>
           )}

@@ -1,11 +1,13 @@
 import { getAllApps } from '../../config/apps';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
+import { useExtensionDetector } from '../../hooks/useExtensionDetector';
 import AppCard from './AppCard';
 
 function AppGrid() {
   const { user } = useAuth();
   const { hasAppAccess, currentOrg, isOrgAdmin, isOrgOwner, loading, membership } = useOrg();
+  const { installed: extInstalled } = useExtensionDetector();
   const apps = getAllApps(user, membership);
 
   // While org context is loading, show skeleton placeholders to prevent flash of all apps
@@ -42,7 +44,12 @@ function AppGrid() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {visibleApps.map((app, index) => (
-        <AppCard key={app.id} app={app} index={index} />
+        <AppCard
+          key={app.id}
+          app={app}
+          index={index}
+          badge={app.id === 'outreach' && !extInstalled ? { label: 'Extension Required' } : null}
+        />
       ))}
     </div>
   );
