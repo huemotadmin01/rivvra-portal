@@ -169,6 +169,18 @@ export default function TimesheetPayroll() {
     };
   }, [filteredEmployees]);
 
+  // Due holds — held salaries whose holdUntil date is within 7 days or overdue
+  const dueHolds = useMemo(() => {
+    const allEmployees = data?.employees || [];
+    const held = allEmployees.filter(e => e.paymentStatus === 'on_hold' && e.salaryHold?.holdUntil);
+    const now = new Date();
+    return held.map(e => {
+      const holdUntil = new Date(e.salaryHold.holdUntil);
+      const daysUntil = Math.ceil((holdUntil - now) / 86400000);
+      return { ...e, daysUntil };
+    }).filter(e => e.daysUntil <= 7).sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [data]);
+
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
   const paginatedEmployees = useMemo(() => {
@@ -815,6 +827,39 @@ export default function TimesheetPayroll() {
         </div>
       )}
 
+      {/* Due Holds Banner */}
+      {dueHolds.length > 0 && (
+        <div className={`card border ${dueHolds.some(h => h.daysUntil < 0) ? 'border-red-500/30 bg-red-500/5' : 'border-amber-500/30 bg-amber-500/5'} p-4`}>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={16} className={dueHolds.some(h => h.daysUntil < 0) ? 'text-red-400' : 'text-amber-400'} />
+            <span className="text-sm font-semibold text-white">{dueHolds.length} held {dueHolds.length === 1 ? 'salary' : 'salaries'} due for release</span>
+          </div>
+          <div className="space-y-2">
+            {dueHolds.map(h => (
+              <div key={h.employeeObjId} className="flex items-center justify-between gap-3 bg-dark-800/50 rounded-lg px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-white">{h.name}</span>
+                  <span className="text-xs text-dark-400 ml-2">Hold until: {new Date(h.salaryHold.holdUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span className={`text-xs ml-2 font-medium ${h.daysUntil < 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                    {h.daysUntil < 0 ? `${Math.abs(h.daysUntil)} day${Math.abs(h.daysUntil) !== 1 ? 's' : ''} overdue` : h.daysUntil === 0 ? 'Due today' : `Due in ${h.daysUntil} day${h.daysUntil !== 1 ? 's' : ''}`}
+                  </span>
+                  {h.salaryHold.reason && <p className="text-xs text-dark-500 mt-0.5 truncate">{h.salaryHold.reason}</p>}
+                </div>
+                {payrollRun?.status !== 'finalized' && (
+                  <button
+                    onClick={() => handleReleaseSalaryHold(h.salaryHold._id, h.name)}
+                    disabled={releaseHoldLoading === h.salaryHold._id}
+                    className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-emerald-500/20 flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0">
+                    {releaseHoldLoading === h.salaryHold._id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                    Release & Pay
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
         {['all', 'internal_consultant', 'external_consultant', 'intern'].map(tab => (
@@ -1082,7 +1127,7 @@ export default function TimesheetPayroll() {
                                   disabled={releaseHoldLoading === emp.salaryHold._id}
                                   className="bg-dark-800 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-emerald-500/10 flex items-center gap-1.5 transition-colors disabled:opacity-50">
                                   {releaseHoldLoading === emp.salaryHold._id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                                  Release Hold
+                                  Release & Pay
                                 </button>
                               )}
                             </div>

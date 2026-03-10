@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import { PageSkeleton, HeaderSkeleton, TwoCardSkeleton, CardListSkeleton } from '../../components/Skeletons';
-import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -53,6 +53,18 @@ function EarningsCard({ data, title, onDownload, downloading }) {
             <div className="flex justify-between text-sm"><span className="text-dark-400">Leaves</span><span className="font-medium text-white">{data.breakdown?.totalLeaves || 0}</span></div>
             <div className="flex justify-between text-sm"><span className="text-dark-400">Holidays</span><span className="font-medium text-white">{data.breakdown?.totalHolidays || 0}</span></div>
           </div>
+          {data.salaryHold && (
+            <div className="mt-3 bg-red-500/5 border border-red-500/20 rounded-lg p-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-red-400 mb-1">
+                <AlertTriangle size={11} />
+                Salary On Hold
+              </div>
+              <p className="text-xs text-dark-400">
+                Expected payment: {new Date(data.salaryHold.holdUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+              {data.salaryHold.reason && <p className="text-xs text-dark-500 mt-0.5">{data.salaryHold.reason}</p>}
+            </div>
+          )}
           {data.timesheetStatus && (
             <div className="mt-3 flex items-center justify-between">
               <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${
@@ -185,10 +197,25 @@ export default function TimesheetEarnings() {
 
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Clock size={18} className="text-blue-400" />
+          <Clock size={18} className={disbursement?.salaryHold ? 'text-red-400' : 'text-blue-400'} />
           <h3 className="font-semibold text-white">Salary Disbursement Schedule</h3>
         </div>
-        {disbursement?.nextDisbursementDate ? (
+        {disbursement?.salaryHold ? (
+          <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={16} className="text-red-400" />
+              <span className="text-sm font-semibold text-red-400">Salary On Hold</span>
+            </div>
+            <p className="text-sm text-dark-300">
+              Expected payment date: <span className="font-medium text-white">{new Date(disbursement.salaryHold.holdUntil).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            </p>
+            {disbursement.salaryHold.reason && <p className="text-xs text-dark-500 mt-1">{disbursement.salaryHold.reason}</p>}
+            <div className="mt-3 text-right">
+              <p className="text-sm text-dark-400">Estimated Net Amount</p>
+              <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netEstimate || disbursement.estimatedAmount || 0).toLocaleString()}</p>
+            </div>
+          </div>
+        ) : disbursement?.nextDisbursementDate ? (
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <p className="text-lg font-bold text-white">
@@ -235,6 +262,7 @@ export default function TimesheetEarnings() {
             <tbody className="divide-y divide-dark-800">
               {history.map((h, i) => (
                 <tr key={i} className={
+                  h.paymentStatus === 'on_hold' ? 'bg-red-500/5' :
                   h.paymentStatus === 'paid' ? 'bg-emerald-500/5' :
                   h.status === 'approved' ? 'bg-amber-500/5' : ''
                 }>
@@ -253,9 +281,15 @@ export default function TimesheetEarnings() {
                     }`}>{h.status}</span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-xs font-medium ${h.paymentStatus === 'paid' ? 'text-emerald-400' : 'text-dark-500'}`}>
-                      {h.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                    <span className={`text-xs font-medium ${
+                      h.paymentStatus === 'on_hold' ? 'text-red-400' :
+                      h.paymentStatus === 'paid' ? 'text-emerald-400' : 'text-dark-500'
+                    }`}>
+                      {h.paymentStatus === 'on_hold' ? 'On Hold' : h.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
                     </span>
+                    {h.paymentStatus === 'on_hold' && h.holdUntil && (
+                      <p className="text-[10px] text-dark-500 mt-0.5">Until {new Date(h.holdUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {h.grossAmount > 0 && h.status === 'approved' ? (
