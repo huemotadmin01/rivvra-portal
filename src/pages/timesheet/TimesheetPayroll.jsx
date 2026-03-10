@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
@@ -63,9 +63,11 @@ export default function TimesheetPayroll() {
   const [expandedEmployee, setExpandedEmployee] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [downloadingPayslip, setDownloadingPayslip] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
+  const searchTimerRef = useRef(null);
 
   // Check admin access
   if (timesheetUser && timesheetUser.role !== 'admin') {
@@ -124,7 +126,14 @@ export default function TimesheetPayroll() {
 
   useEffect(() => { loadPayroll(); setCurrentPage(1); setShowNotApprovedPopup(false); setShowApprovedPopup(false); }, [month, year]);
   // Reset page on filter/search change
-  useEffect(() => { setCurrentPage(1); }, [activeTab, searchQuery]);
+  // Debounce search input (300ms)
+  const handleSearchChange = useCallback((val) => {
+    setSearchQuery(val);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
+  }, []);
+  useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); }, []);
+  useEffect(() => { setCurrentPage(1); }, [activeTab, debouncedSearch]);
 
   // Split employees into processable vs excluded (confirmed)
   const { processableEmployees, excludedEmployees } = useMemo(() => {
@@ -144,8 +153,8 @@ export default function TimesheetPayroll() {
     if (activeTab !== 'all') {
       list = list.filter(e => e.employmentType === activeTab);
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter(e =>
         e.name.toLowerCase().includes(q) ||
         (e.employeeId || '').toLowerCase().includes(q) ||
@@ -153,13 +162,16 @@ export default function TimesheetPayroll() {
       );
     }
     return list;
-  }, [processableEmployees, activeTab, searchQuery]);
+  }, [processableEmployees, activeTab, debouncedSearch]);
 
   // Filtered summary
   const filteredSummary = useMemo(() => {
-    const totalPayable = filteredEmployees.reduce((s, e) => s + e.grossPay, 0);
-    const paidCount = filteredEmployees.filter(e => e.paymentStatus === 'paid').length;
-    const onHoldCount = filteredEmployees.filter(e => e.paymentStatus === 'on_hold').length;
+    let totalPayable = 0, paidCount = 0, onHoldCount = 0;
+    for (const e of filteredEmployees) {
+      totalPayable += e.grossPay;
+      if (e.paymentStatus === 'paid') paidCount++;
+      else if (e.paymentStatus === 'on_hold') onHoldCount++;
+    }
     return {
       totalPayable: Math.round(totalPayable),
       employeeCount: filteredEmployees.length,
@@ -877,7 +889,7 @@ export default function TimesheetPayroll() {
         <div className="flex-1 min-w-[200px] relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
           <input type="text" placeholder="Search employees..." value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
             className="w-full bg-dark-800/50 border border-dark-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-dark-500 outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -995,11 +1007,11 @@ export default function TimesheetPayroll() {
                                   <hr className="border-dark-800 my-1" />
                                   <div className="flex justify-between font-medium"><span className="text-dark-300">Gross Pay</span><span className="text-white">{'\u20B9'}{fmtDecimal(emp.grossPay)}</span></div>
                                   {emp.adjustments?.filter(a => a.type === 'bonus').map((a, i) => (
-                                    <div key={`b-${i}`} className="flex justify-between"><span className="text-dark-400 text-xs">{a.label}</span><span className="text-emerald-400 text-xs">+{'\u20B9'}{fmtDecimal(a.amount)}</span></div>
+                                    <div key={a._id} className="flex justify-between"><span className="text-dark-400 text-xs">{a.label}</span><span className="text-emerald-400 text-xs">+{'\u20B9'}{fmtDecimal(a.amount)}</span></div>
                                   ))}
                                   <div className="flex justify-between"><span className="text-dark-400">TDS ({(emp.tdsRate * 100)}%)</span><span className="text-red-400">-{'\u20B9'}{fmtDecimal(emp.tdsAmount)}</span></div>
                                   {emp.adjustments?.filter(a => a.type === 'deduction').map((a, i) => (
-                                    <div key={`d-${i}`} className="flex justify-between"><span className="text-dark-400 text-xs">{a.label}</span><span className="text-red-400 text-xs">-{'\u20B9'}{fmtDecimal(a.amount)}</span></div>
+                                    <div key={a._id} className="flex justify-between"><span className="text-dark-400 text-xs">{a.label}</span><span className="text-red-400 text-xs">-{'\u20B9'}{fmtDecimal(a.amount)}</span></div>
                                   ))}
                                   <div className="flex justify-between font-bold text-base"><span className="text-dark-200">Net Pay</span><span className="text-emerald-400">{'\u20B9'}{fmtDecimal(emp.netPay)}</span></div>
                                 </div>
