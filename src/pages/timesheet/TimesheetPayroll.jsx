@@ -9,7 +9,7 @@ import {
   IndianRupee, Users, TrendingUp, Search, FileSpreadsheet,
   ChevronLeft, ChevronRight, ShieldCheck, CalendarDays, FileDown,
   X, AlertTriangle, UserX, Lock, Unlock, Play, CheckCircle2, Circle,
-  Send, Mail, PlusCircle, Trash2,
+  Send, Mail, PlusCircle, Trash2, Ban,
 } from 'lucide-react';
 
 const ADJUSTMENT_CATEGORIES = {
@@ -37,6 +37,9 @@ const typeLabels = {
   external_consultant: 'External',
   intern: 'Intern',
 };
+
+// Employment types excluded from payroll processing (modules not yet implemented)
+const EXCLUDED_EMPLOYMENT_TYPES = new Set(['confirmed']);
 
 const typeBadgeColors = {
   confirmed: 'bg-blue-500/10 text-blue-400',
@@ -84,6 +87,9 @@ export default function TimesheetPayroll() {
   const [showNotApprovedPopup, setShowNotApprovedPopup] = useState(false);
   const [showApprovedPopup, setShowApprovedPopup] = useState(false);
 
+  // Excluded employees section
+  const [showExcluded, setShowExcluded] = useState(false);
+
   // Adjustment modal
   const [adjustmentModal, setAdjustmentModal] = useState(null); // { employeeObjId, name }
   const [adjForm, setAdjForm] = useState({ type: 'bonus', category: '', customLabel: '', amount: '' });
@@ -115,10 +121,21 @@ export default function TimesheetPayroll() {
   // Reset page on filter/search change
   useEffect(() => { setCurrentPage(1); }, [activeTab, searchQuery]);
 
-  // Filtering
+  // Split employees into processable vs excluded (confirmed)
+  const { processableEmployees, excludedEmployees } = useMemo(() => {
+    if (!data?.employees) return { processableEmployees: [], excludedEmployees: [] };
+    const processable = [];
+    const excluded = [];
+    for (const e of data.employees) {
+      if (EXCLUDED_EMPLOYMENT_TYPES.has(e.employmentType)) excluded.push(e);
+      else processable.push(e);
+    }
+    return { processableEmployees: processable, excludedEmployees: excluded };
+  }, [data]);
+
+  // Filtering (only processable employees)
   const filteredEmployees = useMemo(() => {
-    if (!data?.employees) return [];
-    let list = data.employees;
+    let list = processableEmployees;
     if (activeTab !== 'all') {
       list = list.filter(e => e.employmentType === activeTab);
     }
@@ -131,7 +148,7 @@ export default function TimesheetPayroll() {
       );
     }
     return list;
-  }, [data, activeTab, searchQuery]);
+  }, [processableEmployees, activeTab, searchQuery]);
 
   // Filtered summary
   const filteredSummary = useMemo(() => {
@@ -153,13 +170,12 @@ export default function TimesheetPayroll() {
   }, [filteredEmployees, currentPage]);
 
   const tabCounts = useMemo(() => {
-    if (!data?.employees) return {};
-    const counts = { all: data.employees.length };
-    for (const e of data.employees) {
+    const counts = { all: processableEmployees.length };
+    for (const e of processableEmployees) {
       counts[e.employmentType] = (counts[e.employmentType] || 0) + 1;
     }
     return counts;
-  }, [data]);
+  }, [processableEmployees]);
 
   const handleDownloadPayslip = async (emp) => {
     setDownloadingPayslip(emp.employeeObjId);
@@ -734,13 +750,13 @@ export default function TimesheetPayroll() {
       })()}
 
       {/* Approved timesheets indicator + missing submissions link */}
-      {data?.employees?.length > 0 && (
+      {processableEmployees.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-dark-400">
           <div className="flex items-center gap-2">
             <ShieldCheck size={14} className="text-emerald-500" />
             <span>Showing payroll data from{' '}
               <button onClick={() => setShowApprovedPopup(true)} className="text-emerald-400 font-medium hover:underline hover:text-emerald-300 transition-colors">
-                {data.employees.reduce((s, e) => s + e.projects.length, 0)} approved timesheet{data.employees.reduce((s, e) => s + e.projects.length, 0) !== 1 ? 's' : ''}
+                {processableEmployees.reduce((s, e) => s + e.projects.length, 0)} approved timesheet{processableEmployees.reduce((s, e) => s + e.projects.length, 0) !== 1 ? 's' : ''}
               </button>
               {' '}for {monthNames[month]} {year}
             </span>
@@ -758,7 +774,7 @@ export default function TimesheetPayroll() {
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
-        {['all', 'confirmed', 'internal_consultant', 'external_consultant', 'intern'].map(tab => (
+        {['all', 'internal_consultant', 'external_consultant', 'intern'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
@@ -777,8 +793,8 @@ export default function TimesheetPayroll() {
             className="w-full bg-dark-800/50 border border-dark-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-dark-500 outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => { setSelectedForRelease(new Set(data?.employees?.map(e => e.employeeObjId) || [])); setShowReleaseModal(true); }}
-            disabled={!data?.employees?.length || !['processed', 'finalized'].includes(payrollRun?.status)}
+          <button onClick={() => { setSelectedForRelease(new Set(processableEmployees.map(e => e.employeeObjId))); setShowReleaseModal(true); }}
+            disabled={!processableEmployees.length || !['processed', 'finalized'].includes(payrollRun?.status)}
             title={!['processed', 'finalized'].includes(payrollRun?.status) ? 'Process payroll first to release payslips' : ''}
             className="bg-rivvra-500 text-dark-950 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             <Send size={14} /> Release Payslips
@@ -788,7 +804,7 @@ export default function TimesheetPayroll() {
             className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             <FileSpreadsheet size={14} /> Export CSV
           </button>
-          <button onClick={handleProcessPayroll} disabled={processingPayroll || !data?.employees?.length || !['processed', 'finalized'].includes(payrollRun?.status)}
+          <button onClick={handleProcessPayroll} disabled={processingPayroll || !processableEmployees.length || !['processed', 'finalized'].includes(payrollRun?.status)}
             title={!['processed', 'finalized'].includes(payrollRun?.status) ? 'Process payroll first to export' : ''}
             className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             {processingPayroll ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
@@ -800,8 +816,8 @@ export default function TimesheetPayroll() {
       {/* Payroll Table */}
       {filteredEmployees.length === 0 ? (
         <div className="card p-8 text-center text-dark-500">
-          {data?.employees?.length === 0
-            ? `No approved timesheets for ${monthNames[month]} ${year}`
+          {processableEmployees.length === 0
+            ? `No approved timesheets for ${monthNames[month]} ${year}${excludedEmployees.length > 0 ? ' (confirmed employees excluded)' : ''}`
             : 'No employees match the current filter'}
         </div>
       ) : (
@@ -1056,6 +1072,68 @@ export default function TimesheetPayroll() {
         </div>
       )}
 
+      {/* Excluded Employees (Confirmed) */}
+      {excludedEmployees.length > 0 && (
+        <div className="card border border-dark-700/50 overflow-hidden">
+          <button onClick={() => setShowExcluded(prev => !prev)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-dark-800/30 transition-colors">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Ban size={14} className="text-blue-400" />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-dark-300">Excluded from Payroll</span>
+                <span className="text-xs text-dark-500 ml-2">({excludedEmployees.length} confirmed employee{excludedEmployees.length !== 1 ? 's' : ''})</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-dark-500 bg-dark-800 px-2 py-0.5 rounded-full">PF / PT / ESI / Leave not implemented</span>
+              {showExcluded ? <ChevronUp size={14} className="text-dark-500" /> : <ChevronDown size={14} className="text-dark-500" />}
+            </div>
+          </button>
+          {showExcluded && (
+            <div className="border-t border-dark-800">
+              <div className="px-4 py-2 bg-blue-500/5 border-b border-dark-800">
+                <p className="text-xs text-blue-400/80">These employees have approved timesheets but are excluded from payroll processing, exports, and payslip generation until Leave Management, PF, PT, and ESI modules are implemented.</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-dark-800/40">
+                    <th className="text-left px-4 py-2.5 font-medium text-dark-500 text-xs">Employee</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-dark-500 text-xs">Type</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-dark-500 text-xs">Project(s)</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-dark-500 text-xs">Days</th>
+                    <th className="text-center px-3 py-2.5 font-medium text-dark-500 text-xs">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-800/30">
+                  {excludedEmployees.map(emp => (
+                    <tr key={emp.employeeObjId} className="opacity-60">
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium text-dark-300">{emp.name}</p>
+                        <p className="text-xs text-dark-600">{emp.employeeId || emp.email}</p>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${typeBadgeColors[emp.employmentType] || 'bg-dark-700 text-dark-400'}`}>
+                          {typeLabels[emp.employmentType] || emp.employmentType}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-dark-400 text-xs max-w-[150px] truncate">
+                        {emp.projects.map(p => p.projectName).join(', ')}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-dark-400">{emp.totalWorkingDays}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-dark-700/50 text-dark-500">Excluded</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Not Approved Popup */}
       {showNotApprovedPopup && notApprovedData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowNotApprovedPopup(false)}>
@@ -1146,7 +1224,7 @@ export default function TimesheetPayroll() {
       )}
 
       {/* Release Payslips Modal */}
-      {showReleaseModal && data?.employees && (
+      {showReleaseModal && processableEmployees.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowReleaseModal(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -1158,7 +1236,7 @@ export default function TimesheetPayroll() {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-white">Release Payslips</h3>
-                  <p className="text-[11px] text-dark-400">{monthNames[month]} {year} — {selectedForRelease.size} of {data.employees.length} selected</p>
+                  <p className="text-[11px] text-dark-400">{monthNames[month]} {year} — {selectedForRelease.size} of {processableEmployees.length} selected</p>
                 </div>
               </div>
               <button onClick={() => setShowReleaseModal(false)} className="p-1.5 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors">
@@ -1169,9 +1247,9 @@ export default function TimesheetPayroll() {
             {/* Select All */}
             <div className="px-5 py-3 border-b border-dark-800/50 flex items-center gap-3">
               <input type="checkbox" id="select-all-payslips"
-                checked={selectedForRelease.size === data.employees.length}
+                checked={selectedForRelease.size === processableEmployees.length}
                 onChange={(e) => {
-                  if (e.target.checked) setSelectedForRelease(new Set(data.employees.map(emp => emp.employeeObjId)));
+                  if (e.target.checked) setSelectedForRelease(new Set(processableEmployees.map(emp => emp.employeeObjId)));
                   else setSelectedForRelease(new Set());
                 }}
                 className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30"
@@ -1181,7 +1259,7 @@ export default function TimesheetPayroll() {
 
             {/* Employee List */}
             <div className="overflow-y-auto flex-1 px-2 py-2">
-              {data.employees.map((emp) => {
+              {processableEmployees.map((emp) => {
                 const isSelected = selectedForRelease.has(emp.employeeObjId);
                 return (
                   <label key={emp.employeeObjId}
