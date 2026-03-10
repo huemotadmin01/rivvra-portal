@@ -294,7 +294,7 @@ export default function TimesheetPayroll() {
       // Row 2: Title
       const titleRow = ws.addRow([`Salary Statement For The Month Of ${monthNames[month]} ${year}`]);
       titleRow.getCell(1).font = { bold: true, size: 14 };
-      ws.mergeCells(2, 1, 2, 17);
+      ws.mergeCells(2, 1, 2, 18);
 
       // Row 3: blank
       ws.addRow([]);
@@ -310,7 +310,7 @@ export default function TimesheetPayroll() {
         'Employee No', 'Name', 'Project Start Date', 'Status',
         'PAN No.', 'Bank A/C', 'IFSC',
         'Days In Month', 'LOP', 'Effective Workdays',
-        'Gross Pay', 'TDS (2%)', 'Other Deductions', 'Total Deductions', 'Net Pay',
+        'Gross Pay', 'Bonuses', 'TDS (2%)', 'Deductions', 'Total Deductions', 'Net Pay',
         'Disbursement Date', 'Payment Status',
       ];
       const headerRow = ws.addRow(headers);
@@ -325,31 +325,33 @@ export default function TimesheetPayroll() {
       });
       headerRow.height = 28;
 
-      // Salary column indices (1-based): Gross=11, TDS=12, OtherDed=13, TotalDed=14, Net=15
+      // Salary column indices (1-based): Gross=11, Bonuses=12, TDS=13, Deductions=14, TotalDed=15, Net=16
       const salaryColStart = 11;
-      const salaryColEnd = 15;
+      const salaryColEnd = 16;
       const salaryHighlight = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9E6' } }; // light yellow
 
       // Data rows
       let totDaysInMonth = 0, totLOP = 0, totEffective = 0;
-      let totGross = 0, totTDS = 0, totOther = 0, totDeductions = 0, totNet = 0;
+      let totGross = 0, totBonuses = 0, totTDS = 0, totAdjDed = 0, totDeductions = 0, totNet = 0;
 
       consultants.forEach((emp) => {
         const daysInMonth = emp.totalWorkingDaysInMonth || 0;
         const lop = emp.leaveDays || 0;
         const effective = emp.totalWorkingDays || 0;
         const gross = emp.grossPay || 0;
+        const bonuses = emp.totalBonuses || 0;
         const tds = emp.tdsAmount || 0;
-        const otherDed = 0; // Not tracked yet
-        const totalDed = -(tds + otherDed);
+        const adjDed = emp.totalDeductions || 0;
+        const totalDed = -(tds + adjDed);
         const net = emp.netPay || 0;
 
         totDaysInMonth += daysInMonth;
         totLOP += lop;
         totEffective += effective;
         totGross += gross;
+        totBonuses += bonuses;
         totTDS += tds;
-        totOther += otherDed;
+        totAdjDed += adjDed;
         totDeductions += totalDed;
         totNet += net;
 
@@ -365,8 +367,9 @@ export default function TimesheetPayroll() {
           lop,
           effective,
           Math.round(gross * 100) / 100,
+          Math.round(bonuses * 100) / 100,
           Math.round(tds * 100) / 100,
-          otherDed,
+          Math.round(adjDed * 100) / 100,
           Math.round(totalDed * 100) / 100,
           Math.round(net * 100) / 100,
           fmtDate(emp.disbursementDate),
@@ -391,7 +394,7 @@ export default function TimesheetPayroll() {
             cell.alignment = { horizontal: 'center' };
           }
           // Payment Status column
-          if (colNumber === 17) {
+          if (colNumber === 18) {
             cell.font = { color: { argb: cell.value === 'Paid' ? '228B22' : 'CC5500' }, bold: true };
             cell.alignment = { horizontal: 'center' };
           }
@@ -404,8 +407,9 @@ export default function TimesheetPayroll() {
         '', '', '',
         totDaysInMonth, totLOP, totEffective,
         Math.round(totGross * 100) / 100,
+        Math.round(totBonuses * 100) / 100,
         Math.round(totTDS * 100) / 100,
-        totOther,
+        Math.round(totAdjDed * 100) / 100,
         Math.round(totDeductions * 100) / 100,
         Math.round(totNet * 100) / 100,
         '', '',
@@ -425,8 +429,8 @@ export default function TimesheetPayroll() {
       });
 
       // Auto-width columns
-      // 1:EmpNo 2:Name 3:ProjStart 4:Status 5:PAN 6:BankAC 7:IFSC 8:Days 9:LOP 10:Eff 11:Gross 12:TDS 13:Other 14:TotalDed 15:Net 16:Disb 17:PayStatus
-      const minWidths = [14, 28, 18, 20, 16, 18, 14, 14, 8, 18, 14, 12, 16, 16, 14, 16, 14];
+      // 1:EmpNo 2:Name 3:ProjStart 4:Status 5:PAN 6:BankAC 7:IFSC 8:Days 9:LOP 10:Eff 11:Gross 12:Bonuses 13:TDS 14:Deductions 15:TotalDed 16:Net 17:Disb 18:PayStatus
+      const minWidths = [14, 28, 18, 20, 16, 18, 14, 14, 8, 18, 14, 12, 12, 14, 16, 14, 16, 14];
       ws.columns.forEach((col, i) => {
         col.width = minWidths[i] || 14;
       });
