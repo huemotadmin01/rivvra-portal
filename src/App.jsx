@@ -18,6 +18,7 @@ import { Loader2 } from 'lucide-react';
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
+import LoginPage from './pages/LoginPage';
 import OrgLoginPage from './pages/OrgLoginPage';
 import PrivacyPage from './pages/PrivacyPage';
 import FeaturesPage from './pages/FeaturesPage';
@@ -173,7 +174,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/signup" element={<SignupPage />} />
-            <Route path="/login" element={<Navigate to="/signup" replace />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/invite" element={<InviteAcceptPage />} />
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/pricing" element={<PricingPage />} />

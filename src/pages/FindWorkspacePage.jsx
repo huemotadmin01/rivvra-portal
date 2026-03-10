@@ -124,8 +124,8 @@ function FindWorkspacePage() {
         {/* Footer Links */}
         <div className="text-center space-y-2 mt-6">
           <p className="text-dark-400 text-sm">
-            <Link to="/signup" className="text-rivvra-400 hover:underline inline-flex items-center gap-1">
-              <ArrowLeft className="w-3 h-3" /> Back to Sign Up
+            <Link to="/login" className="text-rivvra-400 hover:underline inline-flex items-center gap-1">
+              <ArrowLeft className="w-3 h-3" /> Back to Login
             </Link>
           </p>
         </div>

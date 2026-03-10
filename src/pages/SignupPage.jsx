@@ -187,16 +187,12 @@ function SignupPage() {
     }
   }, [isAuthenticated]);
 
-  // Only redirect if authenticated AND onboarding is already completed
+  // If authenticated, skip auth steps and go straight to company/org creation
   useEffect(() => {
     if (isAuthenticated && currentStep === STEPS.AUTH) {
       const user = JSON.parse(localStorage.getItem('rivvra_user') || '{}');
-      if (user.onboarding?.completed) {
-        navigate('/home');
-      } else {
-        setCurrentStep(STEPS.COMPANY);
-        checkDomainForExistingOrg(user.email || email);
-      }
+      setCurrentStep(STEPS.COMPANY);
+      checkDomainForExistingOrg(user.email || email);
     }
   }, [isAuthenticated]);
 
@@ -351,14 +347,10 @@ function SignupPage() {
     try {
       const result = await loginWithGoogle({ credential, isSignup: true });
       if (result.success) {
-        // Check if user needs onboarding
+        // Skip auth steps, go to company/org creation
         const user = result.user;
-        if (user.onboarding?.completed) {
-          navigate('/home');
-        } else {
-          setCurrentStep(STEPS.COMPANY);
-          checkDomainForExistingOrg(user.email || email);
-        }
+        setCurrentStep(STEPS.COMPANY);
+        checkDomainForExistingOrg(user.email || email);
       } else {
         setError(result.error || 'Google sign up failed');
       }

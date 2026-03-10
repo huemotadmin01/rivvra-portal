@@ -38,7 +38,7 @@ function LoginPage() {
         navigate(from, { replace: true });
       } else {
         if (result.error === 'User not found') {
-          setError('No account found with this Google account. Please sign up first.');
+          setError('No account found with this Google account. Please contact your admin.');
         } else {
           setError(result.error || 'Google sign in failed');
         }
@@ -136,20 +136,13 @@ function LoginPage() {
             <span className="text-xl font-bold text-white">Rivvra</span>
           </Link>
 
-          {/* Toggle Tabs */}
+          {/* Tab Header */}
           <div className="flex mb-8 p-1 bg-dark-800/50 rounded-lg border border-dark-700">
-            <Link
-              to="/login"
+            <div
               className="flex-1 py-2.5 text-center rounded-md text-sm font-medium bg-dark-700 text-white"
             >
               Log In
-            </Link>
-            <Link
-              to="/signup"
-              className="flex-1 py-2.5 text-center rounded-md text-sm font-medium text-dark-400 hover:text-white transition-colors"
-            >
-              Sign Up
-            </Link>
+            </div>
           </div>
 
           <div className="animate-fade-in">
@@ -264,12 +257,6 @@ function LoginPage() {
               </form>
 
               <div className="text-center space-y-2">
-                <p className="text-dark-400">
-                  Don't have an account?{' '}
-                  <Link to="/signup" className="text-rivvra-400 hover:underline">
-                    Sign up
-                  </Link>
-                </p>
                 <p className="text-dark-500 text-sm">
                   Forgot your workspace URL?{' '}
                   <Link to="/find-workspace" className="text-rivvra-400 hover:underline">
