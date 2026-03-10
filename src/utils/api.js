@@ -1057,6 +1057,13 @@ class ApiClient {
       body: JSON.stringify({ email }),
     });
   }
+
+  async resetPassword(email, otp, newPassword) {
+    return this.request('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, newPassword }),
+    });
+  }
 }
 
 export const api = new ApiClient();
