@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail, User, CheckCircle2, ChevronRight, Sparkles,
-  ArrowRight, Building2, Briefcase, Loader2, X, ChevronDown
+  ArrowRight, Building2, Briefcase, Loader2, X
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -35,9 +35,9 @@ const STEPS = [
 function EngageSetupGuide({ setupStatus, onConnectGmail, onSetupComplete, onRefresh }) {
   const navigate = useNavigate();
   const { updateUser, user } = useAuth();
-  const { companies: orgCompanies } = useCompany();
+  const { currentCompany } = useCompany();
   const [senderTitle, setSenderTitle] = useState(setupStatus?.senderTitle || '');
-  const [companyName, setCompanyName] = useState(setupStatus?.companyName || '');
+  const defaultCompanyName = currentCompany?.name || '';
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -69,23 +69,22 @@ function EngageSetupGuide({ setupStatus, onConnectGmail, onSetupComplete, onRefr
   // Sync input values when setupStatus prop changes (e.g., after a refresh)
   useEffect(() => {
     if (setupStatus?.senderTitle && !senderTitle) setSenderTitle(setupStatus.senderTitle);
-    if (setupStatus?.companyName && !companyName) setCompanyName(setupStatus.companyName);
-  }, [setupStatus?.senderTitle, setupStatus?.companyName]);
+  }, [setupStatus?.senderTitle]);
 
   const progress = allDone ? 100 : (gmailDone && profileDone) ? 66 : (gmailDone || profileDone) ? 33 : 0;
 
   const handleSaveProfile = async () => {
-    if (!senderTitle.trim() || !companyName.trim()) return;
+    if (!senderTitle.trim() || !defaultCompanyName) return;
     setSavingProfile(true);
     setSaveError('');
     try {
       // Single call: updateProfile handles senderTitle + companyName (upserts company + sets onboarding.companyName)
-      await api.updateProfile({ senderTitle: senderTitle.trim(), companyName: companyName.trim() });
+      await api.updateProfile({ senderTitle: senderTitle.trim(), companyName: defaultCompanyName });
       setProfileSaved(true);
       // Update global auth context so Settings page reflects changes immediately
       updateUser({
         senderTitle: senderTitle.trim(),
-        onboarding: { ...user?.onboarding, companyName: companyName.trim() }
+        onboarding: { ...user?.onboarding, companyName: defaultCompanyName }
       });
       // Await refresh so setupStatus.allComplete updates before we dismiss
       if (onRefresh) await onRefresh();
@@ -268,27 +267,15 @@ function EngageSetupGuide({ setupStatus, onConnectGmail, onSetupComplete, onRefr
                           <div>
                             <label className="block text-xs text-dark-400 mb-1.5">
                               <Building2 className="w-3 h-3 inline mr-1" />
-                              Company name
+                              Company
                             </label>
-                            <div className="relative">
-                              <select
-                                value={companyName}
-                                onChange={(e) => setCompanyName(e.target.value)}
-                                className="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500 transition-colors appearance-none cursor-pointer"
-                              >
-                                <option value="" disabled>Select company</option>
-                                {orgCompanies.map((c) => (
-                                  <option key={c._id} value={c.name}>
-                                    {c.name}{c.isDefault ? ' (Default)' : ''}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500 pointer-events-none" />
+                            <div className="w-full px-3 py-2 bg-dark-900/50 border border-dark-700 rounded-lg text-sm text-dark-300">
+                              {defaultCompanyName || <span className="text-dark-500">No company set</span>}
                             </div>
                           </div>
                           <button
                             onClick={handleSaveProfile}
-                            disabled={!senderTitle.trim() || !companyName.trim() || savingProfile}
+                            disabled={!senderTitle.trim() || !defaultCompanyName || savingProfile}
                             className="flex items-center gap-2 px-4 py-2.5 bg-rivvra-500 text-dark-950 rounded-lg text-sm font-semibold hover:bg-rivvra-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             {savingProfile ? (

@@ -10,7 +10,7 @@ import { useCompany } from '../../context/CompanyContext';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
   Mail, Building2, Crown, Briefcase, Check, BarChart3, Lock, Settings2,
-  Eye, EyeOff, CheckCircle, ChevronDown
+  Eye, EyeOff, CheckCircle
 } from 'lucide-react';
 import api from '../../utils/api';
 
@@ -18,7 +18,7 @@ export default function SettingsProfile() {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const { currentOrg, membership } = useOrg();
-  const { companies: orgCompanies } = useCompany();
+  const { currentCompany } = useCompany();
 
   const [activeProfileTab, setActiveProfileTab] = useState('preferences');
 
@@ -41,24 +41,6 @@ export default function SettingsProfile() {
     } finally {
       setSavingTitle(false);
     }
-  };
-
-  // Company
-  const [companyName, setCompanyName] = useState(user?.onboarding?.companyName || '');
-  const [savingCompany, setSavingCompany] = useState(false);
-  const [companySaved, setCompanySaved] = useState(false);
-
-  const handleSaveCompany = async () => {
-    if (!companyName.trim()) return;
-    setSavingCompany(true);
-    try {
-      const res = await api.updateProfile({ companyName: companyName.trim() });
-      if (res.success) {
-        updateUser({ onboarding: { ...user?.onboarding, companyName: companyName.trim() } });
-        setCompanySaved(true);
-        setTimeout(() => setCompanySaved(false), 2000);
-      }
-    } catch { /* ignore */ } finally { setSavingCompany(false); }
   };
 
   // Delete account
@@ -279,37 +261,14 @@ export default function SettingsProfile() {
               <p className="text-xs text-dark-600 mt-1">Used as {'{{senderTitle}}'} placeholder in email sequences</p>
             </div>
 
-            {/* Company */}
+            {/* Company (read-only — switch via header company selector) */}
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-2">Company</label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
-                    <Building2 className="w-5 h-5 text-dark-500 flex-shrink-0" />
-                    <select
-                      value={companyName}
-                      onChange={(e) => { setCompanyName(e.target.value); setCompanySaved(false); }}
-                      className="bg-transparent text-white w-full outline-none appearance-none cursor-pointer"
-                    >
-                      <option value="" disabled className="bg-dark-800 text-dark-400">Select company</option>
-                      {orgCompanies.map((c) => (
-                        <option key={c._id} value={c.name} className="bg-dark-800 text-white">
-                          {c.name}{c.isDefault ? ' (Default)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-dark-500 flex-shrink-0 pointer-events-none" />
-                  </div>
-                </div>
-                <button
-                  onClick={handleSaveCompany}
-                  disabled={savingCompany || !companyName.trim() || companyName.trim() === (user?.onboarding?.companyName || '')}
-                  className="px-4 py-3 bg-rivvra-500 text-dark-950 rounded-xl hover:bg-rivvra-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 text-sm font-medium"
-                >
-                  {savingCompany ? <Loader2 className="w-4 h-4 animate-spin" /> : companySaved ? <Check className="w-4 h-4" /> : 'Save'}
-                </button>
+              <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                <Building2 className="w-5 h-5 text-dark-500" />
+                <span className="text-white">{currentCompany?.name || '-'}</span>
               </div>
-              <p className="text-xs text-dark-600 mt-1">Used as {'{{senderCompany}}'} placeholder in email sequences</p>
+              <p className="text-xs text-dark-600 mt-1">Your default company. Switch companies from the header dropdown.</p>
             </div>
 
             {/* Read-only fields */}
