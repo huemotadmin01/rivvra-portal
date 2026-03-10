@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail, User, CheckCircle2, ChevronRight, Sparkles,
-  ArrowRight, Building2, Briefcase, Loader2, X
+  ArrowRight, Building2, Briefcase, Loader2, X, ChevronDown
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import ComboSelect from './ComboSelect';
+import { useCompany } from '../context/CompanyContext';
 
 const STEPS = [
   {
@@ -35,6 +35,7 @@ const STEPS = [
 function EngageSetupGuide({ setupStatus, onConnectGmail, onSetupComplete, onRefresh }) {
   const navigate = useNavigate();
   const { updateUser, user } = useAuth();
+  const { companies: orgCompanies } = useCompany();
   const [senderTitle, setSenderTitle] = useState(setupStatus?.senderTitle || '');
   const [companyName, setCompanyName] = useState(setupStatus?.companyName || '');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -269,13 +270,21 @@ function EngageSetupGuide({ setupStatus, onConnectGmail, onSetupComplete, onRefr
                               <Building2 className="w-3 h-3 inline mr-1" />
                               Company name
                             </label>
-                            <ComboSelect
-                              value=""
-                              displayValue={companyName}
-                              options={[]}
-                              onChange={(id, name) => setCompanyName(name)}
-                              placeholder="Type your company name"
-                            />
+                            <div className="relative">
+                              <select
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                className="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500 transition-colors appearance-none cursor-pointer"
+                              >
+                                <option value="" disabled>Select company</option>
+                                {orgCompanies.map((c) => (
+                                  <option key={c._id} value={c.name}>
+                                    {c.name}{c.isDefault ? ' (Default)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500 pointer-events-none" />
+                            </div>
                           </div>
                           <button
                             onClick={handleSaveProfile}

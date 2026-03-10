@@ -2,14 +2,15 @@
  * SettingsProfile — Odoo-style User Profile page
  * Shows personal info, preferences, account security & statistics.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
   Mail, Building2, Crown, Briefcase, Check, BarChart3, Lock, Settings2,
-  Eye, EyeOff, CheckCircle
+  Eye, EyeOff, CheckCircle, ChevronDown
 } from 'lucide-react';
 import api from '../../utils/api';
 
@@ -17,6 +18,7 @@ export default function SettingsProfile() {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const { currentOrg, membership } = useOrg();
+  const { companies: orgCompanies } = useCompany();
 
   const [activeProfileTab, setActiveProfileTab] = useState('preferences');
 
@@ -43,39 +45,8 @@ export default function SettingsProfile() {
 
   // Company
   const [companyName, setCompanyName] = useState(user?.onboarding?.companyName || '');
-  const [companySuggestions, setCompanySuggestions] = useState([]);
-  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
-  const [searchingCompanies, setSearchingCompanies] = useState(false);
   const [savingCompany, setSavingCompany] = useState(false);
   const [companySaved, setCompanySaved] = useState(false);
-  const companyRef = useRef(null);
-
-  const handleCompanySearch = async (value) => {
-    setCompanyName(value);
-    setCompanySaved(false);
-    if (value.length < 2) { setCompanySuggestions([]); setShowCompanySuggestions(false); return; }
-    setSearchingCompanies(true);
-    try {
-      const res = await api.searchCompanies(value);
-      if (res.success && res.companies.length > 0) {
-        setCompanySuggestions(res.companies);
-        setShowCompanySuggestions(true);
-      } else {
-        setCompanySuggestions([]);
-        setShowCompanySuggestions(false);
-      }
-    } catch {
-      setCompanySuggestions([]);
-    } finally {
-      setSearchingCompanies(false);
-    }
-  };
-
-  const selectCompany = (company) => {
-    setCompanyName(company.name);
-    setShowCompanySuggestions(false);
-    setCompanySuggestions([]);
-  };
 
   const handleSaveCompany = async () => {
     if (!companyName.trim()) return;
@@ -89,14 +60,6 @@ export default function SettingsProfile() {
       }
     } catch { /* ignore */ } finally { setSavingCompany(false); }
   };
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (companyRef.current && !companyRef.current.contains(e.target)) setShowCompanySuggestions(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Delete account
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -317,36 +280,26 @@ export default function SettingsProfile() {
             </div>
 
             {/* Company */}
-            <div ref={companyRef}>
+            <div>
               <label className="block text-sm font-medium text-dark-300 mb-2">Company</label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
                     <Building2 className="w-5 h-5 text-dark-500 flex-shrink-0" />
-                    <input
-                      type="text"
+                    <select
                       value={companyName}
-                      onChange={(e) => handleCompanySearch(e.target.value)}
-                      onFocus={() => { if (companySuggestions.length > 0) setShowCompanySuggestions(true); }}
-                      placeholder="Search or enter company name"
-                      className="bg-transparent text-white w-full outline-none placeholder:text-dark-600"
-                      autoComplete="off"
-                    />
-                    {searchingCompanies && <Loader2 className="w-4 h-4 text-dark-500 animate-spin flex-shrink-0" />}
-                  </div>
-                  {showCompanySuggestions && companySuggestions.length > 0 && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-dark-800 border border-dark-600 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                      {companySuggestions.map((c) => (
-                        <button key={c._id} onClick={() => selectCompany(c)} className="w-full px-4 py-2.5 text-left hover:bg-dark-700 transition-colors flex items-center gap-3 first:rounded-t-xl last:rounded-b-xl">
-                          {c.logo ? <img src={c.logo} alt="" className="w-6 h-6 rounded object-contain bg-white/10" /> : <Building2 className="w-5 h-5 text-dark-500" />}
-                          <div className="min-w-0">
-                            <p className="text-sm text-white truncate">{c.name}</p>
-                            {(c.domain || c.industry) && <p className="text-xs text-dark-500 truncate">{[c.domain, c.industry].filter(Boolean).join(' · ')}</p>}
-                          </div>
-                        </button>
+                      onChange={(e) => { setCompanyName(e.target.value); setCompanySaved(false); }}
+                      className="bg-transparent text-white w-full outline-none appearance-none cursor-pointer"
+                    >
+                      <option value="" disabled className="bg-dark-800 text-dark-400">Select company</option>
+                      {orgCompanies.map((c) => (
+                        <option key={c._id} value={c.name} className="bg-dark-800 text-white">
+                          {c.name}{c.isDefault ? ' (Default)' : ''}
+                        </option>
                       ))}
-                    </div>
-                  )}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-dark-500 flex-shrink-0 pointer-events-none" />
+                  </div>
                 </div>
                 <button
                   onClick={handleSaveCompany}
@@ -356,6 +309,7 @@ export default function SettingsProfile() {
                   {savingCompany ? <Loader2 className="w-4 h-4 animate-spin" /> : companySaved ? <Check className="w-4 h-4" /> : 'Save'}
                 </button>
               </div>
+              <p className="text-xs text-dark-600 mt-1">Used as {'{{senderCompany}}'} placeholder in email sequences</p>
             </div>
 
             {/* Read-only fields */}
