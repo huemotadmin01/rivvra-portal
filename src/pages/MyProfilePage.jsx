@@ -215,7 +215,8 @@ export default function MyProfilePage() {
 
   // ─── Derived ───────────────────────────────────────────────
   const orgRole = membership?.orgRole;
-  const isPro = user?.plan === 'pro';
+  const orgPlan = currentOrg?.plan || user?.plan || 'free';
+  const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const photoUrl = resolvePhotoUrl(user?.picture);
 
   // Show Account Security only if user has a password (hide for Google-only users)
@@ -228,7 +229,7 @@ export default function MyProfilePage() {
 
   return (
     <>
-      <div className="p-6 max-w-4xl">
+      <div className="p-6 max-w-4xl mx-auto">
         {/* Page header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white">My Profile</h1>
