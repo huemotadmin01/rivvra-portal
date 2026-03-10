@@ -102,8 +102,8 @@ export default function TimesheetPayroll() {
   const [adjLoading, setAdjLoading] = useState(false);
   const [adjDeleting, setAdjDeleting] = useState(null);
 
-  const loadPayroll = async () => {
-    setLoading(true);
+  const loadPayroll = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [payrollRes, notApprovedRes] = await Promise.all([
         timesheetApi.get('/payroll/summary', { params: { month, year } }),
@@ -112,14 +112,13 @@ export default function TimesheetPayroll() {
       setData(payrollRes.data);
       setPayrollRun(payrollRes.data?.payrollRun || { status: 'open' });
       if (notApprovedRes?.data?.months) {
-        // Find the month matching current selection
         const match = notApprovedRes.data.months.find(m => m.month === month && m.year === year);
         setNotApprovedData(match || null);
       }
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to load payroll', 'error');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -259,7 +258,7 @@ export default function TimesheetPayroll() {
       });
       showToast(`${adjForm.type === 'bonus' ? 'Bonus' : 'Deduction'} added`);
       setAdjForm({ type: adjForm.type, category: '', customLabel: '', amount: '' });
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to add adjustment', 'error');
     } finally {
@@ -272,7 +271,7 @@ export default function TimesheetPayroll() {
     try {
       await timesheetApi.delete(`/payroll/adjustments/${adjustmentId}`);
       showToast('Adjustment removed');
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to remove adjustment', 'error');
     } finally {
@@ -294,7 +293,7 @@ export default function TimesheetPayroll() {
       showToast(`Salary held for ${holdModal.name}`);
       setHoldModal(null);
       setHoldForm({ reason: '', holdUntil: '' });
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to hold salary', 'error');
     } finally {
@@ -307,7 +306,7 @@ export default function TimesheetPayroll() {
     try {
       await timesheetApi.post(`/payroll/salary-hold/${holdId}/release`);
       showToast(`Salary hold released for ${empName}`);
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to release hold', 'error');
     } finally {
@@ -521,7 +520,7 @@ export default function TimesheetPayroll() {
     try {
       await timesheetApi.post('/payroll/run/lock', { month, year });
       showToast(`Payroll locked for ${monthNames[month]} ${year}`);
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to lock payroll', 'error');
     } finally {
@@ -534,7 +533,7 @@ export default function TimesheetPayroll() {
     try {
       await timesheetApi.post('/payroll/run/unlock', { month, year });
       showToast(`Payroll unlocked for ${monthNames[month]} ${year}`);
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to unlock payroll', 'error');
     } finally {
@@ -547,7 +546,7 @@ export default function TimesheetPayroll() {
     try {
       await timesheetApi.post('/payroll/run/process', { month, year });
       showToast(`Payroll processed for ${monthNames[month]} ${year}`);
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to process payroll', 'error');
     } finally {
@@ -561,7 +560,7 @@ export default function TimesheetPayroll() {
       await timesheetApi.post('/payroll/run/finalize', { month, year });
       showToast(`Payroll finalized for ${monthNames[month]} ${year}`);
       setShowFinalizeConfirm(false);
-      await loadPayroll();
+      await loadPayroll(true);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to finalize payroll', 'error');
     } finally {
