@@ -215,7 +215,7 @@ export default function MyProfilePage() {
 
   // ─── Derived ───────────────────────────────────────────────
   const orgRole = membership?.orgRole;
-  const orgPlan = currentOrg?.plan || user?.plan || 'free';
+  const orgPlan = currentOrg?.plan || 'free';
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const photoUrl = resolvePhotoUrl(user?.picture);
 

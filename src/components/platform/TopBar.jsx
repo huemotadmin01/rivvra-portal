@@ -40,7 +40,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
   const { currentOrg } = useOrg();
-  const orgPlan = currentOrg?.plan || user?.plan || 'free';
+  const orgPlan = currentOrg?.plan || 'free';
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
