@@ -119,12 +119,10 @@ export default function HolidayCalendar() {
   return (
     <div className="p-3 sm:p-6 space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Holiday Calendar</h1>
-          <p className="text-dark-400 text-sm mt-1">Manage public holidays for your organization</p>
-        </div>
-        <div className="flex items-center gap-1">
+      <div className="text-center">
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Holiday Calendar</h1>
+        <p className="text-dark-400 text-sm mt-1">Manage public holidays for your organization</p>
+        <div className="flex items-center justify-center gap-1 mt-3">
           <button onClick={() => setYear(y => y - 1)} className="p-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-400 hover:text-white hover:border-dark-600 transition-colors">
             <ChevronLeft size={16} />
           </button>
