@@ -243,8 +243,8 @@ export default function HolidayCalendar() {
                           >
                             <Star size={10} className={h.recurring ? 'text-yellow-500 fill-yellow-500' : 'text-dark-600 hover:text-dark-400'} />
                           </button>
-                          <button onClick={() => handleRemove(h.idx)} className="text-dark-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all ml-0.5" title="Remove">
-                            <Trash2 size={11} />
+                          <button onClick={() => handleRemove(h.idx)} className="p-1 -m-1 text-dark-600 hover:text-red-400 transition-colors" title="Remove">
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
