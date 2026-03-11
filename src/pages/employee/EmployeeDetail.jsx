@@ -334,16 +334,14 @@ export default function EmployeeDetail() {
                     <Edit2 size={14} />
                     Edit
                   </button>
-                  {/* Delete — only for separated employees */}
-                  {(emp.status === 'resigned' || emp.status === 'terminated') && (
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
-                  )}
+                  {/* Delete — available for any employee (backend checks for blocking data) */}
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
                 </div>
               )}
             </div>
