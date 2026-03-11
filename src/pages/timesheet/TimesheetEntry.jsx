@@ -102,7 +102,7 @@ export default function TimesheetEntry() {
         for (let d = 1; d <= daysInMo; d++) {
           const dayOfWeek = new Date(year, month - 1, d).getDay();
           if (dayOfWeek === 0 || dayOfWeek === 6) entryMap[d] = { hours: 0, status: 'weekend' };
-          else if (holidayDays.has(d)) entryMap[d] = { hours: 0, status: 'holiday' };
+          else if (holidayDays.has(d)) entryMap[d] = { hours: 8, status: 'holiday' };
           else entryMap[d] = { hours: '', status: null };
         }
 
@@ -117,8 +117,8 @@ export default function TimesheetEntry() {
             if (status === 'holiday' || status === 'leave') {
               entryMap[d] = { hours, status };
             } else if (holidayDays.has(d)) {
-              // Day is a holiday but saved as working — keep holiday status (paid holiday)
-              entryMap[d] = { hours: 0, status: 'holiday' };
+              // Day is a holiday but saved as working — keep holiday status (paid holiday, 8h)
+              entryMap[d] = { hours: 8, status: 'holiday' };
             } else {
               entryMap[d] = { hours, status: (status === 'working' && hours <= 0) ? null : status };
             }
@@ -405,11 +405,12 @@ export default function TimesheetEntry() {
         )}
       </div>
 
-      {/* Project info bar */}
+      {/* Project info bar — hide rate for non-contractor employees (internal business data) */}
       {selectedProject && (() => {
         const asgn = timesheetUser?.assignments?.find(a => (a.projectId?._id || a.projectId)?.toString() === selectedProject);
         if (!asgn) return null;
-        const rate = asgn.billingRate?.monthly ? `₹${Number(asgn.billingRate.monthly).toLocaleString('en-IN')}/mo` : asgn.billingRate?.daily ? `₹${Number(asgn.billingRate.daily).toLocaleString('en-IN')}/day` : null;
+        const isContractor = !isHolidayEligible(timesheetUser); // external consultants / billable internal
+        const rate = isContractor && (asgn.billingRate?.monthly ? `₹${Number(asgn.billingRate.monthly).toLocaleString('en-IN')}/mo` : asgn.billingRate?.daily ? `₹${Number(asgn.billingRate.daily).toLocaleString('en-IN')}/day` : null);
         const startDate = asgn.startDate ? new Date(asgn.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
         return (asgn.clientName || rate || startDate) ? (
           <div className="rounded-lg bg-dark-800/50 border border-dark-700 px-4 py-2 text-sm text-dark-400 flex flex-wrap gap-x-5 gap-y-1">
