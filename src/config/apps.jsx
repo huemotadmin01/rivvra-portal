@@ -316,16 +316,21 @@ export const APP_REGISTRY = {
       { value: 'admin', label: 'Admin', color: 'teal' },
       { value: 'member', label: 'Member', color: 'dark' },
     ],
-    getSidebarItems: () => [
-      { type: 'item', path: '/todo/dashboard', label: 'Dashboard', icon: Home },
-      { type: 'item', path: '/todo/tasks', label: 'All Tasks', icon: CheckSquare },
-      {
-        type: 'group', label: 'Configuration', icon: Settings,
-        children: [
-          { path: '/settings/todo', label: 'Settings', icon: Settings },
-        ],
-      },
-    ],
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/todo/dashboard', label: 'Dashboard', icon: Home },
+        { type: 'item', path: '/todo/tasks', label: 'All Tasks', icon: CheckSquare },
+        ...(isAdmin ? [
+          {
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/settings/todo', label: 'Settings', icon: Settings },
+            ],
+          },
+        ] : []),
+      ];
+    },
   },
 
   settings: {

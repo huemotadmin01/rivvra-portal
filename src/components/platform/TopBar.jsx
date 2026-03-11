@@ -39,7 +39,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const { user, logout } = useAuth();
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
-  const { currentOrg } = useOrg();
+  const { currentOrg, isOrgAdmin } = useOrg();
   const orgPlan = currentOrg?.plan || 'free';
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
@@ -249,13 +249,15 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                   <UserCircle className="w-4 h-4" />
                   My Profile
                 </Link>
-                <Link
-                  to={orgPath('/settings/general')}
-                  className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Link>
+                {isOrgAdmin && (
+                  <Link
+                    to={orgPath('/settings/general')}
+                    className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Settings
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors text-sm"
