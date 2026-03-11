@@ -165,7 +165,7 @@ function ContractorDashboard() {
             timesheets.slice(0, 5).map(ts => (
               <div key={ts._id} className="flex items-center justify-between p-4">
                 <div>
-                  <p className="text-sm font-medium text-white">{monthNames[ts.month]} {ts.year} — {ts.project?.name}</p>
+                  <p className="text-sm font-medium text-white">{monthNames[ts.month]} {ts.year}{ts.project?.name ? ` — ${ts.project.name}` : ''}</p>
                   <p className="text-xs text-dark-500">{ts.totalWorkingDays} working days</p>
                   {ts.status === 'rejected' && ts.rejectionReason && (
                     <p className="text-xs text-red-400/70 mt-0.5">Reason: {ts.rejectionReason}</p>

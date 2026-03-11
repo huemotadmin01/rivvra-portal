@@ -35,8 +35,13 @@ export default function TimesheetEntry() {
   const [saving, setSaving] = useState(false);
   const [periodLocked, setPeriodLocked] = useState(false);
 
+  const isNonBillable = timesheetUser?.billable === false;
+  const hasProjects = projects.length > 0;
+
+  // Load projects (skip for non-billable — they don't need a project)
   useEffect(() => {
     if (!timesheetUser) return;
+    if (isNonBillable) return;
     const controller = new AbortController();
     timesheetApi.get('/projects', { signal: controller.signal }).then(r => {
       setProjects(r.data);
@@ -49,10 +54,7 @@ export default function TimesheetEntry() {
       }
     }).catch(() => {});
     return () => controller.abort();
-  }, [timesheetUser]);
-
-  const isNonBillable = timesheetUser?.billable === false;
-  const hasProjects = projects.length > 0;
+  }, [timesheetUser, isNonBillable]);
 
   useEffect(() => {
     // Non-billable employees without projects can still use timesheets
