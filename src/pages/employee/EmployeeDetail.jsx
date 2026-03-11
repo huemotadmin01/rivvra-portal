@@ -219,7 +219,7 @@ export default function EmployeeDetail() {
     try {
       const res = await employeeApi.remove(currentOrg.slug, employeeId);
       if (res.success) {
-        navigate(orgPath('/employee'));
+        navigate(orgPath('/employee/directory'));
       } else {
         alert(res.error || 'Failed to delete employee');
       }

@@ -62,12 +62,6 @@ async function request(method, url, { body, params, signal, responseType } = {})
   // Handle 401 — session expired
   if (res.status === 401) {
     console.error('Timesheet API auth failed — session expired');
-    localStorage.removeItem('rivvra_token');
-    localStorage.removeItem('rivvra_user');
-    const currentHash = window.location.hash || '';
-    if (!currentHash.includes('/login')) {
-      window.location.hash = '#/login';
-    }
     let data;
     try { data = await res.json(); } catch { data = {}; }
     throw new ApiError(data.error || 'Unauthorized', 401, data);
