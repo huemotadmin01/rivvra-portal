@@ -616,12 +616,14 @@ export default function EmployeeForm() {
       return false;
     }
 
-    // Non-billable: joining date, salary, and manager are required
+    // Joining date is required for all employees
+    if (!form.joiningDate) {
+      setError('Joining Date is required.');
+      return false;
+    }
+
+    // Non-billable: salary and manager are required
     if (!form.billable) {
-      if (!form.joiningDate) {
-        setError('Joining Date is required for non-billable employees.');
-        return false;
-      }
       if (!form.monthlyGrossSalary) {
         setError('Monthly Gross Salary is required for non-billable employees.');
         return false;
@@ -1539,14 +1541,13 @@ export default function EmployeeForm() {
           ))}
         </div>
 
-        {/* ── Dates — for confirmed/intern/non-billable; billable consultants only see LWD when separating ── */}
-        {(form.employmentType === 'confirmed' || form.employmentType === 'intern' || !form.billable) ? (
-          <div className="card p-5 space-y-4">
-            <h2 className="text-white font-semibold text-lg">Dates</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Joining Date */}
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Joining Date{!form.billable && <span className="text-red-400"> *</span>}</label>
+        {/* ── Dates ── */}
+        <div className="card p-5 space-y-4">
+          <h2 className="text-white font-semibold text-lg">Dates</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Joining Date — required for all */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Joining Date <span className="text-red-400">*</span></label>
                 <input
                   type="date"
                   value={form.joiningDate}
@@ -1619,54 +1620,6 @@ export default function EmployeeForm() {
               </div>
             </div>
           </div>
-        ) : (form.status === 'resigned' || form.status === 'terminated') ? (
-          /* Consultants: only show LWD + reason when being separated */
-          <div className="card p-5 space-y-4">
-            <h2 className="text-white font-semibold text-lg">Separation</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">
-                  Last Working Date <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={form.lastWorkingDate}
-                  onChange={(e) => setField('lastWorkingDate', e.target.value)}
-                  className="input-field w-full"
-                  required
-                />
-                {!form.lastWorkingDate && (
-                  <p className="text-xs text-red-400 mt-1">Required for resigned/terminated employees</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">
-                  Separation Reason {isSeparating && <span className="text-red-400">*</span>}
-                </label>
-                <select
-                  value={form.separationReason}
-                  onChange={(e) => setField('separationReason', e.target.value)}
-                  className="input-field w-full"
-                >
-                  <option value="">Select reason...</option>
-                  {SEPARATION_REASONS.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-dark-300 mb-1">Separation Notes</label>
-                <textarea
-                  value={form.separationNotes}
-                  onChange={(e) => setField('separationNotes', e.target.value)}
-                  className="input-field w-full"
-                  rows={2}
-                  placeholder="Optional remarks..."
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {/* ── Address ───────────────────────────────────────────────── */}
         <div className="card p-5 space-y-4">
