@@ -2,13 +2,25 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { getHolidays, updateHolidays, copyHolidaysToYear } from '../../utils/timesheetApi';
 import { PageSkeleton } from '../../components/Skeletons';
-import { Calendar, Plus, Trash2, Copy, Loader2, Star, Globe } from 'lucide-react';
+import { Plus, Trash2, Copy, Loader2, Star, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
-const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function formatDate(d) {
-  const dt = new Date(d);
-  return `${dt.getDate()} ${monthNames[dt.getMonth()]} ${dt.getFullYear()}`;
+// Parse date string YYYY-MM-DD without timezone shift
+function parseDate(d) {
+  if (!d) return null;
+  const s = typeof d === 'string' ? d : (d instanceof Date ? d.toISOString() : String(d));
+  const match = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return { year: +match[1], month: +match[2] - 1, day: +match[3] };
+  const dt = new Date(s);
+  return { year: dt.getFullYear(), month: dt.getMonth(), day: dt.getDate() };
+}
+
+function toDateStr(d) {
+  const p = parseDate(d);
+  if (!p) return '';
+  return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
 export default function HolidayCalendar() {
@@ -40,7 +52,9 @@ export default function HolidayCalendar() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateHolidays({ year, holidays });
+      // Normalize dates to YYYY-MM-DD strings before saving
+      const normalized = holidays.map(h => ({ ...h, date: toDateStr(h.date) }));
+      await updateHolidays({ year, holidays: normalized });
       showToast('Holiday calendar saved', 'success');
       setIsDefault(false);
     } catch (err) {
@@ -55,7 +69,10 @@ export default function HolidayCalendar() {
       showToast('Date and name are required', 'error');
       return;
     }
-    setHolidays(prev => [...prev, { ...newHoliday, date: new Date(newHoliday.date) }].sort((a, b) => new Date(a.date) - new Date(b.date)));
+    setHolidays(prev => {
+      const all = [...prev, { ...newHoliday }];
+      return all.sort((a, b) => toDateStr(a.date).localeCompare(toDateStr(b.date)));
+    });
     setNewHoliday({ date: '', name: '', type: 'mandatory', recurring: true });
     setShowAdd(false);
   };
@@ -86,112 +103,162 @@ export default function HolidayCalendar() {
 
   if (loading) return <PageSkeleton />;
 
-  // Group holidays by month for calendar display
+  // Group holidays by month using timezone-safe parsing
   const byMonth = {};
   holidays.forEach((h, idx) => {
-    const d = new Date(h.date);
-    const m = d.getMonth();
+    const p = parseDate(h.date);
+    if (!p) return;
+    const m = p.month;
     if (!byMonth[m]) byMonth[m] = [];
-    byMonth[m].push({ ...h, idx });
+    byMonth[m].push({ ...h, idx, day: p.day });
   });
 
+  const mandatoryCount = holidays.filter(h => h.type === 'mandatory').length;
+  const optionalCount = holidays.filter(h => h.type === 'optional').length;
+
   return (
-    <div className="space-y-6">
+    <div className="p-3 sm:p-6 space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Holiday Calendar</h1>
-          <p className="text-dark-400 text-sm mt-1">Manage public holidays for your organization.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Holiday Calendar</h1>
+          <p className="text-dark-400 text-sm mt-1">Manage public holidays for your organization</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setYear(y => y - 1)} className="px-3 py-1.5 text-sm bg-dark-800 border border-dark-700 rounded-lg text-dark-300 hover:text-white">&larr;</button>
-          <span className="text-white font-semibold text-lg min-w-[60px] text-center">{year}</span>
-          <button onClick={() => setYear(y => y + 1)} className="px-3 py-1.5 text-sm bg-dark-800 border border-dark-700 rounded-lg text-dark-300 hover:text-white">&rarr;</button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setYear(y => y - 1)} className="p-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-400 hover:text-white hover:border-dark-600 transition-colors">
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-white font-bold text-lg min-w-[60px] text-center px-3">{year}</span>
+          <button onClick={() => setYear(y => y + 1)} className="p-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-400 hover:text-white hover:border-dark-600 transition-colors">
+            <ChevronRight size={16} />
+          </button>
         </div>
       </div>
 
       {isDefault && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm rounded-lg px-4 py-3">
-          Showing default holidays. Save to customize for your organization.
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="text-amber-400 text-lg">*</span>
+          Showing default holidays. Click <strong>Save Calendar</strong> to customize for your organization.
         </div>
       )}
 
-      {/* Action bar */}
-      <div className="flex flex-wrap gap-2">
-        <button onClick={() => setShowAdd(true)} className="bg-rivvra-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-600 flex items-center gap-1.5">
-          <Plus size={14} /> Add Holiday
-        </button>
-        <button onClick={handleCopyToNextYear} disabled={copying} className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-sm hover:text-white flex items-center gap-1.5 disabled:opacity-50">
-          {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Copy to {year + 1}
-        </button>
-        <button onClick={handleSave} disabled={saving} className="ml-auto bg-rivvra-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-1.5">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : null} Save Calendar
-        </button>
+      {/* Stats + Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-dark-400">
+              <span className="text-white font-semibold">{holidays.length}</span> holidays
+            </span>
+            <span className="text-emerald-400">
+              <span className="font-semibold">{mandatoryCount}</span> mandatory
+            </span>
+            {optionalCount > 0 && (
+              <span className="text-yellow-400">
+                <span className="font-semibold">{optionalCount}</span> optional
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setShowAdd(true)} className="bg-rivvra-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors">
+            <Plus size={14} /> Add Holiday
+          </button>
+          <button onClick={handleCopyToNextYear} disabled={copying} className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-sm hover:text-white hover:border-dark-600 flex items-center gap-1.5 disabled:opacity-50 transition-colors">
+            {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Copy to {year + 1}
+          </button>
+          <button onClick={handleSave} disabled={saving} className="bg-rivvra-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Calendar
+          </button>
+        </div>
       </div>
 
-      {/* Add Holiday Form (inline) */}
+      {/* Add Holiday Form */}
       {showAdd && (
-        <div className="bg-dark-800 border border-dark-700 rounded-xl p-4 space-y-3">
-          <h3 className="text-white font-medium text-sm">Add New Holiday</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <input type="date" value={newHoliday.date} onChange={e => setNewHoliday(p => ({ ...p, date: e.target.value }))}
-              className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500" />
-            <input type="text" placeholder="Holiday name" value={newHoliday.name} onChange={e => setNewHoliday(p => ({ ...p, name: e.target.value }))}
-              className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 placeholder:text-dark-500" />
-            <select value={newHoliday.type} onChange={e => setNewHoliday(p => ({ ...p, type: e.target.value }))}
-              className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500">
-              <option value="mandatory">Mandatory</option>
-              <option value="optional">Optional</option>
-            </select>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 text-sm text-dark-300">
-                <input type="checkbox" checked={newHoliday.recurring} onChange={e => setNewHoliday(p => ({ ...p, recurring: e.target.checked }))}
-                  className="rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500" />
-                Recurring
-              </label>
-              <button onClick={handleAdd} className="bg-rivvra-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-rivvra-600">Add</button>
-              <button onClick={() => setShowAdd(false)} className="text-dark-400 hover:text-white text-sm">Cancel</button>
+        <div className="bg-dark-800/80 border border-dark-700 rounded-xl p-4">
+          <h3 className="text-white font-medium text-sm mb-3">Add New Holiday</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <div>
+              <label className="text-dark-400 text-xs mb-1 block">Date</label>
+              <input type="date" value={newHoliday.date} onChange={e => setNewHoliday(p => ({ ...p, date: e.target.value }))}
+                className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500" />
+            </div>
+            <div>
+              <label className="text-dark-400 text-xs mb-1 block">Name</label>
+              <input type="text" placeholder="Holiday name" value={newHoliday.name} onChange={e => setNewHoliday(p => ({ ...p, name: e.target.value }))}
+                className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 placeholder:text-dark-500" />
+            </div>
+            <div>
+              <label className="text-dark-400 text-xs mb-1 block">Type</label>
+              <select value={newHoliday.type} onChange={e => setNewHoliday(p => ({ ...p, type: e.target.value }))}
+                className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500">
+                <option value="mandatory">Mandatory</option>
+                <option value="optional">Optional</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-dark-300 py-2">
+              <input type="checkbox" checked={newHoliday.recurring} onChange={e => setNewHoliday(p => ({ ...p, recurring: e.target.checked }))}
+                className="rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500" />
+              Recurring yearly
+            </label>
+            <div className="flex gap-2">
+              <button onClick={handleAdd} className="bg-rivvra-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rivvra-400 transition-colors">Add</button>
+              <button onClick={() => setShowAdd(false)} className="text-dark-400 hover:text-white text-sm px-3 py-2 transition-colors">Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Holiday List by Month */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 12 }, (_, m) => (
-          <div key={m} className="bg-dark-800 border border-dark-700 rounded-xl p-4">
-            <h3 className="text-white font-semibold text-sm mb-3">{monthNames[m]} {year}</h3>
-            {byMonth[m]?.length ? (
-              <div className="space-y-2">
-                {byMonth[m].map(h => (
-                  <div key={h.idx} className="flex items-center justify-between gap-2 group">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-dark-400 text-xs font-mono w-5 shrink-0">{new Date(h.date).getDate()}</span>
-                      <span className="text-white text-sm truncate">{h.name}</span>
-                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium cursor-pointer ${h.type === 'mandatory' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}
-                        onClick={() => toggleType(h.idx)} title="Click to toggle type">
-                        {h.type === 'mandatory' ? 'M' : 'O'}
-                      </span>
-                      {h.recurring && (
-                        <Star size={10} className="text-yellow-500 shrink-0 cursor-pointer" onClick={() => toggleRecurring(h.idx)} title="Recurring — click to toggle" />
-                      )}
-                    </div>
-                    <button onClick={() => handleRemove(h.idx)} className="text-dark-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                ))}
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {Array.from({ length: 12 }, (_, m) => {
+          const monthHolidays = byMonth[m] || [];
+          const hasHolidays = monthHolidays.length > 0;
+          return (
+            <div key={m} className={`rounded-xl border transition-colors ${hasHolidays ? 'bg-dark-800 border-dark-700' : 'bg-dark-800/40 border-dark-800'}`}>
+              <div className={`px-4 py-2.5 border-b ${hasHolidays ? 'border-dark-700' : 'border-dark-800'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`font-semibold text-sm ${hasHolidays ? 'text-white' : 'text-dark-500'}`}>{monthShort[m]}</h3>
+                  {hasHolidays && (
+                    <span className="text-[10px] text-dark-500 bg-dark-900 px-1.5 py-0.5 rounded">{monthHolidays.length}</span>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-dark-500 text-xs">No holidays</p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Summary */}
-      <div className="text-dark-400 text-sm">
-        Total: {holidays.length} holidays ({holidays.filter(h => h.type === 'mandatory').length} mandatory, {holidays.filter(h => h.type === 'optional').length} optional)
+              <div className="px-4 py-3 min-h-[52px]">
+                {hasHolidays ? (
+                  <div className="space-y-2">
+                    {monthHolidays.map(h => (
+                      <div key={h.idx} className="flex items-center gap-2 group">
+                        <span className="text-rivvra-400 text-xs font-mono w-5 shrink-0 text-right">{h.day}</span>
+                        <span className="text-white text-sm truncate flex-1">{h.name}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => toggleType(h.idx)}
+                            title={`${h.type} — click to toggle`}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors ${h.type === 'mandatory' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'}`}
+                          >
+                            {h.type === 'mandatory' ? 'M' : 'O'}
+                          </button>
+                          <button
+                            onClick={() => toggleRecurring(h.idx)}
+                            title={h.recurring ? 'Recurring — click to make one-time' : 'One-time — click to make recurring'}
+                            className="transition-colors"
+                          >
+                            <Star size={10} className={h.recurring ? 'text-yellow-500 fill-yellow-500' : 'text-dark-600 hover:text-dark-400'} />
+                          </button>
+                          <button onClick={() => handleRemove(h.idx)} className="text-dark-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all ml-0.5" title="Remove">
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-dark-600 text-xs italic">No holidays</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
