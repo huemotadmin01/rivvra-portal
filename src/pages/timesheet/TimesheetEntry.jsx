@@ -517,24 +517,18 @@ export default function TimesheetEntry() {
                       )}
                     </div>
 
-                    {!isNonWorking ? (
-                      <div className="flex items-center justify-center mb-1">
-                        <input
-                          type="number"
-                          value={isWeekendIdle ? '' : (entry.hours === '' || entry.hours === null || entry.hours === undefined ? '' : entry.hours)}
-                          onChange={e => setHours(day, e.target.value)}
-                          onFocus={e => e.target.select()}
-                          disabled={isReadOnly || entry.status === 'leave' || entry.status === 'holiday'}
-                          min="0" max="24" step="0.5" placeholder={isWeekendDay ? '0' : '8'}
-                          className="w-9 sm:w-12 h-6 sm:h-7 text-center text-xs sm:text-sm font-semibold bg-dark-800 border border-dark-700 rounded text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500 disabled:bg-dark-800/50 disabled:text-dark-500 placeholder:text-dark-600 placeholder:font-normal [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                        <span className="text-[10px] text-dark-500 ml-0.5 hidden sm:inline">h</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center mb-1">
-                        <span className="text-xs text-dark-500">0h</span>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-center mb-1">
+                      <input
+                        type="number"
+                        value={isWeekendIdle ? '' : (entry.hours === '' || entry.hours === null || entry.hours === undefined ? '' : entry.hours)}
+                        onChange={e => setHours(day, e.target.value)}
+                        onFocus={e => e.target.select()}
+                        disabled={isReadOnly || entry.status === 'leave' || entry.status === 'holiday'}
+                        min="0" max="24" step="0.5" placeholder={isWeekendDay ? '0' : '8'}
+                        className="w-9 sm:w-12 h-6 sm:h-7 text-center text-xs sm:text-sm font-semibold bg-dark-800 border border-dark-700 rounded text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500 disabled:bg-dark-800/50 disabled:text-dark-500 placeholder:text-dark-600 placeholder:font-normal [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-[10px] text-dark-500 ml-0.5 hidden sm:inline">h</span>
+                    </div>
 
                     <div className="text-center min-h-[18px]">
                       {isWeekendDay ? (
