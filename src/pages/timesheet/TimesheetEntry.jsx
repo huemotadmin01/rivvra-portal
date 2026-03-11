@@ -154,17 +154,18 @@ export default function TimesheetEntry() {
       }
       return;
     }
-    // Weekday: cycle working → leave → holiday
-    const order = ['working', 'leave', 'holiday'];
-    const currentIdx = entry.status ? order.indexOf(entry.status) : -1;
-    const next = order[(currentIdx + 1) % order.length];
-    const newHours = next === 'working' ? 8 : 0;
-    setEntries(prev => ({ ...prev, [day]: { hours: newHours, status: next } }));
+    // Leave/holiday entries are read-only — managed by Leave module & Holiday calendar
+    if (entry.status === 'leave' || entry.status === 'holiday') return;
+    // Weekday: toggle between working (8h) and working (0h)
+    const newHours = (entry.hours || 0) > 0 ? 0 : 8;
+    setEntries(prev => ({ ...prev, [day]: { hours: newHours, status: 'working' } }));
   };
 
   const setHours = (day, value) => {
     if (!canEdit || isBeforeProjectStart(day)) return;
     const entry = entries[day] || { hours: '', status: null };
+    // Block editing leave/holiday entries — managed by Leave module & Holiday calendar
+    if (entry.status === 'leave' || entry.status === 'holiday') return;
     const dayOfWeek = new Date(year, month - 1, day).getDay();
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
 
@@ -300,7 +301,7 @@ export default function TimesheetEntry() {
     }
     if (unfilledDays.length > 0) {
       const daysList = unfilledDays.slice(0, 5).join(', ') + (unfilledDays.length > 5 ? ` and ${unfilledDays.length - 5} more` : '');
-      showToast(`Please fill all past workdays before submitting. Unfilled: ${monthNames[month - 1]} ${daysList}. Enter hours or mark as Leave/Holiday.`, 'error');
+      showToast(`Please fill all past workdays before submitting. Unfilled: ${monthNames[month - 1]} ${daysList}. Enter hours or apply for leave via the Leave module.`, 'error');
       return;
     }
 
@@ -358,7 +359,7 @@ export default function TimesheetEntry() {
       <div className={`flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ${hasProjects ? 'sm:justify-between' : 'sm:justify-center text-center'}`}>
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white">My Timesheet</h1>
-          <p className="text-dark-400 text-sm hidden sm:block">Enter hours worked per day. Click status label to mark Leave/Holiday.</p>
+          <p className="text-dark-400 text-sm hidden sm:block">Enter hours worked per day. Leaves and holidays are managed via the Leave module.</p>
         </div>
         {hasProjects && (
           <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
@@ -490,7 +491,7 @@ export default function TimesheetEntry() {
                           value={isWeekendIdle ? '' : (entry.hours === '' || entry.hours === null || entry.hours === undefined ? '' : entry.hours)}
                           onChange={e => setHours(day, e.target.value)}
                           onFocus={e => e.target.select()}
-                          disabled={isReadOnly}
+                          disabled={isReadOnly || entry.status === 'leave' || entry.status === 'holiday'}
                           min="0" max="24" step="0.5" placeholder={isWeekendDay ? '0' : '8'}
                           className="w-9 sm:w-12 h-6 sm:h-7 text-center text-xs sm:text-sm font-semibold bg-dark-800 border border-dark-700 rounded text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500 disabled:bg-dark-800/50 disabled:text-dark-500 placeholder:text-dark-600 placeholder:font-normal [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
@@ -519,8 +520,9 @@ export default function TimesheetEntry() {
                           )
                         )
                       ) : hasStatus ? (
-                        <button onClick={() => cycleStatus(day)} disabled={isReadOnly}
-                          className={`inline-block px-1 sm:px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-medium text-white ${statusColors[entry.status]} ${!isReadOnly ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}>
+                        <button onClick={() => cycleStatus(day)} disabled={isReadOnly || entry.status === 'leave' || entry.status === 'holiday'}
+                          title={entry.status === 'leave' ? 'Managed via Leave module' : entry.status === 'holiday' ? 'Public holiday' : ''}
+                          className={`inline-block px-1 sm:px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-medium text-white ${statusColors[entry.status]} ${(!isReadOnly && entry.status !== 'leave' && entry.status !== 'holiday') ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}>
                           {statusLabels[entry.status]}
                         </button>
                       ) : (

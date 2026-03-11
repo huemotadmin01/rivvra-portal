@@ -5,9 +5,9 @@
  */
 import { useState, useEffect } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
-import { Save, Plus, X, Calendar, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer } from 'lucide-react';
+import { Save, Plus, X, Calendar, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2 } from 'lucide-react';
 import timesheetApi from '../../utils/timesheetApi';
-import { getTimesheetAppSettings, updateTimesheetAppSettings } from '../../utils/timesheetApi';
+import { getTimesheetAppSettings, updateTimesheetAppSettings, getLeavePolicy, updateLeavePolicy } from '../../utils/timesheetApi';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -43,11 +43,16 @@ export default function SettingsTimesheet() {
   const [appLoading, setAppLoading] = useState(true);
   const [appSaving, setAppSaving] = useState(false);
 
+  // Leave policy settings
+  const [leavePolicy, setLeavePolicy] = useState(null);
+  const [leaveSaving, setLeaveSaving] = useState(false);
+
   useEffect(() => {
     if (!isTimesheetAdmin) { setLoading(false); setAppLoading(false); return; }
     Promise.all([
       timesheetApi.get('/payroll-settings').then(r => setSettings(r.data)).catch(() => {}),
       getTimesheetAppSettings().then(setAppSettings).catch(() => {}),
+      getLeavePolicy().then(setLeavePolicy).catch(() => {}),
     ]).finally(() => { setLoading(false); setAppLoading(false); });
   }, [isTimesheetAdmin]);
 
@@ -68,6 +73,60 @@ export default function SettingsTimesheet() {
     try {
       await updateTimesheetAppSettings(appSettings);
     } catch {} finally { setAppSaving(false); }
+  };
+
+  const handleSaveLeavePolicy = async () => {
+    setLeaveSaving(true);
+    try {
+      await updateLeavePolicy(leavePolicy);
+    } catch {} finally { setLeaveSaving(false); }
+  };
+
+  const addLeaveType = () => {
+    setLeavePolicy(prev => ({
+      ...prev,
+      leaveTypes: [
+        ...(prev.leaveTypes || []),
+        {
+          code: '', name: '', accrualPerYear: 0, accrualFrequency: 'monthly',
+          carryForward: false, carryForwardCap: 0, encashable: false, expiresAtYearEnd: false,
+          halfDayAllowed: true,
+          eligibleEmployeeTypes: ['confirmed'],
+        },
+      ],
+    }));
+  };
+
+  const removeLeaveType = (index) => {
+    setLeavePolicy(prev => ({
+      ...prev,
+      leaveTypes: prev.leaveTypes.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateLeaveType = (index, field, value) => {
+    setLeavePolicy(prev => ({
+      ...prev,
+      leaveTypes: prev.leaveTypes.map((lt, i) =>
+        i === index ? { ...lt, [field]: value } : lt
+      ),
+    }));
+  };
+
+  const toggleEmpType = (index, empType) => {
+    setLeavePolicy(prev => ({
+      ...prev,
+      leaveTypes: prev.leaveTypes.map((lt, i) => {
+        if (i !== index) return lt;
+        const types = lt.eligibleEmployeeTypes || [];
+        return {
+          ...lt,
+          eligibleEmployeeTypes: types.includes(empType)
+            ? types.filter(t => t !== empType)
+            : [...types, empType],
+        };
+      }),
+    }));
   };
 
   const addCustomDate = () => {
@@ -385,6 +444,200 @@ export default function SettingsTimesheet() {
             <button onClick={handleSaveAppSettings} disabled={appSaving}
               className="btn-primary px-6 py-2.5 flex items-center gap-2 disabled:opacity-50 mt-6">
               <Save size={16} /> {appSaving ? 'Saving...' : 'Save App Settings'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* LEAVE POLICY SETTINGS                                           */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {leavePolicy && (
+        <div>
+          <div className="border-t border-dark-700 pt-8">
+            <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+              <CalendarOff size={20} className="text-rivvra-400" />
+              Leave Policy
+            </h2>
+            <p className="text-sm text-dark-400 mb-6">Configure leave types, accrual rules, and eligibility</p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* General Settings */}
+              <div className="card p-5">
+                <h3 className="font-semibold text-white mb-4">General Settings</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-dark-300 mb-1">Financial Year Start Month</label>
+                    <p className="text-xs text-dark-500 mb-2">Month when the financial year begins</p>
+                    <select
+                      value={leavePolicy.financialYear?.startMonth ?? 4}
+                      onChange={e => setLeavePolicy(prev => ({ ...prev, financialYear: { ...prev.financialYear, startMonth: Number(e.target.value) } }))}
+                      className="input-field w-40">
+                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+                        <option key={m} value={m}>{monthNames[m]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-dark-300">Half-Day Leave</p>
+                      <p className="text-xs text-dark-500">Allow employees to take half-day leaves</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={leavePolicy.halfDayAllowed ?? true}
+                      onChange={v => setLeavePolicy(prev => ({ ...prev, halfDayAllowed: v }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-dark-300">Sandwich Rule</p>
+                      <p className="text-xs text-dark-500">Count weekends/holidays between leave days as leave</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={leavePolicy.sandwichRule?.enabled ?? false}
+                      onChange={v => setLeavePolicy(prev => ({ ...prev, sandwichRule: { ...prev.sandwichRule, enabled: v } }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-dark-300">Pro-Rata on Joining</p>
+                      <p className="text-xs text-dark-500">Prorate leave accrual for mid-period joins</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={leavePolicy.proRataOnJoining ?? true}
+                      onChange={v => setLeavePolicy(prev => ({ ...prev, proRataOnJoining: v }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-dark-300">Encashment on Exit</p>
+                      <p className="text-xs text-dark-500">Encash unused leave balance on separation</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={leavePolicy.encashmentOnExit ?? false}
+                      onChange={v => setLeavePolicy(prev => ({ ...prev, encashmentOnExit: v }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Leave Types Summary */}
+              <div className="card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-white">Leave Types</h3>
+                  <button onClick={addLeaveType} className="text-rivvra-400 text-sm font-medium hover:text-rivvra-300 flex items-center gap-1 transition-colors">
+                    <Plus size={14} /> Add Type
+                  </button>
+                </div>
+                <div className="space-y-2 text-sm">
+                  {(leavePolicy.leaveTypes || []).map((lt, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 px-3 bg-dark-800/50 rounded-lg">
+                      <div>
+                        <span className="text-white font-medium">{lt.name || lt.code || 'New Type'}</span>
+                        <span className="text-dark-500 ml-2">{lt.accrualPerYear}/yr</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-dark-500">{lt.accrualFrequency}</span>
+                        {lt.carryForward && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">CF</span>}
+                        {lt.expiresAtYearEnd && <span className="text-[10px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded">Expires</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Leave Types Detail */}
+            {(leavePolicy.leaveTypes || []).length > 0 && (
+              <div className="space-y-4 mb-6">
+                {leavePolicy.leaveTypes.map((lt, i) => (
+                  <div key={i} className="card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-white">{lt.name || `Leave Type ${i + 1}`}</h4>
+                      <button onClick={() => removeLeaveType(i)} className="text-red-400 hover:text-red-300 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs text-dark-500 mb-1">Code</label>
+                        <input type="text" value={lt.code || ''} onChange={e => updateLeaveType(i, 'code', e.target.value)}
+                          className="input-field w-full text-sm" placeholder="e.g., sick_leave" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-dark-500 mb-1">Name</label>
+                        <input type="text" value={lt.name || ''} onChange={e => updateLeaveType(i, 'name', e.target.value)}
+                          className="input-field w-full text-sm" placeholder="e.g., Sick Leave" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-dark-500 mb-1">Accrual / Year</label>
+                        <input type="number" min="0" value={lt.accrualPerYear ?? 0} onChange={e => updateLeaveType(i, 'accrualPerYear', Number(e.target.value))}
+                          className="input-field w-full text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-dark-500 mb-1">Accrual Frequency</label>
+                        <select value={lt.accrualFrequency || 'monthly'} onChange={e => updateLeaveType(i, 'accrualFrequency', e.target.value)}
+                          className="input-field w-full text-sm">
+                          <option value="monthly">Monthly</option>
+                          <option value="quarterly">Quarterly</option>
+                          <option value="annual">Annual</option>
+                          <option value="manual">Manual</option>
+                          <option value="none">None</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch checked={lt.carryForward ?? false} onChange={v => updateLeaveType(i, 'carryForward', v)} />
+                        <span className="text-xs text-dark-400">Carry Forward</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch checked={lt.expiresAtYearEnd ?? false} onChange={v => updateLeaveType(i, 'expiresAtYearEnd', v)} />
+                        <span className="text-xs text-dark-400">Expires at FY End</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch checked={lt.encashable ?? false} onChange={v => updateLeaveType(i, 'encashable', v)} />
+                        <span className="text-xs text-dark-400">Encashable</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch checked={lt.halfDayAllowed ?? true} onChange={v => updateLeaveType(i, 'halfDayAllowed', v)} />
+                        <span className="text-xs text-dark-400">Half-Day</span>
+                      </div>
+                    </div>
+                    {lt.carryForward && (
+                      <div className="mb-4">
+                        <label className="block text-xs text-dark-500 mb-1">Carry Forward Cap (0 = no cap)</label>
+                        <input type="number" min="0" value={lt.carryForwardCap ?? 0} onChange={e => updateLeaveType(i, 'carryForwardCap', Number(e.target.value))}
+                          className="input-field w-24 text-sm" />
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs text-dark-500 mb-2">Eligible Employee Types</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { value: 'confirmed', label: 'Confirmed' },
+                          { value: 'intern', label: 'Intern' },
+                          { value: 'internal_consultant_nonbillable', label: 'Internal (Non-Billable)' },
+                        ].map(opt => (
+                          <button key={opt.value} type="button" onClick={() => toggleEmpType(i, opt.value)}
+                            className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                              (lt.eligibleEmployeeTypes || []).includes(opt.value)
+                                ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
+                                : 'bg-dark-800 border-dark-700 text-dark-500 hover:text-dark-300'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={handleSaveLeavePolicy} disabled={leaveSaving}
+              className="btn-primary px-6 py-2.5 flex items-center gap-2 disabled:opacity-50">
+              <Save size={16} /> {leaveSaving ? 'Saving...' : 'Save Leave Policy'}
             </button>
           </div>
         </div>

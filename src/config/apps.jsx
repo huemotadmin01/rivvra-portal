@@ -4,6 +4,7 @@ import {
   CheckCircle2, Download, Settings, Building2, UserPlus, Wallet,
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare,
+  CalendarOff, PlusCircle, ClipboardCheck, Calendar,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -84,24 +85,42 @@ export const APP_REGISTRY = {
       const isManager = effectiveRole === 'manager';
       const isMember = effectiveRole === 'member' || effectiveRole === 'contractor';
 
+      // Determine if employee is eligible for leave management
+      const empType = timesheetUser?.employmentType;
+      const isBillable = timesheetUser?.billable;
+      const isLeaveEligible = empType && empType !== 'external_consultant'
+        && !(empType === 'internal_consultant' && isBillable);
+
       return [
         { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
-        // Admin + Manager: approval page
+        // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
           { type: 'item', path: '/timesheet/approvals', label: 'Approvals', icon: CheckCircle2 },
+          { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
         // Everyone gets their own timesheet (members, managers, admins)
         { type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays },
+        // Leave management (for eligible employees)
+        ...(isLeaveEligible ? [
+          {
+            type: 'group', label: 'Leaves', icon: CalendarOff,
+            children: [
+              { path: '/timesheet/leave/apply', label: 'Apply Leave', icon: PlusCircle },
+              { path: '/timesheet/leave/my-requests', label: 'My Requests', icon: FileText },
+            ],
+          },
+        ] : []),
         // Hide earnings for confirmed+billable employees (temporary — pending payroll deductions)
         ...((timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable) ? [] : [
           { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
         ]),
-        // Admin only
-        // Admin: link to Settings for timesheet configuration
+        // Admin only: configuration
         ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
+              { path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
+              { path: '/timesheet/leave/reports', label: 'Leave Reports', icon: BarChart3 },
               { path: '/settings/timesheet', label: 'Settings', icon: Settings },
             ],
           },

@@ -171,4 +171,110 @@ export async function syncAllPayConfig() {
   return res.data;
 }
 
+// ─── Leave Management ─────────────────────────────────────────────────────
+
+export async function getLeavePolicy() {
+  const res = await timesheetApi.get('/leave-policy');
+  return res.data;
+}
+
+export async function updateLeavePolicy(data) {
+  const res = await timesheetApi.put('/leave-policy', data);
+  return res.data;
+}
+
+export async function getMyLeaveBalances(financialYear) {
+  const res = await timesheetApi.get('/leave-balances/me', { params: { financialYear } });
+  return res.data;
+}
+
+export async function getAllLeaveBalances(params) {
+  const res = await timesheetApi.get('/leave-balances', { params });
+  return res.data;
+}
+
+export async function adjustLeaveBalance(data) {
+  const res = await timesheetApi.post('/leave-balances/adjust', data);
+  return res.data;
+}
+
+export async function applyLeave(data) {
+  const res = await timesheetApi.post('/leave-requests', data);
+  return res.data;
+}
+
+export async function getMyLeaveRequests(params) {
+  const res = await timesheetApi.get('/leave-requests/me', { params });
+  return res.data;
+}
+
+export async function getAllLeaveRequests(params) {
+  const res = await timesheetApi.get('/leave-requests', { params });
+  return res.data;
+}
+
+export async function getPendingLeaveRequests() {
+  const res = await timesheetApi.get('/leave-requests/pending');
+  return res.data;
+}
+
+export async function approveLeaveRequest(id) {
+  const res = await timesheetApi.patch(`/leave-requests/${id}/approve`);
+  return res.data;
+}
+
+export async function rejectLeaveRequest(id, data) {
+  const res = await timesheetApi.patch(`/leave-requests/${id}/reject`, data);
+  return res.data;
+}
+
+export async function cancelLeaveRequest(id, data) {
+  const res = await timesheetApi.patch(`/leave-requests/${id}/cancel`, data);
+  return res.data;
+}
+
+export async function runLeaveAccrual(data) {
+  const res = await timesheetApi.post('/leave-accrual/run', data);
+  return res.data;
+}
+
+export async function runLeaveYearEnd(data) {
+  const res = await timesheetApi.post('/leave-year-end/run', data);
+  return res.data;
+}
+
+// ─── Holiday Calendar ─────────────────────────────────────────────────────
+
+export async function getHolidays(params) {
+  const res = await timesheetApi.get('/holidays', { params });
+  return res.data;
+}
+
+export async function updateHolidays(data) {
+  const res = await timesheetApi.put('/holidays', data);
+  return res.data;
+}
+
+export async function copyHolidaysToYear(data) {
+  const res = await timesheetApi.post('/holidays/copy-to-year', data);
+  return res.data;
+}
+
+// ─── Leave Reports ────────────────────────────────────────────────────────
+
+export async function getLeaveReportSummary(params) {
+  const res = await timesheetApi.get('/leave-reports/summary', { params });
+  return res.data;
+}
+
+export async function getLeaveReportUtilization(params) {
+  const res = await timesheetApi.get('/leave-reports/utilization', { params });
+  return res.data;
+}
+
+export async function exportLeaveReport(params) {
+  const res = await timesheetApi.get('/leave-reports/export', { params, responseType: 'blob' });
+  return res;
+}
+
 export default timesheetApi;

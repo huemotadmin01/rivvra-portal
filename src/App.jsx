@@ -71,6 +71,11 @@ const TimesheetPayConfig = lazy(() => import('./pages/timesheet/TimesheetPayConf
 const TimesheetProjects = lazy(() => import('./pages/timesheet/TimesheetProjects'));
 const TimesheetExport = lazy(() => import('./pages/timesheet/TimesheetExport'));
 const TimesheetPayroll = lazy(() => import('./pages/timesheet/TimesheetPayroll'));
+const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
+const LeaveMyRequests = lazy(() => import('./pages/timesheet/LeaveMyRequests'));
+const LeaveApprovals = lazy(() => import('./pages/timesheet/LeaveApprovals'));
+const LeaveReports = lazy(() => import('./pages/timesheet/LeaveReports'));
+const HolidayCalendar = lazy(() => import('./pages/timesheet/HolidayCalendar'));
 
 // Lazy-loaded: Employee app pages
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
@@ -252,6 +257,12 @@ function App() {
                 <Route path="/org/:slug/timesheet/approvals" element={<ErrorBoundary><TimesheetApprovals /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/users" element={<ErrorBoundary><TimesheetUsers /></ErrorBoundary>} />
                 <Route path="/org/:slug/timesheet/projects" element={<ErrorBoundary><TimesheetProjects /></ErrorBoundary>} />
+                {/* Leave Management */}
+                <Route path="/org/:slug/timesheet/leave/apply" element={<ErrorBoundary><LeaveApply /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/leave/my-requests" element={<ErrorBoundary><LeaveMyRequests /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/leave/approvals" element={<ErrorBoundary><LeaveApprovals /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><LeaveReports /></ErrorBoundary>} />
+                <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><HolidayCalendar /></ErrorBoundary>} />
               </Route>
 
               {/* Payroll app routes — gated by payroll app admin role */}

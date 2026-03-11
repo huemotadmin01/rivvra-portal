@@ -4,11 +4,11 @@ import { useTimesheetContext } from '../../context/TimesheetContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import timesheetApi from '../../utils/timesheetApi';
+import timesheetApi, { getMyLeaveBalances, getPendingLeaveRequests } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import {
   CalendarDays, IndianRupee, Clock, CheckCircle2,
-  FileText, AlertCircle, ArrowRight, UserX
+  FileText, AlertCircle, ArrowRight, UserX, CalendarOff
 } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -28,6 +28,18 @@ function StatusBadge({ status }) {
   );
 }
 
+const leaveTypeColors = {
+  sick_leave: 'from-red-400/20 to-red-500/20 text-red-400',
+  casual_leave: 'from-blue-400/20 to-blue-500/20 text-blue-400',
+  earned_leave: 'from-emerald-400/20 to-emerald-500/20 text-emerald-400',
+  compensatory_off: 'from-purple-400/20 to-purple-500/20 text-purple-400',
+  comp_off: 'from-purple-400/20 to-purple-500/20 text-purple-400',
+};
+const leaveTypeLabels = {
+  sick_leave: 'Sick', casual_leave: 'Casual', earned_leave: 'Earned',
+  compensatory_off: 'Comp Off', comp_off: 'Comp Off',
+};
+
 function ContractorDashboard() {
   const { timesheetUser } = useTimesheetContext();
   const { showToast } = useToast();
@@ -36,10 +48,16 @@ function ContractorDashboard() {
   const [previous, setPrevious] = useState(null);
   const [disbursement, setDisbursement] = useState(null);
   const [timesheets, setTimesheets] = useState([]);
+  const [leaveBalances, setLeaveBalances] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Temporary: hide earnings for confirmed+billable employees (pending payroll deductions)
   const hideEarnings = timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable;
+
+  // Leave eligibility
+  const empType = timesheetUser?.employmentType;
+  const isLeaveEligible = empType && empType !== 'external_consultant'
+    && !(empType === 'internal_consultant' && timesheetUser?.billable);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -54,9 +72,14 @@ function ContractorDashboard() {
         timesheetApi.get('/earnings/disbursement-info', sig).then(r => setDisbursement(r.data)).catch(() => {}),
       );
     }
+    if (isLeaveEligible) {
+      fetches.push(
+        getMyLeaveBalances().then(data => setLeaveBalances(data)).catch(() => {}),
+      );
+    }
     Promise.all(fetches).finally(() => setLoading(false));
     return () => controller.abort();
-  }, [hideEarnings]);
+  }, [hideEarnings, isLeaveEligible]);
 
   if (loading) return (
     <PageSkeleton>
@@ -143,6 +166,34 @@ function ContractorDashboard() {
         </div>
       )}
 
+      {/* Leave Balance Widget */}
+      {isLeaveEligible && leaveBalances?.balances?.length > 0 && (
+        <div className="card">
+          <div className="p-4 border-b border-dark-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarOff size={16} className="text-rivvra-400" />
+              <h3 className="font-semibold text-white text-sm">Leave Balance</h3>
+            </div>
+            <Link to={orgPath('/timesheet/leave/apply')} className="text-rivvra-400 text-xs font-medium hover:text-rivvra-300 flex items-center gap-1">
+              Apply <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {leaveBalances.balances.map((bal) => {
+              const colors = leaveTypeColors[bal.leaveType] || 'from-dark-600/20 to-dark-700/20 text-dark-400';
+              return (
+                <div key={bal.leaveType} className="text-center">
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colors} flex items-center justify-center mx-auto mb-2`}>
+                    <span className="text-lg font-bold">{bal.available ?? 0}</span>
+                  </div>
+                  <p className="text-xs text-dark-400">{leaveTypeLabels[bal.leaveType] || bal.leaveType}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 sm:gap-3">
         <Link to={orgPath('/timesheet/my-timesheet')} className="bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 transition-colors">
           <CalendarDays size={14} /> Fill Timesheet
@@ -150,6 +201,11 @@ function ContractorDashboard() {
         {!hideEarnings && (
           <Link to={orgPath('/timesheet/earnings')} className="bg-dark-800 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 transition-colors">
             <IndianRupee size={14} /> View Earnings
+          </Link>
+        )}
+        {isLeaveEligible && (
+          <Link to={orgPath('/timesheet/leave/my-requests')} className="bg-dark-800 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 transition-colors">
+            <CalendarOff size={14} /> My Leaves
           </Link>
         )}
       </div>
@@ -202,6 +258,7 @@ function AdminDashboard() {
   const { orgPath } = usePlatform();
   const [timesheets, setTimesheets] = useState([]);
   const [notApprovedData, setNotApprovedData] = useState(null);
+  const [pendingLeaves, setPendingLeaves] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notApprovedTab, setNotApprovedTab] = useState(0); // index into notApprovedData.months
 
@@ -211,6 +268,10 @@ function AdminDashboard() {
     Promise.all([
       timesheetApi.get('/timesheets', sig).then(r => setTimesheets(r.data)).catch(() => {}),
       timesheetApi.get('/dashboard/not-approved', sig).then(r => setNotApprovedData(r.data)).catch(() => {}),
+      getPendingLeaveRequests().then(data => {
+        const arr = Array.isArray(data) ? data : data?.leaveRequests || data?.requests || [];
+        setPendingLeaves(arr.length);
+      }).catch(() => {}),
     ]).finally(() => setLoading(false));
     return () => controller.abort();
   }, []);
@@ -261,6 +322,18 @@ function AdminDashboard() {
           </div>
           <p className="text-3xl font-bold text-white">{timesheets.length}</p>
         </div>
+        {pendingLeaves > 0 && (
+          <div className="card p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <CalendarOff size={18} className="text-purple-400" />
+              <span className="text-sm text-dark-400">Pending Leaves</span>
+            </div>
+            <p className="text-3xl font-bold text-white">{pendingLeaves}</p>
+            <Link to={orgPath('/timesheet/leave/approvals')} className="text-purple-400 text-xs font-medium hover:text-purple-300 mt-1 inline-block">
+              Review
+            </Link>
+          </div>
+        )}
       </div>
 
       {pending.length > 0 && (
