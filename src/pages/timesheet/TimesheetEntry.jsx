@@ -388,20 +388,22 @@ export default function TimesheetEntry() {
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
-      <div className={`flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ${hasProjects ? 'sm:justify-between' : 'sm:justify-center text-center'}`}>
+      <div className="text-center space-y-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white">My Timesheet</h1>
-          <p className="text-dark-400 text-sm hidden sm:block">Enter hours worked per day. Leaves and holidays are managed via the Leave module.</p>
+          <p className="text-dark-400 text-sm hidden sm:block mt-1">Enter hours worked per day. Leaves and holidays are managed via the Leave module.</p>
         </div>
         {hasProjects && (
-          <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
-            className="px-3 py-2 bg-dark-800/50 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500 w-full sm:w-auto">
-            {projects.map(p => {
-              const asgn = timesheetUser?.assignments?.find(a => (a.projectId?._id || a.projectId)?.toString() === p._id);
-              const clientLabel = asgn?.clientName ? ` — ${asgn.clientName}` : '';
-              return <option key={p._id} value={p._id}>{p.name}{clientLabel}</option>;
-            })}
-          </select>
+          <div className="flex justify-center">
+            <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
+              className="px-3 py-2 bg-dark-800/50 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500 w-full sm:w-auto">
+              {projects.map(p => {
+                const asgn = timesheetUser?.assignments?.find(a => (a.projectId?._id || a.projectId)?.toString() === p._id);
+                const clientLabel = asgn?.clientName ? ` — ${asgn.clientName}` : '';
+                return <option key={p._id} value={p._id}>{p.name}{clientLabel}</option>;
+              })}
+            </select>
+          </div>
         )}
       </div>
 
@@ -413,7 +415,7 @@ export default function TimesheetEntry() {
         const rate = isContractor && (asgn.billingRate?.monthly ? `₹${Number(asgn.billingRate.monthly).toLocaleString('en-IN')}/mo` : asgn.billingRate?.daily ? `₹${Number(asgn.billingRate.daily).toLocaleString('en-IN')}/day` : null);
         const startDate = asgn.startDate ? new Date(asgn.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
         return (asgn.clientName || rate || startDate) ? (
-          <div className="rounded-lg bg-dark-800/50 border border-dark-700 px-4 py-2 text-sm text-dark-400 flex flex-wrap gap-x-5 gap-y-1">
+          <div className="rounded-lg bg-dark-800/50 border border-dark-700 px-4 py-2 text-sm text-dark-400 flex flex-wrap justify-center gap-x-5 gap-y-1">
             {asgn.clientName && <span>Client: <span className="text-dark-200">{asgn.clientName}</span></span>}
             {rate && <span>Rate: <span className="text-dark-200">{rate}</span></span>}
             {startDate && <span>Since: <span className="text-dark-200">{startDate}</span></span>}
