@@ -1539,8 +1539,8 @@ export default function EmployeeForm() {
           ))}
         </div>
 
-        {/* ── Dates — only for confirmed/intern; consultants only see LWD when separating ── */}
-        {(form.employmentType === 'confirmed' || form.employmentType === 'intern') ? (
+        {/* ── Dates — for confirmed/intern/non-billable; billable consultants only see LWD when separating ── */}
+        {(form.employmentType === 'confirmed' || form.employmentType === 'intern' || !form.billable) ? (
           <div className="card p-5 space-y-4">
             <h2 className="text-white font-semibold text-lg">Dates</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
