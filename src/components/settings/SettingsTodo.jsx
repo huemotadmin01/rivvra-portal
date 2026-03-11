@@ -3,7 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import todoApi from '../../utils/todoApi';
 import {
-  Loader2, Mail, CheckCircle2, XCircle, RefreshCw, Trash2,
+  Loader2, Mail, CheckCircle2, XCircle, RefreshCw, Trash2, Shield, X, Plus,
 } from 'lucide-react';
 
 function formatDate(d) {
@@ -24,6 +24,9 @@ export default function SettingsTodo() {
   const [gmailStatus, setGmailStatus] = useState({ connected: false });
   const [scanLogs, setScanLogs] = useState([]);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  // Blocklist input state
+  const [blockedInput, setBlockedInput] = useState('');
 
   useEffect(() => {
     if (orgSlug) load();
@@ -90,6 +93,42 @@ export default function SettingsTodo() {
     }
   }
 
+  function handleAddBlocked() {
+    if (!blockedInput.trim()) return;
+    const value = blockedInput.trim().toLowerCase();
+    const scanConfig = settings?.scanConfig || {};
+
+    // If it looks like a domain (has no @, or starts with @)
+    const isDomain = !value.includes('@') || value.startsWith('@');
+
+    if (isDomain) {
+      const domain = value.replace(/^@/, '');
+      const existing = scanConfig.blockedDomains || [];
+      if (existing.includes(domain)) {
+        showToast('Domain already blocked', 'error');
+        return;
+      }
+      handleSaveConfig('blockedDomains', [...existing, domain]);
+    } else {
+      const existing = scanConfig.blockedSenders || [];
+      if (existing.includes(value)) {
+        showToast('Sender already blocked', 'error');
+        return;
+      }
+      handleSaveConfig('blockedSenders', [...existing, value]);
+    }
+    setBlockedInput('');
+  }
+
+  function handleRemoveBlocked(type, value) {
+    const scanConfig = settings?.scanConfig || {};
+    if (type === 'sender') {
+      handleSaveConfig('blockedSenders', (scanConfig.blockedSenders || []).filter(s => s !== value));
+    } else {
+      handleSaveConfig('blockedDomains', (scanConfig.blockedDomains || []).filter(d => d !== value));
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40">
@@ -99,6 +138,8 @@ export default function SettingsTodo() {
   }
 
   const scanConfig = settings?.scanConfig || {};
+  const blockedSenders = scanConfig.blockedSenders || [];
+  const blockedDomains = scanConfig.blockedDomains || [];
 
   return (
     <div className="space-y-6">
@@ -180,14 +221,14 @@ export default function SettingsTodo() {
               <p className="text-xs text-dark-400">How often to check your inbox</p>
             </div>
             <select
-              value={scanConfig.frequencyMinutes || 30}
+              value={scanConfig.frequencyMinutes || 60}
               onChange={e => handleSaveConfig('frequencyMinutes', parseInt(e.target.value))}
               disabled={saving || !gmailStatus.connected}
               className="px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
             >
-              <option value={15}>Every 15 minutes</option>
               <option value={30}>Every 30 minutes</option>
               <option value={60}>Every hour</option>
+              <option value={120}>Every 2 hours</option>
             </select>
           </div>
 
@@ -211,6 +252,68 @@ export default function SettingsTodo() {
         </div>
       </div>
 
+      {/* Blocked Senders / Domains */}
+      <div className="bg-dark-900 rounded-xl border border-dark-800 p-5">
+        <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+          <Shield size={16} className="text-teal-400" />
+          Blocked Senders & Domains
+        </h3>
+        <p className="text-xs text-dark-400 mb-4">
+          Emails from these senders/domains will be skipped before AI analysis — saving API costs. Common sources like noreply, GitHub, Slack, etc. are already blocked automatically.
+        </p>
+
+        {/* Add input */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={blockedInput}
+            onChange={e => setBlockedInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddBlocked(); } }}
+            placeholder="e.g. alerts@company.com or marketing.com"
+            className="flex-1 px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm placeholder-dark-500 focus:outline-none focus:border-teal-500"
+            disabled={saving}
+          />
+          <button
+            onClick={handleAddBlocked}
+            disabled={saving || !blockedInput.trim()}
+            className="flex items-center gap-1 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </div>
+
+        {/* Current blocked list */}
+        {(blockedSenders.length > 0 || blockedDomains.length > 0) ? (
+          <div className="flex flex-wrap gap-2">
+            {blockedDomains.map(d => (
+              <span key={`d-${d}`} className="inline-flex items-center gap-1 px-2.5 py-1 bg-dark-800 border border-dark-700 rounded-full text-xs text-dark-300">
+                <span className="text-amber-400 font-mono">@{d}</span>
+                <button
+                  onClick={() => handleRemoveBlocked('domain', d)}
+                  className="text-dark-500 hover:text-red-400 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+            {blockedSenders.map(s => (
+              <span key={`s-${s}`} className="inline-flex items-center gap-1 px-2.5 py-1 bg-dark-800 border border-dark-700 rounded-full text-xs text-dark-300">
+                <span className="font-mono">{s}</span>
+                <button
+                  onClick={() => handleRemoveBlocked('sender', s)}
+                  className="text-dark-500 hover:text-red-400 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-dark-500 italic">No custom blocks added. Built-in filters (noreply, GitHub, Slack, newsletters, etc.) are always active.</p>
+        )}
+      </div>
+
       {/* Scan Logs */}
       {scanLogs.length > 0 && (
         <div className="bg-dark-900 rounded-xl border border-dark-800 p-5">
@@ -223,6 +326,8 @@ export default function SettingsTodo() {
                   <th className="text-left py-2 pr-3">Trigger</th>
                   <th className="text-left py-2 pr-3">Status</th>
                   <th className="text-right py-2 pr-3">Emails</th>
+                  <th className="text-right py-2 pr-3">Filtered</th>
+                  <th className="text-right py-2 pr-3">→ AI</th>
                   <th className="text-right py-2 pr-3">Tasks</th>
                   <th className="text-right py-2">Duration</th>
                 </tr>
@@ -244,6 +349,12 @@ export default function SettingsTodo() {
                       {log.status === 'running' && <Loader2 size={14} className="text-amber-400 animate-spin" />}
                     </td>
                     <td className="py-2 pr-3 text-right">{log.emailsScanned || 0}</td>
+                    <td className="py-2 pr-3 text-right text-amber-400/70">
+                      {(log.emailsFiltered || 0) + (log.skippedAlreadyProcessed || 0) > 0
+                        ? `-${(log.emailsFiltered || 0) + (log.skippedAlreadyProcessed || 0)}`
+                        : '-'}
+                    </td>
+                    <td className="py-2 pr-3 text-right text-teal-400/70">{log.emailsSentToAI ?? log.emailsScanned ?? 0}</td>
                     <td className="py-2 pr-3 text-right">{log.tasksExtracted || 0}</td>
                     <td className="py-2 text-right text-dark-500">
                       {log.durationMs ? `${(log.durationMs / 1000).toFixed(1)}s` : '-'}
