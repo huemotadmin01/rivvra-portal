@@ -197,6 +197,8 @@ export default function EmployeeDirectory() {
     { value: '', label: 'All Statuses' },
     { value: 'active', label: 'Active' },
     { value: 'inactive', label: 'Inactive' },
+    { value: 'resigned', label: 'Resigned' },
+    { value: 'terminated', label: 'Terminated' },
   ];
 
   const billableOptions = [
@@ -333,9 +335,12 @@ export default function EmployeeDirectory() {
                       {/* Status dot */}
                       <span
                         className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          emp.status === 'active' ? 'bg-emerald-400' : 'bg-dark-500'
+                          emp.status === 'active' ? 'bg-emerald-400'
+                            : emp.status === 'resigned' ? 'bg-red-400'
+                            : emp.status === 'terminated' ? 'bg-red-600'
+                            : 'bg-dark-500'
                         }`}
-                        title={emp.status === 'active' ? 'Active' : 'Inactive'}
+                        title={emp.status ? emp.status.charAt(0).toUpperCase() + emp.status.slice(1) : 'Unknown'}
                       />
                     </div>
                     <p className="text-dark-400 text-sm truncate">
@@ -345,6 +350,11 @@ export default function EmployeeDirectory() {
                       <p className="text-dark-500 text-xs flex items-center gap-1 mt-0.5">
                         <Hash size={10} className="flex-shrink-0" />
                         {emp.employeeId}
+                      </p>
+                    )}
+                    {(emp.status === 'resigned' || emp.status === 'terminated') && emp.lastWorkingDate && (
+                      <p className="text-red-400 text-xs mt-0.5">
+                        LWD: {new Date(emp.lastWorkingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     )}
                   </div>

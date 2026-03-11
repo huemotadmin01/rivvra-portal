@@ -32,6 +32,12 @@ const employeeApi = {
     });
   },
 
+  remove(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
   getByEmail(orgSlug, email) {
     return api.request(`/api/org/${orgSlug}/employee/employees/by-email/${encodeURIComponent(email)}`);
   },

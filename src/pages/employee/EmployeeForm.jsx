@@ -139,6 +139,11 @@ function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
   );
 }
 
+const SEPARATION_REASONS = [
+  'Better opportunity', 'Personal reasons', 'Performance',
+  'Redundancy/Layoff', 'Contract end', 'Absconding', 'Mutual agreement', 'Other',
+];
+
 const INITIAL_FORM = {
   fullName: '',
   email: '',
@@ -146,6 +151,8 @@ const INITIAL_FORM = {
   employeeId: '',
   employmentType: 'confirmed',
   status: 'active',
+  separationReason: '',
+  separationNotes: '',
   department: '',
   designation: '',
   monthlyGrossSalary: '',
@@ -318,6 +325,8 @@ export default function EmployeeForm() {
             }),
             joiningDate: emp.joiningDate ? emp.joiningDate.slice(0, 10) : '',
             lastWorkingDate: emp.lastWorkingDate ? emp.lastWorkingDate.slice(0, 10) : '',
+            separationReason: emp.separationReason || '',
+            separationNotes: emp.separationNotes || '',
             dateOfBirth: emp.dateOfBirth ? emp.dateOfBirth.slice(0, 10) : '',
             address: {
               street: emp.address?.street || '',
@@ -600,6 +609,10 @@ export default function EmployeeForm() {
     }
     if ((form.status === 'resigned' || form.status === 'terminated') && !form.lastWorkingDate) {
       setError('Last Working Date is required when status is Resigned or Terminated.');
+      return false;
+    }
+    if (isSeparating && !form.separationReason) {
+      setError('Separation reason is required when changing status to Resigned or Terminated.');
       return false;
     }
 
@@ -1561,6 +1574,39 @@ export default function EmployeeForm() {
                 </div>
               )}
 
+              {/* Separation Reason */}
+              {(form.status === 'resigned' || form.status === 'terminated') && (
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">
+                    Separation Reason {isSeparating && <span className="text-red-400">*</span>}
+                  </label>
+                  <select
+                    value={form.separationReason}
+                    onChange={(e) => setField('separationReason', e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="">Select reason...</option>
+                    {SEPARATION_REASONS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Separation Notes */}
+              {(form.status === 'resigned' || form.status === 'terminated') && (
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Separation Notes</label>
+                  <textarea
+                    value={form.separationNotes}
+                    onChange={(e) => setField('separationNotes', e.target.value)}
+                    className="input-field w-full"
+                    rows={2}
+                    placeholder="Optional remarks..."
+                  />
+                </div>
+              )}
+
               {/* Date of Birth */}
               <div>
                 <label className="block text-sm font-medium text-dark-300 mb-1">Date of Birth</label>
@@ -1574,7 +1620,7 @@ export default function EmployeeForm() {
             </div>
           </div>
         ) : (form.status === 'resigned' || form.status === 'terminated') ? (
-          /* Consultants: only show LWD when being separated */
+          /* Consultants: only show LWD + reason when being separated */
           <div className="card p-5 space-y-4">
             <h2 className="text-white font-semibold text-lg">Separation</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1592,6 +1638,31 @@ export default function EmployeeForm() {
                 {!form.lastWorkingDate && (
                   <p className="text-xs text-red-400 mt-1">Required for resigned/terminated employees</p>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">
+                  Separation Reason {isSeparating && <span className="text-red-400">*</span>}
+                </label>
+                <select
+                  value={form.separationReason}
+                  onChange={(e) => setField('separationReason', e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="">Select reason...</option>
+                  {SEPARATION_REASONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="lg:col-span-2">
+                <label className="block text-sm font-medium text-dark-300 mb-1">Separation Notes</label>
+                <textarea
+                  value={form.separationNotes}
+                  onChange={(e) => setField('separationNotes', e.target.value)}
+                  className="input-field w-full"
+                  rows={2}
+                  placeholder="Optional remarks..."
+                />
               </div>
             </div>
           </div>
@@ -2268,6 +2339,20 @@ export default function EmployeeForm() {
               You are marking <strong className="text-white">{form.fullName}</strong> as <strong className="text-red-400 capitalize">{form.status}</strong>.
               This will:
             </p>
+
+            {/* Separation Reason & Notes summary */}
+            <div className="bg-dark-700/50 border border-dark-600 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 text-sm mb-1">
+                <span className="text-dark-400">Reason:</span>
+                <span className="text-white font-medium">{form.separationReason || '—'}</span>
+              </div>
+              {form.separationNotes && (
+                <div className="text-sm mt-1">
+                  <span className="text-dark-400">Notes:</span>
+                  <span className="text-dark-200 ml-2">{form.separationNotes}</span>
+                </div>
+              )}
+            </div>
 
             <ul className="text-sm text-dark-300 space-y-2 mb-6">
               <li className="flex items-start gap-2">

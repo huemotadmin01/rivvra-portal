@@ -23,6 +23,8 @@ import {
   Users,
   FileText,
   Send,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
@@ -114,11 +116,13 @@ function statusBadge(status) {
   if (!status) return null;
   const lower = status.toLowerCase();
   if (lower === 'active') {
-    return (
-      <Badge className="bg-green-500/10 text-green-400">
-        Active
-      </Badge>
-    );
+    return <Badge className="bg-green-500/10 text-green-400">Active</Badge>;
+  }
+  if (lower === 'resigned') {
+    return <Badge className="bg-red-500/10 text-red-400">Resigned</Badge>;
+  }
+  if (lower === 'terminated') {
+    return <Badge className="bg-red-600/10 text-red-500">Terminated</Badge>;
   }
   return (
     <Badge className="bg-dark-700 text-dark-400">
@@ -146,6 +150,8 @@ export default function EmployeeDetail() {
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isAdmin = getAppRole('employee') === 'admin';
 
@@ -203,6 +209,30 @@ export default function EmployeeDetail() {
       alert(err.message || 'Failed to send onboarding link');
     } finally {
       setSendingOnboardingLink(false);
+    }
+  };
+
+  // ── Delete Employee ────────────────────────────────────────────────────────
+  const handleDeleteEmployee = async () => {
+    if (!currentOrg?.slug || !employeeId || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await employeeApi.remove(currentOrg.slug, employeeId);
+      if (res.success) {
+        navigate(orgPath('/employee'));
+      } else {
+        alert(res.error || 'Failed to delete employee');
+      }
+    } catch (err) {
+      // Handle 409 — blocking dependencies
+      if (err.message && (err.message.includes('timesheet') || err.message.includes('payroll') || err.message.includes('Cannot delete'))) {
+        alert(err.message);
+      } else {
+        alert(err.message || 'Failed to delete employee');
+      }
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -304,6 +334,16 @@ export default function EmployeeDetail() {
                     <Edit2 size={14} />
                     Edit
                   </button>
+                  {/* Delete — only for separated employees */}
+                  {(emp.status === 'resigned' || emp.status === 'terminated') && (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -405,6 +445,38 @@ export default function EmployeeDetail() {
           </SectionCard>
         )}
       </div>
+
+      {/* ── Separation Details (for resigned / terminated) ─────────────── */}
+      {(emp.status === 'resigned' || emp.status === 'terminated') && (
+        <div className="mt-5">
+          <div className="card p-5 border-red-500/20">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle size={16} className="text-red-400" />
+              <h3 className="text-white font-semibold">Separation Details</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <p className="text-dark-500 text-xs uppercase tracking-wider mb-1">Status</p>
+                <p className="text-red-400 font-medium capitalize">{emp.status}</p>
+              </div>
+              <div>
+                <p className="text-dark-500 text-xs uppercase tracking-wider mb-1">Last Working Date</p>
+                <p className="text-white">{formatDate(emp.lastWorkingDate) || '—'}</p>
+              </div>
+              <div>
+                <p className="text-dark-500 text-xs uppercase tracking-wider mb-1">Separation Reason</p>
+                <p className="text-white">{emp.separationReason || 'Not specified'}</p>
+              </div>
+            </div>
+            {emp.separationNotes && (
+              <div className="mt-3 pt-3 border-t border-dark-700">
+                <p className="text-dark-500 text-xs uppercase tracking-wider mb-1">Notes</p>
+                <p className="text-dark-300 text-sm">{emp.separationNotes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Statutory Details (admin only) ──────────────────────────────── */}
       {isAdmin && emp.statutory && (emp.statutory.aadhaar || emp.statutory.uan || emp.statutory.pfNumber || emp.statutory.esicNumber) && (
@@ -621,6 +693,52 @@ export default function EmployeeDetail() {
         employee={emp}
         orgSlug={currentOrg?.slug}
       />
+
+      {/* ── Delete Confirmation Dialog ────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <Trash2 size={20} className="text-red-400" />
+              </div>
+              <h3 className="text-white font-semibold text-lg">Delete Employee</h3>
+            </div>
+
+            <p className="text-dark-300 text-sm mb-4">
+              This will permanently delete <strong className="text-white">{emp.fullName}</strong> and all their associated documents. This action cannot be undone.
+            </p>
+
+            <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 mb-6">
+              <p className="text-red-400 text-xs font-medium">
+                Employees with existing timesheets or payroll records cannot be deleted.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteEmployee}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                {deleting ? (
+                  <><Loader2 size={14} className="animate-spin" /> Deleting...</>
+                ) : (
+                  <><Trash2 size={14} /> Delete Permanently</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
