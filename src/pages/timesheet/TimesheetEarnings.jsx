@@ -222,14 +222,14 @@ export default function TimesheetEarnings() {
               Expected payment date: <span className="font-medium text-white">{new Date(disbursement.salaryHold.holdUntil).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </p>
             {disbursement.salaryHold.reason && <p className="text-xs text-dark-500 mt-1">{disbursement.salaryHold.reason}</p>}
-            <div className="mt-3 text-right">
-              <p className="text-sm text-dark-400">Estimated Net Amount</p>
-              <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netEstimate || disbursement.estimatedAmount || 0).toLocaleString()}</p>
+            <div className="mt-3">
+              <p className="text-sm text-dark-400">{disbursement.isApproved ? 'Net Amount' : 'Estimated Net Amount'}</p>
+              <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netAmount || 0).toLocaleString()}</p>
             </div>
           </div>
         ) : disbursement?.nextDisbursementDate ? (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex-1">
+          <div className="space-y-3">
+            <div>
               <p className="text-lg font-bold text-white">
                 {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
@@ -239,9 +239,9 @@ export default function TimesheetEarnings() {
               {disbursement.countdown && <p className="text-blue-400 font-medium mt-1">{disbursement.countdown}</p>}
               {disbursement.note && <p className="text-sm text-dark-400 mt-1">{disbursement.note}</p>}
             </div>
-            <div className="text-right">
-              <p className="text-sm text-dark-400">Estimated Net Amount</p>
-              <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netEstimate || disbursement.estimatedAmount || 0).toLocaleString()}</p>
+            <div>
+              <p className="text-sm text-dark-400">{disbursement.isApproved ? 'Net Amount' : 'Estimated Net Amount'}</p>
+              <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netAmount || 0).toLocaleString()}</p>
               {disbursement.tdsAmount > 0 && (
                 <p className="text-xs text-dark-500 mt-0.5">After 2% TDS (₹{disbursement.tdsAmount.toLocaleString()})</p>
               )}
