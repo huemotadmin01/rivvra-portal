@@ -5,7 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
-import { Save, Plus, X, Calendar, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2 } from 'lucide-react';
+import { Save, Plus, X, Calendar, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2, Send } from 'lucide-react';
 import timesheetApi from '../../utils/timesheetApi';
 import { getTimesheetAppSettings, updateTimesheetAppSettings, getLeavePolicy, updateLeavePolicy } from '../../utils/timesheetApi';
 
@@ -46,6 +46,10 @@ export default function SettingsTimesheet() {
   // Leave policy settings
   const [leavePolicy, setLeavePolicy] = useState(null);
   const [leaveSaving, setLeaveSaving] = useState(false);
+
+  // Reminder state
+  const [reminderStatus, setReminderStatus] = useState(null);
+  const [sendingReminders, setSendingReminders] = useState(false);
 
   useEffect(() => {
     if (!isTimesheetAdmin) { setLoading(false); setAppLoading(false); return; }
@@ -105,6 +109,28 @@ export default function SettingsTimesheet() {
     try {
       await updateTimesheetAppSettings(appSettings);
     } catch {} finally { setAppSaving(false); }
+  };
+
+  // Fetch reminder status when reminders are enabled
+  useEffect(() => {
+    if (appSettings?.timesheetReminders) {
+      timesheetApi.get('/reminders/status').then(r => setReminderStatus(r.data)).catch(() => {});
+    }
+  }, [appSettings?.timesheetReminders]);
+
+  const handleSendReminders = async () => {
+    setSendingReminders(true);
+    try {
+      const res = await timesheetApi.post('/reminders/send');
+      const { sent, total } = res.data;
+      alert(`Sent ${sent} reminder(s) to employees with non-approved timesheets (${total} total employees)`);
+      // Refresh status
+      timesheetApi.get('/reminders/status').then(r => setReminderStatus(r.data)).catch(() => {});
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send reminders');
+    } finally {
+      setSendingReminders(false);
+    }
   };
 
   const handleSaveLeavePolicy = async () => {
@@ -497,13 +523,35 @@ export default function SettingsTimesheet() {
                     />
                   </div>
                   {appSettings.timesheetReminders && (
-                    <div className="pl-4 border-l-2 border-dark-700">
-                      <label className="block text-sm font-medium text-dark-300 mb-1">Reminder Day</label>
-                      <p className="text-xs text-dark-500 mb-2">Day of month to send the reminder</p>
-                      <input type="number" min="1" max="28"
-                        value={appSettings.reminderDay ?? 25}
-                        onChange={e => updateApp('reminderDay', Number(e.target.value))}
-                        className="input-field w-24" />
+                    <div className="pl-4 border-l-2 border-dark-700 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-dark-300 mb-1">Days Before Month End</label>
+                        <p className="text-xs text-dark-500 mb-2">Reminder emails will be sent this many days before the last day of each month</p>
+                        <input type="number" min="1" max="10"
+                          value={appSettings.reminderDay ?? 5}
+                          onChange={e => updateApp('reminderDay', Math.min(10, Math.max(1, Number(e.target.value) || 5)))}
+                          className="input-field w-24" />
+                      </div>
+                      <div className="pt-3 border-t border-dark-700">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-dark-300">Send Now</p>
+                            <p className="text-xs text-dark-500">
+                              {reminderStatus?.sent
+                                ? `Last sent: ${new Date(reminderStatus.log?.sentAt).toLocaleDateString('en-IN')} (${reminderStatus.log?.employeesReminded} employees)`
+                                : 'No reminders sent this month yet'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleSendReminders}
+                            disabled={sendingReminders}
+                            className="btn-secondary text-sm flex items-center gap-2"
+                          >
+                            {sendingReminders ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                            Send Reminders
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
