@@ -106,7 +106,7 @@ export default function TimesheetPayroll() {
   const [adjLoading, setAdjLoading] = useState(false);
   const [adjDeleting, setAdjDeleting] = useState(null);
 
-  const loadPayroll = async (silent = false) => {
+  const loadPayroll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const [payrollRes, notApprovedRes] = await Promise.all([
@@ -124,9 +124,9 @@ export default function TimesheetPayroll() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [month, year]);
 
-  useEffect(() => { loadPayroll(); setCurrentPage(1); setShowNotApprovedPopup(false); setShowApprovedPopup(false); }, [month, year]);
+  useEffect(() => { loadPayroll(); setCurrentPage(1); setShowNotApprovedPopup(false); setShowApprovedPopup(false); }, [loadPayroll]);
   // Reset page on filter/search change
   // Debounce search input (300ms)
   const handleSearchChange = useCallback((val) => {
