@@ -122,16 +122,41 @@ export default function LeaveReports() {
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-6 min-w-0 overflow-hidden">
-      {/* Header — centered */}
+    <div className="p-3 sm:p-6 space-y-4 min-w-0 overflow-hidden">
+      {/* Header — centered, compact */}
       <div className="text-center">
         <h1 className="text-xl font-bold text-white">Leave Reports</h1>
-        <p className="text-dark-400 text-sm mt-1">Analyze leave balances and utilization across your organization.</p>
+        <p className="text-dark-400 text-sm">Analyze leave balances and utilization across your organization.</p>
       </div>
 
-      {/* Tabs + Export */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex gap-2">
+      {/* Toolbar: FY/Year + Export on left, Tabs on right */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {tab === 'summary' ? (
+            <>
+              <select value={fy} onChange={e => { setFy(e.target.value); setPage(1); }}
+                className="bg-dark-800 border border-dark-700 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500">
+                {Array.from({ length: 5 }, (_, i) => {
+                  const y = currentFYStart - 2 + i;
+                  return <option key={y} value={`${y}-${y + 1}`}>FY {y}-{y + 1}</option>;
+                })}
+              </select>
+              <button onClick={handleExport} disabled={exporting}
+                className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-sm hover:text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors">
+                {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Export CSV
+              </button>
+            </>
+          ) : (
+            <select value={utilYear} onChange={e => setUtilYear(parseInt(e.target.value))}
+              className="bg-dark-800 border border-dark-700 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500">
+              {Array.from({ length: 3 }, (_, i) => {
+                const y = now.getFullYear() - 1 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          )}
+        </div>
+        <div className="flex gap-1.5">
           {tabs.map(t => (
             <button key={t.id} onClick={() => { setTab(t.id); setSearch(''); setPage(1); }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${tab === t.id ? 'bg-rivvra-500 text-white' : 'bg-dark-800 border border-dark-700 text-dark-400 hover:text-white'}`}>
@@ -139,35 +164,11 @@ export default function LeaveReports() {
             </button>
           ))}
         </div>
-        <button onClick={handleExport} disabled={exporting} className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-sm hover:text-white flex items-center gap-1.5 disabled:opacity-50 self-start">
-          {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Export CSV
-        </button>
       </div>
 
       {loading ? <PageSkeleton /> : tab === 'summary' ? (
         /* ── Balance Summary ── */
-        <div className="space-y-4">
-          {/* Search + Financial Year filter */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex-1 relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-              <input type="text" placeholder="Search by employee name or code..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full bg-dark-800/50 border border-dark-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-dark-500 outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <label className="text-dark-400 text-sm">Financial Year:</label>
-              <select value={fy} onChange={e => { setFy(e.target.value); setPage(1); }}
-                className="bg-dark-800 border border-dark-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500">
-                {Array.from({ length: 5 }, (_, i) => {
-                  const y = currentFYStart - 2 + i;
-                  return <option key={y} value={`${y}-${y + 1}`}>{y}-{y + 1}</option>;
-                })}
-              </select>
-            </div>
-          </div>
-
+        <div className="space-y-3">
           {/* Overview cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-dark-800 border border-dark-700 rounded-xl p-4">
@@ -181,6 +182,15 @@ export default function LeaveReports() {
                 <p className="text-dark-500 text-xs">days used</p>
               </div>
             ))}
+          </div>
+
+          {/* Search bar — right below cards */}
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
+            <input type="text" placeholder="Search by employee name or code..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full bg-dark-800/50 border border-dark-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-dark-500 outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
           </div>
 
           {/* Employee table */}
@@ -264,18 +274,7 @@ export default function LeaveReports() {
         </div>
       ) : (
         /* ── Utilization Trends ── */
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <label className="text-dark-400 text-sm">Year:</label>
-            <select value={utilYear} onChange={e => setUtilYear(parseInt(e.target.value))}
-              className="bg-dark-800 border border-dark-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500">
-              {Array.from({ length: 3 }, (_, i) => {
-                const y = now.getFullYear() - 1 + i;
-                return <option key={y} value={y}>{y}</option>;
-              })}
-            </select>
-          </div>
-
+        <div className="space-y-3">
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-dark-800 border border-dark-700 rounded-xl p-4">
