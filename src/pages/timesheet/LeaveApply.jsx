@@ -109,8 +109,8 @@ export default function LeaveApply() {
     return balances.balances.find(b => b.leaveType === leaveType);
   }, [balances, leaveType]);
 
-  // Check if the selected leave type's policy allows half-day
-  const halfDayAllowed = selectedBalance?.policy?.halfDayAllowed ?? false;
+  // Check if the org leave policy allows half-day (policy-level setting, not per leave type)
+  const halfDayAllowed = balances?.policy?.halfDayAllowed ?? false;
 
   // Available balance for selected type
   const available = selectedBalance?.available ?? 0;

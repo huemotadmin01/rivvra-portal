@@ -98,11 +98,73 @@ function ContractorDashboard() {
     </PageSkeleton>
   );
 
+  // Current month timesheet status
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentYear = now.getFullYear();
+  const currentTs = timesheets.find(ts => ts.month === currentMonth && ts.year === currentYear);
+  const tsStatus = currentTs?.status || 'not-created';
+  const tsStatusLabel = {
+    'not-created': 'Not Started',
+    draft: 'Draft',
+    submitted: 'Submitted',
+    approved: 'Approved',
+    rejected: 'Rejected',
+  };
+  const tsStatusColor = {
+    'not-created': 'text-dark-400 bg-dark-700',
+    draft: 'text-amber-400 bg-amber-500/10',
+    submitted: 'text-blue-400 bg-blue-500/10',
+    approved: 'text-emerald-400 bg-emerald-500/10',
+    rejected: 'text-red-400 bg-red-500/10',
+  };
+  const tsNeedsFilling = tsStatus === 'not-created' || tsStatus === 'draft' || tsStatus === 'rejected';
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-white">Welcome, {timesheetUser?.fullName}</h1>
         <p className="text-dark-400 text-sm mt-1">Here's your timesheet summary</p>
+      </div>
+
+      {/* Current Month Timesheet Status */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tsStatus === 'approved' ? 'bg-emerald-500/10' : tsStatus === 'submitted' ? 'bg-blue-500/10' : tsStatus === 'rejected' ? 'bg-red-500/10' : 'bg-dark-700'}`}>
+              {tsStatus === 'approved' ? (
+                <CheckCircle2 size={20} className="text-emerald-400" />
+              ) : (
+                <CalendarDays size={20} className={tsStatus === 'submitted' ? 'text-blue-400' : tsStatus === 'rejected' ? 'text-red-400' : 'text-dark-400'} />
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-dark-400">{fullMonthNames[currentMonth]} {currentYear}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tsStatusColor[tsStatus]}`}>
+                  {tsStatusLabel[tsStatus]}
+                </span>
+                {currentTs?.totalWorkingDays != null && (
+                  <span className="text-xs text-dark-500">{currentTs.totalWorkingDays} working days</span>
+                )}
+              </div>
+              {tsStatus === 'rejected' && currentTs?.rejectionReason && (
+                <p className="text-xs text-red-400/70 mt-1">Reason: {currentTs.rejectionReason}</p>
+              )}
+            </div>
+          </div>
+          <Link
+            to={orgPath('/timesheet/my-timesheet')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              tsNeedsFilling
+                ? 'bg-rivvra-500 text-dark-950 hover:bg-rivvra-400'
+                : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+            }`}
+          >
+            <CalendarDays size={13} />
+            {tsNeedsFilling ? 'Fill Timesheet' : 'View Timesheet'}
+          </Link>
+        </div>
       </div>
 
       {/* Earnings cards — hidden for confirmed+billable employees (temporary) */}

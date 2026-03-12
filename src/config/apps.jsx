@@ -95,7 +95,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
         // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
-          { type: 'item', path: '/timesheet/approvals', label: 'Approvals', icon: CheckCircle2 },
+          { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
         // Everyone gets their own timesheet (members, managers, admins)
