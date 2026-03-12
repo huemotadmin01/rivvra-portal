@@ -42,7 +42,13 @@ export default function TimesheetUsers() {
   const load = () => {
     setLoading(true);
     Promise.all([
-      timesheetApi.get('/auth/users').then(r => setUsers(r.data)),
+      timesheetApi.get('/auth/users').then(r => setUsers(
+        (r.data || []).map(u => ({
+          ...u,
+          // Derive isActive from employee status field (employees collection uses status, not isActive)
+          isActive: u.isActive ?? (u.status !== 'inactive' && u.status !== 'terminated'),
+        }))
+      )),
       timesheetApi.get('/projects').then(r => setProjects(r.data)),
       timesheetApi.get('/clients').then(r => setClients(r.data)),
     ]).catch(() => showToast('Failed to load', 'error'))
@@ -146,10 +152,11 @@ export default function TimesheetUsers() {
 
   const toggleActive = async (user) => {
     try {
-      await timesheetApi.put(`/auth/users/${user._id}`, { isActive: !user.isActive });
+      const newStatus = user.isActive ? 'inactive' : 'active';
+      await employeeApi.update(orgSlug, user._id, { status: newStatus });
       showToast(user.isActive ? 'User deactivated' : 'User activated');
       load();
-    } catch (err) { showToast('Failed to update', 'error'); }
+    } catch (err) { showToast('Failed to update status', 'error'); }
   };
 
   // Filter employees for dropdown
