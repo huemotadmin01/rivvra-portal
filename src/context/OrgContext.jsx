@@ -103,11 +103,15 @@ export function OrgProvider({ children }) {
     return access?.enabled === true;
   }, [membership]);
 
-  // Helper: get user's role within a specific app
+  // Helper: get user's role within a specific app (derived from org role)
   const getAppRole = useCallback((appId) => {
     if (!membership?.appAccess) return null;
     const access = membership.appAccess[appId];
-    return access?.enabled ? access.role : null;
+    if (!access?.enabled) return null;
+    // Derive from org-level role — admin/owner → admin, member → member
+    const orgRole = membership.orgRole;
+    if (orgRole === 'owner' || orgRole === 'admin') return 'admin';
+    return 'member';
   }, [membership]);
 
   // Trial state helpers

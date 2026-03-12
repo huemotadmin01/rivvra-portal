@@ -17,16 +17,17 @@ export const APP_REGISTRY = {
     basePath: '/outreach',
     status: 'active',
     defaultRoute: '/outreach/dashboard',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'rivvra' },
       { value: 'team_lead', label: 'Team Lead', color: 'amber' },
       { value: 'member', label: 'Member', color: 'dark' },
     ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
-      // Org membership role is the source of truth for outreach access control.
-      // user.role is only a fallback when no org context exists.
-      const effectiveRole = orgAppRole || user?.role || 'member';
-      const isAdminOrLead = effectiveRole === 'admin' || effectiveRole === 'team_lead';
+      // Admin derived from org role; team_lead derived from Sales Teams (user.role)
+      const isAdmin = orgAppRole === 'admin';
+      const isTeamLead = user?.role === 'team_lead';
+      const isAdminOrLead = isAdmin || isTeamLead;
       return [
         { type: 'item', path: '/outreach/dashboard', label: 'Home', icon: Home },
         { type: 'item', path: '/outreach/engage', label: 'Engage', icon: Send },
@@ -163,6 +164,7 @@ export const APP_REGISTRY = {
     basePath: '/employee',
     status: 'active',
     defaultRoute: '/employee/directory',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'orange' },
       { value: 'member', label: 'Member', color: 'dark' },
@@ -195,6 +197,7 @@ export const APP_REGISTRY = {
     basePath: '/contacts',
     status: 'active',
     defaultRoute: '/contacts/list',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'cyan' },
       { value: 'member', label: 'Member', color: 'dark' },
@@ -227,6 +230,7 @@ export const APP_REGISTRY = {
     basePath: '/crm',
     status: 'active',
     defaultRoute: '/crm/pipeline',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'emerald' },
       { value: 'salesperson', label: 'Salesperson', color: 'blue' },
@@ -263,6 +267,7 @@ export const APP_REGISTRY = {
     basePath: '/ats',
     status: 'active',
     defaultRoute: '/ats/pipeline',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'purple' },
       { value: 'recruiter', label: 'Recruiter', color: 'blue' },
@@ -298,6 +303,7 @@ export const APP_REGISTRY = {
     basePath: '/sign',
     status: 'active',
     defaultRoute: '/sign/dashboard',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'indigo' },
       { value: 'member', label: 'Member', color: 'dark' },
@@ -330,6 +336,7 @@ export const APP_REGISTRY = {
     basePath: '/todo',
     status: 'active',
     defaultRoute: '/todo/dashboard',
+    derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'teal' },
       { value: 'member', label: 'Member', color: 'dark' },
