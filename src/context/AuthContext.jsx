@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { AUTH_STORAGE_KEY, USER_STORAGE_KEY } from '../utils/config';
 import api from '../utils/api';
 
@@ -283,7 +283,9 @@ export function AuthProvider({ children }) {
     window.location.reload();
   }, [originalAdmin, broadcastAuthChange]);
 
-  const value = {
+  const clearError = useCallback(() => setError(null), []);
+
+  const value = useMemo(() => ({
     user,
     token,
     loading,
@@ -299,8 +301,8 @@ export function AuthProvider({ children }) {
     updateUser,
     impersonateUser,
     stopImpersonating,
-    clearError: () => setError(null),
-  };
+    clearError,
+  }), [user, token, loading, error, isImpersonating, originalAdmin, loginWithOtp, loginWithGoogle, signupWithPassword, loginWithPassword, logout, updateUser, impersonateUser, stopImpersonating, clearError]);
 
   return (
     <AuthContext.Provider value={value}>

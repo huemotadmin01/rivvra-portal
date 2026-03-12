@@ -11,6 +11,16 @@ export default defineConfig({
     sourcemap: false,
     // Strip console.log/warn from production builds (keep console.error for debugging)
     minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-pdf': ['pdfjs-dist'],
+          'vendor-excel': ['exceljs'],
+          'vendor-charts': ['recharts'],
+          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+        },
+      },
+    },
   },
   esbuild: {
     // Drop console.log/warn and debugger in production, but keep console.error for debugging
