@@ -8,7 +8,7 @@ import timesheetApi, { getMyLeaveBalances, getPendingLeaveRequests } from '../..
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import {
   CalendarDays, IndianRupee, Clock, CheckCircle2,
-  FileText, AlertCircle, ArrowRight, UserX, CalendarOff
+  FileText, AlertCircle, ArrowRight, UserX, CalendarOff, Briefcase
 } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -124,7 +124,24 @@ function ContractorDashboard() {
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-white">Welcome, {timesheetUser?.fullName}</h1>
-        <p className="text-dark-400 text-sm mt-1">Here's your timesheet summary</p>
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
+          <p className="text-dark-400 text-sm">Here's your timesheet summary</p>
+          {(timesheetUser?.employmentType || timesheetUser?.joiningDate) && (
+            <div className="flex items-center gap-2 text-xs text-dark-500">
+              {timesheetUser?.employmentType && (
+                <span className="flex items-center gap-1 bg-dark-800 border border-dark-700 px-2 py-0.5 rounded-full">
+                  <Briefcase size={10} />
+                  {timesheetUser.employmentType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </span>
+              )}
+              {timesheetUser?.joiningDate && (
+                <span className="bg-dark-800 border border-dark-700 px-2 py-0.5 rounded-full">
+                  Joined {new Date(timesheetUser.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Current Month Timesheet Status */}
