@@ -63,9 +63,41 @@ export default function SettingsTimesheet() {
         salaryDisbursementDay: settings.salaryDisbursementDay,
         salaryDisbursementMode: settings.salaryDisbursementMode,
         customDisbursementDates: settings.customDisbursementDates,
-        payslipVisibilityDay: settings.payslipVisibilityDay
+        payslipVisibilityDay: settings.payslipVisibilityDay,
+        disbursementRules: settings.disbursementRules,
       });
     } catch {} finally { setSaving(false); }
+  };
+
+  const DISBURSEMENT_RULE_OPTIONS = [
+    { value: 'last-working-day', label: 'Last working day of salary month' },
+    { value: 'next-month-15', label: 'On/before 15th of next month' },
+    { value: '30-day-cycle', label: '30-day cycle from joining date' },
+    { value: 'fixed-date', label: 'Fixed day of next month' },
+  ];
+
+  const EMPLOYEE_TYPE_LABELS = {
+    confirmed: 'Confirmed',
+    internal_consultant: 'Internal Consultant',
+    external_consultant: 'External Consultant',
+    intern: 'Intern',
+  };
+
+  const DEFAULT_DISBURSEMENT_RULES = {
+    confirmed: { type: 'last-working-day' },
+    internal_consultant: { type: 'last-working-day' },
+    external_consultant: { type: 'next-month-15' },
+    intern: { type: '30-day-cycle' },
+  };
+
+  const updateDisbursementRule = (empType, ruleType) => {
+    setSettings(prev => ({
+      ...prev,
+      disbursementRules: {
+        ...(prev.disbursementRules || DEFAULT_DISBURSEMENT_RULES),
+        [empType]: { type: ruleType },
+      },
+    }));
   };
 
   const handleSaveAppSettings = async () => {
@@ -188,27 +220,77 @@ export default function SettingsTimesheet() {
     );
   }
 
-  // Generate 12-month preview
-  const previewMonths = [];
+  // Client-side disbursement date calculation (mirrors backend logic)
+  const moveToWorkdayClient = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    if (day === 0) d.setDate(d.getDate() - 2); // Sunday → Friday
+    if (day === 6) d.setDate(d.getDate() - 1); // Saturday → Friday
+    return d;
+  };
+
+  const lastWorkingDayClient = (month, year) => {
+    const lastDay = new Date(year, month, 0); // last day of month
+    return moveToWorkdayClient(lastDay);
+  };
+
+  const lastWorkingDayOnOrBefore15Client = (month, year) => {
+    return moveToWorkdayClient(new Date(year, month - 1, 15));
+  };
+
+  const calcDisbDateForRule = (ruleType, salaryMonth, salaryYear) => {
+    const custom = settings?.customDisbursementDates?.find(d => d.month === salaryMonth && d.year === salaryYear);
+    if (custom?.date) {
+      return { date: moveToWorkdayClient(new Date(custom.date)), isCustom: true, note: custom.note };
+    }
+    let disbDate;
+    switch (ruleType) {
+      case 'last-working-day':
+        disbDate = lastWorkingDayClient(salaryMonth, salaryYear);
+        break;
+      case 'next-month-15': {
+        let nm = salaryMonth + 1, ny = salaryYear;
+        if (nm > 12) { nm = 1; ny++; }
+        disbDate = lastWorkingDayOnOrBefore15Client(nm, ny);
+        break;
+      }
+      case '30-day-cycle': {
+        // For preview, approximate as ~1st of next month (actual depends on joining date)
+        let nm = salaryMonth + 1, ny = salaryYear;
+        if (nm > 12) { nm = 1; ny++; }
+        disbDate = moveToWorkdayClient(new Date(ny, nm - 1, 1));
+        break;
+      }
+      case 'fixed-date': {
+        const day = settings?.salaryDisbursementDay || 7;
+        let nm = salaryMonth + 1, ny = salaryYear;
+        if (nm > 12) { nm = 1; ny++; }
+        const maxDay = new Date(ny, nm, 0).getDate();
+        disbDate = moveToWorkdayClient(new Date(ny, nm - 1, Math.min(day, maxDay)));
+        break;
+      }
+      default:
+        disbDate = lastWorkingDayClient(salaryMonth, salaryYear);
+    }
+    return { date: disbDate, isCustom: false, note: null };
+  };
+
+  // Generate 6-month preview for selected employee type
+  const [previewEmpType, setPreviewEmpType] = useState('confirmed');
   const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    let m = now.getMonth() + 1 + i;
-    let y = now.getFullYear();
-    while (m > 12) { m -= 12; y++; }
-    let prevM = m - 1;
-    let prevY = y;
-    if (prevM === 0) { prevM = 12; prevY--; }
-    const custom = settings?.customDisbursementDates?.find(d => d.month === prevM && d.year === prevY);
-    let disbDay = custom ? new Date(custom.date).getDate() : settings?.salaryDisbursementDay || 7;
-    let disbDate = new Date(y, m - 1, disbDay);
-    const dayOfWeek = disbDate.getDay();
-    if (dayOfWeek === 0) disbDate.setDate(disbDate.getDate() - 2);
-    if (dayOfWeek === 6) disbDate.setDate(disbDate.getDate() - 1);
+  const previewMonths = [];
+  const rules = settings?.disbursementRules || DEFAULT_DISBURSEMENT_RULES;
+  const activeRule = rules[previewEmpType]?.type || 'last-working-day';
+  for (let i = 0; i < 6; i++) {
+    let salaryMonth = now.getMonth() + 1 + i;
+    let salaryYear = now.getFullYear();
+    while (salaryMonth > 12) { salaryMonth -= 12; salaryYear++; }
+    const result = calcDisbDateForRule(activeRule, salaryMonth, salaryYear);
     previewMonths.push({
-      label: `${monthNames[prevM]} ${prevY}`,
-      disbDate: disbDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }),
-      isCustom: !!custom,
-      note: custom?.note
+      label: `${monthNames[salaryMonth]} ${salaryYear}`,
+      disbDate: result.date.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+      isCustom: result.isCustom,
+      note: result.note,
     });
   }
 
@@ -244,6 +326,29 @@ export default function SettingsTimesheet() {
                     onChange={e => setSettings({...settings, payslipVisibilityDay: Number(e.target.value)})}
                     className="input-field w-24" />
                 </div>
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <h3 className="font-semibold text-white mb-4">Disbursement Rules by Employee Type</h3>
+              <div className="space-y-3">
+                {Object.entries(EMPLOYEE_TYPE_LABELS).map(([empType, label]) => {
+                  const currentRule = (settings?.disbursementRules || DEFAULT_DISBURSEMENT_RULES)[empType]?.type || 'last-working-day';
+                  return (
+                    <div key={empType} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-dark-300 min-w-[140px]">{label}</span>
+                      <select
+                        value={currentRule}
+                        onChange={e => updateDisbursementRule(empType, e.target.value)}
+                        className="input-field text-sm flex-1"
+                      >
+                        {DISBURSEMENT_RULE_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -286,6 +391,25 @@ export default function SettingsTimesheet() {
               <Calendar size={18} className="text-rivvra-400" />
               <h3 className="font-semibold text-white">Upcoming Disbursement Dates</h3>
             </div>
+            <div className="flex gap-1 mb-4 flex-wrap">
+              {Object.entries(EMPLOYEE_TYPE_LABELS).map(([empType, label]) => (
+                <button
+                  key={empType}
+                  onClick={() => setPreviewEmpType(empType)}
+                  className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                    previewEmpType === empType
+                      ? 'bg-rivvra-500/20 text-rivvra-400 border border-rivvra-500/30'
+                      : 'bg-dark-800 text-dark-400 border border-dark-700 hover:text-dark-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-dark-500 mb-3">
+              Rule: {DISBURSEMENT_RULE_OPTIONS.find(o => o.value === activeRule)?.label || activeRule}
+              {activeRule === '30-day-cycle' && <span className="text-amber-400 ml-1">(dates vary by joining date)</span>}
+            </p>
             <div className="space-y-1">
               {previewMonths.map((pm, i) => (
                 <div key={i} className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${

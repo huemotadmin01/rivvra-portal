@@ -233,6 +233,9 @@ export default function TimesheetEarnings() {
               <p className="text-lg font-bold text-white">
                 {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
+              {disbursement.salaryMonth && disbursement.salaryYear && (
+                <p className="text-sm text-dark-400 mt-0.5">{monthNames[disbursement.salaryMonth]} {disbursement.salaryYear} salary</p>
+              )}
               {disbursement.countdown && <p className="text-blue-400 font-medium mt-1">{disbursement.countdown}</p>}
               {disbursement.note && <p className="text-sm text-dark-400 mt-1">{disbursement.note}</p>}
             </div>

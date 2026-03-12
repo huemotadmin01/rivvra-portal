@@ -226,6 +226,9 @@ function ContractorDashboard() {
                 <p className="text-2xl font-bold text-white">
                   {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
                 </p>
+                {disbursement.salaryMonth && disbursement.salaryYear && (
+                  <p className="text-xs text-dark-500 mt-0.5">{monthNames[disbursement.salaryMonth]} {disbursement.salaryYear} salary</p>
+                )}
                 {disbursement.countdown && <p className="text-sm text-blue-400 font-medium mt-1">{disbursement.countdown}</p>}
                 {disbursement.note && <p className="text-xs text-dark-500 mt-1">{disbursement.note}</p>}
               </>
