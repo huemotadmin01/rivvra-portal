@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { getLeaveReportSummary, getLeaveReportUtilization, exportLeaveReport } from '../../utils/timesheetApi';
 import { PageSkeleton } from '../../components/Skeletons';
@@ -87,7 +87,7 @@ export default function LeaveReports() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="p-3 sm:p-6 space-y-6 min-w-0 overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -164,7 +164,7 @@ export default function LeaveReports() {
                   <tr className="border-b border-dark-700/50 text-[10px] text-dark-500">
                     <th></th><th></th>
                     {['sick_leave', 'casual_leave', 'comp_off'].map(type => (
-                      <><th key={`${type}-u`} className="px-2 py-1 text-center">Used</th><th key={`${type}-a`} className="px-2 py-1 text-center">Avail</th></>
+                      <React.Fragment key={type}><th className="px-2 py-1 text-center">Used</th><th className="px-2 py-1 text-center">Avail</th></React.Fragment>
                     ))}
                   </tr>
                 </thead>
@@ -179,12 +179,12 @@ export default function LeaveReports() {
                       {['sick_leave', 'casual_leave', 'comp_off'].map(type => {
                         const bal = row.balances?.[type];
                         return (
-                          <>
-                            <td key={`${type}-u`} className="px-2 py-2.5 text-center text-dark-300">{bal?.used ?? '-'}</td>
-                            <td key={`${type}-a`} className={`px-2 py-2.5 text-center font-medium ${(bal?.available || 0) <= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                          <React.Fragment key={type}>
+                            <td className="px-2 py-2.5 text-center text-dark-300">{bal?.used ?? '-'}</td>
+                            <td className={`px-2 py-2.5 text-center font-medium ${(bal?.available || 0) <= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                               {bal?.available ?? '-'}
                             </td>
-                          </>
+                          </React.Fragment>
                         );
                       })}
                     </tr>

@@ -51,6 +51,9 @@ export default function SettingsTimesheet() {
   const [reminderStatus, setReminderStatus] = useState(null);
   const [sendingReminders, setSendingReminders] = useState(false);
 
+  // Disbursement preview
+  const [previewEmpType, setPreviewEmpType] = useState('confirmed');
+
   useEffect(() => {
     if (!isTimesheetAdmin) { setLoading(false); setAppLoading(false); return; }
     Promise.all([
@@ -302,7 +305,6 @@ export default function SettingsTimesheet() {
   };
 
   // Generate 6-month preview for selected employee type
-  const [previewEmpType, setPreviewEmpType] = useState('confirmed');
   const now = new Date();
   const previewMonths = [];
   const rules = settings?.disbursementRules || DEFAULT_DISBURSEMENT_RULES;
