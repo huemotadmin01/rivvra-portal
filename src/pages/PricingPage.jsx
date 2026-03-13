@@ -6,7 +6,6 @@ import {
   Banknote, UsersRound, Contact, PenTool, CheckSquare, X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useOrg } from '../context/OrgContext';
 import MarketingLayout from '../components/marketing/MarketingLayout';
 
 // ── Plans ─────────────────────────────────────────────────────────────────────
@@ -111,8 +110,8 @@ const COMPARISON = [
 
 function PricingPage() {
   const [openFaq, setOpenFaq] = useState(null);
-  const { isAuthenticated } = useAuth?.() || {};
-  const { orgSlug } = useOrg?.() || {};
+  const { isAuthenticated, user } = useAuth?.() || {};
+  const orgSlug = user?.defaultOrgSlug;
 
   function getCtaLink(planId) {
     if (isAuthenticated && orgSlug) {
