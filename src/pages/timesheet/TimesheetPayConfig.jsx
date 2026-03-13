@@ -79,12 +79,13 @@ export default function TimesheetPayConfig() {
 
   // Data states
   const [payrollData, setPayrollData] = useState(null);
+  const [currentMonthPayroll, setCurrentMonthPayroll] = useState(null); // always current month, independent of selector
   const [payConfigData, setPayConfigData] = useState(null);
   const [notApprovedData, setNotApprovedData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // UI states
-  const [showEmployeeTable, setShowEmployeeTable] = useState(false);
+  const [showEmployeeTable, setShowEmployeeTable] = useState(true);
   const [search, setSearch] = useState('');
   const [filterSynced, setFilterSynced] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,22 +100,32 @@ export default function TimesheetPayConfig() {
     setYear(y);
   };
 
-  // Data fetching
+  // Current month (fixed, for disbursements)
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  // Data fetching — selected month for summary cards/stepper, current month for disbursements
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
-      const [payrollRes, configRes, notApprRes] = await Promise.all([
+      const isCurrentMonth = month === currentMonth && year === currentYear;
+      const fetches = [
         getPayrollSummary(month, year).catch(() => null),
         getPayConfig().catch(() => null),
         getNotApprovedTimesheets().catch(() => null),
-      ]);
-      setPayrollData(payrollRes);
-      if (configRes?.success) setPayConfigData(configRes);
-      setNotApprovedData(notApprRes);
+      ];
+      // Only fetch current month separately if selector is on a different month
+      if (!isCurrentMonth) fetches.push(getPayrollSummary(currentMonth, currentYear).catch(() => null));
+
+      const results = await Promise.all(fetches);
+      setPayrollData(results[0]);
+      if (results[1]?.success) setPayConfigData(results[1]);
+      setNotApprovedData(results[2]);
+      setCurrentMonthPayroll(isCurrentMonth ? results[0] : results[3]);
     } catch (err) {
       console.error('Dashboard fetch failed:', err);
     } finally { setLoading(false); }
-  }, [month, year]);
+  }, [month, year, currentMonth, currentYear]);
 
   useEffect(() => { if (isAdmin) fetchDashboardData(); else setLoading(false); }, [isAdmin, fetchDashboardData]);
 
@@ -175,7 +186,7 @@ export default function TimesheetPayConfig() {
 
   const summary = payrollData?.summary || {};
   const payrollRun = payrollData?.payrollRun;
-  const payrollEmployees = payrollData?.employees || [];
+  const disbursementEmployees = currentMonthPayroll?.employees || [];
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-5">
@@ -328,8 +339,8 @@ export default function TimesheetPayConfig() {
         );
       })()}
 
-      {/* ═══ Upcoming Disbursements ═══ */}
-      <DisbursementList employees={payrollEmployees} orgPath={orgPath} />
+      {/* ═══ Upcoming Disbursements (always current month) ═══ */}
+      <DisbursementList employees={disbursementEmployees} orgPath={orgPath} />
 
       {/* ═══ Employee Pay Configuration (collapsible) ═══ */}
       <div className="card overflow-hidden">
