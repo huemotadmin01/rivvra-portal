@@ -468,6 +468,7 @@ function TeamListsPage() {
                               <option value="replied_not_interested">Not Interested</option>
                               <option value="no_response">No Response</option>
                               <option value="bounced">Bounced</option>
+                              <option value="converted">Converted</option>
                             </select>
                           </div>
 
@@ -641,6 +642,7 @@ function TeamListsPage() {
                                     replied_not_interested: { label: 'Not Interested', cls: 'bg-purple-500/10 text-purple-400' },
                                     no_response: { label: 'No Response', cls: 'bg-orange-500/10 text-orange-400' },
                                     bounced: { label: 'Bounced', cls: 'bg-red-500/10 text-red-400' },
+                                    converted: { label: 'Converted', cls: 'bg-rivvra-500/10 text-rivvra-400' },
                                   };
                                   const cfg = statusConfig[lead.outreachStatus];
                                   return cfg ? (
