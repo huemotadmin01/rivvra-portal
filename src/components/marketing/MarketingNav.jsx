@@ -37,7 +37,7 @@ export default function MarketingNav({ activePage }) {
           ))}
           <div className="w-px h-5 bg-white/[0.08] mx-3" />
           <Link
-            to="/login"
+            to="/find-workspace"
             className="px-4 py-2 rounded-lg text-[13px] font-medium text-dark-400 hover:text-white transition-colors"
           >
             Log in
@@ -77,7 +77,7 @@ export default function MarketingNav({ activePage }) {
               </Link>
             ))}
             <Link
-              to="/login"
+              to="/find-workspace"
               onClick={() => setMobileOpen(false)}
               className="block px-4 py-2.5 rounded-lg text-sm font-medium text-dark-400 hover:text-white transition-colors"
             >
