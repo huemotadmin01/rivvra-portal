@@ -4,12 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Rivvra - Free LinkedIn Lead Extraction. Extract unlimited leads from LinkedIn with our powerful Chrome extension." />
+    <meta name="description" content="Rivvra — The all-in-one staffing platform. Outreach, timesheets, CRM, ATS, payroll, e-signatures, and more. Built for staffing agencies." />
     <meta name="theme-color" content="#020617" />
-    <meta property="og:title" content="Rivvra - Free LinkedIn Lead Extraction" />
-    <meta property="og:description" content="Extract unlimited leads from LinkedIn. AI-powered outreach and CRM integration." />
+    <meta property="og:title" content="Rivvra — All-in-one staffing platform" />
+    <meta property="og:description" content="Nine modular apps for staffing agencies: Outreach, Timesheet, CRM, ATS, Payroll, Employee, Contacts, Sign, and To-Do." />
     <meta property="og:type" content="website" />
-    <title>Rivvra - Free LinkedIn Lead Extraction</title>
+    <meta property="og:url" content="https://www.rivvra.com" />
+    <link rel="canonical" href="https://www.rivvra.com" />
+    <title>Rivvra — All-in-one staffing platform</title>
+    <!-- Redirect hash-based URLs to clean paths (backward compat for extension + old bookmarks) -->
+    <script>
+      (function () {
+        var h = window.location.hash;
+        if (h && h.startsWith('#/')) {
+          var path = h.slice(1);
+          var search = window.location.search || '';
+          window.location.replace(window.location.origin + path + search);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

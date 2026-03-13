@@ -969,6 +969,25 @@ class ApiClient {
     });
   }
 
+  // ─── Stripe ─────────────────────────────────────────────────────────────
+
+  async createCheckoutSession(orgSlug, data) {
+    return this.request(`/api/org/${orgSlug}/stripe/create-checkout`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createBillingPortalSession(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/stripe/billing-portal`, {
+      method: 'POST',
+    });
+  }
+
+  async getSubscriptionStatus(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/stripe/subscription`);
+  }
+
   // ─── Super Admin ──────────────────────────────────────────────────────────
 
   async getSuperAdminStats() {

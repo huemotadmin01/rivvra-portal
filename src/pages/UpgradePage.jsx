@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
-import { Crown, Check, Users, Clock, AlertTriangle, Sparkles } from 'lucide-react';
+import {
+  Crown, Check, Users, Clock, AlertTriangle, Sparkles,
+  CreditCard, ExternalLink, Loader2, ArrowRight, Shield,
+  Calendar, RefreshCw,
+} from 'lucide-react';
 
 const PRICING = {
   pro: {
@@ -10,12 +15,12 @@ const PRICING = {
     currency: 'USD',
     period: 'user/month',
     features: [
-      'All Outreach features',
-      'Timesheet & Employee management',
+      'All 9 platform apps',
+      'Up to 25 users',
       'Unlimited sequences',
       'Gmail integration',
-      'Team management',
-      'Priority support',
+      'Email support',
+      'Standard analytics',
     ],
   },
   enterprise: {
@@ -25,26 +30,46 @@ const PRICING = {
     period: 'user/month',
     features: [
       'Everything in Pro',
-      'CRM integration',
-      'ATS (coming soon)',
+      'Unlimited users',
+      'Priority support + SLA',
       'Custom branding',
-      'Dedicated support',
-      'SLA guarantee',
+      'Advanced analytics',
+      'Dedicated account manager',
     ],
   },
 };
 
 function UpgradePage() {
   const { currentOrg, orgSlug, trial, isOrgOwner, isOrgAdmin, refetchOrg } = useOrg();
+  const [searchParams] = useSearchParams();
 
   const [selectedPlan, setSelectedPlan] = useState('pro');
-  const [licenseCount, setLicenseCount] = useState(3);
+  const [seatCount, setSeatCount] = useState(3);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [stripeSuccess, setStripeSuccess] = useState(false);
   const [trialStatus, setTrialStatus] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [subLoading, setSubLoading] = useState(true);
+  const [portalLoading, setPortalLoading] = useState(false);
 
-  // Fetch detailed trial status
+  // Check for Stripe redirect success/cancel
+  useEffect(() => {
+    if (searchParams.get('stripe_success') === 'true') {
+      setStripeSuccess(true);
+      refetchOrg();
+    }
+    if (searchParams.get('stripe_cancelled') === 'true') {
+      setError('Checkout was cancelled. You can try again when ready.');
+    }
+    // Pre-select plan from query param
+    const planParam = searchParams.get('plan');
+    if (planParam && PRICING[planParam]) {
+      setSelectedPlan(planParam);
+    }
+  }, [searchParams, refetchOrg]);
+
+  // Fetch trial status
   useEffect(() => {
     if (orgSlug) {
       api.getTrialStatus(orgSlug)
@@ -53,60 +78,237 @@ function UpgradePage() {
     }
   }, [orgSlug]);
 
-  const plan = PRICING[selectedPlan];
-  const monthlyTotal = plan.price * licenseCount;
+  // Fetch subscription status
+  useEffect(() => {
+    if (orgSlug) {
+      setSubLoading(true);
+      api.getSubscriptionStatus(orgSlug)
+        .then(res => {
+          if (res.subscription) setSubscription(res.subscription);
+        })
+        .catch(() => {})
+        .finally(() => setSubLoading(false));
+    }
+  }, [orgSlug, stripeSuccess]);
 
-  const handleUpgrade = async () => {
+  const plan = PRICING[selectedPlan];
+  const monthlyTotal = plan.price * seatCount;
+  const isPaid = currentOrg?.plan === 'pro' || currentOrg?.plan === 'enterprise';
+
+  // Redirect to Stripe Checkout
+  const handleCheckout = async () => {
     if (!isOrgOwner && !isOrgAdmin) {
-      setError('Only organization owners or admins can upgrade');
+      setError('Only organization owners or admins can upgrade.');
       return;
     }
-    if (licenseCount < 3) {
-      setError('Minimum 3 user licenses required');
+    if (seatCount < 1) {
+      setError('At least 1 seat is required.');
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      const result = await api.upgradeOrg(orgSlug, {
-        licenseCount,
+      const result = await api.createCheckoutSession(orgSlug, {
         plan: selectedPlan,
+        seats: seatCount,
       });
-      if (result.success) {
-        setSuccess(true);
-        refetchOrg(); // Refresh org context to remove trial banner
+      if (result.url) {
+        window.location.href = result.url;
       } else {
-        setError(result.error || 'Upgrade failed');
+        setError(result.error || 'Failed to create checkout session.');
       }
     } catch (err) {
-      setError(err.message || 'Upgrade failed');
+      setError(err.message || 'Failed to create checkout session.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
+  // Open Stripe Billing Portal
+  const handleManageBilling = async () => {
+    setPortalLoading(true);
+    setError(null);
+    try {
+      const result = await api.createBillingPortalSession(orgSlug);
+      if (result.url) {
+        window.location.href = result.url;
+      } else {
+        setError(result.error || 'Failed to open billing portal.');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to open billing portal.');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  // ── Success state after Stripe checkout ──────────────────────────────
+  if (stripeSuccess) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
-        <div className="w-16 h-16 bg-rivvra-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Sparkles className="w-8 h-8 text-rivvra-400" />
+        <div className="w-20 h-20 bg-rivvra-500/20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-rivvra-500/10">
+          <Sparkles className="w-10 h-10 text-rivvra-400" />
         </div>
-        <h1 className="text-3xl font-bold text-white mb-4">Welcome to {plan.name}!</h1>
-        <p className="text-dark-300 text-lg mb-8">
-          Your organization has been upgraded with {licenseCount} user licenses.
-          All features are now unlocked.
+        <h1 className="text-3xl font-bold text-white mb-3">You're all set!</h1>
+        <p className="text-dark-300 text-lg mb-2">
+          Your organization has been successfully upgraded.
         </p>
-        <a
-          href={`/#/org/${orgSlug}/outreach/dashboard`}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg font-semibold transition-colors"
-        >
-          Go to Dashboard
-        </a>
+        <p className="text-dark-400 text-sm mb-8">
+          All platform apps are now unlocked. Your subscription is active and will be managed through Stripe.
+        </p>
+        <div className="flex items-center justify-center gap-4">
+          <Link
+            to={`/org/${orgSlug}/home`}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg font-semibold transition-colors"
+          >
+            Go to Dashboard
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+          <button
+            onClick={handleManageBilling}
+            disabled={portalLoading}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg font-medium transition-colors border border-dark-600"
+          >
+            {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+            Manage Billing
+          </button>
+        </div>
       </div>
     );
   }
 
+  // ── Subscription management for paid orgs ────────────────────────────
+  if (isPaid && !stripeSuccess) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-8">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="w-12 h-12 bg-rivvra-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-6 h-6 text-rivvra-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Subscription & Billing</h1>
+          <p className="text-dark-400">Manage your {currentOrg?.name} subscription</p>
+        </div>
+
+        {/* Current Plan Card */}
+        <div className="bg-dark-900 rounded-xl border border-dark-700 p-6 mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-lg font-bold text-white capitalize">{currentOrg?.plan} Plan</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-rivvra-500/20 text-rivvra-400 rounded-full">Active</span>
+              </div>
+              <p className="text-sm text-dark-400">
+                {PRICING[currentOrg?.plan]?.price
+                  ? `$${PRICING[currentOrg?.plan]?.price}/user/month`
+                  : 'Custom pricing'}
+              </p>
+            </div>
+            <Shield className="w-8 h-8 text-rivvra-500/40" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-dark-800 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="w-4 h-4 text-dark-400" />
+                <span className="text-xs text-dark-400 uppercase tracking-wider">Seats</span>
+              </div>
+              <p className="text-xl font-bold text-white">
+                {subscription?.seats || currentOrg?.billing?.seatsTotal || '—'}
+              </p>
+            </div>
+            <div className="bg-dark-800 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-4 h-4 text-dark-400" />
+                <span className="text-xs text-dark-400 uppercase tracking-wider">Next billing</span>
+              </div>
+              <p className="text-sm font-semibold text-white">
+                {subscription?.currentPeriodEnd
+                  ? new Date(subscription.currentPeriodEnd).toLocaleDateString('en-US', {
+                      month: 'short', day: 'numeric', year: 'numeric',
+                    })
+                  : '—'}
+              </p>
+            </div>
+            <div className="bg-dark-800 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <CreditCard className="w-4 h-4 text-dark-400" />
+                <span className="text-xs text-dark-400 uppercase tracking-wider">Status</span>
+              </div>
+              <p className="text-sm font-semibold text-white capitalize">
+                {subscription?.status || 'Active'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment failed warning */}
+        {currentOrg?.billing?.paymentFailed && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-300">Payment failed</p>
+              <p className="text-xs text-red-400/80 mt-1">
+                Your last payment didn't go through. Please update your payment method to avoid service interruption.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel notice */}
+        {subscription?.cancelAtPeriodEnd && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-300">Cancellation scheduled</p>
+              <p className="text-xs text-amber-400/80 mt-1">
+                Your subscription will end on {new Date(subscription.currentPeriodEnd).toLocaleDateString()}.
+                You can reactivate from the billing portal.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-6 text-red-300 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-center gap-4">
+          <button
+            onClick={handleManageBilling}
+            disabled={portalLoading}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-rivvra-500 hover:bg-rivvra-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors"
+          >
+            {portalLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ExternalLink className="w-4 h-4" />
+            )}
+            Manage Billing
+          </button>
+          <button
+            onClick={() => { setSubLoading(true); api.getSubscriptionStatus(orgSlug).then(res => { if (res.subscription) setSubscription(res.subscription); }).catch(() => {}).finally(() => setSubLoading(false)); }}
+            disabled={subLoading}
+            className="inline-flex items-center gap-2 px-4 py-3 bg-dark-800 hover:bg-dark-700 text-dark-300 rounded-lg font-medium transition-colors border border-dark-600"
+          >
+            <RefreshCw className={`w-4 h-4 ${subLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        <p className="text-xs text-dark-500 text-center mt-4">
+          Billing is managed securely through Stripe. You can update payment methods, change seats, or cancel anytime.
+        </p>
+      </div>
+    );
+  }
+
+  // ── Upgrade flow for free/trial orgs ─────────────────────────────────
   const displayTrial = trialStatus || trial;
 
   return (
@@ -121,7 +323,7 @@ function UpgradePage() {
           {displayTrial?.status === 'active' && `${displayTrial.daysRemaining ?? 0} days left in your trial. `}
           {displayTrial?.status === 'grace' && 'Your trial has ended. Data is read-only. '}
           {displayTrial?.status === 'archived' && 'Your organization has been archived. '}
-          Upgrade to continue with all features.
+          Upgrade to unlock all features and keep your team productive.
         </p>
       </div>
 
@@ -186,24 +388,24 @@ function UpgradePage() {
         ))}
       </div>
 
-      {/* License Count */}
+      {/* Seat Count */}
       <div className="bg-dark-900 rounded-xl p-6 border border-dark-700 mb-8">
         <div className="flex items-center gap-3 mb-4">
           <Users className="w-5 h-5 text-dark-400" />
-          <h3 className="text-lg font-semibold text-white">Number of User Licenses</h3>
+          <h3 className="text-lg font-semibold text-white">Number of Seats</h3>
         </div>
-        <p className="text-sm text-dark-400 mb-4">Minimum 3 licenses required. Each license allows one user to access all apps.</p>
+        <p className="text-sm text-dark-400 mb-4">Each seat allows one team member to access all platform apps.</p>
         <div className="flex items-center gap-4">
           <input
             type="number"
-            min={3}
+            min={1}
             max={1000}
-            value={licenseCount}
-            onChange={(e) => setLicenseCount(Math.max(3, parseInt(e.target.value) || 3))}
+            value={seatCount}
+            onChange={(e) => setSeatCount(Math.max(1, parseInt(e.target.value) || 1))}
             className="w-24 px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white text-center text-lg font-semibold focus:outline-none focus:border-rivvra-500"
           />
           <div className="text-dark-300">
-            <span className="text-sm">users</span>
+            <span className="text-sm">seats</span>
             <span className="text-dark-500 mx-2">x</span>
             <span className="text-white font-semibold">${plan.price}</span>
             <span className="text-dark-500 mx-2">=</span>
@@ -223,15 +425,28 @@ function UpgradePage() {
       {/* CTA */}
       <div className="text-center">
         <button
-          onClick={handleUpgrade}
+          onClick={handleCheckout}
           disabled={loading || (!isOrgOwner && !isOrgAdmin)}
-          className="px-8 py-3 bg-rivvra-500 hover:bg-rivvra-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-lg transition-colors"
+          className="inline-flex items-center gap-2 px-8 py-3 bg-rivvra-500 hover:bg-rivvra-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-lg transition-colors"
         >
-          {loading ? 'Processing...' : `Upgrade to ${plan.name} — $${monthlyTotal}/mo`}
+          {loading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Redirecting to checkout...
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-5 h-5" />
+              Upgrade to {plan.name} — ${monthlyTotal}/mo
+            </>
+          )}
         </button>
-        <p className="text-xs text-dark-500 mt-3">
-          Payment integration coming soon. Contact support@rivvra.com for billing setup.
-        </p>
+        <div className="flex items-center justify-center gap-2 mt-3">
+          <Shield className="w-3.5 h-3.5 text-dark-500" />
+          <p className="text-xs text-dark-500">
+            Secure checkout powered by Stripe. Cancel anytime.
+          </p>
+        </div>
         {!isOrgOwner && !isOrgAdmin && (
           <p className="text-xs text-amber-400 mt-2">Only organization owners or admins can upgrade.</p>
         )}
