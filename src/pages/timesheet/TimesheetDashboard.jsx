@@ -51,8 +51,8 @@ function ContractorDashboard() {
   const [leaveBalances, setLeaveBalances] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Temporary: hide earnings for confirmed+billable employees (pending payroll deductions)
-  const hideEarnings = timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable;
+  // Temporary: hide earnings for confirmed employees (pending PF, ESI, PT, Income Tax modules)
+  const hideEarnings = timesheetUser?.employmentType === 'confirmed';
 
   // Leave eligibility
   const empType = timesheetUser?.employmentType;

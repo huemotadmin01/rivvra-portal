@@ -110,8 +110,8 @@ export const APP_REGISTRY = {
             ],
           },
         ] : []),
-        // Hide earnings for confirmed+billable employees (temporary — pending payroll deductions)
-        ...((timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable) ? [] : [
+        // Hide earnings for confirmed employees (temporary — pending PF, ESI, PT, Income Tax modules)
+        ...(timesheetUser?.employmentType === 'confirmed' ? [] : [
           { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
         ]),
         // Admin only: configuration
