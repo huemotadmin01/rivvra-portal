@@ -16,9 +16,7 @@ export default function MarketingNav({ activePage }) {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rivvra-400 to-rivvra-600 flex items-center justify-center shadow-lg shadow-rivvra-500/25 group-hover:shadow-rivvra-500/40 transition-shadow">
-            <RivvraLogo className="w-5 h-5 text-dark-950" />
-          </div>
+          <RivvraLogo className="w-7 h-7" />
           <span className="text-[17px] font-semibold text-white tracking-tight">Rivvra</span>
         </Link>
 

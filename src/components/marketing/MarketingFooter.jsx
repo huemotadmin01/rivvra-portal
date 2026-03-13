@@ -9,9 +9,7 @@ export default function MarketingFooter() {
           {/* Brand */}
           <div className="md:col-span-2 space-y-4">
             <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rivvra-400 to-rivvra-600 flex items-center justify-center">
-                <RivvraLogo className="w-5 h-5 text-dark-950" />
-              </div>
+              <RivvraLogo className="w-7 h-7" />
               <span className="text-[17px] font-semibold text-white tracking-tight">Rivvra</span>
             </Link>
             <p className="text-dark-500 text-sm leading-relaxed max-w-xs">
