@@ -51,6 +51,8 @@ export const APP_REGISTRY = {
         },
         ...(isAdminOrLead ? [
           { type: 'item', path: '/outreach/team-dashboard', label: 'Team Dashboard', icon: BarChart3 },
+        ] : []),
+        ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
