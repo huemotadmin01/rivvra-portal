@@ -4,7 +4,7 @@ import {
   CheckCircle2, Download, Settings, Building2, UserPlus, Wallet,
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare,
-  CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard,
+  CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -100,8 +100,11 @@ export const APP_REGISTRY = {
           { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
-        // Everyone gets their own timesheet (members, managers, admins)
-        { type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays },
+        // Confirmed employees see attendance calendar; others see timesheet
+        ...(timesheetUser?.employmentType === 'confirmed'
+          ? [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
+          : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
+        ),
         // Leave management (for eligible employees)
         ...(isLeaveEligible ? [
           {

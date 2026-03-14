@@ -66,6 +66,7 @@ const TodoTasks = lazy(() => import('./pages/todo/TodoTasks'));
 // Lazy-loaded: Timesheet app pages
 const TimesheetDashboard = lazy(() => import('./pages/timesheet/TimesheetDashboard'));
 const TimesheetEntry = lazy(() => import('./pages/timesheet/TimesheetEntry'));
+const MyAttendancePage = lazy(() => import('./pages/timesheet/MyAttendancePage'));
 const TimesheetEarnings = lazy(() => import('./pages/timesheet/TimesheetEarnings'));
 const TimesheetApprovals = lazy(() => import('./pages/timesheet/TimesheetApprovals'));
 const TimesheetUsers = lazy(() => import('./pages/timesheet/TimesheetUsers'));
@@ -266,6 +267,7 @@ function App() {
                 <Route element={<ESSCompanyGate />}>
                   <Route path="/org/:slug/timesheet/dashboard" element={<ErrorBoundary><TimesheetDashboard /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-timesheet" element={<ErrorBoundary><TimesheetEntry /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-attendance" element={<ErrorBoundary><MyAttendancePage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><TimesheetEarnings /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/approvals" element={<ErrorBoundary><TimesheetApprovals /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/users" element={<ErrorBoundary><TimesheetUsers /></ErrorBoundary>} />

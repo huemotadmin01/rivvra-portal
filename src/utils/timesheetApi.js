@@ -294,4 +294,18 @@ export async function exportLeaveReport(params) {
   return res;
 }
 
+// ─── Attendance (Confirmed Employees) ──────────────────────────────────
+
+export function getAttendance(month, year) {
+  return request('GET', `/attendance/${month}/${year}`);
+}
+
+export function updateAttendance(id, entries) {
+  return request('PUT', `/attendance/${id}`, { body: { entries } });
+}
+
+export function submitAttendance(id) {
+  return request('PATCH', `/attendance/${id}/submit`);
+}
+
 export default timesheetApi;
