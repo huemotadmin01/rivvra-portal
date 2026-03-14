@@ -662,8 +662,8 @@ export default function TimesheetPayroll() {
       {/* Header + Month Selector */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Payroll</h1>
-          <p className="text-dark-400 text-sm">Salary overview for approved timesheets</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Contractor Payroll</h1>
+          <p className="text-dark-400 text-sm">Timesheet-based payroll for contractors</p>
         </div>
         <div className="flex items-center">
           <button onClick={() => goMonth(-1)} className="p-2.5 rounded-l-xl bg-dark-800/80 border border-dark-700 border-r-0 text-dark-400 hover:text-white hover:bg-dark-700 transition-all">

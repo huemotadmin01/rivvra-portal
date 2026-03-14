@@ -300,8 +300,8 @@ export default function PayrollRunPage() {
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-white">Statutory Payroll Runs</h1>
-          <p className="text-sm text-dark-400 mt-1">Monthly payroll processing with PF, ESI, PT, TDS</p>
+          <h1 className="text-xl font-semibold text-white">Employee Payroll</h1>
+          <p className="text-sm text-dark-400 mt-1">Monthly payroll for confirmed employees — PF, ESI, PT, TDS</p>
         </div>
         <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
           <Plus size={16} /> New Run
