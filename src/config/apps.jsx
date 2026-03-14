@@ -150,6 +150,15 @@ export const APP_REGISTRY = {
       { type: 'item', path: '/payroll/process', label: 'Process Payroll', icon: Banknote },
       { type: 'item', path: '/payroll/export', label: 'Export & Reports', icon: Download },
       {
+        type: 'group', label: 'Statutory', icon: Layers,
+        children: [
+          { path: '/payroll/salary-structures', label: 'Salary Structures', icon: Layers },
+          { path: '/payroll/employee-salary', label: 'Employee Salary', icon: IndianRupee },
+          { path: '/payroll/statutory-config', label: 'Statutory Config', icon: CheckCircle2 },
+          { path: '/payroll/statutory-run', label: 'Statutory Payroll', icon: Banknote },
+        ],
+      },
+      {
         type: 'group', label: 'Configuration', icon: Settings,
         children: [
           { path: '/settings/timesheet', label: 'Settings', icon: Settings },
