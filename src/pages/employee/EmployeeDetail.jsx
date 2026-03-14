@@ -25,6 +25,10 @@ import {
   Send,
   Trash2,
   AlertTriangle,
+  PenLine,
+  Plus,
+  X,
+  History,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
@@ -153,6 +157,14 @@ export default function EmployeeDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // CTC management state
+  const [showSetCtc, setShowSetCtc] = useState(false);
+  const [showReviseCtc, setShowReviseCtc] = useState(false);
+  const [ctcForm, setCtcForm] = useState({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+  const [ctcSaving, setCtcSaving] = useState(false);
+  const [salaryHistory, setSalaryHistory] = useState([]);
+  const [salaryHistoryLoading, setSalaryHistoryLoading] = useState(false);
+
   const isAdmin = getAppRole('employee') === 'admin';
 
   useEffect(() => {
@@ -193,6 +205,69 @@ export default function EmployeeDetail() {
       .catch(() => {})
       .finally(() => setDocsLoading(false));
   }, [currentOrg?.slug, employeeId]);
+
+  // Fetch salary history for confirmed / internal_consultant employees
+  const isCompensationEligible = employee && ['confirmed', 'internal_consultant'].includes(employee.employmentType);
+  const fetchSalaryHistory = async () => {
+    if (!currentOrg?.slug || !employeeId || !isAdmin) return;
+    setSalaryHistoryLoading(true);
+    try {
+      const res = await employeeApi.getSalaryHistory(currentOrg.slug, employeeId);
+      if (res.success) setSalaryHistory(res.history || []);
+    } catch {}
+    setSalaryHistoryLoading(false);
+  };
+  useEffect(() => {
+    if (isCompensationEligible) fetchSalaryHistory();
+  }, [currentOrg?.slug, employeeId, isCompensationEligible]);
+
+  const handleSetCtc = async () => {
+    if (!ctcForm.ctcAnnual || !ctcForm.effectiveFrom || ctcSaving) return;
+    setCtcSaving(true);
+    try {
+      const res = await employeeApi.setCtc(currentOrg.slug, employeeId, {
+        ctcAnnual: Number(ctcForm.ctcAnnual),
+        effectiveFrom: ctcForm.effectiveFrom,
+      });
+      if (res.success) {
+        setShowSetCtc(false);
+        setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+        // Re-fetch employee + salary history
+        const empRes = await employeeApi.get(currentOrg.slug, employeeId);
+        if (empRes.success) setEmployee(empRes.employee);
+        fetchSalaryHistory();
+      } else {
+        alert(res.error || 'Failed to set CTC');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to set CTC');
+    }
+    setCtcSaving(false);
+  };
+
+  const handleReviseCtc = async () => {
+    if (!ctcForm.ctcAnnual || !ctcForm.effectiveFrom || !ctcForm.reason || ctcSaving) return;
+    setCtcSaving(true);
+    try {
+      const res = await employeeApi.reviseCtc(currentOrg.slug, employeeId, {
+        ctcAnnual: Number(ctcForm.ctcAnnual),
+        effectiveFrom: ctcForm.effectiveFrom,
+        reason: ctcForm.reason,
+      });
+      if (res.success) {
+        setShowReviseCtc(false);
+        setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+        const empRes = await employeeApi.get(currentOrg.slug, employeeId);
+        if (empRes.success) setEmployee(empRes.employee);
+        fetchSalaryHistory();
+      } else {
+        alert(res.error || 'Failed to revise CTC');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to revise CTC');
+    }
+    setCtcSaving(false);
+  };
 
   // ── Send Onboarding Form Link ────────────────────────────────────────────
   const handleSendOnboardingLink = async () => {
@@ -372,6 +447,40 @@ export default function EmployeeDetail() {
               ) : null
             }
           />
+          {isCompensationEligible && (
+            <InfoRow
+              label="Annual CTC"
+              value={
+                emp.ctcAnnual ? (
+                  <span className="flex items-center gap-2">
+                    {formatCurrency(emp.ctcAnnual)}
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+                          setShowReviseCtc(true);
+                        }}
+                        className="text-dark-400 hover:text-rivvra-400 transition-colors"
+                        title="Revise CTC"
+                      >
+                        <PenLine size={13} />
+                      </button>
+                    )}
+                  </span>
+                ) : isAdmin ? (
+                  <button
+                    onClick={() => {
+                      setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+                      setShowSetCtc(true);
+                    }}
+                    className="flex items-center gap-1 text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                  >
+                    <Plus size={12} /> Set CTC
+                  </button>
+                ) : '—'
+              }
+            />
+          )}
           <InfoRow
             label="Monthly Gross"
             value={formatCurrency(emp.monthlyGrossSalary)}
@@ -662,6 +771,55 @@ export default function EmployeeDetail() {
         </div>
       )}
 
+      {/* ── Compensation History ─────────────────────────────────────── */}
+      {isCompensationEligible && isAdmin && salaryHistory.length > 0 && (
+        <div className="card p-5 mt-5">
+          <div className="flex items-center gap-2 mb-4">
+            <IndianRupee size={16} className="text-emerald-400" />
+            <h3 className="text-white font-semibold">Compensation</h3>
+            <span className="ml-auto text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium">
+              {salaryHistory.length} revision{salaryHistory.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-dark-700">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Effective From</th>
+                  <th className="text-right px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">CTC / Year</th>
+                  <th className="text-right px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Gross / Mo</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Structure</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Changed By</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Reason</th>
+                  <th className="text-center px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {salaryHistory.map((s, i) => (
+                  <tr key={s._id} className="hover:bg-dark-800/30 transition-colors">
+                    <td className="px-3 py-2.5 text-sm text-dark-300">{formatDate(s.effectiveFrom)}</td>
+                    <td className="px-3 py-2.5 text-sm text-white text-right font-medium">{formatCurrency(s.ctcAnnual)}</td>
+                    <td className="px-3 py-2.5 text-sm text-dark-300 text-right">{formatCurrency(s.grossMonthly)}</td>
+                    <td className="px-3 py-2.5 text-sm text-dark-300">{s.structureName || '—'}</td>
+                    <td className="px-3 py-2.5 text-sm text-dark-300">{s.changedByName || s.createdBy || '—'}</td>
+                    <td className="px-3 py-2.5 text-sm text-dark-400 max-w-[200px] truncate" title={s.reason}>{s.reason || '—'}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {!s.effectiveTo ? (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">Current</span>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-dark-700 text-dark-400">
+                          Until {formatDate(s.effectiveTo)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ── Onboarding/Offboarding Plans ─────────────────────────────── */}
       <div className="mt-5">
         <PlanProgress employeeId={emp._id} isAdmin={isAdmin} />
@@ -691,6 +849,108 @@ export default function EmployeeDetail() {
         employee={emp}
         orgSlug={currentOrg?.slug}
       />
+
+      {/* ── Set CTC Modal ──────────────────────────────────────────────── */}
+      {showSetCtc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold text-lg">Set CTC</h3>
+              <button onClick={() => setShowSetCtc(false)} className="text-dark-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Annual CTC (₹)</label>
+                <input
+                  type="number"
+                  value={ctcForm.ctcAnnual}
+                  onChange={e => setCtcForm(f => ({ ...f, ctcAnnual: e.target.value }))}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                  placeholder="e.g. 3000000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Effective From</label>
+                <input
+                  type="date"
+                  value={ctcForm.effectiveFrom}
+                  onChange={e => setCtcForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowSetCtc(false)} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
+              <button
+                onClick={handleSetCtc}
+                disabled={!ctcForm.ctcAnnual || !ctcForm.effectiveFrom || ctcSaving}
+                className="px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {ctcSaving && <Loader2 size={14} className="animate-spin" />}
+                Set CTC
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Revise CTC Modal ─────────────────────────────────────────── */}
+      {showReviseCtc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold text-lg">Revise CTC</h3>
+              <button onClick={() => setShowReviseCtc(false)} className="text-dark-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="bg-dark-900/50 rounded-lg p-3 mb-4">
+              <span className="text-dark-400 text-xs">Current CTC</span>
+              <p className="text-white font-medium">{formatCurrency(emp?.ctcAnnual)}</p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">New Annual CTC (₹)</label>
+                <input
+                  type="number"
+                  value={ctcForm.ctcAnnual}
+                  onChange={e => setCtcForm(f => ({ ...f, ctcAnnual: e.target.value }))}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                  placeholder="e.g. 3600000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Effective From</label>
+                <input
+                  type="date"
+                  value={ctcForm.effectiveFrom}
+                  onChange={e => setCtcForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Reason <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={ctcForm.reason}
+                  onChange={e => setCtcForm(f => ({ ...f, reason: e.target.value }))}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                  placeholder="e.g. Annual appraisal, Promotion"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowReviseCtc(false)} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
+              <button
+                onClick={handleReviseCtc}
+                disabled={!ctcForm.ctcAnnual || !ctcForm.effectiveFrom || !ctcForm.reason || ctcSaving}
+                className="px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {ctcSaving && <Loader2 size={14} className="animate-spin" />}
+                Revise CTC
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Delete Confirmation Dialog ────────────────────────────────── */}
       {showDeleteConfirm && (

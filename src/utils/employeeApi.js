@@ -238,6 +238,25 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/rate-history`);
   },
 
+  // ── CTC Management ───────────────────────────────────────────────────────
+  setCtc(orgSlug, employeeId, data) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/set-ctc`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  reviseCtc(orgSlug, employeeId, data) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/revise-ctc`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getSalaryHistory(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/salary-history`);
+  },
+
   // ── Employee ↔ User Linking ───────────────────────────────────────────────
   linkUser(orgSlug, employeeId, userId) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/link-user`, {

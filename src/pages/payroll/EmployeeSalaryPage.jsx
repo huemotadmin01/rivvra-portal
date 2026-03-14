@@ -107,27 +107,12 @@ export default function EmployeeSalaryPage() {
           <h1 className="text-xl font-semibold text-white">Employee Salary</h1>
           <p className="text-sm text-dark-400 mt-1">CTC configuration for statutory payroll</p>
         </div>
-        <button onClick={() => openNew()} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
-          <Plus size={16} /> Configure Salary
-        </button>
       </div>
 
-      {unconfigured.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <AlertTriangle size={18} className="text-amber-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm text-amber-300 font-medium">{unconfigured.length} employees without salary config</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {unconfigured.slice(0, 5).map(e => (
-                <button key={e._id} onClick={() => openNew(e._id)} className="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded hover:bg-amber-500/30">
-                  {e.fullName || e.name || e.email}
-                </button>
-              ))}
-              {unconfigured.length > 5 && <span className="text-xs text-amber-400">+{unconfigured.length - 5} more</span>}
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-6 flex items-start gap-3">
+        <IndianRupee size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+        <p className="text-sm text-blue-300">CTC is managed from the Employee Detail page. Go to <span className="font-medium">Employee → employee profile → Work Information</span> to set or revise CTC.</p>
+      </div>
 
       <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
         <table className="w-full text-sm">
@@ -161,10 +146,7 @@ export default function EmployeeSalaryPage() {
                   {s.esiApplicable ? <span className="text-green-400 text-xs">Yes</span> : <span className="text-dark-500 text-xs">No</span>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => openRevise(s)} className="text-xs text-rivvra-400 hover:text-rivvra-300">Revise</button>
-                    <button onClick={() => openHistory(s.employeeId)} className="p-1 text-dark-400 hover:text-white"><History size={14} /></button>
-                  </div>
+                  <button onClick={() => openHistory(s.employeeId)} className="p-1 text-dark-400 hover:text-white" title="View history"><History size={14} /></button>
                 </td>
               </tr>
             ))}
