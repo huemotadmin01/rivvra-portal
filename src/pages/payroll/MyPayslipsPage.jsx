@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { getMyPayslips } from '../../utils/payrollApi';
+import { getMyPayslips, downloadMyPayslipPdf } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
-import { FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_FULL = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function MyPayslipsPage() {
   const { orgSlug } = usePlatform();
@@ -27,6 +28,21 @@ export default function MyPayslipsPage() {
       }
     })();
   }, [orgSlug]);
+
+  const handleDownloadPdf = async (p) => {
+    try {
+      const blob = await downloadMyPayslipPdf(orgSlug, p.runId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Payslip_${MONTH_FULL[p.month]}_${p.year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Payslip downloaded');
+    } catch {
+      showToast('Download failed', 'error');
+    }
+  };
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
@@ -58,13 +74,23 @@ export default function MyPayslipsPage() {
                   <div className="flex items-center gap-4">
                     <div className="text-left">
                       <div className="text-white font-medium text-sm">{MONTH_NAMES[p.month]} {p.year}</div>
-                      <div className="text-xs text-dark-400">{p.daysWorked}/{p.totalWorkingDays} days</div>
+                      <div className="text-xs text-dark-400">
+                        {p.daysWorked}/{p.totalWorkingDays} days
+                        {p.lopDays > 0 && <span className="text-red-400 ml-1">(LOP: {p.lopDays})</span>}
+                      </div>
                     </div>
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${statusColor}`}>
                       {p.status}
                     </span>
                   </div>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDownloadPdf(p); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
+                      title="Download PDF"
+                    >
+                      <Download size={12} /> PDF
+                    </button>
                     <div className="text-right">
                       <div className="text-xs text-dark-400">Net Pay</div>
                       <div className="text-white font-bold">₹{fmt(p.netSalary)}</div>
@@ -84,7 +110,7 @@ export default function MyPayslipsPage() {
                             {(p.components || []).map((c, ci) => (
                               <tr key={ci} className="border-b border-dark-700/30 last:border-0">
                                 <td className="py-1.5 text-dark-300">{c.name}</td>
-                                <td className="py-1.5 text-right text-white">₹{fmt(c.amount)}</td>
+                                <td className="py-1.5 text-right text-white">₹{fmt(c.proratedAmount || c.amount)}</td>
                               </tr>
                             ))}
                             <tr className="border-t border-dark-600">

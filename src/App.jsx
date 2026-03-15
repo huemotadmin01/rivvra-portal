@@ -82,6 +82,8 @@ const StatutoryConfigPage = lazy(() => import('./pages/payroll/StatutoryConfigPa
 const PayrollRunPage = lazy(() => import('./pages/payroll/PayrollRunPage'));
 const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
 const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
+const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
+const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboardPage'));
 
 const AttendanceApprovals = lazy(() => import('./pages/timesheet/AttendanceApprovals'));
 const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
@@ -289,12 +291,13 @@ function App() {
               {/* Payroll app routes — gated by payroll app admin role */}
               <Route element={<AppRoleGate appId="payroll" requiredRole="admin" />}>
                 <Route path="/org/:slug/payroll/process" element={<ErrorBoundary><TimesheetPayroll /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><TimesheetPayConfig /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PayrollDashboardPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
 
                 <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
               </Route>
 
               {/* Legacy payroll redirects — old /timesheet/ paths → new /payroll/ paths */}

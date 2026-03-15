@@ -138,6 +138,54 @@ export function downloadPTChallan(orgSlug, id, state) {
   return request('GET', `${orgUrl(orgSlug)}/runs/${id}/challan/pt`, { params: { state }, responseType: 'blob' });
 }
 
+// Payroll Locking
+export function lockInputs(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/lock-inputs`);
+}
+export function unlockInputs(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/unlock-inputs`);
+}
+export function lockPayroll(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/lock-payroll`);
+}
+export function unlockPayroll(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/unlock-payroll`);
+}
+
+// Employee View Release
+export function releasePayslips(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/release-payslips`);
+}
+export function holdPayslips(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/hold-payslips`);
+}
+
+// Ad-hoc Earnings/Deductions
+export function setAdHocAdjustment(orgSlug, runId, employeeId, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/runs/${runId}/adhoc/${employeeId}`, { body: data });
+}
+
+// Payslip PDF Downloads
+export function downloadPayslipPdf(orgSlug, runId, employeeId) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/payslip/${employeeId}`, { responseType: 'blob' });
+}
+export function downloadAllPayslips(orgSlug, runId) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/payslips`, { responseType: 'blob' });
+}
+export function downloadMyPayslipPdf(orgSlug, runId) {
+  return request('GET', `${orgUrl(orgSlug)}/my-payslip/${runId}`, { responseType: 'blob' });
+}
+
+// Bank Transfer CSV
+export function downloadBankTransfer(orgSlug, runId) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/bank-transfer`, { responseType: 'blob' });
+}
+
+// Export Reports
+export function downloadPayrollExport(orgSlug, runId, type) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export`, { params: { type }, responseType: 'blob' });
+}
+
 // Intern Payroll Runs
 export function getInternPayrollRuns(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/intern-runs`);

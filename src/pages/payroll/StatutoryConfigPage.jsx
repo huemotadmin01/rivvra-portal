@@ -38,6 +38,7 @@ export default function StatutoryConfigPage() {
       ptEnabled: s.ptEnabled ?? true,
       ptState: s.ptState || 'MH',
       taxRegime: s.taxRegime || 'new',
+      stopSalaryProcessing: s.stopSalaryProcessing || false,
     });
     setEditing(item);
   };
@@ -107,7 +108,10 @@ export default function StatutoryConfigPage() {
               return (
                 <tr key={item.employee._id} className="border-b border-dark-700/50 hover:bg-dark-750">
                   <td className="px-4 py-3">
-                    <div className="text-white font-medium">{item.employee.fullName || item.employee.name || item.employee.email}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium">{item.employee.fullName || item.employee.name || item.employee.email}</span>
+                      {s?.stopSalaryProcessing && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium">Stopped</span>}
+                    </div>
                     <div className="text-xs text-dark-400">{item.employee.email}</div>
                   </td>
                   <td className="px-4 py-3 text-center"><StatusBadge enabled={s?.pfEnabled} label="PF" /></td>
@@ -216,6 +220,18 @@ export default function StatutoryConfigPage() {
                     <input type="radio" name="regime" value="old" checked={form.taxRegime === 'old'} onChange={() => setForm(f => ({ ...f, taxRegime: 'old' }))} /> Old Regime
                   </label>
                 </div>
+              </fieldset>
+
+              {/* Stop Salary Processing */}
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-medium text-dark-300 border-b border-dark-700 pb-1 mb-2">Payroll Processing</legend>
+                <label className="flex items-center gap-2 text-sm text-dark-300">
+                  <input type="checkbox" checked={form.stopSalaryProcessing} onChange={e => setForm(f => ({ ...f, stopSalaryProcessing: e.target.checked }))} className="rounded border-dark-600" />
+                  <span className={form.stopSalaryProcessing ? 'text-red-400' : ''}>Stop Salary Processing</span>
+                </label>
+                {form.stopSalaryProcessing && (
+                  <p className="text-xs text-red-400/70">This employee will be excluded from payroll runs.</p>
+                )}
               </fieldset>
 
               <div className="flex gap-3 pt-2">

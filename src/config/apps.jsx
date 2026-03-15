@@ -170,6 +170,7 @@ export const APP_REGISTRY = {
         children: [
           { path: '/payroll/salary-structures', label: 'Salary Structures', icon: Layers },
           { path: '/payroll/statutory-config', label: 'Statutory Config', icon: CheckCircle2 },
+          { path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
         ],
       },
       {
