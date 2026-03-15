@@ -214,6 +214,25 @@ export function getUnconfiguredEmployees(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/unconfigured-employees`);
 }
 
+// Payroll Settings
+export function getPayrollSettings(orgSlug) {
+  return request('GET', `${orgUrl(orgSlug)}/settings`);
+}
+export function updatePayrollSettings(orgSlug, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/settings`, { body: data });
+}
+
+// PT Master
+export function getPTMaster(orgSlug, financialYear) {
+  return request('GET', `${orgUrl(orgSlug)}/pt-master`, { params: { financialYear } });
+}
+export function seedPTMaster(orgSlug, financialYear) {
+  return request('POST', `${orgUrl(orgSlug)}/pt-master/seed`, { body: { financialYear } });
+}
+export function updatePTMasterConfig(orgSlug, id, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/pt-master/${id}`, { body: data });
+}
+
 // Employee Self-Service
 export function getMySalary(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/my-salary`);

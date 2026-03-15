@@ -3,7 +3,7 @@ import {
   Clock, Briefcase, UserSearch, Mail, CalendarDays, IndianRupee,
   CheckCircle2, Download, Settings, Building2, UserPlus, Wallet,
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
-  Tag, AlertTriangle, Banknote, CheckSquare,
+  Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
 } from 'lucide-react';
 
@@ -171,12 +171,13 @@ export const APP_REGISTRY = {
           { path: '/payroll/salary-structures', label: 'Salary Structures', icon: Layers },
           { path: '/payroll/statutory-config', label: 'Statutory Config', icon: CheckCircle2 },
           { path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
+          { path: '/payroll/pt-master', label: 'PT Master', icon: MapPin },
         ],
       },
       {
         type: 'group', label: 'Configuration', icon: Settings,
         children: [
-          { path: '/settings/timesheet', label: 'Settings', icon: Settings },
+          { path: '/payroll/settings', label: 'Settings', icon: Settings },
         ],
       },
     ],
