@@ -1,16 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { useOrg } from './OrgContext';
 import timesheetApi, { warmTimesheetBackend } from '../utils/timesheetApi';
-import employeeApi from '../utils/employeeApi';
 
 const TimesheetContext = createContext(null);
 
 export function TimesheetProvider({ children }) {
   const { user } = useAuth();
-  const { currentOrg } = useOrg();
-  const orgSlug = currentOrg?.slug;
   const [timesheetUser, setTimesheetUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -26,33 +22,9 @@ export function TimesheetProvider({ children }) {
     setError(null);
     try {
       const res = await timesheetApi.get('/auth/me/timesheet-profile');
-      let profile = res.data;
-
-      // Client-side isManager verification:
-      // The backend may return a stale cached isManager flag on the employee record.
-      // Verify by checking the employee list to see if anyone actually has this user as their manager.
-      if (profile && orgSlug && profile._id) {
-        try {
-          const empRes = await employeeApi.list(orgSlug, { limit: 200 });
-          const employees = empRes?.employees || empRes || [];
-          const profileId = profile._id?.toString?.() || profile._id;
-          const hasDirectReports = Array.isArray(employees) && employees.some(
-            emp => {
-              const mgrId = emp.manager?._id?.toString?.() || emp.manager?.toString?.() || emp.manager;
-              return mgrId && mgrId === profileId;
-            }
-          );
-          if (profile.isManager !== hasDirectReports) {
-            console.log(`[TimesheetContext] isManager corrected: ${profile.isManager} → ${hasDirectReports}`);
-            profile = { ...profile, isManager: hasDirectReports };
-          }
-        } catch (empErr) {
-          // Non-blocking — keep backend's isManager if employee list fails
-          console.warn('[TimesheetContext] Could not verify isManager:', empErr.message);
-        }
-      }
-
-      setTimesheetUser(profile);
+      // Backend's ensureEmployee middleware live-computes isManager
+      // by counting actual direct reports (no stale cached flag)
+      setTimesheetUser(res.data);
     } catch (err) {
       console.error('Failed to fetch timesheet profile:', err);
       const status = err.response?.status;
@@ -64,7 +36,7 @@ export function TimesheetProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, []);
 
   // Re-fetch when user identity changes (e.g., impersonation / Login As)
   const userEmail = user?.email || null;
