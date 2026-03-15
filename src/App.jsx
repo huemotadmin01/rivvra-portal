@@ -77,7 +77,7 @@ const TimesheetPayroll = lazy(() => import('./pages/timesheet/TimesheetPayroll')
 
 // Lazy-loaded: Statutory Payroll pages
 const SalaryStructuresPage = lazy(() => import('./pages/payroll/SalaryStructuresPage'));
-const EmployeeSalaryPage = lazy(() => import('./pages/payroll/EmployeeSalaryPage'));
+
 const StatutoryConfigPage = lazy(() => import('./pages/payroll/StatutoryConfigPage'));
 const PayrollRunPage = lazy(() => import('./pages/payroll/PayrollRunPage'));
 const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
@@ -292,7 +292,7 @@ function App() {
                 <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><TimesheetPayConfig /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/employee-salary" element={<ErrorBoundary><EmployeeSalaryPage /></ErrorBoundary>} />
+
                 <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
               </Route>

@@ -169,7 +169,6 @@ export const APP_REGISTRY = {
         type: 'group', label: 'Statutory', icon: Layers,
         children: [
           { path: '/payroll/salary-structures', label: 'Salary Structures', icon: Layers },
-          { path: '/payroll/employee-salary', label: 'Employee Salary', icon: IndianRupee },
           { path: '/payroll/statutory-config', label: 'Statutory Config', icon: CheckCircle2 },
         ],
       },
