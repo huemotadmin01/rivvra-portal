@@ -1,7 +1,7 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldCheck, LogOut } from 'lucide-react';
-import RivvraLogo from '../BrynsaLogo';
+import RivvraLogo from '../RivvraLogo';
 import AdminSidebar from './AdminSidebar';
 
 function AdminTopBar() {

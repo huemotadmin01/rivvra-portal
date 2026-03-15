@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Loader2, Search, CheckCircle2, ArrowLeft } from 'lucide-react';
-import RivvraLogo from '../components/BrynsaLogo';
+import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 
 function FindWorkspacePage() {

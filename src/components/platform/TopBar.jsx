@@ -5,7 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
 import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar } from 'lucide-react';
-import RivvraLogo from '../BrynsaLogo';
+import RivvraLogo from '../RivvraLogo';
 import { API_BASE_URL } from '../../utils/config';
 import activityApi from '../../utils/activityApi';
 

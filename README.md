@@ -1,6 +1,6 @@
-# Brynsa Portal
+# Rivvra Portal
 
-Modern signup portal for Brynsa LinkedIn Lead Extractor Chrome Extension.
+Modern signup portal for Rivvra LinkedIn Lead Extractor Chrome Extension.
 
 ## Features
 
@@ -39,7 +39,7 @@ npm run preview
 ### Automatic Deployment
 
 1. Push to `main` branch triggers automatic deployment via GitHub Actions
-2. Site deploys to: `https://YOUR_USERNAME.github.io/brynsa-portal/`
+2. Site deploys to: `https://YOUR_USERNAME.github.io/rivvra-portal/`
 
 ### Manual Setup
 
@@ -48,7 +48,7 @@ npm run preview
    git init
    git add .
    git commit -m "Initial commit"
-   git remote add origin https://github.com/YOUR_USERNAME/brynsa-portal.git
+   git remote add origin https://github.com/YOUR_USERNAME/rivvra-portal.git
    git push -u origin main
    ```
 
@@ -88,13 +88,13 @@ The portal stores auth state in localStorage for extension sync:
 
 ```js
 // Auth data stored at:
-localStorage.getItem('brynsa_token')  // JWT token
-localStorage.getItem('brynsa_user')   // User object
-localStorage.getItem('brynsa_auth')   // Combined auth data for extension
+localStorage.getItem('rivvra_token')  // JWT token
+localStorage.getItem('rivvra_user')   // User object
+localStorage.getItem('rivvra_auth')   // Combined auth data for extension
 
 // Extension can listen for changes:
 window.addEventListener('storage', (e) => {
-  if (e.key === 'brynsa_token') {
+  if (e.key === 'rivvra_token') {
     // Handle auth change
   }
 });
@@ -103,7 +103,7 @@ window.addEventListener('storage', (e) => {
 ## Project Structure
 
 ```
-brynsa-portal/
+rivvra-portal/
 ├── src/
 │   ├── components/       # Reusable components
 │   │   └── ProtectedRoute.jsx
@@ -137,7 +137,7 @@ Edit `tailwind.config.js` to change the brand colors:
 
 ```js
 colors: {
-  brynsa: {
+  rivvra: {
     400: '#4ade80', // Primary green
     500: '#22c55e',
     600: '#16a34a',

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Menu, X } from 'lucide-react';
-import RivvraLogo from '../BrynsaLogo';
+import RivvraLogo from '../RivvraLogo';
 
 const NAV_LINKS = [
   { path: '/features', label: 'Features' },

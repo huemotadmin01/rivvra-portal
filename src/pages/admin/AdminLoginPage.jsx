@@ -5,7 +5,7 @@ import { GOOGLE_CLIENT_ID } from '../../utils/config';
 import {
   ShieldCheck, Loader2, Eye, EyeOff, AlertCircle, Mail, Lock
 } from 'lucide-react';
-import RivvraLogo from '../../components/BrynsaLogo';
+import RivvraLogo from '../../components/RivvraLogo';
 
 function AdminLoginPage() {
   const navigate = useNavigate();

@@ -6,7 +6,7 @@ import {
   Building2, Briefcase, Users, Target, Loader2,
   Eye, EyeOff, AlertCircle, Info
 } from 'lucide-react';
-import RivvraLogo from '../components/BrynsaLogo';
+import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 import { GOOGLE_CLIENT_ID } from '../utils/config';
 

@@ -5,7 +5,7 @@ import {
   Home, Send, Users, List, Settings, LogOut,
   ChevronRight, ChevronDown, BarChart3, UsersRound, Layers
 } from 'lucide-react';
-import RivvraLogo from './BrynsaLogo';
+import RivvraLogo from './RivvraLogo';
 import ComingSoonModal from './ComingSoonModal';
 
 function Sidebar() {

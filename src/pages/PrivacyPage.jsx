@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import RivvraLogo from '../components/BrynsaLogo';
+import RivvraLogo from '../components/RivvraLogo';
 
 function PrivacyPage() {
   return (

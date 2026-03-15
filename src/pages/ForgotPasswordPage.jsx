@@ -13,7 +13,7 @@ import {
   ArrowLeft, ArrowRight, Mail, Lock, Loader2,
   AlertCircle, Check, Eye, EyeOff, KeyRound,
 } from 'lucide-react';
-import RivvraLogo from '../components/BrynsaLogo';
+import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 
 const STEPS = { EMAIL: 'email', OTP: 'otp', PASSWORD: 'password' };

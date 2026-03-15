@@ -2,7 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
 import { Building2 } from 'lucide-react';
 import AppGrid from '../components/platform/AppGrid';
-import RivvraLogo from '../components/BrynsaLogo';
+import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
 
 function AppLauncherPage() {

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowRight, Loader2, Eye, EyeOff, AlertCircle, Mail, Lock
 } from 'lucide-react';
-import RivvraLogo from '../components/BrynsaLogo';
+import RivvraLogo from '../components/RivvraLogo';
 import { GOOGLE_CLIENT_ID } from '../utils/config';
 
 function LoginPage() {

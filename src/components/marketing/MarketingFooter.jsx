@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import RivvraLogo from '../BrynsaLogo';
+import RivvraLogo from '../RivvraLogo';
 
 export default function MarketingFooter() {
   return (

@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Building2, Mail, LogOut, ShieldCheck
 } from 'lucide-react';
-import RivvraLogo from '../BrynsaLogo';
+import RivvraLogo from '../RivvraLogo';
 
 const navItems = [
   { label: 'Overview', path: '/admin', icon: LayoutDashboard },
