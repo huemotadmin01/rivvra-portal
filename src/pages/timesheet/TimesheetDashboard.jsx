@@ -53,6 +53,7 @@ function ContractorDashboard() {
 
   // Temporary: hide earnings for confirmed employees (pending PF, ESI, PT, Income Tax modules)
   const hideEarnings = timesheetUser?.employmentType === 'confirmed';
+  const isConfirmed = timesheetUser?.employmentType === 'confirmed';
 
   // Leave eligibility
   const empType = timesheetUser?.employmentType;
@@ -63,7 +64,7 @@ function ContractorDashboard() {
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     const fetches = [
-      timesheetApi.get('/timesheets', sig).then(r => setTimesheets(r.data)).catch(() => {}),
+      timesheetApi.get('/timesheets', sig).then(r => setTimesheets((r.data || []).filter(t => !t.isAttendance))).catch(() => {}),
     ];
     if (!hideEarnings) {
       fetches.push(
@@ -144,8 +145,8 @@ function ContractorDashboard() {
         </div>
       </div>
 
-      {/* Current Month Timesheet Status */}
-      <div className="card p-5">
+      {/* Current Month Timesheet Status — hidden for confirmed employees who use attendance */}
+      {!isConfirmed && <div className="card p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tsStatus === 'approved' ? 'bg-emerald-500/10' : tsStatus === 'submitted' ? 'bg-blue-500/10' : tsStatus === 'rejected' ? 'bg-red-500/10' : 'bg-dark-700'}`}>
@@ -171,7 +172,7 @@ function ContractorDashboard() {
             </div>
           </div>
           <Link
-            to={orgPath('/timesheet/my-timesheet')}
+            to={orgPath(isConfirmed ? '/timesheet/my-attendance' : '/timesheet/my-timesheet')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
               tsNeedsFilling
                 ? 'bg-rivvra-500 text-dark-950 hover:bg-rivvra-400'
@@ -179,10 +180,10 @@ function ContractorDashboard() {
             }`}
           >
             <CalendarDays size={13} />
-            {tsNeedsFilling ? 'Fill Timesheet' : 'View Timesheet'}
+            {isConfirmed ? 'My Attendance' : (tsNeedsFilling ? 'Fill Timesheet' : 'View Timesheet')}
           </Link>
         </div>
-      </div>
+      </div>}
 
       {/* Earnings cards — hidden for confirmed+billable employees (temporary) */}
       {!hideEarnings && (
@@ -285,8 +286,8 @@ function ContractorDashboard() {
       )}
 
       <div className="flex flex-wrap gap-2 sm:gap-3">
-        <Link to={orgPath('/timesheet/my-timesheet')} className="bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 transition-colors">
-          <CalendarDays size={14} /> Fill Timesheet
+        <Link to={orgPath(isConfirmed ? '/timesheet/my-attendance' : '/timesheet/my-timesheet')} className="bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 transition-colors">
+          <CalendarDays size={14} /> {isConfirmed ? 'My Attendance' : 'Fill Timesheet'}
         </Link>
         {!hideEarnings && (
           <Link to={orgPath('/timesheet/earnings')} className="bg-dark-800 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 transition-colors">
@@ -356,7 +357,7 @@ function AdminDashboard() {
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     Promise.all([
-      timesheetApi.get('/timesheets', sig).then(r => setTimesheets(r.data)).catch(() => {}),
+      timesheetApi.get('/timesheets', sig).then(r => setTimesheets((r.data || []).filter(t => !t.isAttendance))).catch(() => {}),
       timesheetApi.get('/dashboard/not-approved', sig).then(r => setNotApprovedData(r.data)).catch(() => {}),
       getPendingLeaveRequests().then(data => {
         const arr = Array.isArray(data) ? data : data?.leaveRequests || data?.requests || [];

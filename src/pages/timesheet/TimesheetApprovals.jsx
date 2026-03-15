@@ -29,7 +29,7 @@ export default function TimesheetApprovals() {
     controllerRef.current = new AbortController();
     setLoading(true);
     timesheetApi.get('/timesheets', { signal: controllerRef.current.signal })
-      .then(r => setTimesheets(r.data))
+      .then(r => setTimesheets((r.data || []).filter(t => !t.isAttendance)))
       .catch(() => {})
       .finally(() => setLoading(false));
   };

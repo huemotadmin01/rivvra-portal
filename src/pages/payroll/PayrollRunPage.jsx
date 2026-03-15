@@ -159,6 +159,9 @@ export default function PayrollRunPage() {
     const run = selectedRun;
     const items = run.items || [];
     const summary = run.summary || {};
+    // Always compute combined PF and CTC from items to handle runs processed before backend update
+    const computedTotalPf = items.reduce((s, i) => s + (i.employeePf || 0) + (i.employerPf || 0), 0);
+    const computedTotalCtc = items.reduce((s, i) => s + (i.totalCtc || 0), 0);
 
     return (
       <div className="max-w-7xl mx-auto">
@@ -209,10 +212,10 @@ export default function PayrollRunPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
               { label: 'Total Gross', value: summary.totalGross, color: 'text-white' },
-              { label: 'Total PF', value: summary.totalPf || ((summary.totalEmployeePf || 0) + (summary.totalEmployerPf || 0)), color: 'text-blue-400' },
+              { label: 'Total PF', value: computedTotalPf, color: 'text-blue-400' },
               { label: 'Total Deductions', value: summary.totalDeductions, color: 'text-red-400' },
               { label: 'Total Net', value: summary.totalNet, color: 'text-green-400' },
-              { label: 'Total CTC', value: summary.totalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400' },
+              { label: 'Total CTC', value: computedTotalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400' },
             ].map(card => (
               <div key={card.label} className="bg-dark-800 border border-dark-700 rounded-lg p-3">
                 <div className="text-xs text-dark-400 mb-1">{card.label}</div>
