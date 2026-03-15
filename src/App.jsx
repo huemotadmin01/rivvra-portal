@@ -80,10 +80,10 @@ const SalaryStructuresPage = lazy(() => import('./pages/payroll/SalaryStructures
 const EmployeeSalaryPage = lazy(() => import('./pages/payroll/EmployeeSalaryPage'));
 const StatutoryConfigPage = lazy(() => import('./pages/payroll/StatutoryConfigPage'));
 const PayrollRunPage = lazy(() => import('./pages/payroll/PayrollRunPage'));
-const InternPayrollPage = lazy(() => import('./pages/payroll/InternPayrollPage'));
 const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
 const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
 
+const AttendanceApprovals = lazy(() => import('./pages/timesheet/AttendanceApprovals'));
 const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
 const LeaveMyRequests = lazy(() => import('./pages/timesheet/LeaveMyRequests'));
 const LeaveApprovals = lazy(() => import('./pages/timesheet/LeaveApprovals'));
@@ -271,6 +271,7 @@ function App() {
                   <Route path="/org/:slug/timesheet/my-attendance" element={<ErrorBoundary><MyAttendancePage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><TimesheetEarnings /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/approvals" element={<ErrorBoundary><TimesheetApprovals /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/attendance/approvals" element={<ErrorBoundary><AttendanceApprovals /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/users" element={<ErrorBoundary><TimesheetUsers /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/projects" element={<ErrorBoundary><TimesheetProjects /></ErrorBoundary>} />
                   {/* Leave Management */}
@@ -294,7 +295,6 @@ function App() {
                 <Route path="/org/:slug/payroll/employee-salary" element={<ErrorBoundary><EmployeeSalaryPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/intern-payroll" element={<ErrorBoundary><InternPayrollPage /></ErrorBoundary>} />
               </Route>
 
               {/* Legacy payroll redirects — old /timesheet/ paths → new /payroll/ paths */}

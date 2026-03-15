@@ -38,8 +38,8 @@ const typeLabels = {
   intern: 'Intern',
 };
 
-// Employment types excluded from payroll processing (modules not yet implemented)
-const EXCLUDED_EMPLOYMENT_TYPES = new Set(['confirmed']);
+// Only external consultants + billable internal consultants belong in contractor payroll
+// confirmed, interns, and non-billable internal consultants are handled by Employee Payroll
 
 const typeBadgeColors = {
   confirmed: 'bg-blue-500/10 text-blue-400',
@@ -137,14 +137,18 @@ export default function TimesheetPayroll() {
   useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); }, []);
   useEffect(() => { setCurrentPage(1); }, [activeTab, debouncedSearch]);
 
-  // Split employees into processable vs excluded (confirmed)
+  // Split employees into processable (contractors) vs excluded
   const { processableEmployees, excludedEmployees } = useMemo(() => {
     if (!data?.employees) return { processableEmployees: [], excludedEmployees: [] };
     const processable = [];
     const excluded = [];
     for (const e of data.employees) {
-      if (EXCLUDED_EMPLOYMENT_TYPES.has(e.employmentType)) excluded.push(e);
-      else processable.push(e);
+      if (e.employmentType === 'external_consultant' ||
+          (e.employmentType === 'internal_consultant' && e.billable === true)) {
+        processable.push(e);
+      } else {
+        excluded.push(e);
+      }
     }
     return { processableEmployees: processable, excludedEmployees: excluded };
   }, [data]);
@@ -878,7 +882,7 @@ export default function TimesheetPayroll() {
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
-        {['all', 'internal_consultant', 'external_consultant', 'intern'].map(tab => (
+        {['all', 'external_consultant', 'internal_consultant'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'

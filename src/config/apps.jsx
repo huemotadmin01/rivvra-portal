@@ -5,7 +5,6 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  GraduationCap,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -99,6 +98,7 @@ export const APP_REGISTRY = {
         // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
           { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
+          { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
         // Confirmed employees see attendance calendar; others see timesheet
