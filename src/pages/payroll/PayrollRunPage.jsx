@@ -209,10 +209,10 @@ export default function PayrollRunPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
               { label: 'Total Gross', value: summary.totalGross, color: 'text-white' },
+              { label: 'Total PF', value: summary.totalPf || ((summary.totalEmployeePf || 0) + (summary.totalEmployerPf || 0)), color: 'text-blue-400' },
               { label: 'Total Deductions', value: summary.totalDeductions, color: 'text-red-400' },
               { label: 'Total Net', value: summary.totalNet, color: 'text-green-400' },
-              { label: 'Employer Cost', value: summary.totalEmployerCost, color: 'text-amber-400' },
-              { label: 'Total TDS', value: summary.totalTds, color: 'text-purple-400' },
+              { label: 'Total CTC', value: summary.totalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400' },
             ].map(card => (
               <div key={card.label} className="bg-dark-800 border border-dark-700 rounded-lg p-3">
                 <div className="text-xs text-dark-400 mb-1">{card.label}</div>
@@ -227,7 +227,7 @@ export default function PayrollRunPage() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-dark-700">
-                {['Employee', 'Days', 'Gross', 'Basic', 'PF', 'ESI', 'PT', 'TDS', 'Deductions', 'Net', 'Emp. Cost', 'CTC', ''].map(h => (
+                {['Employee', 'Days', 'Gross', 'PF (Total)', 'TDS', 'Deductions', 'Net', 'CTC', ''].map(h => (
                   <th key={h} className="px-3 py-3 text-dark-400 font-medium text-left text-xs">{h}</th>
                 ))}
               </tr>
@@ -241,15 +241,11 @@ export default function PayrollRunPage() {
                   </td>
                   <td className="px-3 py-2.5 text-dark-300 text-xs">{item.effectiveDays}/{item.totalWorkingDays}</td>
                   <td className="px-3 py-2.5 text-white text-xs font-medium">{fmt(item.grossSalary)}</td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.basicSalary)}</td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.employeePf)}</td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.employeeEsi)}</td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.professionalTax)}</td>
+                  <td className="px-3 py-2.5 text-blue-400 text-xs">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' ? '—' : fmt((item.employeePf || 0) + (item.employerPf || 0))}</td>
                   <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.tds)}</td>
                   <td className="px-3 py-2.5 text-red-400 text-xs">{fmt(item.totalDeductions)}</td>
                   <td className="px-3 py-2.5 text-green-400 text-xs font-medium">{fmt(item.netSalary)}</td>
-                  <td className="px-3 py-2.5 text-amber-400 text-xs">{fmt(item.totalEmployerCost)}</td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.totalCtc)}</td>
+                  <td className="px-3 py-2.5 text-purple-400 text-xs font-medium">{fmt(item.totalCtc)}</td>
                   <td className="px-3 py-2.5">
                     {run.status === 'processed' && (
                       <button onClick={() => openOverride(item)} className="p-1 text-dark-400 hover:text-rivvra-400"><Edit2 size={12} /></button>

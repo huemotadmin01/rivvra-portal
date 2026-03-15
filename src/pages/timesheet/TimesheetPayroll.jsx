@@ -138,20 +138,24 @@ export default function TimesheetPayroll() {
   useEffect(() => { setCurrentPage(1); }, [activeTab, debouncedSearch]);
 
   // Split employees into processable (contractors) vs excluded
+  // From March 2026: only external consultants
+  // Before March 2026: old behavior (exclude only confirmed)
   const { processableEmployees, excludedEmployees } = useMemo(() => {
     if (!data?.employees) return { processableEmployees: [], excludedEmployees: [] };
     const processable = [];
     const excluded = [];
+    const isNewPolicy = year > 2026 || (year === 2026 && month >= 3);
     for (const e of data.employees) {
-      if (e.employmentType === 'external_consultant' ||
-          (e.employmentType === 'internal_consultant' && e.billable === true)) {
-        processable.push(e);
+      if (isNewPolicy) {
+        if (e.employmentType === 'external_consultant') processable.push(e);
+        else excluded.push(e);
       } else {
-        excluded.push(e);
+        if (e.employmentType === 'confirmed') excluded.push(e);
+        else processable.push(e);
       }
     }
     return { processableEmployees: processable, excludedEmployees: excluded };
-  }, [data]);
+  }, [data, month, year]);
 
   // Filtering (only processable employees)
   const filteredEmployees = useMemo(() => {
@@ -882,7 +886,10 @@ export default function TimesheetPayroll() {
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
-        {['all', 'external_consultant', 'internal_consultant'].map(tab => (
+        {((year > 2026 || (year === 2026 && month >= 3))
+          ? ['all']
+          : ['all', 'internal_consultant', 'external_consultant', 'intern']
+        ).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'

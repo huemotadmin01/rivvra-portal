@@ -7,8 +7,8 @@ import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const entryColors = {
-  present: 'bg-emerald-500 text-white',
-  half_day: 'bg-amber-500 text-white',
+  working: 'bg-emerald-500 text-white',      // Full day present
+  half_day: 'bg-amber-500 text-white',       // Half day
   leave: 'bg-red-500 text-white',
   holiday: 'bg-purple-500 text-white',
   absent: 'bg-dark-700 text-red-400',
@@ -164,9 +164,10 @@ export default function AttendanceApprovals() {
                         const status = entry?.status || (isWeekend ? 'weekend' : '');
 
                         let colorClass = 'bg-dark-700 text-dark-500';
-                        if (status === 'present') colorClass = entryColors.present;
-                        else if (status === 'half_day') colorClass = entryColors.half_day;
-                        else if (status === 'leave') colorClass = entryColors.leave;
+                        if (entry?.status === 'working') {
+                          const h = parseFloat(entry.hours) || 0;
+                          colorClass = (h > 0 && h < 8) ? entryColors.half_day : entryColors.working;
+                        } else if (status === 'leave') colorClass = entryColors.leave;
                         else if (status === 'holiday') colorClass = entryColors.holiday;
                         else if (status === 'absent') colorClass = entryColors.absent;
                         else if (isWeekend) colorClass = entryColors.weekend;
