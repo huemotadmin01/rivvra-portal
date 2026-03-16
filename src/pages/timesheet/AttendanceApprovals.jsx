@@ -107,7 +107,7 @@ export default function AttendanceApprovals() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {['submitted', 'approved', 'rejected', 'all'].map(f => (
+        {['submitted', 'approved', 'draft', 'all'].map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === f ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
