@@ -175,6 +175,12 @@ export function downloadAllPayslips(orgSlug, runId) {
 export function downloadMyPayslipPdf(orgSlug, runId) {
   return request('GET', `${orgUrl(orgSlug)}/my-payslip/${runId}`, { responseType: 'blob' });
 }
+export function downloadImportedPayslipPdf(orgSlug, year, month) {
+  return request('GET', `${orgUrl(orgSlug)}/my-payslip/imported/${year}/${month}`, { responseType: 'blob' });
+}
+export function bulkDownloadMyPayslips(orgSlug, selections) {
+  return request('POST', `${orgUrl(orgSlug)}/my-payslips/bulk-download`, { body: { selections }, responseType: 'blob' });
+}
 
 // Bank Transfer CSV
 export function downloadBankTransfer(orgSlug, runId) {

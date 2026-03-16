@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { getMyPayslips, downloadMyPayslipPdf } from '../../utils/payrollApi';
+import { getMyPayslips, downloadMyPayslipPdf, downloadImportedPayslipPdf, bulkDownloadMyPayslips } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
-import { FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, Download, CheckSquare, Square, Package } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_FULL = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function MyPayslipsPage() {
   const { orgSlug } = usePlatform();
@@ -14,6 +23,8 @@ export default function MyPayslipsPage() {
   const [payslips, setPayslips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const [selected, setSelected] = useState(new Set());
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -29,28 +40,95 @@ export default function MyPayslipsPage() {
     })();
   }, [orgSlug]);
 
-  const handleDownloadPdf = async (p) => {
+  const payslipKey = (p) => `${p.year}-${p.month}`;
+
+  const toggleSelect = (p, e) => {
+    e.stopPropagation();
+    setSelected(prev => {
+      const next = new Set(prev);
+      const key = payslipKey(p);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === payslips.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(payslips.map(payslipKey)));
+    }
+  };
+
+  const handleDownloadPdf = async (p, e) => {
+    if (e) e.stopPropagation();
     try {
-      const blob = await downloadMyPayslipPdf(orgSlug, p.runId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Payslip_${MONTH_FULL[p.month]}_${p.year}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const isImported = p.status === 'imported';
+      const blob = isImported
+        ? await downloadImportedPayslipPdf(orgSlug, p.year, p.month)
+        : await downloadMyPayslipPdf(orgSlug, p.runId);
+      triggerDownload(blob, `Payslip_${MONTH_FULL[p.month]}_${p.year}.pdf`);
       showToast('Payslip downloaded');
     } catch {
       showToast('Download failed', 'error');
     }
   };
 
+  const handleBulkDownload = async () => {
+    if (selected.size === 0) return;
+    setDownloading(true);
+    try {
+      const selections = payslips
+        .filter(p => selected.has(payslipKey(p)))
+        .map(p => ({
+          year: p.year,
+          month: p.month,
+          type: p.status === 'imported' ? 'imported' : 'run',
+          runId: p.runId || undefined,
+        }));
+      const blob = await bulkDownloadMyPayslips(orgSlug, selections);
+      triggerDownload(blob, 'My_Payslips.zip');
+      showToast(`${selected.size} payslips downloaded`);
+      setSelected(new Set());
+    } catch {
+      showToast('Bulk download failed', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
+
+  const allSelected = payslips.length > 0 && selected.size === payslips.length;
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-white">My Payslips</h1>
-        <p className="text-sm text-dark-400 mt-1">Monthly payslip history</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-white">My Payslips</h1>
+          <p className="text-sm text-dark-400 mt-1">Monthly payslip history</p>
+        </div>
+        {payslips.length > 0 && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-dark-300 hover:text-white transition-colors"
+            >
+              {allSelected ? <CheckSquare size={14} className="text-rivvra-400" /> : <Square size={14} />}
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+            {selected.size > 0 && (
+              <button
+                onClick={handleBulkDownload}
+                disabled={downloading}
+                className="flex items-center gap-1.5 px-4 py-2 bg-rivvra-600 hover:bg-rivvra-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Package size={14} />
+                {downloading ? 'Downloading...' : `Download ${selected.size} as ZIP`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {payslips.length === 0 ? (
@@ -62,18 +140,28 @@ export default function MyPayslipsPage() {
         <div className="space-y-3">
           {payslips.map((p, idx) => {
             const isExpanded = expanded === idx;
+            const isImported = p.status === 'imported';
+            const isSelected = selected.has(payslipKey(p));
             const statusColor = p.status === 'paid' ? 'text-green-400 bg-green-500/10' :
               p.status === 'finalized' ? 'text-blue-400 bg-blue-500/10' :
-              p.status === 'imported' ? 'text-purple-400 bg-purple-500/10' : 'text-amber-400 bg-amber-500/10';
-            const isImported = p.status === 'imported';
+              isImported ? 'text-purple-400 bg-purple-500/10' : 'text-amber-400 bg-amber-500/10';
 
             return (
-              <div key={idx} className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
+              <div key={idx} className={`bg-dark-800 rounded-xl border overflow-hidden transition-colors ${isSelected ? 'border-rivvra-500/50' : 'border-dark-700'}`}>
                 <button
                   onClick={() => setExpanded(isExpanded ? null : idx)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-750 transition-colors"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      onClick={(e) => toggleSelect(p, e)}
+                      className="flex-shrink-0 cursor-pointer"
+                    >
+                      {isSelected
+                        ? <CheckSquare size={18} className="text-rivvra-400" />
+                        : <Square size={18} className="text-dark-500 hover:text-dark-300" />
+                      }
+                    </div>
                     <div className="text-left">
                       <div className="text-white font-medium text-sm">{MONTH_NAMES[p.month]} {p.year}</div>
                       <div className="text-xs text-dark-400">
@@ -86,15 +174,13 @@ export default function MyPayslipsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-4">
-                    {!isImported && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDownloadPdf(p); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
-                        title="Download PDF"
-                      >
-                        <Download size={12} /> PDF
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => handleDownloadPdf(p, e)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
+                      title="Download PDF"
+                    >
+                      <Download size={12} /> PDF
+                    </button>
                     <div className="text-right">
                       <div className="text-xs text-dark-400">Net Pay</div>
                       <div className="text-white font-bold">₹{fmt(p.netSalary)}</div>
