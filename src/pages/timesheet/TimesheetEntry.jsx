@@ -416,7 +416,6 @@ export default function TimesheetEntry() {
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Reset failed', 'error'); }
   };
 
-  const now = new Date();
   const minYear = now.getFullYear();
   const minMonth = 1; // January
   const canGoBack = !(year === minYear && month === minMonth);
