@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
-import { getAttendance, updateAttendance, submitAttendance, deleteAttendance } from '../../utils/timesheetApi';
+import { getAttendance, updateAttendance, submitAttendance, resetAttendance } from '../../utils/timesheetApi';
 import {
   ChevronLeft, ChevronRight, Save, Send, Loader2, AlertCircle,
   CheckCircle2, Clock, XCircle, CalendarCheck, Info, RotateCcw, Lock,
@@ -152,19 +152,10 @@ export default function MyAttendancePage() {
     if (!attendance) return;
     if (!window.confirm('Reset this attendance? All entries will be cleared.')) return;
     try {
-      await deleteAttendance(attendance._id);
-      // Re-fetch to auto-create a fresh record (needed for save/submit to work)
-      const data = await getAttendance(month, year);
-      // Blank out working days so user fills them manually
-      const freshEntries = (data.attendance?.entries || []).map(e =>
-        e.status === 'working' ? { ...e, hours: 0, notes: '' } : e
-      );
-      // Persist the blanked entries to DB so refresh also shows blank
-      const saved = await updateAttendance(data.attendance._id, freshEntries);
-      setAttendance(saved.attendance);
-      setEntries(saved.attendance.entries.map(e =>
-        e.status === 'working' ? { ...e, hours: parseFloat(e.hours) || 0 } : e
-      ));
+      // Single API call: blanks working entries, keeps leave/holiday/weekend
+      const data = await resetAttendance(attendance._id);
+      setAttendance(data.attendance);
+      setEntries(data.attendance.entries);
       setDirty(false);
       showToast('Attendance reset');
     } catch (err) {

@@ -321,4 +321,9 @@ export async function deleteAttendance(id) {
   return res.data;
 }
 
+export async function resetAttendance(id) {
+  const res = await request('PATCH', `/attendance/${id}/reset`);
+  return res.data;
+}
+
 export default timesheetApi;
