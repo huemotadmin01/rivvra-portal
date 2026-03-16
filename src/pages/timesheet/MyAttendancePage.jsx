@@ -141,14 +141,22 @@ export default function MyAttendancePage() {
     }
   };
 
+  // Earliest allowed month: January of current year
+  const minYear = now.getFullYear();
+  const minMonth = 1;
+
   const navigateMonth = (dir) => {
     let m = month + dir;
     let y = year;
     if (m > 12) { m = 1; y++; }
     else if (m < 1) { m = 12; y--; }
+    // Block navigation to previous years
+    if (y < minYear) return;
     setMonth(m);
     setYear(y);
   };
+
+  const canGoBack = !(year === minYear && month === minMonth);
 
   // Build calendar grid
   const buildCalendarGrid = () => {
@@ -247,7 +255,8 @@ export default function MyAttendancePage() {
         <div className="flex items-center gap-1 bg-dark-800 rounded-xl border border-dark-700/60 p-1 self-start sm:self-auto">
           <button
             onClick={() => navigateMonth(-1)}
-            className="p-2 rounded-lg hover:bg-dark-700 text-dark-400 hover:text-white transition-all active:scale-95"
+            disabled={!canGoBack}
+            className={`p-2 rounded-lg transition-all active:scale-95 ${canGoBack ? 'hover:bg-dark-700 text-dark-400 hover:text-white' : 'text-dark-700 cursor-not-allowed'}`}
           >
             <ChevronLeft size={16} />
           </button>
