@@ -175,7 +175,7 @@ export default function LeaveApprovals() {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-dark-300">
                 <span className="flex items-center gap-1.5">
                   <Calendar size={14} className="text-dark-500" />
-                  {formatDate(req.startDate)} — {formatDate(req.endDate)}
+                  {formatDate(req.fromDate || req.startDate)} — {formatDate(req.toDate || req.endDate)}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Clock size={14} className="text-dark-500" />
