@@ -228,6 +228,11 @@ export async function rejectLeaveRequest(id, data) {
   return res.data;
 }
 
+export async function revertLeaveRequest(id) {
+  const res = await timesheetApi.patch(`/leave-requests/${id}/revert`);
+  return res.data;
+}
+
 export async function cancelLeaveRequest(id, data) {
   const res = await timesheetApi.patch(`/leave-requests/${id}/cancel`, data);
   return res.data;

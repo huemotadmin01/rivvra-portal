@@ -22,6 +22,7 @@ const statusConfig = {
   half_day: { label: 'Half Day', short: '½',  emoji: '◑', gradient: 'from-amber-500/20 to-amber-600/5', bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/25',   dot: 'bg-amber-500',   ring: 'ring-amber-500/40',   hoverBg: 'hover:bg-amber-500/25' },
   absent:   { label: 'Absent',   short: 'A',  emoji: '✕', gradient: 'from-red-500/20 to-red-600/5', bg: 'bg-red-500/15',     text: 'text-red-400',     border: 'border-red-500/25',     dot: 'bg-red-500',     ring: 'ring-red-500/40',     hoverBg: 'hover:bg-red-500/25' },
   leave:    { label: 'Leave',    short: 'L',  emoji: '🏖', gradient: 'from-blue-500/20 to-blue-600/5', bg: 'bg-blue-500/15',    text: 'text-blue-400',    border: 'border-blue-500/25',    dot: 'bg-blue-500',    ring: 'ring-blue-500/40',    hoverBg: '' },
+  half_day_leave: { label: '½ Leave', short: '½L', emoji: '🏖', gradient: 'from-blue-500/10 to-amber-500/5', bg: 'bg-blue-400/10', text: 'text-blue-300', border: 'border-blue-400/20', dot: 'bg-blue-400', ring: 'ring-blue-400/30', hoverBg: '' },
   holiday:  { label: 'Holiday',  short: 'H',  emoji: '🎉', gradient: 'from-purple-500/20 to-purple-600/5', bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/25',  dot: 'bg-purple-500',  ring: 'ring-purple-500/40',  hoverBg: '' },
   weekend:  { label: 'Weekend',  short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/60',    text: 'text-dark-600',    border: 'border-dark-700/20',    dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
   unfilled: { label: 'Unfilled', short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-800/30',    text: 'text-dark-500',    border: 'border-dark-700/30 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: 'hover:bg-dark-700/30' },
@@ -32,6 +33,10 @@ function getEntryDisplayStatus(entry) {
     const h = parseFloat(entry.hours) || 0;
     if (h === 0) return 'unfilled';
     return h <= 4 ? 'half_day' : 'working';
+  }
+  if (entry.status === 'leave') {
+    const h = parseFloat(entry.hours) || 0;
+    if (h > 0 && h <= 4) return 'half_day_leave';
   }
   return entry.status;
 }
@@ -154,9 +159,13 @@ export default function MyAttendancePage() {
       const freshEntries = (data.attendance?.entries || []).map(e =>
         e.status === 'working' ? { ...e, hours: 0, notes: '' } : e
       );
-      setAttendance(data.attendance);
-      setEntries(freshEntries);
-      setDirty(true); // Mark dirty so user must save their choices
+      // Persist the blanked entries to DB so refresh also shows blank
+      const saved = await updateAttendance(data.attendance._id, freshEntries);
+      setAttendance(saved.attendance);
+      setEntries(saved.attendance.entries.map(e =>
+        e.status === 'working' ? { ...e, hours: parseFloat(e.hours) || 0 } : e
+      ));
+      setDirty(false);
       showToast('Attendance reset');
     } catch (err) {
       showToast(err.response?.data?.error || 'Reset failed', 'error');
@@ -219,7 +228,10 @@ export default function MyAttendancePage() {
     entries.forEach(e => {
       if (e.status === 'weekend') weekend++;
       else if (e.status === 'holiday') holiday++;
-      else if (e.status === 'leave') leave++;
+      else if (e.status === 'leave') {
+        const h = parseFloat(e.hours) || 0;
+        leave += (h > 0 && h <= 4) ? 0.5 : 1;
+      }
       else if (e.status === 'absent') absent++;
       else if (e.status === 'working') {
         const h = parseFloat(e.hours) || 0;

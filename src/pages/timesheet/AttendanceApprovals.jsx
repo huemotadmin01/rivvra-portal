@@ -9,7 +9,8 @@ const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 
 const entryColors = {
   working: 'bg-emerald-500 text-white',      // Full day present
   half_day: 'bg-amber-500 text-white',       // Half day
-  leave: 'bg-red-500 text-white',
+  leave: 'bg-blue-500 text-white',           // Full day leave
+  half_day_leave: 'bg-blue-400/70 text-white', // Half day leave
   holiday: 'bg-purple-500 text-white',
   absent: 'bg-dark-700 text-red-400',
   weekend: 'bg-dark-800 text-dark-500',
@@ -167,7 +168,10 @@ export default function AttendanceApprovals() {
                         if (entry?.status === 'working') {
                           const h = parseFloat(entry.hours) || 0;
                           colorClass = (h > 0 && h < 8) ? entryColors.half_day : entryColors.working;
-                        } else if (status === 'leave') colorClass = entryColors.leave;
+                        } else if (status === 'leave') {
+                          const h = parseFloat(entry?.hours) || 0;
+                          colorClass = (h > 0 && h <= 4) ? entryColors.half_day_leave : entryColors.leave;
+                        }
                         else if (status === 'holiday') colorClass = entryColors.holiday;
                         else if (status === 'absent') colorClass = entryColors.absent;
                         else if (isWeekend) colorClass = entryColors.weekend;
@@ -189,7 +193,8 @@ export default function AttendanceApprovals() {
                     {[
                       { label: 'Present', color: 'bg-emerald-500' },
                       { label: 'Half Day', color: 'bg-amber-500' },
-                      { label: 'Leave', color: 'bg-red-500' },
+                      { label: 'Leave', color: 'bg-blue-500' },
+                      { label: '½ Leave', color: 'bg-blue-400' },
                       { label: 'Holiday', color: 'bg-purple-500' },
                       { label: 'Weekend', color: 'bg-dark-800' },
                     ].map(item => (

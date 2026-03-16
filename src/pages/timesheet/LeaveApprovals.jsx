@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
-import { getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest } from '../../utils/timesheetApi';
+import { getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
-import { CheckCircle2, XCircle, Loader2, Calendar, Clock, User, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Calendar, Clock, User, AlertTriangle, RotateCcw } from 'lucide-react';
 
 const leaveTypeColors = {
   sick_leave: 'bg-red-500/10 text-red-400 border-red-500/20',
@@ -82,6 +82,20 @@ export default function LeaveApprovals() {
       load();
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Rejection failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevert = async (id) => {
+    if (!window.confirm('Revert this leave approval? It will go back to pending status.')) return;
+    setActionLoading(id);
+    try {
+      await revertLeaveRequest(id);
+      showToast('Leave reverted to pending');
+      load();
+    } catch (err) {
+      showToast(err.response?.data?.error || err.message || 'Revert failed', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -187,6 +201,16 @@ export default function LeaveApprovals() {
                 <p className="text-xs text-dark-500">
                   Approved{req.approvedBy?.fullName ? ` by ${req.approvedBy.fullName}` : ''}{req.approvedAt ? ` on ${formatDate(req.approvedAt)}` : ''}
                 </p>
+              )}
+
+              {/* Revert approved leave */}
+              {req.status === 'approved' && (
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => handleRevert(req._id)} disabled={!!actionLoading}
+                    className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {actionLoading === req._id ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />} Revert to Pending
+                  </button>
+                </div>
               )}
 
               {/* Rejected info */}
