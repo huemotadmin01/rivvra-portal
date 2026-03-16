@@ -203,7 +203,8 @@ export default function TimesheetEntry() {
     return date < startDateOnly;
   };
 
-  const canEdit = !periodLocked && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
+  const isPreviousYear = year < new Date().getFullYear();
+  const canEdit = !periodLocked && !isPreviousYear && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
 
   const cycleStatus = (day) => {
     if (!canEdit || isBeforeProjectStart(day)) return;
@@ -462,10 +463,12 @@ export default function TimesheetEntry() {
         ) : null;
       })()}
 
-      {periodLocked && (
+      {(periodLocked || isPreviousYear) && (
         <div className="rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium border bg-amber-500/5 text-amber-400 border-amber-500/20">
           <Lock size={16} />
-          Payroll for {monthNames[month - 1]} {year} is locked. You cannot edit or submit timesheets for this period.
+          {isPreviousYear
+            ? `Timesheets for ${year} are closed. You can only fill timesheets for the current year.`
+            : `Payroll for ${monthNames[month - 1]} ${year} is locked. You cannot edit or submit timesheets for this period.`}
         </div>
       )}
 
