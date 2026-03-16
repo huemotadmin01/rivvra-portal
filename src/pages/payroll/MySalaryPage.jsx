@@ -50,8 +50,6 @@ export default function MySalaryPage() {
   }
 
   const basic = salary.components?.find(c => c.name === 'Basic');
-  const hra = salary.components?.find(c => c.name === 'HRA');
-  const special = salary.components?.find(c => c.name === 'Special Allowance');
   const pfBase = salary.pfCappedAt15K ? Math.min(basic?.amount || 0, 15000) : (basic?.amount || 0);
   const employeePf = salary.pfApplicable ? Math.round(pfBase * 0.12) : 0;
   const employerPf = salary.pfApplicable ? Math.round(pfBase * 0.12) : 0;

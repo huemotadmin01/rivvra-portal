@@ -63,7 +63,9 @@ export default function MyPayslipsPage() {
           {payslips.map((p, idx) => {
             const isExpanded = expanded === idx;
             const statusColor = p.status === 'paid' ? 'text-green-400 bg-green-500/10' :
-              p.status === 'finalized' ? 'text-blue-400 bg-blue-500/10' : 'text-amber-400 bg-amber-500/10';
+              p.status === 'finalized' ? 'text-blue-400 bg-blue-500/10' :
+              p.status === 'imported' ? 'text-purple-400 bg-purple-500/10' : 'text-amber-400 bg-amber-500/10';
+            const isImported = p.status === 'imported';
 
             return (
               <div key={idx} className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
@@ -80,17 +82,19 @@ export default function MyPayslipsPage() {
                       </div>
                     </div>
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${statusColor}`}>
-                      {p.status}
+                      {isImported ? (p.source === 'greythr' ? 'GreytHR' : 'Imported') : p.status}
                     </span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDownloadPdf(p); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
-                      title="Download PDF"
-                    >
-                      <Download size={12} /> PDF
-                    </button>
+                    {!isImported && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDownloadPdf(p); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
+                        title="Download PDF"
+                      >
+                        <Download size={12} /> PDF
+                      </button>
+                    )}
                     <div className="text-right">
                       <div className="text-xs text-dark-400">Net Pay</div>
                       <div className="text-white font-bold">₹{fmt(p.netSalary)}</div>

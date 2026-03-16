@@ -254,6 +254,9 @@ export function updatePTMasterConfig(orgSlug, id, data) {
 export function getMySalary(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/my-salary`);
 }
+export function getMySalaryHistory(orgSlug) {
+  return request('GET', `${orgUrl(orgSlug)}/my-salary-history`);
+}
 export function getMyPayslips(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/my-payslips`);
 }
