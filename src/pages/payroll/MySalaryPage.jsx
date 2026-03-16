@@ -54,8 +54,11 @@ export default function MySalaryPage() {
   const special = salary.components?.find(c => c.name === 'Special Allowance');
   const pfBase = salary.pfCappedAt15K ? Math.min(basic?.amount || 0, 15000) : (basic?.amount || 0);
   const employeePf = salary.pfApplicable ? Math.round(pfBase * 0.12) : 0;
+  const employerPf = salary.pfApplicable ? Math.round(pfBase * 0.12) : 0;
   const employeeEsi = salary.esiApplicable ? Math.round(salary.grossMonthly * 0.0075) : 0;
-  const totalDeductions = employeePf + employeeEsi;
+  const employerEsi = salary.esiApplicable ? Math.round(salary.grossMonthly * 0.0325) : 0;
+  // CTC = Gross in our structure, so employer contributions reduce in-hand
+  const totalDeductions = employeePf + employerPf + employeeEsi + employerEsi;
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   return (
