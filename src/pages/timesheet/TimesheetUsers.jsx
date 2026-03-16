@@ -46,7 +46,7 @@ export default function TimesheetUsers() {
         (r.data || []).map(u => ({
           ...u,
           // Derive isActive from employee status field (employees collection uses status, not isActive)
-          isActive: u.isActive ?? (u.status !== 'inactive' && u.status !== 'terminated'),
+          isActive: u.isActive ?? (u.status !== 'resigned' && u.status !== 'terminated'),
         }))
       )),
       timesheetApi.get('/projects').then(r => setProjects(r.data)),
@@ -152,7 +152,7 @@ export default function TimesheetUsers() {
 
   const toggleActive = async (user) => {
     try {
-      const newStatus = user.isActive ? 'inactive' : 'active';
+      const newStatus = user.isActive ? 'resigned' : 'active';
       await employeeApi.update(orgSlug, user._id, { status: newStatus });
       showToast(user.isActive ? 'User deactivated' : 'User activated');
       load();
@@ -172,7 +172,7 @@ export default function TimesheetUsers() {
   const filteredUsers = users.filter(u => {
     // Status filter
     if (filterStatus === 'active' && !u.isActive) return false;
-    if (filterStatus === 'inactive' && u.isActive) return false;
+    if (filterStatus === 'resigned' && u.isActive) return false;
     // Role filter
     if (filterRole && u.role !== filterRole) return false;
     // Search filter
@@ -236,7 +236,7 @@ export default function TimesheetUsers() {
         >
           <option value="">All Status</option>
           <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="resigned">Resigned</option>
         </select>
         {(searchQuery || filterRole || filterStatus) && (
           <button

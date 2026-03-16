@@ -72,7 +72,7 @@ export default function EmployeeDirectory() {
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [billableFilter, setBillableFilter] = useState('');
 
   // Which filter dropdown is open
@@ -196,7 +196,6 @@ export default function EmployeeDirectory() {
   const statusOptions = [
     { value: '', label: 'All Statuses' },
     { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
     { value: 'resigned', label: 'Resigned' },
     { value: 'terminated', label: 'Terminated' },
   ];

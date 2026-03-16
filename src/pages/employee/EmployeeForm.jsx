@@ -1025,7 +1025,6 @@ export default function EmployeeForm() {
                   className={`input-field w-full ${isSeparating ? 'border-red-500/50 text-red-400' : ''}`}
                 >
                   <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
                   <option value="resigned">Resigned</option>
                   <option value="terminated">Terminated</option>
                 </select>
