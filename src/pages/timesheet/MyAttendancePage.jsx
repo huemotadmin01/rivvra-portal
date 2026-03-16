@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
-import { getAttendance, updateAttendance, submitAttendance } from '../../utils/timesheetApi';
+import { getAttendance, updateAttendance, submitAttendance, deleteAttendance } from '../../utils/timesheetApi';
 import {
   ChevronLeft, ChevronRight, Save, Send, Loader2, AlertCircle,
-  CheckCircle2, Clock, XCircle, CalendarCheck, Info,
+  CheckCircle2, Clock, XCircle, CalendarCheck, Info, RotateCcw, Lock,
 } from 'lucide-react';
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -138,6 +138,24 @@ export default function MyAttendancePage() {
       showToast(err.response?.data?.error || 'Failed to submit', 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!attendance) return;
+    if (!window.confirm('Reset this attendance? It will be deleted and re-created with defaults.')) return;
+    try {
+      await deleteAttendance(attendance._id);
+      setAttendance(null);
+      setEntries([]);
+      setDirty(false);
+      // Re-fetch to auto-create fresh attendance with defaults
+      const data = await getAttendance(month, year);
+      setAttendance(data.attendance);
+      if (data.attendance?.entries) setEntries(data.attendance.entries);
+      showToast('Attendance reset to defaults');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Reset failed', 'error');
     }
   };
 
@@ -430,6 +448,14 @@ export default function MyAttendancePage() {
             </p>
           </div>
           <div className="flex items-center gap-2.5 self-end sm:self-auto">
+            <button
+              onClick={handleReset}
+              disabled={saving || submitting}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-800 text-dark-400 hover:bg-dark-700 hover:text-white border border-dark-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-medium"
+            >
+              <RotateCcw size={15} />
+              Reset
+            </button>
             <button
               onClick={handleSave}
               disabled={saving || !dirty}

@@ -311,4 +311,9 @@ export async function submitAttendance(id) {
   return res.data;
 }
 
+export async function deleteAttendance(id) {
+  const res = await request('DELETE', `/attendance/${id}`);
+  return res.data;
+}
+
 export default timesheetApi;
