@@ -52,14 +52,17 @@ export default function MyAttendancePage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [periodLocked, setPeriodLocked] = useState(false);
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
     setDirty(false);
+    setPeriodLocked(false);
     try {
       const data = await getAttendance(month, year);
       setAttendance(data.attendance);
       setEntries(data.attendance?.entries || []);
+      setPeriodLocked(!!data.periodLocked);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to load attendance', 'error');
       setAttendance(null);
@@ -71,7 +74,7 @@ export default function MyAttendancePage() {
 
   useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
-  const canEdit = attendance && (attendance.status === 'draft' || attendance.status === 'rejected');
+  const canEdit = !periodLocked && attendance && (attendance.status === 'draft' || attendance.status === 'rejected');
 
   const handleDayClick = (dateStr) => {
     if (!canEdit) return;
@@ -259,6 +262,14 @@ export default function MyAttendancePage() {
           </button>
         </div>
       </div>
+
+      {/* ── Period Locked Banner ── */}
+      {periodLocked && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/10 to-amber-600/5 mb-4 backdrop-blur-sm">
+          <AlertCircle size={18} className="text-amber-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-amber-300">Payroll for {monthNames[month - 1]} {year} is locked. Attendance cannot be modified.</span>
+        </div>
+      )}
 
       {/* ── Status Banner ── */}
       {banner && (

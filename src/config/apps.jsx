@@ -99,8 +99,8 @@ export const APP_REGISTRY = {
           { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
-        // Confirmed employees see attendance calendar; others see timesheet
-        ...(timesheetUser?.employmentType === 'confirmed'
+        // Confirmed/internal_consultant/intern employees see attendance calendar; others see timesheet
+        ...(['confirmed', 'internal_consultant', 'intern'].includes(timesheetUser?.employmentType)
           ? [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
           : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
         ),
@@ -114,8 +114,8 @@ export const APP_REGISTRY = {
             ],
           },
         ] : []),
-        // Confirmed employees get statutory payroll pages; others get earnings
-        ...(timesheetUser?.employmentType === 'confirmed' ? [
+        // Confirmed/internal_consultant/intern employees get statutory payroll pages; others get earnings
+        ...(['confirmed', 'internal_consultant', 'intern'].includes(timesheetUser?.employmentType) ? [
           {
             type: 'group', label: 'Payroll', icon: IndianRupee,
             children: [
