@@ -415,7 +415,12 @@ export default function TimesheetEntry() {
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Reset failed', 'error'); }
   };
 
-  const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };
+  const now = new Date();
+  const minYear = now.getFullYear();
+  const minMonth = 1; // January
+  const canGoBack = !(year === minYear && month === minMonth);
+
+  const prevMonth = () => { if (!canGoBack) return; if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); };
 
   const isReadOnly = !canEdit;
@@ -478,7 +483,7 @@ export default function TimesheetEntry() {
       )}
 
       <div className="flex items-center justify-between card p-4">
-        <button onClick={prevMonth} className="p-2 hover:bg-dark-800 rounded-lg text-dark-400 hover:text-white transition-colors"><ChevronLeft size={20} /></button>
+        <button onClick={prevMonth} disabled={!canGoBack} className={`p-2 rounded-lg transition-colors ${canGoBack ? 'hover:bg-dark-800 text-dark-400 hover:text-white' : 'text-dark-700 cursor-not-allowed'}`}><ChevronLeft size={20} /></button>
         <h2 className="text-lg font-semibold text-white">{monthNames[month - 1]} {year}</h2>
         <button onClick={nextMonth} className="p-2 hover:bg-dark-800 rounded-lg text-dark-400 hover:text-white transition-colors"><ChevronRight size={20} /></button>
       </div>
