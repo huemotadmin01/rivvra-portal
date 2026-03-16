@@ -65,7 +65,11 @@ function ContractorDashboard() {
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     const fetches = [
-      timesheetApi.get('/timesheets', sig).then(r => setTimesheets((r.data || []).filter(t => !t.isAttendance))).catch(() => {}),
+      timesheetApi.get('/timesheets', sig).then(r => {
+        const all = r.data || [];
+        // Confirmed/intern/internal_consultant see attendance records; others see timesheets
+        setTimesheets(isConfirmed ? all.filter(t => t.isAttendance) : all.filter(t => !t.isAttendance));
+      }).catch(() => {}),
     ];
     if (!hideEarnings) {
       fetches.push(
@@ -304,11 +308,11 @@ function ContractorDashboard() {
 
       <div className="card">
         <div className="p-4 border-b border-dark-800">
-          <h3 className="font-semibold text-white">Recent Timesheets</h3>
+          <h3 className="font-semibold text-white">{isConfirmed ? 'Recent Attendance' : 'Recent Timesheets'}</h3>
         </div>
         <div className="divide-y divide-dark-800">
           {timesheets.length === 0 ? (
-            <p className="p-4 text-sm text-dark-500">No timesheets yet</p>
+            <p className="p-4 text-sm text-dark-500">{isConfirmed ? 'No attendance records yet' : 'No timesheets yet'}</p>
           ) : (
             timesheets.slice(0, 5).map(ts => (
               <div key={ts._id} className="flex items-center justify-between p-4">
