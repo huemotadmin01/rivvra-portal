@@ -24,12 +24,14 @@ const statusConfig = {
   leave:    { label: 'Leave',    short: 'L',  emoji: '🏖', gradient: 'from-blue-500/20 to-blue-600/5', bg: 'bg-blue-500/15',    text: 'text-blue-400',    border: 'border-blue-500/25',    dot: 'bg-blue-500',    ring: 'ring-blue-500/40',    hoverBg: '' },
   holiday:  { label: 'Holiday',  short: 'H',  emoji: '🎉', gradient: 'from-purple-500/20 to-purple-600/5', bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/25',  dot: 'bg-purple-500',  ring: 'ring-purple-500/40',  hoverBg: '' },
   weekend:  { label: 'Weekend',  short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/60',    text: 'text-dark-600',    border: 'border-dark-700/20',    dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
+  unfilled: { label: 'Unfilled', short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-800/30',    text: 'text-dark-500',    border: 'border-dark-700/30 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: 'hover:bg-dark-700/30' },
 };
 
 function getEntryDisplayStatus(entry) {
   if (entry.status === 'working') {
     const h = parseFloat(entry.hours) || 0;
-    return h <= 4 && h > 0 ? 'half_day' : 'working';
+    if (h === 0) return 'unfilled';
+    return h <= 4 ? 'half_day' : 'working';
   }
   return entry.status;
 }
@@ -143,17 +145,19 @@ export default function MyAttendancePage() {
 
   const handleReset = async () => {
     if (!attendance) return;
-    if (!window.confirm('Reset this attendance? It will be deleted and re-created with defaults.')) return;
+    if (!window.confirm('Reset this attendance? All entries will be cleared.')) return;
     try {
       await deleteAttendance(attendance._id);
-      setAttendance(null);
-      setEntries([]);
-      setDirty(false);
-      // Re-fetch to auto-create fresh attendance with defaults
+      // Re-fetch to auto-create a fresh record (needed for save/submit to work)
       const data = await getAttendance(month, year);
+      // Blank out working days so user fills them manually
+      const freshEntries = (data.attendance?.entries || []).map(e =>
+        e.status === 'working' ? { ...e, hours: 0, notes: '' } : e
+      );
       setAttendance(data.attendance);
-      if (data.attendance?.entries) setEntries(data.attendance.entries);
-      showToast('Attendance reset to defaults');
+      setEntries(freshEntries);
+      setDirty(true); // Mark dirty so user must save their choices
+      showToast('Attendance reset');
     } catch (err) {
       showToast(err.response?.data?.error || 'Reset failed', 'error');
     }
@@ -221,7 +225,7 @@ export default function MyAttendancePage() {
         const h = parseFloat(e.hours) || 0;
         if (h >= 8) present++;
         else if (h > 0) halfDay++;
-        else present++;
+        // hours === 0 means unfilled — don't count
       }
     });
     const effective = present + (halfDay * 0.5) + holiday + leave;
