@@ -86,6 +86,8 @@ const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
 const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
 const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboardPage'));
 const PayrollSettingsPage = lazy(() => import('./pages/payroll/PayrollSettingsPage'));
+const MyTaxDeclarationsPage = lazy(() => import('./pages/payroll/MyTaxDeclarationsPage'));
+const MyTaxReportPage = lazy(() => import('./pages/payroll/MyTaxReportPage'));
 
 const AttendanceApprovals = lazy(() => import('./pages/timesheet/AttendanceApprovals'));
 const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
@@ -287,6 +289,8 @@ function App() {
                   {/* Employee-facing statutory payroll pages */}
                   <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><MySalaryPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/tax/declarations" element={<ErrorBoundary><MyTaxDeclarationsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/tax/report" element={<ErrorBoundary><MyTaxReportPage /></ErrorBoundary>} />
                 </Route>
               </Route>
 

@@ -5,6 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
+  Shield,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -121,6 +122,13 @@ export const APP_REGISTRY = {
             children: [
               { path: '/timesheet/my-salary', label: 'My Salary', icon: IndianRupee },
               { path: '/timesheet/my-payslips', label: 'My Payslips', icon: FileText },
+            ],
+          },
+          {
+            type: 'group', label: 'Tax', icon: Shield,
+            children: [
+              { path: '/timesheet/tax/declarations', label: 'Declarations', icon: FileText },
+              { path: '/timesheet/tax/report', label: 'Tax Report', icon: BarChart3 },
             ],
           },
         ] : [

@@ -269,3 +269,27 @@ export function getMyPayslips(orgSlug) {
 export function getMyTax(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/my-tax`);
 }
+export function updateMyTaxRegime(orgSlug, regime) {
+  return request('PUT', `${orgUrl(orgSlug)}/my-tax/regime`, { body: { regime } });
+}
+export function updateMyTaxDeclarations(orgSlug, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/my-tax/declarations`, { body: data });
+}
+export function getMyTaxReport(orgSlug, fy) {
+  return request('GET', `${orgUrl(orgSlug)}/my-tax/report/${fy}`);
+}
+export function getMyTaxAvailableFYs(orgSlug) {
+  return request('GET', `${orgUrl(orgSlug)}/my-tax/available-fys`);
+}
+export function getMyTaxProofs(orgSlug, financialYear) {
+  return request('GET', `${orgUrl(orgSlug)}/my-tax/proofs`, { params: { financialYear } });
+}
+export function downloadTaxProof(orgSlug, proofId) {
+  return request('GET', `${orgUrl(orgSlug)}/my-tax/proofs/${proofId}/download`, { responseType: 'blob' });
+}
+export function deleteTaxProof(orgSlug, proofId) {
+  return request('DELETE', `${orgUrl(orgSlug)}/my-tax/proofs/${proofId}`);
+}
+export function uploadTaxProof(orgSlug, formData) {
+  return request('POST', `${orgUrl(orgSlug)}/my-tax/declarations/proof`, { body: formData });
+}
