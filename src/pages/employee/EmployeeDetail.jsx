@@ -236,8 +236,8 @@ export default function EmployeeDetail() {
       employeeApi.getTimesheetOptions(currentOrg.slug)
         .then(res => {
           if (res.success) {
-            setTsClients((res.clients || []).map(c => ({ value: c._id, label: c.name })));
-            setTsProjects((res.projects || []).map(p => ({ value: p._id, label: p.name })));
+            setTsClients((res.clients || []).map(c => ({ _id: c._id, name: c.name })));
+            setTsProjects((res.projects || []).map(p => ({ _id: p._id, name: p.name })));
           }
         })
         .catch(() => {});
