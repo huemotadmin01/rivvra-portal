@@ -322,12 +322,22 @@ export default function EmployeeDetail() {
     setAssignmentSaving(true);
     try {
       const { index, ...data } = editAssignment;
-      // Build updated assignments array
-      const assignments = [...(employee.assignments || [])];
-      assignments[index] = { ...assignments[index], ...data };
+      // Build cleaned assignments array — only send editable fields
+      const assignments = (employee.assignments || []).map((a, i) => {
+        const base = {
+          clientId: a.clientId || '', clientName: a.clientName || '',
+          projectId: a.projectId || '', projectName: a.projectName || '',
+          billingRate: a.billingRate || {}, clientBillingRate: a.clientBillingRate || {},
+          startDate: a.startDate || '', endDate: a.endDate || '',
+          status: a.status || 'active', paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+        };
+        return i === index ? { ...base, ...data } : base;
+      });
       const res = await employeeApi.update(currentOrg.slug, employee._id, { assignments });
       if (!res.success) throw new Error(res.error || 'Update failed');
-      setEmployee(prev => prev ? { ...prev, assignments } : prev);
+      // Refresh employee to get server-resolved data
+      const refreshed = await employeeApi.get(currentOrg.slug, employee._id);
+      if (refreshed.success && refreshed.employee) setEmployee(refreshed.employee);
       setEditAssignment(null);
     } catch (err) {
       alert(err.message || 'Failed to save assignment');
@@ -337,8 +347,8 @@ export default function EmployeeDetail() {
   }, [editAssignment, currentOrg?.slug, employee]);
 
   // Add new assignment
-  const handleAddAssignment = useCallback(async () => {
-    if (!currentOrg?.slug || !employee) return;
+  const handleAddAssignment = useCallback(() => {
+    if (!employee) return;
     const newAssignment = {
       clientId: '', clientName: '', projectId: '', projectName: '',
       billingRate: { daily: '', hourly: '', monthly: '' },
@@ -348,16 +358,11 @@ export default function EmployeeDetail() {
       endDate: '',
       status: 'active',
     };
-    const assignments = [...(employee.assignments || []), newAssignment];
-    try {
-      const res = await employeeApi.update(currentOrg.slug, employee._id, { assignments });
-      if (res.success) {
-        setEmployee(prev => prev ? { ...prev, assignments } : prev);
-        // Open the newly added assignment for editing
-        setEditAssignment({ index: assignments.length - 1, ...newAssignment });
-      }
-    } catch { /* ignore */ }
-  }, [currentOrg?.slug, employee]);
+    // Open modal for new assignment — it will be saved on "Save Assignment"
+    const idx = (employee.assignments || []).length;
+    setEmployee(prev => prev ? { ...prev, assignments: [...(prev.assignments || []), newAssignment] } : prev);
+    setEditAssignment({ index: idx, ...newAssignment });
+  }, [employee]);
 
   useEffect(() => {
     if (!currentOrg?.slug || !employeeId) return;
