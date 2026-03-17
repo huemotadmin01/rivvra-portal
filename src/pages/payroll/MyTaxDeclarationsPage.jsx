@@ -252,9 +252,33 @@ export default function MyTaxDeclarationsPage() {
         )}
 
         {regime === 'new' && (
-          <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-            <Info size={14} className="text-blue-400 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-blue-300">New Regime has lower tax rates but does not allow deductions under 80C, 80D, HRA, etc. Only standard deduction of ₹75,000 applies.</p>
+          <div className="mt-4 p-4 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-3">
+            <div className="flex items-start gap-2">
+              <Info size={14} className="text-blue-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-300">Under the <span className="font-semibold text-blue-200">New Tax Regime</span>, most deductions and exemptions are not available. You get lower slab rates with a flat standard deduction.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ml-5">
+              <div>
+                <p className="text-[11px] font-semibold text-green-400 mb-1.5">✓ What's included automatically</p>
+                <ul className="text-[11px] text-dark-300 space-y-1">
+                  <li>• Standard Deduction — ₹75,000</li>
+                  <li>• Employer NPS contribution (Sec 80CCD(2)) — up to 14% of Basic</li>
+                  <li>• Lower tax slab rates</li>
+                  <li>• Tax rebate up to ₹12,75,000 taxable income</li>
+                </ul>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-red-400 mb-1.5">✗ Not available</p>
+                <ul className="text-[11px] text-dark-300 space-y-1">
+                  <li>• Section 80C — PPF, ELSS, LIC, etc.</li>
+                  <li>• Section 80D — Health Insurance</li>
+                  <li>• HRA Exemption</li>
+                  <li>• Section 24(b) — Home Loan Interest</li>
+                  <li>• Section 80E, 80G, and others</li>
+                </ul>
+              </div>
+            </div>
+            <p className="text-[10px] text-dark-500 ml-5">No declarations needed — switch to Old Regime if you want to claim deductions.</p>
           </div>
         )}
       </div>
