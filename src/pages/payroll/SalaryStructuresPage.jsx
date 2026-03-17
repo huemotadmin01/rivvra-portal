@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { getSalaryStructures, createSalaryStructure, updateSalaryStructure, deleteSalaryStructure, setDefaultStructure } from '../../utils/payrollApi';
+import { getSalaryStructures, createSalaryStructure, updateSalaryStructure, deleteSalaryStructure, setDefaultStructure, getPublicPlatformSetting } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { Plus, Edit2, Trash2, Star, X } from 'lucide-react';
 
 const EMPTY_COMPONENT = { name: '', percentOfGross: '', isTaxable: true, isPfApplicable: false };
+
+const FALLBACK_COMPONENTS = [
+  { name: 'Basic', percentOfGross: 50, isTaxable: true, isPfApplicable: true },
+  { name: 'HRA', percentOfGross: 20, isTaxable: true, isPfApplicable: false },
+  { name: 'Special Allowance', percentOfGross: 30, isTaxable: true, isPfApplicable: false },
+];
 
 export default function SalaryStructuresPage() {
   const { orgSlug } = usePlatform();
@@ -13,11 +19,8 @@ export default function SalaryStructuresPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', components: [
-    { name: 'Basic', percentOfGross: 50, isTaxable: true, isPfApplicable: true },
-    { name: 'HRA', percentOfGross: 20, isTaxable: true, isPfApplicable: false },
-    { name: 'Special Allowance', percentOfGross: 30, isTaxable: true, isPfApplicable: false },
-  ]});
+  const [defaultComponents, setDefaultComponents] = useState(FALLBACK_COMPONENTS);
+  const [form, setForm] = useState({ name: '', components: FALLBACK_COMPONENTS });
 
   const load = async () => {
     setLoading(true);
@@ -30,12 +33,20 @@ export default function SalaryStructuresPage() {
 
   useEffect(() => { load(); }, [orgSlug]);
 
+  // Fetch default structure template from platform settings
+  useEffect(() => {
+    getPublicPlatformSetting('default_salary_structure')
+      .then(res => {
+        if (res?.components?.length) {
+          setDefaultComponents(res.components);
+          setForm(f => ({ ...f, components: res.components }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const resetForm = () => {
-    setForm({ name: '', components: [
-      { name: 'Basic', percentOfGross: 50, isTaxable: true, isPfApplicable: true },
-      { name: 'HRA', percentOfGross: 20, isTaxable: true, isPfApplicable: false },
-      { name: 'Special Allowance', percentOfGross: 30, isTaxable: true, isPfApplicable: false },
-    ]});
+    setForm({ name: '', components: defaultComponents });
     setEditing(null);
     setShowForm(false);
   };

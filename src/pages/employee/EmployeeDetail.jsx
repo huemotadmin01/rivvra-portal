@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import employeeApi from '../../utils/employeeApi';
+import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Edit2,
@@ -110,9 +111,10 @@ const EMPLOYMENT_TYPE_CONFIG = {
   intern: { label: 'Intern', className: 'bg-amber-500/10 text-amber-400' },
 };
 
-function employmentTypeBadge(type) {
+function employmentTypeBadge(type, configMap) {
   if (!type) return null;
-  const cfg = EMPLOYMENT_TYPE_CONFIG[type] || { label: type, className: 'bg-dark-700 text-dark-300' };
+  const map = configMap || EMPLOYMENT_TYPE_CONFIG;
+  const cfg = map[type] || { label: type, className: 'bg-dark-700 text-dark-300' };
   return <Badge className={cfg.className}>{cfg.label}</Badge>;
 }
 
@@ -156,6 +158,28 @@ export default function EmployeeDetail() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Dynamic employment types
+  const [empTypeMap, setEmpTypeMap] = useState(EMPLOYMENT_TYPE_CONFIG);
+
+  useEffect(() => {
+    getPublicPlatformSetting('employment_types')
+      .then(res => {
+        if (res?.items?.length) {
+          const colorPool = ['bg-teal-500/10 text-teal-400', 'bg-pink-500/10 text-pink-400', 'bg-cyan-500/10 text-cyan-400', 'bg-rose-500/10 text-rose-400'];
+          const merged = { ...EMPLOYMENT_TYPE_CONFIG };
+          res.items.forEach((t, i) => {
+            if (!merged[t.key]) {
+              merged[t.key] = { label: t.label, className: colorPool[i % colorPool.length] };
+            } else {
+              merged[t.key] = { ...merged[t.key], label: t.label };
+            }
+          });
+          setEmpTypeMap(merged);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // CTC management state
   const [showSetCtc, setShowSetCtc] = useState(false);
@@ -385,7 +409,7 @@ export default function EmployeeDetail() {
                       {emp.departmentName}
                     </Badge>
                   )}
-                  {employmentTypeBadge(emp.employmentType)}
+                  {employmentTypeBadge(emp.employmentType, empTypeMap)}
                   {statusBadge(emp.status)}
                 </div>
               </div>

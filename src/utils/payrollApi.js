@@ -293,3 +293,68 @@ export function deleteTaxProof(orgSlug, proofId) {
 export function uploadTaxProof(orgSlug, formData) {
   return request('POST', `${orgUrl(orgSlug)}/my-tax/declarations/proof`, { body: formData });
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Platform Settings (Super Admin)
+// ══════════════════════════════════════════════════════════════════════════
+
+export function getPlatformSettings() {
+  return request('GET', '/api/superadmin/platform-settings');
+}
+export function getPlatformSetting(category) {
+  return request('GET', `/api/superadmin/platform-settings/${category}`);
+}
+export function updatePlatformSetting(category, data) {
+  return request('PUT', `/api/superadmin/platform-settings/${category}`, { body: data });
+}
+
+// Platform PT Master (Super Admin)
+export function getPlatformPTMaster(fy) {
+  return request('GET', '/api/superadmin/pt-master', { params: { fy } });
+}
+export function getPlatformPTState(fy, stateCode) {
+  return request('GET', `/api/superadmin/pt-master/${fy}/${stateCode}`);
+}
+export function updatePlatformPTState(fy, stateCode, data) {
+  return request('PUT', `/api/superadmin/pt-master/${fy}/${stateCode}`, { body: data });
+}
+export function seedPlatformPTMaster(financialYear) {
+  return request('POST', '/api/superadmin/pt-master/seed', { body: { financialYear } });
+}
+export function copyPlatformPTMaster(targetFy, sourceFy) {
+  return request('POST', `/api/superadmin/pt-master/${targetFy}/copy-from/${sourceFy}`);
+}
+
+// Settings Audit Log (Super Admin)
+export function getSettingsAuditLog(params) {
+  return request('GET', '/api/superadmin/settings-audit-log', { params });
+}
+
+// Migration (Super Admin)
+export function runPlatformMigration() {
+  return request('POST', '/api/superadmin/platform-settings/migrate');
+}
+export function verifyPlatformMigration() {
+  return request('POST', '/api/superadmin/platform-settings/verify-migration');
+}
+
+// Public platform settings read (any authenticated user)
+export function getPublicPlatformSetting(category) {
+  return request('GET', `/api/platform/settings/${category}`);
+}
+
+// Org-Level FY Config Overrides
+export function getOrgFYOverrides(orgSlug, fy) {
+  return request('GET', `${orgUrl(orgSlug)}/settings/fy-overrides/${fy}`);
+}
+export function updateOrgFYOverrides(orgSlug, fy, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/settings/fy-overrides/${fy}`, { body: data });
+}
+
+// Org-Level TDS Config
+export function getOrgTdsConfig(orgSlug) {
+  return request('GET', `${orgUrl(orgSlug)}/settings/tds-config`);
+}
+export function updateOrgTdsConfig(orgSlug, data) {
+  return request('PUT', `${orgUrl(orgSlug)}/settings/tds-config`, { body: data });
+}

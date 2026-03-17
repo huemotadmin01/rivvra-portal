@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs, uploadTaxProof, deleteTaxProof, downloadTaxProof } from '../../utils/payrollApi';
+import { getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs, uploadTaxProof, deleteTaxProof, downloadTaxProof, getPublicPlatformSetting } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { Shield, ArrowRightLeft, Save, Upload, Trash2, Download, FileText, CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react';
 
@@ -57,7 +57,23 @@ export default function MyTaxDeclarationsPage() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
   const [uploadSection, setUploadSection] = useState('');
+  const [sectionLabels, setSectionLabels] = useState(SECTION_LABELS);
+  const [section80CLimit, setSection80CLimit] = useState(150000);
   const fy = getCurrentFY();
+
+  // Fetch dynamic tax section config
+  useEffect(() => {
+    getPublicPlatformSetting('tax_declaration_sections')
+      .then(res => {
+        if (res?.sections) {
+          const labels = {};
+          res.sections.forEach(s => { labels[s.key] = s.label; });
+          if (Object.keys(labels).length) setSectionLabels(prev => ({ ...prev, ...labels }));
+        }
+        if (res?.limits?.section80C) setSection80CLimit(res.limits.section80C);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => { loadData(); }, [orgSlug]);
 
@@ -122,7 +138,7 @@ export default function MyTaxDeclarationsPage() {
         regime,
         declarations: {
           ...declarations,
-          section80C: Math.min(Number(declarations.section80C) || 0, 150000),
+          section80C: Math.min(Number(declarations.section80C) || 0, section80CLimit),
           hra: {
             ...declarations.hra,
             rentPaidAnnual: hraRentAnnual,
@@ -191,7 +207,7 @@ export default function MyTaxDeclarationsPage() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
   const total80D = Object.values(declarations.section80D || {}).reduce((s, v) => s + (Number(v) || 0), 0);
-  const total80C = Math.min(Number(declarations.section80C) || 0, 150000);
+  const total80C = Math.min(Number(declarations.section80C) || 0, section80CLimit);
   const totalDeclared = total80C + total80D + (Number(declarations.section80E) || 0) + (Number(declarations.section80G) || 0) + (Number(declarations.section24b) || 0);
   const rentAnnual = (Number(declarations.hra.rentPaidMonthly) || 0) * 12;
   const statusInfo = status ? STATUS_STYLES[status] : null;
@@ -288,8 +304,8 @@ export default function MyTaxDeclarationsPage() {
         <div className="space-y-4 mb-6">
           {/* Section 80C */}
           <div className="bg-dark-800 rounded-xl border border-dark-700 p-5">
-            <h3 className="text-sm font-semibold text-white mb-1">{SECTION_LABELS.section80C}</h3>
-            <p className="text-xs text-dark-400 mb-4">EPF, PPF, ELSS, LIC, NSC, Tuition Fees — Max ₹1,50,000</p>
+            <h3 className="text-sm font-semibold text-white mb-1">{sectionLabels.section80C}</h3>
+            <p className="text-xs text-dark-400 mb-4">EPF, PPF, ELSS, LIC, NSC, Tuition Fees — Max ₹{fmt(section80CLimit)}</p>
             <div className="flex items-center gap-3">
               <span className="text-sm text-dark-300 w-32">Total 80C Amount</span>
               <div className="relative flex-1 max-w-xs">
@@ -297,13 +313,13 @@ export default function MyTaxDeclarationsPage() {
                 <input type="number" value={declarations.section80C || ''} onChange={e => updateDecl('section80C', e.target.value)}
                   className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:border-rivvra-500 outline-none" placeholder="0" />
               </div>
-              {Number(declarations.section80C) > 150000 && <span className="text-xs text-amber-400">Capped at ₹1,50,000</span>}
+              {Number(declarations.section80C) > section80CLimit && <span className="text-xs text-amber-400">Capped at ₹{fmt(section80CLimit)}</span>}
             </div>
           </div>
 
           {/* Section 80D */}
           <div className="bg-dark-800 rounded-xl border border-dark-700 p-5">
-            <h3 className="text-sm font-semibold text-white mb-1">{SECTION_LABELS.section80D}</h3>
+            <h3 className="text-sm font-semibold text-white mb-1">{sectionLabels.section80D}</h3>
             <p className="text-xs text-dark-400 mb-4">Health insurance premiums</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -358,7 +374,7 @@ export default function MyTaxDeclarationsPage() {
 
           {/* HRA */}
           <div className="bg-dark-800 rounded-xl border border-dark-700 p-5">
-            <h3 className="text-sm font-semibold text-white mb-1">{SECTION_LABELS.hra}</h3>
+            <h3 className="text-sm font-semibold text-white mb-1">{sectionLabels.hra}</h3>
             <p className="text-xs text-dark-400 mb-4">For employees paying rent (requires landlord PAN if annual rent &gt; ₹1,00,000)</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -418,7 +434,7 @@ export default function MyTaxDeclarationsPage() {
             <select value={uploadSection} onChange={e => setUploadSection(e.target.value)}
               className="bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white focus:border-rivvra-500 outline-none">
               <option value="">Select section...</option>
-              {Object.entries(SECTION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {Object.entries(sectionLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleProofUpload}
               className="hidden" />
@@ -436,7 +452,7 @@ export default function MyTaxDeclarationsPage() {
                     <FileText size={16} className="text-dark-400" />
                     <div>
                       <div className="text-sm text-white">{p.filename}</div>
-                      <div className="text-xs text-dark-400">{SECTION_LABELS[p.section] || p.section} • {Math.round(p.size / 1024)}KB</div>
+                      <div className="text-xs text-dark-400">{sectionLabels[p.section] || p.section} • {Math.round(p.size / 1024)}KB</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

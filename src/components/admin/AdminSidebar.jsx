@@ -1,7 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useState } from 'react';
 import {
-  LayoutDashboard, Building2, Mail, LogOut, ShieldCheck
+  LayoutDashboard, Building2, Mail, LogOut, ShieldCheck,
+  Settings, Calculator, Users, ChevronDown, ChevronRight
 } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 
@@ -11,10 +13,18 @@ const navItems = [
   { label: 'Email Templates', path: '/admin/email-templates', icon: Mail },
 ];
 
+const settingsItems = [
+  { label: 'Payroll Config', path: '/admin/settings/payroll', icon: Calculator },
+  { label: 'Employee Config', path: '/admin/settings/employee', icon: Users },
+];
+
 function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [settingsOpen, setSettingsOpen] = useState(
+    location.pathname.startsWith('/admin/settings')
+  );
 
   const isActive = (path) => {
     if (path === '/admin') return location.pathname === '/admin';
@@ -56,6 +66,45 @@ function AdminSidebar() {
             <span className="flex-1">{item.label}</span>
           </Link>
         ))}
+
+        {/* App Settings (collapsible) */}
+        <div className="pt-3 mt-3 border-t border-dark-800/50">
+          <button
+            onClick={() => setSettingsOpen(!settingsOpen)}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+              location.pathname.startsWith('/admin/settings')
+                ? 'text-amber-400'
+                : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="flex-1 text-left">App Settings</span>
+            {settingsOpen ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </button>
+
+          {settingsOpen && (
+            <div className="ml-4 mt-1 space-y-0.5">
+              {settingsItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                    isActive(item.path)
+                      ? 'bg-amber-500/10 text-amber-400'
+                      : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
+                  }`}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* User Menu */}

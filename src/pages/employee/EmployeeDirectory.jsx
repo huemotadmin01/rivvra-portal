@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import employeeApi from '../../utils/employeeApi';
+import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import {
   Search, Plus, Loader2, Users, Mail, Phone, Hash,
   ChevronLeft, ChevronRight, ChevronDown, X,
@@ -80,6 +81,13 @@ export default function EmployeeDirectory() {
 
   // Departments for dropdown
   const [departments, setDepartments] = useState([]);
+  // Dynamic employment types from platform settings
+  const [empTypes, setEmpTypes] = useState([
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'internal_consultant', label: 'Internal Consultant' },
+    { key: 'external_consultant', label: 'External Consultant' },
+    { key: 'intern', label: 'Intern' },
+  ]);
 
   const debounceRef = useRef(null);
   const isAdmin = getAppRole('employee') === 'admin';
@@ -89,7 +97,7 @@ export default function EmployeeDirectory() {
   const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter]
     .filter(Boolean).length;
 
-  // Fetch departments once
+  // Fetch departments + employment types once
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
@@ -98,6 +106,11 @@ export default function EmployeeDirectory() {
         if (!cancelled && res.success) {
           setDepartments(res.departments || []);
         }
+      })
+      .catch(() => {});
+    getPublicPlatformSetting('employment_types')
+      .then(res => {
+        if (!cancelled && res?.items?.length) setEmpTypes(res.items.map(t => ({ key: t.key, label: t.label })));
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -187,10 +200,7 @@ export default function EmployeeDirectory() {
 
   const typeOptions = [
     { value: '', label: 'All Types' },
-    { value: 'confirmed', label: 'Confirmed' },
-    { value: 'internal_consultant', label: 'Internal Consultant' },
-    { value: 'external_consultant', label: 'External Consultant' },
-    { value: 'intern', label: 'Intern' },
+    ...empTypes.map(t => ({ value: t.key, label: t.label })),
   ];
 
   const statusOptions = [
@@ -377,14 +387,7 @@ export default function EmployeeDirectory() {
                         }[emp.employmentType] || 'bg-dark-700 text-dark-300'
                       }`}
                     >
-                      {
-                        {
-                          confirmed: 'Confirmed',
-                          internal_consultant: 'Internal Consultant',
-                          external_consultant: 'External Consultant',
-                          intern: 'Intern',
-                        }[emp.employmentType] || emp.employmentType
-                      }
+                      {empTypes.find(t => t.key === emp.employmentType)?.label || emp.employmentType}
                     </span>
                   )}
                   {emp.billable && (

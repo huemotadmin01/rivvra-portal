@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
+import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock, GraduationCap, Users, Building2 } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
@@ -139,9 +140,16 @@ function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
   );
 }
 
-const SEPARATION_REASONS = [
+const DEFAULT_SEPARATION_REASONS = [
   'Better opportunity', 'Personal reasons', 'Performance',
   'Redundancy/Layoff', 'Contract end', 'Absconding', 'Mutual agreement', 'Other',
+];
+
+const DEFAULT_EMPLOYMENT_TYPES = [
+  { key: 'confirmed', label: 'Confirmed Employee' },
+  { key: 'internal_consultant', label: 'Internal Consultant' },
+  { key: 'external_consultant', label: 'External Consultant' },
+  { key: 'intern', label: 'Intern' },
 ];
 
 const INITIAL_FORM = {
@@ -231,6 +239,19 @@ export default function EmployeeForm() {
   const [showSensitive, setShowSensitive] = useState(false);
   const [originalStatus, setOriginalStatus] = useState('active'); // track loaded status for separation detection
   const [showSeparationConfirm, setShowSeparationConfirm] = useState(false);
+
+  // ── Dynamic config (fetched from platform settings) ──
+  const [employmentTypes, setEmploymentTypes] = useState(DEFAULT_EMPLOYMENT_TYPES);
+  const [separationReasons, setSeparationReasons] = useState(DEFAULT_SEPARATION_REASONS);
+
+  useEffect(() => {
+    getPublicPlatformSetting('employment_types')
+      .then(res => { if (res?.items?.length) setEmploymentTypes(res.items); })
+      .catch(() => {});
+    getPublicPlatformSetting('separation_reasons')
+      .then(res => { if (res?.items?.length) setSeparationReasons(res.items.map(r => r.label || r)); })
+      .catch(() => {});
+  }, []);
 
   // ── Rate Revision ──
   const [reviseModal, setReviseModal] = useState(null); // { assignmentIndex, currentRates }
@@ -1008,10 +1029,9 @@ export default function EmployeeForm() {
                 onChange={(e) => setField('employmentType', e.target.value)}
                 className="input-field w-full"
               >
-                <option value="confirmed">Confirmed</option>
-                <option value="internal_consultant">Internal Consultant</option>
-                <option value="external_consultant">External Consultant</option>
-                <option value="intern">Intern</option>
+                {employmentTypes.map(t => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
               </select>
             </div>
 
@@ -1555,7 +1575,7 @@ export default function EmployeeForm() {
                     className="input-field w-full"
                   >
                     <option value="">Select reason...</option>
-                    {SEPARATION_REASONS.map(r => (
+                    {separationReasons.map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
