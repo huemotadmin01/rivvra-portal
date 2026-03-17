@@ -96,7 +96,6 @@ export default function MyProfilePage() {
   };
 
   // ─── Preferences form ──────────────────────────────────────
-  const [senderTitle, setSenderTitle] = useState(user?.senderTitle || '');
   const [workPhone, setWorkPhone] = useState(user?.workPhone || '');
   const [workMobile, setWorkMobile] = useState(user?.workMobile || '');
   const [workLocation, setWorkLocation] = useState(user?.workLocation || '');
@@ -104,7 +103,6 @@ export default function MyProfilePage() {
   const [prefsSaved, setPrefsSaved] = useState(false);
 
   const prefsChanged =
-    senderTitle !== (user?.senderTitle || '') ||
     workPhone !== (user?.workPhone || '') ||
     workMobile !== (user?.workMobile || '') ||
     workLocation !== (user?.workLocation || '');
@@ -114,14 +112,12 @@ export default function MyProfilePage() {
     setPrefsSaved(false);
     try {
       const res = await api.updateProfile({
-        senderTitle: senderTitle.trim(),
         workPhone: workPhone.trim(),
         workMobile: workMobile.trim(),
         workLocation: workLocation.trim(),
       });
       if (res.success) {
         updateUser({
-          senderTitle: senderTitle.trim(),
           workPhone: workPhone.trim(),
           workMobile: workMobile.trim(),
           workLocation: workLocation.trim(),
@@ -288,6 +284,13 @@ export default function MyProfilePage() {
   return (
     <>
       <div className="p-6 max-w-4xl mx-auto">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-1.5 text-sm text-dark-400 mb-4">
+          <span className="hover:text-white cursor-pointer" onClick={() => navigate(`/org/${orgSlug}/home`)}>Home</span>
+          <span className="text-dark-600">›</span>
+          <span className="text-white">My Profile</span>
+        </nav>
+
         {/* Page header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white">My Profile</h1>
@@ -336,7 +339,7 @@ export default function MyProfilePage() {
                 )}
 
                 <p className="text-dark-400 text-sm mb-4">
-                  {user?.senderTitle || 'No title set'}
+                  {empProfile?.designation || user?.senderTitle || 'No title set'}
                 </p>
 
                 {/* Two-column info grid */}
@@ -447,22 +450,6 @@ export default function MyProfilePage() {
           {/* --- Preferences Tab --- */}
           {activeTab === 'preferences' && (
             <div className="space-y-6">
-              {/* Title / Designation */}
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Title / Designation</label>
-                <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
-                  <Briefcase className="w-5 h-5 text-dark-500 flex-shrink-0" />
-                  <input
-                    type="text"
-                    value={senderTitle}
-                    onChange={(e) => setSenderTitle(e.target.value)}
-                    placeholder="e.g. CEO & Co-Founder"
-                    className="bg-transparent text-white w-full outline-none placeholder:text-dark-600"
-                  />
-                </div>
-                <p className="text-xs text-dark-600 mt-1">{'Used as {{senderTitle}} placeholder in email sequences'}</p>
-              </div>
-
               {/* Work Phone + Work Mobile */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
