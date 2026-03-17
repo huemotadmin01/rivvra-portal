@@ -37,6 +37,7 @@ import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanel from '../../components/shared/ActivityPanel';
+import ComboSelect from '../../components/ComboSelect';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -197,6 +198,12 @@ export default function EmployeeDetail() {
   const [salaryHistory, setSalaryHistory] = useState([]);
   const [salaryHistoryLoading, setSalaryHistoryLoading] = useState(false);
 
+  // Assignment edit modal state
+  const [editAssignment, setEditAssignment] = useState(null); // { index, ...assignmentData }
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [tsClients, setTsClients] = useState([]);
+  const [tsProjects, setTsProjects] = useState([]);
+
   const isAdmin = getAppRole('employee') === 'admin';
   const appRole = getAppRole('employee') || 'member';
 
@@ -222,6 +229,17 @@ export default function EmployeeDetail() {
         .catch(() => {});
       employeeApi.getManagerOptions(currentOrg.slug)
         .then(res => { if (res.success) setManagerOptions((res.managers || []).map(m => ({ value: m._id, label: m.fullName }))); })
+        .catch(() => {});
+    }
+    // Fetch client/project options for assignment editing (admin only)
+    if (isAdmin) {
+      employeeApi.getTimesheetOptions(currentOrg.slug)
+        .then(res => {
+          if (res.success) {
+            setTsClients((res.clients || []).map(c => ({ value: c._id, label: c.name })));
+            setTsProjects((res.projects || []).map(p => ({ value: p._id, label: p.name })));
+          }
+        })
         .catch(() => {});
     }
   }, [currentOrg?.slug, isAdmin, appRole]);
@@ -274,6 +292,72 @@ export default function EmployeeDetail() {
   const fp = useCallback((fieldKey) => {
     return getFieldPermission(fieldKey, appRole, isSelf, isDirectReport);
   }, [appRole, isSelf, isDirectReport]);
+
+  // Open assignment edit modal
+  const openEditAssignment = useCallback((index) => {
+    const a = employee?.assignments?.[index];
+    if (!a) return;
+    const br = a.billingRate || {};
+    const cbr = typeof a.clientBillingRate === 'number'
+      ? { daily: a.clientBillingRate, hourly: '', monthly: '' }
+      : (a.clientBillingRate || {});
+    setEditAssignment({
+      index,
+      clientId: a.clientId || '',
+      clientName: a.clientName || '',
+      projectId: a.projectId || '',
+      projectName: a.projectName || '',
+      billingRate: { daily: br.daily || '', hourly: br.hourly || '', monthly: br.monthly || '' },
+      clientBillingRate: { daily: cbr.daily || '', hourly: cbr.hourly || '', monthly: cbr.monthly || '' },
+      startDate: a.startDate ? new Date(a.startDate).toISOString().slice(0, 10) : '',
+      endDate: a.endDate ? new Date(a.endDate).toISOString().slice(0, 10) : '',
+      status: a.status || 'active',
+      paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+    });
+  }, [employee]);
+
+  // Save assignment changes
+  const handleSaveAssignment = useCallback(async () => {
+    if (!editAssignment || !currentOrg?.slug || !employee) return;
+    setAssignmentSaving(true);
+    try {
+      const { index, ...data } = editAssignment;
+      // Build updated assignments array
+      const assignments = [...(employee.assignments || [])];
+      assignments[index] = { ...assignments[index], ...data };
+      const res = await employeeApi.update(currentOrg.slug, employee._id, { assignments });
+      if (!res.success) throw new Error(res.error || 'Update failed');
+      setEmployee(prev => prev ? { ...prev, assignments } : prev);
+      setEditAssignment(null);
+    } catch (err) {
+      alert(err.message || 'Failed to save assignment');
+    } finally {
+      setAssignmentSaving(false);
+    }
+  }, [editAssignment, currentOrg?.slug, employee]);
+
+  // Add new assignment
+  const handleAddAssignment = useCallback(async () => {
+    if (!currentOrg?.slug || !employee) return;
+    const newAssignment = {
+      clientId: '', clientName: '', projectId: '', projectName: '',
+      billingRate: { daily: '', hourly: '', monthly: '' },
+      clientBillingRate: { daily: '', hourly: '', monthly: '' },
+      paidLeavePerMonth: 0,
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: '',
+      status: 'active',
+    };
+    const assignments = [...(employee.assignments || []), newAssignment];
+    try {
+      const res = await employeeApi.update(currentOrg.slug, employee._id, { assignments });
+      if (res.success) {
+        setEmployee(prev => prev ? { ...prev, assignments } : prev);
+        // Open the newly added assignment for editing
+        setEditAssignment({ index: assignments.length - 1, ...newAssignment });
+      }
+    } catch { /* ignore */ }
+  }, [currentOrg?.slug, employee]);
 
   useEffect(() => {
     if (!currentOrg?.slug || !employeeId) return;
@@ -841,15 +925,21 @@ export default function EmployeeDetail() {
       </div>
 
       {/* ── Project Assignments (full-width) ────────────────────────────── */}
-      {Array.isArray(emp.assignments) && emp.assignments.length > 0 && (
+      {(Array.isArray(emp.assignments) && emp.assignments.length > 0 || isAdmin) && (
         <div className="card p-5 mt-5">
           <div className="flex items-center gap-2 mb-4">
             <Briefcase size={16} className="text-orange-400" />
             <h3 className="text-white font-semibold">Project Assignments</h3>
             <span className="ml-auto text-xs bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded-full font-medium">
-              {emp.assignments.filter(a => a.status === 'active').length} active
+              {(emp.assignments || []).filter(a => a.status === 'active').length} active
             </span>
+            {isAdmin && (
+              <button onClick={handleAddAssignment} className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-dark-700 text-dark-300 rounded-lg hover:bg-dark-600 hover:text-white transition-colors text-xs">
+                <Plus size={12} /> Add
+              </button>
+            )}
           </div>
+          {Array.isArray(emp.assignments) && emp.assignments.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -861,6 +951,7 @@ export default function EmployeeDetail() {
                   <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Start Date</th>
                   <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">End Date</th>
                   <th className="text-center px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Status</th>
+                  {isAdmin && <th className="w-10"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-800">
@@ -876,7 +967,7 @@ export default function EmployeeDetail() {
                     return '\u2014';
                   };
                   return (
-                    <tr key={i} className="hover:bg-dark-800/30 transition-colors">
+                    <tr key={i} className="hover:bg-dark-800/30 transition-colors group">
                       <td className="px-3 py-2.5 text-sm text-white">{a.clientName || '\u2014'}</td>
                       <td className="px-3 py-2.5 text-sm text-white">{a.projectName || '\u2014'}</td>
                       <td className="px-3 py-2.5 text-sm text-white text-right">{fmtRate(br)}</td>
@@ -892,12 +983,24 @@ export default function EmployeeDetail() {
                           {a.status === 'active' ? 'Active' : 'Ended'}
                         </span>
                       </td>
+                      {isAdmin && (
+                        <td className="px-2 py-2.5 text-center">
+                          <button
+                            onClick={() => openEditAssignment(i)}
+                            className="p-1 text-dark-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                            title="Edit assignment"
+                          >
+                            <PenLine size={14} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
 
@@ -1087,6 +1190,146 @@ export default function EmployeeDetail() {
               >
                 {ctcSaving && <Loader2 size={14} className="animate-spin" />}
                 Revise CTC
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Assignment Modal ──────────────────────────────────────── */}
+      {editAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-white font-semibold text-lg">Edit Assignment</h3>
+              <button onClick={() => setEditAssignment(null)} className="text-dark-400 hover:text-white"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Client */}
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Client</label>
+                <ComboSelect
+                  value={editAssignment.clientId}
+                  displayValue={editAssignment.clientName}
+                  options={tsClients}
+                  onChange={(id, name) => setEditAssignment(prev => ({ ...prev, clientId: id, clientName: name }))}
+                  placeholder="Select or create client"
+                />
+              </div>
+
+              {/* Project */}
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Project</label>
+                <ComboSelect
+                  value={editAssignment.projectId}
+                  displayValue={editAssignment.projectName}
+                  options={tsProjects}
+                  onChange={(id, name) => setEditAssignment(prev => ({ ...prev, projectId: id, projectName: name }))}
+                  placeholder="Select or create project"
+                />
+              </div>
+
+              {/* Candidate Billing Rate */}
+              <div>
+                <label className="block text-sm text-dark-400 mb-1.5">Candidate Billing Rate</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
+                    <input type="number" value={editAssignment.billingRate.daily}
+                      onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                      placeholder="0" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-dark-500 mb-0.5 block">Hourly ($)</span>
+                    <input type="number" value={editAssignment.billingRate.hourly}
+                      onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                      placeholder="0" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
+                    <input type="number" value={editAssignment.billingRate.monthly}
+                      onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                      placeholder="0" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Client Billing Rate */}
+              <div>
+                <label className="block text-sm text-dark-400 mb-1.5">Client Billing Rate</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
+                    <input type="number" value={editAssignment.clientBillingRate.daily}
+                      onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                      placeholder="0" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-dark-500 mb-0.5 block">Hourly ($)</span>
+                    <input type="number" value={editAssignment.clientBillingRate.hourly}
+                      onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                      placeholder="0" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
+                    <input type="number" value={editAssignment.clientBillingRate.monthly}
+                      onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                      placeholder="0" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dates + Status row */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">Start Date</label>
+                  <input type="date" value={editAssignment.startDate}
+                    onChange={e => setEditAssignment(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">End Date</label>
+                  <input type="date" value={editAssignment.endDate}
+                    onChange={e => setEditAssignment(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">Status</label>
+                  <select value={editAssignment.status}
+                    onChange={e => setEditAssignment(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none">
+                    <option value="active">Active</option>
+                    <option value="ended">Ended</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Paid Leave */}
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Paid Leave / Month</label>
+                <input type="number" min="0" max="3" step="0.5" value={editAssignment.paidLeavePerMonth}
+                  onChange={e => setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: Number(e.target.value) }))}
+                  className="w-32 bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                  placeholder="0" />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setEditAssignment(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
+              <button
+                onClick={handleSaveAssignment}
+                disabled={assignmentSaving}
+                className="px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {assignmentSaving && <Loader2 size={14} className="animate-spin" />}
+                Save Assignment
               </button>
             </div>
           </div>
