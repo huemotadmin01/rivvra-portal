@@ -124,6 +124,11 @@ export const APP_REGISTRY = {
               { path: '/timesheet/my-payslips', label: 'My Payslips', icon: FileText },
             ],
           },
+        ] : [
+          { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
+        ]),
+        // Tax declarations only for confirmed employees
+        ...(timesheetUser?.employmentType === 'confirmed' ? [
           {
             type: 'group', label: 'Tax', icon: Shield,
             children: [
@@ -131,9 +136,7 @@ export const APP_REGISTRY = {
               { path: '/timesheet/tax/report', label: 'Tax Report', icon: BarChart3 },
             ],
           },
-        ] : [
-          { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
-        ]),
+        ] : []),
         // Admin only: configuration
         ...(isAdmin ? [
           {
