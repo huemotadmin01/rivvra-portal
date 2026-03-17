@@ -234,6 +234,18 @@ export default function MyPayslipsPage() {
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.professionalTax)}</td>
                               </tr>
                             )}
+                            {p.employerPf > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300">Employer PF</td>
+                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerPf)}</td>
+                              </tr>
+                            )}
+                            {p.employerEsi > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300">Employer ESI</td>
+                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerEsi)}</td>
+                              </tr>
+                            )}
                             {p.tds > 0 && (
                               <tr className="border-b border-dark-700/30">
                                 <td className="py-1.5 text-dark-300">TDS</td>
