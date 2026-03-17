@@ -295,6 +295,13 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/my-profile`);
   },
 
+  updateMyProfile(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/employee/my-profile`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   submitOnboarding(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/employee/my-profile/onboarding`, {
       method: 'PUT',

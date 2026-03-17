@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useAuth } from '../../context/AuthContext';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import InlineField from '../../components/shared/InlineField';
+import { getFieldPermission } from '../../config/employeeFieldPermissions';
 import {
-  Edit2,
   Building2,
   Calendar,
   Phone,
@@ -146,6 +148,7 @@ export default function EmployeeDetail() {
   const navigate = useNavigate();
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
+  const { user } = useAuth();
 
   const [employee, setEmployee] = useState(null);
   usePageTitle(employee?.name);
@@ -158,6 +161,11 @@ export default function EmployeeDetail() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Inline editing context
+  const [myEmployeeId, setMyEmployeeId] = useState(null); // current user's employee _id
+  const [departments, setDepartments] = useState([]);
+  const [managerOptions, setManagerOptions] = useState([]);
 
   // Dynamic employment types
   const [empTypeMap, setEmpTypeMap] = useState(EMPLOYMENT_TYPE_CONFIG);
@@ -190,6 +198,82 @@ export default function EmployeeDetail() {
   const [salaryHistoryLoading, setSalaryHistoryLoading] = useState(false);
 
   const isAdmin = getAppRole('employee') === 'admin';
+  const appRole = getAppRole('employee') || 'member';
+
+  // Determine viewer context for inline editing
+  const isSelf = !!(employee && user && employee.linkedUserId === user._id);
+  const isDirectReport = !!(employee && myEmployeeId && employee.manager &&
+    employee.manager.toString() === myEmployeeId);
+  const canInlineEdit = isAdmin || isSelf || isDirectReport;
+
+  // Fetch current user's employee ID (for manager check) + dropdown options
+  useEffect(() => {
+    if (!currentOrg?.slug) return;
+    // Get current user's linked employee (for isDirectReport check)
+    if (!isAdmin) {
+      employeeApi.getMyProfile(currentOrg.slug)
+        .then(res => { if (res.success && res.employee) setMyEmployeeId(res.employee._id); })
+        .catch(() => {});
+    }
+    // Fetch departments + manager options for admin/manager dropdowns
+    if (isAdmin || appRole === 'manager' || appRole === 'member') {
+      employeeApi.listDepartments(currentOrg.slug)
+        .then(res => { if (res.success) setDepartments((res.departments || []).map(d => ({ value: d._id, label: d.name }))); })
+        .catch(() => {});
+      employeeApi.getManagerOptions(currentOrg.slug)
+        .then(res => { if (res.success) setManagerOptions((res.managers || []).map(m => ({ value: m._id, label: m.fullName }))); })
+        .catch(() => {});
+    }
+  }, [currentOrg?.slug, isAdmin, appRole]);
+
+  // Inline save handler
+  const handleFieldSave = useCallback(async (field, value) => {
+    const slug = currentOrg?.slug;
+    if (!slug || !employee) throw new Error('Missing context');
+
+    // Build payload — handle nested fields (e.g. "bankDetails.pan")
+    let payload;
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.');
+      payload = { [parent]: { ...(employee[parent] || {}), [child]: value } };
+    } else {
+      payload = { [field]: value };
+    }
+
+    let res;
+    if (isSelf && !isAdmin) {
+      res = await employeeApi.updateMyProfile(slug, payload);
+    } else {
+      res = await employeeApi.update(slug, employee._id, payload);
+    }
+
+    if (!res.success) throw new Error(res.error || 'Update failed');
+
+    // Update local state
+    setEmployee(prev => {
+      if (!prev) return prev;
+      if (field.includes('.')) {
+        const [parent, child] = field.split('.');
+        return { ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } };
+      }
+      // For department/manager selects, also update display names
+      const updated = { ...prev, [field]: value };
+      if (field === 'department') {
+        const dept = departments.find(d => d.value === value);
+        updated.departmentName = dept?.label || prev.departmentName;
+      }
+      if (field === 'manager') {
+        const mgr = managerOptions.find(m => m.value === value);
+        updated.managerName = mgr?.label || prev.managerName;
+      }
+      return updated;
+    });
+  }, [currentOrg?.slug, employee, isSelf, isAdmin, departments, managerOptions]);
+
+  // Helper to get permission for a field
+  const fp = useCallback((fieldKey) => {
+    return getFieldPermission(fieldKey, appRole, isSelf, isDirectReport);
+  }, [appRole, isSelf, isDirectReport]);
 
   useEffect(() => {
     if (!currentOrg?.slug || !employeeId) return;
@@ -436,14 +520,6 @@ export default function EmployeeDetail() {
                     <Rocket size={14} />
                     Launch Plan
                   </button>
-                  {/* Edit */}
-                  <button
-                    onClick={() => navigate(orgPath(`/employee/edit/${emp._id}`))}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
                   {/* Delete — available for any employee (backend checks for blocking data) */}
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
@@ -463,11 +539,20 @@ export default function EmployeeDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Work Information */}
         <SectionCard title="Work Information" icon={Building2}>
-          <InfoRow label="Email" value={emp.email} />
-          <InfoRow label="Phone" value={emp.phone} />
-          <InfoRow label="Employee ID" value={emp.employeeId} />
-          <InfoRow label="Department" value={emp.departmentName} />
-          <InfoRow label="Manager" value={emp.managerName} />
+          <InlineField label="Email" field="email" value={emp.email} type="email"
+            editable={fp('email').editable} required={fp('email').required} onSave={handleFieldSave} />
+          <InlineField label="Phone" field="phone" value={emp.phone} type="phone"
+            editable={fp('phone').editable} required={fp('phone').required} onSave={handleFieldSave} />
+          <InlineField label="Employee ID" field="employeeId" value={emp.employeeId}
+            editable={fp('employeeId').editable} required={fp('employeeId').required} onSave={handleFieldSave} />
+          <InlineField label="Department" field="department" value={emp.department} type="select"
+            options={departments} editable={fp('department').editable} required={fp('department').required}
+            onSave={handleFieldSave} displayValue={emp.departmentName || null} />
+          <InlineField label="Designation" field="designation" value={emp.designation}
+            editable={fp('designation').editable} onSave={handleFieldSave} />
+          <InlineField label="Manager" field="manager" value={emp.manager} type="select"
+            options={managerOptions} editable={fp('manager').editable} required={fp('manager').required}
+            onSave={handleFieldSave} displayValue={emp.managerName || null} />
           <InfoRow
             label="Related User"
             value={
@@ -516,24 +601,11 @@ export default function EmployeeDetail() {
               }
             />
           )}
-          <InfoRow
-            label="Billable"
-            value={
-              emp.billable != null ? (
-                <Badge
-                  className={
-                    emp.billable
-                      ? 'bg-green-500/10 text-green-400'
-                      : 'bg-dark-700 text-dark-400'
-                  }
-                >
-                  {emp.billable ? 'Yes' : 'No'}
-                </Badge>
-              ) : null
-            }
-          />
+          <InlineField label="Billable" field="billable" value={emp.billable} type="toggle"
+            editable={fp('billable').editable} onSave={handleFieldSave} />
           {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
-            <InfoRow label="Joining Date" value={formatDate(emp.joiningDate)} />
+            <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
+              editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
           )}
           <InfoRow
             label="Salary Disbursement"
@@ -547,18 +619,33 @@ export default function EmployeeDetail() {
 
         {/* Personal Information */}
         <SectionCard title="Personal Information" icon={User}>
-          <InfoRow label="Private Email" value={emp.privateEmail} />
-          <InfoRow label="Private Phone" value={emp.privatePhone || emp.alternatePhone} />
+          <InlineField label="Private Email" field="privateEmail" value={emp.privateEmail} type="email"
+            editable={fp('privateEmail').editable} onSave={handleFieldSave} />
+          <InlineField label="Private Phone" field="privatePhone" value={emp.privatePhone || emp.alternatePhone} type="phone"
+            editable={fp('privatePhone').editable} onSave={handleFieldSave} />
           {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
-            <InfoRow label="Date of Birth" value={formatDate(emp.dateOfBirth)} />
+            <InlineField label="Date of Birth" field="dateOfBirth" value={emp.dateOfBirth} type="date"
+              editable={fp('dateOfBirth').editable} required={fp('dateOfBirth').required} onSave={handleFieldSave} />
           )}
-          <InfoRow label="Gender" value={emp.gender} />
-          <InfoRow label="Blood Group" value={emp.bloodGroup} />
-          <InfoRow label="Father's Name" value={emp.fatherName} />
-          <InfoRow label="Nationality" value={emp.nationality} />
-          <InfoRow label="Marital Status" value={emp.maritalStatus} />
-          {emp.maritalStatus === 'Married' && <InfoRow label="Spouse Name" value={emp.spouseName} />}
-          <InfoRow label="Religion" value={emp.religion} />
+          <InlineField label="Gender" field="gender" value={emp.gender} type="select"
+            options={[{ value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }, { value: 'Other', label: 'Other' }]}
+            editable={fp('gender').editable} required={fp('gender').required} onSave={handleFieldSave} />
+          <InlineField label="Blood Group" field="bloodGroup" value={emp.bloodGroup} type="select"
+            options={['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(v => ({ value: v, label: v }))}
+            editable={fp('bloodGroup').editable} onSave={handleFieldSave} />
+          <InlineField label="Father's Name" field="fatherName" value={emp.fatherName}
+            editable={fp('fatherName').editable} required={fp('fatherName').required} onSave={handleFieldSave} />
+          <InlineField label="Nationality" field="nationality" value={emp.nationality}
+            editable={fp('nationality').editable} onSave={handleFieldSave} />
+          <InlineField label="Marital Status" field="maritalStatus" value={emp.maritalStatus} type="select"
+            options={[{ value: 'Single', label: 'Single' }, { value: 'Married', label: 'Married' }, { value: 'Divorced', label: 'Divorced' }, { value: 'Widowed', label: 'Widowed' }]}
+            editable={fp('maritalStatus').editable} onSave={handleFieldSave} />
+          {emp.maritalStatus === 'Married' && (
+            <InlineField label="Spouse Name" field="spouseName" value={emp.spouseName}
+              editable={fp('spouseName').editable} onSave={handleFieldSave} />
+          )}
+          <InlineField label="Religion" field="religion" value={emp.religion}
+            editable={fp('religion').editable} onSave={handleFieldSave} />
         </SectionCard>
 
         {/* Address */}
@@ -568,18 +655,26 @@ export default function EmployeeDetail() {
 
         {/* Emergency Contact */}
         <SectionCard title="Emergency Contact" icon={Phone}>
-          <InfoRow label="Name" value={emergency.name} />
-          <InfoRow label="Phone" value={emergency.phone} />
-          <InfoRow label="Relation" value={emergency.relation} />
+          <InlineField label="Name" field="emergencyContact.name" value={emergency.name}
+            editable={fp('emergencyContact.name').editable} onSave={handleFieldSave} />
+          <InlineField label="Phone" field="emergencyContact.phone" value={emergency.phone} type="phone"
+            editable={fp('emergencyContact.phone').editable} onSave={handleFieldSave} />
+          <InlineField label="Relation" field="emergencyContact.relation" value={emergency.relation}
+            editable={fp('emergencyContact.relation').editable} onSave={handleFieldSave} />
         </SectionCard>
 
-        {/* Bank Details (admin only, if data exists) */}
-        {isAdmin && hasBankData && (
+        {/* Bank Details (admin only) */}
+        {isAdmin && (
           <SectionCard title="Bank Details" icon={Shield}>
-            <InfoRow label="Account Number" value={maskedAccount} />
-            <InfoRow label="IFSC" value={bank.ifsc} />
-            <InfoRow label="PAN" value={bank.pan} />
-            <InfoRow label="Bank Name" value={bank.bankName} />
+            <InlineField label="Account Number" field="bankDetails.accountNumber" value={bank.accountNumber}
+              type="masked" maskFn={v => v ? '****' + String(v).slice(-4) : null}
+              editable={fp('bankDetails.accountNumber').editable} onSave={handleFieldSave} />
+            <InlineField label="IFSC" field="bankDetails.ifsc" value={bank.ifsc}
+              editable={fp('bankDetails.ifsc').editable} onSave={handleFieldSave} />
+            <InlineField label="PAN" field="bankDetails.pan" value={bank.pan}
+              editable={fp('bankDetails.pan').editable} required={fp('bankDetails.pan').required} onSave={handleFieldSave} />
+            <InlineField label="Bank Name" field="bankDetails.bankName" value={bank.bankName}
+              editable={fp('bankDetails.bankName').editable} onSave={handleFieldSave} />
           </SectionCard>
         )}
       </div>
@@ -617,13 +712,17 @@ export default function EmployeeDetail() {
       )}
 
       {/* ── Statutory Details (admin only) ──────────────────────────────── */}
-      {isAdmin && emp.statutory && (emp.statutory.aadhaar || emp.statutory.uan || emp.statutory.pfNumber || emp.statutory.esicNumber) && (
+      {isAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
           <SectionCard title="Statutory Details" icon={FileText}>
-            <InfoRow label="Aadhaar" value={emp.statutory.aadhaar} />
-            <InfoRow label="UAN" value={emp.statutory.uan} />
-            <InfoRow label="PF Number" value={emp.statutory.pfNumber} />
-            <InfoRow label="ESIC" value={emp.statutory.esicNumber} />
+            <InlineField label="Aadhaar" field="statutory.aadhaar" value={emp.statutory?.aadhaar}
+              editable={fp('statutory.aadhaar').editable} onSave={handleFieldSave} />
+            <InlineField label="UAN" field="statutory.uan" value={emp.statutory?.uan}
+              editable={fp('statutory.uan').editable} onSave={handleFieldSave} />
+            <InlineField label="PF Number" field="statutory.pfNumber" value={emp.statutory?.pfNumber}
+              editable={fp('statutory.pfNumber').editable} onSave={handleFieldSave} />
+            <InlineField label="ESIC" field="statutory.esicNumber" value={emp.statutory?.esicNumber}
+              editable={fp('statutory.esicNumber').editable} onSave={handleFieldSave} />
           </SectionCard>
         </div>
       )}

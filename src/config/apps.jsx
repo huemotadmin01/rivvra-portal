@@ -94,6 +94,7 @@ export const APP_REGISTRY = {
 
       return [
         { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
+        { type: 'item', path: '/my-profile', label: 'My Profile', icon: Users },
         // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
           { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },

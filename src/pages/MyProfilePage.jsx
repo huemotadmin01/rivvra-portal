@@ -3,7 +3,7 @@
  * Accessed from header avatar menu → "My Profile"
  * Route: /org/:slug/my-profile
  */
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
@@ -12,9 +12,13 @@ import { API_BASE_URL } from '../utils/config';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
   Mail, Building2, Crown, Briefcase, Check, Lock, Settings2,
-  Eye, EyeOff, CheckCircle, Camera, Phone, Smartphone, MapPin, Pencil
+  Eye, EyeOff, CheckCircle, Camera, Phone, Smartphone, MapPin, Pencil,
+  Heart, CreditCard
 } from 'lucide-react';
 import api from '../utils/api';
+import employeeApi from '../utils/employeeApi';
+import InlineField from '../components/shared/InlineField';
+import { getFieldPermission } from '../config/employeeFieldPermissions';
 
 /** Resolve picture URL — API-relative paths need base URL prefix */
 function resolvePhotoUrl(picture) {
@@ -213,6 +217,53 @@ export default function MyProfilePage() {
     } finally { setDeleting(false); }
   };
 
+  // ─── Employee profile ──────────────────────────────────────
+  const [empProfile, setEmpProfile] = useState(null);
+  const [empLoading, setEmpLoading] = useState(true);
+  const orgSlug = currentOrg?.slug;
+
+  useEffect(() => {
+    if (!orgSlug) { setEmpLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await employeeApi.getMyProfile(orgSlug);
+        if (!cancelled && res.success && res.employee) setEmpProfile(res.employee);
+      } catch { /* no linked employee */ }
+      if (!cancelled) setEmpLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug]);
+
+  const handleSelfSave = useCallback(async (field, value) => {
+    if (!orgSlug) throw new Error('No org');
+    // Build payload — handle nested fields like emergencyContact.name
+    const dotIdx = field.indexOf('.');
+    let payload;
+    if (dotIdx > 0) {
+      const parent = field.slice(0, dotIdx);
+      const child = field.slice(dotIdx + 1);
+      payload = { [parent]: { ...(empProfile?.[parent] || {}), [child]: value } };
+    } else {
+      payload = { [field]: value };
+    }
+    const res = await employeeApi.updateMyProfile(orgSlug, payload);
+    if (!res.success) throw new Error(res.error || 'Failed to save');
+    setEmpProfile(prev => {
+      if (!prev) return prev;
+      if (dotIdx > 0) {
+        const parent = field.slice(0, dotIdx);
+        const child = field.slice(dotIdx + 1);
+        return { ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } };
+      }
+      return { ...prev, [field]: value };
+    });
+  }, [orgSlug, empProfile]);
+
+  const fp = useCallback((fieldKey) => {
+    return getFieldPermission(fieldKey, 'member', true, false);
+  }, []);
+
   // ─── Derived ───────────────────────────────────────────────
   const orgRole = membership?.orgRole;
   const orgPlan = currentOrg?.plan || 'free';
@@ -221,9 +272,16 @@ export default function MyProfilePage() {
 
   // Show Account Security only if user has a password (hide for Google-only users)
   const showSecurityTab = hasExistingPassword;
+  const hasEmployee = !!empProfile;
 
   const tabs = [
     { id: 'preferences', label: 'Preferences', icon: Settings2 },
+    ...(hasEmployee ? [
+      { id: 'work', label: 'Work Info', icon: Briefcase },
+      { id: 'personal', label: 'Personal', icon: Heart },
+      { id: 'emergency', label: 'Emergency', icon: Phone },
+      { id: 'bank', label: 'Bank & Statutory', icon: CreditCard },
+    ] : []),
     ...(showSecurityTab ? [{ id: 'security', label: 'Account Security', icon: Lock }] : []),
   ];
 
@@ -493,6 +551,111 @@ export default function MyProfilePage() {
             </div>
           )}
 
+          {/* --- Work Info Tab (read-only) --- */}
+          {activeTab === 'work' && hasEmployee && (
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-white mb-4">Work Information</h3>
+              <div className="space-y-0.5">
+                <InfoRow label="Employee ID" value={empProfile.employeeId} />
+                <InfoRow label="Email" value={empProfile.email} />
+                <InfoRow label="Phone" value={empProfile.phone} />
+                <InfoRow label="Department" value={empProfile.departmentName || empProfile.department} />
+                <InfoRow label="Designation" value={empProfile.designation} />
+                <InfoRow label="Manager" value={empProfile.managerName || empProfile.manager} />
+                <InfoRow label="Joining Date" value={empProfile.joiningDate ? new Date(empProfile.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'} />
+                <InfoRow label="Employment" value={empProfile.employmentType ? empProfile.employmentType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—'} />
+              </div>
+            </div>
+          )}
+
+          {/* --- Personal Tab (editable) --- */}
+          {activeTab === 'personal' && hasEmployee && (
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-white mb-4">Personal Information</h3>
+              <div className="space-y-0.5">
+                <InlineField label="Private Email" field="privateEmail" value={empProfile.privateEmail} type="email"
+                  editable={fp('privateEmail').editable} required={fp('privateEmail').required} onSave={handleSelfSave} placeholder="Personal email" />
+                <InlineField label="Private Phone" field="privatePhone" value={empProfile.privatePhone} type="phone"
+                  editable={fp('privatePhone').editable} required={fp('privatePhone').required} onSave={handleSelfSave} placeholder="Personal phone" />
+                <InlineField label="Date of Birth" field="dateOfBirth" value={empProfile.dateOfBirth} type="date"
+                  editable={fp('dateOfBirth').editable} required={fp('dateOfBirth').required} onSave={handleSelfSave} />
+                <InlineField label="Gender" field="gender" value={empProfile.gender} type="select"
+                  editable={fp('gender').editable} required={fp('gender').required} onSave={handleSelfSave}
+                  options={[{ value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }, { value: 'Other', label: 'Other' }]} />
+                <InlineField label="Blood Group" field="bloodGroup" value={empProfile.bloodGroup} type="select"
+                  editable={fp('bloodGroup').editable} onSave={handleSelfSave}
+                  options={['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(v => ({ value: v, label: v }))} />
+                <InlineField label="Father's Name" field="fatherName" value={empProfile.fatherName} type="text"
+                  editable={fp('fatherName').editable} required={fp('fatherName').required} onSave={handleSelfSave} />
+                <InlineField label="Spouse Name" field="spouseName" value={empProfile.spouseName} type="text"
+                  editable={fp('spouseName').editable} onSave={handleSelfSave} />
+                <InlineField label="Nationality" field="nationality" value={empProfile.nationality} type="text"
+                  editable={fp('nationality').editable} onSave={handleSelfSave} />
+                <InlineField label="Marital Status" field="maritalStatus" value={empProfile.maritalStatus} type="select"
+                  editable={fp('maritalStatus').editable} onSave={handleSelfSave}
+                  options={[{ value: 'Single', label: 'Single' }, { value: 'Married', label: 'Married' }, { value: 'Divorced', label: 'Divorced' }, { value: 'Widowed', label: 'Widowed' }]} />
+                <InlineField label="Religion" field="religion" value={empProfile.religion} type="text"
+                  editable={fp('religion').editable} onSave={handleSelfSave} />
+              </div>
+
+              {/* Address */}
+              <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mt-6 mb-3">Address</h4>
+              <div className="space-y-0.5">
+                <InlineField label="Street" field="address.street" value={empProfile.address?.street} type="text"
+                  editable={fp('address.street').editable} onSave={handleSelfSave} />
+                <InlineField label="Street 2" field="address.street2" value={empProfile.address?.street2} type="text"
+                  editable={fp('address.street2').editable} onSave={handleSelfSave} />
+                <InlineField label="City" field="address.city" value={empProfile.address?.city} type="text"
+                  editable={fp('address.city').editable} onSave={handleSelfSave} />
+                <InlineField label="State" field="address.state" value={empProfile.address?.state} type="text"
+                  editable={fp('address.state').editable} onSave={handleSelfSave} />
+                <InlineField label="ZIP" field="address.zip" value={empProfile.address?.zip} type="text"
+                  editable={fp('address.zip').editable} onSave={handleSelfSave} />
+                <InlineField label="Country" field="address.country" value={empProfile.address?.country} type="text"
+                  editable={fp('address.country').editable} onSave={handleSelfSave} />
+              </div>
+            </div>
+          )}
+
+          {/* --- Emergency Contact Tab (editable) --- */}
+          {activeTab === 'emergency' && hasEmployee && (
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-white mb-4">Emergency Contact</h3>
+              <div className="space-y-0.5">
+                <InlineField label="Name" field="emergencyContact.name" value={empProfile.emergencyContact?.name} type="text"
+                  editable={fp('emergencyContact.name').editable} onSave={handleSelfSave} placeholder="Contact name" />
+                <InlineField label="Phone" field="emergencyContact.phone" value={empProfile.emergencyContact?.phone} type="phone"
+                  editable={fp('emergencyContact.phone').editable} onSave={handleSelfSave} placeholder="Contact phone" />
+                <InlineField label="Relation" field="emergencyContact.relation" value={empProfile.emergencyContact?.relation} type="text"
+                  editable={fp('emergencyContact.relation').editable} onSave={handleSelfSave} placeholder="e.g. Father, Spouse" />
+              </div>
+            </div>
+          )}
+
+          {/* --- Bank & Statutory Tab (read-only for self) --- */}
+          {activeTab === 'bank' && hasEmployee && (
+            <div className="space-y-6">
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold text-white mb-4">Bank Details</h3>
+                <div className="space-y-0.5">
+                  <InfoRow label="Account No." value={empProfile.bankDetails?.accountNumber ? maskAccount(empProfile.bankDetails.accountNumber) : '—'} />
+                  <InfoRow label="IFSC" value={empProfile.bankDetails?.ifsc} />
+                  <InfoRow label="PAN" value={empProfile.bankDetails?.pan} />
+                  <InfoRow label="Bank Name" value={empProfile.bankDetails?.bankName} />
+                </div>
+              </div>
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold text-white mb-4">Statutory</h3>
+                <div className="space-y-0.5">
+                  <InfoRow label="Aadhaar" value={empProfile.statutory?.aadhaar ? maskAadhaar(empProfile.statutory.aadhaar) : '—'} />
+                  <InfoRow label="UAN" value={empProfile.statutory?.uan} />
+                  <InfoRow label="PF Number" value={empProfile.statutory?.pfNumber} />
+                  <InfoRow label="ESIC Number" value={empProfile.statutory?.esicNumber} />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* --- Account Security Tab --- */}
           {activeTab === 'security' && showSecurityTab && (
             <div className="space-y-6">
@@ -664,6 +827,13 @@ export default function MyProfilePage() {
         </div>
       </div>
 
+      {/* Loading indicator for employee profile */}
+      {empLoading && (
+        <div className="fixed bottom-4 right-4 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-dark-400 z-10">
+          <Loader2 className="w-3 h-3 animate-spin" /> Loading employee profile...
+        </div>
+      )}
+
       {/* Delete Account Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -720,4 +890,25 @@ export default function MyProfilePage() {
       )}
     </>
   );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────
+
+function InfoRow({ label, value }) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+      <span className="text-dark-400 text-sm">{label}</span>
+      <span className="text-white text-sm">{value || <span className="text-dark-600">—</span>}</span>
+    </div>
+  );
+}
+
+function maskAccount(acc) {
+  if (!acc || acc.length < 4) return acc || '—';
+  return '••••' + acc.slice(-4);
+}
+
+function maskAadhaar(aadhaar) {
+  if (!aadhaar || aadhaar.length < 4) return aadhaar || '—';
+  return '•••• •••• ' + aadhaar.slice(-4);
 }
