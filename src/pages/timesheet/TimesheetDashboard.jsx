@@ -333,7 +333,11 @@ function ContractorDashboard() {
               <div key={ts._id} className="flex items-center justify-between p-4">
                 <div>
                   <p className="text-sm font-medium text-white">{monthNames[ts.month]} {ts.year}{ts.project?.name ? ` — ${ts.project.name}` : ''}</p>
-                  <p className="text-xs text-dark-500">{ts.totalWorkingDays} working days</p>
+                  <p className="text-xs text-dark-500">
+                    {ts.isAttendance && ts.status === 'draft' && (ts.presentDays || 0) === 0 && (ts.halfDays || 0) === 0
+                      ? 'Not filled yet'
+                      : `${ts.totalWorkingDays} working days`}
+                  </p>
                   {ts.status === 'rejected' && ts.rejectionReason && (
                     <p className="text-xs text-red-400/70 mt-0.5">Reason: {ts.rejectionReason}</p>
                   )}
