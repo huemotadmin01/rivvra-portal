@@ -67,8 +67,23 @@ function ContractorDashboard() {
     const fetches = [
       timesheetApi.get('/timesheets', sig).then(r => {
         const all = r.data || [];
-        // Confirmed/intern/internal_consultant see attendance records; others see timesheets
-        setTimesheets(isConfirmed ? all.filter(t => t.isAttendance) : all.filter(t => !t.isAttendance));
+        if (isConfirmed) {
+          // For confirmed employees: prefer approved timesheet over draft attendance per month
+          const byMonth = {};
+          for (const t of all) {
+            const key = `${t.year}-${t.month}`;
+            const existing = byMonth[key];
+            if (!existing) { byMonth[key] = t; continue; }
+            // Prefer approved/submitted timesheet over draft attendance
+            if (t.isAttendance && !existing.isAttendance && ['approved', 'submitted'].includes(existing.status)) continue;
+            if (!t.isAttendance && ['approved', 'submitted'].includes(t.status) && existing.isAttendance) { byMonth[key] = t; continue; }
+            // Between same type, prefer non-draft
+            if (existing.status === 'draft' && t.status !== 'draft') byMonth[key] = t;
+          }
+          setTimesheets(Object.values(byMonth).sort((a, b) => b.year - a.year || b.month - a.month));
+        } else {
+          setTimesheets(all.filter(t => !t.isAttendance));
+        }
       }).catch(() => {}),
     ];
     if (!hideEarnings) {
