@@ -472,7 +472,7 @@ export default function EmployeeDetail() {
             label="Related User"
             value={
               emp.linkedUserName ? (
-                <Link to={orgPath('/settings/team')} className="flex items-center gap-1.5 group">
+                <Link to={orgPath(`/settings/users/${emp.linkedUserId}`)} className="flex items-center gap-1.5 group">
                   <Link2 size={12} className="text-rivvra-400" />
                   <span className="text-rivvra-400 group-hover:underline">{emp.linkedUserName}</span>
                   {emp.linkedUserEmail && (

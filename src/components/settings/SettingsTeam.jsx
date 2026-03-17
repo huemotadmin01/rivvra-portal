@@ -10,18 +10,17 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import { useCompany } from '../../context/CompanyContext';
+
 import {
-  Users, UserPlus, UserX, Mail, Loader2, Check,
-  ChevronDown, Clock, X, ArrowLeftRight, Shield, ShieldCheck,
-  Crown, Link2, Unlink, Search, RotateCcw, Trash2, Building2,
-  Lock, KeyRound, Pencil, UsersRound, Plus,
+  Users, UserPlus, Mail, Loader2, Check,
+  ChevronRight, Clock, X, Shield, ShieldCheck,
+  Crown, Search, Trash2,
+  UsersRound, Plus,
 } from 'lucide-react';
 import api from '../../utils/api';
-import employeeApi from '../../utils/employeeApi';
 import { APP_REGISTRY } from '../../config/apps';
 import InviteTeamMemberModal from '../InviteTeamMemberModal';
-import ReassignDataModal from './ReassignDataModal';
+
 
 // Active apps that have roles (exclude coming_soon and settings)
 const MANAGEABLE_APPS = Object.values(APP_REGISTRY).filter(
@@ -40,11 +39,10 @@ const appDotColors = {
 };
 
 export default function SettingsTeam() {
-  const { user, impersonateUser } = useAuth();
+  const { user } = useAuth();
   const { orgPath } = usePlatform();
-  const { currentOrg, isOrgAdmin, isOrgOwner, refetchOrg } = useOrg();
+  const { currentOrg, isOrgAdmin, isOrgOwner } = useOrg();
   const { showToast } = useToast();
-  const { companies: allCompanies } = useCompany();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
   const canManage = isOrgAdmin || isOrgOwner;
@@ -54,38 +52,16 @@ export default function SettingsTeam() {
   const [error, setError] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  // Expanded member detail panel
-  const [expandedMember, setExpandedMember] = useState(null); // userId
-  const [editData, setEditData] = useState(null); // { orgRole, appAccess }
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-
-  // Member removal modal
-  const [removingMember, setRemovingMember] = useState(null);
-  const [actionLoading, setActionLoading] = useState(null);
-
   // Search
   const [searchQuery, setSearchQuery] = useState('');
 
   // Resend invite
-  const [resendingInvite, setResendingInvite] = useState(null); // email being resent
-  const [cancellingInvite, setCancellingInvite] = useState(null); // email being cancelled
-  const [editingInviteEmail, setEditingInviteEmail] = useState(null); // invite _id being edited
-  const [inviteEmailDraft, setInviteEmailDraft] = useState(''); // draft email value
+  const [resendingInvite, setResendingInvite] = useState(null);
+  const [cancellingInvite, setCancellingInvite] = useState(null);
+  const [editingInviteEmail, setEditingInviteEmail] = useState(null);
+  const [inviteEmailDraft, setInviteEmailDraft] = useState('');
 
-  // Send workspace link
-  const [sendingLink, setSendingLink] = useState(null); // userId being sent
-
-  // Send password reset link
-  const [sendingPasswordReset, setSendingPasswordReset] = useState(null); // userId
-
-  // Related Employee linking
-  const [employees, setEmployees] = useState([]);
-  const [linkingEmployee, setLinkingEmployee] = useState(null); // userId being linked
-  const [empSearchQuery, setEmpSearchQuery] = useState('');
-  const [empDropdownOpen, setEmpDropdownOpen] = useState(null); // userId of open dropdown
-
-  // Rate limits
+  // Rate limits (kept for inline badge display)
   const [editingRateLimits, setEditingRateLimits] = useState(null);
   const [rateLimitValues, setRateLimitValues] = useState({ dailySendLimit: 50, hourlySendLimit: 6 });
   const [savingRateLimits, setSavingRateLimits] = useState(false);
@@ -110,10 +86,6 @@ export default function SettingsTeam() {
       loadMemberRateLimits();
       if (canManage) {
         loadTeams();
-        // Load employees for Related Employee linking
-        employeeApi.list(orgSlug, { status: 'active' })
-          .then(res => { if (res.success) setEmployees(res.employees || []); })
-          .catch(() => {});
       }
     }
   }, [orgSlug]);
@@ -156,108 +128,6 @@ export default function SettingsTeam() {
         }
       } else { setError(res.error || 'Failed to update rate limits'); setTimeout(() => setError(''), 3000); }
     } catch (err) { setError(err.message || 'Failed to update rate limits'); setTimeout(() => setError(''), 3000); } finally { setSavingRateLimits(false); }
-  }
-
-  // ─── Member Detail Panel ─────────────────────────────────────────────────
-
-  function openMemberDetail(member) {
-    if (expandedMember === member.userId?.toString()) {
-      setExpandedMember(null);
-      setEditData(null);
-      return;
-    }
-    setExpandedMember(member.userId?.toString());
-    setSaveError('');
-    setEditData({
-      orgRole: member.orgRole,
-      appAccess: { ...member.appAccess },
-      authMethods: member.authMethods?.length ? [...member.authMethods] : ['google'],
-      email: member.email || '',
-      editingEmail: false,
-    });
-  }
-
-  function updateAppAccess(appId, field, value) {
-    setEditData(prev => ({
-      ...prev,
-      appAccess: {
-        ...prev.appAccess,
-        [appId]: {
-          ...prev.appAccess[appId],
-          [field]: value,
-          // When disabling, clear role
-          ...(field === 'enabled' && !value ? { role: null } : {}),
-          // When enabling without role, set default
-          ...(field === 'enabled' && value && !prev.appAccess[appId]?.role
-            ? { role: APP_REGISTRY[appId]?.roles?.[APP_REGISTRY[appId].roles.length - 1]?.value || 'member' }
-            : {}),
-        },
-      },
-    }));
-  }
-
-  async function handleSaveMember(member) {
-    if (!editData) return;
-    setSaving(true);
-    setSaveError('');
-    try {
-      const payload = {
-        orgRole: editData.orgRole,
-        appAccess: editData.appAccess,
-      };
-      // Include allowedCompanyIds if it was modified
-      if (editData.allowedCompanyIds) {
-        payload.allowedCompanyIds = editData.allowedCompanyIds;
-      }
-      // Include authMethods if changed
-      if (editData.authMethods && JSON.stringify(editData.authMethods.sort()) !== JSON.stringify((member.authMethods || []).sort())) {
-        payload.authMethods = editData.authMethods;
-      }
-      // Include email if changed
-      if (editData.email && editData.email.trim().toLowerCase() !== (member.email || '').trim().toLowerCase()) {
-        const trimmedEmail = editData.email.trim().toLowerCase();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-          setSaveError('Please enter a valid email address');
-          setSaving(false);
-          return;
-        }
-        payload.email = trimmedEmail;
-      }
-      const res = await api.updateOrgMember(orgSlug, member.userId, payload);
-      if (res.success) {
-        // Update local state
-        setMembers(prev => prev.map(m =>
-          m.userId?.toString() === member.userId?.toString()
-            ? {
-                ...m,
-                orgRole: editData.orgRole,
-                appAccess: editData.appAccess,
-                allowedCompanyIds: editData.allowedCompanyIds || m.allowedCompanyIds,
-                authMethods: editData.authMethods || m.authMethods,
-                email: payload.email || m.email,
-              }
-            : m
-        ));
-        setExpandedMember(null);
-        setEditData(null);
-        setSaveError('');
-        refetchOrg(); // Refresh org context in case current user's access changed
-      } else {
-        setSaveError(res.error || 'Failed to update member');
-      }
-    } catch (err) {
-      setSaveError(err.message || 'Failed to update member');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // Member removal is now handled by ReassignDataModal
-
-  async function handleImpersonate(memberId) {
-    const result = await impersonateUser(memberId);
-    if (result.success) navigate(orgPath('/home'));
-    else { setError(result.error); setTimeout(() => setError(''), 3000); }
   }
 
   // ─── Resend Invitation ──────────────────────────────────────────────────
@@ -310,89 +180,6 @@ export default function SettingsTeam() {
       setTimeout(() => setError(''), 3000);
     } finally {
       setCancellingInvite(null);
-    }
-  }
-
-  async function handleSendWorkspaceLink(userId) {
-    if (sendingLink) return;
-    setSendingLink(userId);
-    try {
-      const res = await api.sendWorkspaceLink(orgSlug, userId);
-      if (res.success) {
-        showToast(res.message || 'Invitation sent successfully', 'success');
-      } else {
-        showToast(res.error || 'Failed to send invitation', 'error');
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to send invitation', 'error');
-    } finally {
-      setSendingLink(null);
-    }
-  }
-
-  async function handleSendPasswordReset(userId) {
-    if (sendingPasswordReset) return;
-    setSendingPasswordReset(userId);
-    try {
-      const res = await api.sendPasswordReset(orgSlug, userId);
-      if (res.success) {
-        showToast(res.message || 'Password reset link sent', 'success');
-      } else {
-        showToast(res.error || 'Failed to send password reset', 'error');
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to send password reset', 'error');
-    } finally {
-      setSendingPasswordReset(null);
-    }
-  }
-
-  // ─── Employee Linking ───────────────────────────────────────────────────
-
-  async function handleLinkEmployee(userId, employeeId) {
-    if (!employeeId || linkingEmployee) return;
-    setLinkingEmployee(userId);
-    try {
-      const res = await api.linkMemberEmployee(orgSlug, userId, employeeId);
-      if (res.success) {
-        // Update local member state with linked employee
-        setMembers(prev => prev.map(m =>
-          m.userId?.toString() === userId
-            ? { ...m, linkedEmployee: res.linkedEmployee }
-            : m
-        ));
-      } else {
-        setError(res.error || 'Failed to link employee');
-        setTimeout(() => setError(''), 3000);
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to link employee');
-      setTimeout(() => setError(''), 3000);
-    } finally {
-      setLinkingEmployee(null);
-    }
-  }
-
-  async function handleUnlinkEmployee(userId) {
-    if (linkingEmployee) return;
-    setLinkingEmployee(userId);
-    try {
-      const res = await api.unlinkMemberEmployee(orgSlug, userId);
-      if (res.success) {
-        setMembers(prev => prev.map(m =>
-          m.userId?.toString() === userId
-            ? { ...m, linkedEmployee: null }
-            : m
-        ));
-      } else {
-        setError(res.error || 'Failed to unlink employee');
-        setTimeout(() => setError(''), 3000);
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to unlink employee');
-      setTimeout(() => setError(''), 3000);
-    } finally {
-      setLinkingEmployee(null);
     }
   }
 
@@ -572,7 +359,7 @@ export default function SettingsTeam() {
             <div className="flex-1 min-w-0">User</div>
             <div className="text-center">Apps</div>
             <div className="w-28 text-center">Org Role</div>
-            {canManage && <div className="w-8" />}
+            <div className="w-8" />
           </div>
 
           {/* Active Members */}
@@ -582,8 +369,6 @@ export default function SettingsTeam() {
             )}
             {filteredActive.map((member) => {
               const isCurrentUser = member.userId?.toString() === user?.id;
-              const isMemberOwner = member.orgRole === 'owner';
-              const isExpanded = expandedMember === member.userId?.toString();
               const limits = memberRateLimits[member.userId?.toString()];
               const isEditingLimits = editingRateLimits === member.userId?.toString();
 
@@ -591,8 +376,8 @@ export default function SettingsTeam() {
                 <div key={member._id} className={`rounded-xl transition-colors ${isCurrentUser ? 'bg-rivvra-500/5 border border-rivvra-500/20' : 'bg-dark-800/40 border border-dark-700/50'}`}>
                   {/* Main row */}
                   <div
-                    className={`flex items-center gap-4 px-4 py-3.5 ${canManage ? 'cursor-pointer hover:bg-dark-800/60' : ''}`}
-                    onClick={() => canManage && openMemberDetail(member)}
+                    className="flex items-center gap-4 px-4 py-3.5 cursor-pointer hover:bg-dark-800/60"
+                    onClick={() => navigate(orgPath(`/settings/users/${member.userId}`))}
                   >
                     {/* Avatar + name */}
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -649,11 +434,9 @@ export default function SettingsTeam() {
                     </div>
 
                     {/* Actions */}
-                    {canManage && (
-                      <div className="w-8 flex justify-center flex-shrink-0">
-                        <ChevronDown className={`w-4 h-4 text-dark-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                      </div>
-                    )}
+                    <div className="w-8 flex justify-center flex-shrink-0">
+                      <ChevronRight className="w-4 h-4 text-dark-400" />
+                    </div>
                   </div>
 
                   {/* Rate limit badge row */}
@@ -706,373 +489,7 @@ export default function SettingsTeam() {
                     </div>
                   )}
 
-                  {/* ─── Expanded Detail Panel ──────────────────────────────── */}
-                  {isExpanded && editData && canManage && (
-                    <div className="px-4 pb-4 pt-2 border-t border-dark-700/50 space-y-4" onClick={(e) => e.stopPropagation()}>
-
-                      {/* Organization Role */}
-                      <div>
-                        <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Organization Role</label>
-                        <div className="flex gap-2">
-                          {[
-                            { value: 'owner', label: 'Owner', icon: Crown, disabled: !isOrgOwner },
-                            { value: 'admin', label: 'Admin', icon: ShieldCheck },
-                            { value: 'member', label: 'Member', icon: Shield },
-                          ].map(opt => (
-                            <button
-                              key={opt.value}
-                              onClick={() => setEditData(prev => ({ ...prev, orgRole: opt.value }))}
-                              disabled={opt.disabled || (isMemberOwner && opt.value !== 'owner' && isCurrentUser)}
-                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
-                                editData.orgRole === opt.value
-                                  ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
-                                  : 'bg-dark-800 border-dark-600 text-dark-400 hover:text-white hover:border-dark-500'
-                              } ${opt.disabled || (isMemberOwner && opt.value !== 'owner' && isCurrentUser) ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            >
-                              <opt.icon className="w-3.5 h-3.5" />
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Member Email */}
-                      <div>
-                        <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Member Email</label>
-                        {editData.editingEmail ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="email"
-                              value={editData.email}
-                              onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
-                              className="flex-1 px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
-                              placeholder="user@example.com"
-                            />
-                            <button
-                              onClick={() => setEditData(prev => ({ ...prev, editingEmail: false }))}
-                              className="px-2 py-2 text-dark-400 hover:text-white transition-colors"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-dark-200">{editData.email || member.email}</span>
-                            <button
-                              onClick={() => setEditData(prev => ({ ...prev, editingEmail: true, email: prev.email || member.email }))}
-                              className="p-1 text-dark-500 hover:text-rivvra-400 transition-colors"
-                              title="Edit email"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            {editData.email && editData.email.trim().toLowerCase() !== (member.email || '').trim().toLowerCase() && (
-                              <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Changed</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Authentication Method (single selection) */}
-                      <div>
-                        <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Authentication Method</label>
-                        <div className="space-y-2">
-                          {/* Google radio */}
-                          {(currentOrg?.authSettings?.allowedMethods || ['google']).includes('google') && (
-                            <button
-                              onClick={() => setEditData(prev => ({ ...prev, authMethods: ['google'] }))}
-                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
-                                (editData.authMethods?.[0] || 'google') === 'google'
-                                  ? 'bg-rivvra-500/10 border-rivvra-500/30'
-                                  : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
-                              }`}
-                            >
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                (editData.authMethods?.[0] || 'google') === 'google' ? 'border-rivvra-500' : 'border-dark-500'
-                              }`}>
-                                {(editData.authMethods?.[0] || 'google') === 'google' && <div className="w-2 h-2 rounded-full bg-rivvra-500" />}
-                              </div>
-                              <svg className="w-4 h-4 text-dark-400 flex-shrink-0" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/></svg>
-                              <span className={`text-sm font-medium flex-1 text-left ${(editData.authMethods?.[0] || 'google') === 'google' ? 'text-white' : 'text-dark-400'}`}>Google Sign-In</span>
-                              {(member.authMethods || []).includes('google') && (
-                                <span className="text-[10px] text-rivvra-400 bg-rivvra-500/10 px-1.5 py-0.5 rounded">Current</span>
-                              )}
-                            </button>
-                          )}
-                          {/* Password radio */}
-                          {(currentOrg?.authSettings?.allowedMethods || ['google']).includes('password') && (
-                            <button
-                              onClick={() => setEditData(prev => ({ ...prev, authMethods: ['password'] }))}
-                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
-                                (editData.authMethods?.[0] || 'google') === 'password'
-                                  ? 'bg-rivvra-500/10 border-rivvra-500/30'
-                                  : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
-                              }`}
-                            >
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                (editData.authMethods?.[0] || 'google') === 'password' ? 'border-rivvra-500' : 'border-dark-500'
-                              }`}>
-                                {(editData.authMethods?.[0] || 'google') === 'password' && <div className="w-2 h-2 rounded-full bg-rivvra-500" />}
-                              </div>
-                              <Lock className="w-4 h-4 text-dark-400 flex-shrink-0" />
-                              <span className={`text-sm font-medium flex-1 text-left ${(editData.authMethods?.[0] || 'google') === 'password' ? 'text-white' : 'text-dark-400'}`}>Password</span>
-                              {(member.authMethods || []).includes('password') && (
-                                <span className="text-[10px] text-rivvra-400 bg-rivvra-500/10 px-1.5 py-0.5 rounded">Current</span>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* App Access */}
-                      <div>
-                        <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">App Access</label>
-                        <div className="space-y-2">
-                          {MANAGEABLE_APPS.map(app => {
-                            const access = editData.appAccess?.[app.id] || { enabled: false, role: null };
-                            const roles = app.roles || [];
-                            return (
-                              <div key={app.id} className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
-                                {/* App icon + name */}
-                                <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
-                                <span className="text-sm text-white font-medium w-24">{app.name}</span>
-
-                                {/* Toggle */}
-                                <button
-                                  onClick={() => updateAppAccess(app.id, 'enabled', !access.enabled)}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-                                    access.enabled ? 'bg-rivvra-500' : 'bg-dark-600'
-                                  }`}
-                                >
-                                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                                    access.enabled ? 'translate-x-6' : 'translate-x-1'
-                                  }`} />
-                                </button>
-
-                                {/* Role selector — hidden for derived-role apps */}
-                                {access.enabled && roles.length > 0 && !app.derivedRoles ? (
-                                  <select
-                                    value={access.role || roles[roles.length - 1].value}
-                                    onChange={(e) => updateAppAccess(app.id, 'role', e.target.value)}
-                                    className="px-2 py-1 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white focus:outline-none focus:border-rivvra-500 min-w-[100px]"
-                                  >
-                                    {roles.map(r => (
-                                      <option key={r.value} value={r.value}>{r.label}</option>
-                                    ))}
-                                  </select>
-                                ) : !access.enabled ? (
-                                  <span className="text-xs text-dark-500 min-w-[100px]">—</span>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-
-                          {/* Coming soon apps (display only) */}
-                          {Object.values(APP_REGISTRY).filter(a => a.status === 'coming_soon').map(app => (
-                            <div key={app.id} className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/20 rounded-lg border border-dark-700/30 opacity-50">
-                              <app.icon className="w-4 h-4 text-dark-500 flex-shrink-0" />
-                              <span className="text-sm text-dark-400 font-medium w-24">{app.name}</span>
-                              <span className="text-xs text-dark-500">Coming Soon</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Related Employee */}
-                      <div>
-                        <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Related Employee</label>
-                        {member.linkedEmployee ? (
-                          <div className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
-                            <Link2 className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-white truncate cursor-pointer hover:text-rivvra-400 hover:underline" onClick={() => navigate(orgPath(`/employee/${member.linkedEmployee._id}`))}>{member.linkedEmployee.fullName}</p>
-                              <p className="text-xs text-dark-400 truncate">
-                                {member.linkedEmployee.designation || member.linkedEmployee.email || member.linkedEmployee.employeeId}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => handleUnlinkEmployee(member.userId?.toString())}
-                              disabled={linkingEmployee === member.userId?.toString()}
-                              className="flex items-center gap-1 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                            >
-                              {linkingEmployee === member.userId?.toString() ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
-                              Unlink
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <div className="relative flex items-center gap-2">
-                              <div className="flex-1 relative">
-                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-dark-500" />
-                                <input
-                                  type="text"
-                                  placeholder="Search employees..."
-                                  value={empDropdownOpen === member.userId?.toString() ? empSearchQuery : ''}
-                                  onChange={(e) => { setEmpSearchQuery(e.target.value); setEmpDropdownOpen(member.userId?.toString()); }}
-                                  onFocus={() => { setEmpDropdownOpen(member.userId?.toString()); setEmpSearchQuery(''); }}
-                                  onBlur={() => setTimeout(() => setEmpDropdownOpen(null), 200)}
-                                  disabled={linkingEmployee === member.userId?.toString()}
-                                  className="w-full pl-8 pr-2 py-2 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
-                                />
-                              </div>
-                              {linkingEmployee === member.userId?.toString() && <Loader2 className="w-4 h-4 animate-spin text-dark-400 flex-shrink-0" />}
-                            </div>
-                            {empDropdownOpen === member.userId?.toString() && (() => {
-                              const q = empSearchQuery.toLowerCase();
-                              const filtered = employees.filter(emp =>
-                                !q || emp.fullName?.toLowerCase().includes(q) || emp.email?.toLowerCase().includes(q) || emp.employeeId?.toLowerCase().includes(q) || emp.designation?.toLowerCase().includes(q)
-                              );
-                              return (
-                                <div className="absolute z-50 top-full mt-1 w-full bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                  {filtered.length === 0 ? (
-                                    <p className="px-3 py-2 text-xs text-dark-500">No employees found</p>
-                                  ) : filtered.map(emp => (
-                                    <button
-                                      key={emp._id}
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => { handleLinkEmployee(member.userId?.toString(), emp._id); setEmpDropdownOpen(null); setEmpSearchQuery(''); }}
-                                      className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors"
-                                    >
-                                      <p className="text-xs text-white">{emp.fullName}</p>
-                                      <p className="text-[10px] text-dark-400">{emp.designation || ''} {emp.employeeId ? `· ${emp.employeeId}` : ''}</p>
-                                    </button>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-dark-500 mt-1">
-                          {member.linkedEmployee ? 'This user is linked to an employee record for timesheet access.' : 'Link to an employee record for timesheet & HR features.'}
-                        </p>
-                      </div>
-
-                      {/* Multi Companies */}
-                      {allCompanies && allCompanies.length > 1 && (
-                        <div>
-                          <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Multi Companies</label>
-                          <div className="px-3 py-3 bg-dark-800/50 rounded-lg border border-dark-700/50 space-y-3">
-                            {/* Allowed Companies */}
-                            <div>
-                              <label className="block text-[10px] text-dark-400 mb-1.5">Allowed Companies</label>
-                              <div className="flex flex-wrap gap-1.5">
-                                {allCompanies.map(company => {
-                                  const memberAllowed = member.allowedCompanyIds?.map(id => id?.toString ? id.toString() : id) || [];
-                                  const isAllowed = memberAllowed.includes(company._id?.toString ? company._id.toString() : company._id);
-                                  return (
-                                    <button
-                                      key={company._id}
-                                      onClick={() => {
-                                        const currentIds = (member.allowedCompanyIds || []).map(id => id?.toString ? id.toString() : id);
-                                        const compId = company._id?.toString ? company._id.toString() : company._id;
-                                        let newIds;
-                                        if (isAllowed) {
-                                          // Don't allow removing if it's the only one
-                                          if (currentIds.length <= 1) return;
-                                          newIds = currentIds.filter(id => id !== compId);
-                                        } else {
-                                          newIds = [...currentIds, compId];
-                                        }
-                                        // Update member's allowedCompanyIds locally (saved on "Save Changes")
-                                        setEditData(prev => ({ ...prev, allowedCompanyIds: newIds }));
-                                        // Also update member object for immediate UI
-                                        member.allowedCompanyIds = newIds;
-                                      }}
-                                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                                        isAllowed
-                                          ? 'bg-rivvra-500/15 text-rivvra-400 border border-rivvra-500/30'
-                                          : 'bg-dark-700/50 text-dark-500 border border-dark-600 hover:border-dark-500'
-                                      }`}
-                                    >
-                                      <Building2 className="w-3 h-3" />
-                                      <span className="truncate max-w-[180px]">{company.name}</span>
-                                      {isAllowed && <X className="w-3 h-3 ml-0.5 opacity-60" />}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Default Company */}
-                            <div>
-                              <label className="block text-[10px] text-dark-400 mb-1">Default Company</label>
-                              <span className="text-xs text-white">
-                                {(() => {
-                                  const currentId = member.currentCompanyId?.toString ? member.currentCompanyId.toString() : member.currentCompanyId;
-                                  const company = allCompanies.find(c => (c._id?.toString ? c._id.toString() : c._id) === currentId);
-                                  return company?.name || 'Not set';
-                                })()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex items-center gap-2">
-                          {!isCurrentUser && (
-                            <>
-                              <button
-                                onClick={() => handleSendWorkspaceLink(member.userId?.toString())}
-                                disabled={sendingLink === member.userId?.toString()}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                              >
-                                {sendingLink === member.userId?.toString() ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                                Send Login Link
-                              </button>
-                              {/* Send Password Reset — only if org allows password auth */}
-                              {(currentOrg?.authSettings?.allowedMethods || []).includes('password') && (
-                                <button
-                                  onClick={() => handleSendPasswordReset(member.userId?.toString())}
-                                  disabled={sendingPasswordReset === member.userId?.toString()}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors"
-                                >
-                                  {sendingPasswordReset === member.userId?.toString() ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
-                                  {member.hasPassword ? 'Reset Password' : 'Set Password'}
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleImpersonate(member.userId)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                                Login As
-                              </button>
-                              {!isMemberOwner && (
-                                <button
-                                  onClick={() => setRemovingMember(member)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                >
-                                  <UserX className="w-3.5 h-3.5" />
-                                  Remove
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {saveError && (
-                            <span className="text-xs text-red-400 mr-2">{saveError}</span>
-                          )}
-                          <button
-                            onClick={() => { setExpandedMember(null); setEditData(null); setSaveError(''); }}
-                            className="px-4 py-2 text-xs text-dark-400 hover:text-white transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleSaveMember(member)}
-                            disabled={saving}
-                            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-rivvra-500 text-dark-950 rounded-lg hover:bg-rivvra-400 disabled:opacity-50 transition-colors"
-                          >
-                            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            Save Changes
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  {/* Detail panel removed — now at /settings/users/:userId */}
                 </div>
               );
             })}
@@ -1476,20 +893,6 @@ export default function SettingsTeam() {
             </div>
           </div>
         </div>
-      )}
-
-      {removingMember && (
-        <ReassignDataModal
-          member={removingMember}
-          members={members.filter(m => m.status === 'active' && m.userId?.toString() !== removingMember.userId?.toString())}
-          orgSlug={orgSlug}
-          onClose={() => setRemovingMember(null)}
-          onRemoved={(userId) => {
-            setMembers(prev => prev.filter(m => m.userId?.toString() !== userId?.toString()));
-            setRemovingMember(null);
-            refetchOrg();
-          }}
-        />
       )}
 
       <InviteTeamMemberModal

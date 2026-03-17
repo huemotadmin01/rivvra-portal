@@ -48,6 +48,7 @@ const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 // Lazy-loaded: Platform settings
 const SettingsGeneral = lazy(() => import('./components/settings/SettingsGeneral'));
 const SettingsTeam = lazy(() => import('./components/settings/SettingsTeam'));
+const UserDetail = lazy(() => import('./pages/settings/UserDetail'));
 const SettingsOutreach = lazy(() => import('./components/settings/SettingsOutreach'));
 const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimesheet'));
 const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
@@ -258,6 +259,7 @@ function App() {
               <Route path="/org/:slug/settings/profile" element={<SettingsProfileRedirect />} />
               <Route element={<OrgAdminGate />}>
                 <Route path="/org/:slug/settings/general" element={<SettingsPageWrapper><SettingsGeneral /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/users/:userId" element={<SettingsPageWrapper><UserDetail /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/users" element={<SettingsPageWrapper><SettingsTeam /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><SettingsOutreach /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheet /></SettingsPageWrapper>} />
