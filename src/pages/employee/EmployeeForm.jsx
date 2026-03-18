@@ -1303,7 +1303,7 @@ export default function EmployeeForm() {
                 <Briefcase size={18} className="text-orange-400" />
                 Project Assignments
               </h2>
-              <p className="text-sm text-dark-400 mt-0.5">Assign this employee to client projects. Each assignment has its own billing rate. Syncs to Timesheet automatically.</p>
+              <p className="text-sm text-dark-400 mt-0.5">Assign this employee to client projects. Each assignment has its own billing rate. Syncs to ESS automatically.</p>
             </div>
             <button
               type="button"

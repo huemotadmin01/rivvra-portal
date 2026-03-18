@@ -16,7 +16,7 @@ const PLATFORM_APPS = [
     features: ['LinkedIn extraction', 'AI email generation', 'Multi-step sequences', 'Reply detection'],
   },
   {
-    id: 'timesheet', name: 'Timesheet', status: 'live',
+    id: 'timesheet', name: 'ESS', status: 'live',
     description: 'Track contractor hours, manage projects, and run payroll.',
     icon: Clock, color: 'blue',
     features: ['Time tracking', 'Manager approvals', 'Pay calculations', 'Payroll export'],
@@ -414,7 +414,7 @@ function LandingPage() {
           <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto mb-10">
             {[
               { plan: 'Core', price: '$10', desc: 'ATS, CRM, Contacts, Employee, Sign, Payroll' },
-              { plan: 'All Apps', price: '$15', desc: 'Everything in Core + Outreach, Timesheet, To-Do' },
+              { plan: 'All Apps', price: '$15', desc: 'Everything in Core + Outreach, ESS, To-Do' },
             ].map((item) => (
               <div key={item.plan} className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 text-center">
                 <p className="text-[13px] font-semibold text-dark-400 uppercase tracking-wide mb-2">{item.plan}</p>

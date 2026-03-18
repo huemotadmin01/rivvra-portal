@@ -1,15 +1,13 @@
 /**
- * SettingsTimesheet — Timesheet app settings section
- * Payroll settings + Odoo-inspired configuration: time recording, reminders, approval, overtime.
+ * SettingsTimesheet — ESS app settings section
+ * Odoo-inspired configuration: time recording, reminders, approval, overtime.
  * Only visible to users with admin role on the timesheet app.
  */
 import { useState, useEffect } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
-import { Save, Plus, X, Calendar, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2, Send } from 'lucide-react';
+import { Save, Plus, X, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2, Send } from 'lucide-react';
 import timesheetApi from '../../utils/timesheetApi';
 import { getTimesheetAppSettings, updateTimesheetAppSettings, getLeavePolicy, updateLeavePolicy } from '../../utils/timesheetApi';
-
-const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function ToggleSwitch({ checked, onChange, disabled }) {
   return (
@@ -33,12 +31,7 @@ export default function SettingsTimesheet() {
   const tsRole = timesheetUser?.role || 'contractor';
   const isTimesheetAdmin = tsRole === 'admin';
 
-  // Payroll settings (existing)
-  const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // App settings (new Odoo-inspired)
+  // App settings (Odoo-inspired)
   const [appSettings, setAppSettings] = useState(null);
   const [appLoading, setAppLoading] = useState(true);
   const [appSaving, setAppSaving] = useState(false);
@@ -51,61 +44,15 @@ export default function SettingsTimesheet() {
   const [reminderStatus, setReminderStatus] = useState(null);
   const [sendingReminders, setSendingReminders] = useState(false);
 
-  // Disbursement preview
-  const [previewEmpType, setPreviewEmpType] = useState('confirmed');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isTimesheetAdmin) { setLoading(false); setAppLoading(false); return; }
+    if (!isTimesheetAdmin) { setAppLoading(false); setLoading(false); return; }
     Promise.all([
-      timesheetApi.get('/payroll-settings').then(r => setSettings(r.data)).catch(() => {}),
       getTimesheetAppSettings().then(setAppSettings).catch(() => {}),
       getLeavePolicy().then(data => setLeavePolicy(data.policy || data)).catch(() => {}),
     ]).finally(() => { setLoading(false); setAppLoading(false); });
   }, [isTimesheetAdmin]);
-
-  const handleSavePayroll = async () => {
-    setSaving(true);
-    try {
-      await timesheetApi.put('/payroll-settings', {
-        salaryDisbursementDay: settings.salaryDisbursementDay,
-        salaryDisbursementMode: settings.salaryDisbursementMode,
-        customDisbursementDates: settings.customDisbursementDates,
-        payslipVisibilityDay: settings.payslipVisibilityDay,
-        disbursementRules: settings.disbursementRules,
-      });
-    } catch {} finally { setSaving(false); }
-  };
-
-  const DISBURSEMENT_RULE_OPTIONS = [
-    { value: 'last-working-day', label: 'Last working day of salary month' },
-    { value: 'next-month-15', label: 'On/before 15th of next month' },
-    { value: '30-day-cycle', label: '30-day cycle from joining date' },
-    { value: 'fixed-date', label: 'Fixed day of next month' },
-  ];
-
-  const EMPLOYEE_TYPE_LABELS = {
-    confirmed: 'Confirmed',
-    internal_consultant: 'Internal Consultant',
-    external_consultant: 'External Consultant',
-    intern: 'Intern',
-  };
-
-  const DEFAULT_DISBURSEMENT_RULES = {
-    confirmed: { type: 'last-working-day' },
-    internal_consultant: { type: 'last-working-day' },
-    external_consultant: { type: 'next-month-15' },
-    intern: { type: '30-day-cycle' },
-  };
-
-  const updateDisbursementRule = (empType, ruleType) => {
-    setSettings(prev => ({
-      ...prev,
-      disbursementRules: {
-        ...(prev.disbursementRules || DEFAULT_DISBURSEMENT_RULES),
-        [empType]: { type: ruleType },
-      },
-    }));
-  };
 
   const handleSaveAppSettings = async () => {
     setAppSaving(true);
@@ -207,33 +154,6 @@ export default function SettingsTimesheet() {
     }));
   };
 
-  const addCustomDate = () => {
-    const now = new Date();
-    setSettings(prev => ({
-      ...prev,
-      customDisbursementDates: [
-        ...(prev.customDisbursementDates || []),
-        { month: now.getMonth() + 1, year: now.getFullYear(), date: '', note: '' }
-      ]
-    }));
-  };
-
-  const removeCustomDate = (index) => {
-    setSettings(prev => ({
-      ...prev,
-      customDisbursementDates: prev.customDisbursementDates.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateCustomDate = (index, field, value) => {
-    setSettings(prev => ({
-      ...prev,
-      customDisbursementDates: prev.customDisbursementDates.map((d, i) =>
-        i === index ? { ...d, [field]: field === 'month' || field === 'year' ? Number(value) : value } : d
-      )
-    }));
-  };
-
   if (profileLoading || loading || appLoading) {
     return <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 text-blue-500 animate-spin" /></div>;
   }
@@ -249,215 +169,10 @@ export default function SettingsTimesheet() {
     );
   }
 
-  // Client-side disbursement date calculation (mirrors backend logic)
-  const moveToWorkdayClient = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    if (day === 0) d.setDate(d.getDate() - 2); // Sunday → Friday
-    if (day === 6) d.setDate(d.getDate() - 1); // Saturday → Friday
-    return d;
-  };
-
-  const lastWorkingDayClient = (month, year) => {
-    const lastDay = new Date(year, month, 0); // last day of month
-    return moveToWorkdayClient(lastDay);
-  };
-
-  const lastWorkingDayOnOrBefore15Client = (month, year) => {
-    return moveToWorkdayClient(new Date(year, month - 1, 15));
-  };
-
-  const calcDisbDateForRule = (ruleType, salaryMonth, salaryYear) => {
-    const custom = settings?.customDisbursementDates?.find(d => d.month === salaryMonth && d.year === salaryYear);
-    if (custom?.date) {
-      return { date: moveToWorkdayClient(new Date(custom.date)), isCustom: true, note: custom.note };
-    }
-    let disbDate;
-    switch (ruleType) {
-      case 'last-working-day':
-        disbDate = lastWorkingDayClient(salaryMonth, salaryYear);
-        break;
-      case 'next-month-15': {
-        let nm = salaryMonth + 1, ny = salaryYear;
-        if (nm > 12) { nm = 1; ny++; }
-        disbDate = lastWorkingDayOnOrBefore15Client(nm, ny);
-        break;
-      }
-      case '30-day-cycle': {
-        // For preview, approximate as ~1st of next month (actual depends on joining date)
-        let nm = salaryMonth + 1, ny = salaryYear;
-        if (nm > 12) { nm = 1; ny++; }
-        disbDate = moveToWorkdayClient(new Date(ny, nm - 1, 1));
-        break;
-      }
-      case 'fixed-date': {
-        const day = settings?.salaryDisbursementDay || 7;
-        let nm = salaryMonth + 1, ny = salaryYear;
-        if (nm > 12) { nm = 1; ny++; }
-        const maxDay = new Date(ny, nm, 0).getDate();
-        disbDate = moveToWorkdayClient(new Date(ny, nm - 1, Math.min(day, maxDay)));
-        break;
-      }
-      default:
-        disbDate = lastWorkingDayClient(salaryMonth, salaryYear);
-    }
-    return { date: disbDate, isCustom: false, note: null };
-  };
-
-  // Generate 6-month preview for selected employee type
-  const now = new Date();
-  const previewMonths = [];
-  const rules = settings?.disbursementRules || DEFAULT_DISBURSEMENT_RULES;
-  const activeRule = rules[previewEmpType]?.type || 'last-working-day';
-  for (let i = 0; i < 6; i++) {
-    let salaryMonth = now.getMonth() + 1 + i;
-    let salaryYear = now.getFullYear();
-    while (salaryMonth > 12) { salaryMonth -= 12; salaryYear++; }
-    const result = calcDisbDateForRule(activeRule, salaryMonth, salaryYear);
-    previewMonths.push({
-      label: `${monthNames[salaryMonth]} ${salaryYear}`,
-      disbDate: result.date.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-      isCustom: result.isCustom,
-      note: result.note,
-    });
-  }
-
   const updateApp = (key, value) => setAppSettings(prev => ({ ...prev, [key]: value }));
 
   return (
     <div className="space-y-8">
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* PAYROLL SETTINGS (existing)                                     */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      <div>
-        <h2 className="text-lg font-semibold text-white mb-1">Payroll</h2>
-        <p className="text-sm text-dark-400 mb-4">Salary disbursement schedule and custom dates</p>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div className="card p-5">
-              <h3 className="font-semibold text-white mb-4">Default Settings</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-dark-300 mb-1">Salary Disbursement Day</label>
-                  <p className="text-xs text-dark-500 mb-2">Day of the next month when salary is paid</p>
-                  <input type="number" min="1" max="28"
-                    value={settings?.salaryDisbursementDay || 7}
-                    onChange={e => setSettings({...settings, salaryDisbursementDay: Number(e.target.value)})}
-                    className="input-field w-24" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-dark-300 mb-1">Payslip Visibility Day</label>
-                  <p className="text-xs text-dark-500 mb-2">Day of month when contractors can see current month earnings</p>
-                  <input type="number" min="1" max="28"
-                    value={settings?.payslipVisibilityDay || 1}
-                    onChange={e => setSettings({...settings, payslipVisibilityDay: Number(e.target.value)})}
-                    className="input-field w-24" />
-                </div>
-              </div>
-            </div>
-
-            <div className="card p-5">
-              <h3 className="font-semibold text-white mb-4">Disbursement Rules by Employee Type</h3>
-              <div className="space-y-3">
-                {Object.entries(EMPLOYEE_TYPE_LABELS).map(([empType, label]) => {
-                  const currentRule = (settings?.disbursementRules || DEFAULT_DISBURSEMENT_RULES)[empType]?.type || 'last-working-day';
-                  return (
-                    <div key={empType} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-dark-300 min-w-[140px]">{label}</span>
-                      <select
-                        value={currentRule}
-                        onChange={e => updateDisbursementRule(empType, e.target.value)}
-                        className="input-field text-sm flex-1"
-                      >
-                        {DISBURSEMENT_RULE_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-white">Custom Disbursement Dates</h3>
-                <button onClick={addCustomDate} className="text-rivvra-400 text-sm font-medium hover:text-rivvra-300 flex items-center gap-1 transition-colors">
-                  <Plus size={14} /> Add
-                </button>
-              </div>
-              {settings?.customDisbursementDates?.length > 0 ? (
-                <div className="space-y-3">
-                  {settings.customDisbursementDates.map((d, i) => (
-                    <div key={i} className="border border-dark-700 rounded-lg p-3 space-y-2">
-                      <div className="flex gap-2 items-center">
-                        <select value={d.month} onChange={e => updateCustomDate(i, 'month', e.target.value)} className="input-field w-auto text-sm">
-                          {monthNames.slice(1).map((mn, idx) => <option key={idx + 1} value={idx + 1}>{mn}</option>)}
-                        </select>
-                        <input type="number" value={d.year} onChange={e => updateCustomDate(i, 'year', e.target.value)} className="input-field w-20 text-sm" />
-                        <button onClick={() => removeCustomDate(i)} className="ml-auto text-red-400 hover:text-red-300 transition-colors"><X size={16} /></button>
-                      </div>
-                      <input type="date" value={d.date ? new Date(d.date).toISOString().split('T')[0] : ''} onChange={e => updateCustomDate(i, 'date', e.target.value)} className="input-field w-full text-sm" />
-                      <input type="text" placeholder="Note (e.g., Preponed due to Diwali)" value={d.note || ''} onChange={e => updateCustomDate(i, 'note', e.target.value)} className="input-field w-full text-sm" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-dark-500">No custom dates. Using default day for all months.</p>
-              )}
-            </div>
-
-            <button onClick={handleSavePayroll} disabled={saving}
-              className="btn-primary px-6 py-2.5 flex items-center gap-2 disabled:opacity-50">
-              <Save size={16} /> {saving ? 'Saving...' : 'Save Payroll Settings'}
-            </button>
-          </div>
-
-          <div className="card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar size={18} className="text-rivvra-400" />
-              <h3 className="font-semibold text-white">Upcoming Disbursement Dates</h3>
-            </div>
-            <div className="flex gap-1 mb-4 flex-wrap">
-              {Object.entries(EMPLOYEE_TYPE_LABELS).map(([empType, label]) => (
-                <button
-                  key={empType}
-                  onClick={() => setPreviewEmpType(empType)}
-                  className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                    previewEmpType === empType
-                      ? 'bg-rivvra-500/20 text-rivvra-400 border border-rivvra-500/30'
-                      : 'bg-dark-800 text-dark-400 border border-dark-700 hover:text-dark-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-dark-500 mb-3">
-              Rule: {DISBURSEMENT_RULE_OPTIONS.find(o => o.value === activeRule)?.label || activeRule}
-              {activeRule === '30-day-cycle' && <span className="text-amber-400 ml-1">(dates vary by joining date)</span>}
-            </p>
-            <div className="space-y-1">
-              {previewMonths.map((pm, i) => (
-                <div key={i} className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
-                  pm.isCustom ? 'bg-amber-500/10 border border-amber-500/20' : 'hover:bg-dark-800/50'
-                }`}>
-                  <div>
-                    <span className="text-sm font-medium text-white">{pm.label}</span>
-                    {pm.note && <span className="text-xs text-amber-400 ml-2">({pm.note})</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-dark-300">{pm.disbDate}</span>
-                    {pm.isCustom && <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium">Custom</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* ════════════════════════════════════════════════════════════════ */}
       {/* APP SETTINGS (Odoo-inspired)                                    */}
       {/* ════════════════════════════════════════════════════════════════ */}
@@ -516,8 +231,8 @@ export default function SettingsTimesheet() {
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-dark-300">Timesheet Reminder Emails</p>
-                      <p className="text-xs text-dark-500">Send email reminder to fill incomplete timesheets</p>
+                      <p className="text-sm font-medium text-dark-300">ESS Reminder Emails</p>
+                      <p className="text-xs text-dark-500">Send email reminder to fill incomplete entries</p>
                     </div>
                     <ToggleSwitch
                       checked={appSettings.timesheetReminders ?? false}
@@ -559,7 +274,7 @@ export default function SettingsTimesheet() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-dark-300">Auto-Submit on Month End</p>
-                      <p className="text-xs text-dark-500">Automatically submit draft timesheets at end of month</p>
+                      <p className="text-xs text-dark-500">Automatically submit draft entries at end of month</p>
                     </div>
                     <ToggleSwitch
                       checked={appSettings.autoSubmitOnMonthEnd ?? false}
@@ -579,7 +294,7 @@ export default function SettingsTimesheet() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-dark-300">Require Approval</p>
-                      <p className="text-xs text-dark-500">Timesheets must be approved by manager or admin</p>
+                      <p className="text-xs text-dark-500">Entries must be approved by manager or admin</p>
                     </div>
                     <ToggleSwitch
                       checked={appSettings.requireApproval ?? true}
@@ -590,7 +305,7 @@ export default function SettingsTimesheet() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-dark-300">Auto-Approve Managers</p>
-                        <p className="text-xs text-dark-500">Manager timesheets are automatically approved</p>
+                        <p className="text-xs text-dark-500">Manager entries are automatically approved</p>
                       </div>
                       <ToggleSwitch
                         checked={appSettings.autoApproveManagers ?? false}

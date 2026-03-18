@@ -68,7 +68,7 @@ export const APP_REGISTRY = {
   timesheet: {
     id: 'timesheet',
     name: 'Employee Self Service',
-    description: 'Timesheets, earnings & payslips',
+    description: 'Attendance, earnings & payslips',
     icon: Clock,
     color: 'blue',
     basePath: '/timesheet',
@@ -97,7 +97,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/my-profile', label: 'My Profile', icon: Users },
         // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
-          { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
+          { type: 'item', path: '/timesheet/approvals', label: 'ESS Approvals', icon: CheckCircle2 },
           { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
@@ -105,7 +105,7 @@ export const APP_REGISTRY = {
         // Contractor view (timesheet + earnings): external consultants, billable internal consultants
         ...((empType === 'confirmed' || empType === 'intern' || (empType === 'internal_consultant' && !isBillable))
           ? [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
-          : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
+          : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My ESS', icon: CalendarDays }]
         ),
         // Leave management (for eligible employees)
         ...(isLeaveEligible ? [
@@ -180,6 +180,12 @@ export const APP_REGISTRY = {
         ],
       },
       { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
+      {
+        type: 'group', label: 'Configuration', icon: Settings,
+        children: [
+          { path: '/settings/payroll', label: 'Settings', icon: Settings },
+        ],
+      },
     ],
   },
 

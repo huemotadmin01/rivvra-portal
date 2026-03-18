@@ -54,7 +54,7 @@ export default function PlatformSettingsPage() {
           color: 'rivvra',
         }] : []),
         ...(hasTimesheet ? [{
-          id: 'timesheet', label: 'ESS', icon: Clock, description: 'Timesheets & payroll settings',
+          id: 'timesheet', label: 'ESS', icon: Clock, description: 'ESS & payroll settings',
           color: 'blue', adminOnly: true,
         }] : []),
         ...(hasEmployee ? [{

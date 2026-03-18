@@ -51,10 +51,12 @@ function ContractorDashboard() {
   const [leaveBalances, setLeaveBalances] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Hide earnings for confirmed/internal_consultant/intern employees (they use payroll system)
+  // Billable internal consultants use the same ESS view as external consultants
+  const isBillableIC = timesheetUser?.employmentType === 'internal_consultant' && timesheetUser?.billable;
+  // Hide earnings for confirmed/non-billable internal/intern employees (they use payroll system)
   const ATTENDANCE_TYPES = ['confirmed', 'internal_consultant', 'intern'];
-  const hideEarnings = ATTENDANCE_TYPES.includes(timesheetUser?.employmentType);
-  const isConfirmed = ATTENDANCE_TYPES.includes(timesheetUser?.employmentType);
+  const hideEarnings = !isBillableIC && ATTENDANCE_TYPES.includes(timesheetUser?.employmentType);
+  const isConfirmed = !isBillableIC && ATTENDANCE_TYPES.includes(timesheetUser?.employmentType);
 
   // Leave eligibility
   const empType = timesheetUser?.employmentType;
@@ -200,7 +202,7 @@ function ContractorDashboard() {
             }`}
           >
             <CalendarDays size={13} />
-            {isConfirmed ? 'My Attendance' : (tsNeedsFilling ? 'Fill Timesheet' : 'View Timesheet')}
+            {isConfirmed ? 'My Attendance' : (tsNeedsFilling ? 'Fill ESS' : 'View ESS')}
           </Link>
         </div>
       </div>}
@@ -307,7 +309,7 @@ function ContractorDashboard() {
 
       <div className="flex flex-wrap gap-2 sm:gap-3">
         <Link to={orgPath(isConfirmed ? '/timesheet/my-attendance' : '/timesheet/my-timesheet')} className="bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 transition-colors">
-          <CalendarDays size={14} /> {isConfirmed ? 'My Attendance' : 'Fill Timesheet'}
+          <CalendarDays size={14} /> {isConfirmed ? 'My Attendance' : 'Fill ESS'}
         </Link>
         {!hideEarnings && (
           <Link to={orgPath('/timesheet/earnings')} className="bg-dark-800 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 transition-colors">
@@ -323,11 +325,11 @@ function ContractorDashboard() {
 
       <div className="card">
         <div className="p-4 border-b border-dark-800">
-          <h3 className="font-semibold text-white">{isConfirmed ? 'Recent Attendance' : 'Recent Timesheets'}</h3>
+          <h3 className="font-semibold text-white">{isConfirmed ? 'Recent Attendance' : 'Recent Entries'}</h3>
         </div>
         <div className="divide-y divide-dark-800">
           {timesheets.length === 0 ? (
-            <p className="p-4 text-sm text-dark-500">{isConfirmed ? 'No attendance records yet' : 'No timesheets yet'}</p>
+            <p className="p-4 text-sm text-dark-500">{isConfirmed ? 'No attendance records yet' : 'No entries yet'}</p>
           ) : (
             timesheets.slice(0, 5).map(ts => (
               <div key={ts._id} className="flex items-center justify-between p-4">
@@ -433,7 +435,7 @@ function AdminDashboard() {
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-2">
             <FileText size={18} className="text-blue-400" />
-            <span className="text-sm text-dark-400">Total Timesheets</span>
+            <span className="text-sm text-dark-400">Total Entries</span>
           </div>
           <p className="text-3xl font-bold text-white">{timesheets.length}</p>
         </div>
@@ -537,7 +539,7 @@ function AdminDashboard() {
                     emp.timesheetStatus === 'rejected' ? 'bg-red-500/10 text-red-400' :
                     'bg-dark-700 text-dark-500'
                   }`}>
-                    {emp.timesheetStatus === 'not_submitted' ? 'No Timesheet' :
+                    {emp.timesheetStatus === 'not_submitted' ? 'No Entry' :
                      emp.timesheetStatus.charAt(0).toUpperCase() + emp.timesheetStatus.slice(1)}
                   </span>
                 </div>

@@ -37,22 +37,22 @@ export default function TimesheetApprovals() {
   useEffect(() => { load(); return () => controllerRef.current?.abort(); }, []);
 
   const handleApprove = async (id) => {
-    if (!window.confirm('Are you sure you want to approve this timesheet?')) return;
+    if (!window.confirm('Are you sure you want to approve this entry?')) return;
     setActionLoading(id);
     try {
       await timesheetApi.patch(`/timesheets/${id}/approve`);
-      showToast('Timesheet approved');
+      showToast('Entry approved');
       load();
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Approval failed', 'error'); }
     finally { setActionLoading(null); }
   };
 
   const handleRevert = async (id) => {
-    if (!window.confirm('Revert this timesheet to draft?')) return;
+    if (!window.confirm('Revert this entry to draft?')) return;
     setActionLoading(id);
     try {
       await timesheetApi.patch(`/timesheets/${id}/revert`);
-      showToast('Timesheet reverted to draft');
+      showToast('Entry reverted to draft');
       load();
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Revert failed', 'error'); }
     finally { setActionLoading(null); }
@@ -63,7 +63,7 @@ export default function TimesheetApprovals() {
     setActionLoading(rejectId);
     try {
       await timesheetApi.patch(`/timesheets/${rejectId}/reject`, { rejectionReason: rejectReason.trim() });
-      showToast('Timesheet rejected');
+      showToast('Entry rejected');
       setRejectId(null); setRejectReason('');
       load();
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Rejection failed', 'error'); }
@@ -99,8 +99,8 @@ export default function TimesheetApprovals() {
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-white">Timesheet Approvals</h1>
-        <p className="text-dark-400 text-sm">Review and approve contractor timesheets</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">ESS Approvals</h1>
+        <p className="text-dark-400 text-sm">Review and approve contractor entries</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -230,7 +230,7 @@ export default function TimesheetApprovals() {
           onClick={(e) => { if (e.target === e.currentTarget) setRejectId(null); }}
           onKeyDown={(e) => { if (e.key === 'Escape') setRejectId(null); }}>
           <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4" role="dialog" aria-modal="true">
-            <h3 className="text-lg font-semibold text-white mb-4">Reject Timesheet</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Reject ESS Entry</h3>
             <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection..."
               className="w-full bg-dark-800/50 border border-dark-700 rounded-lg p-3 text-sm text-white placeholder-dark-500 mb-4 min-h-[100px] outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20" />
             <div className="flex gap-2 justify-end">

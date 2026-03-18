@@ -1141,7 +1141,7 @@ function SignupPage() {
           <div className="grid grid-cols-2 gap-3">
             {[
               { name: 'Outreach', desc: 'Email sequences & leads', color: 'rivvra', live: true },
-              { name: 'Timesheet', desc: 'Hours, payroll & approvals', color: 'blue', live: true },
+              { name: 'ESS', desc: 'Hours, payroll & approvals', color: 'blue', live: true },
               { name: 'CRM', desc: 'Deals & pipeline', color: 'purple', live: false },
               { name: 'ATS', desc: 'Recruiting & placements', color: 'orange', live: false },
             ].map((app, i) => (

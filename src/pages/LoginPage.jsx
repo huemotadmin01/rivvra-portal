@@ -298,7 +298,7 @@ function LoginPage() {
             <div className="space-y-2.5">
               {[
                 { name: 'Outreach', desc: 'Sequences, leads & email automation', status: 'Live' },
-                { name: 'Timesheet', desc: 'Hours, approvals & payroll', status: 'Live' },
+                { name: 'ESS', desc: 'Hours, approvals & payroll', status: 'Live' },
                 { name: 'CRM', desc: 'Deals, pipeline & clients', status: 'Soon' },
                 { name: 'ATS', desc: 'Candidates, interviews & placements', status: 'Soon' },
               ].map((app, i) => (

@@ -34,7 +34,7 @@ const APPS = [
   },
   {
     id: 'timesheet',
-    name: 'Timesheet',
+    name: 'ESS',
     tagline: 'Track time, manage projects, run payroll',
     description: 'Purpose-built for staffing agencies. Contractors log hours, managers approve, admins run payroll.',
     icon: Clock,
@@ -42,11 +42,11 @@ const APPS = [
     status: 'live',
     features: [
       { icon: CalendarCheck, title: 'Weekly Time Entry', desc: 'Contractors submit hours per project. Regular, overtime, and holiday hours supported.' },
-      { icon: CheckCircle, title: 'Manager Approvals', desc: 'Review and approve timesheets. Bulk approve or reject with comments.' },
+      { icon: CheckCircle, title: 'Manager Approvals', desc: 'Review and approve entries. Bulk approve or reject with comments.' },
       { icon: DollarSign, title: 'Earnings & Payroll', desc: 'Automatic pay calculations based on rates, overtime, and approved hours.' },
       { icon: Briefcase, title: 'Project Management', desc: 'Create projects, assign contractors, set budgets, track time.' },
       { icon: Users, title: 'Contractor Management', desc: 'Onboard contractors with roles, rates, and project assignments.' },
-      { icon: FileText, title: 'Export & Reports', desc: 'Export timesheets and payroll data to CSV for accounting.' },
+      { icon: FileText, title: 'Export & Reports', desc: 'Export ESS and payroll data to CSV for accounting.' },
     ],
   },
   {
@@ -92,7 +92,7 @@ const APPS = [
     color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', badge: 'bg-amber-500/15 text-amber-400' },
     status: 'beta',
     features: [
-      { icon: CreditCard, title: 'Pay Processing', desc: 'Run payroll with automatic calculations from approved timesheets.' },
+      { icon: CreditCard, title: 'Pay Processing', desc: 'Run payroll with automatic calculations from approved entries.' },
       { icon: CalendarDays, title: 'Disbursement Tracking', desc: 'Track upcoming and completed disbursements per employee.' },
       { icon: Download, title: 'Export & Reports', desc: 'Export payroll data for accounting and compliance.' },
       { icon: Settings, title: 'Pay Configuration', desc: 'Configure pay rates, deductions, and disbursement dates.' },
@@ -171,7 +171,7 @@ const PLATFORM_FEATURES = [
   { icon: Shield, title: 'Per-User App Access', desc: 'Admins control exactly which apps each team member can access.' },
   { icon: Globe, title: 'Org Workspaces', desc: 'Every company gets a dedicated workspace with isolated data.' },
   { icon: Layers, title: 'Modular Architecture', desc: 'Start with one app, add more as you grow. Each works standalone or together.' },
-  { icon: Zap, title: 'Cross-App Workflows', desc: 'Leads flow into CRM. Placements create Timesheet entries. Everything connects.' },
+  { icon: Zap, title: 'Cross-App Workflows', desc: 'Leads flow into CRM. Placements create ESS entries. Everything connects.' },
 ];
 
 function FeaturesPage() {

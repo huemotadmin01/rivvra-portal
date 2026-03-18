@@ -38,7 +38,7 @@ const PLANS = [
     features: [
       'Everything in Core',
       'Outreach \u2014 Lead Gen & Sequences',
-      'Timesheet \u2014 Time & Payroll Tracking',
+      'ESS \u2014 Time & Payroll Tracking',
       'To-Do \u2014 AI Task Management',
       'Unlimited team members',
       'Priority support',
@@ -53,7 +53,7 @@ const PLANS = [
 // ── All apps (for "what's included") ──────────────────────────────────────────
 const ALL_APPS = [
   { name: 'Outreach', icon: Mail, color: 'text-rivvra-400', status: 'Live' },
-  { name: 'Timesheet', icon: Clock, color: 'text-blue-400', status: 'Live' },
+  { name: 'ESS', icon: Clock, color: 'text-blue-400', status: 'Live' },
   { name: 'CRM', icon: Briefcase, color: 'text-emerald-400', status: 'Coming Soon' },
   { name: 'ATS', icon: UserSearch, color: 'text-purple-400', status: 'Coming Soon' },
   { name: 'Payroll', icon: Banknote, color: 'text-amber-400', status: 'Beta' },
@@ -71,7 +71,7 @@ const FAQS = [
   },
   {
     q: 'What\'s the difference between Core and All Apps?',
-    a: 'Core ($10/user/mo) includes 6 essential apps: ATS, CRM, Contacts, Employee, Sign, and Payroll. All Apps ($15/user/mo) adds Outreach, Timesheet, and To-Do on top of Core, plus unlimited team members and priority support.',
+    a: 'Core ($10/user/mo) includes 6 essential apps: ATS, CRM, Contacts, Employee, Sign, and Payroll. All Apps ($15/user/mo) adds Outreach, ESS, and To-Do on top of Core, plus unlimited team members and priority support.',
   },
   {
     q: 'How does per-seat pricing work?',
@@ -100,7 +100,7 @@ const COMPARISON = [
   { feature: 'Sign', core: true, all_apps: true },
   { feature: 'Payroll', core: true, all_apps: true },
   { feature: 'Outreach', core: false, all_apps: true },
-  { feature: 'Timesheet', core: false, all_apps: true },
+  { feature: 'ESS', core: false, all_apps: true },
   { feature: 'To-Do', core: false, all_apps: true },
   { feature: 'Team members', core: 'Up to 25', all_apps: 'Unlimited' },
   { feature: 'Support', core: 'Email', all_apps: 'Priority' },

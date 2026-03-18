@@ -33,7 +33,7 @@ const PAYROLL_MODE_OPTIONS = [
 
 const ATTENDANCE_TYPE_OPTIONS = [
   { value: 'full_time', label: 'Full Time (Attendance)' },
-  { value: 'timesheet', label: 'Timesheet' },
+  { value: 'timesheet', label: 'ESS' },
 ];
 
 function AdminEmployeeSettingsPage() {

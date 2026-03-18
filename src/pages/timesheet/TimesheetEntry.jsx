@@ -310,7 +310,7 @@ export default function TimesheetEntry() {
       if (timesheet) {
         // Update existing timesheet
         await timesheetApi.put(`/timesheets/${timesheet._id}`, { entries: entryData });
-        showToast('Timesheet saved as draft');
+        showToast('Saved as draft');
       } else {
         // Create new timesheet
         try {
@@ -318,7 +318,7 @@ export default function TimesheetEntry() {
             project: selectedProject || null, client: project?.client?._id || project?.client || null, month, year, entries: entryData
           });
           setTimesheet(res.data);
-          showToast('Timesheet created');
+          showToast('Entry created');
         } catch (postErr) {
           // If duplicate exists (e.g. previous save partially succeeded), recover by fetching it and updating
           const errMsg = postErr.response?.data?.error || '';
@@ -326,9 +326,9 @@ export default function TimesheetEntry() {
             const existing = await refreshTimesheet();
             if (existing && (existing.status === 'draft' || existing.status === 'rejected')) {
               await timesheetApi.put(`/timesheets/${existing._id}`, { entries: entryData });
-              showToast('Timesheet saved as draft');
+              showToast('Saved as draft');
             } else if (existing) {
-              showToast(`Timesheet already ${existing.status} — cannot overwrite`, 'error');
+              showToast(`Entry already ${existing.status} — cannot overwrite`, 'error');
               return;
             } else {
               throw postErr; // Re-throw if we can't find the duplicate
@@ -390,7 +390,7 @@ export default function TimesheetEntry() {
       }
       // Now submit
       await timesheetApi.patch(`/timesheets/${ts._id}/submit`);
-      showToast('Timesheet saved & submitted for approval');
+      showToast('Saved & submitted for approval');
       await refreshTimesheet();
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Submit failed', 'error');
@@ -398,7 +398,7 @@ export default function TimesheetEntry() {
   };
 
   const handleReset = async () => {
-    if (!window.confirm('Reset this timesheet? All saved data will be deleted.')) return;
+    if (!window.confirm('Reset this entry? All saved data will be deleted.')) return;
     try {
       if (timesheet && (timesheet.status === 'draft' || timesheet.status === 'rejected')) {
         await timesheetApi.delete(`/timesheets/${timesheet._id}`);
@@ -412,7 +412,7 @@ export default function TimesheetEntry() {
         else defaultMap[d] = { hours: '', status: null };
       }
       setEntries(defaultMap);
-      showToast('Timesheet reset');
+      showToast('Entry reset');
     } catch (err) { showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Reset failed', 'error'); }
   };
 
@@ -429,7 +429,7 @@ export default function TimesheetEntry() {
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div className="text-center space-y-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white">My Timesheet</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">My ESS</h1>
           <p className="text-dark-400 text-sm hidden sm:block mt-1">Enter hours worked per day. Leaves and holidays are managed via the Leave module.</p>
         </div>
         {hasProjects && (
@@ -466,8 +466,8 @@ export default function TimesheetEntry() {
         <div className="rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium border bg-amber-500/5 text-amber-400 border-amber-500/20">
           <Lock size={16} />
           {isPreviousYear
-            ? `Timesheets for ${year} are closed. You can only fill timesheets for the current year.`
-            : `Payroll for ${monthNames[month - 1]} ${year} is locked. You cannot edit or submit timesheets for this period.`}
+            ? `Entries for ${year} are closed. You can only fill entries for the current year.`
+            : `Payroll for ${monthNames[month - 1]} ${year} is locked. You cannot edit or submit entries for this period.`}
         </div>
       )}
 
@@ -478,8 +478,8 @@ export default function TimesheetEntry() {
           'bg-red-500/5 text-red-400 border-red-500/20'
         }`}>
           <AlertCircle size={16} />
-          {timesheet.status === 'submitted' && 'Timesheet submitted — awaiting approval'}
-          {timesheet.status === 'approved' && `Timesheet approved • ${timesheet.totalHours || 0}h (${timesheet.totalWorkingDays} days)`}
+          {timesheet.status === 'submitted' && 'Submitted — awaiting approval'}
+          {timesheet.status === 'approved' && `Approved • ${timesheet.totalHours || 0}h (${timesheet.totalWorkingDays} days)`}
           {timesheet.status === 'rejected' && `Rejected: ${timesheet.rejectionReason || 'No reason given'}`}
         </div>
       )}

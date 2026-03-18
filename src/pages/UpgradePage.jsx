@@ -28,7 +28,7 @@ const PRICING = {
     period: 'user/month',
     features: [
       'Everything in Core',
-      'Outreach, Timesheet, To-Do',
+      'Outreach, ESS, To-Do',
       'Unlimited users',
       'Priority support',
       'Chrome extension',

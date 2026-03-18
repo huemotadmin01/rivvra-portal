@@ -671,7 +671,7 @@ export default function TimesheetPayroll() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white">Contractor Payroll</h1>
-          <p className="text-dark-400 text-sm">Timesheet-based payroll for contractors</p>
+          <p className="text-dark-400 text-sm">ESS-based payroll for contractors</p>
         </div>
         <div className="flex items-center">
           <button onClick={() => goMonth(-1)} className="p-2.5 rounded-l-xl bg-dark-800/80 border border-dark-700 border-r-0 text-dark-400 hover:text-white hover:bg-dark-700 transition-all">
@@ -1334,7 +1334,7 @@ export default function TimesheetPayroll() {
                     emp.timesheetStatus === 'rejected' ? 'bg-red-500/10 text-red-400' :
                     'bg-dark-700 text-dark-500'
                   }`}>
-                    {emp.timesheetStatus === 'not_submitted' ? 'No Timesheet' :
+                    {emp.timesheetStatus === 'not_submitted' ? 'No Entry' :
                      emp.timesheetStatus.charAt(0).toUpperCase() + emp.timesheetStatus.slice(1)}
                   </span>
                 </div>
@@ -1356,7 +1356,7 @@ export default function TimesheetPayroll() {
                   <ShieldCheck size={16} className="text-emerald-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-white">Approved Timesheets</h3>
+                  <h3 className="text-sm font-semibold text-white">Approved Entries</h3>
                   <p className="text-[11px] text-dark-400">{data.employees.length} employees — {monthNames[month]} {year}</p>
                 </div>
               </div>

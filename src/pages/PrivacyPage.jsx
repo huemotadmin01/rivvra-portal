@@ -57,7 +57,7 @@ function PrivacyPage() {
               <li>Account information (name, email address) when you sign up</li>
               <li>Organization and team settings you configure</li>
               <li>Notes and tags you add to contacts</li>
-              <li>Timesheet entries and project data you submit</li>
+              <li>ESS entries and project data you submit</li>
             </ul>
 
             <h3 className="text-lg font-medium text-dark-200 mb-3 mt-6">2.2 Information Collected Automatically</h3>
