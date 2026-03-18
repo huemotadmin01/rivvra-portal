@@ -202,7 +202,7 @@ function ContractorDashboard() {
             }`}
           >
             <CalendarDays size={13} />
-            {isConfirmed ? 'My Attendance' : (tsNeedsFilling ? 'Fill ESS' : 'View ESS')}
+            {isConfirmed ? 'My Attendance' : (tsNeedsFilling ? 'Fill Timesheet' : 'View Timesheet')}
           </Link>
         </div>
       </div>}
@@ -309,7 +309,7 @@ function ContractorDashboard() {
 
       <div className="flex flex-wrap gap-2 sm:gap-3">
         <Link to={orgPath(isConfirmed ? '/timesheet/my-attendance' : '/timesheet/my-timesheet')} className="bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 transition-colors">
-          <CalendarDays size={14} /> {isConfirmed ? 'My Attendance' : 'Fill ESS'}
+          <CalendarDays size={14} /> {isConfirmed ? 'My Attendance' : 'Fill Timesheet'}
         </Link>
         {!hideEarnings && (
           <Link to={orgPath('/timesheet/earnings')} className="bg-dark-800 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 transition-colors">
