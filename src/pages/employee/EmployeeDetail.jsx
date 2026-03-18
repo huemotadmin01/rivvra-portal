@@ -1024,7 +1024,7 @@ export default function EmployeeDetail() {
                     if (r.monthly) return `${formatCurrency(r.monthly)}/mo`;
                     return '\u2014';
                   };
-                  return (
+                  return (<>
                     <tr key={i} className="hover:bg-dark-800/30 transition-colors group">
                       <td className="px-3 py-2.5 text-sm text-white">{a.clientName || '\u2014'}</td>
                       <td className="px-3 py-2.5 text-sm text-white">{a.projectName || '\u2014'}</td>
@@ -1047,7 +1047,7 @@ export default function EmployeeDetail() {
                             {a.status === 'active' && (
                               <button
                                 onClick={() => openReviseModal(i)}
-                                className="p-1 text-dark-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all"
+                                className="p-1 text-amber-500/60 hover:text-amber-400 transition-colors"
                                 title="Revise Rate"
                               >
                                 <TrendingUp size={14} />
@@ -1055,7 +1055,7 @@ export default function EmployeeDetail() {
                             )}
                             <button
                               onClick={() => openEditAssignment(i)}
-                              className="p-1 text-dark-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                              className="p-1 text-dark-400 hover:text-white transition-colors"
                               title="Edit assignment"
                             >
                               <PenLine size={14} />
@@ -1064,6 +1064,40 @@ export default function EmployeeDetail() {
                         </td>
                       )}
                     </tr>
+                    {/* Rate History */}
+                    {a.rateHistory?.length > 0 && (
+                      <tr key={`hist-${i}`}>
+                        <td colSpan={isAdmin ? 8 : 7} className="px-3 py-0 bg-dark-900/30">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedHistory(p => ({ ...p, [i]: !p[i] }))}
+                            className="flex items-center gap-2 text-xs text-dark-400 hover:text-dark-200 transition-colors py-1.5 w-full"
+                          >
+                            <Clock size={11} />
+                            <span className="font-medium">Rate History ({a.rateHistory.length})</span>
+                            {expandedHistory[i] ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                          </button>
+                          {expandedHistory[i] && (
+                            <div className="pb-3 space-y-1.5 pl-4 border-l-2 border-dark-700/50 ml-1">
+                              {[...a.rateHistory].reverse().map((entry, hIdx) => {
+                                const effDate = entry.effectiveDate ? new Date(entry.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                                const endDate = entry.endDate ? new Date(entry.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Current';
+                                const fmtR = (r) => { if (!r) return '—'; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `$${r.hourly}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; };
+                                return (
+                                  <div key={hIdx} className="flex items-start gap-3 text-xs">
+                                    <span className="text-dark-500 whitespace-nowrap">{effDate} → {endDate}</span>
+                                    <span className="text-dark-300">Candidate: <span className="text-white">{fmtR(entry.billingRate)}</span></span>
+                                    <span className="text-dark-300">Client: <span className="text-white">{fmtR(entry.clientBillingRate)}</span></span>
+                                    {entry.reason && <span className="text-dark-500 italic">"{entry.reason}"</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                   );
                 })}
               </tbody>
