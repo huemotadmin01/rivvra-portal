@@ -105,7 +105,7 @@ export const APP_REGISTRY = {
         // Contractor view (timesheet + earnings): external consultants, billable internal consultants
         ...((empType === 'confirmed' || empType === 'intern' || (empType === 'internal_consultant' && !isBillable))
           ? [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
-          : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My ESS', icon: CalendarDays }]
+          : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
         ),
         // Leave management (for eligible employees)
         ...(isLeaveEligible ? [
