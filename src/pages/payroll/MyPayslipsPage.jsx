@@ -197,12 +197,17 @@ export default function MyPayslipsPage() {
                         <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Earnings</h3>
                         <table className="w-full text-sm">
                           <tbody>
-                            {(p.components || []).map((c, ci) => (
+                            {(p.components || []).length > 0 ? (p.components || []).map((c, ci) => (
                               <tr key={ci} className="border-b border-dark-700/30 last:border-0">
                                 <td className="py-1.5 text-dark-300">{c.name}</td>
                                 <td className="py-1.5 text-right text-white">₹{fmt(c.proratedAmount || c.amount)}</td>
                               </tr>
-                            ))}
+                            )) : p.grossSalary > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? 'Consultancy Fees' : 'Gross Salary'}</td>
+                                <td className="py-1.5 text-right text-white">₹{fmt(p.grossSalary)}</td>
+                              </tr>
+                            )}
                             <tr className="border-t border-dark-600">
                               <td className="py-1.5 text-white font-semibold">Gross</td>
                               <td className="py-1.5 text-right text-white font-bold">₹{fmt(p.grossSalary)}</td>
@@ -248,7 +253,7 @@ export default function MyPayslipsPage() {
                             )}
                             {p.tds > 0 && (
                               <tr className="border-b border-dark-700/30">
-                                <td className="py-1.5 text-dark-300">TDS</td>
+                                <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? 'TDS (2%)' : 'TDS'}</td>
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.tds)}</td>
                               </tr>
                             )}
