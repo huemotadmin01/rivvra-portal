@@ -76,8 +76,24 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   };
 
   // ===== HEADER =====
+  let logoEndX = margin;
+  if (co.logoUrl) {
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || 'https://brynsa-leads-api.onrender.com';
+      const logoUrl = co.logoUrl.startsWith('http') ? co.logoUrl : `${API_BASE}${co.logoUrl}`;
+      const resp = await fetch(logoUrl);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve) => { reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob); });
+        const imgFormat = blob.type.includes('png') ? 'PNG' : 'JPEG';
+        doc.addImage(dataUrl, imgFormat, margin, y - 1, 14, 14);
+        logoEndX = margin + 16;
+      }
+    } catch (e) { /* skip logo on error */ }
+  }
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...primary);
-  doc.text(s.coName, margin, y + 6);
+  doc.text(s.coName, logoEndX, y + 6);
   doc.setFontSize(15);
   doc.text('PAYSLIP', pageW - margin, y + 6, { align: 'right' });
   y += 10;
