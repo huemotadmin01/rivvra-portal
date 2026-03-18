@@ -253,7 +253,7 @@ export default function MyPayslipsPage() {
                             )}
                             {p.tds > 0 && (
                               <tr className="border-b border-dark-700/30">
-                                <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? 'TDS (2%)' : 'TDS'}</td>
+                                <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? `TDS (${p.tdsRate ? Math.round(p.tdsRate * 100) : 2}%)` : 'TDS'}</td>
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.tds)}</td>
                               </tr>
                             )}
