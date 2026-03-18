@@ -207,28 +207,6 @@ function DisbursementTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="card p-5">
-            <h3 className="font-semibold text-white mb-4">Default Settings</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Salary Disbursement Day</label>
-                <p className="text-xs text-dark-500 mb-2">Day of the next month when salary is paid</p>
-                <input type="number" min="1" max="28"
-                  value={settings?.salaryDisbursementDay || 7}
-                  onChange={e => setSettings({...settings, salaryDisbursementDay: Number(e.target.value)})}
-                  className="input-field w-24" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Payslip Visibility Day</label>
-                <p className="text-xs text-dark-500 mb-2">Day of month when contractors can see current month earnings</p>
-                <input type="number" min="1" max="28"
-                  value={settings?.payslipVisibilityDay || 1}
-                  onChange={e => setSettings({...settings, payslipVisibilityDay: Number(e.target.value)})}
-                  className="input-field w-24" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-5">
             <h3 className="font-semibold text-white mb-4">Disbursement Rules by Employee Type</h3>
             <div className="space-y-3">
               {Object.entries(EMPLOYEE_TYPE_LABELS).map(([empType, label]) => {

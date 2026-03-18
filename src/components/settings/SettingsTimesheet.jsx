@@ -9,6 +9,8 @@ import { Save, Plus, X, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, 
 import timesheetApi from '../../utils/timesheetApi';
 import { getTimesheetAppSettings, updateTimesheetAppSettings, getLeavePolicy, updateLeavePolicy } from '../../utils/timesheetApi';
 
+const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 function ToggleSwitch({ checked, onChange, disabled }) {
   return (
     <button
