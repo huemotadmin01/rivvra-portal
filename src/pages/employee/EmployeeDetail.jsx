@@ -32,6 +32,10 @@ import {
   Plus,
   X,
   History,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
+  Clock,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
@@ -203,6 +207,12 @@ export default function EmployeeDetail() {
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [tsClients, setTsClients] = useState([]);
   const [tsProjects, setTsProjects] = useState([]);
+
+  // Rate revision state
+  const [reviseModal, setReviseModal] = useState(null); // { assignmentIndex, currentRates }
+  const [reviseForm, setReviseForm] = useState({ effectiveDate: '', billingRate: { daily: '', hourly: '', monthly: '' }, clientBillingRate: { daily: '', hourly: '', monthly: '' }, paidLeavePerMonth: '', reason: '' });
+  const [revisingRate, setRevisingRate] = useState(false);
+  const [expandedHistory, setExpandedHistory] = useState({});
 
   const isAdmin = getAppRole('employee') === 'admin';
   const appRole = getAppRole('employee') || 'member';
@@ -492,6 +502,49 @@ export default function EmployeeDetail() {
       alert(err.message || 'Failed to send onboarding link');
     } finally {
       setSendingOnboardingLink(false);
+    }
+  };
+
+  // ── Rate Revision ──────────────────────────────────────────────────────────
+  const openReviseModal = (idx) => {
+    const a = employee.assignments[idx];
+    setReviseModal({ assignmentIndex: idx, currentRates: a });
+    setReviseForm({
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      billingRate: { daily: '', hourly: '', monthly: '' },
+      clientBillingRate: { daily: '', hourly: '', monthly: '' },
+      paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+      reason: '',
+    });
+  };
+
+  const handleReviseRate = async () => {
+    if (!reviseModal || !employeeId || revisingRate) return;
+    if (!reviseForm.effectiveDate) return;
+    const hasBR = Object.values(reviseForm.billingRate).some(v => v && Number(v) > 0);
+    const hasCBR = Object.values(reviseForm.clientBillingRate).some(v => v && Number(v) > 0);
+    if (!hasBR && !hasCBR) return;
+    setRevisingRate(true);
+    try {
+      const payload = {
+        effectiveDate: reviseForm.effectiveDate,
+        paidLeavePerMonth: Number(reviseForm.paidLeavePerMonth) || 0,
+        reason: reviseForm.reason || '',
+      };
+      if (hasBR) payload.billingRate = { daily: Number(reviseForm.billingRate.daily) || 0, hourly: Number(reviseForm.billingRate.hourly) || 0, monthly: Number(reviseForm.billingRate.monthly) || 0 };
+      if (hasCBR) payload.clientBillingRate = { daily: Number(reviseForm.clientBillingRate.daily) || 0, hourly: Number(reviseForm.clientBillingRate.hourly) || 0, monthly: Number(reviseForm.clientBillingRate.monthly) || 0 };
+      const result = await employeeApi.reviseRate(currentOrg.slug, employeeId, reviseModal.assignmentIndex, payload);
+      if (result.success) {
+        setReviseModal(null);
+        const empRes = await employeeApi.get(currentOrg.slug, employeeId);
+        if (empRes.success) setEmployee(empRes.employee);
+      } else {
+        alert(result.error || 'Failed to revise rate');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to revise rate');
+    } finally {
+      setRevisingRate(false);
     }
   };
 
@@ -990,13 +1043,24 @@ export default function EmployeeDetail() {
                       </td>
                       {isAdmin && (
                         <td className="px-2 py-2.5 text-center">
-                          <button
-                            onClick={() => openEditAssignment(i)}
-                            className="p-1 text-dark-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
-                            title="Edit assignment"
-                          >
-                            <PenLine size={14} />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            {a.status === 'active' && (
+                              <button
+                                onClick={() => openReviseModal(i)}
+                                className="p-1 text-dark-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Revise Rate"
+                              >
+                                <TrendingUp size={14} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEditAssignment(i)}
+                              className="p-1 text-dark-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                              title="Edit assignment"
+                            >
+                              <PenLine size={14} />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -1381,6 +1445,97 @@ export default function EmployeeDetail() {
                 ) : (
                   <><Trash2 size={14} /> Delete Permanently</>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Revise Rate Modal ────────────────────────────────────────── */}
+      {reviseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <TrendingUp size={20} className="text-amber-400" />
+                </div>
+                <h3 className="text-white font-semibold text-lg">Revise Rate</h3>
+              </div>
+              <button type="button" onClick={() => setReviseModal(null)} className="text-dark-400 hover:text-white transition-colors"><X size={18} /></button>
+            </div>
+
+            {/* Current rates */}
+            <div className="bg-dark-900/50 rounded-lg p-3 mb-4">
+              <p className="text-xs text-dark-500 uppercase tracking-wider font-medium mb-1">Current Rates</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><span className="text-dark-400">Candidate:</span> <span className="text-white">
+                  {(() => { const r = reviseModal.currentRates?.billingRate || {}; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `$${r.hourly}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
+                </span></div>
+                <div><span className="text-dark-400">Client:</span> <span className="text-white">
+                  {(() => { const r = reviseModal.currentRates?.clientBillingRate || {}; if (r.hourly) return `$${r.hourly}/hr`; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
+                </span></div>
+              </div>
+            </div>
+
+            {/* Effective Date */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-dark-300 mb-1">Effective Date <span className="text-red-400">*</span></label>
+              <input type="date" value={reviseForm.effectiveDate} onChange={e => setReviseForm(p => ({ ...p, effectiveDate: e.target.value }))} className="input-field w-full text-sm" />
+            </div>
+
+            {/* New Candidate Rate */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-dark-300 mb-2">New Candidate Rate</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[['daily', '₹'], ['hourly', '$'], ['monthly', '₹']].map(([key, symbol]) => (
+                  <div key={key}>
+                    <span className="text-xs text-dark-500 capitalize">{key}</span>
+                    <div className="relative mt-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{symbol}</span>
+                      <input type="number" value={reviseForm.billingRate[key]} onChange={e => setReviseForm(p => ({ ...p, billingRate: { ...p.billingRate, [key]: e.target.value } }))} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* New Client Billing Rate */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-dark-300 mb-2">New Client Billing Rate</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[['daily', '₹'], ['hourly', '$'], ['monthly', '₹']].map(([key, symbol]) => (
+                  <div key={key}>
+                    <span className="text-xs text-dark-500 capitalize">{key}</span>
+                    <div className="relative mt-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs">{symbol}</span>
+                      <input type="number" value={reviseForm.clientBillingRate[key]} onChange={e => setReviseForm(p => ({ ...p, clientBillingRate: { ...p.clientBillingRate, [key]: e.target.value } }))} className="input-field w-full pl-7 text-sm" placeholder="0" min="0" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Paid Leave */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-dark-300 mb-1">Paid Leave / Month</label>
+              <select value={reviseForm.paidLeavePerMonth} onChange={e => setReviseForm(p => ({ ...p, paidLeavePerMonth: e.target.value }))} className="input-field w-full text-sm">
+                {[0, 1, 1.5, 2, 3].map(v => <option key={v} value={v}>{v} day{v !== 1 ? 's' : ''}</option>)}
+              </select>
+            </div>
+
+            {/* Reason */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-dark-300 mb-1">Reason</label>
+              <input type="text" value={reviseForm.reason} onChange={e => setReviseForm(p => ({ ...p, reason: e.target.value }))} className="input-field w-full text-sm" placeholder="e.g. Annual rate revision" />
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setReviseModal(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
+              <button type="button" onClick={handleReviseRate} disabled={revisingRate || !reviseForm.effectiveDate} className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50">
+                {revisingRate && <Loader2 size={14} className="animate-spin" />}
+                Apply Revision
               </button>
             </div>
           </div>
