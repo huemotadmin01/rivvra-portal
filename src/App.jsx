@@ -59,6 +59,7 @@ const SettingsSign = lazy(() => import('./components/settings/SettingsSign'));
 const SettingsContacts = lazy(() => import('./components/settings/SettingsContacts'));
 const SettingsCompanies = lazy(() => import('./components/settings/SettingsCompanies'));
 const SettingsTodo = lazy(() => import('./components/settings/SettingsTodo'));
+const SettingsPayroll = lazy(() => import('./components/settings/SettingsPayroll'));
 
 // Lazy-loaded: To-Do app pages
 const TodoDashboard = lazy(() => import('./pages/todo/TodoDashboard'));
@@ -263,6 +264,7 @@ function App() {
                 <Route path="/org/:slug/settings/users" element={<SettingsPageWrapper><SettingsTeam /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><SettingsOutreach /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheet /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/payroll" element={<SettingsPageWrapper><SettingsPayroll /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/employee" element={<SettingsPageWrapper><SettingsEmployee /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/email-logs" element={<SettingsPageWrapper><SettingsEmailLogs /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/crm" element={<SettingsPageWrapper><SettingsCrm /></SettingsPageWrapper>} />

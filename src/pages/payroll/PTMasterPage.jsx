@@ -11,7 +11,7 @@ const CURRENT_FY = (() => {
   return m >= 4 ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
 })();
 
-export default function PTMasterPage() {
+export default function PTMasterPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
   const [configs, setConfigs] = useState([]);
@@ -96,11 +96,13 @@ export default function PTMasterPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <MapPin className="w-5 h-5 text-rivvra-500" />
-          <h1 className="text-xl font-bold text-white">PT Master</h1>
-        </div>
-        <div className="flex items-center gap-3">
+        {!embedded && (
+          <div className="flex items-center gap-3">
+            <MapPin className="w-5 h-5 text-rivvra-500" />
+            <h1 className="text-xl font-bold text-white">PT Master</h1>
+          </div>
+        )}
+        <div className={`flex items-center gap-3 ${embedded ? 'ml-auto' : ''}`}>
           <select
             value={fy}
             onChange={e => setFy(e.target.value)}

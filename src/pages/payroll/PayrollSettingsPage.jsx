@@ -121,7 +121,7 @@ function Section({ title, icon, expanded, onToggle, children }) {
   );
 }
 
-export default function PayrollSettingsPage() {
+export default function PayrollSettingsPage({ embedded = false }) {
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -232,15 +232,17 @@ export default function PayrollSettingsPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className={embedded ? '' : 'p-8 max-w-4xl'}>
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Settings2 size={24} className="text-rivvra-400" />
-          <div>
-            <h1 className="text-xl font-semibold text-white">FY Statutory Configuration</h1>
-            <p className="text-sm text-dark-400">Tax slabs, PF/ESI rates per financial year</p>
+        {!embedded && (
+          <div className="flex items-center gap-3">
+            <Settings2 size={24} className="text-rivvra-400" />
+            <div>
+              <h1 className="text-xl font-semibold text-white">FY Statutory Configuration</h1>
+              <p className="text-sm text-dark-400">Tax slabs, PF/ESI rates per financial year</p>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-center gap-2">
           <select
             value={selectedFy}

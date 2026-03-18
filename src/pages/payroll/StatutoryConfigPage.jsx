@@ -4,7 +4,7 @@ import { getStatutoryConfigs, updateStatutoryConfig, getPTStates } from '../../u
 import { useToast } from '../../context/ToastContext';
 import { Shield, X, Search, CheckCircle, XCircle } from 'lucide-react';
 
-export default function StatutoryConfigPage() {
+export default function StatutoryConfigPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
   const [data, setData] = useState([]);
@@ -75,18 +75,29 @@ export default function StatutoryConfigPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Statutory Configuration</h1>
-          <p className="text-sm text-dark-400 mt-1">PF, ESI, PT, and tax regime per employee</p>
+    <div className={embedded ? '' : 'max-w-6xl mx-auto'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-semibold text-white">Statutory Configuration</h1>
+            <p className="text-sm text-dark-400 mt-1">PF, ESI, PT, and tax regime per employee</p>
+          </div>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-64" placeholder="Search employees..." />
+          </div>
         </div>
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-64" placeholder="Search employees..." />
+      )}
+      {embedded && (
+        <div className="flex justify-end mb-4">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-64" placeholder="Search employees..." />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
         <table className="w-full text-sm">

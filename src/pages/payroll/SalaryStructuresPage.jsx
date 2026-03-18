@@ -12,7 +12,7 @@ const FALLBACK_COMPONENTS = [
   { name: 'Special Allowance', percentOfGross: 30, isTaxable: true, isPfApplicable: false },
 ];
 
-export default function SalaryStructuresPage() {
+export default function SalaryStructuresPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
   const [structures, setStructures] = useState([]);
@@ -91,16 +91,25 @@ export default function SalaryStructuresPage() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Salary Structures</h1>
-          <p className="text-sm text-dark-400 mt-1">Define how CTC is split into salary components</p>
+    <div className={embedded ? '' : 'max-w-4xl mx-auto'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-semibold text-white">Salary Structures</h1>
+            <p className="text-sm text-dark-400 mt-1">Define how CTC is split into salary components</p>
+          </div>
+          <button onClick={() => { resetForm(); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
+            <Plus size={16} /> New Structure
+          </button>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
-          <Plus size={16} /> New Structure
-        </button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end mb-4">
+          <button onClick={() => { resetForm(); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
+            <Plus size={16} /> New Structure
+          </button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {structures.map(s => (

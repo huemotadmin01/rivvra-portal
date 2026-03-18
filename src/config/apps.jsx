@@ -177,21 +177,7 @@ export const APP_REGISTRY = {
           { path: '/payroll/process', label: 'Contractor Payroll', icon: Briefcase },
         ],
       },
-      {
-        type: 'group', label: 'Statutory', icon: Layers,
-        children: [
-          { path: '/payroll/salary-structures', label: 'Salary Structures', icon: Layers },
-          { path: '/payroll/statutory-config', label: 'Statutory Config', icon: CheckCircle2 },
-          { path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
-          { path: '/payroll/pt-master', label: 'PT Master', icon: MapPin },
-        ],
-      },
-      {
-        type: 'group', label: 'Configuration', icon: Settings,
-        children: [
-          { path: '/payroll/settings', label: 'Settings', icon: Settings },
-        ],
-      },
+      { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
     ],
   },
 
@@ -423,6 +409,7 @@ export const APP_REGISTRY = {
         ...(isAdmin ? [{ type: 'item', path: '/settings/email-logs', label: 'Email Logs', icon: Inbox }] : []),
         { type: 'item', path: '/settings/outreach', label: 'Outreach', icon: Mail },
         { type: 'item', path: '/settings/timesheet', label: 'ESS', icon: Clock },
+        ...(isAdmin ? [{ type: 'item', path: '/settings/payroll', label: 'Payroll', icon: Wallet }] : []),
         { type: 'item', path: '/settings/employee', label: 'Employee', icon: UsersRound },
         { type: 'item', path: '/settings/contacts', label: 'Contacts', icon: Contact },
         { type: 'item', path: '/settings/crm', label: 'CRM', icon: Briefcase },
