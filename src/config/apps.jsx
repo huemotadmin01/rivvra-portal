@@ -101,8 +101,9 @@ export const APP_REGISTRY = {
           { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
-        // Confirmed/internal_consultant/intern employees see attendance calendar; others see timesheet
-        ...(['confirmed', 'internal_consultant', 'intern'].includes(timesheetUser?.employmentType)
+        // Employee view (attendance + payroll): confirmed, non-billable internal consultants, interns
+        // Contractor view (timesheet + earnings): external consultants, billable internal consultants
+        ...((empType === 'confirmed' || empType === 'intern' || (empType === 'internal_consultant' && !isBillable))
           ? [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
           : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
         ),
@@ -116,8 +117,9 @@ export const APP_REGISTRY = {
             ],
           },
         ] : []),
-        // Confirmed/internal_consultant/intern employees get statutory payroll pages; others get earnings
-        ...(['confirmed', 'internal_consultant', 'intern'].includes(timesheetUser?.employmentType) ? [
+        // Employee payroll (salary + payslips): confirmed, non-billable IC, interns
+        // Contractor payroll (earnings): external consultants, billable IC
+        ...((empType === 'confirmed' || empType === 'intern' || (empType === 'internal_consultant' && !isBillable)) ? [
           {
             type: 'group', label: 'Payroll', icon: IndianRupee,
             children: [
