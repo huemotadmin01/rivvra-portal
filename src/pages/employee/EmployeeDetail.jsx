@@ -745,17 +745,20 @@ export default function EmployeeDetail() {
           )}
           <InlineField label="Billable" field="billable" value={emp.billable} type="toggle"
             editable={fp('billable').editable} onSave={handleFieldSave} />
-          {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
-            <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
-              editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
-          )}
-          <InfoRow
+          <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
+            editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
+          <InlineField
             label="Salary Disbursement"
-            value={
-              emp.employmentType === 'confirmed' || emp.employmentType === 'intern'
-                ? 'Last day of the month'
-                : null
-            }
+            field="salaryDisbursement"
+            value={emp.salaryDisbursement}
+            type="select"
+            options={[
+              { value: 'last-working-day', label: 'Last working day' },
+              { value: 'fixed-date', label: 'Fixed date' },
+              { value: 'monthly-cycle', label: 'Monthly cycle' },
+            ]}
+            editable={fp('billable').editable}
+            onSave={handleFieldSave}
           />
         </SectionCard>
 
