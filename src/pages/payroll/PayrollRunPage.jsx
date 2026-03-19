@@ -264,13 +264,15 @@ export default function PayrollRunPage() {
           <div className="flex gap-2 flex-wrap justify-end">
             {run.status === 'draft' && (
               <button onClick={handleProcess} disabled={processing} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm disabled:opacity-50">
-                <Play size={14} /> {processing ? 'Processing...' : 'Process'}
+                {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white/30 border-t-white" /> : <Play size={14} />}
+                {processing ? 'Processing...' : 'Process'}
               </button>
             )}
             {run.status === 'processed' && (
               <>
-                <button onClick={handleProcess} disabled={processing} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm">
-                  <Play size={14} /> Re-process
+                <button onClick={handleProcess} disabled={processing} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50">
+                  {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-dark-300/30 border-t-dark-300" /> : <Play size={14} />}
+                  {processing ? 'Processing...' : 'Re-process'}
                 </button>
                 <button onClick={handleFinalize} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
                   <Lock size={14} /> Finalize
