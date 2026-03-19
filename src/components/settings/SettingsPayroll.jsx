@@ -512,11 +512,18 @@ const MAPPING_EMP_TYPES = [
   { key: 'internal_consultant', label: 'Internal Consultant' },
 ];
 
+const DEFAULT_TDS_RATES = {
+  internal_consultant: 2,
+  external_consultant: 2,
+  intern: 0,
+};
+
 function StructureMappingTab() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
   const [structures, setStructures] = useState([]);
   const [mapping, setMapping] = useState({});
+  const [tdsRateByType, setTdsRateByType] = useState({ ...DEFAULT_TDS_RATES });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -532,6 +539,10 @@ function StructureMappingTab() {
         getSalaryStructures(orgSlug),
       ]);
       setMapping(settingsRes.settings?.structureMapping || {});
+      setTdsRateByType({
+        ...DEFAULT_TDS_RATES,
+        ...(settingsRes.settings?.tdsRateByType || {}),
+      });
       setStructures(structuresRes.structures || []);
     } catch {
       showToast('Failed to load structure mapping data', 'error');
@@ -543,7 +554,7 @@ function StructureMappingTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updatePayrollSettings(orgSlug, { structureMapping: mapping });
+      await updatePayrollSettings(orgSlug, { structureMapping: mapping, tdsRateByType });
       showToast('Structure mapping saved', 'success');
     } catch {
       showToast('Failed to save structure mapping', 'error');
@@ -559,13 +570,13 @@ function StructureMappingTab() {
       <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
         <AlertCircle size={18} className="text-amber-400 mt-0.5 shrink-0" />
         <div className="text-sm text-dark-300">
-          <p>Map each employment type to a default salary structure. When an employee has a CTC but no salary record, the system will auto-create one using the mapped structure (or the org default structure as fallback).</p>
+          <p>Map each employment type to a default salary structure. When an employee has a CTC but no salary record, the system will auto-create one using the mapped structure (or the org default structure as fallback). TDS% is the flat TDS rate applied during payroll processing for consultant/intern types.</p>
         </div>
       </div>
 
       <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
         <div className="px-5 py-4 border-b border-dark-700">
-          <h3 className="text-sm font-semibold text-white">Employment Type → Salary Structure</h3>
+          <h3 className="text-sm font-semibold text-white">Employment Type → Salary Structure & TDS Rate</h3>
         </div>
 
         {structures.length === 0 ? (
@@ -578,12 +589,14 @@ function StructureMappingTab() {
               <tr className="border-b border-dark-700">
                 <th className="text-left px-5 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Employment Type</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Salary Structure</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">TDS %</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-700/50">
               {MAPPING_EMP_TYPES.map(({ key, label }) => {
                 const currentStructure = structures.find(s => s._id === mapping[key]);
                 const defaultStructure = structures.find(s => s.isDefault);
+                const showTds = key !== 'confirmed';
                 return (
                   <tr key={key} className="hover:bg-dark-750/30">
                     <td className="px-5 py-4">
@@ -608,9 +621,56 @@ function StructureMappingTab() {
                         <p className="text-xs text-amber-400 mt-1">No default structure set. Auto-creation will be skipped.</p>
                       )}
                     </td>
+                    <td className="px-5 py-4 text-right">
+                      {showTds ? (
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={tdsRateByType[key] ?? DEFAULT_TDS_RATES[key] ?? 0}
+                            onChange={(e) => setTdsRateByType(prev => ({
+                              ...prev,
+                              [key]: parseFloat(e.target.value) || 0,
+                            }))}
+                            className="w-16 px-2.5 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white text-right focus:border-rivvra-500 focus:outline-none"
+                          />
+                          <span className="text-sm text-dark-400">%</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-dark-500">Slab-based</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
+              {/* External Consultant row (not in structure mapping, but needs TDS rate) */}
+              <tr className="hover:bg-dark-750/30">
+                <td className="px-5 py-4">
+                  <span className="text-sm font-medium text-white">External Consultant</span>
+                </td>
+                <td className="px-5 py-4">
+                  <span className="text-xs text-dark-500">Managed via Timesheet payroll</span>
+                </td>
+                <td className="px-5 py-4 text-right">
+                  <div className="inline-flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={tdsRateByType.external_consultant ?? DEFAULT_TDS_RATES.external_consultant ?? 2}
+                      onChange={(e) => setTdsRateByType(prev => ({
+                        ...prev,
+                        external_consultant: parseFloat(e.target.value) || 0,
+                      }))}
+                      className="w-16 px-2.5 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white text-right focus:border-rivvra-500 focus:outline-none"
+                    />
+                    <span className="text-sm text-dark-400">%</span>
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
         )}
