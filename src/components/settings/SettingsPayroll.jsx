@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { getOrgTdsConfig, updateOrgTdsConfig } from '../../utils/payrollApi';
+import { getOrgTdsConfig, updateOrgTdsConfig, getPayrollSettings, updatePayrollSettings, getSalaryStructures } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
 import { Save, Plus, Trash2, Loader2, Star, AlertCircle, X, Calendar } from 'lucide-react';
 
@@ -20,6 +20,7 @@ const TABS = [
   { id: 'disbursement', label: 'Disbursement' },
   { id: 'tds', label: 'TDS Configuration' },
   { id: 'structures', label: 'Salary Structures' },
+  { id: 'structure-mapping', label: 'Structure Mapping' },
   { id: 'statutory', label: 'Statutory Config' },
   { id: 'pt', label: 'PT Master' },
   { id: 'fy', label: 'FY Rates', superAdminOnly: true },
@@ -502,6 +503,136 @@ function TdsConfigTab() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Structure Mapping Tab
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const MAPPING_EMP_TYPES = [
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'intern', label: 'Intern' },
+  { key: 'internal_consultant', label: 'Internal Consultant' },
+];
+
+function StructureMappingTab() {
+  const { orgSlug } = usePlatform();
+  const { showToast } = useToast();
+  const [structures, setStructures] = useState([]);
+  const [mapping, setMapping] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [orgSlug]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [settingsRes, structuresRes] = await Promise.all([
+        getPayrollSettings(orgSlug),
+        getSalaryStructures(orgSlug),
+      ]);
+      setMapping(settingsRes.settings?.structureMapping || {});
+      setStructures(structuresRes.structures || []);
+    } catch {
+      showToast('Failed to load structure mapping data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updatePayrollSettings(orgSlug, { structureMapping: mapping });
+      showToast('Structure mapping saved', 'success');
+    } catch {
+      showToast('Failed to save structure mapping', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <TabLoader />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+        <AlertCircle size={18} className="text-amber-400 mt-0.5 shrink-0" />
+        <div className="text-sm text-dark-300">
+          <p>Map each employment type to a default salary structure. When an employee has a CTC but no salary record, the system will auto-create one using the mapped structure (or the org default structure as fallback).</p>
+        </div>
+      </div>
+
+      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-dark-700">
+          <h3 className="text-sm font-semibold text-white">Employment Type → Salary Structure</h3>
+        </div>
+
+        {structures.length === 0 ? (
+          <div className="p-8 text-center text-dark-400 text-sm">
+            No salary structures found. Create structures in the "Salary Structures" tab first.
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-dark-700">
+                <th className="text-left px-5 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Employment Type</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Salary Structure</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-dark-700/50">
+              {MAPPING_EMP_TYPES.map(({ key, label }) => {
+                const currentStructure = structures.find(s => s._id === mapping[key]);
+                const defaultStructure = structures.find(s => s.isDefault);
+                return (
+                  <tr key={key} className="hover:bg-dark-750/30">
+                    <td className="px-5 py-4">
+                      <span className="text-sm font-medium text-white">{label}</span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <select
+                        value={mapping[key] || ''}
+                        onChange={(e) => setMapping(prev => ({ ...prev, [key]: e.target.value || undefined }))}
+                        className="w-full max-w-xs px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                      >
+                        <option value="">
+                          {defaultStructure ? `Use org default (${defaultStructure.name})` : '-- Not mapped --'}
+                        </option>
+                        {structures.map(s => (
+                          <option key={s._id} value={s._id}>
+                            {s.name}{s.isDefault ? ' (Default)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {!mapping[key] && !defaultStructure && (
+                        <p className="text-xs text-amber-400 mt-1">No default structure set. Auto-creation will be skipped.</p>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {structures.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Save Structure Mapping
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Main Settings Page
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function SettingsPayroll() {
@@ -546,6 +677,7 @@ export default function SettingsPayroll() {
         {activeTab === 'disbursement' && <DisbursementTab />}
         {activeTab === 'tds' && <TdsConfigTab />}
         {activeTab === 'structures' && <SalaryStructuresPage embedded />}
+        {activeTab === 'structure-mapping' && <StructureMappingTab />}
         {activeTab === 'statutory' && <StatutoryConfigPage embedded />}
         {activeTab === 'pt' && <PTMasterPage embedded />}
         {activeTab === 'fy' && isSuperAdmin && <PayrollSettingsPage embedded />}
