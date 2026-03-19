@@ -382,7 +382,7 @@ function TdsConfigTab() {
       <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
         <AlertCircle size={18} className="text-amber-400 mt-0.5 shrink-0" />
         <div className="text-sm text-dark-300">
-          <p>Configure TDS sections and rates for consultant payroll. The <strong className="text-white">default section</strong> determines the TDS rate applied to all <strong className="text-white">Internal Consultant</strong> employees during payroll processing.</p>
+          <p>Configure TDS sections and rates for consultant payroll. The <strong className="text-white">default section</strong> determines the TDS rate applied to all <strong className="text-white">Internal & External Consultant</strong> employees during payroll processing.</p>
         </div>
       </div>
 
@@ -510,6 +510,7 @@ const MAPPING_EMP_TYPES = [
   { key: 'confirmed', label: 'Confirmed' },
   { key: 'intern', label: 'Intern' },
   { key: 'internal_consultant', label: 'Internal Consultant' },
+  { key: 'external_consultant', label: 'External Consultant' },
 ];
 
 const DEFAULT_TDS_RATES = {
@@ -594,8 +595,6 @@ function StructureMappingTab() {
             </thead>
             <tbody className="divide-y divide-dark-700/50">
               {MAPPING_EMP_TYPES.map(({ key, label }) => {
-                const currentStructure = structures.find(s => s._id === mapping[key]);
-                const defaultStructure = structures.find(s => s.isDefault);
                 const showTds = key !== 'confirmed';
                 return (
                   <tr key={key} className="hover:bg-dark-750/30">
@@ -608,17 +607,15 @@ function StructureMappingTab() {
                         onChange={(e) => setMapping(prev => ({ ...prev, [key]: e.target.value || undefined }))}
                         className="w-full max-w-xs px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
                       >
-                        <option value="">
-                          {defaultStructure ? `Use org default (${defaultStructure.name})` : '-- Not mapped --'}
-                        </option>
+                        <option value="">-- Select Structure --</option>
                         {structures.map(s => (
                           <option key={s._id} value={s._id}>
-                            {s.name}{s.isDefault ? ' (Default)' : ''}
+                            {s.name}
                           </option>
                         ))}
                       </select>
-                      {!mapping[key] && !defaultStructure && (
-                        <p className="text-xs text-amber-400 mt-1">No default structure set. Auto-creation will be skipped.</p>
+                      {!mapping[key] && (
+                        <p className="text-xs text-amber-400 mt-1">No structure mapped. Auto-creation will be skipped for this type.</p>
                       )}
                     </td>
                     <td className="px-5 py-4 text-right">
@@ -645,32 +642,6 @@ function StructureMappingTab() {
                   </tr>
                 );
               })}
-              {/* External Consultant row (not in structure mapping, but needs TDS rate) */}
-              <tr className="hover:bg-dark-750/30">
-                <td className="px-5 py-4">
-                  <span className="text-sm font-medium text-white">External Consultant</span>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="text-xs text-dark-500">Managed via Timesheet payroll</span>
-                </td>
-                <td className="px-5 py-4 text-right">
-                  <div className="inline-flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={tdsRateByType.external_consultant ?? DEFAULT_TDS_RATES.external_consultant ?? 2}
-                      onChange={(e) => setTdsRateByType(prev => ({
-                        ...prev,
-                        external_consultant: parseFloat(e.target.value) || 0,
-                      }))}
-                      className="w-16 px-2.5 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white text-right focus:border-rivvra-500 focus:outline-none"
-                    />
-                    <span className="text-sm text-dark-400">%</span>
-                  </div>
-                </td>
-              </tr>
             </tbody>
           </table>
         )}
