@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
+import timesheetApi from '../../utils/timesheetApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
@@ -194,6 +195,13 @@ export default function EmployeeDetail() {
       .catch(() => {});
   }, []);
 
+  // Fetch disbursement rules from payroll settings
+  useEffect(() => {
+    timesheetApi.get('/payroll-settings')
+      .then(r => { if (r.data?.disbursementRules) setDisbursementRules(r.data.disbursementRules); })
+      .catch(() => {});
+  }, []);
+
   // CTC management state
   const [showSetCtc, setShowSetCtc] = useState(false);
   const [showReviseCtc, setShowReviseCtc] = useState(false);
@@ -201,6 +209,9 @@ export default function EmployeeDetail() {
   const [ctcSaving, setCtcSaving] = useState(false);
   const [salaryHistory, setSalaryHistory] = useState([]);
   const [salaryHistoryLoading, setSalaryHistoryLoading] = useState(false);
+
+  // Disbursement rules from payroll settings (read-only display)
+  const [disbursementRules, setDisbursementRules] = useState(null);
 
   // Assignment edit modal state
   const [editAssignment, setEditAssignment] = useState(null); // { index, ...assignmentData }
@@ -747,19 +758,17 @@ export default function EmployeeDetail() {
             editable={fp('billable').editable} onSave={handleFieldSave} />
           <InlineField label="Joining Date" field="joiningDate" value={emp.joiningDate} type="date"
             editable={fp('joiningDate').editable} required={fp('joiningDate').required} onSave={handleFieldSave} />
-          <InlineField
-            label="Salary Disbursement"
-            field="salaryDisbursement"
-            value={emp.salaryDisbursement}
-            type="select"
-            options={[
-              { value: 'last-working-day', label: 'Last working day' },
-              { value: 'fixed-date', label: 'Fixed date' },
-              { value: 'monthly-cycle', label: 'Monthly cycle' },
-            ]}
-            editable={fp('billable').editable}
-            onSave={handleFieldSave}
-          />
+          <InfoRow label="Salary Disbursement" value={(() => {
+            const ruleLabels = {
+              'last-working-day': 'Last working day of salary month',
+              'next-month-15': 'On/before 15th of next month',
+              '30-day-cycle': '30-day cycle from joining date',
+              'fixed-date': 'Fixed day of next month',
+            };
+            const empType = emp.employmentType || 'confirmed';
+            const rule = disbursementRules?.[empType]?.type || 'last-working-day';
+            return ruleLabels[rule] || rule;
+          })()} />
         </SectionCard>
 
         {/* Personal Information */}
