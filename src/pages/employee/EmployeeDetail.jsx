@@ -413,15 +413,15 @@ export default function EmployeeDetail() {
       .finally(() => setDocsLoading(false));
   }, [currentOrg?.slug, employeeId]);
 
-  // Fetch salary history for confirmed / non-billable internal_consultant / intern employees
+  // Compensation tracking is available for all non-billable employees on payroll
   const isCompensationEligible = employee && (
     employee.employmentType === 'confirmed' ||
-    (employee.employmentType === 'internal_consultant' && employee.billable === false) ||
+    employee.employmentType === 'internal_consultant' ||
     employee.employmentType === 'intern'
   );
-  // Non-billable ICs and interns use flat TDS mode (admin enters both CTC and gross independently)
+  // Flat TDS mode employees (consultants & interns — admin enters both CTC and gross independently)
   const isFlatTdsEmployee = employee && (
-    (employee.employmentType === 'internal_consultant' && employee.billable === false) ||
+    employee.employmentType === 'internal_consultant' ||
     employee.employmentType === 'intern'
   );
   const fetchSalaryHistory = async () => {
@@ -768,10 +768,8 @@ export default function EmployeeDetail() {
             editable={fp('privateEmail').editable} onSave={handleFieldSave} />
           <InlineField label="Private Phone" field="privatePhone" value={emp.privatePhone || emp.alternatePhone} type="phone"
             editable={fp('privatePhone').editable} onSave={handleFieldSave} />
-          {(emp.employmentType === 'confirmed' || emp.employmentType === 'intern') && (
-            <InlineField label="Date of Birth" field="dateOfBirth" value={emp.dateOfBirth} type="date"
-              editable={fp('dateOfBirth').editable} required={fp('dateOfBirth').required} onSave={handleFieldSave} />
-          )}
+          <InlineField label="Date of Birth" field="dateOfBirth" value={emp.dateOfBirth} type="date"
+            editable={fp('dateOfBirth').editable} required={fp('dateOfBirth').required} onSave={handleFieldSave} />
           <InlineField label="Gender" field="gender" value={emp.gender} type="select"
             options={[{ value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }, { value: 'Other', label: 'Other' }]}
             editable={fp('gender').editable} required={fp('gender').required} onSave={handleFieldSave} />
@@ -1200,7 +1198,7 @@ export default function EmployeeDetail() {
             {isFlatTdsEmployee && (
               <div className="bg-dark-900/50 rounded-lg p-3 mb-4">
                 <span className="text-dark-400 text-xs">
-                  {emp?.employmentType === 'intern' ? 'No deductions (LOP only)' : 'Deduction: Flat 2% TDS only (no PF / ESI / PT)'}
+                  {emp?.employmentType === 'intern' ? 'No deductions (LOP only)' : 'Deduction: Flat TDS only (no PF / ESI / PT)'}
                 </span>
               </div>
             )}
