@@ -241,7 +241,7 @@ export default function PayrollRunPage() {
     const computedTotalCtc = items.reduce((s, i) => s + (i.totalCtc || 0), 0);
 
     return (
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => setSelectedRun(null)} className="p-2 text-dark-400 hover:text-white rounded-lg hover:bg-dark-800">
             <ArrowLeft size={18} />
@@ -471,7 +471,7 @@ export default function PayrollRunPage() {
 
   // List view
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white">Employee Payroll</h1>
