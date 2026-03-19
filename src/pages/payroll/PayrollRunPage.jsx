@@ -13,6 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
+  AlertTriangle, XCircle,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -349,7 +350,19 @@ export default function PayrollRunPage() {
               {items.map(item => (
                 <tr key={item.employeeId} className={`border-b border-dark-700/50 hover:bg-dark-750 ${item.isOverridden ? 'bg-amber-500/5' : ''}`}>
                   <td className="px-3 py-2.5">
-                    <div className="text-white text-xs font-medium">{item.employeeName}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white text-xs font-medium">{item.employeeName}</span>
+                      {item.attendanceStatus === 'pending' && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance pending approval">
+                          <AlertTriangle size={9} /> Pending
+                        </span>
+                      )}
+                      {item.attendanceStatus === 'not_submitted' && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="Attendance not submitted">
+                          <XCircle size={9} /> No Attendance
+                        </span>
+                      )}
+                    </div>
                     {item.isOverridden && <span className="text-[9px] text-amber-400" title={`${item.overrideReason || 'No reason'}${item.overriddenAt ? ' • ' + new Date(item.overriddenAt).toLocaleDateString('en-IN') : ''}`}>Overridden</span>}
                     {(item.adHocEarnings?.length > 0 || item.adHocDeductions?.length > 0) && <span className="text-[9px] text-blue-400 ml-1">Ad-hoc</span>}
                   </td>
