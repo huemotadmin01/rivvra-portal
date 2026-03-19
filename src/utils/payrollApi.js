@@ -120,6 +120,9 @@ export function overridePayrollItem(orgSlug, runId, employeeId, data) {
 export function finalizePayrollRun(orgSlug, id) {
   return request('POST', `${orgUrl(orgSlug)}/runs/${id}/finalize`);
 }
+export function unfinalizePayrollRun(orgSlug, id) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/unfinalize`);
+}
 export function markPayrollRunPaid(orgSlug, id, data) {
   return request('POST', `${orgUrl(orgSlug)}/runs/${id}/mark-paid`, { body: data });
 }

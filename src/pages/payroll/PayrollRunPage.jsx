@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import {
   getPayrollRuns, getPayrollRun, createPayrollRun, processPayrollRun,
-  finalizePayrollRun, markPayrollRunPaid, deletePayrollRun,
+  finalizePayrollRun, unfinalizePayrollRun, markPayrollRunPaid, deletePayrollRun,
   overridePayrollItem, downloadPFChallan, downloadESIChallan, downloadPTChallan,
   lockInputs, unlockInputs, lockPayroll, unlockPayroll,
   releasePayslips, holdPayslips,
@@ -13,7 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
-  AlertTriangle, XCircle,
+  AlertTriangle, XCircle, Undo2,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -90,6 +90,16 @@ export default function PayrollRunPage() {
       const res = await finalizePayrollRun(orgSlug, selectedRun._id);
       setSelectedRun(res.run);
       showToast('Finalized');
+      loadRuns();
+    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+  };
+
+  const handleUnfinalize = async () => {
+    if (!confirm('Revert to processed? This will allow re-processing and edits.')) return;
+    try {
+      const res = await unfinalizePayrollRun(orgSlug, selectedRun._id);
+      setSelectedRun(res.run);
+      showToast('Reverted to processed');
       loadRuns();
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
@@ -280,9 +290,14 @@ export default function PayrollRunPage() {
               </>
             )}
             {run.status === 'finalized' && (
-              <button onClick={handleMarkPaid} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                <CheckCircle size={14} /> Mark Paid
-              </button>
+              <>
+                <button onClick={handleUnfinalize} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm">
+                  <Undo2 size={14} /> Unfinalize
+                </button>
+                <button onClick={handleMarkPaid} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                  <CheckCircle size={14} /> Mark Paid
+                </button>
+              </>
             )}
           </div>
         </div>
