@@ -58,7 +58,7 @@ const DEFAULT_DISBURSEMENT_RULES = {
   confirmed: { type: 'last-working-day' },
   internal_consultant: { type: 'last-working-day' },
   external_consultant: { type: 'next-month-15' },
-  intern: { type: '30-day-cycle' },
+  intern: { type: 'last-working-day' },
 };
 
 function DisbursementTab() {
