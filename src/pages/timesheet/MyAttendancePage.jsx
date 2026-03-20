@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
-import { getAttendance, updateAttendance, submitAttendance, resetAttendance, deleteAttendance } from '../../utils/timesheetApi';
+import { getAttendance, updateAttendance, submitAttendance, resetAttendance } from '../../utils/timesheetApi';
 import {
   ChevronLeft, ChevronRight, Save, Send, Loader2, AlertCircle,
   CheckCircle2, Clock, XCircle, CalendarCheck, Info, RotateCcw, Lock,
@@ -152,11 +152,10 @@ export default function MyAttendancePage() {
     if (!attendance) return;
     if (!window.confirm('Reset this attendance? All entries will be cleared.')) return;
     try {
-      // Delete the record (like timesheet reset), then re-fetch to get a fresh blank one
-      if (attendance.status === 'draft' || attendance.status === 'rejected') {
-        await deleteAttendance(attendance._id);
-      }
-      await fetchAttendance();
+      // Blank working entries via PATCH (keeps leave/holiday/weekend intact)
+      const data = await resetAttendance(attendance._id);
+      setAttendance(data.attendance);
+      setEntries(data.attendance.entries);
       setDirty(false);
       showToast('Attendance reset');
     } catch (err) {
