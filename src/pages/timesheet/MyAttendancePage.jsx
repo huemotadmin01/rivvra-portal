@@ -154,14 +154,6 @@ export default function MyAttendancePage() {
     try {
       // Single API call: blanks working entries, keeps leave/holiday/weekend
       const data = await resetAttendance(attendance._id);
-      if (data.deleted) {
-        // Record was fully deleted (no entries left)
-        setAttendance(null);
-        setEntries([]);
-        setDirty(false);
-        showToast('Attendance reset and cleared');
-        return;
-      }
       setAttendance(data.attendance);
       setEntries(data.attendance.entries);
       setDirty(false);
