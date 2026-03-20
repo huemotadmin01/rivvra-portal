@@ -5,9 +5,11 @@
  */
 import { useState, useEffect } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
-import { Save, Plus, X, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2, Send } from 'lucide-react';
+import { Save, Plus, X, Loader2, AlertCircle, Clock, Bell, CheckCircle2, Timer, CalendarOff, Trash2, Send, CalendarClock } from 'lucide-react';
 import timesheetApi from '../../utils/timesheetApi';
 import { getTimesheetAppSettings, updateTimesheetAppSettings, getLeavePolicy, updateLeavePolicy } from '../../utils/timesheetApi';
+import employeeApi from '../../utils/employeeApi';
+import { useOrg } from '../../context/OrgContext';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -28,8 +30,26 @@ function ToggleSwitch({ checked, onChange, disabled }) {
   );
 }
 
+const DEFAULT_TIMESHEET_MODE_CONFIG = [
+  { employmentType: 'confirmed', billable: true, mode: 'attendance' },
+  { employmentType: 'confirmed', billable: false, mode: 'attendance' },
+  { employmentType: 'internal_consultant', billable: true, mode: 'timesheet' },
+  { employmentType: 'internal_consultant', billable: false, mode: 'attendance' },
+  { employmentType: 'external_consultant', billable: true, mode: 'timesheet' },
+  { employmentType: 'intern', billable: true, mode: 'attendance' },
+  { employmentType: 'intern', billable: false, mode: 'attendance' },
+];
+
+const TIMESHEET_MODE_TYPE_LABELS = {
+  confirmed: 'Confirmed',
+  internal_consultant: 'Internal Consultant',
+  external_consultant: 'External Consultant',
+  intern: 'Intern',
+};
+
 export default function SettingsTimesheet() {
   const { timesheetUser, loading: profileLoading } = useTimesheetContext();
+  const { currentOrg } = useOrg();
   const tsRole = timesheetUser?.role || 'contractor';
   const isTimesheetAdmin = tsRole === 'admin';
 
@@ -42,6 +62,10 @@ export default function SettingsTimesheet() {
   const [leavePolicy, setLeavePolicy] = useState(null);
   const [leaveSaving, setLeaveSaving] = useState(false);
 
+  // Timesheet mode config (from employee app settings)
+  const [timesheetModeConfig, setTimesheetModeConfig] = useState(DEFAULT_TIMESHEET_MODE_CONFIG);
+  const [modeSaving, setModeSaving] = useState(false);
+
   // Reminder state
   const [reminderStatus, setReminderStatus] = useState(null);
   const [sendingReminders, setSendingReminders] = useState(false);
@@ -53,8 +77,27 @@ export default function SettingsTimesheet() {
     Promise.all([
       getTimesheetAppSettings().then(setAppSettings).catch(() => {}),
       getLeavePolicy().then(data => setLeavePolicy(data.policy || data)).catch(() => {}),
+      currentOrg?.slug ? employeeApi.getAppSettings(currentOrg.slug).then(res => {
+        if (res.success && res.settings?.timesheetModeConfig) {
+          // Merge with defaults to ensure all rows exist
+          const saved = res.settings.timesheetModeConfig;
+          const merged = DEFAULT_TIMESHEET_MODE_CONFIG.map(d => {
+            const match = saved.find(r => r.employmentType === d.employmentType && r.billable === d.billable);
+            return match || d;
+          });
+          setTimesheetModeConfig(merged);
+        }
+      }).catch(() => {}) : Promise.resolve(),
     ]).finally(() => { setLoading(false); setAppLoading(false); });
-  }, [isTimesheetAdmin]);
+  }, [isTimesheetAdmin, currentOrg?.slug]);
+
+  const handleSaveTimesheetMode = async () => {
+    if (!currentOrg?.slug) return;
+    setModeSaving(true);
+    try {
+      await employeeApi.updateAppSettings(currentOrg.slug, { timesheetModeConfig });
+    } catch {} finally { setModeSaving(false); }
+  };
 
   const handleSaveAppSettings = async () => {
     setAppSaving(true);
@@ -175,6 +218,54 @@ export default function SettingsTimesheet() {
 
   return (
     <div className="space-y-8">
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* TIMESHEET MODE CONFIG                                            */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div>
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarClock size={18} className="text-purple-400" />
+            <h3 className="font-semibold text-white">Timesheet Mode</h3>
+          </div>
+          <p className="text-xs text-dark-500 mb-4">Configure whether each employee type fills Timesheets (project-based hours) or marks Attendance.</p>
+          <div className="border border-dark-700 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-dark-800/50">
+                  <th className="text-left text-dark-400 font-medium px-3 py-2">Employment Type</th>
+                  <th className="text-left text-dark-400 font-medium px-3 py-2">Billable</th>
+                  <th className="text-left text-dark-400 font-medium px-3 py-2">Mode</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timesheetModeConfig.map((row, i) => (
+                  <tr key={`${row.employmentType}-${row.billable}`} className={i % 2 === 0 ? '' : 'bg-dark-800/20'}>
+                    <td className="px-3 py-2.5 text-dark-300">{TIMESHEET_MODE_TYPE_LABELS[row.employmentType] || row.employmentType}</td>
+                    <td className="px-3 py-2.5 text-dark-400">{row.billable ? 'Yes' : 'No'}</td>
+                    <td className="px-3 py-2.5">
+                      <select
+                        value={row.mode}
+                        onChange={e => {
+                          setTimesheetModeConfig(prev => prev.map((r, j) => j === i ? { ...r, mode: e.target.value } : r));
+                        }}
+                        className="input-field text-sm py-1 px-2 w-auto"
+                      >
+                        <option value="attendance">Attendance</option>
+                        <option value="timesheet">Timesheet</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={handleSaveTimesheetMode} disabled={modeSaving}
+            className="btn-primary px-5 py-2 flex items-center gap-2 disabled:opacity-50 mt-4 text-sm">
+            <Save size={14} /> {modeSaving ? 'Saving...' : 'Save Timesheet Mode'}
+          </button>
+        </div>
+      </div>
+
       {/* ════════════════════════════════════════════════════════════════ */}
       {/* APP SETTINGS (Odoo-inspired)                                    */}
       {/* ════════════════════════════════════════════════════════════════ */}
