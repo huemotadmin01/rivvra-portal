@@ -241,21 +241,62 @@ export default function SettingsEmployee() {
           </div>
         </div>
 
-        {/* Attendance (Coming Soon) */}
-        <div className="card p-5 opacity-60">
+        {/* Timesheet Mode Config */}
+        <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
             <CalendarClock size={18} className="text-purple-400" />
-            <h3 className="font-semibold text-white">Attendance</h3>
-            <span className="text-[10px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full font-medium">Coming Soon</span>
+            <h3 className="font-semibold text-white">Timesheet Mode</h3>
           </div>
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-dark-300">Track Attendance</p>
-                <p className="text-xs text-dark-500">Enable check-in/check-out based attendance tracking</p>
-              </div>
-              <ToggleSwitch checked={false} onChange={() => {}} disabled />
-            </div>
+          <p className="text-xs text-dark-500 mb-4">Configure whether each employee type fills Timesheets (project-based hours) or marks Attendance.</p>
+          <div className="border border-dark-700 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-dark-800/50">
+                  <th className="text-left text-dark-400 font-medium px-3 py-2">Employment Type</th>
+                  <th className="text-left text-dark-400 font-medium px-3 py-2">Billable</th>
+                  <th className="text-left text-dark-400 font-medium px-3 py-2">Mode</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const defaultConfig = [
+                    { employmentType: 'confirmed', billable: true, mode: 'attendance' },
+                    { employmentType: 'confirmed', billable: false, mode: 'attendance' },
+                    { employmentType: 'internal_consultant', billable: true, mode: 'timesheet' },
+                    { employmentType: 'internal_consultant', billable: false, mode: 'attendance' },
+                    { employmentType: 'external_consultant', billable: true, mode: 'timesheet' },
+                    { employmentType: 'intern', billable: true, mode: 'attendance' },
+                    { employmentType: 'intern', billable: false, mode: 'attendance' },
+                  ];
+                  const typeLabels = { confirmed: 'Confirmed', internal_consultant: 'Internal Consultant', external_consultant: 'External Consultant', intern: 'Intern' };
+                  const config = settings?.timesheetModeConfig || defaultConfig;
+                  // Ensure all rows exist
+                  const rows = defaultConfig.map(d => {
+                    const match = config.find(r => r.employmentType === d.employmentType && r.billable === d.billable);
+                    return match || d;
+                  });
+                  return rows.map((row, i) => (
+                    <tr key={`${row.employmentType}-${row.billable}`} className={i % 2 === 0 ? '' : 'bg-dark-800/20'}>
+                      <td className="px-3 py-2 text-dark-300">{typeLabels[row.employmentType] || row.employmentType}</td>
+                      <td className="px-3 py-2 text-dark-400">{row.billable ? 'Yes' : 'No'}</td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.mode}
+                          onChange={e => {
+                            const updated = rows.map((r, j) => j === i ? { ...r, mode: e.target.value } : r);
+                            update('timesheetModeConfig', updated);
+                          }}
+                          className="input-field text-sm py-1 px-2 w-auto"
+                        >
+                          <option value="attendance">Attendance</option>
+                          <option value="timesheet">Timesheet</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

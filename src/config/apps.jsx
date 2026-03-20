@@ -101,11 +101,10 @@ export const APP_REGISTRY = {
           { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
         ] : []),
-        // Employee view (attendance + payroll): confirmed, non-billable internal consultants, interns
-        // Contractor view (timesheet + earnings): external consultants, billable internal consultants
-        ...((empType === 'confirmed' || empType === 'intern' || (empType === 'internal_consultant' && !isBillable))
-          ? [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
-          : [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
+        // Attendance vs Timesheet — driven by org-level timesheetMode config
+        ...(timesheetUser?.timesheetMode === 'timesheet'
+          ? [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
+          : [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
         ),
         // Leave management (for eligible employees)
         ...(isLeaveEligible ? [
@@ -117,9 +116,10 @@ export const APP_REGISTRY = {
             ],
           },
         ] : []),
-        // Employee payroll (salary + payslips): confirmed, non-billable IC, interns
-        // Contractor payroll (earnings): external consultants, billable IC
-        ...((empType === 'confirmed' || empType === 'intern' || (empType === 'internal_consultant' && !isBillable)) ? [
+        // Payroll: attendance-mode employees get My Salary + Payslips, timesheet-mode get My Earnings
+        ...(timesheetUser?.timesheetMode === 'timesheet' ? [
+          { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
+        ] : [
           {
             type: 'group', label: 'Payroll', icon: IndianRupee,
             children: [
@@ -127,8 +127,6 @@ export const APP_REGISTRY = {
               { path: '/timesheet/my-payslips', label: 'My Payslips', icon: FileText },
             ],
           },
-        ] : [
-          { type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee },
         ]),
         // Tax declarations only for confirmed employees
         ...(timesheetUser?.employmentType === 'confirmed' ? [
