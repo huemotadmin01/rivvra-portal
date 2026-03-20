@@ -765,8 +765,15 @@ export default function EmployeeDetail() {
               '30-day-cycle': '30-day cycle from joining date',
               'fixed-date': 'Fixed day of next month',
             };
+            const defaultRules = {
+              confirmed: { type: 'last-working-day' },
+              internal_consultant: { type: 'last-working-day' },
+              external_consultant: { type: 'next-month-15' },
+              intern: { type: 'last-working-day' },
+            };
             const empType = emp.employmentType || 'confirmed';
-            const rule = disbursementRules?.[empType]?.type || 'last-working-day';
+            const rules = disbursementRules || defaultRules;
+            const rule = rules[empType]?.type || defaultRules[empType]?.type || 'last-working-day';
             return ruleLabels[rule] || rule;
           })()} />
         </SectionCard>
