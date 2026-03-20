@@ -706,6 +706,10 @@ export default function EmployeeDetail() {
           <InlineField label="Manager" field="manager" value={emp.manager} type="select"
             options={managerOptions} editable={fp('manager').editable} required={fp('manager').required}
             onSave={handleFieldSave} displayValue={emp.managerName || null} />
+          <InlineField label="Employment Type" field="employmentType" value={emp.employmentType} type="select"
+            options={Object.entries(empTypeMap).map(([key, cfg]) => ({ value: key, label: cfg.label }))}
+            editable={isAdmin} onSave={handleFieldSave}
+            displayValue={empTypeMap[emp.employmentType]?.label || emp.employmentType} />
           <InfoRow
             label="Related User"
             value={
