@@ -6,14 +6,14 @@ import {
   downloadPFChallan, downloadESIChallan, downloadPTChallan,
   lockInputs, unlockInputs, lockPayroll, unlockPayroll,
   releasePayslips, holdPayslips,
-  setAdHocAdjustment,
+  setAdHocAdjustment, createSalaryHold, releaseSalaryHold,
   downloadPayslipPdf, downloadAllPayslips, downloadBankTransfer, downloadPayrollExport,
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
-  AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp,
+  AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp, PauseCircle, Send, Loader2,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -39,6 +39,11 @@ export default function PayrollRunPage() {
   const [processing, setProcessing] = useState(false);
   const [savingAdHoc, setSavingAdHoc] = useState(false);
   const [expandedItem, setExpandedItem] = useState(null);
+  const [showHoldModal, setShowHoldModal] = useState(null); // { employeeId, employeeName }
+  const [holdReason, setHoldReason] = useState('');
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [releaseSelection, setReleaseSelection] = useState(new Set());
+  const [releasing, setReleasing] = useState(false);
 
   const now = new Date();
   const [newMonth, setNewMonth] = useState(now.getMonth() + 1);
@@ -177,6 +182,48 @@ export default function PayrollRunPage() {
     finally { setSavingAdHoc(false); }
   };
 
+  // Salary Hold
+  const handleCreateHold = async () => {
+    if (!showHoldModal || !holdReason.trim()) return;
+    try {
+      await createSalaryHold(orgSlug, selectedRun._id, showHoldModal.employeeId, holdReason.trim());
+      // Re-process to reflect hold in items
+      const processRes = await processPayrollRun(orgSlug, selectedRun._id);
+      setSelectedRun(processRes.run);
+      setShowHoldModal(null);
+      setHoldReason('');
+      showToast('Salary hold applied');
+    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+  };
+
+  const handleReleaseHold = async (holdId) => {
+    try {
+      await releaseSalaryHold(orgSlug, selectedRun._id, holdId);
+      const processRes = await processPayrollRun(orgSlug, selectedRun._id);
+      setSelectedRun(processRes.run);
+      showToast('Hold released');
+    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+  };
+
+  // Release payslips with employee selection
+  const openReleaseModal = () => {
+    const items = selectedRun?.items || [];
+    setReleaseSelection(new Set(items.map(i => i.employeeId)));
+    setShowReleaseModal(true);
+  };
+
+  const handleReleasePayslips = async () => {
+    setReleasing(true);
+    try {
+      const employeeIds = [...releaseSelection];
+      const res = await releasePayslips(orgSlug, selectedRun._id, employeeIds);
+      setSelectedRun(res.run);
+      setShowReleaseModal(false);
+      showToast(`Payslips released for ${employeeIds.length} employees`);
+    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setReleasing(false); }
+  };
+
   // Download helpers
   const triggerDownload = (blob, filename) => {
     const url = URL.createObjectURL(blob);
@@ -298,10 +345,15 @@ export default function PayrollRunPage() {
               {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
             </button>
             {/* Release/Hold */}
-            <button onClick={handleToggleRelease} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${run.payslipReleased ? 'border-green-500/30 text-green-400 hover:bg-green-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
-              {run.payslipReleased ? <EyeOff size={12} /> : <Eye size={12} />}
-              {run.payslipReleased ? 'Hold Payslips' : 'Release Payslips'}
-            </button>
+            {run.payslipReleased ? (
+              <button onClick={handleToggleRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10">
+                <EyeOff size={12} /> Hold Payslips
+              </button>
+            ) : (
+              <button onClick={openReleaseModal} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-dark-600 text-dark-300 hover:bg-dark-700">
+                <Send size={12} /> Release Payslips
+              </button>
+            )}
             <div className="border-l border-dark-700 mx-1" />
             {/* Downloads */}
             <button onClick={() => handleDownload('pf')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="PF ECR"><FileText size={12} /> PF</button>
@@ -356,21 +408,41 @@ export default function PayrollRunPage() {
                       className={`border-b border-dark-700/50 hover:bg-dark-750 cursor-pointer transition-colors ${item.isOverridden ? 'bg-amber-500/5' : ''}`}
                     >
                       <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-white text-xs font-medium">{item.employeeName}</span>
-                          {item.attendanceStatus === 'pending' && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance pending approval">
+                          {/* Employment type badge */}
+                          {item.payrollMode === 'contractor' && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-500/10 text-purple-400">Contractor</span>
+                          )}
+                          {item.employmentType === 'internal_consultant' && item.payrollMode !== 'contractor' && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-500/10 text-blue-400">Consultant</span>
+                          )}
+                          {item.employmentType === 'intern' && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400">Intern</span>
+                          )}
+                          {/* Status badges */}
+                          {item.payrollMode === 'contractor' && item.timesheetStatus === 'not_submitted' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="No approved timesheet">
+                              <XCircle size={9} /> No Timesheet
+                            </span>
+                          )}
+                          {item.payrollMode !== 'contractor' && item.attendanceStatus === 'pending' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance pending">
                               <AlertTriangle size={9} /> Pending
                             </span>
                           )}
-                          {item.attendanceStatus === 'not_submitted' && (
+                          {item.payrollMode !== 'contractor' && item.attendanceStatus === 'not_submitted' && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="Attendance not submitted">
                               <XCircle size={9} /> No Attendance
                             </span>
                           )}
+                          {item.salaryHold && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-500/10 text-orange-400" title={item.salaryHold.reason}>
+                              <PauseCircle size={9} /> On Hold
+                            </span>
+                          )}
                         </div>
-                        {item.isOverridden && <span className="text-[9px] text-amber-400" title={`${item.overrideReason || 'No reason'}${item.overriddenAt ? ' • ' + new Date(item.overriddenAt).toLocaleDateString('en-IN') : ''}`}>Overridden</span>}
-                        {(item.adHocEarnings?.length > 0 || item.adHocDeductions?.length > 0) && <span className="text-[9px] text-blue-400 ml-1">Ad-hoc</span>}
+                        {(item.adHocEarnings?.length > 0 || item.adHocDeductions?.length > 0) && <span className="text-[9px] text-blue-400">Ad-hoc</span>}
                       </td>
                       <td className="px-3 py-2.5 text-dark-300 text-xs">{item.effectiveDays}/{item.totalWorkingDays}</td>
                       <td className="px-3 py-2.5 text-xs">
@@ -545,6 +617,24 @@ export default function PayrollRunPage() {
                               </div>
                             </div>
 
+                            {/* Salary Hold Banner */}
+                            {item.salaryHold && (
+                              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs font-medium text-orange-400">Salary On Hold</p>
+                                  <p className="text-xs text-dark-400 mt-0.5">{item.salaryHold.reason}</p>
+                                </div>
+                                {run.status !== 'paid' && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleReleaseHold(item.salaryHold._id); }}
+                                    className="px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-colors"
+                                  >
+                                    Release Hold
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
                             {/* Action buttons */}
                             <div className="flex flex-wrap gap-2 pt-1">
                               {['processed', 'finalized', 'paid'].includes(run.status) && (
@@ -561,6 +651,14 @@ export default function PayrollRunPage() {
                                   className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors"
                                 >
                                   <Plus size={12} /> Ad-hoc Adjustment
+                                </button>
+                              )}
+                              {!item.salaryHold && run.status !== 'paid' && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setShowHoldModal({ employeeId: item.employeeId, employeeName: item.employeeName }); }}
+                                  className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors"
+                                >
+                                  <PauseCircle size={12} /> Hold Salary
                                 </button>
                               )}
                             </div>
@@ -632,6 +730,80 @@ export default function PayrollRunPage() {
             </div>
           </div>
         )}
+
+        {/* Salary Hold Modal */}
+        {showHoldModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm">
+              <div className="flex items-center justify-between p-4 border-b border-dark-700">
+                <div>
+                  <h2 className="text-base font-semibold text-white">Hold Salary</h2>
+                  <p className="text-xs text-dark-400">{showHoldModal.employeeName}</p>
+                </div>
+                <button onClick={() => setShowHoldModal(null)} className="text-dark-400 hover:text-white"><X size={18} /></button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-dark-400 mb-1">Reason for hold</label>
+                  <input type="text" value={holdReason} onChange={e => setHoldReason(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-dark-900 border border-dark-600 rounded text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                    placeholder="e.g., Client payment pending" autoFocus />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => setShowHoldModal(null)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
+                  <button onClick={handleCreateHold} disabled={!holdReason.trim()} className="flex-1 px-3 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 disabled:opacity-50">Hold</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Release Payslips Modal */}
+        {showReleaseModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-4 border-b border-dark-700">
+                <h2 className="text-base font-semibold text-white">Release Payslips</h2>
+                <button onClick={() => setShowReleaseModal(false)} className="text-dark-400 hover:text-white"><X size={18} /></button>
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-dark-400">{releaseSelection.size} of {items.length} selected</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => setReleaseSelection(new Set(items.map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
+                    <button onClick={() => setReleaseSelection(new Set())} className="text-[10px] text-dark-400 hover:text-dark-300">Deselect All</button>
+                  </div>
+                </div>
+                {items.map(item => (
+                  <label key={item.employeeId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-750 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={releaseSelection.has(item.employeeId)}
+                      onChange={() => {
+                        const next = new Set(releaseSelection);
+                        next.has(item.employeeId) ? next.delete(item.employeeId) : next.add(item.employeeId);
+                        setReleaseSelection(next);
+                      }}
+                      className="rounded border-dark-600"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm text-white">{item.employeeName}</span>
+                      {item.salaryHold && <span className="text-[9px] text-orange-400 ml-2">On Hold</span>}
+                    </div>
+                    <span className="text-xs text-green-400">₹{fmt(item.netSalary)}</span>
+                  </label>
+                ))}
+                <div className="flex gap-3 pt-3">
+                  <button onClick={() => setShowReleaseModal(false)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
+                  <button onClick={handleReleasePayslips} disabled={releasing || releaseSelection.size === 0} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {releasing && <Loader2 size={14} className="animate-spin" />}
+                    {releasing ? 'Releasing...' : `Release (${releaseSelection.size})`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -641,8 +813,8 @@ export default function PayrollRunPage() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-white">Employee Payroll</h1>
-          <p className="text-sm text-dark-400 mt-1">Monthly payroll for confirmed employees, non-billable internal consultants & interns</p>
+          <h1 className="text-xl font-semibold text-white">Run Payroll</h1>
+          <p className="text-sm text-dark-400 mt-1">Monthly payroll for all employees & contractors</p>
         </div>
         <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
           <Plus size={16} /> New Run

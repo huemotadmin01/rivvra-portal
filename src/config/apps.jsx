@@ -170,13 +170,7 @@ export const APP_REGISTRY = {
     getSidebarItems: () => [
       { type: 'item', path: '/payroll/pay-overview', label: 'Dashboard', icon: LayoutDashboard },
       { type: 'item', path: '/payroll/export', label: 'Export & Reports', icon: Download },
-      {
-        type: 'group', label: 'Run Payroll', icon: Banknote,
-        children: [
-          { path: '/payroll/statutory-run', label: 'Employee Payroll', icon: Wallet },
-          { path: '/payroll/process', label: 'Contractor Payroll', icon: Briefcase },
-        ],
-      },
+      { type: 'item', path: '/payroll/statutory-run', label: 'Run Payroll', icon: Banknote },
       { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
       {
         type: 'group', label: 'Configuration', icon: Settings,

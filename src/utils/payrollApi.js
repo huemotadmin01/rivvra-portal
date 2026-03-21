@@ -156,11 +156,19 @@ export function unlockPayroll(orgSlug, id) {
 }
 
 // Employee View Release
-export function releasePayslips(orgSlug, id) {
-  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/release-payslips`);
+export function releasePayslips(orgSlug, id, employeeIds) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${id}/release-payslips`, { body: employeeIds ? { employeeIds } : {} });
 }
 export function holdPayslips(orgSlug, id) {
   return request('POST', `${orgUrl(orgSlug)}/runs/${id}/hold-payslips`);
+}
+
+// Salary Hold
+export function createSalaryHold(orgSlug, runId, employeeId, reason) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${runId}/salary-hold`, { body: { employeeId, reason } });
+}
+export function releaseSalaryHold(orgSlug, runId, holdId, note) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${runId}/salary-hold/${holdId}/release`, { body: { note } });
 }
 
 // Ad-hoc Earnings/Deductions

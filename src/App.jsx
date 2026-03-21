@@ -186,6 +186,12 @@ function OrgSettingsRedirect() {
   return <Navigate to={`/org/${slug}/settings/general`} replace />;
 }
 
+// Helper: redirect old /payroll/process (contractor payroll) to unified /payroll/statutory-run
+function PayrollProcessRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/payroll/statutory-run`} replace />;
+}
+
 // Helper: redirect old /settings/profile to /my-profile
 function SettingsProfileRedirect() {
   const { slug } = useParams();
@@ -302,7 +308,7 @@ function App() {
 
               {/* Payroll app routes — gated by payroll app admin role */}
               <Route element={<AppRoleGate appId="payroll" requiredRole="admin" />}>
-                <Route path="/org/:slug/payroll/process" element={<ErrorBoundary><TimesheetPayroll /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/process" element={<PayrollProcessRedirect />} />
                 <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PayrollDashboardPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
