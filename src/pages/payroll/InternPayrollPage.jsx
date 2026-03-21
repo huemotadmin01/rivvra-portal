@@ -38,7 +38,7 @@ export default function InternPayrollPage() {
     try {
       const res = await getInternPayrollRuns(orgSlug);
       setRuns(res.runs || []);
-    } catch { showToast('Failed to load', 'error'); }
+    } catch (err) { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
 
@@ -46,7 +46,7 @@ export default function InternPayrollPage() {
     try {
       const res = await getInternPayrollRun(orgSlug, id);
       setSelectedRun(res.run);
-    } catch { showToast('Failed to load run', 'error'); }
+    } catch (err) { showToast('Failed to load run', 'error'); }
   };
 
   useEffect(() => { loadRuns(); }, [orgSlug]);

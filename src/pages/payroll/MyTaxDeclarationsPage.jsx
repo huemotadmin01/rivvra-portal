@@ -124,7 +124,7 @@ export default function MyTaxDeclarationsPage() {
       // Reload comparison
       const reportRes = await getMyTaxReport(orgSlug, fy).catch(() => null);
       if (reportRes?.report?.comparison) setComparison(reportRes.report.comparison);
-    } catch {
+    } catch (err) {
       showToast('Failed to switch regime', 'error');
     }
   }
@@ -181,7 +181,7 @@ export default function MyTaxDeclarationsPage() {
       await deleteTaxProof(orgSlug, proofId);
       setProofs(prev => prev.filter(p => p._id !== proofId));
       showToast('Proof deleted');
-    } catch {
+    } catch (err) {
       showToast('Delete failed', 'error');
     }
   }
@@ -195,7 +195,7 @@ export default function MyTaxDeclarationsPage() {
       a.download = proof.filename;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (err) {
       showToast('Download failed', 'error');
     }
   }

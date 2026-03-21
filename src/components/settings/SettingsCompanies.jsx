@@ -105,7 +105,7 @@ export default function SettingsCompanies() {
           }
         }
       }
-    } catch { /* ignore */ }
+    } catch (err) { /* ignore */ }
     setLoading(false);
   }, [orgSlug, selectedCompany?._id]);
 

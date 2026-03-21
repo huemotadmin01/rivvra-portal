@@ -34,7 +34,7 @@ export default function PTMasterPage({ embedded = false }) {
       ]);
       setConfigs(res.configs || []);
       setDefaultPtState(settingsRes.settings?.defaultPtState || '');
-    } catch { showToast('Failed to load PT Master', 'error'); }
+    } catch (err) { showToast('Failed to load PT Master', 'error'); }
     finally { setLoading(false); }
   };
 
@@ -69,7 +69,7 @@ export default function PTMasterPage({ embedded = false }) {
       showToast('PT config updated', 'success');
       setEditingId(null);
       load();
-    } catch { showToast('Failed to update', 'error'); }
+    } catch (err) { showToast('Failed to update', 'error'); }
     finally { setSaving(false); }
   };
 
@@ -78,7 +78,7 @@ export default function PTMasterPage({ embedded = false }) {
     try {
       await updatePayrollSettings(orgSlug, { defaultPtState });
       showToast('Default PT state saved', 'success');
-    } catch { showToast('Failed to save', 'error'); }
+    } catch (err) { showToast('Failed to save', 'error'); }
     finally { setSavingSettings(false); }
   };
 

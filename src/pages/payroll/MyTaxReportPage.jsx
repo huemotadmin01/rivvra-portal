@@ -29,7 +29,7 @@ export default function MyTaxReportPage() {
       try {
         const res = await getMyTaxAvailableFYs(orgSlug);
         setFys(res.financialYears || []);
-      } catch { /* ignore */ }
+      } catch (err) { /* ignore */ }
     })();
   }, [orgSlug]);
 
@@ -53,7 +53,7 @@ export default function MyTaxReportPage() {
       await updateMyTaxRegime(orgSlug, newRegime);
       showToast(`Switched to ${newRegime === 'old' ? 'Old' : 'New'} Regime`);
       loadReport();
-    } catch {
+    } catch (err) {
       showToast('Failed to switch regime', 'error');
     }
   }

@@ -43,7 +43,7 @@ export default function TaxDeclarationsPage() {
       ]);
       setDeclarations(declRes.declarations || []);
       setEmployees((empRes.data || []).map(d => d.employee));
-    } catch { showToast('Failed to load', 'error'); }
+    } catch (err) { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
 

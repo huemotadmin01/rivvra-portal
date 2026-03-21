@@ -70,7 +70,12 @@ function DisbursementTab() {
 
   useEffect(() => {
     timesheetApi.get('/payroll-settings')
-      .then(r => setSettings(r.data))
+      .then(r => {
+        const data = r.data || {};
+        // Ensure disbursementRules always has defaults so they get saved
+        if (!data.disbursementRules) data.disbursementRules = { ...DEFAULT_DISBURSEMENT_RULES };
+        setSettings(data);
+      })
       .catch(() => showToast('Failed to load disbursement settings', 'error'))
       .finally(() => setLoading(false));
   }, []);
@@ -86,7 +91,7 @@ function DisbursementTab() {
         disbursementRules: settings.disbursementRules,
       });
       showToast('Payroll settings saved', 'success');
-    } catch {
+    } catch (err) {
       showToast('Failed to save payroll settings', 'error');
     } finally { setSaving(false); }
   };
@@ -329,7 +334,7 @@ function TdsConfigTab() {
     try {
       const res = await getOrgTdsConfig(orgSlug);
       setConfig(res.tdsConfig || { defaultSection: '194C', sections: [] });
-    } catch {
+    } catch (err) {
       showToast('Failed to load TDS config', 'error');
     } finally {
       setLoading(false);
@@ -345,7 +350,7 @@ function TdsConfigTab() {
     try {
       await updateOrgTdsConfig(orgSlug, config);
       showToast('TDS configuration saved', 'success');
-    } catch {
+    } catch (err) {
       showToast('Failed to save TDS config', 'error');
     } finally {
       setSaving(false);
@@ -545,7 +550,7 @@ function StructureMappingTab() {
         ...(settingsRes.settings?.tdsRateByType || {}),
       });
       setStructures(structuresRes.structures || []);
-    } catch {
+    } catch (err) {
       showToast('Failed to load structure mapping data', 'error');
     } finally {
       setLoading(false);
@@ -557,7 +562,7 @@ function StructureMappingTab() {
     try {
       await updatePayrollSettings(orgSlug, { structureMapping: mapping, tdsRateByType });
       showToast('Structure mapping saved', 'success');
-    } catch {
+    } catch (err) {
       showToast('Failed to save structure mapping', 'error');
     } finally {
       setSaving(false);

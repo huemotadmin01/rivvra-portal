@@ -173,7 +173,7 @@ export default function SettingsGeneral() {
         setWelcomeResent(true);
         setTimeout(() => setWelcomeResent(false), 3000);
       }
-    } catch { /* ignore */ } finally {
+    } catch (err) { /* ignore */ } finally {
       setResendingWelcome(false);
     }
   };
@@ -213,7 +213,7 @@ export default function SettingsGeneral() {
       if (res.success) {
         setLogoPreviewUrl(`${api.baseUrl}/api/org/${currentOrg.slug}/logo?t=${Date.now()}`);
       }
-    } catch { /* ignore */ } finally {
+    } catch (err) { /* ignore */ } finally {
       setUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = '';
     }
@@ -223,7 +223,7 @@ export default function SettingsGeneral() {
     try {
       const res = await api.deleteOrgLogo(currentOrg.slug);
       if (res.success) setLogoPreviewUrl(null);
-    } catch { /* ignore */ }
+    } catch (err) { /* ignore */ }
   };
 
   const handleSaveBranding = async () => {
@@ -238,7 +238,7 @@ export default function SettingsGeneral() {
         setBrandingSaved(true);
         setTimeout(() => setBrandingSaved(false), 2000);
       }
-    } catch { /* ignore */ } finally {
+    } catch (err) { /* ignore */ } finally {
       setSavingBranding(false);
     }
   };

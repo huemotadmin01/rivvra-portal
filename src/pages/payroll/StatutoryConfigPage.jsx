@@ -23,7 +23,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
       ]);
       setData(res.data || []);
       setPtStates(stRes.states || []);
-    } catch { showToast('Failed to load', 'error'); }
+    } catch (err) { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
 

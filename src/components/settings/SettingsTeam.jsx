@@ -112,7 +112,7 @@ export default function SettingsTeam() {
         res.members.forEach(m => { map[m.id] = { dailySendLimit: m.dailySendLimit, hourlySendLimit: m.hourlySendLimit }; });
         setMemberRateLimits(map);
       }
-    } catch {}
+    } catch (err) {}
   }
 
   async function handleSaveRateLimits(memberId) {
@@ -190,7 +190,7 @@ export default function SettingsTeam() {
     try {
       const res = await api.getTeams();
       if (res.success) setTeams(res.teams || []);
-    } catch {} finally { setTeamsLoading(false); }
+    } catch (err) {} finally { setTeamsLoading(false); }
   }
 
   async function handleCreateTeam() {

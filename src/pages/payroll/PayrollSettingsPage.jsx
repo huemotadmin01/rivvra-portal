@@ -141,7 +141,7 @@ export default function PayrollSettingsPage({ embedded = false }) {
     try {
       const res = await getFYConfigs();
       setFyList(res.configs || []);
-    } catch { /* ignore */ }
+    } catch (err) { /* ignore */ }
   };
 
   const loadConfig = async (fy) => {
@@ -149,7 +149,7 @@ export default function PayrollSettingsPage({ embedded = false }) {
     try {
       const res = await getFYConfig(fy);
       setConfig(res.config);
-    } catch {
+    } catch (err) {
       setConfig(null);
     } finally {
       setLoading(false);

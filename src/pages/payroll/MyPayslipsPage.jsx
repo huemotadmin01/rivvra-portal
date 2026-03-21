@@ -69,7 +69,7 @@ export default function MyPayslipsPage() {
         : await downloadMyPayslipPdf(orgSlug, p.runId);
       triggerDownload(blob, `Payslip_${MONTH_FULL[p.month]}_${p.year}.pdf`);
       showToast('Payslip downloaded');
-    } catch {
+    } catch (err) {
       showToast('Download failed', 'error');
     }
   };
@@ -90,7 +90,7 @@ export default function MyPayslipsPage() {
       triggerDownload(blob, 'My_Payslips.zip');
       showToast(`${selected.size} payslips downloaded`);
       setSelected(new Set());
-    } catch {
+    } catch (err) {
       showToast('Bulk download failed', 'error');
     } finally {
       setDownloading(false);
@@ -147,7 +147,7 @@ export default function MyPayslipsPage() {
               isImported ? 'text-purple-400 bg-purple-500/10' : 'text-amber-400 bg-amber-500/10';
 
             return (
-              <div key={idx} className={`bg-dark-800 rounded-xl border overflow-hidden transition-colors ${isSelected ? 'border-rivvra-500/50' : 'border-dark-700'}`}>
+              <div key={payslipKey(p)} className={`bg-dark-800 rounded-xl border overflow-hidden transition-colors ${isSelected ? 'border-rivvra-500/50' : 'border-dark-700'}`}>
                 <button
                   onClick={() => setExpanded(isExpanded ? null : idx)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-750 transition-colors"
@@ -198,7 +198,7 @@ export default function MyPayslipsPage() {
                         <table className="w-full text-sm">
                           <tbody>
                             {(p.components || []).length > 0 ? (p.components || []).map((c, ci) => (
-                              <tr key={ci} className="border-b border-dark-700/30 last:border-0">
+                              <tr key={c.name || ci} className="border-b border-dark-700/30 last:border-0">
                                 <td className="py-1.5 text-dark-300">{c.name}</td>
                                 <td className="py-1.5 text-right text-white">₹{fmt(c.proratedAmount || c.amount)}</td>
                               </tr>
@@ -253,7 +253,7 @@ export default function MyPayslipsPage() {
                             )}
                             {p.tds > 0 && (
                               <tr className="border-b border-dark-700/30">
-                                <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? `TDS (${p.tdsRate ? Math.round(p.tdsRate * 100) : 2}%)` : 'TDS'}</td>
+                                <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? `TDS (${Math.round((p.tdsRate ?? 0.02) * 100)}%)` : 'TDS'}</td>
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.tds)}</td>
                               </tr>
                             )}

@@ -441,7 +441,7 @@ export default function EmployeeDetail() {
     try {
       const res = await employeeApi.getSalaryHistory(currentOrg.slug, employeeId);
       if (res.success) setSalaryHistory(res.history || []);
-    } catch {}
+    } catch (err) {}
     setSalaryHistoryLoading(false);
   };
   useEffect(() => {
@@ -708,7 +708,7 @@ export default function EmployeeDetail() {
             onSave={handleFieldSave} displayValue={emp.managerName || null} />
           <InlineField label="Employment Type" field="employmentType" value={emp.employmentType} type="select"
             options={Object.entries(empTypeMap).map(([key, cfg]) => ({ value: key, label: cfg.label }))}
-            editable={isAdmin} onSave={handleFieldSave}
+            editable={fp('employmentType').editable} onSave={handleFieldSave}
             displayValue={empTypeMap[emp.employmentType]?.label || emp.employmentType} />
           <InfoRow
             label="Related User"

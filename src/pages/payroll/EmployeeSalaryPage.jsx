@@ -33,7 +33,7 @@ export default function EmployeeSalaryPage() {
       setSalaries(salRes.salaries || []);
       setStructures(structRes.structures || []);
       setUnconfigured(unRes.employees || []);
-    } catch { showToast('Failed to load', 'error'); }
+    } catch (err) { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
 
@@ -82,7 +82,7 @@ export default function EmployeeSalaryPage() {
       const res = await getEmployeeSalaryHistory(orgSlug, employeeId);
       setHistory(res.history || []);
       setShowHistory(employeeId);
-    } catch { showToast('Failed to load history', 'error'); }
+    } catch (err) { showToast('Failed to load history', 'error'); }
   };
 
   const openNew = (empId = '') => {

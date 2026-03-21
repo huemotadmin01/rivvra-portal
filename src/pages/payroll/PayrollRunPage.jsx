@@ -49,7 +49,7 @@ export default function PayrollRunPage() {
     try {
       const res = await getPayrollRuns(orgSlug);
       setRuns(res.runs || []);
-    } catch { showToast('Failed to load', 'error'); }
+    } catch (err) { showToast(err.response?.data?.message || 'Failed to load', 'error'); }
     finally { setLoading(false); }
   };
 
@@ -57,7 +57,7 @@ export default function PayrollRunPage() {
     try {
       const res = await getPayrollRun(orgSlug, id);
       setSelectedRun(res.run);
-    } catch { showToast('Failed to load run', 'error'); }
+    } catch (err) { showToast(err.response?.data?.message || 'Failed to load run', 'error'); }
   };
 
   useEffect(() => { loadRuns(); }, [orgSlug]);
@@ -223,14 +223,14 @@ export default function PayrollRunPage() {
       }
       triggerDownload(blob, filename);
       showToast(`Downloaded ${type}`);
-    } catch { showToast('Download failed', 'error'); }
+    } catch (err) { showToast('Download failed', 'error'); }
   };
 
   const handleDownloadPayslip = async (employeeId, name) => {
     try {
       const blob = await downloadPayslipPdf(orgSlug, selectedRun._id, employeeId);
       triggerDownload(blob, `Payslip_${name.replace(/\s+/g, '_')}_${MONTHS[selectedRun.month]}_${selectedRun.year}.pdf`);
-    } catch { showToast('Download failed', 'error'); }
+    } catch (err) { showToast('Download failed', 'error'); }
   };
 
   const handleExport = async (type) => {
@@ -238,7 +238,7 @@ export default function PayrollRunPage() {
       const blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
       triggerDownload(blob, `${type}_${selectedRun.month}_${selectedRun.year}.csv`);
       showToast(`${type} exported`);
-    } catch { showToast('Export failed', 'error'); }
+    } catch (err) { showToast('Export failed', 'error'); }
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;

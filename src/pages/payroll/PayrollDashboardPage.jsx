@@ -32,7 +32,7 @@ export default function PayrollDashboardPage() {
       try {
         const res = await getPayrollRuns(orgSlug);
         setRuns(res.runs || []);
-      } catch { showToast('Failed to load', 'error'); }
+      } catch (err) { showToast('Failed to load', 'error'); }
       finally { setLoading(false); }
     })();
   }, [orgSlug]);

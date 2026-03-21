@@ -60,7 +60,7 @@ export default function SettingsTimesheet() {
     setAppSaving(true);
     try {
       await updateTimesheetAppSettings(appSettings);
-    } catch {} finally { setAppSaving(false); }
+    } catch (err) {} finally { setAppSaving(false); }
   };
 
   // Fetch reminder status when reminders are enabled
@@ -89,7 +89,7 @@ export default function SettingsTimesheet() {
     setLeaveSaving(true);
     try {
       await updateLeavePolicy(leavePolicy);
-    } catch {} finally { setLeaveSaving(false); }
+    } catch (err) {} finally { setLeaveSaving(false); }
   };
 
   const addLeaveType = () => {

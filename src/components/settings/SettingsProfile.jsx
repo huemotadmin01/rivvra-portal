@@ -36,7 +36,7 @@ export default function SettingsProfile() {
         setTitleSaved(true);
         setTimeout(() => setTitleSaved(false), 2000);
       }
-    } catch {
+    } catch (err) {
       /* ignore */
     } finally {
       setSavingTitle(false);

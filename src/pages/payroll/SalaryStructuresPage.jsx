@@ -27,7 +27,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
     try {
       const res = await getSalaryStructures(orgSlug);
       setStructures(res.structures || []);
-    } catch { showToast('Failed to load structures', 'error'); }
+    } catch (err) { showToast('Failed to load structures', 'error'); }
     finally { setLoading(false); }
   };
 

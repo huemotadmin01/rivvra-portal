@@ -54,7 +54,7 @@ export default function SettingsTodo() {
         setOrgConfig(res.config);
         showToast('Settings saved', 'success');
       }
-    } catch {
+    } catch (err) {
       showToast('Failed to save settings', 'error');
     } finally {
       setSaving(false);
