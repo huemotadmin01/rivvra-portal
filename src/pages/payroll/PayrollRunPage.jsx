@@ -506,12 +506,6 @@ export default function PayrollRunPage() {
                                     </div>
                                   ))}
 
-                                  {item.edli > 0 && (
-                                    <div className="flex justify-between">
-                                      <span className="text-dark-400">EDLI</span>
-                                      <span className="text-red-400">₹{fmt(item.edli)}</span>
-                                    </div>
-                                  )}
 
                                   <hr className="border-dark-800 my-1" />
                                   <div className="flex justify-between font-medium">
