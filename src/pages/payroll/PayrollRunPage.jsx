@@ -37,6 +37,7 @@ export default function PayrollRunPage() {
   const [showAdHoc, setShowAdHoc] = useState(null);
   const [adHocForm, setAdHocForm] = useState({ earnings: [], deductions: [] });
   const [processing, setProcessing] = useState(false);
+  const [savingAdHoc, setSavingAdHoc] = useState(false);
   const [expandedItem, setExpandedItem] = useState(null);
 
   const now = new Date();
@@ -160,6 +161,7 @@ export default function PayrollRunPage() {
   };
 
   const handleSaveAdHoc = async () => {
+    setSavingAdHoc(true);
     try {
       const cleanEarnings = adHocForm.earnings.filter(e => e.label && e.amount > 0);
       const cleanDeductions = adHocForm.deductions.filter(d => d.label && d.amount > 0);
@@ -167,12 +169,12 @@ export default function PayrollRunPage() {
         earnings: cleanEarnings, deductions: cleanDeductions,
       });
       setShowAdHoc(null);
-      showToast('Applying adjustment...');
       // Auto re-process to recalculate net pay with ad-hoc applied
       const processRes = await processPayrollRun(orgSlug, selectedRun._id);
       setSelectedRun(processRes.run);
       showToast('Adjustment applied & payroll recalculated');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setSavingAdHoc(false); }
   };
 
   // Download helpers
@@ -626,8 +628,11 @@ export default function PayrollRunPage() {
                   ))}
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button onClick={() => setShowAdHoc(null)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                  <button onClick={handleSaveAdHoc} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700">Save</button>
+                  <button onClick={() => setShowAdHoc(null)} disabled={savingAdHoc} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700 disabled:opacity-50">Cancel</button>
+                  <button onClick={handleSaveAdHoc} disabled={savingAdHoc} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {savingAdHoc && <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />}
+                    {savingAdHoc ? 'Saving & Recalculating...' : 'Save'}
+                  </button>
                 </div>
               </div>
             </div>
