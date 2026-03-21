@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import {
   getPayrollRuns, getPayrollRun, createPayrollRun, processPayrollRun,
@@ -13,7 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
-  AlertTriangle, XCircle, Undo2,
+  AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -39,6 +39,7 @@ export default function PayrollRunPage() {
   const [showAdHoc, setShowAdHoc] = useState(null);
   const [adHocForm, setAdHocForm] = useState({ earnings: [], deductions: [] });
   const [processing, setProcessing] = useState(false);
+  const [expandedItem, setExpandedItem] = useState(null);
 
   const now = new Date();
   const [newMonth, setNewMonth] = useState(now.getMonth() + 1);
@@ -359,55 +360,241 @@ export default function PayrollRunPage() {
             <thead>
               <tr className="border-b border-dark-700">
                 {['Employee', 'Days', 'LOP', 'Gross', 'PF (Total)', 'TDS', 'Deductions', 'Net', 'CTC', ''].map(h => (
-                  <th key={h} className="px-3 py-3 text-dark-400 font-medium text-left text-xs">{h}</th>
+                  <th key={h || 'actions'} className="px-3 py-3 text-dark-400 font-medium text-left text-xs">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {items.map(item => (
-                <tr key={item.employeeId} className={`border-b border-dark-700/50 hover:bg-dark-750 ${item.isOverridden ? 'bg-amber-500/5' : ''}`}>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-white text-xs font-medium">{item.employeeName}</span>
-                      {item.attendanceStatus === 'pending' && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance pending approval">
-                          <AlertTriangle size={9} /> Pending
-                        </span>
-                      )}
-                      {item.attendanceStatus === 'not_submitted' && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="Attendance not submitted">
-                          <XCircle size={9} /> No Attendance
-                        </span>
-                      )}
-                    </div>
-                    {item.isOverridden && <span className="text-[9px] text-amber-400" title={`${item.overrideReason || 'No reason'}${item.overriddenAt ? ' • ' + new Date(item.overriddenAt).toLocaleDateString('en-IN') : ''}`}>Overridden</span>}
-                    {(item.adHocEarnings?.length > 0 || item.adHocDeductions?.length > 0) && <span className="text-[9px] text-blue-400 ml-1">Ad-hoc</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{item.effectiveDays}/{item.totalWorkingDays}</td>
-                  <td className="px-3 py-2.5 text-xs">
-                    {item.lopDays > 0 ? <span className="text-red-400">{item.lopDays}</span> : <span className="text-dark-500">0</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-white text-xs font-medium">{fmt(item.grossSalary)}</td>
-                  <td className="px-3 py-2.5 text-blue-400 text-xs">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' ? '—' : fmt((item.employeePf || 0) + (item.employerPf || 0))}</td>
-                  <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.tds)}</td>
-                  <td className="px-3 py-2.5 text-red-400 text-xs">{fmt(item.totalDeductions)}</td>
-                  <td className="px-3 py-2.5 text-green-400 text-xs font-medium">{fmt(item.netSalary)}</td>
-                  <td className="px-3 py-2.5 text-purple-400 text-xs font-medium">{fmt(item.totalCtc)}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex gap-1">
-                      {run.status === 'processed' && (
-                        <button onClick={() => openOverride(item)} className="p-1 text-dark-400 hover:text-rivvra-400" title="Override"><Edit2 size={12} /></button>
-                      )}
-                      {['draft', 'processed'].includes(run.status) && !run.inputsLocked && (
-                        <button onClick={() => openAdHoc(item)} className="p-1 text-dark-400 hover:text-blue-400" title="Ad-hoc"><Plus size={12} /></button>
-                      )}
-                      {['processed', 'finalized', 'paid'].includes(run.status) && (
-                        <button onClick={() => handleDownloadPayslip(item.employeeId, item.employeeName)} className="p-1 text-dark-400 hover:text-green-400" title="Download Payslip"><Download size={12} /></button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {items.map(item => {
+                const isExpanded = expandedItem === item.employeeId;
+                return (
+                  <React.Fragment key={item.employeeId}>
+                    <tr
+                      onClick={() => setExpandedItem(isExpanded ? null : item.employeeId)}
+                      className={`border-b border-dark-700/50 hover:bg-dark-750 cursor-pointer transition-colors ${item.isOverridden ? 'bg-amber-500/5' : ''}`}
+                    >
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-white text-xs font-medium">{item.employeeName}</span>
+                          {item.attendanceStatus === 'pending' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance pending approval">
+                              <AlertTriangle size={9} /> Pending
+                            </span>
+                          )}
+                          {item.attendanceStatus === 'not_submitted' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="Attendance not submitted">
+                              <XCircle size={9} /> No Attendance
+                            </span>
+                          )}
+                        </div>
+                        {item.isOverridden && <span className="text-[9px] text-amber-400" title={`${item.overrideReason || 'No reason'}${item.overriddenAt ? ' • ' + new Date(item.overriddenAt).toLocaleDateString('en-IN') : ''}`}>Overridden</span>}
+                        {(item.adHocEarnings?.length > 0 || item.adHocDeductions?.length > 0) && <span className="text-[9px] text-blue-400 ml-1">Ad-hoc</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-dark-300 text-xs">{item.effectiveDays}/{item.totalWorkingDays}</td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {item.lopDays > 0 ? <span className="text-red-400">{item.lopDays}</span> : <span className="text-dark-500">0</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-white text-xs font-medium">{fmt(item.grossSalary)}</td>
+                      <td className="px-3 py-2.5 text-blue-400 text-xs">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' ? '—' : fmt((item.employeePf || 0) + (item.employerPf || 0))}</td>
+                      <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.tds)}</td>
+                      <td className="px-3 py-2.5 text-red-400 text-xs">{fmt(item.totalDeductions)}</td>
+                      <td className="px-3 py-2.5 text-green-400 text-xs font-medium">{fmt(item.netSalary)}</td>
+                      <td className="px-3 py-2.5 text-purple-400 text-xs font-medium">{fmt(item.totalCtc)}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center">
+                          {isExpanded ? <ChevronUp size={14} className="text-dark-400" /> : <ChevronDown size={14} className="text-dark-400" />}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Accordion expanded section */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan="10" className="p-0">
+                          <div className="border-t border-dark-800 bg-dark-950/50 p-4 sm:p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Left — Salary Calculation */}
+                              <div className="space-y-2">
+                                <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Salary Calculation</h4>
+                                <div className="bg-dark-900 rounded-lg p-3 space-y-1.5 text-sm">
+                                  {/* Component breakdown */}
+                                  {(item.components || []).map((c, ci) => (
+                                    <div key={c.name || ci} className="flex justify-between">
+                                      <span className="text-dark-400">{c.name}</span>
+                                      <span className="text-dark-200">
+                                        {item.prorationFactor < 1 ? (
+                                          <>
+                                            <span className="text-dark-500 line-through mr-1.5 text-xs">₹{fmt(c.fullAmount)}</span>
+                                            ₹{fmt(c.proratedAmount)}
+                                          </>
+                                        ) : (
+                                          <>₹{fmt(c.proratedAmount || c.fullAmount)}</>
+                                        )}
+                                      </span>
+                                    </div>
+                                  ))}
+
+                                  {/* Working days */}
+                                  <div className="flex justify-between">
+                                    <span className="text-dark-500 text-xs">Working Days</span>
+                                    <span className="text-dark-400 text-xs">{item.effectiveDays} of {item.totalWorkingDays}</span>
+                                  </div>
+                                  {item.lopDays > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-500 text-xs">LOP Days</span>
+                                      <span className="text-red-400 text-xs">{item.lopDays}</span>
+                                    </div>
+                                  )}
+
+                                  <hr className="border-dark-800 my-1" />
+
+                                  {/* Gross */}
+                                  <div className="flex justify-between font-medium">
+                                    <span className="text-dark-300">Gross Salary</span>
+                                    <span className="text-white">₹{fmt(item.grossSalary)}</span>
+                                  </div>
+
+                                  {/* Deductions */}
+                                  {item.employeePf > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Employee PF{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
+                                      <span className="text-red-400">-₹{fmt(item.employeePf)}</span>
+                                    </div>
+                                  )}
+                                  {item.employeeEsi > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Employee ESI{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
+                                      <span className="text-red-400">-₹{fmt(item.employeeEsi)}</span>
+                                    </div>
+                                  )}
+                                  {item.professionalTax > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Professional Tax{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
+                                      <span className="text-red-400">-₹{fmt(item.professionalTax)}</span>
+                                    </div>
+                                  )}
+                                  {item.tds > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">TDS{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
+                                      <span className="text-red-400">-₹{fmt(item.tds)}</span>
+                                    </div>
+                                  )}
+
+                                  {/* Ad-hoc earnings */}
+                                  {(item.adHocEarnings || []).map((a, i) => (
+                                    <div key={`e-${i}`} className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">{a.label || a.name || 'Bonus'}</span>
+                                      <span className="text-emerald-400 text-xs">+₹{fmt(a.amount)}</span>
+                                    </div>
+                                  ))}
+
+                                  {/* Ad-hoc deductions */}
+                                  {(item.adHocDeductions || []).map((a, i) => (
+                                    <div key={`d-${i}`} className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">{a.label || a.name || 'Deduction'}</span>
+                                      <span className="text-red-400 text-xs">-₹{fmt(a.amount)}</span>
+                                    </div>
+                                  ))}
+
+                                  {(item.otherDeductions || 0) > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Other Deductions</span>
+                                      <span className="text-red-400">-₹{fmt(item.otherDeductions)}</span>
+                                    </div>
+                                  )}
+
+                                  <hr className="border-dark-800 my-1" />
+
+                                  {/* Net Pay */}
+                                  <div className="flex justify-between font-bold text-base">
+                                    <span className="text-dark-200">Net Pay</span>
+                                    <span className="text-emerald-400">₹{fmt(item.netSalary)}</span>
+                                  </div>
+
+                                  {/* Employer costs (small) */}
+                                  {(item.employerPf > 0 || item.employerEsi > 0) && (
+                                    <>
+                                      <hr className="border-dark-800 my-1" />
+                                      <div className="text-[10px] text-dark-500 uppercase tracking-wider mt-1">Employer Cost</div>
+                                      {item.employerPf > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                          <span className="text-dark-500">Employer PF</span>
+                                          <span className="text-dark-400">₹{fmt(item.employerPf)}</span>
+                                        </div>
+                                      )}
+                                      {item.employerEsi > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                          <span className="text-dark-500">Employer ESI</span>
+                                          <span className="text-dark-400">₹{fmt(item.employerEsi)}</span>
+                                        </div>
+                                      )}
+                                      {item.edli > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                          <span className="text-dark-500">EDLI</span>
+                                          <span className="text-dark-400">₹{fmt(item.edli)}</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Right — Bank Details */}
+                              <div className="space-y-2">
+                                <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Bank Details</h4>
+                                <div className="bg-dark-900 rounded-lg p-3 space-y-1.5 text-sm">
+                                  <div className="flex justify-between"><span className="text-dark-400">Bank</span><span className="text-dark-200">{item.bankDetails?.bankName || '—'}</span></div>
+                                  <div className="flex justify-between"><span className="text-dark-400">A/c No.</span><span className="text-dark-200">{item.bankDetails?.accountNumber || '—'}</span></div>
+                                  <div className="flex justify-between"><span className="text-dark-400">IFSC</span><span className="text-dark-200">{item.bankDetails?.ifsc || '—'}</span></div>
+                                  <div className="flex justify-between"><span className="text-dark-400">PAN</span><span className="text-dark-200">{item.panNumber || '—'}</span></div>
+                                </div>
+                                {item.disbursementDate && (
+                                  <div className="bg-dark-900 rounded-lg p-3 text-sm mt-2">
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Disbursement Date</span>
+                                      <span className="text-dark-200">
+                                        {new Date(item.disbursementDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {['processed', 'finalized', 'paid'].includes(run.status) && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDownloadPayslip(item.employeeId, item.employeeName); }}
+                                  className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Download size={12} /> Download Payslip
+                                </button>
+                              )}
+                              {run.status === 'processed' && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openOverride(item); }}
+                                  className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Edit2 size={12} /> Override
+                                </button>
+                              )}
+                              {['draft', 'processed'].includes(run.status) && !run.inputsLocked && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openAdHoc(item); }}
+                                  className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Plus size={12} /> Ad-hoc Adjustment
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
           {items.length === 0 && <div className="text-center py-12 text-dark-500">No items. Process the payroll to calculate.</div>}
