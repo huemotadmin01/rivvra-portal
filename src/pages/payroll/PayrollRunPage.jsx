@@ -166,11 +166,12 @@ export default function PayrollRunPage() {
       await setAdHocAdjustment(orgSlug, selectedRun._id, showAdHoc.employeeId, {
         earnings: cleanEarnings, deductions: cleanDeductions,
       });
-      // Reload run to reflect ad-hoc changes in accordion
-      const res = await getPayrollRun(orgSlug, selectedRun._id);
-      setSelectedRun(res.run);
       setShowAdHoc(null);
-      showToast('Ad-hoc adjustment saved. Re-process to recalculate net pay.');
+      showToast('Applying adjustment...');
+      // Auto re-process to recalculate net pay with ad-hoc applied
+      const processRes = await processPayrollRun(orgSlug, selectedRun._id);
+      setSelectedRun(processRes.run);
+      showToast('Adjustment applied & payroll recalculated');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
 
