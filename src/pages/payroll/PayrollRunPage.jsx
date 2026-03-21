@@ -3,7 +3,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import {
   getPayrollRuns, getPayrollRun, createPayrollRun, processPayrollRun,
   finalizePayrollRun, unfinalizePayrollRun, markPayrollRunPaid, deletePayrollRun,
-  overridePayrollItem, downloadPFChallan, downloadESIChallan, downloadPTChallan,
+  downloadPFChallan, downloadESIChallan, downloadPTChallan,
   lockInputs, unlockInputs, lockPayroll, unlockPayroll,
   releasePayslips, holdPayslips,
   setAdHocAdjustment,
@@ -34,8 +34,6 @@ export default function PayrollRunPage() {
   const [selectedRun, setSelectedRun] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [showOverride, setShowOverride] = useState(null);
-  const [overrideForm, setOverrideForm] = useState({});
   const [showAdHoc, setShowAdHoc] = useState(null);
   const [adHocForm, setAdHocForm] = useState({ earnings: [], deductions: [] });
   const [processing, setProcessing] = useState(false);
@@ -124,28 +122,6 @@ export default function PayrollRunPage() {
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
 
-  const openOverride = (item) => {
-    setOverrideForm({
-      grossSalary: item.grossSalary,
-      employeePf: item.employeePf,
-      employeeEsi: item.employeeEsi,
-      professionalTax: item.professionalTax,
-      tds: item.tds,
-      otherDeductions: item.otherDeductions || 0,
-      reason: '',
-    });
-    setShowOverride(item.employeeId);
-  };
-
-  const handleOverride = async () => {
-    try {
-      const res = await overridePayrollItem(orgSlug, selectedRun._id, showOverride, overrideForm);
-      setSelectedRun(res.run);
-      setShowOverride(null);
-      showToast('Override applied');
-    } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
-  };
-
   // Lock/Unlock handlers
   const handleToggleLock = async (type) => {
     try {
@@ -190,8 +166,11 @@ export default function PayrollRunPage() {
       await setAdHocAdjustment(orgSlug, selectedRun._id, showAdHoc.employeeId, {
         earnings: cleanEarnings, deductions: cleanDeductions,
       });
+      // Reload run to reflect ad-hoc changes in accordion
+      const res = await getPayrollRun(orgSlug, selectedRun._id);
+      setSelectedRun(res.run);
       setShowAdHoc(null);
-      showToast('Ad-hoc adjustment saved. Re-process to apply.');
+      showToast('Ad-hoc adjustment saved. Re-process to recalculate net pay.');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
 
@@ -408,16 +387,31 @@ export default function PayrollRunPage() {
                     </tr>
 
                     {/* Accordion expanded section */}
-                    {isExpanded && (
+                    {isExpanded && (() => {
+                      // Read ad-hoc from run.adHocAdjustments (live) instead of stale item data
+                      const liveAdHoc = (run.adHocAdjustments || []).find(a => a.employeeId === item.employeeId);
+                      const liveEarnings = liveAdHoc?.earnings?.filter(e => e.label && e.amount > 0) || [];
+                      const liveDeductions = liveAdHoc?.deductions?.filter(d => d.label && d.amount > 0) || [];
+                      const adHocEarningsTotal = liveEarnings.reduce((s, e) => s + (e.amount || 0), 0);
+                      const adHocDeductionsTotal = liveDeductions.reduce((s, d) => s + (d.amount || 0), 0);
+                      // Recalculate display values with live ad-hoc
+                      const baseGross = item.grossSalary - (item.adHocEarnings || []).reduce((s, e) => s + (e.amount || 0), 0);
+                      const displayGross = baseGross + adHocEarningsTotal;
+                      const baseDeductions = item.totalDeductions - (item.otherDeductions || 0);
+                      const displayDeductions = baseDeductions + adHocDeductionsTotal;
+                      const displayNet = Math.max(0, displayGross - displayDeductions);
+
+                      return (
                       <tr>
                         <td colSpan="10" className="p-0">
                           <div className="border-t border-dark-800 bg-dark-950/50 p-4 sm:p-6 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Left — Salary Calculation */}
+                              {/* Left — Earnings & Deductions */}
                               <div className="space-y-2">
-                                <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Salary Calculation</h4>
+                                <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Earnings & Deductions</h4>
                                 <div className="bg-dark-900 rounded-lg p-3 space-y-1.5 text-sm">
-                                  {/* Component breakdown */}
+                                  {/* Earnings — Component breakdown */}
+                                  <div className="text-[10px] text-dark-500 uppercase tracking-wider">Earnings</div>
                                   {(item.components || []).map((c, ci) => (
                                     <div key={c.name || ci} className="flex justify-between">
                                       <span className="text-dark-400">{c.name}</span>
@@ -434,6 +428,14 @@ export default function PayrollRunPage() {
                                     </div>
                                   ))}
 
+                                  {/* Ad-hoc earnings (live from run) */}
+                                  {liveEarnings.map((a, i) => (
+                                    <div key={`e-${i}`} className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">{a.label}</span>
+                                      <span className="text-emerald-400 text-xs">+₹{fmt(a.amount)}</span>
+                                    </div>
+                                  ))}
+
                                   {/* Working days */}
                                   <div className="flex justify-between">
                                     <span className="text-dark-500 text-xs">Working Days</span>
@@ -447,95 +449,80 @@ export default function PayrollRunPage() {
                                   )}
 
                                   <hr className="border-dark-800 my-1" />
-
-                                  {/* Gross */}
                                   <div className="flex justify-between font-medium">
-                                    <span className="text-dark-300">Gross Salary</span>
-                                    <span className="text-white">₹{fmt(item.grossSalary)}</span>
+                                    <span className="text-dark-300">Total Earnings</span>
+                                    <span className="text-white">₹{fmt(displayGross)}</span>
                                   </div>
 
+                                  <hr className="border-dark-800 my-1" />
+
                                   {/* Deductions */}
+                                  <div className="text-[10px] text-dark-500 uppercase tracking-wider">Deductions</div>
                                   {item.employeePf > 0 && (
                                     <div className="flex justify-between">
-                                      <span className="text-dark-400">Employee PF{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
-                                      <span className="text-red-400">-₹{fmt(item.employeePf)}</span>
+                                      <span className="text-dark-400">Employee PF</span>
+                                      <span className="text-red-400">₹{fmt(item.employeePf)}</span>
+                                    </div>
+                                  )}
+                                  {item.employerPf > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Employer PF</span>
+                                      <span className="text-red-400">₹{fmt(item.employerPf)}</span>
                                     </div>
                                   )}
                                   {item.employeeEsi > 0 && (
                                     <div className="flex justify-between">
-                                      <span className="text-dark-400">Employee ESI{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
-                                      <span className="text-red-400">-₹{fmt(item.employeeEsi)}</span>
+                                      <span className="text-dark-400">Employee ESI</span>
+                                      <span className="text-red-400">₹{fmt(item.employeeEsi)}</span>
+                                    </div>
+                                  )}
+                                  {item.employerEsi > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400">Employer ESI</span>
+                                      <span className="text-red-400">₹{fmt(item.employerEsi)}</span>
                                     </div>
                                   )}
                                   {item.professionalTax > 0 && (
                                     <div className="flex justify-between">
-                                      <span className="text-dark-400">Professional Tax{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
-                                      <span className="text-red-400">-₹{fmt(item.professionalTax)}</span>
+                                      <span className="text-dark-400">Professional Tax</span>
+                                      <span className="text-red-400">₹{fmt(item.professionalTax)}</span>
                                     </div>
                                   )}
                                   {item.tds > 0 && (
                                     <div className="flex justify-between">
-                                      <span className="text-dark-400">TDS{item.isOverridden && <span className="text-amber-400 text-[9px] ml-1">(overridden)</span>}</span>
-                                      <span className="text-red-400">-₹{fmt(item.tds)}</span>
+                                      <span className="text-dark-400">TDS (Income Tax)</span>
+                                      <span className="text-red-400">₹{fmt(item.tds)}</span>
                                     </div>
                                   )}
 
-                                  {/* Ad-hoc earnings */}
-                                  {(item.adHocEarnings || []).map((a, i) => (
-                                    <div key={`e-${i}`} className="flex justify-between">
-                                      <span className="text-dark-400 text-xs">{a.label || a.name || 'Bonus'}</span>
-                                      <span className="text-emerald-400 text-xs">+₹{fmt(a.amount)}</span>
-                                    </div>
-                                  ))}
-
-                                  {/* Ad-hoc deductions */}
-                                  {(item.adHocDeductions || []).map((a, i) => (
+                                  {/* Ad-hoc deductions (live from run) */}
+                                  {liveDeductions.map((a, i) => (
                                     <div key={`d-${i}`} className="flex justify-between">
-                                      <span className="text-dark-400 text-xs">{a.label || a.name || 'Deduction'}</span>
-                                      <span className="text-red-400 text-xs">-₹{fmt(a.amount)}</span>
+                                      <span className="text-dark-400 text-xs">{a.label}</span>
+                                      <span className="text-red-400 text-xs">₹{fmt(a.amount)}</span>
                                     </div>
                                   ))}
 
-                                  {(item.otherDeductions || 0) > 0 && (
+                                  {item.edli > 0 && (
                                     <div className="flex justify-between">
-                                      <span className="text-dark-400">Other Deductions</span>
-                                      <span className="text-red-400">-₹{fmt(item.otherDeductions)}</span>
+                                      <span className="text-dark-400">EDLI</span>
+                                      <span className="text-red-400">₹{fmt(item.edli)}</span>
                                     </div>
                                   )}
+
+                                  <hr className="border-dark-800 my-1" />
+                                  <div className="flex justify-between font-medium">
+                                    <span className="text-dark-300">Total Deductions</span>
+                                    <span className="text-red-400">₹{fmt(displayDeductions)}</span>
+                                  </div>
 
                                   <hr className="border-dark-800 my-1" />
 
                                   {/* Net Pay */}
                                   <div className="flex justify-between font-bold text-base">
                                     <span className="text-dark-200">Net Pay</span>
-                                    <span className="text-emerald-400">₹{fmt(item.netSalary)}</span>
+                                    <span className="text-emerald-400">₹{fmt(displayNet)}</span>
                                   </div>
-
-                                  {/* Employer costs (small) */}
-                                  {(item.employerPf > 0 || item.employerEsi > 0) && (
-                                    <>
-                                      <hr className="border-dark-800 my-1" />
-                                      <div className="text-[10px] text-dark-500 uppercase tracking-wider mt-1">Employer Cost</div>
-                                      {item.employerPf > 0 && (
-                                        <div className="flex justify-between text-xs">
-                                          <span className="text-dark-500">Employer PF</span>
-                                          <span className="text-dark-400">₹{fmt(item.employerPf)}</span>
-                                        </div>
-                                      )}
-                                      {item.employerEsi > 0 && (
-                                        <div className="flex justify-between text-xs">
-                                          <span className="text-dark-500">Employer ESI</span>
-                                          <span className="text-dark-400">₹{fmt(item.employerEsi)}</span>
-                                        </div>
-                                      )}
-                                      {item.edli > 0 && (
-                                        <div className="flex justify-between text-xs">
-                                          <span className="text-dark-500">EDLI</span>
-                                          <span className="text-dark-400">₹{fmt(item.edli)}</span>
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
                                 </div>
                               </div>
 
@@ -571,14 +558,6 @@ export default function PayrollRunPage() {
                                   <Download size={12} /> Download Payslip
                                 </button>
                               )}
-                              {run.status === 'processed' && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); openOverride(item); }}
-                                  className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-dark-700 flex items-center gap-1.5 transition-colors"
-                                >
-                                  <Edit2 size={12} /> Override
-                                </button>
-                              )}
                               {['draft', 'processed'].includes(run.status) && !run.inputsLocked && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); openAdHoc(item); }}
@@ -591,7 +570,8 @@ export default function PayrollRunPage() {
                           </div>
                         </td>
                       </tr>
-                    )}
+                      );
+                    })()}
                   </React.Fragment>
                 );
               })}
@@ -599,36 +579,6 @@ export default function PayrollRunPage() {
           </table>
           {items.length === 0 && <div className="text-center py-12 text-dark-500">No items. Process the payroll to calculate.</div>}
         </div>
-
-        {/* Override Modal */}
-        {showOverride && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm">
-              <div className="flex items-center justify-between p-4 border-b border-dark-700">
-                <h2 className="text-base font-semibold text-white">Override Values</h2>
-                <button onClick={() => setShowOverride(null)} className="text-dark-400 hover:text-white"><X size={18} /></button>
-              </div>
-              <div className="p-4 space-y-3">
-                {['grossSalary', 'employeePf', 'employeeEsi', 'professionalTax', 'tds', 'otherDeductions'].map(field => (
-                  <div key={field}>
-                    <label className="block text-xs text-dark-400 mb-1">{field.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</label>
-                    <input type="number" value={overrideForm[field]} onChange={e => setOverrideForm(f => ({ ...f, [field]: Number(e.target.value) }))}
-                      className="w-full px-3 py-1.5 bg-dark-900 border border-dark-600 rounded text-sm text-white focus:border-rivvra-500 focus:outline-none" />
-                  </div>
-                ))}
-                <div>
-                  <label className="block text-xs text-dark-400 mb-1">Reason</label>
-                  <input type="text" value={overrideForm.reason} onChange={e => setOverrideForm(f => ({ ...f, reason: e.target.value }))}
-                    className="w-full px-3 py-1.5 bg-dark-900 border border-dark-600 rounded text-sm text-white focus:border-rivvra-500 focus:outline-none" placeholder="Reason for override" required />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button onClick={() => setShowOverride(null)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                  <button onClick={handleOverride} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700">Apply</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Ad-Hoc Adjustment Modal */}
         {showAdHoc && (
