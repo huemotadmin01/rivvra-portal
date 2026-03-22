@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs } from '../../utils/payrollApi';
+import { getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs, getEmployeeTaxReport } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
-import { FileText, X, Search, Save } from 'lucide-react';
+import { FileText, X, Search, Save, ChevronDown, ChevronUp, BarChart3, Loader2, TrendingUp, TrendingDown, IndianRupee, Calendar } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
@@ -33,6 +33,9 @@ export default function TaxDeclarationsPage() {
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(null);
+  const [expandedEmp, setExpandedEmp] = useState(null); // employeeId
+  const [taxReport, setTaxReport] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -92,6 +95,18 @@ export default function TaxDeclarationsPage() {
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
 
+  const toggleTaxReport = async (empId) => {
+    if (expandedEmp === empId) { setExpandedEmp(null); setTaxReport(null); return; }
+    setExpandedEmp(empId);
+    setReportLoading(true);
+    setTaxReport(null);
+    try {
+      const res = await getEmployeeTaxReport(orgSlug, empId, fy);
+      setTaxReport(res.report);
+    } catch (err) { setTaxReport(null); }
+    finally { setReportLoading(false); }
+  };
+
   const total80C = form ? Math.min(150000, Object.values(form.section80C).reduce((s, v) => s + (Number(v) || 0), 0)) : 0;
   const total80D = form ? Object.values(form.section80D).reduce((s, v) => s + (Number(v) || 0), 0) : 0;
   const totalDecl = form ? total80C + total80D + (Number(form.section80E) || 0) + (Number(form.section80G) || 0) + (Number(form.section24b) || 0) : 0;
@@ -140,29 +155,116 @@ export default function TaxDeclarationsPage() {
           </thead>
           <tbody>
             {filtered.map(emp => {
-              const decl = declarations.find(d => d.employeeId === emp._id.toString());
+              const empId = emp._id.toString();
+              const decl = declarations.find(d => d.employeeId === empId);
               const d = decl?.declarations || {};
               const t80c = d.section80CTotal || 0;
               const t80d = d.section80DTotal || 0;
               const total = d.totalDeclared || 0;
+              const isExpanded = expandedEmp === empId;
               return (
-                <tr key={emp._id} className="border-b border-dark-700/50 hover:bg-dark-750">
-                  <td className="px-4 py-3">
-                    <div className="text-white font-medium">{emp.fullName || emp.name || emp.email}</div>
-                    <div className="text-xs text-dark-400">{emp.email}</div>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${decl?.regime === 'old' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                      {decl?.regime === 'old' ? 'Old' : 'New'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-xs text-dark-300">{t80c > 0 ? `₹${fmt(t80c)}` : '-'}</td>
-                  <td className="px-4 py-3 text-center text-xs text-dark-300">{t80d > 0 ? `₹${fmt(t80d)}` : '-'}</td>
-                  <td className="px-4 py-3 text-center text-xs text-white font-medium">{total > 0 ? `₹${fmt(total)}` : '-'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => openEmployee(emp)} className="text-xs text-rivvra-400 hover:text-rivvra-300">Edit</button>
-                  </td>
-                </tr>
+                <React.Fragment key={empId}>
+                  <tr onClick={() => toggleTaxReport(empId)} className={`border-b border-dark-700/50 hover:bg-dark-750 cursor-pointer transition-colors ${isExpanded ? 'bg-dark-750' : ''}`}>
+                    <td className="px-4 py-3">
+                      <div className="text-white font-medium">{emp.fullName || emp.name || emp.email}</div>
+                      <div className="text-xs text-dark-400">{emp.email}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${decl?.regime === 'old' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                        {decl?.regime === 'old' ? 'Old' : 'New'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-dark-300">{t80c > 0 ? `₹${fmt(t80c)}` : '-'}</td>
+                    <td className="px-4 py-3 text-center text-xs text-dark-300">{t80d > 0 ? `₹${fmt(t80d)}` : '-'}</td>
+                    <td className="px-4 py-3 text-center text-xs text-white font-medium">{total > 0 ? `₹${fmt(total)}` : '-'}</td>
+                    <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); openEmployee(emp); }} className="text-xs text-rivvra-400 hover:text-rivvra-300">Edit</button>
+                      {isExpanded ? <ChevronUp size={14} className="text-dark-400" /> : <ChevronDown size={14} className="text-dark-400" />}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={6} className="px-0 py-0 border-b border-dark-700/50">
+                        <div className="bg-dark-950/50 p-5">
+                          {reportLoading ? (
+                            <div className="flex items-center justify-center gap-2 py-6 text-dark-400 text-sm">
+                              <Loader2 size={16} className="animate-spin" /> Loading tax report...
+                            </div>
+                          ) : !taxReport ? (
+                            <div className="text-center py-6 text-dark-500 text-sm">No tax data for FY {fy}</div>
+                          ) : (
+                            <div className="space-y-4">
+                              {/* Summary Cards */}
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                                {[
+                                  { label: 'Gross Annual', value: taxReport.grossAnnualIncome, color: 'text-white' },
+                                  { label: 'Total Deductions', value: taxReport.totalDeductions, color: 'text-green-400' },
+                                  { label: 'Taxable Income', value: taxReport.taxableIncome, color: 'text-white' },
+                                  { label: 'Total Tax', value: taxReport.totalTax, color: 'text-red-400' },
+                                  { label: 'YTD TDS Paid', value: taxReport.ytdTdsPaid, color: 'text-blue-400' },
+                                  { label: 'Remaining Tax', value: taxReport.remainingTax, color: taxReport.remainingTax > 0 ? 'text-amber-400' : 'text-green-400' },
+                                ].map(card => (
+                                  <div key={card.label} className="bg-dark-900 rounded-lg p-3 border border-dark-800">
+                                    <p className="text-[10px] text-dark-500 uppercase">{card.label}</p>
+                                    <p className={`text-sm font-semibold ${card.color} mt-0.5`}>₹{fmt(card.value)}</p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Regime + Monthly TDS */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="bg-dark-900 rounded-lg p-3 border border-dark-800">
+                                  <p className="text-[10px] text-dark-500">REGIME</p>
+                                  <p className="text-sm font-semibold text-white capitalize mt-0.5">{taxReport.regime} Regime</p>
+                                  <p className="text-[10px] text-dark-500 mt-0.5">Std Deduction: ₹{fmt(taxReport.standardDeduction)}</p>
+                                </div>
+                                <div className="bg-dark-900 rounded-lg p-3 border border-dark-800">
+                                  <p className="text-[10px] text-dark-500">EST. MONTHLY TDS</p>
+                                  <p className="text-sm font-semibold text-white mt-0.5">₹{fmt(taxReport.estimatedMonthlyTds)}</p>
+                                  <p className="text-[10px] text-dark-500 mt-0.5">{taxReport.monthsProcessed} processed • {taxReport.monthsRemaining} remaining</p>
+                                </div>
+                                {taxReport.comparison && (
+                                  <div className="bg-dark-900 rounded-lg p-3 border border-dark-800">
+                                    <p className="text-[10px] text-dark-500">REGIME COMPARISON</p>
+                                    <p className="text-xs text-dark-300 mt-1">Old: ₹{fmt(taxReport.comparison.oldRegime.totalTax)} | New: ₹{fmt(taxReport.comparison.newRegime.totalTax)}</p>
+                                    <p className="text-[10px] mt-0.5">
+                                      <span className="text-green-400">{taxReport.comparison.betterRegime === 'old' ? 'Old' : 'New'} saves ₹{fmt(taxReport.comparison.savings)}</span>
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Monthly Breakdown */}
+                              {taxReport.monthlyBreakdown?.length > 0 && (
+                                <div className="bg-dark-900 rounded-lg border border-dark-800 overflow-hidden">
+                                  <p className="text-[10px] text-dark-500 uppercase px-3 pt-3 pb-1">Monthly Breakdown</p>
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-dark-500 border-b border-dark-800">
+                                        <th className="text-left px-3 py-1.5">Month</th>
+                                        <th className="text-right px-3 py-1.5">Gross</th>
+                                        <th className="text-right px-3 py-1.5">TDS</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {taxReport.monthlyBreakdown.map((m, i) => (
+                                        <tr key={i} className="border-b border-dark-800/50">
+                                          <td className="px-3 py-1.5 text-dark-300">{['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m.month]} {m.year} {m.source === 'imported' ? <span className="text-[9px] text-dark-500">(imported)</span> : ''}</td>
+                                          <td className="px-3 py-1.5 text-right text-dark-200">₹{fmt(m.gross)}</td>
+                                          <td className="px-3 py-1.5 text-right text-red-400">₹{fmt(m.tds)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>

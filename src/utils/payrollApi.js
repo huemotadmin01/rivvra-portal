@@ -289,6 +289,11 @@ export function updateMyTaxRegime(orgSlug, regime) {
 export function updateMyTaxDeclarations(orgSlug, data) {
   return request('PUT', `${orgUrl(orgSlug)}/my-tax/declarations`, { body: data });
 }
+// Admin: view any employee's tax report
+export function getEmployeeTaxReport(orgSlug, employeeId, fy) {
+  return request('GET', `${orgUrl(orgSlug)}/tax-report/${employeeId}/${fy}`);
+}
+
 export function getMyTaxReport(orgSlug, fy) {
   return request('GET', `${orgUrl(orgSlug)}/my-tax/report/${fy}`);
 }
