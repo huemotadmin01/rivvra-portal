@@ -278,8 +278,11 @@ export default function PayrollRunPage() {
     const run = selectedRun;
     const items = run.items || [];
     const summary = run.summary || {};
-    const computedTotalPf = items.reduce((s, i) => s + (i.employeePf || 0) + (i.employerPf || 0), 0);
-    const computedTotalCtc = items.reduce((s, i) => s + (i.totalCtc || 0), 0);
+    // Exclude contractors from PF/CTC totals (they have no statutory deductions)
+    const statutoryItems = items.filter(i => i.payrollMode !== 'contractor');
+    const contractorItems = items.filter(i => i.payrollMode === 'contractor');
+    const computedTotalPf = statutoryItems.reduce((s, i) => s + (i.employeePf || 0) + (i.employerPf || 0), 0);
+    const computedTotalCtc = statutoryItems.reduce((s, i) => s + (i.totalCtc || 0), 0);
 
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -296,7 +299,7 @@ export default function PayrollRunPage() {
               {run.payslipReleased && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">Released</span>}
             </div>
             <p className="text-sm text-dark-400">
-              FY {run.financialYear} | {summary.totalEmployees || 0} employees
+              FY {run.financialYear} | {statutoryItems.length} employees{contractorItems.length > 0 && <>, {contractorItems.length} contractors</>}
               {summary.stoppedEmployees > 0 && <span className="text-amber-400"> | {summary.stoppedEmployees} stopped</span>}
               {summary.totalLopDays > 0 && <span className="text-red-400"> | {summary.totalLopDays} LOP days</span>}
             </p>
@@ -310,10 +313,12 @@ export default function PayrollRunPage() {
             )}
             {run.status === 'processed' && (
               <>
-                <button onClick={handleProcess} disabled={processing} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50">
-                  {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-dark-300/30 border-t-dark-300" /> : <Play size={14} />}
-                  {processing ? 'Processing...' : 'Re-process'}
-                </button>
+                {!run.payrollLocked && (
+                  <button onClick={handleProcess} disabled={processing} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50">
+                    {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-dark-300/30 border-t-dark-300" /> : <Play size={14} />}
+                    {processing ? 'Processing...' : 'Re-process'}
+                  </button>
+                )}
                 <button onClick={handleFinalize} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
                   <Lock size={14} /> Finalize
                 </button>
@@ -367,6 +372,7 @@ export default function PayrollRunPage() {
             {/* Exports */}
             <button onClick={() => handleExport('register')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700"><FileSpreadsheet size={12} /> Register</button>
             <button onClick={() => handleExport('tds')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700"><FileSpreadsheet size={12} /> TDS</button>
+            <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-400 hover:bg-rivvra-600/30" title="Full payroll sheet with all columns"><Download size={12} /> Payroll Sheet</button>
           </div>
         )}
 
@@ -449,7 +455,7 @@ export default function PayrollRunPage() {
                         {item.lopDays > 0 ? <span className="text-red-400">{item.lopDays}</span> : <span className="text-dark-500">0</span>}
                       </td>
                       <td className="px-3 py-2.5 text-white text-xs font-medium">{fmt(item.grossSalary)}</td>
-                      <td className="px-3 py-2.5 text-blue-400 text-xs">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' ? '—' : fmt((item.employeePf || 0) + (item.employerPf || 0))}</td>
+                      <td className="px-3 py-2.5 text-blue-400 text-xs">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' || item.payrollMode === 'contractor' ? '—' : fmt((item.employeePf || 0) + (item.employerPf || 0))}</td>
                       <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.tds)}</td>
                       <td className="px-3 py-2.5 text-red-400 text-xs">{fmt(item.totalDeductions)}</td>
                       <td className="px-3 py-2.5 text-green-400 text-xs font-medium">{fmt(item.netSalary)}</td>
@@ -511,9 +517,33 @@ export default function PayrollRunPage() {
                                     </div>
                                   ))}
 
+                                  {/* Contractor-specific fields */}
+                                  {item.payrollMode === 'contractor' && (
+                                    <>
+                                      {item.payType && (
+                                        <div className="flex justify-between">
+                                          <span className="text-dark-500 text-xs">Pay Type</span>
+                                          <span className="text-dark-400 text-xs capitalize">{item.payType}</span>
+                                        </div>
+                                      )}
+                                      {item.rate > 0 && (
+                                        <div className="flex justify-between">
+                                          <span className="text-dark-500 text-xs">Rate</span>
+                                          <span className="text-dark-400 text-xs">₹{fmt(item.rate)}/{item.payType === 'daily' ? 'day' : 'month'}</span>
+                                        </div>
+                                      )}
+                                      {item.projects?.length > 0 && (
+                                        <div className="flex justify-between">
+                                          <span className="text-dark-500 text-xs">Projects</span>
+                                          <span className="text-dark-400 text-xs">{item.projects.join(', ')}</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+
                                   {/* Working days */}
                                   <div className="flex justify-between">
-                                    <span className="text-dark-500 text-xs">Working Days</span>
+                                    <span className="text-dark-500 text-xs">{item.payrollMode === 'contractor' ? 'Timesheet Days' : 'Working Days'}</span>
                                     <span className="text-dark-400 text-xs">{item.effectiveDays} of {item.totalWorkingDays}</span>
                                   </div>
                                   {item.lopDays > 0 && (
