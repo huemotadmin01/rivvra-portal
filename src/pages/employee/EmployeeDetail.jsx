@@ -37,6 +37,8 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Upload,
+  Download,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
@@ -961,67 +963,137 @@ export default function EmployeeDetail() {
       )}
 
       {/* ── Documents ────────────────────────────────────────────────────── */}
-      {employeeDocs.length > 0 && (
-        <div className="mt-5">
-          <SectionCard title={`Documents (${employeeDocs.length})`} icon={FileText}>
-            {docsLoading ? (
-              <div className="flex items-center gap-2 text-dark-500 text-sm py-2">
-                <Loader2 size={14} className="animate-spin" /> Loading...
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {[
-                  { key: 'bank_proof', label: 'Bank Proof' },
-                  { key: 'education_certificate', label: 'Education Certificates' },
-                  { key: 'id_document', label: 'ID Documents' },
-                  { key: 'other', label: 'Other' },
-                ].map(({ key, label }) => {
-                  const catDocs = employeeDocs.filter(d => d.category === key);
-                  if (catDocs.length === 0) return null;
-                  return (
-                    <div key={key}>
-                      <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">{label}</p>
-                      <div className="space-y-1.5">
-                        {catDocs.map(doc => (
-                          <div key={doc._id} className="flex items-center gap-3 bg-dark-900/50 rounded-lg px-4 py-2.5">
-                            <FileText size={14} className="text-dark-400 flex-shrink-0" />
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const url = employeeApi.getEmployeeDocUrl(currentOrg.slug, employeeId, doc._id);
-                                  const token = localStorage.getItem('rivvra_token');
-                                  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-                                  if (!res.ok) throw new Error();
-                                  const blob = await res.blob();
-                                  const blobUrl = URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = blobUrl; a.download = doc.filename;
-                                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                                  URL.revokeObjectURL(blobUrl);
-                                } catch (_) {}
-                              }}
-                              className="text-sm text-blue-400 hover:underline truncate flex-1 text-left"
-                            >
-                              {doc.filename}
+      {(() => {
+        const DOCUMENT_CATEGORIES = [
+          { key: 'id_document', label: 'ID Documents', subcategories: ['Aadhaar Card', 'PAN Card', 'Passport', 'Voter ID', 'Driving License'] },
+          { key: 'bank_proof', label: 'Bank Proof', subcategories: ['Cancelled Cheque', 'Digital Passbook', 'Bank Statement'] },
+          { key: 'education_certificate', label: 'Education Certificates', subcategories: ['10th Marksheet', '12th Marksheet', 'Degree Certificate', 'Diploma', 'Post Graduation'] },
+          { key: 'employment', label: 'Employment Documents', subcategories: ['Offer Letter', 'Appointment Letter', 'Relieving Letter', 'Experience Certificate', 'Salary Slip'] },
+          { key: 'other', label: 'Other', subcategories: [] },
+        ];
+
+        const handleDocUpload = async (category, subcategory) => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.pdf,.docx,.xlsx,.png,.jpg,.jpeg';
+          input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) { showToast('File size must be under 5MB', 'error'); return; }
+            try {
+              await employeeApi.uploadEmployeeDoc(currentOrg.slug, employeeId, file, category, subcategory);
+              showToast('Document uploaded');
+              const docsRes = await employeeApi.listEmployeeDocs(currentOrg.slug, employeeId);
+              setEmployeeDocs(docsRes.documents || []);
+            } catch (err) { showToast('Upload failed', 'error'); }
+          };
+          input.click();
+        };
+
+        const handleDocDelete = async (docId, filename) => {
+          if (!confirm(`Delete "${filename}"?`)) return;
+          try {
+            await employeeApi.deleteEmployeeDoc(currentOrg.slug, employeeId, docId);
+            setEmployeeDocs(prev => prev.filter(d => d._id !== docId));
+            showToast('Document deleted');
+          } catch (err) { showToast('Delete failed', 'error'); }
+        };
+
+        const handleDocDownload = async (docId, filename) => {
+          try {
+            const url = employeeApi.getEmployeeDocUrl(currentOrg.slug, employeeId, docId);
+            const token = localStorage.getItem('rivvra_token');
+            const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+            if (!res.ok) throw new Error();
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          } catch (_) { showToast('Download failed', 'error'); }
+        };
+
+        return (
+          <div className="mt-5">
+            <SectionCard title={`Documents (${employeeDocs.length})`} icon={FileText}>
+              {docsLoading ? (
+                <div className="flex items-center gap-2 text-dark-500 text-sm py-2">
+                  <Loader2 size={14} className="animate-spin" /> Loading...
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {DOCUMENT_CATEGORIES.map(({ key, label, subcategories }) => {
+                    const catDocs = employeeDocs.filter(d => d.category === key);
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium">{label}</p>
+                          {/* Upload dropdown */}
+                          <div className="relative group">
+                            <button className="flex items-center gap-1 text-[10px] text-rivvra-400 hover:text-rivvra-300 transition-colors">
+                              <Upload size={10} /> Upload
                             </button>
-                            <span className="text-xs text-dark-500 flex-shrink-0">
-                              {doc.size < 1024 * 1024 ? `${(doc.size / 1024).toFixed(0)}KB` : `${(doc.size / (1024 * 1024)).toFixed(1)}MB`}
-                            </span>
-                            <span className="text-xs text-dark-600 flex-shrink-0">
-                              {new Date(doc.uploadedAt).toLocaleDateString('en-IN')}
-                            </span>
+                            <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-dark-700 rounded-lg shadow-lg py-1 z-20 min-w-[180px] hidden group-hover:block">
+                              {subcategories.length > 0 ? (
+                                subcategories.map(sub => (
+                                  <button key={sub} onClick={() => handleDocUpload(key, sub)}
+                                    className="block w-full text-left px-3 py-1.5 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors">
+                                    {sub}
+                                  </button>
+                                ))
+                              ) : null}
+                              <button onClick={() => {
+                                const custom = prompt('Enter document label:');
+                                if (custom?.trim()) handleDocUpload(key, custom.trim());
+                              }}
+                                className="block w-full text-left px-3 py-1.5 text-xs text-dark-400 hover:bg-dark-700 hover:text-white border-t border-dark-700 transition-colors">
+                                + Custom...
+                              </button>
+                            </div>
                           </div>
-                        ))}
+                        </div>
+                        {catDocs.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {catDocs.map(doc => (
+                              <div key={doc._id} className="flex items-center gap-3 bg-dark-900/50 rounded-lg px-4 py-2.5 group/doc">
+                                <FileText size={14} className="text-dark-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <button type="button" onClick={() => handleDocDownload(doc._id, doc.filename)}
+                                    className="text-sm text-blue-400 hover:underline truncate block text-left w-full">
+                                    {doc.filename}
+                                  </button>
+                                  {doc.subcategory && <span className="text-[10px] text-dark-500">{doc.subcategory}</span>}
+                                </div>
+                                <span className="text-xs text-dark-500 flex-shrink-0">
+                                  {doc.size < 1024 * 1024 ? `${(doc.size / 1024).toFixed(0)}KB` : `${(doc.size / (1024 * 1024)).toFixed(1)}MB`}
+                                </span>
+                                <span className="text-xs text-dark-600 flex-shrink-0">
+                                  {new Date(doc.uploadedAt).toLocaleDateString('en-IN')}
+                                </span>
+                                <button onClick={() => handleDocDownload(doc._id, doc.filename)}
+                                  className="text-dark-600 hover:text-blue-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Download">
+                                  <Download size={13} />
+                                </button>
+                                <button onClick={() => handleDocDelete(doc._id, doc.filename)}
+                                  className="text-dark-600 hover:text-red-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Delete">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-dark-600 italic">No documents uploaded</p>
+                        )}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
-        </div>
-      )}
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+          </div>
+        );
+      })()}
 
       {/* ── Activities & Log Notes ─────────────────────────────────────── */}
       <div className="mt-5">
