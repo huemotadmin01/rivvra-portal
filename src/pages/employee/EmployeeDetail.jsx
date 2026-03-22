@@ -167,6 +167,8 @@ export default function EmployeeDetail() {
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [docUploadOpen, setDocUploadOpen] = useState(null); // category key of open dropdown
+  const [docUploading, setDocUploading] = useState(null); // category key currently uploading
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -973,6 +975,7 @@ export default function EmployeeDetail() {
         ];
 
         const handleDocUpload = async (category, subcategory) => {
+          setDocUploadOpen(null); // close dropdown
           const input = document.createElement('input');
           input.type = 'file';
           input.accept = '.pdf,.docx,.xlsx,.png,.jpg,.jpeg';
@@ -980,12 +983,14 @@ export default function EmployeeDetail() {
             const file = e.target.files[0];
             if (!file) return;
             if (file.size > 5 * 1024 * 1024) { showToast('File size must be under 5MB', 'error'); return; }
+            setDocUploading(category);
             try {
               await employeeApi.uploadEmployeeDoc(currentOrg.slug, employeeId, file, category, subcategory);
               showToast('Document uploaded');
               const docsRes = await employeeApi.listEmployeeDocs(currentOrg.slug, employeeId);
               setEmployeeDocs(docsRes.documents || []);
             } catch (err) { showToast('Upload failed', 'error'); }
+            finally { setDocUploading(null); }
           };
           input.click();
         };
@@ -1025,32 +1030,47 @@ export default function EmployeeDetail() {
                 <div className="space-y-5">
                   {DOCUMENT_CATEGORIES.map(({ key, label, subcategories }) => {
                     const catDocs = employeeDocs.filter(d => d.category === key);
+                    const isUploading = docUploading === key;
                     return (
                       <div key={key}>
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium">{label}</p>
-                          {/* Upload dropdown */}
-                          <div className="relative group">
-                            <button className="flex items-center gap-1 text-[10px] text-rivvra-400 hover:text-rivvra-300 transition-colors">
-                              <Upload size={10} /> Upload
-                            </button>
-                            <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-dark-700 rounded-lg shadow-lg py-1 z-20 min-w-[180px] hidden group-hover:block">
-                              {subcategories.length > 0 ? (
-                                subcategories.map(sub => (
-                                  <button key={sub} onClick={() => handleDocUpload(key, sub)}
-                                    className="block w-full text-left px-3 py-1.5 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors">
-                                    {sub}
-                                  </button>
-                                ))
-                              ) : null}
-                              <button onClick={() => {
-                                const custom = prompt('Enter document label:');
-                                if (custom?.trim()) handleDocUpload(key, custom.trim());
-                              }}
-                                className="block w-full text-left px-3 py-1.5 text-xs text-dark-400 hover:bg-dark-700 hover:text-white border-t border-dark-700 transition-colors">
-                                + Custom...
+                          {/* Upload button with click-based dropdown */}
+                          <div className="relative">
+                            {isUploading ? (
+                              <span className="flex items-center gap-1 text-[10px] text-rivvra-400">
+                                <Loader2 size={10} className="animate-spin" /> Uploading...
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setDocUploadOpen(docUploadOpen === key ? null : key)}
+                                className="flex items-center gap-1 text-[10px] text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                              >
+                                <Upload size={10} /> Upload
                               </button>
-                            </div>
+                            )}
+                            {docUploadOpen === key && (
+                              <>
+                                {/* Backdrop to close dropdown */}
+                                <div className="fixed inset-0 z-10" onClick={() => setDocUploadOpen(null)} />
+                                <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-dark-700 rounded-lg shadow-xl py-1 z-20 min-w-[200px]">
+                                  {subcategories.length > 0 && subcategories.map(sub => (
+                                    <button key={sub} onClick={() => handleDocUpload(key, sub)}
+                                      className="block w-full text-left px-3 py-2 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors">
+                                      {sub}
+                                    </button>
+                                  ))}
+                                  <button onClick={() => {
+                                    setDocUploadOpen(null);
+                                    const custom = prompt('Enter document label:');
+                                    if (custom?.trim()) handleDocUpload(key, custom.trim());
+                                  }}
+                                    className={`block w-full text-left px-3 py-2 text-xs text-dark-400 hover:bg-dark-700 hover:text-white transition-colors ${subcategories.length > 0 ? 'border-t border-dark-700' : ''}`}>
+                                    + Custom...
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                         {catDocs.length > 0 ? (
