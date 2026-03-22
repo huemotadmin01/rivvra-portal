@@ -213,7 +213,7 @@ function ContractorDashboard() {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-white">Welcome, {timesheetUser?.fullName}</h1>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <p className="text-dark-400 text-sm">Here's your timesheet summary</p>
+          <p className="text-dark-400 text-sm">Employee Self Service</p>
           {(timesheetUser?.employmentType || timesheetUser?.joiningDate) && (
             <div className="flex items-center gap-2 text-xs text-dark-500">
               {timesheetUser?.employmentType && (
