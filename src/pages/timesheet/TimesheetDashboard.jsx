@@ -117,7 +117,7 @@ function ContractorDashboard() {
     }
     // Social feed data
     fetches.push(
-      timesheetApi.get('/celebrations', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
+      timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
     );
     Promise.all(fetches).finally(() => setLoading(false));
@@ -219,30 +219,39 @@ function ContractorDashboard() {
       </div>
 
       {/* Celebrations Carousel */}
-      {celebrations.length > 0 && (
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
-            <span className="text-xs text-dark-500">Next 7 days</span>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {celebrations.map((c, i) => (
-              <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
-                <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
-                <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
-                <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-[10px] font-medium text-dark-300">
-                    {c.type === 'birthday' ? 'Birthday' : `${c.detail} Anniversary`}
-                  </span>
-                  {c.isToday && <span className="text-[9px] bg-rivvra-500/20 text-rivvra-400 px-1.5 py-0.5 rounded-full font-medium">Today</span>}
-                  {!c.isToday && <span className="text-[9px] text-dark-500">{new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
+          <span className="text-xs text-dark-500">{celebrations.length > 0 ? `${celebrations.length} upcoming` : 'Next 30 days'}</span>
         </div>
-      )}
+        {celebrations.length === 0 ? (
+          <p className="text-sm text-dark-500 text-center py-4">No birthdays or work anniversaries in the next 30 days</p>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {celebrations.map((c, i) => {
+              const daysFromNow = Math.round((new Date(c.date) - new Date(new Date().toDateString())) / 86400000);
+              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+              return (
+                <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
+                  <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
+                  <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
+                  <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-[10px] font-medium text-dark-300">
+                      {c.type === 'birthday' ? 'Birthday' : `${c.detail} Anniversary`}
+                    </span>
+                    {c.isToday ? (
+                      <span className="text-[9px] bg-rivvra-500/20 text-rivvra-400 px-1.5 py-0.5 rounded-full font-medium">Today</span>
+                    ) : (
+                      <span className="text-[9px] text-dark-500">{label}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Social Feed */}
       <div className="card p-4">
@@ -609,7 +618,7 @@ function AdminDashboard() {
         const arr = Array.isArray(data) ? data : data?.leaveRequests || data?.requests || [];
         setPendingLeaves(arr.length);
       }).catch(() => {}),
-      timesheetApi.get('/celebrations', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
+      timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
     ]).finally(() => setLoading(false));
     return () => controller.abort();
@@ -677,30 +686,39 @@ function AdminDashboard() {
       </div>
 
       {/* Celebrations Carousel */}
-      {celebrations.length > 0 && (
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
-            <span className="text-xs text-dark-500">Next 7 days</span>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {celebrations.map((c, i) => (
-              <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
-                <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
-                <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
-                <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-[10px] font-medium text-dark-300">
-                    {c.type === 'birthday' ? 'Birthday' : `${c.detail} Anniversary`}
-                  </span>
-                  {c.isToday && <span className="text-[9px] bg-rivvra-500/20 text-rivvra-400 px-1.5 py-0.5 rounded-full font-medium">Today</span>}
-                  {!c.isToday && <span className="text-[9px] text-dark-500">{new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
+          <span className="text-xs text-dark-500">{celebrations.length > 0 ? `${celebrations.length} upcoming` : 'Next 30 days'}</span>
         </div>
-      )}
+        {celebrations.length === 0 ? (
+          <p className="text-sm text-dark-500 text-center py-4">No birthdays or work anniversaries in the next 30 days</p>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {celebrations.map((c, i) => {
+              const daysFromNow = Math.round((new Date(c.date) - new Date(new Date().toDateString())) / 86400000);
+              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+              return (
+                <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
+                  <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
+                  <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
+                  <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-[10px] font-medium text-dark-300">
+                      {c.type === 'birthday' ? 'Birthday' : `${c.detail} Anniversary`}
+                    </span>
+                    {c.isToday ? (
+                      <span className="text-[9px] bg-rivvra-500/20 text-rivvra-400 px-1.5 py-0.5 rounded-full font-medium">Today</span>
+                    ) : (
+                      <span className="text-[9px] text-dark-500">{label}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Social Feed */}
       <div className="card p-4">
