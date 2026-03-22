@@ -33,6 +33,7 @@ function MyListsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalLeads, setTotalLeads] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -62,11 +63,17 @@ function MyListsPage() {
   const isPro = user?.plan === 'pro' || user?.plan === 'premium';
   const leadsPerPage = 10;
 
-  const loadLeads = useCallback(async (listName, pageNum = 1) => {
+  const loadLeads = useCallback(async (listName, pageNum = 1, search = '', filters = {}) => {
     if (!listName) return;
     try {
       setLeadsLoading(true);
-      const res = await api.getListLeads(listName, pageNum, leadsPerPage);
+      const res = await api.getListLeads(listName, {
+        page: pageNum,
+        limit: leadsPerPage,
+        search: search || undefined,
+        profileType: filters.profileType,
+        outreachStatus: filters.outreachStatus,
+      });
       if (res.success) {
         setLeads(res.leads || []);
         setTotalPages(res.totalPages || 1);
@@ -171,18 +178,31 @@ function MyListsPage() {
     };
   }, [loadLists, loadLeads, selectedList, page, lastSeenTimestamp]);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [profileTypeFilter, outreachStatusFilter]);
+
   useEffect(() => {
     if (selectedList) {
-      loadLeads(selectedList, page);
+      loadLeads(selectedList, page, debouncedSearch, { profileType: profileTypeFilter, outreachStatus: outreachStatusFilter });
       setSearchParams({ list: selectedList });
-      // Clear selection when switching lists
       setSelectedLeads([]);
       setSelectedLead(null);
     } else {
       setLeads([]);
       setSearchParams({});
     }
-  }, [selectedList, page, loadLeads, setSearchParams]);
+  }, [selectedList, page, debouncedSearch, profileTypeFilter, outreachStatusFilter, loadLeads, setSearchParams]);
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -326,23 +346,7 @@ function MyListsPage() {
 
   const activeFilterCount = (profileTypeFilter !== 'all' ? 1 : 0) + (outreachStatusFilter !== 'all' ? 1 : 0);
 
-  const filteredLeads = leads.filter(lead => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = !searchQuery ||
-      lead.name?.toLowerCase().includes(searchLower) ||
-      lead.company?.toLowerCase().includes(searchLower) ||
-      lead.email?.toLowerCase().includes(searchLower) ||
-      lead.title?.toLowerCase().includes(searchLower);
-
-    const matchesProfileType = profileTypeFilter === 'all' ||
-      (profileTypeFilter === 'candidate' && lead.profileType === 'candidate') ||
-      (profileTypeFilter === 'client' && lead.profileType === 'client');
-
-    const leadStatus = lead.outreachStatus || 'not_contacted';
-    const matchesOutreachStatus = outreachStatusFilter === 'all' || leadStatus === outreachStatusFilter;
-
-    return matchesSearch && matchesProfileType && matchesOutreachStatus;
-  });
+  const filteredLeads = leads;
 
   return (
     <>
