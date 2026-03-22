@@ -530,6 +530,53 @@ export default function PayrollRunPage() {
                       <tr>
                         <td colSpan="10" className="p-0">
                           <div className="border-t border-dark-800 bg-dark-950/50 p-4 sm:p-6 space-y-4">
+                            {/* Mid-month transition banner */}
+                            {item.hasTransition && item.transitions && (
+                              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-2">
+                                <p className="text-xs font-medium text-blue-400 mb-2">
+                                  Mid-Month Transition: {item.transitions.map(t => {
+                                    const typeLabels = { confirmed: 'Confirmed', internal_consultant: 'Internal Consultant', external_consultant: 'External Consultant', intern: 'Intern' };
+                                    return typeLabels[t.employmentType] || t.employmentType;
+                                  }).join(' → ')}
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {item.transitions.map((t, ti) => {
+                                    const typeLabels = { confirmed: 'Confirmed', internal_consultant: 'Internal Consultant', extern_consultant: 'External Consultant', intern: 'Intern' };
+                                    return (
+                                      <div key={ti} className="bg-dark-900/50 rounded-lg p-2.5 space-y-1">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-[10px] font-medium text-dark-300">{t.period} ({typeLabels[t.employmentType] || t.employmentType})</span>
+                                          <span className="text-[10px] text-dark-500">{t.daysWorked}/{t.totalDays} days</span>
+                                        </div>
+                                        {(t.components || []).map((c, ci) => (
+                                          <div key={ci} className="flex justify-between text-xs">
+                                            <span className="text-dark-500">{c.name}</span>
+                                            <span className="text-dark-300">₹{fmt(c.proratedAmount || c.fullAmount)}</span>
+                                          </div>
+                                        ))}
+                                        <div className="flex justify-between text-xs font-medium border-t border-dark-700/50 pt-1 mt-1">
+                                          <span className="text-dark-400">Gross</span>
+                                          <span className="text-white">₹{fmt(t.grossSalary)}</span>
+                                        </div>
+                                        {t.employeePf > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">Employee PF</span><span className="text-red-400">-₹{fmt(t.employeePf)}</span></div>}
+                                        {t.employeeEsi > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">ESI</span><span className="text-red-400">-₹{fmt(t.employeeEsi)}</span></div>}
+                                        {t.professionalTax > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">PT</span><span className="text-red-400">-₹{fmt(t.professionalTax)}</span></div>}
+                                        {t.tds > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">TDS</span><span className="text-red-400">-₹{fmt(t.tds)}</span></div>}
+                                        <div className="flex justify-between text-xs font-medium border-t border-dark-700/50 pt-1">
+                                          <span className="text-dark-400">Net</span>
+                                          <span className="text-green-400">₹{fmt(t.netSalary)}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <div className="flex justify-between text-sm font-semibold mt-2 pt-2 border-t border-blue-500/20">
+                                  <span className="text-blue-300">Combined Net Pay</span>
+                                  <span className="text-green-400">₹{fmt(displayNet)}</span>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {/* Left — Earnings & Deductions */}
                               <div className="space-y-2">
