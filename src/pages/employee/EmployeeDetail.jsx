@@ -985,12 +985,12 @@ export default function EmployeeDetail() {
             if (file.size > 5 * 1024 * 1024) { showToast('File size must be under 5MB', 'error'); return; }
             setDocUploading(category);
             try {
-              await employeeApi.uploadEmployeeDoc(currentOrg.slug, employeeId, file, category, subcategory);
+              const uploadRes = await employeeApi.uploadEmployeeDoc(currentOrg.slug, employeeId, file, category, subcategory);
+              // Optimistically add the new doc to state from upload response
+              if (uploadRes?.document) {
+                setEmployeeDocs(prev => [uploadRes.document, ...prev]);
+              }
               showToast('Document uploaded');
-              // Refetch full document list
-              const docsRes = await employeeApi.listEmployeeDocs(currentOrg.slug, employeeId);
-              const docs = docsRes.documents || docsRes.data?.documents || [];
-              setEmployeeDocs(docs);
             } catch (err) { console.error('Doc upload error:', err); showToast('Upload failed', 'error'); }
             finally { setDocUploading(null); }
           };
