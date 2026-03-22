@@ -164,9 +164,13 @@ const employeeApi = {
     if (educationIndex !== null && educationIndex !== undefined) formData.append('educationIndex', educationIndex);
     const url = `${API_BASE_URL}/api/org/${orgSlug}/employee/employees/${employeeId}/documents`;
     const token = localStorage.getItem('rivvra_token');
+    const companyId = localStorage.getItem('rivvra_current_company');
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (companyId) headers['X-Company-Id'] = companyId;
     const res = await fetch(url, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers,
       body: formData,
     });
     if (!res.ok) {

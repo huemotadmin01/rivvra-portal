@@ -987,9 +987,11 @@ export default function EmployeeDetail() {
             try {
               await employeeApi.uploadEmployeeDoc(currentOrg.slug, employeeId, file, category, subcategory);
               showToast('Document uploaded');
+              // Refetch full document list
               const docsRes = await employeeApi.listEmployeeDocs(currentOrg.slug, employeeId);
-              setEmployeeDocs(docsRes.documents || []);
-            } catch (err) { showToast('Upload failed', 'error'); }
+              const docs = docsRes.documents || docsRes.data?.documents || [];
+              setEmployeeDocs(docs);
+            } catch (err) { console.error('Doc upload error:', err); showToast('Upload failed', 'error'); }
             finally { setDocUploading(null); }
           };
           input.click();
