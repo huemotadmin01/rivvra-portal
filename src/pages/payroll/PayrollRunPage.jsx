@@ -280,7 +280,7 @@ export default function PayrollRunPage() {
         triggerDownload(blob, `Payroll_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
       } else {
         blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
-        triggerDownload(blob, `${type}_${selectedRun.month}_${selectedRun.year}.csv`);
+        triggerDownload(blob, `${type}_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
       }
       showToast(`${type} exported`);
     } catch (err) { showToast('Export failed', 'error'); }
@@ -385,7 +385,7 @@ export default function PayrollRunPage() {
             <button onClick={() => handleDownload('payslips')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Download all payslips as ZIP"><FileText size={12} /> All Payslips</button>
             <div className="border-l border-dark-700 mx-1" />
             {/* Exports */}
-            <button onClick={() => handleExport('register')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700"><FileSpreadsheet size={12} /> Register</button>
+            <button onClick={() => handleExport('register')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Salary Register — summary of all employees"><FileSpreadsheet size={12} /> Salary Register</button>
             <button onClick={() => handleExport('tds')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700"><FileSpreadsheet size={12} /> TDS</button>
             <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-400 hover:bg-rivvra-600/30" title="Full payroll sheet with all columns"><Download size={12} /> Payroll Sheet</button>
           </div>
@@ -395,15 +395,16 @@ export default function PayrollRunPage() {
         {items.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
-              { label: 'Total Gross', value: summary.totalGross, color: 'text-white' },
-              { label: 'Total PF', value: computedTotalPf, color: 'text-blue-400' },
-              { label: 'Total Deductions', value: summary.totalDeductions, color: 'text-red-400' },
-              { label: 'Total Net', value: summary.totalNet, color: 'text-green-400' },
-              { label: 'Total CTC', value: computedTotalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400' },
+              { label: 'Total Gross', value: items.reduce((s, i) => s + (i.grossSalary || 0), 0), color: 'text-white' },
+              { label: 'Total PF', value: computedTotalPf, color: 'text-blue-400', sub: `(${statutoryItems.length} statutory)` },
+              { label: 'Total Deductions', value: items.reduce((s, i) => s + (i.totalDeductions || 0), 0), color: 'text-red-400' },
+              { label: 'Total Net', value: items.reduce((s, i) => s + (i.netSalary || 0), 0), color: 'text-green-400' },
+              { label: 'Total CTC', value: computedTotalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400', sub: contractorItems.length > 0 ? `(excl. contractors)` : '' },
             ].map(card => (
               <div key={card.label} className="bg-dark-800 border border-dark-700 rounded-lg p-3">
                 <div className="text-xs text-dark-400 mb-1">{card.label}</div>
                 <div className={`text-lg font-semibold ${card.color}`}>{fmt(card.value)}</div>
+                {card.sub && <div className="text-[9px] text-dark-500 mt-0.5">{card.sub}</div>}
               </div>
             ))}
           </div>
