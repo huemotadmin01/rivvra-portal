@@ -7,7 +7,7 @@ import {
   lockInputs, unlockInputs, lockPayroll, unlockPayroll,
   releasePayslips, holdPayslips,
   setAdHocAdjustment, createSalaryHold, releaseSalaryHold,
-  downloadPayslipPdf, downloadAllPayslips, downloadBankTransfer, downloadPayrollExport,
+  downloadPayslipPdf, downloadAllPayslips, downloadBankTransfer, downloadPayrollExport, downloadPayrollSheet,
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -41,6 +41,8 @@ export default function PayrollRunPage() {
   const [expandedItem, setExpandedItem] = useState(null);
   const [showHoldModal, setShowHoldModal] = useState(null); // { employeeId, employeeName }
   const [holdReason, setHoldReason] = useState('');
+  const [savingHold, setSavingHold] = useState(false);
+  const [releasingHoldId, setReleasingHoldId] = useState(null);
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [releaseSelection, setReleaseSelection] = useState(new Set());
   const [releasing, setReleasing] = useState(false);
@@ -185,9 +187,9 @@ export default function PayrollRunPage() {
   // Salary Hold
   const handleCreateHold = async () => {
     if (!showHoldModal || !holdReason.trim()) return;
+    setSavingHold(true);
     try {
       const holdRes = await createSalaryHold(orgSlug, selectedRun._id, showHoldModal.employeeId, holdReason.trim());
-      // Update the item's salaryHold in local state immediately
       const updatedRun = { ...selectedRun, items: (selectedRun.items || []).map(i =>
         i.employeeId === showHoldModal.employeeId ? { ...i, salaryHold: holdRes.hold } : i
       )};
@@ -196,18 +198,20 @@ export default function PayrollRunPage() {
       setHoldReason('');
       showToast('Salary hold applied');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setSavingHold(false); }
   };
 
   const handleReleaseHold = async (holdId) => {
+    setReleasingHoldId(holdId);
     try {
       await releaseSalaryHold(orgSlug, selectedRun._id, holdId);
-      // Clear hold from local state immediately
       const updatedRun = { ...selectedRun, items: (selectedRun.items || []).map(i =>
         i.salaryHold?._id === holdId ? { ...i, salaryHold: null } : i
       )};
       setSelectedRun(updatedRun);
       showToast('Hold released');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setReleasingHoldId(null); }
   };
 
   // Release payslips with employee selection
@@ -270,8 +274,14 @@ export default function PayrollRunPage() {
 
   const handleExport = async (type) => {
     try {
-      const blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
-      triggerDownload(blob, `${type}_${selectedRun.month}_${selectedRun.year}.csv`);
+      let blob;
+      if (type === 'payroll-sheet') {
+        blob = await downloadPayrollSheet(orgSlug, selectedRun._id);
+        triggerDownload(blob, `Payroll_Sheet_${selectedRun.month}_${selectedRun.year}.csv`);
+      } else {
+        blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
+        triggerDownload(blob, `${type}_${selectedRun.month}_${selectedRun.year}.csv`);
+      }
       showToast(`${type} exported`);
     } catch (err) { showToast('Export failed', 'error'); }
   };
@@ -662,9 +672,11 @@ export default function PayrollRunPage() {
                                 {run.status !== 'paid' && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleReleaseHold(item.salaryHold._id); }}
-                                    className="px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-colors"
+                                    disabled={releasingHoldId === item.salaryHold._id}
+                                    className="px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-colors disabled:opacity-50 flex items-center gap-1.5"
                                   >
-                                    Release Hold
+                                    {releasingHoldId === item.salaryHold._id && <Loader2 size={12} className="animate-spin" />}
+                                    {releasingHoldId === item.salaryHold._id ? 'Releasing...' : 'Release Hold'}
                                   </button>
                                 )}
                               </div>
@@ -786,7 +798,10 @@ export default function PayrollRunPage() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => setShowHoldModal(null)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                  <button onClick={handleCreateHold} disabled={!holdReason.trim()} className="flex-1 px-3 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 disabled:opacity-50">Hold</button>
+                  <button onClick={handleCreateHold} disabled={!holdReason.trim() || savingHold} className="flex-1 px-3 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {savingHold && <Loader2 size={14} className="animate-spin" />}
+                    {savingHold ? 'Holding...' : 'Hold'}
+                  </button>
                 </div>
               </div>
             </div>

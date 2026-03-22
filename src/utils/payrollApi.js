@@ -202,6 +202,9 @@ export function downloadBankTransfer(orgSlug, runId) {
 export function downloadPayrollExport(orgSlug, runId, type) {
   return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export`, { params: { type }, responseType: 'blob' });
 }
+export function downloadPayrollSheet(orgSlug, runId) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export/payroll-sheet`, { responseType: 'blob' });
+}
 
 // Intern Payroll Runs
 export function getInternPayrollRuns(orgSlug) {
