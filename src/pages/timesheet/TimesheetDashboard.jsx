@@ -235,7 +235,9 @@ function ContractorDashboard() {
               const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
               return (
                 <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
-                  <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${c.type === 'birthday' ? 'bg-pink-500/10' : 'bg-purple-500/10'}`}>
+                  {c.type === 'birthday' ? <Cake size={18} className="text-pink-400" /> : <Gift size={18} className="text-purple-400" />}
+                </div>
                   <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
                   <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
                   <div className="flex items-center justify-between mt-2">
@@ -726,7 +728,9 @@ function AdminDashboard() {
               const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
               return (
                 <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
-                  <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${c.type === 'birthday' ? 'bg-pink-500/10' : 'bg-purple-500/10'}`}>
+                  {c.type === 'birthday' ? <Cake size={18} className="text-pink-400" /> : <Gift size={18} className="text-purple-400" />}
+                </div>
                   <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
                   <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
                   <div className="flex items-center justify-between mt-2">
@@ -747,96 +751,152 @@ function AdminDashboard() {
       </div>
 
       {/* Social Feed */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">📢 Posts</h2>
-          <button onClick={() => setShowNewPost(!showNewPost)} className="text-xs text-rivvra-400 hover:text-rivvra-300 font-medium">
-            {showNewPost ? 'Cancel' : '+ New Post'}
-          </button>
-        </div>
-        {showNewPost && (
-          <div className="mb-4 space-y-2">
-            <textarea value={newPostContent} onChange={e => setNewPostContent(e.target.value)}
-              placeholder="Share an update, achievement, or announcement..."
-              className="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white placeholder-dark-500 focus:border-rivvra-500 focus:outline-none resize-none" rows={3} maxLength={2000} autoFocus />
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-dark-500">{newPostContent.length}/2000</span>
-              <button onClick={handleCreatePost} disabled={!newPostContent.trim()} className="px-4 py-1.5 bg-rivvra-600 text-white text-xs rounded-lg hover:bg-rivvra-700 disabled:opacity-40 disabled:cursor-not-allowed">Post</button>
+      <div className="space-y-3">
+        {/* New Post Card */}
+        <div className="card p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rivvra-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+              {(timesheetUser?.fullName || '?')[0].toUpperCase()}
             </div>
+            {!showNewPost ? (
+              <button onClick={() => setShowNewPost(true)}
+                className="flex-1 text-left px-4 py-2.5 bg-dark-800/50 border border-dark-700 rounded-full text-sm text-dark-500 hover:border-dark-600 hover:text-dark-400 transition-colors">
+                Share an update or announcement...
+              </button>
+            ) : (
+              <div className="flex-1 space-y-2">
+                <textarea value={newPostContent} onChange={e => setNewPostContent(e.target.value)}
+                  placeholder="What's on your mind?"
+                  className="w-full px-3 py-2.5 bg-dark-900 border border-dark-600 rounded-xl text-sm text-white placeholder-dark-500 focus:border-rivvra-500 focus:outline-none resize-none" rows={3} maxLength={2000} autoFocus />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-dark-600">{newPostContent.length}/2000</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setShowNewPost(false); setNewPostContent(''); }} className="px-3 py-1.5 text-xs text-dark-400 hover:text-dark-300">Cancel</button>
+                    <button onClick={handleCreatePost} disabled={!newPostContent.trim()}
+                      className="px-4 py-1.5 bg-rivvra-600 text-white text-xs rounded-lg font-medium hover:bg-rivvra-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5">
+                      <Send size={12} /> Post
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Posts List */}
+        {posts.length === 0 && (
+          <div className="card p-8 text-center">
+            <Megaphone size={28} className="text-dark-600 mx-auto mb-2" />
+            <p className="text-sm text-dark-500">No posts yet</p>
+            <p className="text-xs text-dark-600 mt-1">Be the first to share something with your team!</p>
           </div>
         )}
-        {posts.length === 0 && !showNewPost && <p className="text-center text-dark-500 text-sm py-6">No posts yet. Be the first to share!</p>}
-        <div className="space-y-3">
-          {posts.map(post => {
-            const totalReactions = Object.values(post.reactions || {}).reduce((s, arr) => s + (arr?.length || 0), 0);
-            const commentCount = (post.comments || []).length;
-            const timeAgo = (() => {
+        {posts.map(post => {
+          const commentCount = (post.comments || []).length;
+          const timeAgo = (() => {
               const diff = Date.now() - new Date(post.createdAt).getTime();
               const mins = Math.floor(diff / 60000);
               if (mins < 1) return 'Just now';
-              if (mins < 60) return `${mins}m ago`;
+              if (mins < 60) return `${mins}m`;
               const hrs = Math.floor(mins / 60);
-              if (hrs < 24) return `${hrs}h ago`;
+              if (hrs < 24) return `${hrs}h`;
               const days = Math.floor(hrs / 24);
-              if (days < 7) return `${days}d ago`;
+              if (days < 7) return `${days}d`;
               return new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
             })();
-            return (
-              <div key={post._id} className="border border-dark-700 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-dark-700 flex items-center justify-center text-xs font-bold text-dark-300">{(post.authorName || '?')[0].toUpperCase()}</div>
-                    <div>
-                      <p className="text-xs font-medium text-white">{post.authorName}</p>
-                      <p className="text-[10px] text-dark-500">{post.authorDesignation} · {timeAgo}</p>
-                    </div>
+          const reactionIcons = [
+            { key: '❤️', Icon: Heart, activeColor: 'text-red-400', activeBg: 'bg-red-500/10' },
+            { key: '👏', Icon: Award, activeColor: 'text-amber-400', activeBg: 'bg-amber-500/10' },
+            { key: '🎉', Icon: PartyPopper, activeColor: 'text-purple-400', activeBg: 'bg-purple-500/10' },
+          ];
+          return (
+            <div key={post._id} className="card p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-dark-600 to-dark-700 flex items-center justify-center text-sm font-bold text-dark-300">
+                    {(post.authorName || '?')[0].toUpperCase()}
                   </div>
-                  {(post.authorId === myId || timesheetUser?.role === 'admin') && (
-                    <button onClick={() => handleDeletePost(post._id)} className="text-dark-600 hover:text-red-400 text-xs">✕</button>
-                  )}
-                </div>
-                <p className="text-sm text-dark-200 whitespace-pre-wrap">{post.content}</p>
-                <div className="flex items-center gap-3 pt-1 border-t border-dark-800">
-                  {['❤️', '👏', '🎉'].map(emoji => {
-                    const users = post.reactions?.[emoji] || [];
-                    const iReacted = users.includes(myId);
-                    return (
-                      <button key={emoji} onClick={() => handleReact(post._id, emoji)}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${iReacted ? 'bg-rivvra-500/10 text-rivvra-400' : 'text-dark-500 hover:bg-dark-800'}`}>
-                        {emoji} {users.length > 0 && <span>{users.length}</span>}
-                      </button>
-                    );
-                  })}
-                  <span className="text-[10px] text-dark-600 ml-auto">{commentCount > 0 ? `${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}</span>
-                </div>
-                {(post.comments || []).length > 0 && (
-                  <div className="space-y-1.5 pl-4 border-l border-dark-800">
-                    {(post.comments || []).map(comment => (
-                      <div key={comment._id} className="flex items-start gap-2">
-                        <div className="w-5 h-5 rounded-full bg-dark-700 flex items-center justify-center text-[9px] font-bold text-dark-400 mt-0.5 flex-shrink-0">{(comment.authorName || '?')[0].toUpperCase()}</div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[11px] font-medium text-dark-300">{comment.authorName}</span>
-                          <p className="text-xs text-dark-400">{comment.content}</p>
-                        </div>
-                      </div>
-                    ))}
+                  <div>
+                    <p className="text-sm font-medium text-white leading-tight">{post.authorName}</p>
+                    <p className="text-[11px] text-dark-500">{post.authorDesignation}{post.authorDesignation && ' · '}{timeAgo}</p>
                   </div>
+                </div>
+                {(post.authorId === myId || timesheetUser?.role === 'admin') && (
+                  <button onClick={() => handleDeletePost(post._id)} className="p-1 text-dark-600 hover:text-red-400 rounded hover:bg-dark-800 transition-colors" title="Delete">
+                    <Trash2 size={13} />
+                  </button>
                 )}
-                <div className="flex gap-2">
-                  <input type="text" value={commentInputs[post._id] || ''} onChange={e => setCommentInputs(prev => ({ ...prev, [post._id]: e.target.value }))}
-                    onKeyDown={e => e.key === 'Enter' && handleComment(post._id)} placeholder="Write a comment..."
-                    className="flex-1 px-2.5 py-1 bg-dark-900 border border-dark-700 rounded text-xs text-white placeholder-dark-600 focus:border-rivvra-500 focus:outline-none" />
+              </div>
+              <p className="text-[13px] text-dark-200 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+              {(() => {
+                const total = Object.values(post.reactions || {}).reduce((s, arr) => s + (arr?.length || 0), 0);
+                return total > 0 && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-dark-500">
+                    <div className="flex -space-x-1">
+                      {reactionIcons.filter(r => (post.reactions?.[r.key] || []).length > 0).map(r => (
+                        <span key={r.key} className={`w-5 h-5 rounded-full flex items-center justify-center ${r.activeBg} border border-dark-900`}>
+                          <r.Icon size={10} className={r.activeColor} />
+                        </span>
+                      ))}
+                    </div>
+                    <span>{total}</span>
+                    {commentCount > 0 && <span className="ml-auto">{commentCount} comment{commentCount > 1 ? 's' : ''}</span>}
+                  </div>
+                );
+              })()}
+              <div className="flex items-center border-t border-dark-800 pt-2 -mx-1">
+                {reactionIcons.map(({ key, Icon, activeColor, activeBg }) => {
+                  const users = post.reactions?.[key] || [];
+                  const iReacted = users.includes(myId);
+                  return (
+                    <button key={key} onClick={() => handleReact(post._id, key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${iReacted ? `${activeBg} ${activeColor}` : 'text-dark-500 hover:bg-dark-800 hover:text-dark-300'}`}>
+                      <Icon size={14} className={iReacted ? activeColor : ''} fill={iReacted ? 'currentColor' : 'none'} />
+                      {users.length > 0 && users.length}
+                    </button>
+                  );
+                })}
+                <button onClick={() => document.getElementById(`comment-${post._id}`)?.focus()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-dark-500 hover:bg-dark-800 hover:text-dark-300 ml-auto transition-all">
+                  <MessageCircle size={14} /> Comment
+                </button>
+              </div>
+              {commentCount > 0 && (
+                <div className="space-y-2 pt-1">
+                  {(post.comments || []).map(comment => (
+                    <div key={comment._id} className="flex items-start gap-2 pl-2">
+                      <div className="w-6 h-6 rounded-full bg-dark-700 flex items-center justify-center text-[9px] font-bold text-dark-400 mt-0.5 flex-shrink-0">
+                        {(comment.authorName || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0 bg-dark-800/50 rounded-xl px-3 py-1.5">
+                        <span className="text-[11px] font-medium text-dark-300">{comment.authorName}</span>
+                        <p className="text-xs text-dark-400 leading-relaxed">{comment.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2 pt-1">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rivvra-500 to-emerald-600 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
+                  {(timesheetUser?.fullName || '?')[0].toUpperCase()}
+                </div>
+                <div className="flex-1 flex items-center bg-dark-800/50 border border-dark-700 rounded-full px-3 py-1 focus-within:border-dark-600">
+                  <input id={`comment-${post._id}`} type="text" value={commentInputs[post._id] || ''}
+                    onChange={e => setCommentInputs(prev => ({ ...prev, [post._id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleComment(post._id)}
+                    placeholder="Write a comment..."
+                    className="flex-1 bg-transparent text-xs text-white placeholder-dark-600 focus:outline-none" />
                   {commentInputs[post._id]?.trim() && (
                     <button onClick={() => handleComment(post._id)} disabled={postingComment[post._id]}
-                      className="px-2.5 py-1 bg-rivvra-600 text-white text-xs rounded hover:bg-rivvra-700 disabled:opacity-50">
-                      {postingComment[post._id] ? '...' : 'Send'}
+                      className="text-rivvra-400 hover:text-rivvra-300 ml-1 disabled:opacity-50">
+                      <Send size={13} />
                     </button>
                   )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
