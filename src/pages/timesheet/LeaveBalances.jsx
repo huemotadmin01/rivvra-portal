@@ -88,7 +88,7 @@ export default function LeaveBalances() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="space-y-4">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white flex items-center gap-2">
