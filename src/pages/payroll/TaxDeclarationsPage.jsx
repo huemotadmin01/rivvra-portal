@@ -96,7 +96,9 @@ export default function TaxDeclarationsPage() {
   const total80D = form ? Object.values(form.section80D).reduce((s, v) => s + (Number(v) || 0), 0) : 0;
   const totalDecl = form ? total80C + total80D + (Number(form.section80E) || 0) + (Number(form.section80G) || 0) + (Number(form.section24b) || 0) : 0;
 
-  const filtered = employees.filter(e => {
+  // Tax declarations only apply to active confirmed employees (not consultants/contractors/interns — they have flat TDS)
+  const confirmedEmployees = employees.filter(e => e.employmentType === 'confirmed' && e.status !== 'separated');
+  const filtered = confirmedEmployees.filter(e => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (e.fullName || e.name || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
