@@ -710,6 +710,31 @@ export default function EmployeeDetail() {
             options={Object.entries(empTypeMap).map(([key, cfg]) => ({ value: key, label: cfg.label }))}
             editable={fp('employmentType').editable} onSave={handleFieldSave}
             displayValue={empTypeMap[emp.employmentType]?.label || emp.employmentType} />
+          {/* Probation */}
+          {emp.probation?.enabled && emp.employmentType === 'confirmed' && (
+            <div className="flex items-center justify-between py-2 border-b border-dark-800">
+              <span className="text-dark-400 text-sm">Probation</span>
+              <div className="flex items-center gap-2">
+                {emp.probation.status === 'on_probation' ? (
+                  <>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400">
+                      On Probation
+                    </span>
+                    <span className="text-xs text-dark-400">
+                      {Math.max(0, Math.ceil((new Date(emp.probation.endDate) - new Date()) / (1000*60*60*24)))} days left
+                    </span>
+                    <span className="text-[10px] text-dark-500">
+                      ({emp.probation.durationDays} days, ends {new Date(emp.probation.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                    </span>
+                  </>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">
+                    Completed
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <InfoRow
             label="Related User"
             value={
