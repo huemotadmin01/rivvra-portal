@@ -97,7 +97,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/my-profile', label: 'My Profile', icon: Users },
         // Admin + Manager: approval pages
         ...((isAdmin || isManager) ? [
-          { type: 'item', path: '/timesheet/approvals', label: 'ESS Approvals', icon: CheckCircle2 },
+          { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
           { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
           { type: 'item', path: '/timesheet/leave/balances', label: 'Leave Balances', icon: CalendarDays },

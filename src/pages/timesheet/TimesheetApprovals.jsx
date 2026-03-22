@@ -99,7 +99,7 @@ export default function TimesheetApprovals() {
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-white">ESS Approvals</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Timesheet Approvals</h1>
         <p className="text-dark-400 text-sm">Review and approve contractor entries</p>
       </div>
 
