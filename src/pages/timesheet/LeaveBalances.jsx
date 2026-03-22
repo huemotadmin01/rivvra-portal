@@ -88,7 +88,7 @@ export default function LeaveBalances() {
   }
 
   return (
-    <div className="min-w-0 w-full">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-white flex items-center gap-2">
