@@ -88,15 +88,15 @@ export default function LeaveBalances() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+    <div className="min-w-0 w-full">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-white flex items-center gap-2">
             <CalendarDays size={20} className="text-rivvra-400" /> Leave Balances
           </h1>
           <p className="text-sm text-dark-400 mt-1">{filtered.length} employees • FY {fy}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {departments.length > 1 && (
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
               className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none">
@@ -117,9 +117,9 @@ export default function LeaveBalances() {
         </div>
       </div>
 
-      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
+      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden min-w-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="border-b border-dark-700">
                 <th className="text-left px-4 py-3 text-dark-400 font-medium">Employee</th>
