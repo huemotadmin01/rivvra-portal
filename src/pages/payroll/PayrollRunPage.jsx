@@ -384,10 +384,7 @@ export default function PayrollRunPage() {
             )}
             <button onClick={() => handleDownload('payslips')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Download all payslips as ZIP"><FileText size={12} /> All Payslips</button>
             <div className="border-l border-dark-700 mx-1" />
-            {/* Exports */}
-            <button onClick={() => handleExport('register')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Salary Register — summary of all employees"><FileSpreadsheet size={12} /> Salary Register</button>
-            <button onClick={() => handleExport('tds')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700"><FileSpreadsheet size={12} /> TDS</button>
-            <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-400 hover:bg-rivvra-600/30" title="Full payroll sheet with all columns"><Download size={12} /> Payroll Sheet</button>
+            <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-400 hover:bg-rivvra-600/30" title="Full payroll Excel with all employees & deductions"><Download size={12} /> Payroll Sheet</button>
           </div>
         )}
 
