@@ -39,6 +39,7 @@ export default function PayrollRunPage() {
   const [processing, setProcessing] = useState(false);
   const [savingAdHoc, setSavingAdHoc] = useState(false);
   const [expandedItem, setExpandedItem] = useState(null);
+  const [empTypeFilter, setEmpTypeFilter] = useState('all');
   const [showHoldModal, setShowHoldModal] = useState(null); // { employeeId, employeeName }
   const [holdReason, setHoldReason] = useState('');
   const [savingHold, setSavingHold] = useState(false);
@@ -407,6 +408,38 @@ export default function PayrollRunPage() {
           </div>
         )}
 
+        {/* Filter Tabs */}
+        {items.length > 0 && (() => {
+          const confirmedCount = items.filter(i => i.employmentType === 'confirmed').length;
+          const intConsCount = items.filter(i => i.employmentType === 'internal_consultant').length;
+          const extConsCount = items.filter(i => i.payrollMode === 'contractor').length;
+          const internCount = items.filter(i => i.employmentType === 'intern').length;
+          const tabs = [
+            { key: 'all', label: 'All', count: items.length },
+            { key: 'confirmed', label: 'Confirmed', count: confirmedCount },
+            ...(intConsCount > 0 ? [{ key: 'internal_consultant', label: 'Internal Consultants', count: intConsCount }] : []),
+            ...(extConsCount > 0 ? [{ key: 'contractor', label: 'External Consultants', count: extConsCount }] : []),
+            ...(internCount > 0 ? [{ key: 'intern', label: 'Interns', count: internCount }] : []),
+          ];
+          return (
+            <div className="flex gap-1 mb-4 flex-wrap">
+              {tabs.map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setEmpTypeFilter(tab.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    empTypeFilter === tab.key
+                      ? 'bg-rivvra-600/20 text-rivvra-400 border border-rivvra-500/30'
+                      : 'text-dark-400 hover:text-dark-200 hover:bg-dark-750 border border-transparent'
+                  }`}
+                >
+                  {tab.label} ({tab.count})
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Employee Table */}
         <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
@@ -418,7 +451,12 @@ export default function PayrollRunPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map(item => {
+              {items.filter(item => {
+                if (empTypeFilter === 'all') return true;
+                if (empTypeFilter === 'contractor') return item.payrollMode === 'contractor';
+                if (empTypeFilter === 'intern') return item.employmentType === 'intern';
+                return item.employmentType === empTypeFilter && item.payrollMode !== 'contractor';
+              }).map(item => {
                 const isExpanded = expandedItem === item.employeeId;
                 return (
                   <React.Fragment key={item.employeeId}>
@@ -429,17 +467,7 @@ export default function PayrollRunPage() {
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-white text-xs font-medium">{item.employeeName}</span>
-                          {/* Employment type badge */}
-                          {item.payrollMode === 'contractor' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-500/10 text-purple-400">Contractor</span>
-                          )}
-                          {item.employmentType === 'internal_consultant' && item.payrollMode !== 'contractor' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-500/10 text-blue-400">Consultant</span>
-                          )}
-                          {item.employmentType === 'intern' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400">Intern</span>
-                          )}
-                          {/* Status badges */}
+                          {/* Status badges only */}
                           {item.payrollMode === 'contractor' && item.timesheetStatus === 'not_submitted' && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="No approved timesheet">
                               <XCircle size={9} /> No Timesheet
