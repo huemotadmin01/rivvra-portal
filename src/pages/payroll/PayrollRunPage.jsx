@@ -186,10 +186,12 @@ export default function PayrollRunPage() {
   const handleCreateHold = async () => {
     if (!showHoldModal || !holdReason.trim()) return;
     try {
-      await createSalaryHold(orgSlug, selectedRun._id, showHoldModal.employeeId, holdReason.trim());
-      // Re-process to reflect hold in items
-      const processRes = await processPayrollRun(orgSlug, selectedRun._id);
-      setSelectedRun(processRes.run);
+      const holdRes = await createSalaryHold(orgSlug, selectedRun._id, showHoldModal.employeeId, holdReason.trim());
+      // Update the item's salaryHold in local state immediately
+      const updatedRun = { ...selectedRun, items: (selectedRun.items || []).map(i =>
+        i.employeeId === showHoldModal.employeeId ? { ...i, salaryHold: holdRes.hold } : i
+      )};
+      setSelectedRun(updatedRun);
       setShowHoldModal(null);
       setHoldReason('');
       showToast('Salary hold applied');
@@ -199,8 +201,11 @@ export default function PayrollRunPage() {
   const handleReleaseHold = async (holdId) => {
     try {
       await releaseSalaryHold(orgSlug, selectedRun._id, holdId);
-      const processRes = await processPayrollRun(orgSlug, selectedRun._id);
-      setSelectedRun(processRes.run);
+      // Clear hold from local state immediately
+      const updatedRun = { ...selectedRun, items: (selectedRun.items || []).map(i =>
+        i.salaryHold?._id === holdId ? { ...i, salaryHold: null } : i
+      )};
+      setSelectedRun(updatedRun);
       showToast('Hold released');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
