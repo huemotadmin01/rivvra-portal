@@ -15,6 +15,18 @@ import {
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Avatar helper — shows Google profile image or letter initial
+function Avatar({ name, picture, size = 'md', gradient = false }) {
+  const sizes = { sm: 'w-6 h-6 text-[9px]', md: 'w-9 h-9 text-sm', lg: 'w-10 h-10 text-base' };
+  const cls = sizes[size] || sizes.md;
+  if (picture) return <img src={picture} alt="" className={`${cls} rounded-full object-cover flex-shrink-0`} referrerPolicy="no-referrer" />;
+  return (
+    <div className={`${cls} rounded-full flex items-center justify-center font-bold flex-shrink-0 ${gradient ? 'bg-gradient-to-br from-rivvra-500 to-emerald-600 text-white' : 'bg-gradient-to-br from-dark-600 to-dark-700 text-dark-300'}`}>
+      {(name || '?')[0].toUpperCase()}
+    </div>
+  );
+}
+
 function StatusBadge({ status }) {
   const colors = {
     draft: 'bg-dark-700 text-dark-400',
@@ -262,9 +274,7 @@ function ContractorDashboard() {
         {/* New Post Card */}
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rivvra-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-              {(timesheetUser?.fullName || '?')[0].toUpperCase()}
-            </div>
+            <Avatar name={timesheetUser?.fullName} picture={timesheetUser?.picture} gradient />
             {!showNewPost ? (
               <button onClick={() => setShowNewPost(true)}
                 className="flex-1 text-left px-4 py-2.5 bg-dark-800/50 border border-dark-700 rounded-full text-sm text-dark-500 hover:border-dark-600 hover:text-dark-400 transition-colors">
@@ -321,9 +331,7 @@ function ContractorDashboard() {
               {/* Author */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-dark-600 to-dark-700 flex items-center justify-center text-sm font-bold text-dark-300">
-                    {(post.authorName || '?')[0].toUpperCase()}
-                  </div>
+                  <Avatar name={post.authorName} picture={post.authorPicture} />
                   <div>
                     <p className="text-sm font-medium text-white leading-tight">{post.authorName}</p>
                     <p className="text-[11px] text-dark-500">{post.authorDesignation}{post.authorDesignation && ' · '}{timeAgo}</p>
@@ -381,9 +389,7 @@ function ContractorDashboard() {
                 <div className="space-y-2 pt-1">
                   {(post.comments || []).map(comment => (
                     <div key={comment._id} className="flex items-start gap-2 pl-2">
-                      <div className="w-6 h-6 rounded-full bg-dark-700 flex items-center justify-center text-[9px] font-bold text-dark-400 mt-0.5 flex-shrink-0">
-                        {(comment.authorName || '?')[0].toUpperCase()}
-                      </div>
+                      <Avatar name={comment.authorName} picture={comment.authorPicture} size="sm" />
                       <div className="flex-1 min-w-0 bg-dark-800/50 rounded-xl px-3 py-1.5">
                         <span className="text-[11px] font-medium text-dark-300">{comment.authorName}</span>
                         <p className="text-xs text-dark-400 leading-relaxed">{comment.content}</p>
@@ -395,9 +401,7 @@ function ContractorDashboard() {
 
               {/* Comment input */}
               <div className="flex items-center gap-2 pt-1">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rivvra-500 to-emerald-600 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
-                  {(timesheetUser?.fullName || '?')[0].toUpperCase()}
-                </div>
+                <Avatar name={timesheetUser?.fullName} picture={timesheetUser?.picture} size="sm" gradient />
                 <div className="flex-1 flex items-center bg-dark-800/50 border border-dark-700 rounded-full px-3 py-1 focus-within:border-dark-600">
                   <input id={`comment-${post._id}`} type="text" value={commentInputs[post._id] || ''}
                     onChange={e => setCommentInputs(prev => ({ ...prev, [post._id]: e.target.value }))}
@@ -755,9 +759,7 @@ function AdminDashboard() {
         {/* New Post Card */}
         <div className="card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rivvra-500 to-emerald-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-              {(timesheetUser?.fullName || '?')[0].toUpperCase()}
-            </div>
+            <Avatar name={timesheetUser?.fullName} picture={timesheetUser?.picture} gradient />
             {!showNewPost ? (
               <button onClick={() => setShowNewPost(true)}
                 className="flex-1 text-left px-4 py-2.5 bg-dark-800/50 border border-dark-700 rounded-full text-sm text-dark-500 hover:border-dark-600 hover:text-dark-400 transition-colors">
@@ -813,9 +815,7 @@ function AdminDashboard() {
             <div key={post._id} className="card p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-dark-600 to-dark-700 flex items-center justify-center text-sm font-bold text-dark-300">
-                    {(post.authorName || '?')[0].toUpperCase()}
-                  </div>
+                  <Avatar name={post.authorName} picture={post.authorPicture} />
                   <div>
                     <p className="text-sm font-medium text-white leading-tight">{post.authorName}</p>
                     <p className="text-[11px] text-dark-500">{post.authorDesignation}{post.authorDesignation && ' · '}{timeAgo}</p>
@@ -865,9 +865,7 @@ function AdminDashboard() {
                 <div className="space-y-2 pt-1">
                   {(post.comments || []).map(comment => (
                     <div key={comment._id} className="flex items-start gap-2 pl-2">
-                      <div className="w-6 h-6 rounded-full bg-dark-700 flex items-center justify-center text-[9px] font-bold text-dark-400 mt-0.5 flex-shrink-0">
-                        {(comment.authorName || '?')[0].toUpperCase()}
-                      </div>
+                      <Avatar name={comment.authorName} picture={comment.authorPicture} size="sm" />
                       <div className="flex-1 min-w-0 bg-dark-800/50 rounded-xl px-3 py-1.5">
                         <span className="text-[11px] font-medium text-dark-300">{comment.authorName}</span>
                         <p className="text-xs text-dark-400 leading-relaxed">{comment.content}</p>
@@ -877,9 +875,7 @@ function AdminDashboard() {
                 </div>
               )}
               <div className="flex items-center gap-2 pt-1">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rivvra-500 to-emerald-600 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
-                  {(timesheetUser?.fullName || '?')[0].toUpperCase()}
-                </div>
+                <Avatar name={timesheetUser?.fullName} picture={timesheetUser?.picture} size="sm" gradient />
                 <div className="flex-1 flex items-center bg-dark-800/50 border border-dark-700 rounded-full px-3 py-1 focus-within:border-dark-600">
                   <input id={`comment-${post._id}`} type="text" value={commentInputs[post._id] || ''}
                     onChange={e => setCommentInputs(prev => ({ ...prev, [post._id]: e.target.value }))}
