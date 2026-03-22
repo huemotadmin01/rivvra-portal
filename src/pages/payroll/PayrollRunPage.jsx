@@ -277,7 +277,7 @@ export default function PayrollRunPage() {
       let blob;
       if (type === 'payroll-sheet') {
         blob = await downloadPayrollSheet(orgSlug, selectedRun._id);
-        triggerDownload(blob, `Payroll_Sheet_${selectedRun.month}_${selectedRun.year}.csv`);
+        triggerDownload(blob, `Payroll_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
       } else {
         blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
         triggerDownload(blob, `${type}_${selectedRun.month}_${selectedRun.year}.csv`);
