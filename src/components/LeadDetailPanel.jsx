@@ -30,21 +30,17 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, teamMember
   const [loadingReply, setLoadingReply] = useState(false);
   const [replyExpanded, setReplyExpanded] = useState(false);
 
-  // Fetch reply when lead changes (only for replied leads)
+  // Fetch reply when lead changes
   useEffect(() => {
-    const status = lead?.outreachStatus;
-    if (status === 'replied' || status === 'replied_not_interested') {
-      setLoadingReply(true);
-      setReplyData(null);
-      setReplyExpanded(false);
-      api.getLeadReply(lead._id)
-        .then(res => { if (res.reply) setReplyData(res.reply); })
-        .catch(() => {})
-        .finally(() => setLoadingReply(false));
-    } else {
-      setReplyData(null);
-    }
-  }, [lead?._id, lead?.outreachStatus]);
+    if (!lead?._id) { setReplyData(null); return; }
+    setLoadingReply(true);
+    setReplyData(null);
+    setReplyExpanded(false);
+    api.getLeadReply(lead._id)
+      .then(res => { if (res.reply) setReplyData(res.reply); })
+      .catch(() => {})
+      .finally(() => setLoadingReply(false));
+  }, [lead?._id]);
 
   // Sync notes when lead changes
   useEffect(() => {

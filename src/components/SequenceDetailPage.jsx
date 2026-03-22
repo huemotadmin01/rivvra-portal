@@ -2314,8 +2314,8 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
                   );
                 })}
 
-                {/* Reply card — shown when contact has replied */}
-                {selectedContact && (selectedContact.status === 'replied' || selectedContact.status === 'replied_not_interested') && selectedContact.repliedAt && (() => {
+                {/* Reply card — shown when contact has a reply */}
+                {selectedContact && selectedContact.repliedAt && (() => {
                   const isInterested = selectedContact.status === 'replied';
                   const replyText = selectedContact.replyBody || selectedContact.replySnippet || '';
                   const replyFrom = selectedContact.replyFrom || selectedContact.leadEmail || '';
