@@ -50,6 +50,13 @@ function ContractorDashboard() {
   const [timesheets, setTimesheets] = useState([]);
   const [leaveBalances, setLeaveBalances] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Social feed state
+  const [celebrations, setCelebrations] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [showNewPost, setShowNewPost] = useState(false);
+  const [postingComment, setPostingComment] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
 
   // Billable internal consultants use the same ESS view as external consultants
   const isBillableIC = timesheetUser?.employmentType === 'internal_consultant' && timesheetUser?.billable;
@@ -108,9 +115,53 @@ function ContractorDashboard() {
         }).catch(() => {}),
       );
     }
+    // Social feed data
+    fetches.push(
+      timesheetApi.get('/celebrations', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
+      timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
+    );
     Promise.all(fetches).finally(() => setLoading(false));
     return () => controller.abort();
   }, [hideEarnings, isLeaveEligible]);
+
+  // Social feed handlers
+  const handleCreatePost = async () => {
+    if (!newPostContent.trim()) return;
+    try {
+      const res = await timesheetApi.post('/posts', { content: newPostContent.trim() });
+      if (res.data?.post) setPosts(prev => [res.data.post, ...prev]);
+      setNewPostContent('');
+      setShowNewPost(false);
+    } catch (err) { /* silently fail */ }
+  };
+  const handleReact = async (postId, emoji) => {
+    try {
+      const res = await timesheetApi.post(`/posts/${postId}/react`, { emoji });
+      if (res.data?.reactions) {
+        setPosts(prev => prev.map(p => p._id === postId ? { ...p, reactions: res.data.reactions } : p));
+      }
+    } catch (err) { /* silently fail */ }
+  };
+  const handleComment = async (postId) => {
+    const content = commentInputs[postId]?.trim();
+    if (!content) return;
+    setPostingComment(prev => ({ ...prev, [postId]: true }));
+    try {
+      const res = await timesheetApi.post(`/posts/${postId}/comment`, { content });
+      if (res.data?.comment) {
+        setPosts(prev => prev.map(p => p._id === postId ? { ...p, comments: [...(p.comments || []), res.data.comment] } : p));
+        setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+      }
+    } catch (err) { /* silently fail */ }
+    finally { setPostingComment(prev => ({ ...prev, [postId]: false })); }
+  };
+  const handleDeletePost = async (postId) => {
+    try {
+      await timesheetApi.delete(`/posts/${postId}`);
+      setPosts(prev => prev.filter(p => p._id !== postId));
+    } catch (err) { /* silently fail */ }
+  };
+  const myId = timesheetUser?._id;
 
   if (loading) return (
     <PageSkeleton>
@@ -164,6 +215,168 @@ function ContractorDashboard() {
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Celebrations Carousel */}
+      {celebrations.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
+            <span className="text-xs text-dark-500">Next 7 days</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {celebrations.map((c, i) => (
+              <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
+                <div className="text-2xl mb-1.5">{c.type === 'birthday' ? '🎂' : '🎉'}</div>
+                <p className="text-sm font-medium text-white truncate">{c.employeeName}</p>
+                <p className="text-[10px] text-dark-400 truncate">{c.designation}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[10px] font-medium text-dark-300">
+                    {c.type === 'birthday' ? 'Birthday' : `${c.detail} Anniversary`}
+                  </span>
+                  {c.isToday && <span className="text-[9px] bg-rivvra-500/20 text-rivvra-400 px-1.5 py-0.5 rounded-full font-medium">Today</span>}
+                  {!c.isToday && <span className="text-[9px] text-dark-500">{new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Social Feed */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white">📢 Posts</h2>
+          <button onClick={() => setShowNewPost(!showNewPost)} className="text-xs text-rivvra-400 hover:text-rivvra-300 font-medium">
+            {showNewPost ? 'Cancel' : '+ New Post'}
+          </button>
+        </div>
+
+        {/* New Post Form */}
+        {showNewPost && (
+          <div className="mb-4 space-y-2">
+            <textarea
+              value={newPostContent}
+              onChange={e => setNewPostContent(e.target.value)}
+              placeholder="Share an update, achievement, or announcement..."
+              className="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white placeholder-dark-500 focus:border-rivvra-500 focus:outline-none resize-none"
+              rows={3}
+              maxLength={2000}
+              autoFocus
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-dark-500">{newPostContent.length}/2000</span>
+              <button
+                onClick={handleCreatePost}
+                disabled={!newPostContent.trim()}
+                className="px-4 py-1.5 bg-rivvra-600 text-white text-xs rounded-lg hover:bg-rivvra-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Post
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Posts List */}
+        {posts.length === 0 && !showNewPost && (
+          <p className="text-center text-dark-500 text-sm py-6">No posts yet. Be the first to share!</p>
+        )}
+        <div className="space-y-3">
+          {posts.map(post => {
+            const totalReactions = Object.values(post.reactions || {}).reduce((s, arr) => s + (arr?.length || 0), 0);
+            const commentCount = (post.comments || []).length;
+            const timeAgo = (() => {
+              const diff = Date.now() - new Date(post.createdAt).getTime();
+              const mins = Math.floor(diff / 60000);
+              if (mins < 1) return 'Just now';
+              if (mins < 60) return `${mins}m ago`;
+              const hrs = Math.floor(mins / 60);
+              if (hrs < 24) return `${hrs}h ago`;
+              const days = Math.floor(hrs / 24);
+              if (days < 7) return `${days}d ago`;
+              return new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+            })();
+
+            return (
+              <div key={post._id} className="border border-dark-700 rounded-lg p-3 space-y-2">
+                {/* Author row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-dark-700 flex items-center justify-center text-xs font-bold text-dark-300">
+                      {(post.authorName || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white">{post.authorName}</p>
+                      <p className="text-[10px] text-dark-500">{post.authorDesignation} · {timeAgo}</p>
+                    </div>
+                  </div>
+                  {(post.authorId === myId || timesheetUser?.role === 'admin') && (
+                    <button onClick={() => handleDeletePost(post._id)} className="text-dark-600 hover:text-red-400 text-xs">✕</button>
+                  )}
+                </div>
+
+                {/* Content */}
+                <p className="text-sm text-dark-200 whitespace-pre-wrap">{post.content}</p>
+
+                {/* Reactions bar */}
+                <div className="flex items-center gap-3 pt-1 border-t border-dark-800">
+                  {['❤️', '👏', '🎉'].map(emoji => {
+                    const users = post.reactions?.[emoji] || [];
+                    const iReacted = users.includes(myId);
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReact(post._id, emoji)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${iReacted ? 'bg-rivvra-500/10 text-rivvra-400' : 'text-dark-500 hover:bg-dark-800'}`}
+                      >
+                        {emoji} {users.length > 0 && <span>{users.length}</span>}
+                      </button>
+                    );
+                  })}
+                  <span className="text-[10px] text-dark-600 ml-auto">{commentCount > 0 ? `${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}</span>
+                </div>
+
+                {/* Comments */}
+                {(post.comments || []).length > 0 && (
+                  <div className="space-y-1.5 pl-4 border-l border-dark-800">
+                    {(post.comments || []).map(comment => (
+                      <div key={comment._id} className="flex items-start gap-2">
+                        <div className="w-5 h-5 rounded-full bg-dark-700 flex items-center justify-center text-[9px] font-bold text-dark-400 mt-0.5 flex-shrink-0">
+                          {(comment.authorName || '?')[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-medium text-dark-300">{comment.authorName}</span>
+                          <p className="text-xs text-dark-400">{comment.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Comment input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={commentInputs[post._id] || ''}
+                    onChange={e => setCommentInputs(prev => ({ ...prev, [post._id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleComment(post._id)}
+                    placeholder="Write a comment..."
+                    className="flex-1 px-2.5 py-1 bg-dark-900 border border-dark-700 rounded text-xs text-white placeholder-dark-600 focus:border-rivvra-500 focus:outline-none"
+                  />
+                  {commentInputs[post._id]?.trim() && (
+                    <button
+                      onClick={() => handleComment(post._id)}
+                      disabled={postingComment[post._id]}
+                      className="px-2.5 py-1 bg-rivvra-600 text-white text-xs rounded hover:bg-rivvra-700 disabled:opacity-50"
+                    >
+                      {postingComment[post._id] ? '...' : 'Send'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
