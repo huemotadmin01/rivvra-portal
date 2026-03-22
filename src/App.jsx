@@ -95,6 +95,7 @@ const AttendanceApprovals = lazy(() => import('./pages/timesheet/AttendanceAppro
 const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
 const LeaveMyRequests = lazy(() => import('./pages/timesheet/LeaveMyRequests'));
 const LeaveApprovals = lazy(() => import('./pages/timesheet/LeaveApprovals'));
+const LeaveBalances = lazy(() => import('./pages/timesheet/LeaveBalances'));
 const LeaveReports = lazy(() => import('./pages/timesheet/LeaveReports'));
 const HolidayCalendar = lazy(() => import('./pages/timesheet/HolidayCalendar'));
 
@@ -296,6 +297,7 @@ function App() {
                   <Route path="/org/:slug/timesheet/leave/apply" element={<ErrorBoundary><LeaveApply /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/my-requests" element={<ErrorBoundary><LeaveMyRequests /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/approvals" element={<ErrorBoundary><LeaveApprovals /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/leave/balances" element={<ErrorBoundary><LeaveBalances /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><LeaveReports /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><HolidayCalendar /></ErrorBoundary>} />
                   {/* Employee-facing statutory payroll pages */}
