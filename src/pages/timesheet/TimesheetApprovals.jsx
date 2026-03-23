@@ -123,7 +123,7 @@ export default function TimesheetApprovals() {
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === ts._id ? null : ts._id)}>
                 <div>
                   <p className="font-medium text-white">{ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}</p>
-                  <p className="text-sm text-dark-400">{ts.isAttendance ? 'Attendance' : `${ts.project?.name} • ${ts.client?.name}`} • {ts.totalHours || 0}h ({ts.totalWorkingDays} days)</p>
+                  <p className="text-sm text-dark-400">{ts.isAttendance ? 'Attendance' : [ts.project?.name, ts.client?.name].filter(Boolean).join(' • ')} • {ts.totalHours || 0}h ({ts.totalWorkingDays} days)</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
