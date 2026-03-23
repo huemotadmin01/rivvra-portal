@@ -16,14 +16,22 @@
  */
 export function formatDateUTC(val, opts = {}) {
   if (!val) return null;
-  const {
-    locale = 'en-IN',
-    day = 'numeric',
-    month = 'short',
-    year = 'numeric',
-    ...rest
-  } = opts;
-  return new Date(val).toLocaleDateString(locale, { day, month, year, timeZone: 'UTC', ...rest });
+  const { locale = 'en-IN', ...dateOpts } = opts;
+  // Build options with defaults, but allow explicit exclusion via undefined/false
+  const fmtOpts = { timeZone: 'UTC' };
+  fmtOpts.day = 'day' in dateOpts ? dateOpts.day : 'numeric';
+  fmtOpts.month = 'month' in dateOpts ? dateOpts.month : 'short';
+  // Only include year if not explicitly excluded (pass year: undefined to omit)
+  if ('year' in dateOpts) {
+    if (dateOpts.year) fmtOpts.year = dateOpts.year;
+  } else {
+    fmtOpts.year = 'numeric';
+  }
+  // Pass through any extra options (weekday, hour, minute, etc.)
+  const extra = { ...dateOpts };
+  delete extra.day; delete extra.month; delete extra.year;
+  Object.assign(fmtOpts, extra);
+  return new Date(val).toLocaleDateString(locale, fmtOpts);
 }
 
 /**
