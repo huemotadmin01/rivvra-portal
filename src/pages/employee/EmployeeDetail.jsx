@@ -270,14 +270,9 @@ export default function EmployeeDetail() {
     const slug = currentOrg?.slug;
     if (!slug || !employee) throw new Error('Missing context');
 
-    // Build payload — handle nested fields (e.g. "bankDetails.pan")
-    let payload;
-    if (field.includes('.')) {
-      const [parent, child] = field.split('.');
-      payload = { [parent]: { ...(employee[parent] || {}), [child]: value } };
-    } else {
-      payload = { [field]: value };
-    }
+    // Build payload — use dot-notation for nested fields so the backend
+    // can $set only the changed sub-field without replacing the entire object.
+    const payload = { [field]: value };
 
     let res;
     if (isSelf && !isAdmin) {
