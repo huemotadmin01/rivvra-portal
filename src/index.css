@@ -52,6 +52,12 @@
   body {
     @apply bg-dark-950 text-white m-0;
   }
+
+  /* Dark-theme date input: make calendar icon visible */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+    cursor: pointer;
+  }
 }
 
 @layer components {

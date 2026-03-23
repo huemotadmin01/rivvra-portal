@@ -54,9 +54,15 @@ export default function InlineField({
     if (!editable || status === 'saving') return;
     const raw = value ?? '';
     if (type === 'date' && raw) {
-      // Convert to YYYY-MM-DD for date input
-      const d = new Date(raw);
-      setEditVal(d.toISOString().slice(0, 10));
+      // Convert to YYYY-MM-DD for date input — use UTC to avoid timezone shift
+      const str = String(raw);
+      const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        setEditVal(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`);
+      } else {
+        const d = new Date(str);
+        setEditVal(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
+      }
     } else {
       setEditVal(String(raw));
     }
@@ -155,7 +161,7 @@ export default function InlineField({
         <span className="flex items-center gap-2 text-white text-sm min-h-[20px]">
           {display || <span className="text-dark-600">—</span>}
           {editable && status !== 'saved' && (
-            <Pencil size={12} className="text-dark-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            <Pencil size={12} className="text-dark-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           )}
           <StatusIcon status={status} errMsg={errMsg} />
         </span>
@@ -250,7 +256,7 @@ function formatDisplayValue(val, type, maskFn, options) {
   if (val == null || val === '') return null;
   if (maskFn) return maskFn(val);
   if (type === 'date') {
-    return new Date(val).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(val).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   }
   if (type === 'select' && options.length > 0) {
     const opt = options.find(o => String(o.value) === String(val));
