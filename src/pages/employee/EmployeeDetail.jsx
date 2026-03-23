@@ -46,6 +46,8 @@ import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import ComboSelect from '../../components/ComboSelect';
+import AssignmentDocs from '../../components/employee/AssignmentDocs';
+import { Paperclip } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -224,6 +226,8 @@ export default function EmployeeDetail() {
   const [reviseForm, setReviseForm] = useState({ effectiveDate: '', billingRate: { daily: '', hourly: '', monthly: '' }, clientBillingRate: { daily: '', hourly: '', monthly: '' }, paidLeavePerMonth: '', reason: '' });
   const [revisingRate, setRevisingRate] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState({});
+  const [expandedDocs, setExpandedDocs] = useState({});
+  const [deletingAssignment, setDeletingAssignment] = useState(null);
 
   const isAdmin = getAppRole('employee') === 'admin';
   const appRole = getAppRole('employee') || 'member';
@@ -379,6 +383,42 @@ export default function EmployeeDetail() {
     setEmployee(prev => prev ? { ...prev, assignments: [...(prev.assignments || []), newAssignment] } : prev);
     setEditAssignment({ index: idx, ...newAssignment });
   }, [employee]);
+
+  // Delete assignment
+  const handleDeleteAssignment = useCallback(async (idx) => {
+    if (!currentOrg?.slug || !employee) return;
+    if (!window.confirm('Delete this assignment?')) return;
+    setDeletingAssignment(idx);
+    try {
+      const res = await employeeApi.deleteAssignment(currentOrg.slug, employee._id, idx);
+      if (res.success) {
+        setEmployee(prev => prev ? { ...prev, assignments: res.employee.assignments } : prev);
+        showToast('Assignment deleted', 'success');
+      }
+    } catch (err) {
+      const msg = err.message || '';
+      // Check if blocked due to linked timesheets
+      const tsMatch = msg.match(/(\d+) linked timesheet/);
+      if (tsMatch) {
+        const count = tsMatch[1];
+        if (window.confirm(`This assignment has ${count} linked timesheet(s). Delete them too?\n\nThis action cannot be undone.`)) {
+          try {
+            const forceRes = await employeeApi.deleteAssignment(currentOrg.slug, employee._id, idx, true);
+            if (forceRes.success) {
+              setEmployee(prev => prev ? { ...prev, assignments: forceRes.employee.assignments } : prev);
+              showToast(`Assignment deleted with ${forceRes.deletedTimesheets || count} timesheet(s)`, 'success');
+            }
+          } catch (forceErr) {
+            showToast(forceErr.message || 'Failed to delete', 'error');
+          }
+        }
+      } else {
+        showToast(msg || 'Failed to delete assignment', 'error');
+      }
+    } finally {
+      setDeletingAssignment(null);
+    }
+  }, [currentOrg?.slug, employee]);
 
   useEffect(() => {
     if (!currentOrg?.slug || !employeeId) return;
@@ -1175,6 +1215,13 @@ export default function EmployeeDetail() {
                       {isAdmin && (
                         <td className="px-2 py-2.5 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => setExpandedDocs(p => ({ ...p, [i]: !p[i] }))}
+                              className={`p-1 transition-colors ${expandedDocs[i] ? 'text-blue-400' : 'text-dark-500 hover:text-blue-400'}`}
+                              title="Documents"
+                            >
+                              <Paperclip size={14} />
+                            </button>
                             {a.status === 'active' && (
                               <button
                                 onClick={() => openReviseModal(i)}
@@ -1190,6 +1237,14 @@ export default function EmployeeDetail() {
                               title="Edit assignment"
                             >
                               <PenLine size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAssignment(i)}
+                              disabled={deletingAssignment === i}
+                              className="p-1 text-dark-500 hover:text-red-400 transition-colors"
+                              title="Delete assignment"
+                            >
+                              {deletingAssignment === i ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                             </button>
                           </div>
                         </td>
@@ -1225,6 +1280,14 @@ export default function EmployeeDetail() {
                               })}
                             </div>
                           )}
+                        </td>
+                      </tr>
+                    )}
+                    {/* Assignment Documents */}
+                    {isAdmin && expandedDocs[i] && (
+                      <tr key={`docs-${i}`}>
+                        <td colSpan={8} className="px-4 py-3 bg-dark-900/20">
+                          <AssignmentDocs orgSlug={currentOrg?.slug} employeeId={employee._id} assignmentIdx={i} />
                         </td>
                       </tr>
                     )}
@@ -1554,6 +1617,13 @@ export default function EmployeeDetail() {
                   placeholder="0" />
               </div>
             </div>
+
+            {/* Documents section in modal — only for saved assignments */}
+            {editAssignment?.index != null && editAssignment.index < (employee?.assignments?.length || 0) && employee?.assignments?.[editAssignment.index]?.clientId && (
+              <div className="mt-4 pt-4 border-t border-dark-700">
+                <AssignmentDocs orgSlug={currentOrg?.slug} employeeId={employee._id} assignmentIdx={editAssignment.index} />
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setEditAssignment(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>

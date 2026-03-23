@@ -119,6 +119,14 @@ const employeeApi = {
     });
   },
 
+  // ── Assignment Management ──────────────────────────────────────────────
+  deleteAssignment(orgSlug, employeeId, assignmentIdx, force = false) {
+    const qs = force ? '?force=true' : '';
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/assignments/${assignmentIdx}${qs}`, {
+      method: 'DELETE',
+    });
+  },
+
   // ── Assignment Documents ────────────────────────────────────────────────
   async uploadAssignmentDoc(orgSlug, employeeId, assignmentIdx, file) {
     const formData = new FormData();
