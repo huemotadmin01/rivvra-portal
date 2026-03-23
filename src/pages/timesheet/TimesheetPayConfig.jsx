@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getPayConfig, getPayrollSummary, getNotApprovedTimesheets } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, PendingListSkeleton } from '../../components/Skeletons';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 /* ── Helpers (unchanged) ────────────────────────────────────────────────── */
 
@@ -36,10 +37,7 @@ function formatRate(rate) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatDateUTC(dateStr, { day: '2-digit' });
 }
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -551,7 +549,7 @@ function DisbursementList({ employees, orgPath }) {
                   )}
                   {emp.disbursementDate && (
                     <span className="text-[10px] text-dark-500">
-                      {new Date(emp.disbursementDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      {formatDateUTC(emp.disbursementDate, { year: undefined })}
                     </span>
                   )}
                 </div>

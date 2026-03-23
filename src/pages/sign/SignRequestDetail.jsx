@@ -13,6 +13,7 @@ import {
   Mail, CheckCircle2, X, ExternalLink,
   Eye, Link as LinkIcon, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -228,25 +229,8 @@ export default function SignRequestDetail() {
     fetchRequest();
   }, [fetchRequest]);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '\u2014';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const formatDateShort = (dateStr) => {
-    if (!dateStr) return '\u2014';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (dateStr) => formatDateUTC(dateStr, { hour: '2-digit', minute: '2-digit' }) || '\u2014';
+  const formatDateShort = (dateStr) => formatDateUTC(dateStr) || '\u2014';
 
   const handleCancel = async () => {
     if (!window.confirm('Cancel this signature request? This action cannot be undone.')) return;

@@ -9,6 +9,7 @@ import timesheetApi from '../../utils/timesheetApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
+import { formatDateUTC, toDateInputValue, todayStr } from '../../utils/dateUtils';
 import {
   Building2,
   Calendar,
@@ -51,13 +52,7 @@ import ComboSelect from '../../components/ComboSelect';
 // ---------------------------------------------------------------------------
 
 function formatDate(val) {
-  if (!val) return null;
-  return new Date(val).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  return formatDateUTC(val);
 }
 
 function formatCurrency(val) {
@@ -335,8 +330,8 @@ export default function EmployeeDetail() {
       projectName: a.projectName || '',
       billingRate: { daily: br.daily || '', hourly: br.hourly || '', monthly: br.monthly || '' },
       clientBillingRate: { daily: cbr.daily || '', hourly: cbr.hourly || '', monthly: cbr.monthly || '' },
-      startDate: a.startDate ? new Date(a.startDate).toISOString().slice(0, 10) : '',
-      endDate: a.endDate ? new Date(a.endDate).toISOString().slice(0, 10) : '',
+      startDate: toDateInputValue(a.startDate),
+      endDate: toDateInputValue(a.endDate),
       status: a.status || 'active',
       paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
     });
@@ -380,7 +375,7 @@ export default function EmployeeDetail() {
       billingRate: { daily: '', hourly: '', monthly: '' },
       clientBillingRate: { daily: '', hourly: '', monthly: '' },
       paidLeavePerMonth: 0,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: todayStr(),
       endDate: '',
       status: 'active',
     };
@@ -526,7 +521,7 @@ export default function EmployeeDetail() {
     const a = employee.assignments[idx];
     setReviseModal({ assignmentIndex: idx, currentRates: a });
     setReviseForm({
-      effectiveDate: new Date().toISOString().slice(0, 10),
+      effectiveDate: todayStr(),
       billingRate: { daily: '', hourly: '', monthly: '' },
       clientBillingRate: { daily: '', hourly: '', monthly: '' },
       paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
@@ -729,7 +724,7 @@ export default function EmployeeDetail() {
                       {Math.max(0, Math.ceil((new Date(emp.probation.endDate) - new Date()) / (1000*60*60*24)))} days left
                     </span>
                     <span className="text-[10px] text-dark-500">
-                      ({emp.probation.durationDays} days, ends {new Date(emp.probation.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                      ({emp.probation.durationDays} days, ends {formatDateUTC(emp.probation.endDate, { day: '2-digit' })})
                     </span>
                   </>
                 ) : (
@@ -1092,7 +1087,7 @@ export default function EmployeeDetail() {
                                   {doc.size < 1024 * 1024 ? `${(doc.size / 1024).toFixed(0)}KB` : `${(doc.size / (1024 * 1024)).toFixed(1)}MB`}
                                 </span>
                                 <span className="text-xs text-dark-600 flex-shrink-0">
-                                  {new Date(doc.uploadedAt).toLocaleDateString('en-IN')}
+                                  {formatDateUTC(doc.uploadedAt)}
                                 </span>
                                 <button onClick={() => handleDocDownload(doc._id, doc.filename)}
                                   className="text-dark-600 hover:text-blue-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Download">
@@ -1221,8 +1216,8 @@ export default function EmployeeDetail() {
                           {expandedHistory[i] && (
                             <div className="pb-3 space-y-1.5 pl-4 border-l-2 border-dark-700/50 ml-1">
                               {[...a.rateHistory].reverse().map((entry, hIdx) => {
-                                const effDate = entry.effectiveDate ? new Date(entry.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-                                const endDate = entry.endDate ? new Date(entry.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Current';
+                                const effDate = formatDateUTC(entry.effectiveDate) || '—';
+                                const endDate = formatDateUTC(entry.endDate) || 'Current';
                                 const fmtR = (r) => { if (!r) return '—'; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `$${r.hourly}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; };
                                 return (
                                   <div key={hIdx} className="flex items-start gap-3 text-xs">

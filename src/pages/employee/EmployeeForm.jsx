@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
+import { formatDateUTC, todayStr } from '../../utils/dateUtils';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock, GraduationCap, Users, Building2 } from 'lucide-react';
@@ -496,7 +497,7 @@ export default function EmployeeForm() {
           billingRate: { daily: '', hourly: '', monthly: '' },
           clientBillingRate: { daily: '', hourly: '', monthly: '' },
           paidLeavePerMonth: 0,
-          startDate: new Date().toISOString().slice(0, 10), endDate: '', status: 'active',
+          startDate: todayStr(), endDate: '', status: 'active',
         },
       ],
     }));
@@ -845,7 +846,7 @@ export default function EmployeeForm() {
     const assignment = form.assignments[idx];
     setReviseModal({ assignmentIndex: idx, currentRates: assignment });
     setReviseForm({
-      effectiveDate: new Date().toISOString().slice(0, 10),
+      effectiveDate: todayStr(),
       billingRate: { daily: '', hourly: '', monthly: '' },
       clientBillingRate: { daily: '', hourly: '', monthly: '' },
       paidLeavePerMonth: assignment.paidLeavePerMonth ?? 0,
@@ -1492,8 +1493,8 @@ export default function EmployeeForm() {
                   {expandedHistory[idx] && (
                     <div className="mt-2 space-y-2 pl-2 border-l-2 border-dark-700/50 ml-1.5">
                       {[...assignment.rateHistory].reverse().map((entry, hIdx) => {
-                        const effDate = entry.effectiveDate ? new Date(entry.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-                        const endDate = entry.endDate ? new Date(entry.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Current';
+                        const effDate = formatDateUTC(entry.effectiveDate) || '—';
+                        const endDate = formatDateUTC(entry.endDate) || 'Current';
                         return (
                           <div key={hIdx} className="py-1.5 pl-3">
                             <div className="flex items-center gap-2 text-xs">

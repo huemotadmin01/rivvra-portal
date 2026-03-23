@@ -12,6 +12,7 @@ import {
   Heart, Award, PartyPopper, MessageCircle, Send, Trash2, Plus, Megaphone,
   Cake, Gift,
 } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -223,7 +224,7 @@ function ContractorDashboard() {
               )}
               {timesheetUser?.joiningDate && (
                 <span className="bg-dark-800 border border-dark-700 px-2 py-0.5 rounded-full">
-                  Joined {new Date(timesheetUser.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  Joined {formatDateUTC(timesheetUser.joiningDate)}
                 </span>
               )}
             </div>
@@ -243,7 +244,7 @@ function ContractorDashboard() {
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {celebrations.map((c, i) => {
               const daysFromNow = Math.round((new Date(c.date) - new Date(new Date().toDateString())) / 86400000);
-              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : formatDateUTC(c.date, { year: undefined });
               return (
                 <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${c.type === 'birthday' ? 'bg-pink-500/10' : 'bg-purple-500/10'}`}>
@@ -318,7 +319,7 @@ function ContractorDashboard() {
             if (hrs < 24) return `${hrs}h`;
             const days = Math.floor(hrs / 24);
             if (days < 7) return `${days}d`;
-            return new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+            return formatDateUTC(post.createdAt, { year: undefined });
           })();
           const reactionIcons = [
             { key: '❤️', Icon: Heart, activeColor: 'text-red-400', activeBg: 'bg-red-500/10' },
@@ -517,7 +518,7 @@ function ContractorDashboard() {
             {disbursement?.nextDisbursementDate ? (
               <>
                 <p className="text-2xl font-bold text-white">
-                  {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                  {formatDateUTC(disbursement.nextDisbursementDate, { year: undefined })}
                 </p>
                 {disbursement.salaryMonth && disbursement.salaryYear && (
                   <p className="text-xs text-dark-500 mt-0.5">{monthNames[disbursement.salaryMonth]} {disbursement.salaryYear} salary</p>
@@ -728,7 +729,7 @@ function AdminDashboard() {
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {celebrations.map((c, i) => {
               const daysFromNow = Math.round((new Date(c.date) - new Date(new Date().toDateString())) / 86400000);
-              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : new Date(c.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : formatDateUTC(c.date, { year: undefined });
               return (
                 <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${c.type === 'birthday' ? 'bg-pink-500/10' : 'bg-purple-500/10'}`}>
@@ -803,7 +804,7 @@ function AdminDashboard() {
               if (hrs < 24) return `${hrs}h`;
               const days = Math.floor(hrs / 24);
               if (days < 7) return `${days}d`;
-              return new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+              return formatDateUTC(post.createdAt, { year: undefined });
             })();
           const reactionIcons = [
             { key: '❤️', Icon: Heart, activeColor: 'text-red-400', activeBg: 'bg-red-500/10' },

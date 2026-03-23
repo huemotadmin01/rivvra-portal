@@ -4,6 +4,7 @@ import { useTimesheetContext } from '../../context/TimesheetContext';
 import { getMyLeaveRequests, getMyLeaveBalances, cancelLeaveRequest } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CalendarDays, X, Loader2, Inbox } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 const statusColors = {
   pending: 'bg-yellow-500/20 text-yellow-400',
@@ -29,11 +30,7 @@ const leaveTypeLabels = {
 const filters = ['all', 'pending', 'approved', 'rejected', 'cancelled'];
 
 function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, '0');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  return formatDateUTC(dateStr, { day: '2-digit' }) || '';
 }
 
 function isFutureDate(dateStr) {

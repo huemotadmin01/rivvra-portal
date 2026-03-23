@@ -3,6 +3,7 @@ import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi, { getHolidays, getMyLeaveRequests } from '../../utils/timesheetApi';
 import { ChevronLeft, ChevronRight, Save, Send, AlertCircle, RotateCcw, Loader2, Lock } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 // Check if employee is eligible for paid holidays (same as leave eligibility)
 function isHolidayEligible(emp) {
@@ -452,7 +453,7 @@ export default function TimesheetEntry() {
         if (!asgn) return null;
         const isContractor = !isHolidayEligible(timesheetUser); // external consultants / billable internal
         const rate = isContractor && (asgn.billingRate?.monthly ? `₹${Number(asgn.billingRate.monthly).toLocaleString('en-IN')}/mo` : asgn.billingRate?.daily ? `₹${Number(asgn.billingRate.daily).toLocaleString('en-IN')}/day` : null);
-        const startDate = asgn.startDate ? new Date(asgn.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+        const startDate = formatDateUTC(asgn.startDate, { day: '2-digit' });
         return (asgn.clientName || rate || startDate) ? (
           <div className="rounded-lg bg-dark-800/50 border border-dark-700 px-4 py-2 text-sm text-dark-400 flex flex-wrap justify-center gap-x-5 gap-y-1">
             {asgn.clientName && <span>Client: <span className="text-dark-200">{asgn.clientName}</span></span>}

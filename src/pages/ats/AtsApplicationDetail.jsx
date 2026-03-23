@@ -16,6 +16,7 @@ import {
   Tag, Plus,
   DollarSign, Circle, PenTool, FileSignature, UserPlus, ExternalLink,
 } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 /* ── Evaluation Stars ─────────────────────────────────────────────────── */
 function EvalStars({ value = 0, max = 3, onChange }) {
@@ -539,14 +540,7 @@ export default function AtsApplicationDetail() {
   };
 
   // ── Helpers ────────────────────────────────────────────────────────────
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '\u2014';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (dateStr) => formatDateUTC(dateStr) || '\u2014';
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return '\u2014';

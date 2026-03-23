@@ -5,6 +5,7 @@ import {
   Building2, ArrowLeft, Loader2, Save, Users, Shield,
   Clock, AlertCircle, Globe, Calendar, ChevronRight
 } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 const ALL_APPS = ['outreach', 'timesheet', 'employee', 'contacts', 'crm', 'ats'];
 const PLAN_OPTIONS = ['trial', 'pro', 'enterprise'];
@@ -359,10 +360,7 @@ function RoleBadge({ role }) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  });
+  return formatDateUTC(dateStr) || '—';
 }
 
 export default AdminWorkspaceDetailPage;

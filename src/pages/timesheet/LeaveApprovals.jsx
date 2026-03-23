@@ -3,6 +3,7 @@ import { useToast } from '../../context/ToastContext';
 import { getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CheckCircle2, XCircle, Loader2, Calendar, Clock, User, AlertTriangle, RotateCcw } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 const leaveTypeColors = {
   sick_leave: 'bg-red-500/10 text-red-400 border-red-500/20',
@@ -25,9 +26,7 @@ const statusBadgeColors = {
 };
 
 function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatDateUTC(dateStr, { locale: 'en-IN' }) || '';
 }
 
 export default function LeaveApprovals() {

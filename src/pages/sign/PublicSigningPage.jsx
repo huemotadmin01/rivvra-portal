@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import SignatureCanvas from 'react-signature-canvas';
 import signApi from '../../utils/signApi';
+import { todayStr } from '../../utils/dateUtils';
 import { API_BASE_URL } from '../../utils/config';
 import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
@@ -543,7 +544,7 @@ export default function PublicSigningPage() {
             } else if (item.type === 'email' && data.signer?.email) {
               initialValues[id] = data.signer.email;
             } else if (item.type === 'date') {
-              initialValues[id] = new Date().toISOString().split('T')[0];
+              initialValues[id] = todayStr();
             }
           });
         }

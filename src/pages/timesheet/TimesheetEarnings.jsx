@@ -7,6 +7,7 @@ import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import { PageSkeleton, HeaderSkeleton, TwoCardSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { formatDateUTC } from '../../utils/dateUtils';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -60,7 +61,7 @@ function EarningsCard({ data, title, onDownload, downloading }) {
                 Salary On Hold
               </div>
               <p className="text-xs text-dark-400">
-                Expected payment: {new Date(data.salaryHold.holdUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                Expected payment: {formatDateUTC(data.salaryHold.holdUntil)}
               </p>
               {data.salaryHold.reason && <p className="text-xs text-dark-500 mt-0.5">{data.salaryHold.reason}</p>}
             </div>
@@ -97,7 +98,7 @@ function EarningsCard({ data, title, onDownload, downloading }) {
                     <span>{pb.workingDays} days</span>
                     {pb.candidateBillingRate?.monthly ? <span>₹{Number(pb.candidateBillingRate.monthly).toLocaleString('en-IN')}/mo</span>
                       : pb.candidateBillingRate?.daily ? <span>₹{Number(pb.candidateBillingRate.daily).toLocaleString('en-IN')}/day</span> : null}
-                    {pb.assignmentStartDate && <span>Since {new Date(pb.assignmentStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+                    {pb.assignmentStartDate && <span>Since {formatDateUTC(pb.assignmentStartDate, { day: '2-digit' })}</span>}
                     {pb.contractorPayable > 0 && <span className="text-emerald-400">₹{Number(pb.contractorPayable).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>}
                   </div>
                 </div>
@@ -187,7 +188,7 @@ export default function TimesheetEarnings() {
                   <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-dark-800" />
                   <div className="text-sm">
                     <span className="text-white font-medium">
-                      {rev.effectiveDate ? new Date(rev.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      {formatDateUTC(rev.effectiveDate) || '—'}
                     </span>
                     <span className="text-dark-500 mx-2">•</span>
                     <span className="text-dark-300">{rev.projectName || 'Assignment'}</span>
@@ -219,7 +220,7 @@ export default function TimesheetEarnings() {
               <span className="text-sm font-semibold text-red-400">Salary On Hold</span>
             </div>
             <p className="text-sm text-dark-300">
-              Expected payment date: <span className="font-medium text-white">{new Date(disbursement.salaryHold.holdUntil).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              Expected payment date: <span className="font-medium text-white">{formatDateUTC(disbursement.salaryHold.holdUntil, { weekday: 'long', month: 'long' })}</span>
             </p>
             {disbursement.salaryHold.reason && <p className="text-xs text-dark-500 mt-1">{disbursement.salaryHold.reason}</p>}
             <div className="mt-3">
@@ -231,7 +232,7 @@ export default function TimesheetEarnings() {
           <div className="space-y-3">
             <div>
               <p className="text-lg font-bold text-white">
-                {new Date(disbursement.nextDisbursementDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {formatDateUTC(disbursement.nextDisbursementDate, { weekday: 'long', month: 'long' })}
               </p>
               {disbursement.salaryMonth && disbursement.salaryYear && (
                 <p className="text-sm text-dark-400 mt-0.5">{monthNames[disbursement.salaryMonth]} {disbursement.salaryYear} salary</p>
@@ -303,7 +304,7 @@ export default function TimesheetEarnings() {
                       {h.paymentStatus === 'on_hold' ? 'On Hold' : h.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
                     </span>
                     {h.paymentStatus === 'on_hold' && h.holdUntil && (
-                      <p className="text-[10px] text-dark-500 mt-0.5">Until {new Date(h.holdUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                      <p className="text-[10px] text-dark-500 mt-0.5">Until {formatDateUTC(h.holdUntil, { year: undefined })}</p>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">

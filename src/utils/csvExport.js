@@ -2,6 +2,7 @@
 // CSV Export Utility for Rivvra Portal
 // Generates and downloads CSV files from lead data
 // ============================================================================
+import { toDateInputValue, todayStr } from './dateUtils';
 
 const PLACEHOLDER_EMAILS = new Set(['noemail@domain.com', 'No email found', '']);
 
@@ -31,7 +32,7 @@ const CSV_COLUMNS = [
   }},
   { header: 'Created Date', field: (lead) => {
     if (!lead.createdAt) return '';
-    return new Date(lead.createdAt).toISOString().split('T')[0];
+    return toDateInputValue(lead.createdAt);
   }},
 ];
 
@@ -78,7 +79,7 @@ export function exportLeadsToCSV(leads, prefix = 'rivvra-export', options = {}) 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
 
-  const date = new Date().toISOString().split('T')[0];
+  const date = todayStr();
   const filename = `${prefix}-${date}.csv`;
 
   const link = document.createElement('a');

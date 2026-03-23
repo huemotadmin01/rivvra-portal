@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import { toDateInputValue } from '../../utils/dateUtils';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
@@ -387,7 +388,7 @@ export default function CrmOpportunityDetail() {
                 </div>
               </div>
               <EditableField label="Expected Closing" field="expectedClosing"
-                value={opp.expectedClosing ? new Date(opp.expectedClosing).toISOString().split('T')[0] : ''} icon={Calendar} type="date" />
+                value={toDateInputValue(opp.expectedClosing)} icon={Calendar} type="date" />
             </div>
           </div>
 

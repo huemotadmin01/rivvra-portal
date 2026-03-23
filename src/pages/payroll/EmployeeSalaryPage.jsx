@@ -6,6 +6,7 @@ import {
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { Plus, History, AlertTriangle, X, IndianRupee } from 'lucide-react';
+import { formatDateUTC, todayStr } from '../../utils/dateUtils';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
@@ -69,7 +70,7 @@ export default function EmployeeSalaryPage() {
       employeeId: salary.employeeId,
       structureId: salary.structureId,
       ctcAnnual: salary.ctcAnnual,
-      effectiveFrom: new Date().toISOString().split('T')[0],
+      effectiveFrom: todayStr(),
       pfApplicable: salary.pfApplicable,
       pfCappedAt15K: salary.pfCappedAt15K,
     });
@@ -90,7 +91,7 @@ export default function EmployeeSalaryPage() {
       employeeId: empId,
       structureId: structures.find(s => s.isDefault)?._id || structures[0]?._id || '',
       ctcAnnual: '',
-      effectiveFrom: new Date().toISOString().split('T')[0],
+      effectiveFrom: todayStr(),
       pfApplicable: true,
       pfCappedAt15K: false,
     });
@@ -229,8 +230,8 @@ export default function EmployeeSalaryPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs text-dark-400">
                     <div>Gross: {fmt(h.grossMonthly)}/mo</div>
                     <div>Employer: {fmt(h.totalEmployerCost)}/mo</div>
-                    <div>From: {new Date(h.effectiveFrom).toLocaleDateString('en-IN')}</div>
-                    <div>{h.effectiveTo ? `To: ${new Date(h.effectiveTo).toLocaleDateString('en-IN')}` : 'Active'}</div>
+                    <div>From: {formatDateUTC(h.effectiveFrom)}</div>
+                    <div>{h.effectiveTo ? `To: ${formatDateUTC(h.effectiveTo)}` : 'Active'}</div>
                   </div>
                 </div>
               ))}

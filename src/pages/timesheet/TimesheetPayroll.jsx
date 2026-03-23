@@ -11,6 +11,7 @@ import {
   X, AlertTriangle, UserX, Lock, Unlock, Play, CheckCircle2, Circle,
   Send, Mail, PlusCircle, Trash2, Ban,
 } from 'lucide-react';
+import { formatDateUTC, todayStr } from '../../utils/dateUtils';
 
 const ADJUSTMENT_CATEGORIES = {
   bonus: [
@@ -374,12 +375,7 @@ export default function TimesheetPayroll() {
       const ws = wb.addWorksheet('Salary Statement');
 
       const statusLabel = (t) => t === 'internal_consultant' ? 'Internal Consultant' : 'External Consultant';
-      const fmtDate = (d) => {
-        if (!d) return '';
-        const dt = new Date(d);
-        if (isNaN(dt)) return '';
-        return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-      };
+      const fmtDate = (d) => formatDateUTC(d, { day: '2-digit' }) || '';
 
       // Row 1: Created On timestamp
       const createdRow = ws.addRow([`Created On: ${new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`]);
@@ -863,7 +859,7 @@ export default function TimesheetPayroll() {
               <div key={h.employeeObjId} className="flex items-center justify-between gap-3 bg-dark-800/50 rounded-lg px-3 py-2">
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-white">{h.name}</span>
-                  <span className="text-xs text-dark-400 ml-2">Hold until: {new Date(h.salaryHold.holdUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span className="text-xs text-dark-400 ml-2">Hold until: {formatDateUTC(h.salaryHold.holdUntil)}</span>
                   <span className={`text-xs ml-2 font-medium ${h.daysUntil < 0 ? 'text-red-400' : 'text-amber-400'}`}>
                     {h.daysUntil < 0 ? `${Math.abs(h.daysUntil)} day${Math.abs(h.daysUntil) !== 1 ? 's' : ''} overdue` : h.daysUntil === 0 ? 'Due today' : `Due in ${h.daysUntil} day${h.daysUntil !== 1 ? 's' : ''}`}
                   </span>
@@ -990,7 +986,7 @@ export default function TimesheetPayroll() {
                       <td className="px-3 py-3 text-right text-red-400 text-xs">-{'\u20B9'}{fmt(emp.tdsAmount)}</td>
                       <td className="px-3 py-3 text-right font-semibold text-emerald-400">{'\u20B9'}{fmt(emp.netPay)}</td>
                       <td className="px-3 py-3 text-center text-dark-400 text-xs">
-                        {emp.disbursementDate ? new Date(emp.disbursementDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '\u2014'}
+                        {emp.disbursementDate ? formatDateUTC(emp.disbursementDate, { day: '2-digit', year: undefined }) : '\u2014'}
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
@@ -1060,7 +1056,7 @@ export default function TimesheetPayroll() {
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">Disbursement Date</span>
                                       <span className="text-dark-200">
-                                        {new Date(emp.disbursementDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        {formatDateUTC(emp.disbursementDate, { day: '2-digit' })}
                                       </span>
                                     </div>
                                     {emp.disbursementNote && (
@@ -1080,10 +1076,10 @@ export default function TimesheetPayroll() {
                                   <p className="text-dark-400 text-xs mt-0.5"><span className="font-medium text-dark-300">Reason:</span> {emp.salaryHold.reason}</p>
                                   <p className="text-dark-400 text-xs mt-0.5">
                                     <span className="font-medium text-dark-300">Hold Until:</span>{' '}
-                                    {new Date(emp.salaryHold.holdUntil).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    {formatDateUTC(emp.salaryHold.holdUntil, { day: '2-digit' })}
                                   </p>
                                   <p className="text-dark-500 text-[10px] mt-1">
-                                    Placed on {new Date(emp.salaryHold.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    Placed on {formatDateUTC(emp.salaryHold.createdAt, { day: '2-digit' })}
                                   </p>
                                 </div>
                               </div>
@@ -1626,7 +1622,7 @@ export default function TimesheetPayroll() {
                 <label className="block text-xs font-medium text-dark-400 mb-1.5">Hold Until</label>
                 <input type="date" value={holdForm.holdUntil}
                   onChange={e => setHoldForm(f => ({ ...f, holdUntil: e.target.value }))}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={todayStr()}
                   className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-dark-200 focus:outline-none focus:border-rivvra-500/50" />
               </div>
               <button onClick={handleHoldSalary} disabled={holdLoading || !holdForm.reason.trim() || !holdForm.holdUntil}

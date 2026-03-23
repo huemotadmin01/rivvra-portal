@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useCompany } from '../context/CompanyContext';
 import { API_BASE_URL } from '../utils/config';
+import { formatDateUTC } from '../utils/dateUtils';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
   Mail, Building2, Crown, Briefcase, Check, Lock, Settings2,
@@ -549,7 +550,7 @@ export default function MyProfilePage() {
                 <InfoRow label="Department" value={empProfile.departmentName || empProfile.department} />
                 <InfoRow label="Designation" value={empProfile.designation} />
                 <InfoRow label="Manager" value={empProfile.managerName || empProfile.manager} />
-                <InfoRow label="Joining Date" value={empProfile.joiningDate ? new Date(empProfile.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'} />
+                <InfoRow label="Joining Date" value={formatDateUTC(empProfile.joiningDate) || '—'} />
                 <InfoRow label="Employment" value={empProfile.employmentType ? empProfile.employmentType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—'} />
               </div>
             </div>

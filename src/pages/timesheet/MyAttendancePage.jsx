@@ -10,10 +10,10 @@ import {
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const dayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+// Use UTC extraction — dates stored as midnight UTC in MongoDB
+import { toDateInputValue } from '../../utils/dateUtils';
 function toISTDateStr(d) {
-  const ist = new Date(new Date(d).getTime() + IST_OFFSET_MS);
-  return ist.toISOString().split('T')[0];
+  return toDateInputValue(d);
 }
 
 // Status display config
