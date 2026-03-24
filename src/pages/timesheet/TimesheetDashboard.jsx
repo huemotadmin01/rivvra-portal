@@ -244,7 +244,7 @@ function ContractorDashboard() {
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {celebrations.map((c, i) => {
               const daysFromNow = Math.round((new Date(c.date) - new Date(new Date().toDateString())) / 86400000);
-              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : formatDateUTC(c.date, { year: undefined });
+              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : formatDateUTC(c.date, { day: 'numeric', month: 'short' });
               return (
                 <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${c.type === 'birthday' ? 'bg-pink-500/10' : 'bg-purple-500/10'}`}>
@@ -729,7 +729,7 @@ function AdminDashboard() {
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {celebrations.map((c, i) => {
               const daysFromNow = Math.round((new Date(c.date) - new Date(new Date().toDateString())) / 86400000);
-              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : daysFromNow <= 7 ? 'This week' : formatDateUTC(c.date, { year: undefined });
+              const label = c.isToday ? 'Today' : daysFromNow === 1 ? 'Tomorrow' : formatDateUTC(c.date, { day: 'numeric', month: 'short' });
               return (
                 <div key={i} className={`flex-shrink-0 w-44 rounded-xl p-3 border ${c.isToday ? 'border-rivvra-500/30 bg-rivvra-500/5' : 'border-dark-700 bg-dark-800/50'}`}>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${c.type === 'birthday' ? 'bg-pink-500/10' : 'bg-purple-500/10'}`}>
