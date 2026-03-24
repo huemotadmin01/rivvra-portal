@@ -398,18 +398,34 @@ export default function UserDetail() {
 
             {/* Name + email + badges */}
             <div>
-              <h2
-                className="text-xl font-bold text-white cursor-pointer hover:text-rivvra-400 transition-colors"
-                onClick={() => {
-                  const newName = window.prompt('Edit user name:', member.name || '');
-                  if (newName && newName.trim() && newName.trim() !== member.name) {
-                    api.request(`/api/org/${slug}/members/${userId}`, { method: 'PUT', body: JSON.stringify({ name: newName.trim() }) })
-                      .then(res => { if (res.success) { setMember(prev => ({ ...prev, name: newName.trim() })); showToast('Name updated', 'success'); } })
-                      .catch(err => showToast(err.message || 'Failed to update name', 'error'));
-                  }
-                }}
-                title="Click to edit name"
-              >{member.name || 'Unnamed'}</h2>
+              <div className="flex items-center gap-2">
+                {editData?._editingName ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    defaultValue={member.name || ''}
+                    className="text-xl font-bold text-white bg-dark-800 border border-dark-600 rounded-lg px-2 py-0.5 focus:outline-none focus:border-rivvra-500"
+                    onBlur={async (e) => {
+                      const newName = e.target.value.trim();
+                      if (newName && newName !== member.name) {
+                        try {
+                          const res = await api.request(`/api/org/${slug}/members/${userId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+                          if (res.success) { setMember(prev => ({ ...prev, name: newName })); showToast('Name updated', 'success'); }
+                        } catch (err) { showToast(err.message || 'Failed to update name', 'error'); }
+                      }
+                      setEditData(prev => ({ ...prev, _editingName: false }));
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditData(prev => ({ ...prev, _editingName: false })); }}
+                  />
+                ) : (
+                  <h2 className="text-xl font-bold text-white">{member.name || 'Unnamed'}</h2>
+                )}
+                {!editData?._editingName && (
+                  <button onClick={() => setEditData(prev => ({ ...prev, _editingName: true }))} className="p-1 text-dark-500 hover:text-white transition-colors" title="Edit name">
+                    <Pencil size={14} />
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-dark-400 mt-0.5">{member.email}</p>
               <div className="flex items-center gap-2 mt-2">
                 <Badge className={

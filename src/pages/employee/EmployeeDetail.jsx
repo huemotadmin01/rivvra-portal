@@ -227,6 +227,7 @@ export default function EmployeeDetail() {
   const [revisingRate, setRevisingRate] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState({});
   const [expandedDocs, setExpandedDocs] = useState({});
+  const [editingName, setEditingName] = useState(false);
   const [deletingAssignment, setDeletingAssignment] = useState(null);
 
   const isAdmin = getAppRole('employee') === 'admin';
@@ -671,24 +672,37 @@ export default function EmployeeDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1
-                  className={`text-2xl font-bold text-white ${isAdmin ? 'cursor-pointer hover:text-rivvra-400 transition-colors' : ''}`}
-                  onClick={() => {
-                    if (!isAdmin) return;
-                    const newName = window.prompt('Edit employee name:', emp.fullName);
-                    if (newName && newName.trim() && newName.trim() !== emp.fullName) {
-                      employeeApi.update(currentOrg.slug, emp._id, { fullName: newName.trim() })
-                        .then(res => {
-                          if (res.success) {
-                            setEmployee(prev => prev ? { ...prev, fullName: newName.trim() } : prev);
-                            showToast('Name updated', 'success');
-                          }
-                        })
-                        .catch(err => showToast(err.message || 'Failed to update name', 'error'));
-                    }
-                  }}
-                  title={isAdmin ? 'Click to edit name' : undefined}
-                >{emp.fullName}</h1>
+                <div className="flex items-center gap-2">
+                  {editingName ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      defaultValue={emp.fullName}
+                      className="text-2xl font-bold text-white bg-dark-800 border border-dark-600 rounded-lg px-2 py-0.5 focus:outline-none focus:border-rivvra-500"
+                      onBlur={async (e) => {
+                        const newName = e.target.value.trim();
+                        if (newName && newName !== emp.fullName) {
+                          try {
+                            const res = await employeeApi.update(currentOrg.slug, emp._id, { fullName: newName });
+                            if (res.success) {
+                              setEmployee(prev => prev ? { ...prev, fullName: newName } : prev);
+                              showToast('Name updated', 'success');
+                            }
+                          } catch (err) { showToast(err.message || 'Failed to update name', 'error'); }
+                        }
+                        setEditingName(false);
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingName(false); }}
+                    />
+                  ) : (
+                    <h1 className="text-2xl font-bold text-white">{emp.fullName}</h1>
+                  )}
+                  {isAdmin && !editingName && (
+                    <button onClick={() => setEditingName(true)} className="p-1 text-dark-500 hover:text-white transition-colors" title="Edit name">
+                      <PenLine size={14} />
+                    </button>
+                  )}
+                </div>
                 {emp.designation && (
                   <p className="text-dark-400 mt-0.5">{emp.designation}</p>
                 )}
