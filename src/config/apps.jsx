@@ -100,6 +100,9 @@ export const APP_REGISTRY = {
           { type: 'item', path: '/timesheet/approvals', label: 'Timesheet Approvals', icon: CheckCircle2 },
           { type: 'item', path: '/timesheet/attendance/approvals', label: 'Attendance Approvals', icon: CalendarCheck },
           { type: 'item', path: '/timesheet/leave/approvals', label: 'Leave Approvals', icon: ClipboardCheck },
+        ] : []),
+        // Admin only: leave balances
+        ...(isAdmin ? [
           { type: 'item', path: '/timesheet/leave/balances', label: 'Leave Balances', icon: CalendarDays },
         ] : []),
         // Attendance vs Timesheet — driven by org-level timesheetMode config
