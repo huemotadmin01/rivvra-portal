@@ -398,7 +398,18 @@ export default function UserDetail() {
 
             {/* Name + email + badges */}
             <div>
-              <h2 className="text-xl font-bold text-white">{member.name || 'Unnamed'}</h2>
+              <h2
+                className="text-xl font-bold text-white cursor-pointer hover:text-rivvra-400 transition-colors"
+                onClick={() => {
+                  const newName = window.prompt('Edit user name:', member.name || '');
+                  if (newName && newName.trim() && newName.trim() !== member.name) {
+                    api.request(`/api/org/${slug}/members/${userId}`, { method: 'PUT', body: JSON.stringify({ name: newName.trim() }) })
+                      .then(res => { if (res.success) { setMember(prev => ({ ...prev, name: newName.trim() })); showToast('Name updated', 'success'); } })
+                      .catch(err => showToast(err.message || 'Failed to update name', 'error'));
+                  }
+                }}
+                title="Click to edit name"
+              >{member.name || 'Unnamed'}</h2>
               <p className="text-sm text-dark-400 mt-0.5">{member.email}</p>
               <div className="flex items-center gap-2 mt-2">
                 <Badge className={
