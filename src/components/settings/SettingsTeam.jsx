@@ -14,7 +14,7 @@ import { useToast } from '../../context/ToastContext';
 import {
   Users, UserPlus, Mail, Loader2, Check,
   ChevronRight, Clock, X, Shield, ShieldCheck,
-  Crown, Search, Trash2, Pencil,
+  Crown, Search, Trash2, Pencil, RotateCcw,
   UsersRound, Plus,
 } from 'lucide-react';
 import api from '../../utils/api';
