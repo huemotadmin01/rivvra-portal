@@ -909,6 +909,30 @@ export default function EmployeeDetail() {
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle size={16} className="text-red-400" />
               <h3 className="text-white font-semibold">Separation Details</h3>
+              {isAdmin && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Reactivate ${emp.fullName}? This will set status to Active and clear the Last Working Date.`)) return;
+                    try {
+                      const res = await employeeApi.update(currentOrg.slug, emp._id, {
+                        status: 'active',
+                        lastWorkingDate: null,
+                        separationReason: null,
+                        separationNotes: null,
+                      });
+                      if (res.success) {
+                        setEmployee(prev => prev ? { ...prev, status: 'active', lastWorkingDate: null, separationReason: null, separationNotes: null } : prev);
+                        showToast('Employee reactivated', 'success');
+                      }
+                    } catch (err) {
+                      showToast(err.message || 'Failed to reactivate', 'error');
+                    }
+                  }}
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                >
+                  <UserPlus size={13} /> Reactivate
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
