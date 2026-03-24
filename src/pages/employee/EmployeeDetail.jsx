@@ -671,7 +671,24 @@ export default function EmployeeDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-white">{emp.fullName}</h1>
+                <h1
+                  className={`text-2xl font-bold text-white ${isAdmin ? 'cursor-pointer hover:text-rivvra-400 transition-colors' : ''}`}
+                  onClick={() => {
+                    if (!isAdmin) return;
+                    const newName = window.prompt('Edit employee name:', emp.fullName);
+                    if (newName && newName.trim() && newName.trim() !== emp.fullName) {
+                      employeeApi.update(currentOrg.slug, emp._id, { fullName: newName.trim() })
+                        .then(res => {
+                          if (res.success) {
+                            setEmployee(prev => prev ? { ...prev, fullName: newName.trim() } : prev);
+                            showToast('Name updated', 'success');
+                          }
+                        })
+                        .catch(err => showToast(err.message || 'Failed to update name', 'error'));
+                    }
+                  }}
+                  title={isAdmin ? 'Click to edit name' : undefined}
+                >{emp.fullName}</h1>
                 {emp.designation && (
                   <p className="text-dark-400 mt-0.5">{emp.designation}</p>
                 )}

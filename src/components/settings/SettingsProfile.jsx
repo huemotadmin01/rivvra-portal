@@ -277,9 +277,22 @@ export default function SettingsProfile() {
                 <label className="block text-sm font-medium text-dark-300 mb-2">Full Name</label>
                 <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
                   <User className="w-5 h-5 text-dark-500" />
-                  <span className="text-white">{user?.name || '-'}</span>
+                  <input
+                    type="text"
+                    defaultValue={user?.name || ''}
+                    className="bg-transparent text-white flex-1 focus:outline-none"
+                    onBlur={async (e) => {
+                      const newName = e.target.value.trim();
+                      if (newName && newName !== user?.name) {
+                        try {
+                          const res = await api.updateProfile({ name: newName });
+                          if (res.success) updateUser({ name: newName });
+                        } catch {}
+                      }
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                  />
                 </div>
-                <p className="text-xs text-dark-600 mt-1">Managed by your Google account</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark-300 mb-2">Email</label>
