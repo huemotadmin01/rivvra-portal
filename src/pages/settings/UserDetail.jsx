@@ -409,7 +409,7 @@ export default function UserDetail() {
                       const newName = e.target.value.trim();
                       if (newName && newName !== member.name) {
                         try {
-                          const res = await api.request(`/api/org/${slug}/members/${userId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+                          const res = await api.request(`/api/org/${orgSlug}/members/${userId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
                           if (res.success) { setMember(prev => ({ ...prev, name: newName })); showToast('Name updated', 'success'); }
                         } catch (err) { showToast(err.message || 'Failed to update name', 'error'); }
                       }
