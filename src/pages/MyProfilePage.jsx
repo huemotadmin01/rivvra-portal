@@ -267,8 +267,8 @@ export default function MyProfilePage() {
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const photoUrl = resolvePhotoUrl(user?.picture);
 
-  // Show Account Security only if user has a password (hide for Google-only users)
-  const showSecurityTab = hasExistingPassword;
+  // Always show Account Security tab (password change, sign out, etc.)
+  const showSecurityTab = true;
   const hasEmployee = !!empProfile;
 
   const tabs = [
@@ -789,8 +789,8 @@ export default function MyProfilePage() {
                 </div>
               </div>
 
-              {/* Delete Account */}
-              <div className="card p-5 border-red-500/20">
+              {/* Delete Account — admin/owner only */}
+              {(orgRole === 'owner' || orgRole === 'admin') && <div className="card p-5 border-red-500/20">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
                     <Trash2 className="w-5 h-5 text-red-400" />
@@ -808,7 +808,7 @@ export default function MyProfilePage() {
                     </button>
                   </div>
                 </div>
-              </div>
+              </div>}
             </div>
           )}
 
