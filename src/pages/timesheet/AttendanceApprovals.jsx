@@ -162,7 +162,7 @@ export default function AttendanceApprovals() {
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === att._id ? null : att._id)}>
                 <div className="flex items-center gap-3">
                   {(att.status === 'draft' || att.status === 'rejected') && (
-                    <input type="checkbox" checked={selectedIds.has(att.employeeId)} onChange={(e) => { e.stopPropagation(); toggleSelect(att.employeeId); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
+                    <input type="checkbox" checked={selectedIds.has(att.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(att.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}
                   <div>
                     <p className="font-medium text-white">{att.employeeName} — {monthNames[att.month]} {att.year}</p>
@@ -174,12 +174,12 @@ export default function AttendanceApprovals() {
                 <div className="flex items-center gap-2">
                   {(att.status === 'draft' || att.status === 'rejected') && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); sendReminder(att.employeeId); }}
-                      disabled={sendingReminder === att.employeeId}
+                      onClick={(e) => { e.stopPropagation(); sendReminder(att.contractor); }}
+                      disabled={sendingReminder === att.contractor}
                       className="p-1.5 text-dark-500 hover:text-blue-400 transition-colors"
                       title="Send reminder"
                     >
-                      {sendingReminder === att.employeeId ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                      {sendingReminder === att.contractor ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
                     </button>
                   )}
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
