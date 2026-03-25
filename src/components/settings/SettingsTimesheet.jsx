@@ -253,7 +253,7 @@ export default function SettingsTimesheet() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-dark-300">ESS Reminder Emails</p>
-                      <p className="text-xs text-dark-500">Send email reminder to fill incomplete entries</p>
+                      <p className="text-xs text-dark-500">Send daily email reminders to fill timesheet until submitted</p>
                     </div>
                     <ToggleSwitch
                       checked={appSettings.timesheetReminders ?? false}
@@ -295,7 +295,7 @@ export default function SettingsTimesheet() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-dark-300">Attendance Reminder Emails</p>
-                      <p className="text-xs text-dark-500">Send email reminder to fill attendance (confirmed employees)</p>
+                      <p className="text-xs text-dark-500">Send daily email reminders to fill attendance until submitted</p>
                     </div>
                     <ToggleSwitch
                       checked={appSettings.attendanceReminders ?? false}
