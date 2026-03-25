@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
-import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock, Mail } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -26,6 +26,8 @@ export default function AttendanceApprovals() {
   const [actionLoading, setActionLoading] = useState(null);
   const [filter, setFilter] = useState('submitted');
   const [lockedMonths, setLockedMonths] = useState({});
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [sendingReminder, setSendingReminder] = useState(null);
 
   const controllerRef = { current: null };
   const load = () => {
@@ -91,6 +93,29 @@ export default function AttendanceApprovals() {
   }, [records]);
 
   const filtered = records.filter(r => filter === 'all' || r.status === filter);
+  const draftFiltered = filtered.filter(r => r.status === 'draft');
+
+  const toggleSelect = (empId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(empId) ? next.delete(empId) : next.add(empId);
+      return next;
+    });
+  };
+
+  const sendReminder = async (employeeIds) => {
+    const ids = Array.isArray(employeeIds) ? employeeIds : [employeeIds];
+    setSendingReminder(ids.length > 1 ? 'bulk' : ids[0]);
+    try {
+      const res = await timesheetApi.post('/reminders/send-individual', { employeeIds: ids, type: 'attendance' });
+      showToast(`Sent ${res.data?.sent || ids.length} reminder(s)`, 'success');
+      setSelectedIds(new Set());
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to send', 'error');
+    } finally {
+      setSendingReminder(null);
+    }
+  };
 
   if (loading) return (
     <PageSkeleton>
@@ -107,15 +132,25 @@ export default function AttendanceApprovals() {
         <p className="text-dark-400 text-sm">Review and approve employee attendance records</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {['submitted', 'approved', 'draft', 'all'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
+          <button key={f} onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === f ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
             }`}>
             {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} ({records.filter(r => f === 'all' || r.status === f).length})
           </button>
         ))}
+        {selectedIds.size > 0 && (
+          <button
+            onClick={() => sendReminder([...selectedIds])}
+            disabled={sendingReminder === 'bulk'}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 text-sm font-medium transition-colors"
+          >
+            {sendingReminder === 'bulk' ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+            Send Reminder ({selectedIds.size})
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -125,13 +160,28 @@ export default function AttendanceApprovals() {
           filtered.map(att => (
             <div key={att._id} className="card">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === att._id ? null : att._id)}>
-                <div>
-                  <p className="font-medium text-white">{att.employeeName} — {monthNames[att.month]} {att.year}</p>
-                  <p className="text-sm text-dark-400">
-                    {att.presentDays || 0} present • {att.halfDays || 0} half days • {att.leaveDays || 0} leaves • {att.totalWorkingDays || 0} working days
-                  </p>
-                </div>
                 <div className="flex items-center gap-3">
+                  {att.status === 'draft' && (
+                    <input type="checkbox" checked={selectedIds.has(att.employeeId)} onChange={(e) => { e.stopPropagation(); toggleSelect(att.employeeId); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
+                  )}
+                  <div>
+                    <p className="font-medium text-white">{att.employeeName} — {monthNames[att.month]} {att.year}</p>
+                    <p className="text-sm text-dark-400">
+                      {att.presentDays || 0} present • {att.halfDays || 0} half days • {att.leaveDays || 0} leaves • {att.totalWorkingDays || 0} working days
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {att.status === 'draft' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); sendReminder(att.employeeId); }}
+                      disabled={sendingReminder === att.employeeId}
+                      className="p-1.5 text-dark-500 hover:text-blue-400 transition-colors"
+                      title="Send reminder"
+                    >
+                      {sendingReminder === att.employeeId ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    </button>
+                  )}
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     att.status === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
                     att.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :

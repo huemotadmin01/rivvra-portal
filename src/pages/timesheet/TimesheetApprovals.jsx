@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
-import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock, Mail } from 'lucide-react';
 
 const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const statusColors = {
@@ -22,6 +22,8 @@ export default function TimesheetApprovals() {
   const [actionLoading, setActionLoading] = useState(null); // tracks which ID is being acted on
   const [filter, setFilter] = useState('submitted');
   const [lockedMonths, setLockedMonths] = useState({}); // { "3-2026": { locked, status } }
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [sendingReminder, setSendingReminder] = useState(null); // employeeId or 'bulk'
 
   const controllerRef = { current: null };
   const load = () => {
@@ -87,6 +89,34 @@ export default function TimesheetApprovals() {
   }, [timesheets]);
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);
+  const draftFiltered = filtered.filter(t => t.status === 'draft');
+
+  const toggleSelect = (empId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(empId) ? next.delete(empId) : next.add(empId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === draftFiltered.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(draftFiltered.map(t => t.contractor?._id || t.contractor)));
+  };
+
+  const sendReminder = async (employeeIds) => {
+    const ids = Array.isArray(employeeIds) ? employeeIds : [employeeIds];
+    setSendingReminder(ids.length > 1 ? 'bulk' : ids[0]);
+    try {
+      const res = await timesheetApi.post('/reminders/send-individual', { employeeIds: ids, type: 'timesheet' });
+      showToast(`Sent ${res.data?.sent || ids.length} reminder(s)`, 'success');
+      setSelectedIds(new Set());
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to send', 'error');
+    } finally {
+      setSendingReminder(null);
+    }
+  };
 
   if (loading) return (
     <PageSkeleton>
@@ -103,15 +133,25 @@ export default function TimesheetApprovals() {
         <p className="text-dark-400 text-sm">Review and approve contractor entries</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {['submitted', 'approved', 'draft', 'all'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
+          <button key={f} onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === f ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
             }`}>
             {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} ({timesheets.filter(t => f === 'all' || t.status === f).length})
           </button>
         ))}
+        {selectedIds.size > 0 && (
+          <button
+            onClick={() => sendReminder([...selectedIds])}
+            disabled={sendingReminder === 'bulk'}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 text-sm font-medium transition-colors"
+          >
+            {sendingReminder === 'bulk' ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+            Send Reminder ({selectedIds.size})
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -121,11 +161,26 @@ export default function TimesheetApprovals() {
           filtered.map(ts => (
             <div key={ts._id} className="card">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === ts._id ? null : ts._id)}>
-                <div>
-                  <p className="font-medium text-white">{ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}</p>
-                  <p className="text-sm text-dark-400">{ts.isAttendance ? 'Attendance' : [ts.project?.name, ts.client?.name].filter(Boolean).join(' • ')} • {ts.totalHours || 0}h ({ts.totalWorkingDays} days)</p>
-                </div>
                 <div className="flex items-center gap-3">
+                  {ts.status === 'draft' && (
+                    <input type="checkbox" checked={selectedIds.has(ts.contractor?._id || ts.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(ts.contractor?._id || ts.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
+                  )}
+                  <div>
+                    <p className="font-medium text-white">{ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}</p>
+                    <p className="text-sm text-dark-400">{ts.isAttendance ? 'Attendance' : [ts.project?.name, ts.client?.name].filter(Boolean).join(' • ')} • {ts.totalHours || 0}h ({ts.totalWorkingDays} days)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {ts.status === 'draft' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); sendReminder(ts.contractor?._id || ts.contractor); }}
+                      disabled={sendingReminder === (ts.contractor?._id || ts.contractor)}
+                      className="p-1.5 text-dark-500 hover:text-blue-400 transition-colors"
+                      title="Send reminder"
+                    >
+                      {sendingReminder === (ts.contractor?._id || ts.contractor) ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    </button>
+                  )}
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     ts.status === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
                     ts.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :

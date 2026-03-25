@@ -45,6 +45,8 @@ export default function SettingsTimesheet() {
   // Reminder state
   const [reminderStatus, setReminderStatus] = useState(null);
   const [sendingReminders, setSendingReminders] = useState(false);
+  const [attReminderStatus, setAttReminderStatus] = useState(null);
+  const [sendingAttReminders, setSendingAttReminders] = useState(false);
 
   const [loading, setLoading] = useState(true);
 
@@ -68,7 +70,10 @@ export default function SettingsTimesheet() {
     if (appSettings?.timesheetReminders) {
       timesheetApi.get('/reminders/status').then(r => setReminderStatus(r.data)).catch(() => {});
     }
-  }, [appSettings?.timesheetReminders]);
+    if (appSettings?.attendanceReminders) {
+      timesheetApi.get('/attendance-reminders/status').then(r => setAttReminderStatus(r.data)).catch(() => {});
+    }
+  }, [appSettings?.timesheetReminders, appSettings?.attendanceReminders]);
 
   const handleSendReminders = async () => {
     setSendingReminders(true);
@@ -82,6 +87,20 @@ export default function SettingsTimesheet() {
       alert(err.response?.data?.error || 'Failed to send reminders');
     } finally {
       setSendingReminders(false);
+    }
+  };
+
+  const handleSendAttReminders = async () => {
+    setSendingAttReminders(true);
+    try {
+      const res = await timesheetApi.post('/attendance-reminders/send');
+      const { sent, total } = res.data;
+      alert(`Sent ${sent} attendance reminder(s) (${total} total attendance employees)`);
+      timesheetApi.get('/attendance-reminders/status').then(r => setAttReminderStatus(r.data)).catch(() => {});
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send attendance reminders');
+    } finally {
+      setSendingAttReminders(false);
     }
   };
 
@@ -267,6 +286,48 @@ export default function SettingsTimesheet() {
                             className="btn-secondary text-sm flex items-center gap-2"
                           >
                             {sendingReminders ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                            Send Reminders
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-dark-300">Attendance Reminder Emails</p>
+                      <p className="text-xs text-dark-500">Send email reminder to fill attendance (confirmed employees)</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={appSettings.attendanceReminders ?? false}
+                      onChange={v => updateApp('attendanceReminders', v)}
+                    />
+                  </div>
+                  {appSettings.attendanceReminders && (
+                    <div className="pl-4 border-l-2 border-dark-700 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-dark-300 mb-1">Days Before Month End</label>
+                        <p className="text-xs text-dark-500 mb-2">Attendance reminder emails will be sent this many days before the last day of each month</p>
+                        <input type="number" min="1" max="10"
+                          value={appSettings.attendanceReminderDay ?? 5}
+                          onChange={e => updateApp('attendanceReminderDay', Math.min(10, Math.max(1, Number(e.target.value) || 5)))}
+                          className="input-field w-24" />
+                      </div>
+                      <div className="pt-3 border-t border-dark-700">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-dark-300">Send Now</p>
+                            <p className="text-xs text-dark-500">
+                              {attReminderStatus?.sent
+                                ? `Last sent: ${new Date(attReminderStatus.log?.sentAt).toLocaleDateString('en-IN')} (${attReminderStatus.log?.employeesReminded} employees)`
+                                : 'No attendance reminders sent this month yet'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleSendAttReminders}
+                            disabled={sendingAttReminders}
+                            className="btn-secondary text-sm flex items-center gap-2"
+                          >
+                            {sendingAttReminders ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                             Send Reminders
                           </button>
                         </div>
