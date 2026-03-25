@@ -252,7 +252,7 @@ export default function SettingsTimesheet() {
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-dark-300">ESS Reminder Emails</p>
+                      <p className="text-sm font-medium text-dark-300">Timesheet Reminder Emails</p>
                       <p className="text-xs text-dark-500">Send daily email reminders to fill timesheet until submitted</p>
                     </div>
                     <ToggleSwitch
