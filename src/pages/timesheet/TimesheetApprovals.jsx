@@ -89,7 +89,7 @@ export default function TimesheetApprovals() {
   }, [timesheets]);
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);
-  const draftFiltered = filtered.filter(t => t.status === 'draft');
+  const draftFiltered = filtered.filter(t => t.status === 'draft' || t.status === 'rejected');
 
   const toggleSelect = (empId) => {
     setSelectedIds(prev => {
@@ -162,7 +162,7 @@ export default function TimesheetApprovals() {
             <div key={ts._id} className="card">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === ts._id ? null : ts._id)}>
                 <div className="flex items-center gap-3">
-                  {ts.status === 'draft' && (
+                  {(ts.status === 'draft' || ts.status === 'rejected') && (
                     <input type="checkbox" checked={selectedIds.has(ts.contractor?._id || ts.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(ts.contractor?._id || ts.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}
                   <div>
@@ -171,7 +171,7 @@ export default function TimesheetApprovals() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {ts.status === 'draft' && (
+                  {(ts.status === 'draft' || ts.status === 'rejected') && (
                     <button
                       onClick={(e) => { e.stopPropagation(); sendReminder(ts.contractor?._id || ts.contractor); }}
                       disabled={sendingReminder === (ts.contractor?._id || ts.contractor)}

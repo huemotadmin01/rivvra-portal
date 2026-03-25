@@ -93,7 +93,7 @@ export default function AttendanceApprovals() {
   }, [records]);
 
   const filtered = records.filter(r => filter === 'all' || r.status === filter);
-  const draftFiltered = filtered.filter(r => r.status === 'draft');
+  const draftFiltered = filtered.filter(r => r.status === 'draft' || r.status === 'rejected');
 
   const toggleSelect = (empId) => {
     setSelectedIds(prev => {
@@ -161,7 +161,7 @@ export default function AttendanceApprovals() {
             <div key={att._id} className="card">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === att._id ? null : att._id)}>
                 <div className="flex items-center gap-3">
-                  {att.status === 'draft' && (
+                  {(att.status === 'draft' || att.status === 'rejected') && (
                     <input type="checkbox" checked={selectedIds.has(att.employeeId)} onChange={(e) => { e.stopPropagation(); toggleSelect(att.employeeId); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}
                   <div>
@@ -172,7 +172,7 @@ export default function AttendanceApprovals() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {att.status === 'draft' && (
+                  {(att.status === 'draft' || att.status === 'rejected') && (
                     <button
                       onClick={(e) => { e.stopPropagation(); sendReminder(att.employeeId); }}
                       disabled={sendingReminder === att.employeeId}
