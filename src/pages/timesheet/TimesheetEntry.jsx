@@ -5,13 +5,24 @@ import timesheetApi, { getHolidays, getMyLeaveRequests } from '../../utils/times
 import { ChevronLeft, ChevronRight, Save, Send, AlertCircle, RotateCcw, Loader2, Lock } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
-// Check if employee is eligible for paid holidays (same as leave eligibility)
+// Check if employee is eligible for org-level paid holidays (same as leave eligibility)
 function isHolidayEligible(emp) {
   if (!emp) return false;
   const t = (emp.employmentType || '').toLowerCase();
   if (t === 'external_consultant') return false;
   if (t === 'internal_consultant' && emp.billable === true) return false;
   return ['confirmed', 'intern', 'internal_consultant'].includes(t);
+}
+
+// Check if consultant can manually mark client holidays (monthly-rate only)
+function canMarkClientHoliday(emp, selectedProject) {
+  if (!emp) return false;
+  const t = (emp.employmentType || '').toLowerCase();
+  const isConsultant = t === 'external_consultant' || (t === 'internal_consultant' && emp.billable === true);
+  if (!isConsultant) return false;
+  const asgn = (emp.assignments || []).find(a => (a.projectId?._id || a.projectId)?.toString() === selectedProject);
+  if (!asgn) return false;
+  return !!(asgn.billingRate?.monthly && asgn.billingRate.monthly > 0);
 }
 
 const statusColors = {
@@ -208,6 +219,7 @@ export default function TimesheetEntry() {
   const canEdit = !periodLocked && !isPreviousYear && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
 
   const eligible = isHolidayEligible(timesheetUser);
+  const canHoliday = canMarkClientHoliday(timesheetUser, selectedProject);
 
   const cycleStatus = (day) => {
     if (!canEdit || isBeforeProjectStart(day)) return;
@@ -225,33 +237,45 @@ export default function TimesheetEntry() {
       return;
     }
 
-    // Holiday entries are always read-only
-    if (entry.status === 'holiday') return;
+    // Org-level holiday entries are always read-only (auto-populated from calendar)
+    // But monthly-rate consultants can cycle through self-marked holidays
+    if (entry.status === 'holiday' && !canHoliday) return;
 
     // For leave-eligible employees (confirmed, non-billable internal), leave is managed via Leave module
     if (eligible && entry.status === 'leave') return;
 
-    // Weekday cycle: working (8h) → leave (0h) → working (0h/unfilled) → working (8h)
-    if (entry.status === 'working' && (parseFloat(entry.hours) || 0) >= 8) {
-      // Working 8h → Leave
-      setEntries(prev => ({ ...prev, [day]: { hours: 0, status: 'leave' } }));
-    } else if (entry.status === 'leave') {
-      // Leave → Unfilled (working 0h)
-      setEntries(prev => ({ ...prev, [day]: { hours: 0, status: null } }));
-    } else if (!entry.status || (entry.status === 'working' && (parseFloat(entry.hours) || 0) === 0)) {
-      // Unfilled/0h → Working 8h
-      setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+    if (canHoliday) {
+      // Monthly-rate consultant cycle: Working (8h) → Holiday (8h) → Leave (0h) → Unfilled (0h) → Working (8h)
+      if (entry.status === 'working' && (parseFloat(entry.hours) || 0) >= 8) {
+        setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'holiday', notes: 'Client Holiday' } }));
+      } else if (entry.status === 'holiday') {
+        setEntries(prev => ({ ...prev, [day]: { hours: 0, status: 'leave' } }));
+      } else if (entry.status === 'leave') {
+        setEntries(prev => ({ ...prev, [day]: { hours: 0, status: null } }));
+      } else {
+        setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+      }
     } else {
-      // Any other state → Working 8h
-      setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+      // Default cycle: Working (8h) → Leave (0h) → Unfilled (0h) → Working (8h)
+      if (entry.status === 'working' && (parseFloat(entry.hours) || 0) >= 8) {
+        setEntries(prev => ({ ...prev, [day]: { hours: 0, status: 'leave' } }));
+      } else if (entry.status === 'leave') {
+        setEntries(prev => ({ ...prev, [day]: { hours: 0, status: null } }));
+      } else if (!entry.status || (entry.status === 'working' && (parseFloat(entry.hours) || 0) === 0)) {
+        setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+      } else {
+        setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+      }
     }
   };
 
   const setHours = (day, value) => {
     if (!canEdit || isBeforeProjectStart(day)) return;
     const entry = entries[day] || { hours: '', status: null };
-    // Block editing leave/holiday entries — managed by Leave module & Holiday calendar
-    if (entry.status === 'leave' || entry.status === 'holiday') return;
+    // Block editing leave entries (managed by Leave module) and org-level holidays
+    // Allow editing self-marked holidays for monthly-rate consultants
+    if (entry.status === 'leave') return;
+    if (entry.status === 'holiday' && !canHoliday) return;
     const dayOfWeek = new Date(year, month - 1, day).getDay();
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
 
@@ -609,9 +633,9 @@ export default function TimesheetEntry() {
                           )
                         )
                       ) : hasStatus ? (
-                        <button onClick={() => cycleStatus(day)} disabled={isReadOnly || entry.status === 'holiday' || (eligible && entry.status === 'leave')}
-                          title={entry.status === 'holiday' ? 'Public holiday' : (eligible && entry.status === 'leave') ? 'Managed via Leave module' : ''}
-                          className={`inline-block px-1 sm:px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-medium text-white ${statusColors[entry.status]} ${(!isReadOnly && entry.status !== 'holiday' && !(eligible && entry.status === 'leave')) ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}>
+                        <button onClick={() => cycleStatus(day)} disabled={isReadOnly || (entry.status === 'holiday' && !canHoliday) || (eligible && entry.status === 'leave')}
+                          title={entry.status === 'holiday' ? (canHoliday ? 'Client holiday (click to change)' : 'Public holiday') : (eligible && entry.status === 'leave') ? 'Managed via Leave module' : ''}
+                          className={`inline-block px-1 sm:px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-medium text-white ${statusColors[entry.status]} ${(!isReadOnly && !(entry.status === 'holiday' && !canHoliday) && !(eligible && entry.status === 'leave')) ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}>
                           {statusLabels[entry.status]}
                         </button>
                       ) : (
