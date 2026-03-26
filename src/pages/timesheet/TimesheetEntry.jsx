@@ -207,6 +207,8 @@ export default function TimesheetEntry() {
   const isPreviousYear = year < new Date().getFullYear();
   const canEdit = !periodLocked && !isPreviousYear && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
 
+  const eligible = isHolidayEligible(timesheetUser);
+
   const cycleStatus = (day) => {
     if (!canEdit || isBeforeProjectStart(day)) return;
     const entry = entries[day] || { hours: '', status: null };
@@ -222,11 +224,27 @@ export default function TimesheetEntry() {
       }
       return;
     }
-    // Leave/holiday entries are read-only — managed by Leave module & Holiday calendar
-    if (entry.status === 'leave' || entry.status === 'holiday') return;
-    // Weekday: toggle between working (8h) and working (0h)
-    const newHours = (entry.hours || 0) > 0 ? 0 : 8;
-    setEntries(prev => ({ ...prev, [day]: { hours: newHours, status: 'working' } }));
+
+    // Holiday entries are always read-only
+    if (entry.status === 'holiday') return;
+
+    // For leave-eligible employees (confirmed, non-billable internal), leave is managed via Leave module
+    if (eligible && entry.status === 'leave') return;
+
+    // Weekday cycle: working (8h) → leave (0h) → working (0h/unfilled) → working (8h)
+    if (entry.status === 'working' && (parseFloat(entry.hours) || 0) >= 8) {
+      // Working 8h → Leave
+      setEntries(prev => ({ ...prev, [day]: { hours: 0, status: 'leave' } }));
+    } else if (entry.status === 'leave') {
+      // Leave → Unfilled (working 0h)
+      setEntries(prev => ({ ...prev, [day]: { hours: 0, status: null } }));
+    } else if (!entry.status || (entry.status === 'working' && (parseFloat(entry.hours) || 0) === 0)) {
+      // Unfilled/0h → Working 8h
+      setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+    } else {
+      // Any other state → Working 8h
+      setEntries(prev => ({ ...prev, [day]: { hours: 8, status: 'working' } }));
+    }
   };
 
   const setHours = (day, value) => {
@@ -591,9 +609,9 @@ export default function TimesheetEntry() {
                           )
                         )
                       ) : hasStatus ? (
-                        <button onClick={() => cycleStatus(day)} disabled={isReadOnly || entry.status === 'leave' || entry.status === 'holiday'}
-                          title={entry.status === 'leave' ? 'Managed via Leave module' : entry.status === 'holiday' ? 'Public holiday' : ''}
-                          className={`inline-block px-1 sm:px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-medium text-white ${statusColors[entry.status]} ${(!isReadOnly && entry.status !== 'leave' && entry.status !== 'holiday') ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}>
+                        <button onClick={() => cycleStatus(day)} disabled={isReadOnly || entry.status === 'holiday' || (eligible && entry.status === 'leave')}
+                          title={entry.status === 'holiday' ? 'Public holiday' : (eligible && entry.status === 'leave') ? 'Managed via Leave module' : ''}
+                          className={`inline-block px-1 sm:px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-medium text-white ${statusColors[entry.status]} ${(!isReadOnly && entry.status !== 'holiday' && !(eligible && entry.status === 'leave')) ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}>
                           {statusLabels[entry.status]}
                         </button>
                       ) : (
