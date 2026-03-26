@@ -196,8 +196,8 @@ export default function LeaveApply() {
       <div className="p-3 sm:p-6">
         <div className="card p-8 text-center">
           <AlertCircle className="w-10 h-10 text-dark-500 mx-auto mb-3" />
-          <h2 className="text-lg font-semibold text-white mb-2">Not Eligible</h2>
-          <p className="text-dark-400 text-sm">You are not eligible for leave management</p>
+          <h2 className="text-lg font-semibold text-white mb-2">Leave Management Unavailable</h2>
+          <p className="text-dark-400 text-sm">Leave management is not available for your employment type. Contact your manager for leave requests.</p>
         </div>
       </div>
     );

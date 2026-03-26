@@ -180,6 +180,11 @@ export default function LeaveApprovals() {
                   <Clock size={14} className="text-dark-500" />
                   {req.totalDays || req.days || 0} day{(req.totalDays || req.days || 0) !== 1 ? 's' : ''}
                 </span>
+                {req.isHalfDay && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    Half Day ({req.halfDaySession === 'second_half' ? 'Second Half' : 'First Half'})
+                  </span>
+                )}
               </div>
 
               {/* Reason */}
@@ -188,10 +193,10 @@ export default function LeaveApprovals() {
               )}
 
               {/* LOP Warning */}
-              {req.isLOP && req.lopDays > 0 && (
-                <div className="flex items-center gap-2 text-sm text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
+              {(req.isLOP || req.lopDays > 0) && (
+                <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                   <AlertTriangle size={14} />
-                  <span>{req.lopDays} day{req.lopDays !== 1 ? 's' : ''} will be LOP</span>
+                  <span>⚠️ {req.lopDays || req.totalDays || 0} LOP day{(req.lopDays || req.totalDays || 0) !== 1 ? 's' : ''}</span>
                 </div>
               )}
 
@@ -248,6 +253,7 @@ export default function LeaveApprovals() {
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
               placeholder="Reason for rejection..."
+              maxLength={500}
               className="w-full bg-dark-900/50 border border-dark-700 rounded-lg p-3 text-sm text-white placeholder-dark-500 mb-4 min-h-[100px] outline-none focus:border-rivvra-500 focus:ring-2 focus:ring-rivvra-500/20 resize-none"
             />
             <div className="flex gap-2 justify-end">

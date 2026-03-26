@@ -120,6 +120,13 @@ export default function MyAttendancePage() {
 
   const handleSubmit = async () => {
     if (!attendance || submitting) return;
+
+    // Check for unfilled working days
+    const unfilledDays = entries.filter(e => e.status === 'working' && (parseFloat(e.hours) || 0) === 0).length;
+    if (unfilledDays > 0) {
+      if (!window.confirm(`You have ${unfilledDays} unfilled day${unfilledDays > 1 ? 's' : ''}. Submit anyway?`)) return;
+    }
+
     if (dirty) {
       setSaving(true);
       try {

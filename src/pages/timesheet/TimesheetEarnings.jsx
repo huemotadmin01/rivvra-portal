@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useTimesheetContext } from '../../context/TimesheetContext';
-import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
@@ -114,13 +111,8 @@ function EarningsCard({ data, title, onDownload, downloading }) {
 }
 
 export default function TimesheetEarnings() {
-  const { timesheetUser } = useTimesheetContext();
-  const { orgPath } = usePlatform();
   const { showToast } = useToast();
 
-  // Temporary: redirect confirmed+billable employees (pending payroll deductions)
-  const hideEarnings = timesheetUser?.employmentType === 'confirmed' && timesheetUser?.billable;
-  if (hideEarnings) return <Navigate to={orgPath('/timesheet/dashboard')} replace />;
   const [current, setCurrent] = useState(null);
   const [previous, setPrevious] = useState(null);
   const [history, setHistory] = useState([]);

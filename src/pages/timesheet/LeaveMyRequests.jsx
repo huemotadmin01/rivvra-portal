@@ -178,7 +178,7 @@ export default function LeaveMyRequests() {
               </div>
 
               {/* Date range + days */}
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-sm flex-wrap">
                 <CalendarDays size={14} className="text-dark-500" />
                 <span className="text-white font-medium">
                   {formatDate(req.startDate || req.fromDate)} — {formatDate(req.endDate || req.toDate)}
@@ -186,6 +186,11 @@ export default function LeaveMyRequests() {
                 <span className="text-dark-500">
                   ({req.totalDays ?? req.numberOfDays ?? 1} day{(req.totalDays ?? req.numberOfDays ?? 1) > 1 ? 's' : ''})
                 </span>
+                {req.isHalfDay && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                    Half Day ({req.halfDaySession === 'second_half' ? 'Second Half' : 'First Half'})
+                  </span>
+                )}
               </div>
 
               {/* Reason */}
