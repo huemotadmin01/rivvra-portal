@@ -68,8 +68,8 @@ export default function MySalaryPage() {
   const ptEnabled = statutory?.ptEnabled !== false;
   const estimatedPt = (!isConsultant && ptEnabled) ? (salary.grossMonthly > 25000 ? 208 : salary.grossMonthly > 18750 ? 150 : salary.grossMonthly > 12500 ? 125 : 0) : 0;
 
-  // Net = Gross - all deductions (employee PF + employer PF + ESI + PT + TDS)
-  const totalDeductions = employeePf + employerPf + employeeEsi + estimatedPt + estimatedTds;
+  // Total deductions = employee PF + employer PF + employee ESI + employer ESI + PT (excl. TDS)
+  const totalDeductions = employeePf + employerPf + employeeEsi + employerEsi + estimatedPt + estimatedTds;
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   if (isConsultant) {
@@ -136,7 +136,7 @@ export default function MySalaryPage() {
         <div className="space-y-6">
           <div className="bg-dark-800 rounded-xl border border-dark-700">
             <div className="px-5 py-4 border-b border-dark-700">
-              <h2 className="text-sm font-semibold text-white">Employee Deductions</h2>
+              <h2 className="text-sm font-semibold text-white">Total Deductions (excl. TDS)</h2>
             </div>
             <div className="p-5">
               <table className="w-full text-sm">
@@ -144,20 +144,26 @@ export default function MySalaryPage() {
                   {salary.pfApplicable && (
                     <>
                       <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">EPF (Employee 12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-dark-300">EPF — Employee (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
                         <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
                       </tr>
                       <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">EPF (Employer 12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
                         <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerPf)}</td>
                       </tr>
                     </>
                   )}
                   {salary.esiApplicable && (
-                    <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">ESI (0.75%)</td>
-                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
-                    </tr>
+                    <>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">ESI — Employee (0.75%)</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
+                      </tr>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerEsi)}</td>
+                      </tr>
+                    </>
                   )}
                   {estimatedPt > 0 && (
                     <tr className="border-b border-dark-700/50">
@@ -166,37 +172,12 @@ export default function MySalaryPage() {
                     </tr>
                   )}
                   <tr className="border-t border-dark-600">
-                    <td className="py-2.5 text-white font-medium">Total Deductions</td>
+                    <td className="py-2.5 text-white font-medium">Total</td>
                     <td className="py-2.5 text-right text-red-400 font-bold">₹{fmt(totalDeductions)}</td>
                   </tr>
                   <tr>
-                    <td className="py-2.5 text-dark-400 text-xs">TDS deducted at payroll run time</td>
-                    <td></td>
+                    <td className="py-2.5 text-dark-400 text-xs" colSpan={2}>TDS is computed and deducted during payroll run</td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="bg-dark-800 rounded-xl border border-dark-700">
-            <div className="px-5 py-4 border-b border-dark-700">
-              <h2 className="text-sm font-semibold text-white">Employer Contributions</h2>
-            </div>
-            <div className="p-5">
-              <table className="w-full text-sm">
-                <tbody>
-                  {salary.pfApplicable && (
-                    <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">EPF (Employer 12%)</td>
-                      <td className="py-2.5 text-right text-dark-300">₹{fmt(salary.employerPf)}</td>
-                    </tr>
-                  )}
-                  {salary.esiApplicable && (
-                    <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">ESI (Employer 3.25%)</td>
-                      <td className="py-2.5 text-right text-dark-300">₹{fmt(salary.employerEsi)}</td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
