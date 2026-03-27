@@ -933,6 +933,56 @@ export default function EmployeeDetail() {
         )}
       </div>
 
+      {/* ── Separate Employee (for active employees — admin only) ────────── */}
+      {isAdmin && emp.status === 'active' && (
+        <div className="mt-5">
+          <div className="card p-5 border-dark-700">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle size={16} className="text-amber-400" />
+              <h3 className="text-white font-semibold">Separation</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Status</label>
+                <select
+                  value={emp.status}
+                  onChange={async (e) => {
+                    const newStatus = e.target.value;
+                    if (newStatus === 'active') return;
+                    const lwd = window.prompt('Enter Last Working Date (YYYY-MM-DD):');
+                    if (!lwd || !/^\d{4}-\d{2}-\d{2}$/.test(lwd)) {
+                      showToast('Invalid date format. Use YYYY-MM-DD', 'error');
+                      e.target.value = 'active';
+                      return;
+                    }
+                    const reason = window.prompt('Separation reason (optional):') || '';
+                    try {
+                      const res = await employeeApi.update(currentOrg.slug, emp._id, {
+                        status: newStatus,
+                        lastWorkingDate: lwd,
+                        separationReason: reason || newStatus === 'resigned' ? 'Resignation' : 'Termination',
+                      });
+                      if (res.success) {
+                        setEmployee(prev => prev ? { ...prev, status: newStatus, lastWorkingDate: lwd, separationReason: reason || (newStatus === 'resigned' ? 'Resignation' : 'Termination') } : prev);
+                        showToast(`Employee marked as ${newStatus}`, 'success');
+                      }
+                    } catch (err) {
+                      showToast(err.message || 'Failed to update', 'error');
+                      e.target.value = 'active';
+                    }
+                  }}
+                  className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+                >
+                  <option value="active">Active</option>
+                  <option value="resigned">Resigned</option>
+                  <option value="terminated">Terminated</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Separation Details (for resigned / terminated) ─────────────── */}
       {(emp.status === 'resigned' || emp.status === 'terminated') && (
         <div className="mt-5">
