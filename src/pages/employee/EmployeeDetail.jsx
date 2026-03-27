@@ -980,7 +980,6 @@ export default function EmployeeDetail() {
                       disabled={!sepForm.lwd || sepSaving}
                       onClick={async () => {
                         if (!sepForm.lwd) { showToast('Last Working Date is required', 'error'); return; }
-                        if (!window.confirm(`Mark ${emp.fullName} as ${sepForm.status}?`)) return;
                         setSepSaving(true);
                         try {
                           const payload = {
