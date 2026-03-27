@@ -233,6 +233,8 @@ export default function EmployeeDetail() {
   const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [sepForm, setSepForm] = useState({ status: '', lwd: '', reason: '', notes: '' });
   const [sepSaving, setSepSaving] = useState(false);
+  const [showEmpTypePrompt, setShowEmpTypePrompt] = useState(false);
+  const [pendingEmpType, setPendingEmpType] = useState('');
 
   const isAdmin = getAppRole('employee') === 'admin';
   const appRole = getAppRole('employee') || 'member';
@@ -727,7 +729,16 @@ export default function EmployeeDetail() {
                   {/* Request Details — smart button: invite if not linked, send form if linked */}
                   {emp.email && emp.status === 'active' && (
                     <button
-                      onClick={() => emp.linkedUserId ? handleSendOnboardingLink() : setShowInviteModal(true)}
+                      onClick={() => {
+                        // If employment type is default 'confirmed' and no onboarding completed yet,
+                        // ask admin to confirm/select the employment type first
+                        if (emp.employmentType === 'confirmed' && !emp._employmentTypeConfirmed && !emp.onboardingCompleted) {
+                          setShowEmpTypePrompt(true);
+                          setPendingEmpType(emp.employmentType);
+                          return;
+                        }
+                        emp.linkedUserId ? handleSendOnboardingLink() : setShowInviteModal(true);
+                      }}
                       disabled={sendingOnboardingLink}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
                     >
@@ -1513,6 +1524,53 @@ export default function EmployeeDetail() {
       <div className="mt-5">
         <PlanProgress employeeId={emp._id} isAdmin={isAdmin} />
       </div>
+
+      {/* ── Employment Type Prompt Modal ─────────────────────────────── */}
+      {showEmpTypePrompt && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-dark-700 shadow-xl">
+            <h3 className="text-white font-semibold text-lg mb-2">Confirm Employment Type</h3>
+            <p className="text-dark-400 text-sm mb-4">
+              Please confirm the employment type for <span className="text-white">{emp.fullName}</span> before sending the onboarding form.
+            </p>
+            <select
+              value={pendingEmpType}
+              onChange={(e) => setPendingEmpType(e.target.value)}
+              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2.5 text-sm text-white mb-4"
+            >
+              {Object.entries(empTypeMap).map(([key, cfg]) => (
+                <option key={key} value={key}>{cfg.label}</option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowEmpTypePrompt(false); setPendingEmpType(''); }}
+                className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors"
+              >Cancel</button>
+              <button
+                onClick={async () => {
+                  try {
+                    await employeeApi.update(currentOrg.slug, emp._id, {
+                      employmentType: pendingEmpType,
+                      _employmentTypeConfirmed: true,
+                    });
+                    setEmployee(prev => prev ? { ...prev, employmentType: pendingEmpType, _employmentTypeConfirmed: true } : prev);
+                    setShowEmpTypePrompt(false);
+                    showToast('Employment type updated', 'success');
+                    // Now proceed with the original action
+                    setTimeout(() => {
+                      emp.linkedUserId ? handleSendOnboardingLink() : setShowInviteModal(true);
+                    }, 300);
+                  } catch (err) {
+                    showToast(err.message || 'Failed to update', 'error');
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 text-sm font-medium"
+              >Confirm & Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
       <InviteEmployeeModal
