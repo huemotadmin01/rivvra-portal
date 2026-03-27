@@ -64,8 +64,12 @@ export default function MySalaryPage() {
   // Calculate TDS for consultants
   const estimatedTds = isConsultant ? Math.round(salary.grossMonthly * flatTdsRate) : 0;
 
-  // Net = Gross - employee deductions - TDS (for consultants)
-  const totalDeductions = employeePf + employeeEsi + estimatedTds;
+  // Estimate Professional Tax (from statutory config or common MP slab)
+  const ptEnabled = statutory?.ptEnabled !== false;
+  const estimatedPt = (!isConsultant && ptEnabled) ? (salary.grossMonthly > 25000 ? 208 : salary.grossMonthly > 18750 ? 150 : salary.grossMonthly > 12500 ? 125 : 0) : 0;
+
+  // Net = Gross - employee deductions - PT - TDS (for consultants)
+  const totalDeductions = employeePf + employeeEsi + estimatedPt + estimatedTds;
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   if (isConsultant) {
@@ -149,8 +153,14 @@ export default function MySalaryPage() {
                       <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
                     </tr>
                   )}
+                  {estimatedPt > 0 && (
+                    <tr className="border-b border-dark-700/50">
+                      <td className="py-2.5 text-dark-300">Professional Tax (est.)</td>
+                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(estimatedPt)}</td>
+                    </tr>
+                  )}
                   <tr>
-                    <td className="py-2.5 text-dark-400 text-xs">PT & TDS deducted at payroll run time</td>
+                    <td className="py-2.5 text-dark-400 text-xs">TDS deducted at payroll run time</td>
                     <td></td>
                   </tr>
                 </tbody>
