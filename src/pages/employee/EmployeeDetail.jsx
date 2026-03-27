@@ -229,6 +229,8 @@ export default function EmployeeDetail() {
   const [expandedDocs, setExpandedDocs] = useState({});
   const [editingName, setEditingName] = useState(false);
   const [deletingAssignment, setDeletingAssignment] = useState(null);
+  const [sepForm, setSepForm] = useState({ status: '', lwd: '', reason: '', notes: '' });
+  const [sepSaving, setSepSaving] = useState(false);
 
   const isAdmin = getAppRole('employee') === 'admin';
   const appRole = getAppRole('employee') || 'member';
@@ -941,36 +943,12 @@ export default function EmployeeDetail() {
               <AlertTriangle size={16} className="text-amber-400" />
               <h3 className="text-white font-semibold">Separation</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
                 <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Status</label>
                 <select
-                  value={emp.status}
-                  onChange={async (e) => {
-                    const newStatus = e.target.value;
-                    if (newStatus === 'active') return;
-                    const lwd = window.prompt('Enter Last Working Date (YYYY-MM-DD):');
-                    if (!lwd || !/^\d{4}-\d{2}-\d{2}$/.test(lwd)) {
-                      showToast('Invalid date format. Use YYYY-MM-DD', 'error');
-                      e.target.value = 'active';
-                      return;
-                    }
-                    const reason = window.prompt('Separation reason (optional):') || '';
-                    try {
-                      const res = await employeeApi.update(currentOrg.slug, emp._id, {
-                        status: newStatus,
-                        lastWorkingDate: lwd,
-                        separationReason: reason || newStatus === 'resigned' ? 'Resignation' : 'Termination',
-                      });
-                      if (res.success) {
-                        setEmployee(prev => prev ? { ...prev, status: newStatus, lastWorkingDate: lwd, separationReason: reason || (newStatus === 'resigned' ? 'Resignation' : 'Termination') } : prev);
-                        showToast(`Employee marked as ${newStatus}`, 'success');
-                      }
-                    } catch (err) {
-                      showToast(err.message || 'Failed to update', 'error');
-                      e.target.value = 'active';
-                    }
-                  }}
+                  value={sepForm.status || 'active'}
+                  onChange={(e) => setSepForm(prev => ({ ...prev, status: e.target.value }))}
                   className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
                 >
                   <option value="active">Active</option>
@@ -978,7 +956,73 @@ export default function EmployeeDetail() {
                   <option value="terminated">Terminated</option>
                 </select>
               </div>
+              {(sepForm.status === 'resigned' || sepForm.status === 'terminated') && (
+                <>
+                  <div>
+                    <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Last Working Date *</label>
+                    <input type="date" value={sepForm.lwd} onChange={(e) => setSepForm(prev => ({ ...prev, lwd: e.target.value }))}
+                      className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white" />
+                  </div>
+                  <div>
+                    <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Reason</label>
+                    <select value={sepForm.reason} onChange={(e) => setSepForm(prev => ({ ...prev, reason: e.target.value }))}
+                      className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white">
+                      <option value="">Select reason</option>
+                      <option value="Resignation">Resignation</option>
+                      <option value="Termination">Termination</option>
+                      <option value="Contract End">Contract End</option>
+                      <option value="Mutual Separation">Mutual Separation</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      disabled={!sepForm.lwd || sepSaving}
+                      onClick={async () => {
+                        if (!sepForm.lwd) { showToast('Last Working Date is required', 'error'); return; }
+                        if (!window.confirm(`Mark ${emp.fullName} as ${sepForm.status}?`)) return;
+                        setSepSaving(true);
+                        try {
+                          const res = await employeeApi.update(currentOrg.slug, emp._id, {
+                            status: sepForm.status,
+                            lastWorkingDate: sepForm.lwd,
+                            separationReason: sepForm.reason || (sepForm.status === 'resigned' ? 'Resignation' : 'Termination'),
+                            separationNotes: sepForm.notes || '',
+                          });
+                          if (res.success) {
+                            setEmployee(prev => prev ? {
+                              ...prev,
+                              status: sepForm.status,
+                              lastWorkingDate: sepForm.lwd,
+                              separationReason: sepForm.reason || (sepForm.status === 'resigned' ? 'Resignation' : 'Termination'),
+                              separationNotes: sepForm.notes || '',
+                            } : prev);
+                            showToast(`Employee marked as ${sepForm.status}`, 'success');
+                            setSepForm({ status: '', lwd: '', reason: '', notes: '' });
+                          }
+                        } catch (err) {
+                          showToast(err.message || 'Failed to update', 'error');
+                        } finally {
+                          setSepSaving(false);
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 text-sm font-medium disabled:opacity-40 flex items-center gap-2"
+                    >
+                      {sepSaving && <Loader2 size={14} className="animate-spin" />}
+                      Confirm Separation
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
+            {(sepForm.status === 'resigned' || sepForm.status === 'terminated') && (
+              <div className="mt-3">
+                <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Notes (optional)</label>
+                <input type="text" value={sepForm.notes} onChange={(e) => setSepForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Additional notes about the separation"
+                  className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-600" />
+              </div>
+            )}
           </div>
         </div>
       )}
