@@ -983,24 +983,30 @@ export default function EmployeeDetail() {
                         if (!window.confirm(`Mark ${emp.fullName} as ${sepForm.status}?`)) return;
                         setSepSaving(true);
                         try {
-                          const res = await employeeApi.update(currentOrg.slug, emp._id, {
+                          const payload = {
                             status: sepForm.status,
                             lastWorkingDate: sepForm.lwd,
                             separationReason: sepForm.reason || (sepForm.status === 'resigned' ? 'Resignation' : 'Termination'),
                             separationNotes: sepForm.notes || '',
-                          });
+                          };
+                          console.log('Separation payload:', payload);
+                          const res = await employeeApi.update(currentOrg.slug, emp._id, payload);
+                          console.log('Separation response:', res);
                           if (res.success) {
                             setEmployee(prev => prev ? {
                               ...prev,
                               status: sepForm.status,
                               lastWorkingDate: sepForm.lwd,
-                              separationReason: sepForm.reason || (sepForm.status === 'resigned' ? 'Resignation' : 'Termination'),
+                              separationReason: payload.separationReason,
                               separationNotes: sepForm.notes || '',
                             } : prev);
                             showToast(`Employee marked as ${sepForm.status}`, 'success');
                             setSepForm({ status: '', lwd: '', reason: '', notes: '' });
+                          } else {
+                            showToast(res.error || res.message || 'Failed to update', 'error');
                           }
                         } catch (err) {
+                          console.error('Separation error:', err);
                           showToast(err.message || 'Failed to update', 'error');
                         } finally {
                           setSepSaving(false);
