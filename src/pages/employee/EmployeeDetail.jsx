@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
@@ -155,6 +156,7 @@ export default function EmployeeDetail() {
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const [employee, setEmployee] = useState(null);
   usePageTitle(employee?.name);
@@ -968,10 +970,13 @@ export default function EmployeeDetail() {
                     <select value={sepForm.reason} onChange={(e) => setSepForm(prev => ({ ...prev, reason: e.target.value }))}
                       className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white">
                       <option value="">Select reason</option>
-                      <option value="Resignation">Resignation</option>
-                      <option value="Termination">Termination</option>
-                      <option value="Contract End">Contract End</option>
-                      <option value="Mutual Separation">Mutual Separation</option>
+                      <option value="Better opportunity">Better opportunity</option>
+                      <option value="Personal reasons">Personal reasons</option>
+                      <option value="Performance">Performance</option>
+                      <option value="Redundancy/Layoff">Redundancy/Layoff</option>
+                      <option value="Contract end">Contract end</option>
+                      <option value="Absconding">Absconding</option>
+                      <option value="Mutual agreement">Mutual agreement</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
@@ -985,7 +990,7 @@ export default function EmployeeDetail() {
                           const payload = {
                             status: sepForm.status,
                             lastWorkingDate: sepForm.lwd,
-                            separationReason: sepForm.reason || (sepForm.status === 'resigned' ? 'Resignation' : 'Termination'),
+                            separationReason: sepForm.reason || 'Other',
                             separationNotes: sepForm.notes || '',
                           };
                           console.log('Separation payload:', payload);
@@ -996,7 +1001,7 @@ export default function EmployeeDetail() {
                               ...prev,
                               status: sepForm.status,
                               lastWorkingDate: sepForm.lwd,
-                              separationReason: payload.separationReason,
+                              separationReason: payload.separationReason || 'Other',
                               separationNotes: sepForm.notes || '',
                             } : prev);
                             showToast(`Employee marked as ${sepForm.status}`, 'success');
