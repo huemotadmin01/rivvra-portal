@@ -207,13 +207,30 @@ export default function TimesheetEntry() {
     return isNaN(d.getTime()) ? null : d;
   })();
 
+  // Compute effective end date — days after this are disabled for billable consultants
+  const projectEndDate = (() => {
+    if (isNonBillable) return null; // Confirmed/non-billable can always fill
+    const asgn = timesheetUser?.assignments?.find(a => (a.projectId?._id || a.projectId)?.toString() === selectedProject);
+    if (!asgn?.endDate) return null;
+    const d = new Date(asgn.endDate);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+
   const isBeforeProjectStart = (day) => {
     if (!projectStartDate) return false;
     const date = new Date(year, month - 1, day);
-    // Compare date-only (ignore time)
     const startDateOnly = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
     return date < startDateOnly;
   };
+
+  const isAfterProjectEnd = (day) => {
+    if (!projectEndDate) return false;
+    const date = new Date(year, month - 1, day);
+    const endDateOnly = new Date(projectEndDate.getFullYear(), projectEndDate.getMonth(), projectEndDate.getDate());
+    return date > endDateOnly;
+  };
+
+  const isDayDisabled = (day) => isBeforeProjectStart(day) || isAfterProjectEnd(day);
 
   const isPreviousYear = year < new Date().getFullYear();
   const canEdit = !periodLocked && !isPreviousYear && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
@@ -222,7 +239,7 @@ export default function TimesheetEntry() {
   const canHoliday = canMarkClientHoliday(timesheetUser, selectedProject);
 
   const cycleStatus = (day) => {
-    if (!canEdit || isBeforeProjectStart(day)) return;
+    if (!canEdit || isDayDisabled(day)) return;
     const entry = entries[day] || { hours: '', status: null };
     const dayOfWeek = new Date(year, month - 1, day).getDay();
     const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
@@ -270,7 +287,7 @@ export default function TimesheetEntry() {
   };
 
   const setHours = (day, value) => {
-    if (!canEdit || isBeforeProjectStart(day)) return;
+    if (!canEdit || isDayDisabled(day)) return;
     const entry = entries[day] || { hours: '', status: null };
     // Block editing leave entries (managed by Leave module) and org-level holidays
     // Allow editing self-marked holidays for monthly-rate consultants
@@ -567,9 +584,10 @@ export default function TimesheetEntry() {
                 const isPastUnfilled = dateObj < new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !isWeekendDay && !hasStatus;
                 const isWeekendWorking = isWeekendDay && entry.status === 'working' && hoursNum > 0;
                 const isPreStart = isBeforeProjectStart(day);
+                const isPostEnd = isAfterProjectEnd(day);
 
-                // Days before project start — render as disabled/greyed out
-                if (isPreStart) {
+                // Days before project start or after project end — render as disabled/greyed out
+                if (isPreStart || isPostEnd) {
                   return (
                     <div key={day} className="p-1 sm:p-1.5 border-b border-r border-dark-800/50 min-h-[72px] sm:min-h-[88px] bg-dark-900/60 opacity-40">
                       <div className="flex items-center justify-between mb-1">
