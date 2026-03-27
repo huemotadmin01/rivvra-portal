@@ -68,8 +68,8 @@ export default function MySalaryPage() {
   const ptEnabled = statutory?.ptEnabled !== false;
   const estimatedPt = (!isConsultant && ptEnabled) ? (salary.grossMonthly > 25000 ? 208 : salary.grossMonthly > 18750 ? 150 : salary.grossMonthly > 12500 ? 125 : 0) : 0;
 
-  // Net = Gross - employee deductions - PT - TDS (for consultants)
-  const totalDeductions = employeePf + employeeEsi + estimatedPt + estimatedTds;
+  // Net = Gross - all deductions (employee PF + employer PF + ESI + PT + TDS)
+  const totalDeductions = employeePf + employerPf + employeeEsi + estimatedPt + estimatedTds;
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   if (isConsultant) {
@@ -142,10 +142,16 @@ export default function MySalaryPage() {
               <table className="w-full text-sm">
                 <tbody>
                   {salary.pfApplicable && (
-                    <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">EPF (Employee 12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
-                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
-                    </tr>
+                    <>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">EPF (Employee 12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
+                      </tr>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">EPF (Employer 12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerPf)}</td>
+                      </tr>
+                    </>
                   )}
                   {salary.esiApplicable && (
                     <tr className="border-b border-dark-700/50">
@@ -159,6 +165,10 @@ export default function MySalaryPage() {
                       <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(estimatedPt)}</td>
                     </tr>
                   )}
+                  <tr className="border-t border-dark-600">
+                    <td className="py-2.5 text-white font-medium">Total Deductions</td>
+                    <td className="py-2.5 text-right text-red-400 font-bold">₹{fmt(totalDeductions)}</td>
+                  </tr>
                   <tr>
                     <td className="py-2.5 text-dark-400 text-xs">TDS deducted at payroll run time</td>
                     <td></td>
