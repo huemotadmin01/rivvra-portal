@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import {
   Building2, ArrowLeft, Loader2, Save, Users, Shield,
-  Clock, AlertCircle, Globe, Calendar, ChevronRight
+  Clock, AlertCircle, Globe, Calendar, ChevronRight,
+  Database, RotateCcw, Trash2, Download
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -28,6 +29,14 @@ function AdminWorkspaceDetailPage() {
   const [editApps, setEditApps] = useState([]);
   const [editTrialStatus, setEditTrialStatus] = useState('');
 
+  // Backup state
+  const [backups, setBackups] = useState([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [backupError, setBackupError] = useState('');
+
   useEffect(() => {
     loadWorkspace();
   }, [orgId]);
@@ -51,6 +60,70 @@ function AdminWorkspaceDetailPage() {
       setError(err.message || 'Failed to load workspace');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load backups for this org
+  const loadBackups = async () => {
+    try {
+      setBackupsLoading(true);
+      setBackupError('');
+      const res = await api.request(`/api/superadmin/backups/${orgId}`);
+      setBackups(res.backups || []);
+    } catch (err) {
+      setBackupError(err.message || 'Failed to load backups');
+    } finally {
+      setBackupsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (orgId) loadBackups();
+  }, [orgId]);
+
+  const handleCreateBackup = async () => {
+    try {
+      setCreatingBackup(true);
+      setBackupError('');
+      await api.request(`/api/superadmin/backups/${orgId}/create`, { method: 'POST' });
+      await loadBackups();
+    } catch (err) {
+      setBackupError(err.message || 'Failed to create backup');
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const handleRestoreBackup = async (backupId, backupDate) => {
+    const first = window.confirm(`Restore backup from ${backupDate}? This will overwrite all current data for this organization.`);
+    if (!first) return;
+    const second = window.confirm('Are you absolutely sure? This action cannot be undone. All current data will be replaced with the backup data.');
+    if (!second) return;
+
+    try {
+      setRestoringId(backupId);
+      setBackupError('');
+      await api.request(`/api/superadmin/backups/${backupId}/restore`, { method: 'POST' });
+      await loadWorkspace();
+      await loadBackups();
+    } catch (err) {
+      setBackupError(err.message || 'Failed to restore backup');
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  const handleDeleteBackup = async (backupId) => {
+    if (!window.confirm('Delete this backup? This cannot be undone.')) return;
+    try {
+      setDeletingId(backupId);
+      setBackupError('');
+      await api.request(`/api/superadmin/backups/${backupId}`, { method: 'DELETE' });
+      await loadBackups();
+    } catch (err) {
+      setBackupError(err.message || 'Failed to delete backup');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -323,6 +396,95 @@ function AdminWorkspaceDetailPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Backups Section */}
+      <div className="bg-dark-900/50 border border-dark-800 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-dark-800 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-white flex items-center gap-2">
+            <Database className="w-4 h-4 text-amber-400" /> Backups
+          </h2>
+          <button
+            onClick={handleCreateBackup}
+            disabled={creatingBackup}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-dark-950 font-semibold text-xs transition-colors disabled:opacity-50"
+          >
+            {creatingBackup ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            Create Backup
+          </button>
+        </div>
+
+        {backupError && (
+          <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" /> {backupError}
+          </div>
+        )}
+
+        {backupsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
+          </div>
+        ) : backups.length === 0 ? (
+          <div className="px-5 py-12 text-center text-dark-400 text-sm">
+            No backups yet. Create one to get started.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-dark-800">
+                  <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Date</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Size</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Collections</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Documents</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium text-dark-400 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {backups.map((b) => {
+                  const dateStr = new Date(b.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                  });
+                  const sizeStr = b.sizeBytes >= 1048576
+                    ? `${(b.sizeBytes / 1048576).toFixed(1)} MB`
+                    : `${Math.round(b.sizeBytes / 1024)} KB`;
+                  return (
+                    <tr key={b._id || b.id} className="border-b border-dark-800/50">
+                      <td className="px-5 py-3 text-sm text-white">{dateStr}</td>
+                      <td className="px-5 py-3 text-sm text-dark-300">{sizeStr}</td>
+                      <td className="px-5 py-3 text-sm text-dark-300">{b.collectionCount ?? '—'}</td>
+                      <td className="px-5 py-3 text-sm text-dark-300">{b.documentCount ?? '—'}</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleRestoreBackup(b._id || b.id, dateStr)}
+                            disabled={restoringId === (b._id || b.id)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+                          >
+                            {restoringId === (b._id || b.id)
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <RotateCcw className="w-3 h-3" />}
+                            Restore
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBackup(b._id || b.id)}
+                            disabled={deletingId === (b._id || b.id)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                          >
+                            {deletingId === (b._id || b.id)
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <Trash2 className="w-3 h-3" />}
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

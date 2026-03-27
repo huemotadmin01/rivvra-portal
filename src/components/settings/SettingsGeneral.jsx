@@ -11,7 +11,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import {
   Loader2, Check, Users, Globe, Calendar, CreditCard, Send,
   Upload, Building2, Crown, Phone, Link2, Image, ChevronRight, Mail,
-  Lock, ShieldCheck, AlertTriangle,
+  Lock, ShieldCheck, AlertTriangle, Database, Download,
 } from 'lucide-react';
 import api from '../../utils/api';
 
@@ -132,6 +132,129 @@ function AuthenticationSection({ currentOrg }) {
       >
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <><Check className="w-4 h-4" /> Saved</> : 'Save'}
       </button>
+    </>
+  );
+}
+
+/**
+ * DataBackupSection — Org owner backup management
+ */
+function DataBackupSection({ currentOrg }) {
+  const [backups, setBackups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const slug = currentOrg?.slug;
+
+  const loadBackups = async () => {
+    if (!slug) return;
+    try {
+      setLoading(true);
+      setError('');
+      const res = await api.request(`/api/org/${slug}/backups`);
+      setBackups(res.backups || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load backups');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBackups();
+  }, [slug]);
+
+  const handleCreate = async () => {
+    try {
+      setCreating(true);
+      setError('');
+      await api.request(`/api/org/${slug}/backups/create`, { method: 'POST' });
+      setSuccess('Backup created successfully');
+      setTimeout(() => setSuccess(''), 3000);
+      await loadBackups();
+    } catch (err) {
+      setError(err.message || 'Failed to create backup');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '—';
+    return bytes >= 1048576
+      ? `${(bytes / 1048576).toFixed(1)} MB`
+      : `${Math.round(bytes / 1024)} KB`;
+  };
+
+  return (
+    <>
+      <SectionHeader title="Data Backup" />
+
+      <p className="text-xs text-dark-400 mb-4">
+        Create manual backups of your organization data. Backups from the last 4 weeks are shown below.
+      </p>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl mb-4">
+          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
+      )}
+
+      {success && (
+        <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mb-4">
+          <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <p className="text-sm text-emerald-400">{success}</p>
+        </div>
+      )}
+
+      {/* Backup Button */}
+      <button
+        onClick={handleCreate}
+        disabled={creating}
+        className="px-4 py-2 bg-rivvra-500 text-dark-950 rounded-lg hover:bg-rivvra-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-1.5 mb-5"
+      >
+        {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        Create Backup Now
+      </button>
+
+      {/* Backup List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-dark-400" />
+        </div>
+      ) : backups.length === 0 ? (
+        <div className="p-6 bg-dark-800/30 rounded-xl text-center">
+          <Database className="w-8 h-8 text-dark-600 mx-auto mb-2" />
+          <p className="text-sm text-dark-400">No backups yet</p>
+          <p className="text-xs text-dark-600 mt-1">Create your first backup to protect your data.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {backups.map((b) => {
+            const dateStr = new Date(b.createdAt).toLocaleDateString('en-US', {
+              year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            return (
+              <div key={b._id || b.id} className="flex items-center justify-between p-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-dark-700 flex items-center justify-center">
+                    <Database className="w-4 h-4 text-dark-300" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{dateStr}</p>
+                    <p className="text-xs text-dark-500">
+                      {formatSize(b.sizeBytes)} &middot; {b.documentCount ?? 0} documents &middot; {b.collectionCount ?? 0} collections
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
@@ -538,6 +661,9 @@ export default function SettingsGeneral() {
           </div>
         </>
       )}
+
+      {/* ═══════════════════════ DATA BACKUP ═══════════════════════ */}
+      {isOrgOwner && <DataBackupSection currentOrg={currentOrg} />}
     </div>
   );
 }
