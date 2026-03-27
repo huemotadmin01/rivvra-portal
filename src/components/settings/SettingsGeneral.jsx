@@ -145,6 +145,9 @@ function DataBackupSection({ currentOrg }) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [restoreStep, setRestoreStep] = useState(null); // null | { backupId, step: 1|2 }
+  const [restoring, setRestoring] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   const slug = currentOrg?.slug;
 
@@ -178,6 +181,22 @@ function DataBackupSection({ currentOrg }) {
       setError(err.message || 'Failed to create backup');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleRestore = async (backupId) => {
+    try {
+      setRestoring(true);
+      setError('');
+      const res = await api.request(`/api/org/${slug}/backups/${backupId}/restore`, { method: 'POST' });
+      setSuccess(res.message || 'Restore complete');
+      setRestoreStep(null);
+      setConfirmText('');
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setError(err.message || 'Restore failed');
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -250,9 +269,81 @@ function DataBackupSection({ currentOrg }) {
                     </p>
                   </div>
                 </div>
+                <button
+                  onClick={() => setRestoreStep({ backupId: b._id, step: 1, date: dateStr })}
+                  className="px-3 py-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors"
+                >
+                  Restore
+                </button>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── 2-Step Restore Confirmation Modal ──────────────────────────── */}
+      {restoreStep && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-dark-700 shadow-xl">
+            {restoreStep.step === 1 ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold">Restore Backup?</h3>
+                    <p className="text-dark-400 text-xs">Backup from {restoreStep.date}</p>
+                  </div>
+                </div>
+                <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-red-300">
+                    This will <strong>replace all current data</strong> with the backup data. Any changes made after this backup will be lost.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => { setRestoreStep(null); setConfirmText(''); }} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
+                  <button onClick={() => setRestoreStep(prev => ({ ...prev, step: 2 }))} className="px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 text-sm font-medium">
+                    I understand, continue
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold">Final Confirmation</h3>
+                    <p className="text-dark-400 text-xs">This action cannot be undone</p>
+                  </div>
+                </div>
+                <p className="text-sm text-dark-300 mb-3">
+                  Type <strong className="text-white">RESTORE</strong> to confirm:
+                </p>
+                <input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="Type RESTORE"
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2.5 text-sm text-white mb-4 placeholder:text-dark-600"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => { setRestoreStep(null); setConfirmText(''); }} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
+                  <button
+                    disabled={confirmText !== 'RESTORE' || restoring}
+                    onClick={() => handleRestore(restoreStep.backupId)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {restoring && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {restoring ? 'Restoring...' : 'Restore Now'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </>
