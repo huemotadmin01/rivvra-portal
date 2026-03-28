@@ -91,7 +91,7 @@ export const APP_REGISTRY = {
         const isConsultant = timesheetUser?.timesheetMode === 'timesheet';
         return [
           { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
-          { type: 'item', path: '/timesheet/my-profile', label: 'My Profile', icon: User },
+          { type: 'item', path: '/my-profile', label: 'My Profile', icon: User },
           // Show correct module based on their mode (read-only)
           ...(isConsultant
             ? [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
