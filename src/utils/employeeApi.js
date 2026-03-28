@@ -46,6 +46,13 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/stats`);
   },
 
+  getDashboard(orgSlug, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    return api.request(`/api/org/${orgSlug}/employee/dashboard?${qs.toString()}`);
+  },
+
   // ── Departments ───────────────────────────────────────────────────────
   listDepartments(orgSlug) {
     return api.request(`/api/org/${orgSlug}/employee/departments`);
