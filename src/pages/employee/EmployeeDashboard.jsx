@@ -76,8 +76,8 @@ function HorizontalBar({ items, color = 'rivvra' }) {
   return (
     <div className="space-y-2">
       {items.map(item => (
-        <div key={item.label} className="flex items-center gap-3">
-          <span className="text-xs text-dark-400 w-32 text-right truncate" title={item.label}>{item.label}</span>
+        <div key={item.name || item.label} className="flex items-center gap-3">
+          <span className="text-xs text-dark-400 w-32 text-right truncate" title={item.name || item.label}>{item.name || item.label}</span>
           <div className="flex-1 bg-dark-800 rounded-full h-5 overflow-hidden">
             <div
               className={`h-full bg-gradient-to-r ${gradient} rounded-full flex items-center justify-end px-2 transition-all duration-500`}
@@ -172,7 +172,7 @@ function MiniTable({ title, icon: Icon, columns, rows, orgSlug }) {
                 <tr key={row._id || i} className="border-b border-dark-700/50 last:border-0">
                   {columns.map(col => (
                     <td key={col.key} className="py-2 pr-3 text-dark-300">
-                      {col.key === 'name' && row._id ? (
+                      {col.key === 'fullName' && row._id ? (
                         <Link to={`/org/${orgSlug}/employee/${row._id}`} className="text-rivvra-400 hover:underline">
                           {row[col.key] || '-'}
                         </Link>
@@ -310,8 +310,8 @@ export default function EmployeeDashboard() {
               <p className="text-xs text-dark-500 text-center py-2">No data</p>
             ) : (
               byType.map(item => (
-                <div key={item.type} className="flex items-center justify-between">
-                  <span className="text-xs text-dark-300">{item.label || item.type}</span>
+                <div key={item.name} className="flex items-center justify-between">
+                  <span className="text-xs text-dark-300">{item.name}</span>
                   <span className="text-xs font-semibold text-dark-200 bg-dark-700 px-2 py-0.5 rounded-full">{item.count}</span>
                 </div>
               ))
@@ -373,7 +373,7 @@ export default function EmployeeDashboard() {
           icon={UserCheck}
           orgSlug={orgSlug}
           columns={[
-            { key: 'name', label: 'Name' },
+            { key: 'fullName', label: 'Name' },
             { key: 'employmentType', label: 'Type' },
             { key: 'department', label: 'Department' },
             { key: 'joiningDate', label: 'Joining Date' },
@@ -386,10 +386,10 @@ export default function EmployeeDashboard() {
           icon={UserMinus}
           orgSlug={orgSlug}
           columns={[
-            { key: 'name', label: 'Name' },
+            { key: 'fullName', label: 'Name' },
             { key: 'employmentType', label: 'Type' },
             { key: 'lastWorkingDate', label: 'LWD' },
-            { key: 'reason', label: 'Reason' },
+            { key: 'separationReason', label: 'Reason' },
           ]}
           rows={offBoarded}
         />
@@ -403,12 +403,12 @@ export default function EmployeeDashboard() {
           borderColor="border-amber-500/30"
           items={upcomingLwds}
           renderItem={item => (
-            <div key={item._id || item.name} className="flex items-center justify-between bg-dark-900/50 rounded-lg px-3 py-2">
+            <div key={item._id || item.fullName || item.name} className="flex items-center justify-between bg-dark-900/50 rounded-lg px-3 py-2">
               <div>
                 {item._id ? (
-                  <Link to={`/org/${orgSlug}/employee/${item._id}`} className="text-xs text-rivvra-400 hover:underline font-medium">{item.name}</Link>
+                  <Link to={`/org/${orgSlug}/employee/${item._id}`} className="text-xs text-rivvra-400 hover:underline font-medium">{item.fullName || item.name}</Link>
                 ) : (
-                  <p className="text-xs text-dark-200 font-medium">{item.name}</p>
+                  <p className="text-xs text-dark-200 font-medium">{item.fullName || item.name}</p>
                 )}
                 <p className="text-[10px] text-dark-500">{item.lastWorkingDate ? formatDateUTC(item.lastWorkingDate) : '-'}</p>
               </div>
@@ -425,12 +425,12 @@ export default function EmployeeDashboard() {
           borderColor="border-orange-500/30"
           items={expiringAssignments}
           renderItem={item => (
-            <div key={item._id || item.name} className="flex items-center justify-between bg-dark-900/50 rounded-lg px-3 py-2">
+            <div key={item._id || item.fullName || item.name} className="flex items-center justify-between bg-dark-900/50 rounded-lg px-3 py-2">
               <div>
                 {item._id ? (
-                  <Link to={`/org/${orgSlug}/employee/${item._id}`} className="text-xs text-rivvra-400 hover:underline font-medium">{item.name}</Link>
+                  <Link to={`/org/${orgSlug}/employee/${item._id}`} className="text-xs text-rivvra-400 hover:underline font-medium">{item.fullName || item.name}</Link>
                 ) : (
-                  <p className="text-xs text-dark-200 font-medium">{item.name}</p>
+                  <p className="text-xs text-dark-200 font-medium">{item.fullName || item.name}</p>
                 )}
                 <p className="text-[10px] text-dark-500">{item.client || '-'} &middot; ends {item.endDate ? formatDateUTC(item.endDate) : '-'}</p>
               </div>
@@ -447,12 +447,12 @@ export default function EmployeeDashboard() {
           borderColor="border-blue-500/30"
           items={probationEnding}
           renderItem={item => (
-            <div key={item._id || item.name} className="flex items-center justify-between bg-dark-900/50 rounded-lg px-3 py-2">
+            <div key={item._id || item.fullName || item.name} className="flex items-center justify-between bg-dark-900/50 rounded-lg px-3 py-2">
               <div>
                 {item._id ? (
-                  <Link to={`/org/${orgSlug}/employee/${item._id}`} className="text-xs text-rivvra-400 hover:underline font-medium">{item.name}</Link>
+                  <Link to={`/org/${orgSlug}/employee/${item._id}`} className="text-xs text-rivvra-400 hover:underline font-medium">{item.fullName || item.name}</Link>
                 ) : (
-                  <p className="text-xs text-dark-200 font-medium">{item.name}</p>
+                  <p className="text-xs text-dark-200 font-medium">{item.fullName || item.name}</p>
                 )}
                 <p className="text-[10px] text-dark-500">{item.probationEnd ? formatDateUTC(item.probationEnd) : '-'}</p>
               </div>
