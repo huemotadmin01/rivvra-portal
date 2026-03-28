@@ -198,7 +198,7 @@ function MiniTable({ title, icon: Icon, columns, rows, orgSlug }) {
 export default function EmployeeDashboard() {
   usePageTitle('Employee Dashboard');
   const { orgSlug } = useOrg();
-  const { addToast } = useToast();
+  const { showToast } = useToast();
 
   const [period, setPeriod] = useState('current_month');
   const [customFrom, setCustomFrom] = useState('');
@@ -213,7 +213,7 @@ export default function EmployeeDashboard() {
     setLoading(true);
     employeeApi.getDashboard(orgSlug, dates)
       .then(res => { if (res.success !== false) setData(res); })
-      .catch(() => addToast('Failed to load employee dashboard', 'error'))
+      .catch(() => showToast('Failed to load employee dashboard', 'error'))
       .finally(() => setLoading(false));
   }, [orgSlug, dates.from, dates.to]);
 
@@ -228,15 +228,19 @@ export default function EmployeeDashboard() {
 
   if (!data) return null;
 
-  const kpis = data.kpis || {};
-  const byType = data.byEmploymentType || [];
+  const kpis = data.overview || {};
+  // Backend returns byType as object { confirmed: 22, ... }, convert to array
+  const byTypeObj = data.byType || {};
+  const byType = typeof byTypeObj === 'object' && !Array.isArray(byTypeObj)
+    ? Object.entries(byTypeObj).map(([name, count]) => ({ name: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), count }))
+    : (Array.isArray(byTypeObj) ? byTypeObj : []);
   const billableSplit = data.billableSplit || {};
-  const periodStats = data.periodStats || {};
+  const periodStats = { newJoiners: (data.newJoiners || []).length, offBoarded: (data.offBoarded || []).length };
   const byDepartment = data.byDepartment || [];
-  const byEmpType = data.byType || [];
+  const byEmpType = byType;
   const newJoiners = data.newJoiners || [];
   const offBoarded = data.offBoarded || [];
-  const upcomingLwds = data.upcomingLwds || [];
+  const upcomingLwds = data.upcomingLWDs || [];
   const expiringAssignments = data.expiringAssignments || [];
   const probationEnding = data.probationEnding || [];
 
