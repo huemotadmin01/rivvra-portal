@@ -51,18 +51,20 @@ export default function PayrollDashboardPage() {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
   const fy = currentMonth >= 4 ? `${currentYear}-${(currentYear + 1).toString().slice(2)}` : `${currentYear - 1}-${currentYear.toString().slice(2)}`;
-  const fyRuns = runs.filter(r => r.financialYear === fy && ['processed', 'finalized', 'paid'].includes(r.status));
+  // Only include Rivvra-processed runs (March 2026 onwards) — earlier months were on GreytHR
+  const fyRuns = runs.filter(r => r.financialYear === fy && ['processed', 'finalized', 'paid'].includes(r.status) && (r.items?.length || 0) > 5);
   const fyTotalNet = fyRuns.reduce((s, r) => s + (r.summary?.totalNet || 0), 0);
   const fyTotalGross = fyRuns.reduce((s, r) => s + (r.summary?.totalGross || 0), 0);
   const fyTotalTds = fyRuns.reduce((s, r) => s + (r.summary?.totalTds || 0), 0);
   const fyTotalPf = fyRuns.reduce((s, r) => s + (r.summary?.totalPf || 0), 0);
+  const fyMonthCount = fyRuns.length;
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white">Payroll Dashboard</h1>
-          <p className="text-sm text-dark-400 mt-1">FY {fy} — {fyRuns.length} months processed</p>
+          <p className="text-sm text-dark-400 mt-1">FY {fy} — {fyMonthCount} month{fyMonthCount !== 1 ? 's' : ''} processed on Rivvra</p>
         </div>
         <button onClick={() => navigate('/payroll/statutory-run')} className="flex items-center gap-2 px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium">
           <Play size={14} /> Run Payroll
