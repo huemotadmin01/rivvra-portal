@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import timesheetApi, { getMyLeaveBalances, getPendingLeaveRequests } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import {
-  CalendarDays, IndianRupee, Clock, CheckCircle2, CalendarCheck, ChevronDown,
+  CalendarDays, IndianRupee, Clock, CheckCircle2, CalendarCheck, ChevronDown, Loader2,
   FileText, AlertCircle, ArrowRight, UserX, CalendarOff, Briefcase,
   Heart, Award, PartyPopper, MessageCircle, Send, Trash2, Plus, Megaphone,
   Cake, Gift,
