@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import timesheetApi, { getMyLeaveBalances, getPendingLeaveRequests } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import {
-  CalendarDays, IndianRupee, Clock, CheckCircle2,
+  CalendarDays, IndianRupee, Clock, CheckCircle2, CalendarCheck,
   FileText, AlertCircle, ArrowRight, UserX, CalendarOff, Briefcase,
   Heart, Award, PartyPopper, MessageCircle, Send, Trash2, Plus, Megaphone,
   Cake, Gift,
@@ -628,6 +628,7 @@ function AdminDashboard() {
   const { showToast } = useToast();
   const { orgPath } = usePlatform();
   const [timesheets, setTimesheets] = useState([]);
+  const [attendances, setAttendances] = useState([]);
   const [notApprovedData, setNotApprovedData] = useState(null);
   const [pendingLeaves, setPendingLeaves] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -644,7 +645,11 @@ function AdminDashboard() {
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     Promise.all([
-      timesheetApi.get('/timesheets', sig).then(r => setTimesheets((r.data || []).filter(t => !t.isAttendance))).catch(() => {}),
+      timesheetApi.get('/timesheets', sig).then(r => {
+        const all = r.data || [];
+        setTimesheets(all.filter(t => !t.isAttendance));
+        setAttendances(all.filter(t => t.isAttendance));
+      }).catch(() => {}),
       timesheetApi.get('/dashboard/not-approved', sig).then(r => setNotApprovedData(r.data)).catch(() => {}),
       getPendingLeaveRequests().then(data => {
         const arr = Array.isArray(data) ? data : data?.leaveRequests || data?.requests || [];
@@ -694,11 +699,18 @@ function AdminDashboard() {
   const myId = timesheetUser?._id;
 
   // Hooks must be called before any early return (Rules of Hooks)
+  // Timesheet stats
   const pending = useMemo(() => timesheets.filter(t => t.status === 'submitted'), [timesheets]);
   const approvedThisMonth = useMemo(() => {
     const now = new Date();
     return timesheets.filter(t => t.status === 'approved' && t.month === now.getMonth() + 1 && t.year === now.getFullYear());
   }, [timesheets]);
+  // Attendance stats
+  const attPending = useMemo(() => attendances.filter(t => t.status === 'submitted'), [attendances]);
+  const attApprovedThisMonth = useMemo(() => {
+    const now = new Date();
+    return attendances.filter(t => t.status === 'approved' && t.month === now.getMonth() + 1 && t.year === now.getFullYear());
+  }, [attendances]);
 
   const selectedMonth = notApprovedData?.months?.[notApprovedTab] || null;
 
@@ -895,60 +907,86 @@ function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertCircle size={18} className="text-amber-400" />
-            <span className="text-sm text-dark-400">Pending Approvals</span>
+      {/* ── Timesheet Section ────────────────────────────────────── */}
+      <div className="card p-4 border-l-4 border-emerald-500">
+        <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2"><FileText size={15} /> Timesheets</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-dark-400 mb-1">Pending</p>
+            <p className="text-2xl font-bold text-amber-400">{pending.length}</p>
           </div>
-          <p className="text-3xl font-bold text-white">{pending.length}</p>
-        </div>
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 size={18} className="text-emerald-400" />
-            <span className="text-sm text-dark-400">Approved This Month</span>
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
+            <p className="text-2xl font-bold text-emerald-400">{approvedThisMonth.length}</p>
           </div>
-          <p className="text-3xl font-bold text-white">{approvedThisMonth.length}</p>
-        </div>
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText size={18} className="text-blue-400" />
-            <span className="text-sm text-dark-400">Total Entries</span>
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-dark-400 mb-1">Total</p>
+            <p className="text-2xl font-bold text-white">{timesheets.length}</p>
           </div>
-          <p className="text-3xl font-bold text-white">{timesheets.length}</p>
         </div>
-        {pendingLeaves > 0 && (
-          <div className="card p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <CalendarOff size={18} className="text-purple-400" />
-              <span className="text-sm text-dark-400">Pending Leaves</span>
+        {pending.length > 0 && (
+          <div className="mt-3 divide-y divide-dark-700/50">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-xs font-medium text-dark-300">Pending Timesheet Approvals</span>
+              <Link to={orgPath('/timesheet/approvals')} className="text-blue-400 text-xs hover:text-blue-300 flex items-center gap-1">View All <ArrowRight size={12} /></Link>
             </div>
-            <p className="text-3xl font-bold text-white">{pendingLeaves}</p>
-            <Link to={orgPath('/timesheet/leave/approvals')} className="text-purple-400 text-xs font-medium hover:text-purple-300 mt-1 inline-block">
-              Review
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {pending.length > 0 && (
-        <div className="card">
-          <div className="p-4 border-b border-dark-800 flex items-center justify-between">
-            <h3 className="font-semibold text-white">Pending Approvals</h3>
-            <Link to={orgPath('/timesheet/approvals')} className="text-blue-400 text-sm hover:text-blue-300 flex items-center gap-1">
-              View All <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="divide-y divide-dark-800">
             {pending.slice(0, 5).map(ts => (
-              <div key={ts._id} className="flex items-center justify-between p-4">
+              <div key={ts._id} className="flex items-center justify-between py-2">
                 <div>
-                  <p className="text-sm font-medium text-white">{ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}</p>
+                  <p className="text-sm text-white">{ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}</p>
                   <p className="text-xs text-dark-500">{ts.project?.name} • {ts.totalWorkingDays} days</p>
                 </div>
                 <Link to={orgPath('/timesheet/approvals')} className="text-blue-400 text-xs font-medium hover:text-blue-300">Review</Link>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Attendance Section ────────────────────────────────────── */}
+      <div className="card p-4 border-l-4 border-blue-500">
+        <h3 className="text-sm font-semibold text-blue-400 mb-3 flex items-center gap-2"><CalendarCheck size={15} /> Attendance</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-dark-400 mb-1">Pending</p>
+            <p className="text-2xl font-bold text-amber-400">{attPending.length}</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
+            <p className="text-2xl font-bold text-emerald-400">{attApprovedThisMonth.length}</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-lg p-3">
+            <p className="text-xs text-dark-400 mb-1">Total</p>
+            <p className="text-2xl font-bold text-white">{attendances.length}</p>
+          </div>
+        </div>
+        {attPending.length > 0 && (
+          <div className="mt-3 divide-y divide-dark-700/50">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-xs font-medium text-dark-300">Pending Attendance Approvals</span>
+              <Link to={orgPath('/timesheet/attendance/approvals')} className="text-blue-400 text-xs hover:text-blue-300 flex items-center gap-1">View All <ArrowRight size={12} /></Link>
+            </div>
+            {attPending.slice(0, 5).map(att => (
+              <div key={att._id} className="flex items-center justify-between py-2">
+                <div>
+                  <p className="text-sm text-white">{att.contractor?.fullName || att.employeeName} — {monthNames[att.month]} {att.year}</p>
+                  <p className="text-xs text-dark-500">{att.presentDays || 0} present • {att.totalWorkingDays || 0} working days</p>
+                </div>
+                <Link to={orgPath('/timesheet/attendance/approvals')} className="text-blue-400 text-xs font-medium hover:text-blue-300">Review</Link>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Pending Leaves ────────────────────────────────────── */}
+      {pendingLeaves > 0 && (
+        <div className="card p-4 border-l-4 border-purple-500">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-purple-400 flex items-center gap-2"><CalendarOff size={15} /> Pending Leave Requests</h3>
+            <Link to={orgPath('/timesheet/leave/approvals')} className="text-purple-400 text-xs font-medium hover:text-purple-300">
+              Review ({pendingLeaves})
+            </Link>
           </div>
         </div>
       )}
