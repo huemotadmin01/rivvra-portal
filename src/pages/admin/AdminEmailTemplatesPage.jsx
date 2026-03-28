@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { api } from '../../utils/api';
 import {
   Mail, Edit3, Save, X, Eye, Loader2, AlertCircle, Code, Search,
-  Shield, Clock, Briefcase, ChevronDown, ChevronRight,
+  Shield, Clock, Briefcase, Calendar, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 
@@ -25,6 +25,15 @@ const GROUP_CONFIG = [
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
     match: (key) => key.startsWith('ts_'),
+  },
+  {
+    id: 'celebrations',
+    label: 'Celebrations',
+    description: 'Birthday, anniversary & probation completion emails',
+    icon: Calendar,
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/10',
+    match: (key) => key.startsWith('celebration_'),
   },
   {
     id: 'ats',
