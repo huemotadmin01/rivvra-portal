@@ -180,7 +180,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
               </div>
 
               {basicComp && Number(basicComp.percentOfGross) < 50 && (
-                <div className="bg-red-500/10 text-red-400 text-xs p-2 rounded">Basic must be >= 50% (New Wage Code compliance)</div>
+                <div className="bg-red-500/10 text-red-400 text-xs p-2 rounded">{"Basic must be >= 50% (New Wage Code compliance)"}</div>
               )}
 
               <div className="flex gap-3 pt-2">
