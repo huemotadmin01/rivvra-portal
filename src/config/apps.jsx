@@ -234,6 +234,7 @@ export const APP_REGISTRY = {
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       return [
+        ...(isAdmin ? [{ type: 'item', path: '/employee/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true }] : []),
         { type: 'item', path: '/employee/directory', label: 'Directory', icon: Users },
         { type: 'item', path: '/employee/departments', label: 'Departments', icon: Building2 },
         ...(isAdmin ? [

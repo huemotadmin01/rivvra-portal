@@ -374,6 +374,14 @@ const employeeApi = {
     const qs = status ? `?status=${status}` : '';
     return api.request(`/api/org/${orgSlug}/employee/my-tasks${qs}`);
   },
+
+  // ── Dashboard ─────────────────────────────────────────────────────────
+  getDashboard(orgSlug, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    return api.request(`/api/org/${orgSlug}/employee/dashboard?${qs.toString()}`);
+  },
 };
 
 export default employeeApi;

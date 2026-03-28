@@ -100,6 +100,7 @@ const LeaveReports = lazy(() => import('./pages/timesheet/LeaveReports'));
 const HolidayCalendar = lazy(() => import('./pages/timesheet/HolidayCalendar'));
 
 // Lazy-loaded: Employee app pages
+const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
@@ -329,6 +330,7 @@ function App() {
 
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
+                <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><EmployeeDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
                 {/* Add/Edit/Plan Templates require employee admin role */}
