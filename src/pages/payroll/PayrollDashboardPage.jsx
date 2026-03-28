@@ -52,7 +52,7 @@ export default function PayrollDashboardPage() {
   const currentYear = now.getFullYear();
   const fy = currentMonth >= 4 ? `${currentYear}-${(currentYear + 1).toString().slice(2)}` : `${currentYear - 1}-${currentYear.toString().slice(2)}`;
   // Only include Rivvra-processed runs (March 2026 onwards) — earlier months were on GreytHR
-  const fyRuns = runs.filter(r => r.financialYear === fy && ['processed', 'finalized', 'paid'].includes(r.status) && (r.items?.length || 0) > 5);
+  const fyRuns = runs.filter(r => r.financialYear === fy && ['processed', 'finalized', 'paid'].includes(r.status) && (r.year > 2026 || (r.year === 2026 && r.month >= 3)));
   const fyTotalNet = fyRuns.reduce((s, r) => s + (r.summary?.totalNet || 0), 0);
   const fyTotalGross = fyRuns.reduce((s, r) => s + (r.summary?.totalGross || 0), 0);
   const fyTotalTds = fyRuns.reduce((s, r) => s + (r.summary?.totalTds || 0), 0);
