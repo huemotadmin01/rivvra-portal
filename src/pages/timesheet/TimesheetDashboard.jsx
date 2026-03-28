@@ -667,9 +667,7 @@ function AdminDashboard() {
       }).catch(() => {}),
       timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
-    ]).finally(() => setDataLoaded(true));
-    // Set loading false immediately so the page structure renders with spinners
-    setTimeout(() => setLoading(false), 100);
+    ]).finally(() => { setDataLoaded(true); setLoading(false); });
     return () => controller.abort();
   }, []);
 
