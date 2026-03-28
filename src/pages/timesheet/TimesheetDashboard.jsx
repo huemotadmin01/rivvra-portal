@@ -634,7 +634,8 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [notApprovedTab, setNotApprovedTab] = useState(0);
   const [notApprovedExpanded, setNotApprovedExpanded] = useState(false);
-  const [dataReady, setDataReady] = useState(false);
+  const [tsDataReady, setTsDataReady] = useState(false);
+  const [attDataReady, setAttDataReady] = useState(false);
   // Social feed state
   const [celebrations, setCelebrations] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -652,13 +653,17 @@ function AdminDashboard() {
         const all = r.data || [];
         setTimesheets(all.filter(t => !t.isAttendance));
         setAttendances(all.filter(t => t.isAttendance));
+        setTsDataReady(true);
+        setAttDataReady(true);
       }).catch(() => {
         // Fallback: if summary endpoint doesn't exist, fetch regular but lightweight
         timesheetApi.get('/timesheets', sig).then(r => {
           const all = r.data || [];
           setTimesheets(all.filter(t => !t.isAttendance));
           setAttendances(all.filter(t => t.isAttendance));
-        }).catch(() => {});
+          setTsDataReady(true);
+          setAttDataReady(true);
+        }).catch(() => { setTsDataReady(true); setAttDataReady(true); });
       }),
       timesheetApi.get('/dashboard/not-approved', sig).then(r => setNotApprovedData(r.data)).catch(() => {}),
       getPendingLeaveRequests().then(data => {
@@ -667,7 +672,7 @@ function AdminDashboard() {
       }).catch(() => {}),
       timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
-    ]).finally(() => { setDataReady(true); setLoading(false); });
+    ]).finally(() => setLoading(false));
     return () => controller.abort();
   }, []);
 
@@ -915,15 +920,15 @@ function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
-            <p className="text-2xl font-bold text-amber-400">{dataReady ? pending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-amber-400">{tsDataReady ? pending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
-            <p className="text-2xl font-bold text-emerald-400">{dataReady ? approvedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-emerald-400">{tsDataReady ? approvedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-white">{dataReady ? timesheets.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-white">{tsDataReady ? timesheets.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
         </div>
         {pending.length > 0 && (
@@ -951,15 +956,15 @@ function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
-            <p className="text-2xl font-bold text-amber-400">{dataReady ? attPending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-amber-400">{attDataReady ? attPending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
-            <p className="text-2xl font-bold text-emerald-400">{dataReady ? attApprovedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-emerald-400">{attDataReady ? attApprovedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-white">{dataReady ? attendances.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-white">{attDataReady ? attendances.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
         </div>
         {attPending.length > 0 && (
