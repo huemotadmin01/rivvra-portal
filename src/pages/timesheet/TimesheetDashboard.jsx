@@ -634,7 +634,7 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [notApprovedTab, setNotApprovedTab] = useState(0);
   const [notApprovedExpanded, setNotApprovedExpanded] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
   // Social feed state
   const [celebrations, setCelebrations] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -667,7 +667,7 @@ function AdminDashboard() {
       }).catch(() => {}),
       timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
-    ]).finally(() => { setDataLoaded(true); setLoading(false); });
+    ]).finally(() => { setDataReady(true); setLoading(false); });
     return () => controller.abort();
   }, []);
 
@@ -723,14 +723,6 @@ function AdminDashboard() {
   }, [attendances]);
 
   const selectedMonth = notApprovedData?.months?.[notApprovedTab] || null;
-
-  if (loading) return (
-    <PageSkeleton>
-      <HeaderSkeleton titleW="w-52" subtitleW="w-36" />
-      <CardGridSkeleton count={3} />
-      <PendingListSkeleton count={4} />
-    </PageSkeleton>
-  );
 
   return (
     <div className="p-3 sm:p-6 flex flex-col gap-4 sm:gap-6">
@@ -923,15 +915,15 @@ function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
-            <p className="text-2xl font-bold text-amber-400">{pending.length}</p>
+            <p className="text-2xl font-bold text-amber-400">{dataReady ? pending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
-            <p className="text-2xl font-bold text-emerald-400">{approvedThisMonth.length}</p>
+            <p className="text-2xl font-bold text-emerald-400">{dataReady ? approvedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-white">{timesheets.length}</p>
+            <p className="text-2xl font-bold text-white">{dataReady ? timesheets.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
         </div>
         {pending.length > 0 && (
@@ -959,15 +951,15 @@ function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
-            <p className="text-2xl font-bold text-amber-400">{attPending.length}</p>
+            <p className="text-2xl font-bold text-amber-400">{dataReady ? attPending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
-            <p className="text-2xl font-bold text-emerald-400">{attApprovedThisMonth.length}</p>
+            <p className="text-2xl font-bold text-emerald-400">{dataReady ? attApprovedThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-white">{attendances.length}</p>
+            <p className="text-2xl font-bold text-white">{dataReady ? attendances.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
         </div>
         {attPending.length > 0 && (
