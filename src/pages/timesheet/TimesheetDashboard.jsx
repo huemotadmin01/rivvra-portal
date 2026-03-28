@@ -923,15 +923,15 @@ function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
-            {dataLoaded ? <p className="text-2xl font-bold text-amber-400">{pending.length}</p> : <Loader2 size={20} className="animate-spin text-dark-500 mt-1" />}
+            <p className="text-2xl font-bold text-amber-400">{pending.length}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
-            {dataLoaded ? <p className="text-2xl font-bold text-emerald-400">{approvedThisMonth.length}</p> : <Loader2 size={20} className="animate-spin text-dark-500 mt-1" />}
+            <p className="text-2xl font-bold text-emerald-400">{approvedThisMonth.length}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            {dataLoaded ? <p className="text-2xl font-bold text-white">{timesheets.length}</p> : <Loader2 size={20} className="animate-spin text-dark-500 mt-1" />}
+            <p className="text-2xl font-bold text-white">{timesheets.length}</p>
           </div>
         </div>
         {pending.length > 0 && (
@@ -959,15 +959,15 @@ function AdminDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
-            {dataLoaded ? <p className="text-2xl font-bold text-amber-400">{attPending.length}</p> : <Loader2 size={20} className="animate-spin text-dark-500 mt-1" />}
+            <p className="text-2xl font-bold text-amber-400">{attPending.length}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Approved (Month)</p>
-            {dataLoaded ? <p className="text-2xl font-bold text-emerald-400">{attApprovedThisMonth.length}</p> : <Loader2 size={20} className="animate-spin text-dark-500 mt-1" />}
+            <p className="text-2xl font-bold text-emerald-400">{attApprovedThisMonth.length}</p>
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            {dataLoaded ? <p className="text-2xl font-bold text-white">{attendances.length}</p> : <Loader2 size={20} className="animate-spin text-dark-500 mt-1" />}
+            <p className="text-2xl font-bold text-white">{attendances.length}</p>
           </div>
         </div>
         {attPending.length > 0 && (
