@@ -86,17 +86,29 @@ export const APP_REGISTRY = {
       // Manager status is derived from the employee system (not from static role field)
       const isManager = timesheetUser?.isManager === true;
 
-      // Resigned/terminated employees: show limited sidebar (payslips + profile only)
+      // Resigned/terminated employees: show same sidebar as their mode but read-only
       if (timesheetUser?.resigned) {
+        const isConsultant = timesheetUser?.timesheetMode === 'timesheet';
         return [
           { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
           { type: 'item', path: '/timesheet/my-profile', label: 'My Profile', icon: User },
-          {
-            type: 'group', label: 'Payroll', icon: IndianRupee,
-            children: [
-              { path: '/timesheet/my-payslips', label: 'My Payslips', icon: FileText },
-            ],
-          },
+          // Show correct module based on their mode (read-only)
+          ...(isConsultant
+            ? [{ type: 'item', path: '/timesheet/my-timesheet', label: 'My Timesheet', icon: CalendarDays }]
+            : [{ type: 'item', path: '/timesheet/my-attendance', label: 'My Attendance', icon: CalendarCheck }]
+          ),
+          // Show correct earnings/payroll based on mode
+          ...(isConsultant
+            ? [{ type: 'item', path: '/timesheet/earnings', label: 'My Earnings', icon: IndianRupee }]
+            : [{
+                type: 'group', label: 'Payroll', icon: IndianRupee,
+                children: [
+                  { path: '/timesheet/my-salary', label: 'My Salary', icon: IndianRupee },
+                  { path: '/timesheet/my-payslips', label: 'My Payslips', icon: FileText },
+                ],
+              }]
+          ),
+          // Tax report for confirmed employees
           ...(timesheetUser?.employmentType === 'confirmed' ? [{
             type: 'group', label: 'Tax', icon: Shield,
             children: [
