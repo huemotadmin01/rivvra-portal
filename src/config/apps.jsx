@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield,
+  Shield, User,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -85,6 +85,26 @@ export const APP_REGISTRY = {
       const isAdmin = tsRole === 'admin';
       // Manager status is derived from the employee system (not from static role field)
       const isManager = timesheetUser?.isManager === true;
+
+      // Resigned/terminated employees: show limited sidebar (payslips + profile only)
+      if (timesheetUser?.resigned) {
+        return [
+          { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
+          { type: 'item', path: '/timesheet/my-profile', label: 'My Profile', icon: User },
+          {
+            type: 'group', label: 'Payroll', icon: IndianRupee,
+            children: [
+              { path: '/timesheet/my-payslips', label: 'My Payslips', icon: FileText },
+            ],
+          },
+          ...(timesheetUser?.employmentType === 'confirmed' ? [{
+            type: 'group', label: 'Tax', icon: Shield,
+            children: [
+              { path: '/timesheet/tax/report', label: 'Tax Report', icon: BarChart3 },
+            ],
+          }] : []),
+        ];
+      }
 
       // Determine if employee is eligible for leave management
       const empType = timesheetUser?.employmentType;
