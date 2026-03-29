@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import {
   Loader2, FileText, Send, CheckCircle2, XCircle,
-  LayoutTemplate, Plus, Upload, Clock, User,
+  LayoutTemplate, Plus, Upload, Clock, User, Zap,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -102,13 +102,20 @@ export default function SignDashboard() {
             Overview of your electronic signature requests
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => navigate(orgPath('/sign/templates'))}
             className="bg-dark-800 hover:bg-dark-700 text-dark-200 border border-dark-700 rounded-lg px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
           >
             <Upload size={16} />
             Upload Template
+          </button>
+          <button
+            onClick={() => navigate(orgPath('/sign/requests?quicksend=true'))}
+            className="bg-dark-800 hover:bg-dark-700 text-dark-200 border border-dark-700 rounded-lg px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+          >
+            <Zap size={16} className="text-amber-400" />
+            Quick Send
           </button>
           <button
             onClick={() => navigate(orgPath('/sign/requests?create=true'))}

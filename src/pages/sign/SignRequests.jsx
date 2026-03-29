@@ -1126,11 +1126,16 @@ export default function SignRequests() {
 
   const debounceRef = useRef(null);
 
-  // Check if ?create=true in URL
+  // Check if ?create=true or ?quicksend=true in URL
   useEffect(() => {
     if (searchParams.get('create') === 'true') {
       setShowModal(true);
       searchParams.delete('create');
+      setSearchParams(searchParams, { replace: true });
+    }
+    if (searchParams.get('quicksend') === 'true') {
+      setShowQuickSend(true);
+      searchParams.delete('quicksend');
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
