@@ -46,6 +46,7 @@ import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanel from '../../components/shared/ActivityPanel';
+import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import ComboSelect from '../../components/ComboSelect';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
 import { Paperclip } from 'lucide-react';
@@ -1321,6 +1322,14 @@ export default function EmployeeDetail() {
       {/* ── Activities & Log Notes ─────────────────────────────────────── */}
       <div className="mt-5">
         <ActivityPanel orgSlug={currentOrg?.slug} entityType="employee" entityId={employeeId} />
+        <div className="mt-4">
+          <SignRequestWidget
+            orgSlug={currentOrg?.slug}
+            linkedModel="employee"
+            linkedId={employeeId}
+            prefillData={{ name: emp?.name || '', email: emp?.email || '', phone: emp?.phone || emp?.mobile || '' }}
+          />
+        </div>
       </div>
 
       {/* ── Project Assignments (full-width) ────────────────────────────── */}

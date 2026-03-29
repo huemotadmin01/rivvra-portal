@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
+import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Edit2, Save, X, Loader2, Trash2,
@@ -837,7 +838,17 @@ export default function ContactDetail() {
 
       {/* ── Activities Tab ─────────────────────────────────────────── */}
       {activeTab === 'activities' && (
-        <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} />
+        <>
+          <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} />
+          <div className="mt-4">
+            <SignRequestWidget
+              orgSlug={orgSlug}
+              linkedModel="contact"
+              linkedId={contactId}
+              prefillData={{ name: contact?.name || '', email: contact?.email || '', phone: contact?.phone || '', company: contact?.company || '' }}
+            />
+          </div>
+        </>
       )}
 
       {/* ── Notes Tab ────────────────────────────────────────────────── */}

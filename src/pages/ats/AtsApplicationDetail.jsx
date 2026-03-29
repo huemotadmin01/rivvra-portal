@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import signApi from '../../utils/signApi';
+import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -852,6 +853,12 @@ export default function AtsApplicationDetail() {
               orgSlug={orgSlug}
               applicationId={applicationId}
               orgPath={orgPath}
+            />
+            <SignRequestWidget
+              orgSlug={orgSlug}
+              linkedModel="ats_application"
+              linkedId={applicationId}
+              prefillData={{ name: application?.candidateName || '', email: application?.candidateEmail || '', phone: application?.candidatePhone || '' }}
             />
           </div>
 

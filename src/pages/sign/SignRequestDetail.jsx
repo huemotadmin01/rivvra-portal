@@ -12,6 +12,7 @@ import {
   Download, User, Calendar, Clock, Send,
   Mail, CheckCircle2, X, ExternalLink,
   Eye, Link as LinkIcon, ChevronLeft, ChevronRight,
+  Shield, Plus, AlertCircle, MapPin,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -29,6 +30,7 @@ const STATUS_STYLES = {
   pending:   'bg-amber-500/10 text-amber-400',
   waiting:   'bg-amber-500/10 text-amber-400',
   completed: 'bg-emerald-500/10 text-emerald-400',
+  viewed:    'bg-purple-500/10 text-purple-400',
 };
 
 function StatusBadge({ status, size = 'sm' }) {
@@ -41,6 +43,97 @@ function StatusBadge({ status, size = 'sm' }) {
     <span className={`rounded-full font-medium ${cls} ${sizeClass}`}>
       {label}
     </span>
+  );
+}
+
+/* ── Timeline action config ───────────────────────────────────────────── */
+const TIMELINE_ACTION = {
+  created:   { icon: Plus,         color: 'text-blue-400',    bg: 'bg-blue-500/10',    label: 'Request created' },
+  viewed:    { icon: Eye,          color: 'text-purple-400',  bg: 'bg-purple-500/10',  label: 'Document viewed' },
+  signed:    { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: 'Signed' },
+  refused:   { icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/10',     label: 'Refused to sign' },
+  cancelled: { icon: X,            color: 'text-red-400',     bg: 'bg-red-500/10',     label: 'Request cancelled' },
+  reminded:  { icon: Bell,         color: 'text-amber-400',   bg: 'bg-amber-500/10',   label: 'Reminder sent' },
+  expired:   { icon: Clock,        color: 'text-orange-400',  bg: 'bg-orange-500/10',  label: 'Request expired' },
+};
+
+function SignTimeline({ orgSlug, requestId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await signApi.getRequestLogs(orgSlug, requestId);
+        if (!cancelled && res.logs) setLogs(res.logs);
+      } catch { /* ignore */ }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, requestId]);
+
+  if (loading) {
+    return (
+      <div className="card p-5">
+        <h3 className="text-sm font-semibold text-dark-400 uppercase tracking-wide mb-3">Activity Timeline</h3>
+        <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-dark-500" /></div>
+      </div>
+    );
+  }
+
+  if (logs.length === 0) return null;
+
+  const formatTimeAgo = (date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH}h ago`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD < 7) return `${diffD}d ago`;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="card p-5">
+      <h3 className="text-sm font-semibold text-dark-400 uppercase tracking-wide mb-4">Activity Timeline</h3>
+      <div className="relative">
+        {/* Vertical line */}
+        <div className="absolute left-3.5 top-2 bottom-2 w-px bg-dark-700" />
+        <div className="space-y-4">
+          {logs.map((log, idx) => {
+            const cfg = TIMELINE_ACTION[log.action] || { icon: AlertCircle, color: 'text-dark-400', bg: 'bg-dark-700', label: log.action };
+            const Icon = cfg.icon;
+            return (
+              <div key={log._id || idx} className="flex items-start gap-3 relative">
+                <div className={`w-7 h-7 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0 z-10`}>
+                  <Icon size={13} className={cfg.color} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-dark-200 text-sm leading-tight">
+                    <span className="font-medium">{log.performedByName || 'System'}</span>
+                    <span className="text-dark-500"> — {cfg.label}</span>
+                  </p>
+                  {log.details?.signerEmail && (
+                    <p className="text-dark-500 text-xs mt-0.5">{log.details.signerEmail}</p>
+                  )}
+                  {log.details?.geo && (
+                    <p className="text-dark-500 text-xs mt-0.5 flex items-center gap-1">
+                      <MapPin size={10} /> {log.details.geo.city}, {log.details.geo.country}
+                    </p>
+                  )}
+                  <p className="text-dark-600 text-[11px] mt-0.5">{formatTimeAgo(log.createdAt)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -336,6 +429,10 @@ export default function SignRequestDetail() {
             <p className="text-dark-400 text-sm mt-1">
               {template?.name || request.templateName || 'Unknown template'}
             </p>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <Shield size={12} className="text-emerald-500" />
+              <span className="text-[11px] text-dark-500">eIDAS &middot; ESIGN Act &middot; UETA Compliant</span>
+            </div>
           </div>
         </div>
 
@@ -525,7 +622,14 @@ export default function SignRequestDetail() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={signer.state || 'pending'} />
+                          <div className="flex flex-col gap-1">
+                            <StatusBadge status={signer.state || 'pending'} />
+                            {signer.viewedAt && signer.state !== 'completed' && (
+                              <span className="flex items-center gap-1 text-[10px] text-purple-400">
+                                <Eye size={10} /> Viewed {formatDate(signer.viewedAt)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-dark-400 text-xs hidden lg:table-cell">
                           {signer.signingDate ? formatDate(signer.signingDate) : '\u2014'}
@@ -567,6 +671,31 @@ export default function SignRequestDetail() {
               </div>
             )}
           </div>
+
+          {/* Envelope Documents */}
+          {request.isEnvelope && request.documents?.length > 0 && (
+            <div className="card p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">Envelope Documents ({request.documents.length})</h2>
+              <div className="space-y-2">
+                {request.documents.map((doc, idx) => (
+                  <div key={doc.id || idx} className="flex items-center justify-between p-3 bg-dark-900 rounded-lg border border-dark-700">
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold inline-flex items-center justify-center">{doc.order || idx + 1}</span>
+                      <div>
+                        <p className="text-white text-sm font-medium">{doc.templateName}</p>
+                        <p className="text-dark-500 text-xs">{doc.numPages || 1} page(s)</p>
+                      </div>
+                    </div>
+                    {doc.signedPdfUrl ? (
+                      <span className="text-emerald-400 text-xs flex items-center gap-1"><CheckCircle2 size={12} /> Signed</span>
+                    ) : (
+                      <span className="text-dark-500 text-xs">Pending</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Signed Values */}
           {request.state === 'signed' && values.length > 0 && (
@@ -731,6 +860,9 @@ export default function SignRequestDetail() {
               )}
             </div>
           </div>
+
+          {/* Activity Timeline */}
+          <SignTimeline orgSlug={orgSlug} requestId={requestId} />
         </div>
       </div>
     </div>

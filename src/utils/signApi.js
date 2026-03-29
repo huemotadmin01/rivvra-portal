@@ -136,6 +136,53 @@ const signApi = {
     });
   },
 
+  // ── Logs / Timeline ───────────────────────────────────────────────
+  getRequestLogs(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/sign/requests/${id}/logs`);
+  },
+
+  // ── Quick Send ───────────────────────────────────────────────────
+  quickSend(orgSlug, formData) {
+    return api.uploadFile(`/api/org/${orgSlug}/sign/quick-send`, formData);
+  },
+
+  // ── Signer Lookup (Auto-fill) ────────────────────────────────────
+  lookupSigner(orgSlug, email) {
+    return api.request(`/api/org/${orgSlug}/sign/lookup-signer?email=${encodeURIComponent(email)}`);
+  },
+
+  // ── Settings ─────────────────────────────────────────────────────
+  getSettings(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/sign/settings`);
+  },
+  updateSettings(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/sign/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ── Bulk Send ────────────────────────────────────────────────────
+  bulkSendPreview(orgSlug, formData) {
+    return api.uploadFile(`/api/org/${orgSlug}/sign/bulk-send/preview`, formData);
+  },
+  bulkSend(orgSlug, formData) {
+    return api.uploadFile(`/api/org/${orgSlug}/sign/bulk-send`, formData);
+  },
+
+  // ── Cross-App Linked Entity ──────────────────────────────────────
+  getLinkedEntityData(orgSlug, model, id) {
+    return api.request(`/api/org/${orgSlug}/sign/linked-entity/${model}/${id}`);
+  },
+
+  // ── Envelopes ─────────────────────────────────────────────────────
+  createEnvelopeRequest(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/sign/requests/envelope`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // ── Dashboard ──────────────────────────────────────────────────────
   getDashboard(orgSlug) {
     return api.request(`/api/org/${orgSlug}/sign/dashboard`);

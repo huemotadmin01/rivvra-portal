@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Bell, XCircle, Send, User, Calendar,
   ArrowRight, ArrowLeft, Check, Mail,
-  MessageSquare, GripVertical,
+  MessageSquare, GripVertical, Upload, Zap, Users,
 } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -200,6 +200,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   const [roles, setRoles] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [envelopeDocs, setEnvelopeDocs] = useState([]); // For multi-doc envelope
   const [signers, setSigners] = useState([EMPTY_SIGNER()]);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -207,10 +208,13 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   const [ccEmails, setCcEmails] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const isEnvelope = envelopeDocs.length > 1;
+
   useEffect(() => {
     if (show && orgSlug) {
       setStep(1);
       setSelectedTemplate(null);
+      setEnvelopeDocs([]);
       setSigners([EMPTY_SIGNER()]);
       setSubject('');
       setMessage('');
@@ -282,34 +286,55 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   };
 
   const canGoNext = () => {
-    if (step === 1) return !!selectedTemplate;
+    if (step === 1) return isEnvelope ? envelopeDocs.length >= 2 : !!selectedTemplate;
     if (step === 2) return signers.every((s) => s.name.trim() && s.email.trim());
     if (step === 3) return true;
     return true;
   };
 
+  const addToEnvelope = (tmpl) => {
+    if (!envelopeDocs.find(d => d._id === tmpl._id)) {
+      setEnvelopeDocs(prev => [...prev, tmpl]);
+    }
+  };
+  const removeFromEnvelope = (id) => {
+    setEnvelopeDocs(prev => prev.filter(d => d._id !== id));
+  };
+
   const handleSubmit = async () => {
     try {
       setSaving(true);
-      const data = {
-        templateId: selectedTemplate._id,
-        signers: signers.map((s) => ({
-          name: s.name.trim(),
-          email: s.email.trim(),
-          roleId: s.roleId || undefined,
-          roleName: s.roleName || undefined,
-        })),
+      const signerData = signers.map((s) => ({
+        name: s.name.trim(),
+        email: s.email.trim(),
+        roleId: s.roleId || undefined,
+        roleName: s.roleName || undefined,
+      }));
+      const commonData = {
         subject: subject.trim() || undefined,
         message: message.trim() || undefined,
         validity: validityDate || undefined,
-        ccEmails: ccEmails
-          .split(',')
-          .map((e) => e.trim())
-          .filter(Boolean),
+        ccEmails: ccEmails.split(',').map((e) => e.trim()).filter(Boolean),
       };
-      const res = await signApi.createRequest(orgSlug, data);
+
+      let res;
+      if (isEnvelope) {
+        res = await signApi.createEnvelopeRequest(orgSlug, {
+          ...commonData,
+          documents: envelopeDocs.map(d => ({ templateId: d._id })),
+          signers: signerData,
+          reference: envelopeDocs.map(d => d.name).join(' + '),
+        });
+      } else {
+        res = await signApi.createRequest(orgSlug, {
+          ...commonData,
+          templateId: selectedTemplate._id,
+          signers: signerData,
+        });
+      }
+
       if (res.success !== false) {
-        showToast('Signature request created and sent');
+        showToast(isEnvelope ? 'Envelope sent for signature' : 'Signature request created and sent');
         onSaved();
         onClose();
       } else {
@@ -398,33 +423,68 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
                 <p className="text-dark-400 text-sm">No templates available. Upload a template first.</p>
               </div>
             ) : (
+              <>
+              {/* Envelope docs list */}
+              {envelopeDocs.length > 0 && (
+                <div className="mb-3 p-3 bg-indigo-500/5 border border-indigo-500/20 rounded-lg">
+                  <p className="text-xs text-indigo-400 font-medium mb-2">Envelope ({envelopeDocs.length} documents)</p>
+                  <div className="space-y-1">
+                    {envelopeDocs.map((d, idx) => (
+                      <div key={d._id} className="flex items-center justify-between text-sm">
+                        <span className="text-dark-200">{idx + 1}. {d.name}</span>
+                        <button onClick={() => removeFromEnvelope(d._id)} className="text-dark-500 hover:text-red-400"><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2 max-h-80 overflow-y-auto">
-                {templates.map((tpl) => (
-                  <button
-                    key={tpl._id}
-                    onClick={() => setSelectedTemplate(tpl)}
-                    className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3 ${
-                      selectedTemplate?._id === tpl._id
-                        ? 'bg-indigo-500/10 border-indigo-500/30'
-                        : 'bg-dark-900 border-dark-700 hover:border-dark-600'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                      <FileText size={18} className="text-indigo-400" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-white font-medium truncate">{tpl.name}</p>
-                      <p className="text-dark-400 text-xs mt-0.5">
-                        {tpl.numPages || tpl.pageCount || tpl.pages || 0} pages
-                        {tpl.signItems?.length ? ` \u2022 ${tpl.signItems.length} fields` : ''}
-                      </p>
-                    </div>
-                    {selectedTemplate?._id === tpl._id && (
-                      <Check size={18} className="text-indigo-400 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
+                {templates.map((tpl) => {
+                  const inEnvelope = envelopeDocs.some(d => d._id === tpl._id);
+                  return (
+                    <button
+                      key={tpl._id}
+                      onClick={() => {
+                        if (isEnvelope || envelopeDocs.length > 0) {
+                          if (!inEnvelope) addToEnvelope(tpl);
+                        } else {
+                          setSelectedTemplate(tpl);
+                        }
+                      }}
+                      className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3 ${
+                        selectedTemplate?._id === tpl._id || inEnvelope
+                          ? 'bg-indigo-500/10 border-indigo-500/30'
+                          : 'bg-dark-900 border-dark-700 hover:border-dark-600'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+                        <FileText size={18} className="text-indigo-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white font-medium truncate">{tpl.name}</p>
+                        <p className="text-dark-400 text-xs mt-0.5">
+                          {tpl.numPages || tpl.pageCount || tpl.pages || 0} pages
+                          {tpl.signItems?.length ? ` \u2022 ${tpl.signItems.length} fields` : ''}
+                        </p>
+                      </div>
+                      {(selectedTemplate?._id === tpl._id || inEnvelope) && (
+                        <Check size={18} className="text-indigo-400 flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
+              {/* Add document to envelope button */}
+              {selectedTemplate && !isEnvelope && envelopeDocs.length === 0 && (
+                <button
+                  onClick={() => { addToEnvelope(selectedTemplate); setSelectedTemplate(null); }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 mt-2"
+                >
+                  <Plus size={12} /> Add another document (create envelope)
+                </button>
+              )}
+              </>
             )}
           </div>
         )}
@@ -640,6 +700,396 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
   );
 }
 
+/* ── Quick Send Modal ─────────────────────────────────────────────────── */
+function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
+  const { showToast } = useToast();
+  const [step, setStep] = useState(1); // 1=upload, 2=signers, 3=send
+  const [file, setFile] = useState(null);
+  const [reference, setReference] = useState('');
+  const [signers, setSigners] = useState([{ name: '', email: '', roleId: null }]);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [validity, setValidity] = useState('');
+  const [sending, setSending] = useState(false);
+  const [roles, setRoles] = useState([]);
+
+  useEffect(() => {
+    if (show && orgSlug) {
+      signApi.listRoles(orgSlug).then(res => { if (res.roles) setRoles(res.roles); }).catch(() => {});
+    }
+  }, [show, orgSlug]);
+
+  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '', roleId: null }]); setSubject(''); setMessage(''); setValidity(''); };
+
+  const handleFile = (e) => {
+    const f = e.target.files?.[0] || e.dataTransfer?.files?.[0];
+    if (f && f.type === 'application/pdf') {
+      setFile(f);
+      if (!reference) setReference(f.name.replace('.pdf', ''));
+    }
+  };
+
+  const addSigner = () => setSigners(prev => [...prev, { name: '', email: '', roleId: roles[0]?._id || null }]);
+  const removeSigner = (idx) => setSigners(prev => prev.filter((_, i) => i !== idx));
+  const updateSigner = (idx, field, val) => setSigners(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
+
+  const handleSend = async () => {
+    if (!file || signers.some(s => !s.email)) return;
+    setSending(true);
+    try {
+      const fd = new FormData();
+      fd.append('pdf', file);
+      fd.append('reference', reference);
+      fd.append('signers', JSON.stringify(signers.map((s, i) => ({
+        ...s,
+        roleName: roles.find(r => r._id === s.roleId)?.name || `Signer ${i + 1}`,
+      }))));
+      fd.append('subject', subject || `Signature Request - ${reference}`);
+      if (message) fd.append('message', message);
+      if (validity) fd.append('validity', validity);
+      const res = await signApi.quickSend(orgSlug, fd);
+      if (res.success !== false) {
+        showToast('Document sent for signature');
+        reset();
+        onClose();
+        onSaved?.();
+      } else {
+        showToast(res.error || 'Failed to send', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to send', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
+          <div className="flex items-center gap-2">
+            <Zap size={18} className="text-amber-400" />
+            <h2 className="text-lg font-semibold text-white">Quick Send</h2>
+          </div>
+          <button onClick={() => { reset(); onClose(); }} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"><X size={18} /></button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Step 1: Upload PDF */}
+          {step === 1 && (
+            <>
+              <div
+                onDrop={(e) => { e.preventDefault(); handleFile(e); }}
+                onDragOver={(e) => e.preventDefault()}
+                className="border-2 border-dashed border-dark-600 hover:border-indigo-500/50 rounded-xl p-8 text-center transition-colors cursor-pointer"
+                onClick={() => document.getElementById('qs-pdf-input').click()}
+              >
+                {file ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <FileText size={24} className="text-indigo-400" />
+                    <div className="text-left">
+                      <p className="text-white text-sm font-medium">{file.name}</p>
+                      <p className="text-dark-500 text-xs">{(file.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="text-dark-400 hover:text-red-400 p-1"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload size={32} className="mx-auto text-dark-500 mb-3" />
+                    <p className="text-dark-300 text-sm font-medium">Drop a PDF here or click to upload</p>
+                    <p className="text-dark-500 text-xs mt-1">Maximum 10 MB</p>
+                  </>
+                )}
+                <input id="qs-pdf-input" type="file" accept=".pdf" onChange={handleFile} className="hidden" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Document Name</label>
+                <input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. NDA Agreement" className="input-field w-full" />
+              </div>
+              <button onClick={() => setStep(2)} disabled={!file} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
+                Next <ArrowRight size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Step 2: Signers */}
+          {step === 2 && (
+            <>
+              <p className="text-dark-400 text-sm">Add people who need to sign this document.</p>
+              <div className="space-y-3">
+                {signers.map((s, idx) => (
+                  <div key={idx} className="bg-dark-900 rounded-lg p-3 border border-dark-700 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-dark-500">Signer {idx + 1}</span>
+                      {signers.length > 1 && (
+                        <button onClick={() => removeSigner(idx)} className="text-dark-500 hover:text-red-400"><X size={14} /></button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input value={s.name} onChange={e => updateSigner(idx, 'name', e.target.value)} placeholder="Name" className="input-field text-sm" />
+                      <input value={s.email} onChange={e => updateSigner(idx, 'email', e.target.value)} placeholder="Email *" type="email" className="input-field text-sm" />
+                    </div>
+                    {roles.length > 0 && (
+                      <select value={s.roleId || ''} onChange={e => updateSigner(idx, 'roleId', e.target.value || null)} className="input-field text-sm w-full">
+                        <option value="">No role</option>
+                        {roles.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
+              <div className="flex gap-3">
+                <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
+                <button onClick={() => setStep(3)} disabled={signers.some(s => !s.email)} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
+                  Next <ArrowRight size={14} />
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Step 3: Options & Send */}
+          {step === 3 && (
+            <>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Subject</label>
+                <input value={subject} onChange={e => setSubject(e.target.value)} placeholder={`Signature Request - ${reference}`} className="input-field w-full" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
+                <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Add a message for the signers..." rows={3} className="input-field w-full resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
+                <input type="date" value={validity} onChange={e => setValidity(e.target.value)} className="input-field w-full" />
+              </div>
+              <div className="bg-dark-900 rounded-lg p-3 border border-dark-700">
+                <p className="text-xs text-dark-400 mb-2">Summary</p>
+                <p className="text-sm text-white">{reference || file?.name}</p>
+                <p className="text-xs text-dark-500 mt-1">{signers.length} signer(s) &middot; Signature fields auto-placed</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setStep(2)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
+                <button onClick={handleSend} disabled={sending} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
+                  {sending ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><Send size={14} /> Send</>}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Bulk Send Modal ──────────────────────────────────────────────────── */
+function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
+  const { showToast } = useToast();
+  const [step, setStep] = useState(1); // 1=template, 2=csv, 3=preview, 4=options, 5=send
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [csvFile, setCsvFile] = useState(null);
+  const [previewRows, setPreviewRows] = useState([]);
+  const [previewErrors, setPreviewErrors] = useState([]);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [validity, setValidity] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (show && orgSlug) {
+      signApi.listTemplates(orgSlug).then(res => { if (res.templates) setTemplates(res.templates); }).catch(() => {});
+    }
+  }, [show, orgSlug]);
+
+  const reset = () => { setStep(1); setSelectedTemplate(null); setCsvFile(null); setPreviewRows([]); setPreviewErrors([]); setSubject(''); setMessage(''); setValidity(''); setSendResult(null); };
+
+  const handlePreview = async () => {
+    if (!csvFile) return;
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('csv', csvFile);
+      fd.append('templateId', selectedTemplate._id);
+      const res = await signApi.bulkSendPreview(orgSlug, fd);
+      if (res.success !== false) {
+        setPreviewRows(res.rows || []);
+        setPreviewErrors(res.errors || []);
+        setStep(3);
+      } else {
+        showToast(res.error || 'Failed to parse CSV', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to parse CSV', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkSend = async () => {
+    setSending(true);
+    try {
+      const fd = new FormData();
+      fd.append('csv', csvFile);
+      fd.append('templateId', selectedTemplate._id);
+      fd.append('subject', subject || `Signature Request - ${selectedTemplate.name}`);
+      if (message) fd.append('message', message);
+      if (validity) fd.append('validity', validity);
+      const res = await signApi.bulkSend(orgSlug, fd);
+      if (res.success !== false) {
+        setSendResult(res);
+        setStep(5);
+        onSaved?.();
+      } else {
+        showToast(res.error || 'Failed', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-blue-400" />
+            <h2 className="text-lg font-semibold text-white">Bulk Send</h2>
+          </div>
+          <button onClick={() => { reset(); onClose(); }} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-5">
+          {/* Step 1: Select Template */}
+          {step === 1 && (
+            <>
+              <p className="text-dark-400 text-sm">Choose a template to send to multiple recipients.</p>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {templates.map(t => (
+                  <button key={t._id} onClick={() => setSelectedTemplate(t)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all ${selectedTemplate?._id === t._id ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-dark-900 border-dark-700 hover:border-dark-600'}`}>
+                    <div className="flex items-center gap-3">
+                      <FileText size={16} className="text-indigo-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-white text-sm font-medium">{t.name}</p>
+                        <p className="text-dark-500 text-xs">{t.numPages || 1} page(s) &middot; {(t.signItems || []).length} field(s)</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setStep(2)} disabled={!selectedTemplate} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
+                Next <ArrowRight size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Step 2: Upload CSV */}
+          {step === 2 && (
+            <>
+              <p className="text-dark-400 text-sm">Upload a CSV with columns: <span className="text-dark-200 font-medium">name, email</span> (required), phone, company (optional).</p>
+              <div className="border-2 border-dashed border-dark-600 hover:border-indigo-500/50 rounded-xl p-6 text-center transition-colors cursor-pointer"
+                onClick={() => document.getElementById('bs-csv-input').click()}>
+                {csvFile ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <FileText size={20} className="text-emerald-400" />
+                    <span className="text-white text-sm">{csvFile.name}</span>
+                    <button onClick={(e) => { e.stopPropagation(); setCsvFile(null); }} className="text-dark-400 hover:text-red-400"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload size={28} className="mx-auto text-dark-500 mb-2" />
+                    <p className="text-dark-300 text-sm">Drop CSV here or click to upload</p>
+                  </>
+                )}
+                <input id="bs-csv-input" type="file" accept=".csv" onChange={e => setCsvFile(e.target.files?.[0])} className="hidden" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
+                <button onClick={handlePreview} disabled={!csvFile || loading} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
+                  {loading ? <><Loader2 size={14} className="animate-spin" /> Parsing...</> : <>Preview <ArrowRight size={14} /></>}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Step 3: Preview */}
+          {step === 3 && (
+            <>
+              <p className="text-dark-400 text-sm">{previewRows.length} valid recipients found.</p>
+              {previewErrors.length > 0 && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                  <p className="text-red-400 text-xs font-medium mb-1">{previewErrors.length} error(s):</p>
+                  {previewErrors.slice(0, 5).map((e, i) => <p key={i} className="text-red-300 text-xs">{e}</p>)}
+                </div>
+              )}
+              <div className="overflow-x-auto max-h-48">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-dark-700"><th className="text-left px-3 py-2 text-dark-400">Name</th><th className="text-left px-3 py-2 text-dark-400">Email</th></tr></thead>
+                  <tbody>
+                    {previewRows.slice(0, 20).map((r, i) => (
+                      <tr key={i} className="border-b border-dark-700/50"><td className="px-3 py-1.5 text-dark-200">{r.name}</td><td className="px-3 py-1.5 text-dark-300">{r.email}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+                {previewRows.length > 20 && <p className="text-dark-500 text-xs text-center mt-2">...and {previewRows.length - 20} more</p>}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setStep(2)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
+                <button onClick={() => setStep(4)} className="flex-1 btn-primary flex items-center justify-center gap-2">Next <ArrowRight size={14} /></button>
+              </div>
+            </>
+          )}
+
+          {/* Step 4: Options */}
+          {step === 4 && (
+            <>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Subject</label>
+                <input value={subject} onChange={e => setSubject(e.target.value)} placeholder={`Signature Request - ${selectedTemplate?.name}`} className="input-field w-full" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
+                <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Add a message..." className="input-field w-full resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
+                <input type="date" value={validity} onChange={e => setValidity(e.target.value)} className="input-field w-full" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setStep(3)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
+                <button onClick={handleBulkSend} disabled={sending} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
+                  {sending ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><Send size={14} /> Send {previewRows.length} Requests</>}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Step 5: Result */}
+          {step === 5 && sendResult && (
+            <div className="text-center py-6">
+              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+                <Check size={32} className="text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Bulk Send Complete</h3>
+              <p className="text-dark-400 text-sm">{sendResult.created} request(s) created{sendResult.failed > 0 ? `, ${sendResult.failed} failed` : ''}.</p>
+              <button onClick={() => { reset(); onClose(); }} className="btn-primary mt-6">Done</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main SignRequests Component ───────────────────────────────────────── */
 export default function SignRequests() {
   const { currentOrg } = useOrg();
@@ -665,8 +1115,10 @@ export default function SignRequests() {
   // Dropdown data
   const [templates, setTemplates] = useState([]);
 
-  // Modal
+  // Modals
   const [showModal, setShowModal] = useState(false);
+  const [showQuickSend, setShowQuickSend] = useState(false);
+  const [showBulkSend, setShowBulkSend] = useState(false);
 
   // Action loading
   const [cancellingId, setCancellingId] = useState(null);
@@ -821,13 +1273,29 @@ export default function SignRequests() {
             {total} {total === 1 ? 'request' : 'requests'} total
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-2 self-start"
-        >
-          <Plus size={16} />
-          New Request
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowQuickSend(true)}
+            className="flex items-center gap-2 bg-dark-800 hover:bg-dark-700 text-dark-200 border border-dark-700 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            <Zap size={14} className="text-amber-400" />
+            Quick Send
+          </button>
+          <button
+            onClick={() => setShowBulkSend(true)}
+            className="flex items-center gap-2 bg-dark-800 hover:bg-dark-700 text-dark-200 border border-dark-700 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            <Users size={14} className="text-blue-400" />
+            Bulk Send
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={16} />
+            New Request
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -1055,6 +1523,22 @@ export default function SignRequests() {
       <NewRequestModal
         show={showModal}
         onClose={() => setShowModal(false)}
+        onSaved={() => fetchRequests({ page: 1 })}
+        orgSlug={orgSlug}
+      />
+
+      {/* Quick Send Modal */}
+      <QuickSendModal
+        show={showQuickSend}
+        onClose={() => setShowQuickSend(false)}
+        onSaved={() => fetchRequests({ page: 1 })}
+        orgSlug={orgSlug}
+      />
+
+      {/* Bulk Send Modal */}
+      <BulkSendModal
+        show={showBulkSend}
+        onClose={() => setShowBulkSend(false)}
         onSaved={() => fetchRequests({ page: 1 })}
         orgSlug={orgSlug}
       />

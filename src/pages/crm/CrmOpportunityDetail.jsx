@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { toDateInputValue } from '../../utils/dateUtils';
 import ActivityPanel from '../../components/shared/ActivityPanel';
+import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Star, Building2, User, Phone, Mail, Briefcase, Trophy, X,
@@ -456,6 +457,14 @@ export default function CrmOpportunityDetail() {
 
           {/* Activities */}
           <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
+
+          {/* Signature Requests */}
+          <SignRequestWidget
+            orgSlug={slug}
+            linkedModel="crm_opportunity"
+            linkedId={opportunityId}
+            prefillData={{ name: opp?.contactName || '', email: opp?.contactEmail || '', phone: opp?.contactPhone || '', company: opp?.company || '' }}
+          />
 
           {/* Stage History */}
           {opp.stageHistory?.length > 0 && (

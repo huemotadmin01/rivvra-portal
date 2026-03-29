@@ -8,7 +8,7 @@ import { API_BASE_URL } from '../../utils/config';
 import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
   CheckSquare, AlignLeft, Loader2, Check, X, AlertTriangle,
-  ChevronDown, ChevronUp, FileText, Clock
+  ChevronDown, ChevronUp, FileText, Clock, Shield
 } from 'lucide-react';
 
 // Configure PDF.js worker
@@ -100,8 +100,8 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-lg overflow-hidden max-h-[90vh] sm:max-h-none">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -143,13 +143,13 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                   ref={sigCanvasRef}
                   canvasProps={{
                     width: type === 'initials' ? 300 : 460,
-                    height: type === 'initials' ? 120 : 180,
-                    className: 'w-full cursor-crosshair',
-                    style: { width: '100%', height: type === 'initials' ? '120px' : '180px' },
+                    height: type === 'initials' ? 150 : 200,
+                    className: 'w-full cursor-crosshair touch-none',
+                    style: { width: '100%', height: type === 'initials' ? '150px' : '200px' },
                   }}
                   penColor="#1e293b"
-                  minWidth={1.5}
-                  maxWidth={3}
+                  minWidth={2}
+                  maxWidth={4}
                   onBegin={() => setIsEmpty(false)}
                 />
                 {isEmpty && (
@@ -261,14 +261,17 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
         style={style}
         className="absolute flex items-center justify-center cursor-pointer"
       >
-        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+        <div className={`w-6 h-6 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-colors ${
           value ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-400 hover:border-indigo-400'
         }`}>
-          {value && <Check className="w-3.5 h-3.5 text-white" />}
+          {value && <Check className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-white" />}
         </div>
       </button>
     );
   }
+
+  // Shared mobile-friendly input class: min touch target 44px on mobile
+  const inputCls = 'absolute bg-white/90 border border-indigo-300 rounded px-2 py-1 text-sm sm:text-xs sm:px-1.5 sm:py-0.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
 
   if (fieldType === 'date') {
     return (
@@ -279,7 +282,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
         onFocus={onFocus}
         onBlur={onBlur}
         style={style}
-        className="absolute bg-white/90 border border-indigo-300 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+        className={inputCls}
       />
     );
   }
@@ -293,7 +296,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
         onBlur={onBlur}
         placeholder={FIELD_META[fieldType]?.placeholder || 'Enter text'}
         style={style}
-        className="absolute bg-white/90 border border-indigo-300 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
+        className={`${inputCls} resize-none`}
       />
     );
   }
@@ -310,7 +313,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
       onBlur={onBlur}
       placeholder={FIELD_META[fieldType]?.placeholder || 'Enter text'}
       style={style}
-      className="absolute bg-white/90 border border-indigo-300 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+      className={inputCls}
     />
   );
 }
@@ -510,6 +513,11 @@ export default function PublicSigningPage() {
   const [sigDataUrls, setSigDataUrls] = useState({ signature: null, initials: null });
   const [scale, setScale] = useState(1.5);
 
+  // Envelope state
+  const [envelope, setEnvelope] = useState(null); // null = single doc
+  const [currentDocIndex, setCurrentDocIndex] = useState(0);
+  const [envelopeValues, setEnvelopeValues] = useState({}); // { [docId]: { [fieldId]: value } }
+
   const containerRef = useRef(null);
 
   // ── Verify signing link on mount ────────────────────────────────────
@@ -531,23 +539,41 @@ export default function PublicSigningPage() {
 
         setRequest(data.request);
         setSigner(data.signer);
-        setTemplate(data.template);
         setOrgName(data.orgName || '');
 
-        // Pre-fill name and email if available
-        const initialValues = {};
-        if (data.template?.signItems) {
-          data.template.signItems.forEach((item) => {
-            const id = item._id || item.id;
-            if (item.type === 'name' && data.signer?.name) {
-              initialValues[id] = data.signer.name;
-            } else if (item.type === 'email' && data.signer?.email) {
-              initialValues[id] = data.signer.email;
-            } else if (item.type === 'date') {
-              initialValues[id] = todayStr();
-            }
-          });
+        // Handle envelope vs single doc
+        if (data.envelope?.isEnvelope) {
+          setEnvelope(data.envelope);
+          setCurrentDocIndex(data.envelope.currentDocumentIndex || 0);
+          // Build template from the current document
+          const currentDoc = data.envelope.documents[data.envelope.currentDocumentIndex || 0];
+          if (currentDoc) {
+            setTemplate({
+              pdfUrl: currentDoc.pdfUrl,
+              pdfProxyUrl: `/api/sign/pdf-proxy/${requestId}/${signerId}/${token}?documentId=${currentDoc.id}`,
+              numPages: currentDoc.numPages || 1,
+              signItems: currentDoc.signItems || [],
+            });
+          }
+        } else {
+          setTemplate(data.template);
         }
+
+        // Pre-fill name and email if available
+        const items = data.envelope?.isEnvelope
+          ? (data.envelope.documents[data.envelope.currentDocumentIndex || 0]?.signItems || [])
+          : (data.template?.signItems || []);
+        const initialValues = {};
+        items.forEach((item) => {
+          const id = item._id || item.id;
+          if (item.type === 'name' && data.signer?.name) {
+            initialValues[id] = data.signer.name;
+          } else if (item.type === 'email' && data.signer?.email) {
+            initialValues[id] = data.signer.email;
+          } else if (item.type === 'date') {
+            initialValues[id] = todayStr();
+          }
+        });
         setValues(initialValues);
         setStatus('signing');
       } catch (err) {
@@ -654,12 +680,43 @@ export default function PublicSigningPage() {
     if (!allRequiredFilled || submitting) return;
     setSubmitting(true);
     try {
-      await signApi.submitSignature(requestId, signerId, token, {
+      const currentDoc = envelope?.documents?.[currentDocIndex];
+      const submitData = {
         values,
         signatureDataUrl: sigDataUrls.signature || null,
         initialsDataUrl: sigDataUrls.initials || null,
-      });
-      setStatus('success');
+        ...(currentDoc && { documentId: currentDoc.id }),
+      };
+
+      const res = await signApi.submitSignature(requestId, signerId, token, submitData);
+
+      // Envelope: more documents to sign
+      if (envelope && res.documentsRemaining > 0) {
+        const nextIdx = currentDocIndex + 1;
+        const nextDoc = envelope.documents[nextIdx];
+        if (nextDoc) {
+          setCurrentDocIndex(nextIdx);
+          setTemplate({
+            pdfUrl: nextDoc.pdfUrl,
+            pdfProxyUrl: `/api/sign/pdf-proxy/${requestId}/${signerId}/${token}?documentId=${nextDoc.id}`,
+            numPages: nextDoc.numPages || 1,
+            signItems: nextDoc.signItems || [],
+          });
+          // Reset values for next doc but keep signature images
+          const nextValues = {};
+          (nextDoc.signItems || []).forEach(item => {
+            const id = item._id || item.id;
+            if (item.type === 'name' && signer?.name) nextValues[id] = signer.name;
+            else if (item.type === 'email' && signer?.email) nextValues[id] = signer.email;
+            else if (item.type === 'date') nextValues[id] = todayStr();
+          });
+          setValues(nextValues);
+          setPdfDoc(null);
+          setNumPages(0);
+        }
+      } else {
+        setStatus('success');
+      }
     } catch (err) {
       if (err.name === 'AbortError') return;
       alert(err.message || 'Failed to submit signature. Please try again.');
@@ -782,12 +839,37 @@ export default function PublicSigningPage() {
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+        {/* Envelope document stepper */}
+        {envelope && (
+          <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-2">
+            <div className="max-w-6xl mx-auto flex items-center gap-2 overflow-x-auto">
+              {envelope.documents.map((doc, idx) => (
+                <div
+                  key={doc.id}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                    idx === currentDocIndex
+                      ? 'bg-indigo-600 text-white'
+                      : idx < currentDocIndex
+                      ? 'bg-indigo-200 text-indigo-700'
+                      : 'bg-gray-200 text-gray-500'
+                  }`}
+                >
+                  {idx < currentDocIndex ? <Check className="w-3 h-3" /> : <span>{idx + 1}</span>}
+                  <span className="hidden sm:inline">{doc.templateName}</span>
+                </div>
+              ))}
+              <span className="text-xs text-gray-500 ml-2">
+                Document {currentDocIndex + 1} of {envelope.totalDocuments}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           {/* Left: document name */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <FileText className="w-5 h-5 text-indigo-600 flex-shrink-0" />
             <span className="text-sm font-semibold text-gray-900 truncate">
-              {request?.reference || 'Document'}
+              {envelope ? envelope.documents[currentDocIndex]?.templateName : (request?.reference || 'Document')}
             </span>
           </div>
 
@@ -895,6 +977,11 @@ export default function PublicSigningPage() {
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Submitting...
               </>
+            ) : envelope && currentDocIndex < envelope.totalDocuments - 1 ? (
+              <>
+                <Check className="w-4 h-4" />
+                Sign & Next Document
+              </>
             ) : (
               <>
                 <Check className="w-4 h-4" />
@@ -924,6 +1011,14 @@ export default function PublicSigningPage() {
         confirmLabel={refusing ? 'Refusing...' : 'Yes, Refuse'}
         confirmColor="red"
       />
+
+      {/* ── Compliance Footer ─────────────────────────────────────────── */}
+      <div className="mt-6 py-4 border-t border-gray-200 text-center">
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+          <Shield size={12} className="text-gray-400" />
+          <span>Compliant with eIDAS (EU), ESIGN Act (US) &amp; UETA</span>
+        </div>
+      </div>
     </div>
   );
 }
