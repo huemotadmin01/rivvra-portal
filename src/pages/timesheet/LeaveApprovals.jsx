@@ -193,7 +193,7 @@ export default function LeaveApprovals() {
               )}
 
               {/* LOP Warning */}
-              {(req.isLOP || req.lopDays > 0) && (
+              {(req.isLOP || req.isLop || req.lopDays > 0) && (
                 <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                   <AlertTriangle size={14} />
                   <span>⚠️ {req.lopDays || req.totalDays || 0} LOP day{(req.lopDays || req.totalDays || 0) !== 1 ? 's' : ''}</span>
