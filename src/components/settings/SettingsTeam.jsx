@@ -396,6 +396,7 @@ export default function SettingsTeam() {
                         <p className="text-xs text-dark-400 truncate">
                           {member.email}
                           {member.teamName && <span className="ml-1.5 text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px] font-medium">{member.teamName}</span>}
+                          {member.joinedAt && <span className="ml-1.5 text-dark-500 text-[10px]">Joined {new Date(member.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                         </p>
                       </div>
                     </div>
