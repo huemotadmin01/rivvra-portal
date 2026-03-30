@@ -71,8 +71,13 @@ function InviteAcceptPage() {
   function handleAcceptSuccess(res) {
     localStorage.setItem('rivvra_token', res.token);
     localStorage.setItem('rivvra_user', JSON.stringify(res.user));
-    window.location.href = '/#/home';
-    window.location.reload();
+    // Navigate to the org's home page using clean URL (not hash)
+    const orgSlugFromInvite = invite?.orgSlug || slug;
+    if (orgSlugFromInvite) {
+      window.location.href = `/org/${orgSlugFromInvite}/home`;
+    } else {
+      window.location.href = '/home';
+    }
   }
 
   // ── Google Auth Handler ──
