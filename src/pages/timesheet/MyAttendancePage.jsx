@@ -24,8 +24,9 @@ const statusConfig = {
   leave:    { label: 'Leave',    short: 'L',  emoji: '🏖', gradient: 'from-blue-500/20 to-blue-600/5', bg: 'bg-blue-500/15',    text: 'text-blue-400',    border: 'border-blue-500/25',    dot: 'bg-blue-500',    ring: 'ring-blue-500/40',    hoverBg: '' },
   half_day_leave: { label: '½ Leave', short: '½L', emoji: '🏖', gradient: 'from-blue-500/10 to-amber-500/5', bg: 'bg-blue-400/10', text: 'text-blue-300', border: 'border-blue-400/20', dot: 'bg-blue-400', ring: 'ring-blue-400/30', hoverBg: '' },
   holiday:  { label: 'Holiday',  short: 'H',  emoji: '🎉', gradient: 'from-purple-500/20 to-purple-600/5', bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/25',  dot: 'bg-purple-500',  ring: 'ring-purple-500/40',  hoverBg: '' },
-  weekend:  { label: 'Weekend',  short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/60',    text: 'text-dark-600',    border: 'border-dark-700/20',    dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
-  unfilled: { label: 'Unfilled', short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-800/30',    text: 'text-dark-500',    border: 'border-dark-700/30 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: 'hover:bg-dark-700/30' },
+  weekend:    { label: 'Weekend',    short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/60',    text: 'text-dark-600',    border: 'border-dark-700/20',    dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
+  not_joined: { label: 'Not Joined', short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/50',    text: 'text-dark-600',    border: 'border-dark-700/15',    dot: 'bg-dark-700',    ring: '',    hoverBg: '' },
+  unfilled:   { label: 'Unfilled',   short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-800/30',    text: 'text-dark-500',    border: 'border-dark-700/30 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: 'hover:bg-dark-700/30' },
 };
 
 function getEntryDisplayStatus(entry) {
@@ -89,7 +90,7 @@ export default function MyAttendancePage() {
     setEntries(prev => prev.map(e => {
       const eDate = toISTDateStr(e.date);
       if (eDate !== dateStr) return e;
-      if (['leave', 'holiday', 'weekend'].includes(e.status)) return e;
+      if (['leave', 'holiday', 'weekend', 'not_joined'].includes(e.status)) return e;
 
       if (e.status === 'working' && parseFloat(e.hours) >= 8) {
         return { ...e, status: 'working', hours: 4, notes: 'Half day' };
@@ -224,6 +225,7 @@ export default function MyAttendancePage() {
   const summary = (() => {
     let present = 0, halfDay = 0, leave = 0, holiday = 0, absent = 0, weekend = 0;
     entries.forEach(e => {
+      if (e.status === 'not_joined') return; // skip pre-joining days
       if (e.status === 'weekend') weekend++;
       else if (e.status === 'holiday') holiday++;
       else if (e.status === 'leave') {
@@ -385,7 +387,7 @@ export default function MyAttendancePage() {
 
                 const displayStatus = getEntryDisplayStatus(entry);
                 const config = statusConfig[displayStatus] || statusConfig.working;
-                const isLocked = ['leave', 'holiday', 'weekend'].includes(entry.status);
+                const isLocked = ['leave', 'holiday', 'weekend', 'not_joined'].includes(entry.status);
                 const isClickable = canEdit && !isLocked;
                 const isToday = dateStr === todayStr;
                 const isWeekend = entry.status === 'weekend';
@@ -444,7 +446,7 @@ export default function MyAttendancePage() {
 
       {/* ── Legend ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 px-1">
-        {Object.entries(statusConfig).filter(([k]) => k !== 'weekend').map(([key, cfg]) => (
+        {Object.entries(statusConfig).filter(([k]) => k !== 'weekend' && k !== 'not_joined').map(([key, cfg]) => (
           <div key={key} className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
             <span className="text-[10px] sm:text-xs text-dark-500">{cfg.label}</span>

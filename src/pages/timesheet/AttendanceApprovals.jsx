@@ -14,6 +14,7 @@ const entryColors = {
   holiday: 'bg-purple-500 text-white',
   absent: 'bg-dark-700 text-red-400',
   weekend: 'bg-dark-800 text-dark-500',
+  not_joined: 'bg-dark-900 text-dark-600',   // Before joining date
 };
 
 export default function AttendanceApprovals() {
@@ -224,6 +225,7 @@ export default function AttendanceApprovals() {
                         }
                         else if (status === 'holiday') colorClass = entryColors.holiday;
                         else if (status === 'absent') colorClass = entryColors.absent;
+                        else if (status === 'not_joined') colorClass = entryColors.not_joined;
                         else if (isWeekend) colorClass = entryColors.weekend;
 
                         return (
