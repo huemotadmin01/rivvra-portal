@@ -89,9 +89,19 @@ export default function TaxDeclarationsPage() {
         regime: form.regime,
         declarations: form,
       });
-      showToast('Declarations saved');
+      showToast('Declarations saved — payroll TDS recalculated', 'success');
+      const savedEmpId = selectedEmp._id.toString();
       setSelectedEmp(null);
-      load();
+      await load();
+      // Auto-refresh the tax report if this employee was expanded
+      if (expandedEmp === savedEmpId) {
+        setReportLoading(true);
+        try {
+          const res = await getEmployeeTaxReport(orgSlug, savedEmpId, fy);
+          setTaxReport(res.report);
+        } catch (err) { /* ignore */ }
+        finally { setReportLoading(false); }
+      }
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
 
