@@ -109,6 +109,11 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/timesheet-options`);
   },
 
+  // ── Org Chart (lightweight: all active employees with manager refs) ──
+  getOrgChart(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/employee/org-chart`);
+  },
+
   // ── Manager Options (active employees with portal license) ──
   getManagerOptions(orgSlug) {
     return api.request(`/api/org/${orgSlug}/employee/manager-options`);

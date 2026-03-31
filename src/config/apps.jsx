@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield, User,
+  Shield, User, Network,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -236,6 +236,7 @@ export const APP_REGISTRY = {
       return [
         ...(isAdmin ? [{ type: 'item', path: '/employee/dashboard', label: 'Dashboard', icon: LayoutDashboard }] : []),
         { type: 'item', path: '/employee/directory', label: 'Directory', icon: Users },
+        { type: 'item', path: '/employee/org-chart', label: 'Org Chart', icon: Network },
         { type: 'item', path: '/employee/departments', label: 'Departments', icon: Building2 },
         ...(isAdmin ? [
           { type: 'item', path: '/employee/add', label: 'Add Employee', icon: UserPlus },
