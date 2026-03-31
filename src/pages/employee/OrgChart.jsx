@@ -220,44 +220,28 @@ export default function OrgChart() {
       }
     });
 
-    // If no roots found (all employees in cycles), detect and break cycles
-    if (roots.length === 0 && employees.length > 0) {
-      const visited = new Set();
-      employees.forEach(e => {
-        if (visited.has(e._id)) return;
-        // Walk up the manager chain to find cycle
-        const chain = [];
-        let cur = e._id;
-        const seen = new Set();
-        while (cur && !seen.has(cur)) {
-          seen.add(cur);
-          chain.push(cur);
-          cur = empMap[cur]?.manager;
-        }
-        chain.forEach(id => visited.add(id));
-        // The first in chain with no unvisited parent becomes root
-        if (!visited.has(chain[0]) || roots.length === 0) {
-          const rootEmp = empMap[chain[0]];
-          if (rootEmp) {
-            roots.push(rootEmp);
-            // Remove from parent's children
-            if (rootEmp.manager && childrenMap[rootEmp.manager]) {
-              childrenMap[rootEmp.manager] = childrenMap[rootEmp.manager].filter(c => c._id !== rootEmp._id);
-            }
-          }
-        }
-      });
+    // Find all employees reachable from current roots
+    const reachable = new Set();
+    const markReachable = (id) => {
+      if (reachable.has(id)) return;
+      reachable.add(id);
+      (childrenMap[id] || []).forEach(c => markReachable(c._id));
+    };
+    roots.forEach(r => markReachable(r._id));
 
-      // Fallback: if still no roots, promote employees with most reports
-      if (roots.length === 0) {
-        const sorted = [...employees].sort((a, b) => (childrenMap[b._id]?.length || 0) - (childrenMap[a._id]?.length || 0));
-        const promoted = sorted[0];
-        roots.push(promoted);
-        if (promoted.manager && childrenMap[promoted.manager]) {
-          childrenMap[promoted.manager] = childrenMap[promoted.manager].filter(c => c._id !== promoted._id);
+    // Any employee not reachable from roots is in a cycle — promote as root
+    employees.forEach(e => {
+      if (!reachable.has(e._id)) {
+        roots.push(e);
+        reachable.add(e._id);
+        // Remove from parent's children list
+        if (e.manager && childrenMap[e.manager]) {
+          childrenMap[e.manager] = childrenMap[e.manager].filter(c => c._id !== e._id);
         }
+        // Mark this node's subtree as reachable
+        (childrenMap[e._id] || []).forEach(c => markReachable(c._id));
       }
-    }
+    });
 
     return { roots, childrenMap, empMap };
   })();
@@ -386,7 +370,7 @@ export default function OrgChart() {
               dragTarget={dragTarget}
               expandedNodes={expandedNodes}
               toggleExpand={toggleExpand}
-              onNavigate={(id) => navigate(`${orgPath}/employee/${id}`)}
+              onNavigate={(id) => navigate(orgPath(`/employee/${id}`))}
               search={searchLower}
             />
           ))
