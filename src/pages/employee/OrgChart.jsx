@@ -46,7 +46,7 @@ function getAvatarColor(name) {
 }
 
 /* ── Tree Node component ─────────────────────────────────────────────── */
-function TreeNode({ emp, childrenMap, level, isAdmin, onDragStart, onDragOver, onDrop, dragTarget, expandedNodes, toggleExpand, onNavigate, search }) {
+function TreeNode({ emp, childrenMap, level, isAdmin, onDragStart, onDragOver, onDrop, dragTarget, expandedNodes, toggleExpand, onNavigate, search, wasDragging }) {
   const children = childrenMap[emp._id] || [];
   const hasChildren = children.length > 0;
   const isExpanded = expandedNodes.has(emp._id);
@@ -59,6 +59,12 @@ function TreeNode({ emp, childrenMap, level, isAdmin, onDragStart, onDragOver, o
     (emp.departmentName || '').toLowerCase().includes(search)
   );
 
+  const handleClick = (e) => {
+    // Don't navigate if we just finished a drag
+    if (wasDragging?.current) return;
+    onNavigate(emp._id);
+  };
+
   return (
     <div className="org-tree-node">
       {/* The node card */}
@@ -66,6 +72,7 @@ function TreeNode({ emp, childrenMap, level, isAdmin, onDragStart, onDragOver, o
         ref={nodeRef}
         draggable={isAdmin}
         onDragStart={(e) => { e.dataTransfer.setData('text/plain', emp._id); onDragStart(emp._id); }}
+        onDragEnd={() => { if (wasDragging) { wasDragging.current = true; setTimeout(() => { wasDragging.current = false; }, 200); } }}
         onDragOver={(e) => { e.preventDefault(); onDragOver(emp._id); }}
         onDragLeave={() => onDragOver(null)}
         onDrop={(e) => { e.preventDefault(); onDrop(emp._id); }}
@@ -80,7 +87,7 @@ function TreeNode({ emp, childrenMap, level, isAdmin, onDragStart, onDragOver, o
           ${isAdmin ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
         `}
         style={{ marginLeft: level * 32 }}
-        onClick={() => onNavigate(emp._id)}
+        onClick={handleClick}
       >
         {/* Drag handle for admins */}
         {isAdmin && (
@@ -160,6 +167,7 @@ function TreeNode({ emp, childrenMap, level, isAdmin, onDragStart, onDragOver, o
               toggleExpand={toggleExpand}
               onNavigate={onNavigate}
               search={search}
+              wasDragging={wasDragging}
             />
           ))}
         </div>
@@ -181,6 +189,7 @@ export default function OrgChart() {
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [dragSource, setDragSource] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
+  const wasDragging = useRef(false);
 
   const isAdmin = getAppRole('employee') === 'admin';
 
@@ -257,8 +266,23 @@ export default function OrgChart() {
   const expandAll = () => setExpandedNodes(new Set(employees.map(e => e._id)));
   const collapseAll = () => setExpandedNodes(new Set(roots.map(e => e._id)));
 
+  const handleDragStart = useCallback((id) => {
+    wasDragging.current = false;
+    setDragSource(id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    // Mark that a drag just happened — suppress the click that follows
+    if (dragSource) {
+      wasDragging.current = true;
+      setTimeout(() => { wasDragging.current = false; }, 200);
+    }
+  }, [dragSource]);
+
   // Drag-and-drop handler (reassign manager)
   const handleDrop = useCallback(async (targetId) => {
+    wasDragging.current = true;
+    setTimeout(() => { wasDragging.current = false; }, 200);
     if (!dragSource || dragSource === targetId) { setDragSource(null); setDragTarget(null); return; }
 
     // Prevent dropping a parent onto its own descendant (would create cycle)
@@ -364,7 +388,7 @@ export default function OrgChart() {
               childrenMap={childrenMap}
               level={0}
               isAdmin={isAdmin}
-              onDragStart={setDragSource}
+              onDragStart={handleDragStart}
               onDragOver={setDragTarget}
               onDrop={handleDrop}
               dragTarget={dragTarget}
@@ -372,6 +396,7 @@ export default function OrgChart() {
               toggleExpand={toggleExpand}
               onNavigate={(id) => navigate(orgPath(`/employee/${id}`))}
               search={searchLower}
+              wasDragging={wasDragging}
             />
           ))
         )}
