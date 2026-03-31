@@ -235,7 +235,7 @@ export default function OrgChart() {
       }
     });
 
-    // Find all reachable from roots, promote unreachable (cycles) as roots
+    // Find all reachable from roots
     const reachable = new Set();
     const markReachable = (id) => {
       if (reachable.has(id)) return;
@@ -244,16 +244,29 @@ export default function OrgChart() {
     };
     roots.forEach(r => markReachable(r._id));
 
-    employees.forEach(e => {
-      if (!reachable.has(e._id)) {
-        roots.push(e);
-        reachable.add(e._id);
-        if (e.manager && childrenMap[e.manager]) {
-          childrenMap[e.manager] = childrenMap[e.manager].filter(c => c._id !== e._id);
-        }
-        (childrenMap[e._id] || []).forEach(c => markReachable(c._id));
+    // For unreachable employees (in cycles), find each cycle and break it
+    // by promoting exactly one member per cycle as root
+    while (true) {
+      const unreached = employees.find(e => !reachable.has(e._id));
+      if (!unreached) break;
+
+      // Walk the manager chain from this employee to find the cycle
+      const visited = new Set();
+      let cur = unreached._id;
+      while (cur && !visited.has(cur)) {
+        visited.add(cur);
+        cur = empMap[cur]?.manager;
       }
-    });
+      // `cur` is now the start of the cycle — promote it as root
+      const cycleRoot = empMap[cur] || unreached;
+      roots.push(cycleRoot);
+      // Remove cycleRoot from its parent's children
+      if (cycleRoot.manager && childrenMap[cycleRoot.manager]) {
+        childrenMap[cycleRoot.manager] = childrenMap[cycleRoot.manager].filter(c => c._id !== cycleRoot._id);
+      }
+      // Mark everything reachable from this new root
+      markReachable(cycleRoot._id);
+    }
 
     return { roots, childrenMap, empMap };
   })();
