@@ -178,26 +178,32 @@ function OrgCard({ emp, pos, isAdmin, movingId, onMoveStart, onMoveTarget, onDro
       <div
         draggable={isAdmin && !movingId}
         onDragStart={(e) => {
+          e.stopPropagation();
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', emp._id);
           onMoveStart(emp._id);
         }}
-        onDragEnd={() => {
+        onDragEnd={(e) => {
+          e.stopPropagation();
           justDroppedRef.current = true;
           setTimeout(() => { justDroppedRef.current = false; }, 300);
         }}
         onDragOver={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           e.dataTransfer.dropEffect = 'move';
           onDragOver(emp._id);
         }}
-        onDragLeave={() => onDragOver(null)}
+        onDragLeave={(e) => { e.stopPropagation(); onDragOver(null); }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          const sourceId = e.dataTransfer.getData('text/plain');
           justDroppedRef.current = true;
           setTimeout(() => { justDroppedRef.current = false; }, 300);
-          onDrop(emp._id);
+          if (sourceId && sourceId !== emp._id) {
+            onDrop(sourceId, emp._id);
+          }
         }}
         onClick={handleClick}
         className={`
@@ -484,12 +490,13 @@ export default function OrgChart() {
     }
   }, [childrenMap, empMap, currentOrg?.slug, load]);
 
-  const handleDrop = useCallback(async (targetId) => {
-    const sourceId = movingId;
+  const handleDrop = useCallback(async (sourceId, targetId) => {
     setMovingId(null);
     setDragOverId(null);
-    if (sourceId) await reassignManager(sourceId, targetId);
-  }, [movingId, reassignManager]);
+    if (sourceId && targetId && sourceId !== targetId) {
+      await reassignManager(sourceId, targetId);
+    }
+  }, [reassignManager]);
 
   const handleMoveTarget = useCallback(async (targetId) => {
     if (!movingId || movingId === targetId) { setMovingId(null); return; }
