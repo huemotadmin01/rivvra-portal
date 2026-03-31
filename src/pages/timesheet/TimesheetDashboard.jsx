@@ -737,7 +737,7 @@ function AdminDashboard() {
       </div>
 
       {/* Celebrations Carousel */}
-      <div className="card p-4 order-[10]">
+      <div className="card p-4 order-2">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
           <span className="text-xs text-dark-500">{celebrations.length > 0 ? `${celebrations.length} upcoming` : 'Next 30 days'}</span>
@@ -774,7 +774,7 @@ function AdminDashboard() {
       </div>
 
       {/* Social Feed */}
-      <div className="space-y-3 order-[11]">
+      <div className="space-y-3 order-3">
         {/* New Post Card */}
         <div className="card p-4">
           <div className="flex items-center gap-3">
@@ -915,7 +915,7 @@ function AdminDashboard() {
       </div>
 
       {/* ── Timesheet Section ────────────────────────────────────── */}
-      <div className="card p-4 border-l-4 border-emerald-500 order-2">
+      <div className="card p-4 border-l-4 border-emerald-500 order-4">
         <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2"><FileText size={15} /> Timesheets</h3>
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
@@ -951,7 +951,7 @@ function AdminDashboard() {
       </div>
 
       {/* ── Attendance Section ────────────────────────────────────── */}
-      <div className="card p-4 border-l-4 border-blue-500 order-3">
+      <div className="card p-4 border-l-4 border-blue-500 order-5">
         <h3 className="text-sm font-semibold text-blue-400 mb-3 flex items-center gap-2"><CalendarCheck size={15} /> Attendance</h3>
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
@@ -1029,7 +1029,7 @@ function AdminDashboard() {
         ));
 
         return (
-          <div className="card overflow-hidden order-4">
+          <div className="card overflow-hidden order-6">
             <button
               onClick={() => setNotApprovedExpanded(prev => !prev)}
               className="w-full p-4 border-b border-dark-800 flex items-center justify-between hover:bg-dark-800/30 transition-colors"

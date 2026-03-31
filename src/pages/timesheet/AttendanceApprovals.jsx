@@ -30,18 +30,22 @@ export default function AttendanceApprovals() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [sendingReminder, setSendingReminder] = useState(null);
 
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+
   const controllerRef = { current: null };
   const load = () => {
     controllerRef.current?.abort();
     controllerRef.current = new AbortController();
     setLoading(true);
-    timesheetApi.get('/attendance/all', { signal: controllerRef.current.signal })
+    timesheetApi.get(`/attendance/all?month=${selectedMonth}&year=${selectedYear}`, { signal: controllerRef.current.signal })
       .then(r => setRecords(r.data?.attendance || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); return () => controllerRef.current?.abort(); }, []);
+  useEffect(() => { load(); return () => controllerRef.current?.abort(); }, [selectedMonth, selectedYear]);
 
   const handleApprove = async (id) => {
     if (!window.confirm('Are you sure you want to approve this attendance?')) return;
@@ -134,6 +138,12 @@ export default function AttendanceApprovals() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <select value={`${selectedMonth}-${selectedYear}`} onChange={e => { const [m, y] = e.target.value.split('-'); setSelectedMonth(parseInt(m)); setSelectedYear(parseInt(y)); }}
+          className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 border border-dark-700 text-dark-300 focus:outline-none focus:border-rivvra-500">
+          {Array.from({ length: 12 }, (_, i) => { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); return { m: d.getMonth() + 1, y: d.getFullYear() }; }).map(({ m, y }) => (
+            <option key={`${m}-${y}`} value={`${m}-${y}`}>{monthNames[m]} {y}</option>
+          ))}
+        </select>
         {['submitted', 'approved', 'rejected', 'draft', 'all'].map(f => (
           <button key={f} onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${

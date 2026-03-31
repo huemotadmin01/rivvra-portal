@@ -225,7 +225,7 @@ export const APP_REGISTRY = {
     color: 'orange',
     basePath: '/employee',
     status: 'active',
-    defaultRoute: '/employee/directory',
+    defaultRoute: '/employee/dashboard',
     derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'orange' },
