@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -46,12 +46,13 @@ function getAvatarColor(name) {
 }
 
 /* ── Tree Node component ─────────────────────────────────────────────── */
-function TreeNode({ emp, childrenMap, level, isAdmin, movingId, onMoveStart, onMoveTarget, expandedNodes, toggleExpand, onNavigate, search }) {
+function TreeNode({ emp, childrenMap, level, isAdmin, movingId, onMoveStart, onMoveTarget, onDrop, dragOverId, onDragOver, expandedNodes, toggleExpand, onNavigate, search, justDroppedRef }) {
   const children = childrenMap[emp._id] || [];
   const hasChildren = children.length > 0;
   const isExpanded = expandedNodes.has(emp._id);
   const isMoving = movingId === emp._id;
   const isTarget = movingId && movingId !== emp._id;
+  const isDragOver = dragOverId === emp._id;
 
   const matchesSearch = search && (
     (emp.fullName || '').toLowerCase().includes(search) ||
@@ -60,8 +61,9 @@ function TreeNode({ emp, childrenMap, level, isAdmin, movingId, onMoveStart, onM
   );
 
   const handleCardClick = () => {
+    // Suppress click after drag-drop
+    if (justDroppedRef?.current) return;
     if (isTarget) {
-      // Click = assign as new manager
       onMoveTarget(emp._id);
     } else if (!movingId) {
       onNavigate(emp._id);
@@ -72,16 +74,25 @@ function TreeNode({ emp, childrenMap, level, isAdmin, movingId, onMoveStart, onM
     <div className="org-tree-node">
       {/* The node card */}
       <div
+        draggable={isAdmin && !movingId}
+        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', emp._id); onMoveStart(emp._id); }}
+        onDragEnd={() => { justDroppedRef.current = true; setTimeout(() => { justDroppedRef.current = false; }, 300); }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(emp._id); }}
+        onDragLeave={() => onDragOver(null)}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); justDroppedRef.current = true; setTimeout(() => { justDroppedRef.current = false; }, 300); onDrop(emp._id); }}
         className={`
           group relative flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all
           ${isMoving
             ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30'
-            : isTarget
-              ? 'border-rivvra-500/50 bg-dark-800 hover:border-rivvra-500 hover:bg-rivvra-500/10 cursor-pointer'
-              : matchesSearch
-                ? 'border-amber-500/40 bg-amber-500/5'
-                : 'border-dark-700 bg-dark-800 hover:border-dark-600 cursor-pointer'
+            : isDragOver
+              ? 'border-rivvra-500 bg-rivvra-500/10 ring-1 ring-rivvra-500/30'
+              : isTarget
+                ? 'border-rivvra-500/50 bg-dark-800 hover:border-rivvra-500 hover:bg-rivvra-500/10 cursor-pointer'
+                : matchesSearch
+                  ? 'border-amber-500/40 bg-amber-500/5'
+                  : 'border-dark-700 bg-dark-800 hover:border-dark-600 cursor-pointer'
           }
+          ${isAdmin && !movingId ? 'cursor-grab active:cursor-grabbing' : ''}
         `}
         style={{ marginLeft: level * 32 }}
         onClick={handleCardClick}
@@ -174,10 +185,14 @@ function TreeNode({ emp, childrenMap, level, isAdmin, movingId, onMoveStart, onM
               movingId={movingId}
               onMoveStart={onMoveStart}
               onMoveTarget={onMoveTarget}
+              onDrop={onDrop}
+              dragOverId={dragOverId}
+              onDragOver={onDragOver}
               expandedNodes={expandedNodes}
               toggleExpand={toggleExpand}
               onNavigate={onNavigate}
               search={search}
+              justDroppedRef={justDroppedRef}
             />
           ))}
         </div>
@@ -198,6 +213,8 @@ export default function OrgChart() {
   const [search, setSearch] = useState('');
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [movingId, setMovingId] = useState(null); // employee being moved
+  const [dragOverId, setDragOverId] = useState(null);
+  const justDroppedRef = useRef(false);
 
   const isAdmin = getAppRole('employee') === 'admin';
 
@@ -282,11 +299,10 @@ export default function OrgChart() {
   const expandAll = () => setExpandedNodes(new Set(employees.map(e => e._id)));
   const collapseAll = () => setExpandedNodes(new Set(roots.map(e => e._id)));
 
-  // Click-to-move: select target manager
-  const handleMoveTarget = useCallback(async (targetId) => {
-    if (!movingId || movingId === targetId) { setMovingId(null); return; }
+  // Shared reassign logic (used by both click-to-move and drag-and-drop)
+  const reassignManager = useCallback(async (sourceId, targetId) => {
+    if (!sourceId || sourceId === targetId) return;
 
-    // Prevent moving a parent under its own descendant
     const isDescendant = (parentId, childId) => {
       const kids = childrenMap[parentId] || [];
       for (const k of kids) {
@@ -296,27 +312,39 @@ export default function OrgChart() {
       return false;
     };
 
-    if (isDescendant(movingId, targetId)) {
+    if (isDescendant(sourceId, targetId)) {
       showToast('Cannot move a manager under their own report', 'error');
-      setMovingId(null);
       return;
     }
 
-    const sourceEmp = empMap[movingId];
+    const sourceEmp = empMap[sourceId];
     const targetEmp = empMap[targetId];
-    if (!sourceEmp || !targetEmp) { setMovingId(null); return; }
+    if (!sourceEmp || !targetEmp) return;
 
     try {
-      await employeeApi.update(currentOrg.slug, movingId, { manager: targetId });
+      await employeeApi.update(currentOrg.slug, sourceId, { manager: targetId });
       showToast(`${sourceEmp.fullName} now reports to ${targetEmp.fullName}`, 'success');
-      // Reload from server to get fresh data
       await load();
     } catch (err) {
       showToast('Failed to reassign manager', 'error');
     }
+  }, [childrenMap, empMap, currentOrg?.slug, load]);
 
+  // Drag-and-drop handler
+  const handleDrop = useCallback(async (targetId) => {
+    const sourceId = movingId;
     setMovingId(null);
-  }, [movingId, childrenMap, empMap, currentOrg?.slug, load]);
+    setDragOverId(null);
+    if (sourceId) await reassignManager(sourceId, targetId);
+  }, [movingId, reassignManager]);
+
+  // Click-to-move: select target manager
+  const handleMoveTarget = useCallback(async (targetId) => {
+    if (!movingId || movingId === targetId) { setMovingId(null); return; }
+    const sourceId = movingId;
+    setMovingId(null);
+    await reassignManager(sourceId, targetId);
+  }, [movingId, reassignManager]);
 
   const searchLower = search.toLowerCase();
   const totalRoots = roots.length;
@@ -375,7 +403,7 @@ export default function OrgChart() {
 
       {isAdmin && !movingId && (
         <div className="mb-4 px-3 py-2 bg-dark-800/50 border border-dark-700 rounded-lg text-xs text-dark-400">
-          Hover on an employee and click the <Move size={12} className="inline" /> icon to reassign their manager.
+          Drag and drop to reassign, or hover and click the <Move size={12} className="inline" /> icon.
         </div>
       )}
 
@@ -397,10 +425,14 @@ export default function OrgChart() {
               movingId={movingId}
               onMoveStart={setMovingId}
               onMoveTarget={handleMoveTarget}
+              onDrop={handleDrop}
+              dragOverId={dragOverId}
+              onDragOver={setDragOverId}
               expandedNodes={expandedNodes}
               toggleExpand={toggleExpand}
               onNavigate={(id) => navigate(orgPath(`/employee/${id}`))}
               search={searchLower}
+              justDroppedRef={justDroppedRef}
             />
           ))
         )}
