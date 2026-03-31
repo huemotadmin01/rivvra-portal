@@ -202,7 +202,7 @@ export default function OrgChart() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Build tree structure
+  // Build tree structure with cycle detection
   const { roots, childrenMap, empMap } = (() => {
     const empMap = {};
     const childrenMap = {};
@@ -212,12 +212,52 @@ export default function OrgChart() {
 
     const roots = [];
     employees.forEach(e => {
-      if (e.manager && validIds.has(e.manager)) {
-        childrenMap[e.manager].push(e);
-      } else {
+      // Self-manager or manager not in active list = root
+      if (!e.manager || e.manager === e._id || !validIds.has(e.manager)) {
         roots.push(e);
+      } else {
+        childrenMap[e.manager].push(e);
       }
     });
+
+    // If no roots found (all employees in cycles), detect and break cycles
+    if (roots.length === 0 && employees.length > 0) {
+      const visited = new Set();
+      employees.forEach(e => {
+        if (visited.has(e._id)) return;
+        // Walk up the manager chain to find cycle
+        const chain = [];
+        let cur = e._id;
+        const seen = new Set();
+        while (cur && !seen.has(cur)) {
+          seen.add(cur);
+          chain.push(cur);
+          cur = empMap[cur]?.manager;
+        }
+        chain.forEach(id => visited.add(id));
+        // The first in chain with no unvisited parent becomes root
+        if (!visited.has(chain[0]) || roots.length === 0) {
+          const rootEmp = empMap[chain[0]];
+          if (rootEmp) {
+            roots.push(rootEmp);
+            // Remove from parent's children
+            if (rootEmp.manager && childrenMap[rootEmp.manager]) {
+              childrenMap[rootEmp.manager] = childrenMap[rootEmp.manager].filter(c => c._id !== rootEmp._id);
+            }
+          }
+        }
+      });
+
+      // Fallback: if still no roots, promote employees with most reports
+      if (roots.length === 0) {
+        const sorted = [...employees].sort((a, b) => (childrenMap[b._id]?.length || 0) - (childrenMap[a._id]?.length || 0));
+        const promoted = sorted[0];
+        roots.push(promoted);
+        if (promoted.manager && childrenMap[promoted.manager]) {
+          childrenMap[promoted.manager] = childrenMap[promoted.manager].filter(c => c._id !== promoted._id);
+        }
+      }
+    }
 
     return { roots, childrenMap, empMap };
   })();
