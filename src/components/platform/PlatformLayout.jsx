@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { TimesheetProvider } from '../../context/TimesheetContext';
 import { BreadcrumbProvider } from '../../context/BreadcrumbContext';
+import { PeriodProvider } from '../../context/PeriodContext';
 import TopBar from './TopBar';
 import AppSidebar from './AppSidebar';
 import TrialBanner from './TrialBanner';
@@ -51,6 +52,7 @@ function PlatformLayout() {
   return (
     <TimesheetProvider>
       <BreadcrumbProvider>
+        <PeriodProvider>
         <div className={`min-h-screen bg-dark-950 ${isImpersonating ? 'pt-10' : ''}`}>
           <ImpersonationBanner />
           <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
@@ -63,6 +65,7 @@ function PlatformLayout() {
             </main>
           </div>
         </div>
+      </PeriodProvider>
       </BreadcrumbProvider>
     </TimesheetProvider>
   );

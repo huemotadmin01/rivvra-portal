@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { usePeriod } from '../../context/PeriodContext';
 import { getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs, getEmployeeTaxReport } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { FileText, X, Search, Save, ChevronDown, ChevronUp, BarChart3, Loader2, TrendingUp, TrendingDown, IndianRupee, Calendar } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
-
-function getCurrentFY() {
-  const now = new Date();
-  const m = now.getMonth() + 1;
-  const y = now.getFullYear();
-  return m >= 4 ? `${y}-${(y + 1).toString().slice(2)}` : `${y - 1}-${y.toString().slice(2)}`;
-}
 
 const FY_OPTIONS = (() => {
   const now = new Date();
@@ -26,7 +20,8 @@ const FY_OPTIONS = (() => {
 export default function TaxDeclarationsPage() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
-  const [fy, setFy] = useState(getCurrentFY());
+  const { fyApi: periodFy } = usePeriod();
+  const [fy, setFy] = useState(periodFy);
   const [declarations, setDeclarations] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +31,9 @@ export default function TaxDeclarationsPage() {
   const [expandedEmp, setExpandedEmp] = useState(null); // employeeId
   const [taxReport, setTaxReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+
+  // Sync FY when period picker changes
+  useEffect(() => { setFy(periodFy); }, [periodFy]);
 
   const load = async () => {
     setLoading(true);

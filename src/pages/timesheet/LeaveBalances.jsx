@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { usePeriod } from '../../context/PeriodContext';
 import { getAllLeaveBalances } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
 import { CalendarDays, Search, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 1 });
-
-function getCurrentFY() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1;
-  return m >= 4 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
-}
 
 const FY_OPTIONS = (() => {
   const now = new Date();
@@ -34,10 +28,14 @@ export default function LeaveBalances() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
-  const [fy, setFy] = useState(getCurrentFY());
+  const { fy: periodFy } = usePeriod();
+  const [fy, setFy] = useState(periodFy);
   const [search, setSearch] = useState('');
   const [expandedEmp, setExpandedEmp] = useState(null);
   const [deptFilter, setDeptFilter] = useState('');
+
+  // Sync FY when period picker changes
+  useEffect(() => { setFy(periodFy); }, [periodFy]);
 
   useEffect(() => { loadData(); }, [orgSlug, fy]);
 

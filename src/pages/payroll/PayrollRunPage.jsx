@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { usePeriod } from '../../context/PeriodContext';
 import {
   getPayrollRuns, getPayrollRun, createPayrollRun, processPayrollRun,
   finalizePayrollRun, unfinalizePayrollRun, markPayrollRunPaid, deletePayrollRun,
@@ -30,6 +31,7 @@ const STATUS_COLORS = {
 export default function PayrollRunPage() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
+  const { month: periodMonth, year: periodYear } = usePeriod();
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,9 +50,8 @@ export default function PayrollRunPage() {
   const [releaseSelection, setReleaseSelection] = useState(new Set());
   const [releasing, setReleasing] = useState(false);
 
-  const now = new Date();
-  const [newMonth, setNewMonth] = useState(now.getMonth() + 1);
-  const [newYear, setNewYear] = useState(now.getFullYear());
+  const [newMonth, setNewMonth] = useState(periodMonth);
+  const [newYear, setNewYear] = useState(periodYear);
 
   const loadRuns = async () => {
     setLoading(true);

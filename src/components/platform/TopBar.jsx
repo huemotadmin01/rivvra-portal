@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
 import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
+import PeriodPicker from './PeriodPicker';
 import { API_BASE_URL } from '../../utils/config';
 import activityApi from '../../utils/activityApi';
 
@@ -157,8 +158,11 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
           )}
         </div>
 
-        {/* Right: Activities + User */}
+        {/* Right: Period Picker + Activities + User */}
         <div className="flex items-center gap-1">
+          {/* Period picker (ESS / Payroll) */}
+          <PeriodPicker />
+
           {/* Activities dropdown */}
           <div className="relative" ref={actRef}>
             <button

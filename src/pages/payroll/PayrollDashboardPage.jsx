@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { usePeriod } from '../../context/PeriodContext';
 import { getPayrollRuns } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
@@ -46,11 +47,8 @@ export default function PayrollDashboardPage() {
   // Recent 6 runs for timeline
   const recentRuns = runs.slice(0, 6);
 
-  // FY stats
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-  const fy = currentMonth >= 4 ? `${currentYear}-${(currentYear + 1).toString().slice(2)}` : `${currentYear - 1}-${currentYear.toString().slice(2)}`;
+  // FY stats from period context
+  const { fyApi: fy } = usePeriod();
   // Only include Rivvra-processed runs (March 2026 onwards) — earlier months were on GreytHR
   const fyRuns = runs.filter(r => r.financialYear === fy && ['processed', 'finalized', 'paid'].includes(r.status) && (r.year > 2026 || (r.year === 2026 && r.month >= 3)));
   const fyTotalNet = fyRuns.reduce((s, r) => s + (r.summary?.totalNet || 0), 0);
