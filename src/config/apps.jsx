@@ -174,12 +174,19 @@ export const APP_REGISTRY = {
             ],
           },
         ] : []),
+        // Holiday Calendar: visible to all attendance-based employees (read-only for non-admins)
+        ...(timesheetUser?.timesheetMode !== 'timesheet' ? [
+          { type: 'item', path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
+        ] : []),
         // Admin only: configuration
         ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
-              { path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
+              // Holiday Calendar also in config for admins (if timesheet mode, it's only here)
+              ...(timesheetUser?.timesheetMode === 'timesheet' ? [
+                { path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
+              ] : []),
               { path: '/timesheet/leave/reports', label: 'Leave Reports', icon: BarChart3 },
               { path: '/settings/timesheet', label: 'Settings', icon: Settings },
             ],

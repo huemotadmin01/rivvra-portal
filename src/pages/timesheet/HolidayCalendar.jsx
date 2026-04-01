@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { useTimesheetContext } from '../../context/TimesheetContext';
 import { getHolidays, updateHolidays, copyHolidaysToYear } from '../../utils/timesheetApi';
 import { PageSkeleton } from '../../components/Skeletons';
 import { Plus, Trash2, Copy, Loader2, Star, ChevronLeft, ChevronRight, Save } from 'lucide-react';
@@ -25,6 +26,8 @@ function toDateStr(d) {
 
 export default function HolidayCalendar() {
   const { showToast } = useToast();
+  const { timesheetUser } = useTimesheetContext();
+  const isAdmin = timesheetUser?.role === 'admin';
   const [year, setYear] = useState(new Date().getFullYear());
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +152,7 @@ export default function HolidayCalendar() {
       {/* Header */}
       <div className="text-center">
         <h1 className="text-xl sm:text-2xl font-bold text-white">Holiday Calendar</h1>
-        <p className="text-dark-400 text-sm mt-1">Manage public holidays for your organization</p>
+        <p className="text-dark-400 text-sm mt-1">{isAdmin ? 'Manage public holidays for your organization' : 'Public holidays for your organization'}</p>
         <div className="flex items-center justify-center gap-1 mt-3">
           <button onClick={() => setYear(y => y - 1)} className="p-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-400 hover:text-white hover:border-dark-600 transition-colors">
             <ChevronLeft size={16} />
@@ -161,7 +164,7 @@ export default function HolidayCalendar() {
         </div>
       </div>
 
-      {isDefault && (
+      {isDefault && isAdmin && (
         <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm rounded-xl px-4 py-3 flex items-center gap-2">
           <span className="text-amber-400 text-lg">*</span>
           Showing default holidays. Click <strong>Save Calendar</strong> to customize for your organization.
@@ -185,21 +188,23 @@ export default function HolidayCalendar() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setShowAdd(true)} className="bg-rivvra-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors">
-            <Plus size={14} /> Add Holiday
-          </button>
-          <button onClick={handleCopyToNextYear} disabled={copying} className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-sm hover:text-white hover:border-dark-600 flex items-center gap-1.5 disabled:opacity-50 transition-colors">
-            {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Copy to {year + 1}
-          </button>
-          <button onClick={handleSave} disabled={saving} className="bg-rivvra-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Calendar
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowAdd(true)} className="bg-rivvra-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors">
+              <Plus size={14} /> Add Holiday
+            </button>
+            <button onClick={handleCopyToNextYear} disabled={copying} className="bg-dark-800 border border-dark-700 text-dark-300 px-3 py-1.5 rounded-lg text-sm hover:text-white hover:border-dark-600 flex items-center gap-1.5 disabled:opacity-50 transition-colors">
+              {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Copy to {year + 1}
+            </button>
+            <button onClick={handleSave} disabled={saving} className="bg-rivvra-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Calendar
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Add Holiday Form */}
-      {showAdd && (
+      {isAdmin && showAdd && (
         <div className="bg-dark-800/80 border border-dark-700 rounded-xl p-4">
           <h3 className="text-white font-medium text-sm mb-3">Add New Holiday</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
@@ -257,23 +262,31 @@ export default function HolidayCalendar() {
                         <span className="text-rivvra-400 text-xs font-mono w-5 shrink-0 text-right">{h.day}</span>
                         <span className="text-white text-sm truncate flex-1">{h.name}</span>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => toggleType(h.idx)}
-                            title={`${h.type} — click to toggle`}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors ${h.type === 'mandatory' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'}`}
-                          >
-                            {h.type === 'mandatory' ? 'M' : 'O'}
-                          </button>
-                          <button
-                            onClick={() => toggleRecurring(h.idx)}
-                            title={h.recurring ? 'Recurring — click to make one-time' : 'One-time — click to make recurring'}
-                            className="transition-colors"
-                          >
-                            <Star size={10} className={h.recurring ? 'text-yellow-500 fill-yellow-500' : 'text-dark-600 hover:text-dark-400'} />
-                          </button>
-                          <button onClick={() => handleRemove(h.idx)} className="p-1 -m-1 text-dark-600 hover:text-red-400 transition-colors" title="Remove">
-                            <Trash2 size={13} />
-                          </button>
+                          {isAdmin ? (
+                            <>
+                              <button
+                                onClick={() => toggleType(h.idx)}
+                                title={`${h.type} — click to toggle`}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors ${h.type === 'mandatory' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'}`}
+                              >
+                                {h.type === 'mandatory' ? 'M' : 'O'}
+                              </button>
+                              <button
+                                onClick={() => toggleRecurring(h.idx)}
+                                title={h.recurring ? 'Recurring — click to make one-time' : 'One-time — click to make recurring'}
+                                className="transition-colors"
+                              >
+                                <Star size={10} className={h.recurring ? 'text-yellow-500 fill-yellow-500' : 'text-dark-600 hover:text-dark-400'} />
+                              </button>
+                              <button onClick={() => handleRemove(h.idx)} className="p-1 -m-1 text-dark-600 hover:text-red-400 transition-colors" title="Remove">
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          ) : (
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${h.type === 'mandatory' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                              {h.type === 'mandatory' ? 'M' : 'O'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
