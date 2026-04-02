@@ -23,7 +23,9 @@ const statusConfig = {
   absent:   { label: 'Absent',   short: 'A',  emoji: '✕', gradient: 'from-red-500/20 to-red-600/5', bg: 'bg-red-500/15',     text: 'text-red-400',     border: 'border-red-500/25',     dot: 'bg-red-500',     ring: 'ring-red-500/40',     hoverBg: 'hover:bg-red-500/25' },
   leave:    { label: 'Leave',    short: 'L',  emoji: '🏖', gradient: 'from-blue-500/20 to-blue-600/5', bg: 'bg-blue-500/15',    text: 'text-blue-400',    border: 'border-blue-500/25',    dot: 'bg-blue-500',    ring: 'ring-blue-500/40',    hoverBg: '' },
   half_day_leave: { label: '½ Leave', short: '½L', emoji: '🏖', gradient: 'from-blue-500/10 to-amber-500/5', bg: 'bg-blue-400/10', text: 'text-blue-300', border: 'border-blue-400/20', dot: 'bg-blue-400', ring: 'ring-blue-400/30', hoverBg: '' },
-  holiday:  { label: 'Holiday',  short: 'H',  emoji: '🎉', gradient: 'from-purple-500/20 to-purple-600/5', bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/25',  dot: 'bg-purple-500',  ring: 'ring-purple-500/40',  hoverBg: '' },
+  holiday:  { label: 'Holiday',  short: 'H',  emoji: '🎉', gradient: 'from-purple-500/20 to-purple-600/5', bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/25',  dot: 'bg-purple-500',  ring: 'ring-purple-500/40',  hoverBg: 'hover:bg-purple-500/25' },
+  holiday_work:      { label: 'Holiday Work',      short: 'HW',  emoji: '🔨', gradient: 'from-orange-500/20 to-orange-600/5', bg: 'bg-orange-500/15',  text: 'text-orange-400',  border: 'border-orange-500/25',  dot: 'bg-orange-500',  ring: 'ring-orange-500/40',  hoverBg: 'hover:bg-orange-500/25' },
+  holiday_work_half: { label: 'HW Half Day',  short: '½HW', emoji: '🔨', gradient: 'from-orange-400/15 to-orange-500/5', bg: 'bg-orange-400/10',  text: 'text-orange-300',  border: 'border-orange-400/20',  dot: 'bg-orange-400',  ring: 'ring-orange-400/30',  hoverBg: 'hover:bg-orange-400/25' },
   weekend:    { label: 'Weekend',    short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/60',    text: 'text-dark-600',    border: 'border-dark-700/20',    dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
   not_joined: { label: 'Not Joined', short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/50',    text: 'text-dark-600',    border: 'border-dark-700/15',    dot: 'bg-dark-700',    ring: '',    hoverBg: '' },
   upcoming:   { label: 'Upcoming',   short: '—',  emoji: '·', gradient: '', bg: 'bg-dark-800/20',    text: 'text-dark-500',    border: 'border-dark-700/20 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
@@ -40,6 +42,8 @@ function getEntryDisplayStatus(entry) {
     const h = parseFloat(entry.hours) || 0;
     if (h > 0 && h <= 4) return 'half_day_leave';
   }
+  if (entry.status === 'holiday_work') return 'holiday_work';
+  if (entry.status === 'holiday_work_half') return 'holiday_work_half';
   return entry.status;
 }
 
@@ -91,8 +95,20 @@ export default function MyAttendancePage() {
     setEntries(prev => prev.map(e => {
       const eDate = toISTDateStr(e.date);
       if (eDate !== dateStr) return e;
-      if (['leave', 'holiday', 'weekend', 'not_joined'].includes(e.status)) return e;
+      if (['leave', 'weekend', 'not_joined'].includes(e.status)) return e;
 
+      // Holiday toggle cycle: holiday → holiday_work → holiday_work_half → holiday
+      if (e.status === 'holiday') {
+        return { ...e, status: 'holiday_work', hours: 8 };
+      }
+      if (e.status === 'holiday_work') {
+        return { ...e, status: 'holiday_work_half', hours: 4 };
+      }
+      if (e.status === 'holiday_work_half') {
+        return { ...e, status: 'holiday', hours: 0 };
+      }
+
+      // Normal working day cycle: Present → Half Day → Absent → Present
       if (e.status === 'working' && parseFloat(e.hours) >= 8) {
         return { ...e, status: 'working', hours: 4, notes: 'Half day' };
       } else if (e.status === 'working' && parseFloat(e.hours) <= 4) {
@@ -224,11 +240,13 @@ export default function MyAttendancePage() {
 
   // Summary counts
   const summary = (() => {
-    let present = 0, halfDay = 0, leave = 0, holiday = 0, absent = 0, weekend = 0;
+    let present = 0, halfDay = 0, leave = 0, holiday = 0, absent = 0, weekend = 0, holidayWork = 0;
     entries.forEach(e => {
-      if (e.status === 'not_joined' || e.status === 'upcoming') return; // skip pre-joining & future days
+      if (e.status === 'not_joined' || e.status === 'upcoming') return;
       if (e.status === 'weekend') weekend++;
       else if (e.status === 'holiday') holiday++;
+      else if (e.status === 'holiday_work') { holiday++; holidayWork += 1; }
+      else if (e.status === 'holiday_work_half') { holiday++; holidayWork += 0.5; }
       else if (e.status === 'leave') {
         const h = parseFloat(e.hours) || 0;
         leave += (h > 0 && h <= 4) ? 0.5 : 1;
@@ -238,12 +256,11 @@ export default function MyAttendancePage() {
         const h = parseFloat(e.hours) || 0;
         if (h >= 8) present++;
         else if (h > 0) halfDay++;
-        // hours === 0 means unfilled — don't count
       }
     });
     const effective = present + (halfDay * 0.5) + holiday + leave;
     const totalCalendarDays = new Date(year, month, 0).getDate();
-    return { present, halfDay, leave, holiday, absent, weekend, effective, totalCalendarDays };
+    return { present, halfDay, leave, holiday, absent, weekend, effective, totalCalendarDays, holidayWork };
   })();
 
   const weeks = buildCalendarGrid();
@@ -257,6 +274,7 @@ export default function MyAttendancePage() {
     { label: 'Leave', value: summary.leave, color: 'blue', config: statusConfig.leave },
     { label: 'Holiday', value: summary.holiday, color: 'purple', config: statusConfig.holiday },
     { label: 'Absent', value: summary.absent, color: 'red', config: statusConfig.absent },
+    ...(summary.holidayWork > 0 ? [{ label: 'Holiday Work', value: summary.holidayWork, color: 'orange', config: statusConfig.holiday_work }] : []),
   ];
 
   if (loading) {
@@ -388,7 +406,7 @@ export default function MyAttendancePage() {
 
                 const displayStatus = getEntryDisplayStatus(entry);
                 const config = statusConfig[displayStatus] || statusConfig.working;
-                const isLocked = ['leave', 'holiday', 'weekend', 'not_joined'].includes(entry.status);
+                const isLocked = ['leave', 'weekend', 'not_joined'].includes(entry.status);
                 const isClickable = canEdit && !isLocked;
                 const isToday = dateStr === todayStr;
                 const isWeekend = entry.status === 'weekend';
@@ -428,7 +446,7 @@ export default function MyAttendancePage() {
                     </div>
 
                     {/* Note for leave/holiday */}
-                    {entry.notes && ['leave', 'holiday'].includes(entry.status) && (
+                    {entry.notes && ['leave', 'holiday', 'holiday_work', 'holiday_work_half'].includes(entry.status) && (
                       <div
                         className={`text-[8px] sm:text-[9px] mt-1 truncate ${config.text} opacity-60 leading-tight`}
                         title={entry.notes}
@@ -461,7 +479,7 @@ export default function MyAttendancePage() {
           <div className="flex items-center gap-2 text-dark-500">
             <Info size={13} />
             <p className="text-[11px]">
-              Click a weekday to cycle: <span className="text-emerald-400">Present</span> → <span className="text-amber-400">Half Day</span> → <span className="text-red-400">Absent</span>
+              Weekday: <span className="text-emerald-400">Present</span> → <span className="text-amber-400">Half</span> → <span className="text-red-400">Absent</span> · Holiday: <span className="text-orange-400">HW</span> → <span className="text-orange-300">½HW</span> → <span className="text-purple-400">Holiday</span>
             </p>
           </div>
           <div className="flex items-center gap-2.5 self-end sm:self-auto">

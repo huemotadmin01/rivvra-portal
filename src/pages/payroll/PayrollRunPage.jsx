@@ -521,8 +521,8 @@ export default function PayrollRunPage() {
                       const adHocEarningsTotal = liveEarnings.reduce((s, e) => s + (e.amount || 0), 0);
                       const adHocDeductionsTotal = liveDeductions.reduce((s, d) => s + (d.amount || 0), 0);
                       // Recalculate display values with live ad-hoc
-                      const baseGross = item.grossSalary - (item.adHocEarnings || []).reduce((s, e) => s + (e.amount || 0), 0);
-                      const displayGross = baseGross + adHocEarningsTotal;
+                      const baseGross = item.grossSalary - (item.adHocEarnings || []).reduce((s, e) => s + (e.amount || 0), 0) - (item.holidayWorkAllowance || 0);
+                      const displayGross = baseGross + adHocEarningsTotal + (item.holidayWorkAllowance || 0);
                       const baseDeductions = item.totalDeductions - (item.otherDeductions || 0);
                       const displayDeductions = baseDeductions + adHocDeductionsTotal;
                       const displayNet = Math.max(0, displayGross - displayDeductions);
@@ -608,6 +608,14 @@ export default function PayrollRunPage() {
                                       <span className="text-emerald-400 text-xs">+₹{fmt(a.amount)}</span>
                                     </div>
                                   ))}
+
+                                  {/* Holiday Work Allowance */}
+                                  {item.holidayWorkAllowance > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">Holiday Work ({item.holidayWorkDays}d)</span>
+                                      <span className="text-orange-400 text-xs">+₹{fmt(item.holidayWorkAllowance)}</span>
+                                    </div>
+                                  )}
 
                                   {/* Contractor-specific fields */}
                                   {item.payrollMode === 'contractor' && (

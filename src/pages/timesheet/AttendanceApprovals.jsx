@@ -13,6 +13,8 @@ const entryColors = {
   leave: 'bg-blue-500 text-white',           // Full day leave
   half_day_leave: 'bg-blue-400/70 text-white', // Half day leave
   holiday: 'bg-purple-500 text-white',
+  holiday_work: 'bg-orange-500 text-white',        // Full day holiday work
+  holiday_work_half: 'bg-orange-400 text-white',   // Half day holiday work
   absent: 'bg-dark-700 text-red-400',
   weekend: 'bg-dark-800 text-dark-500',
   not_joined: 'bg-dark-900 text-dark-600',   // Before joining date
@@ -172,7 +174,7 @@ export default function AttendanceApprovals() {
                   <div>
                     <p className="font-medium text-white">{att.employeeName} — {monthNames[att.month]} {att.year}</p>
                     <p className="text-sm text-dark-400">
-                      {att.presentDays || 0} present • {att.halfDays || 0} half days • {att.leaveDays || 0} leaves • {att.totalWorkingDays || 0} working days
+                      {att.presentDays || 0} present • {att.halfDays || 0} half days • {att.leaveDays || 0} leaves • {att.totalWorkingDays || 0} working days{att.holidayWorkDays > 0 ? ` • ${att.holidayWorkDays} holiday work` : ''}
                     </p>
                   </div>
                 </div>
@@ -228,6 +230,8 @@ export default function AttendanceApprovals() {
                           colorClass = (h > 0 && h <= 4) ? entryColors.half_day_leave : entryColors.leave;
                         }
                         else if (status === 'holiday') colorClass = entryColors.holiday;
+                        else if (status === 'holiday_work') colorClass = entryColors.holiday_work;
+                        else if (status === 'holiday_work_half') colorClass = entryColors.holiday_work_half;
                         else if (status === 'absent') colorClass = entryColors.absent;
                         else if (status === 'not_joined') colorClass = entryColors.not_joined;
                         else if (isWeekend) colorClass = entryColors.weekend;
@@ -252,6 +256,7 @@ export default function AttendanceApprovals() {
                       { label: 'Leave', color: 'bg-blue-500' },
                       { label: '½ Leave', color: 'bg-blue-400' },
                       { label: 'Holiday', color: 'bg-purple-500' },
+                      { label: 'Holiday Work', color: 'bg-orange-500' },
                       { label: 'Weekend', color: 'bg-dark-800' },
                     ].map(item => (
                       <span key={item.label} className="flex items-center gap-1">
