@@ -90,6 +90,7 @@ const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboard
 const PayrollSettingsPage = lazy(() => import('./pages/payroll/PayrollSettingsPage'));
 const MyTaxDeclarationsPage = lazy(() => import('./pages/payroll/MyTaxDeclarationsPage'));
 const MyTaxReportPage = lazy(() => import('./pages/payroll/MyTaxReportPage'));
+const FnFDashboard = lazy(() => import('./pages/payroll/FnFDashboard'));
 
 const AttendanceApprovals = lazy(() => import('./pages/timesheet/AttendanceApprovals'));
 const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
@@ -327,6 +328,7 @@ function App() {
                 <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/settings" element={<ErrorBoundary><PayrollSettingsPage /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><FnFDashboard /></ErrorBoundary>} />
               </Route>
 
               {/* Legacy payroll redirects — old /timesheet/ paths → new /payroll/ paths */}

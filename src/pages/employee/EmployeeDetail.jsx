@@ -8,6 +8,7 @@ import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
 import AssetClearance from '../../components/employee/AssetClearance';
+import FnFSettlement from '../../components/employee/FnFSettlement';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
@@ -1110,6 +1111,13 @@ export default function EmployeeDetail() {
       {(emp.status === 'resigned' || emp.status === 'terminated') && isAdmin && (
         <div className="mt-5">
           <AssetClearance employeeId={emp._id} employeeStatus={emp.status} isAdmin={isAdmin} />
+        </div>
+      )}
+
+      {/* ── F&F Settlement (for separated confirmed employees) ─────────── */}
+      {(emp.status === 'resigned' || emp.status === 'terminated') && emp.employmentType === 'confirmed' && isAdmin && (
+        <div className="mt-5 card p-5 border-amber-500/20">
+          <FnFSettlement employeeId={emp._id.toString()} employee={emp} />
         </div>
       )}
 

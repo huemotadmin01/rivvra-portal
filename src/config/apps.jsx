@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield, User, Network, Package,
+  Shield, User, Network, Package, Calculator,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -217,6 +217,7 @@ export const APP_REGISTRY = {
       { type: 'item', path: '/payroll/export', label: 'Export & Reports', icon: Download },
       { type: 'item', path: '/payroll/statutory-run', label: 'Run Payroll', icon: Banknote },
       { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
+      { type: 'item', path: '/payroll/fnf', label: 'Full & Final', icon: Calculator },
       {
         type: 'group', label: 'Configuration', icon: Settings,
         children: [
