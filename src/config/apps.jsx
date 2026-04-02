@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield, User, Network,
+  Shield, User, Network, Package,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -178,6 +178,8 @@ export const APP_REGISTRY = {
         ...(timesheetUser?.timesheetMode !== 'timesheet' ? [
           { type: 'item', path: '/timesheet/holidays', label: 'Holiday Calendar', icon: Calendar },
         ] : []),
+        // My Assets: visible to all employees
+        { type: 'item', path: '/timesheet/my-assets', label: 'My Assets', icon: Package },
         // Admin only: configuration
         ...(isAdmin ? [
           {
@@ -247,11 +249,13 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/employee/departments', label: 'Departments', icon: Building2 },
         ...(isAdmin ? [
           { type: 'item', path: '/employee/add', label: 'Add Employee', icon: UserPlus },
+          { type: 'item', path: '/employee/assets', label: 'Assets', icon: Package },
           { type: 'item', path: '/employee/plan-templates', label: 'Plan Templates', icon: FileText },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
               { path: '/settings/employee', label: 'Settings', icon: Settings },
+              { path: '/employee/assets/types', label: 'Asset Types', icon: Package },
             ],
           },
         ] : []),

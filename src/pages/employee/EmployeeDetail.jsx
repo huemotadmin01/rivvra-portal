@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
+import AssetClearance from '../../components/employee/AssetClearance';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
@@ -1102,6 +1103,13 @@ export default function EmployeeDetail() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Asset Clearance (for separated employees) ────────────────── */}
+      {(emp.status === 'resigned' || emp.status === 'terminated') && isAdmin && (
+        <div className="mt-5">
+          <AssetClearance employeeId={emp._id} employeeStatus={emp.status} isAdmin={isAdmin} />
         </div>
       )}
 

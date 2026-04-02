@@ -98,6 +98,7 @@ const LeaveApprovals = lazy(() => import('./pages/timesheet/LeaveApprovals'));
 const LeaveBalances = lazy(() => import('./pages/timesheet/LeaveBalances'));
 const LeaveReports = lazy(() => import('./pages/timesheet/LeaveReports'));
 const HolidayCalendar = lazy(() => import('./pages/timesheet/HolidayCalendar'));
+const MyAssets = lazy(() => import('./pages/timesheet/MyAssets'));
 
 // Lazy-loaded: Employee app pages
 const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
@@ -108,6 +109,9 @@ const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
 const PlanTemplates = lazy(() => import('./pages/employee/PlanTemplates'));
+const AssetList = lazy(() => import('./pages/employee/AssetList'));
+const AssetDetail = lazy(() => import('./pages/employee/AssetDetail'));
+const AssetTypeConfig = lazy(() => import('./pages/employee/AssetTypeConfig'));
 
 // Lazy-loaded: Contacts app pages
 const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
@@ -302,6 +306,7 @@ function App() {
                   <Route path="/org/:slug/timesheet/leave/balances" element={<ErrorBoundary><LeaveBalances /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><LeaveReports /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><HolidayCalendar /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-assets" element={<ErrorBoundary><MyAssets /></ErrorBoundary>} />
                   {/* Employee-facing statutory payroll pages */}
                   <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><MySalaryPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />
@@ -340,7 +345,10 @@ function App() {
                   <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PlanTemplates /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/assets/types" element={<ErrorBoundary><AssetTypeConfig /></ErrorBoundary>} />
                 </Route>
+                <Route path="/org/:slug/employee/assets" element={<ErrorBoundary><AssetList /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/assets/:assetId" element={<ErrorBoundary><AssetDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><EmployeeDetail /></ErrorBoundary>} />
               </Route>
 
