@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { usePeriod } from '../../context/PeriodContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi, { getMyLeaveBalances, getPendingLeaveRequests } from '../../utils/timesheetApi';
@@ -187,10 +188,8 @@ function ContractorDashboard() {
     </PageSkeleton>
   );
 
-  // Current month timesheet status
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1; // 1-12
-  const currentYear = now.getFullYear();
+  // Current period timesheet status (from period picker)
+  const { month: currentMonth, year: currentYear } = usePeriod();
   const currentTs = timesheets.find(ts => ts.month === currentMonth && ts.year === currentYear);
   const tsStatus = currentTs?.status || 'not-created';
   const tsStatusLabel = {
@@ -713,19 +712,22 @@ function AdminDashboard() {
   };
   const myId = timesheetUser?._id;
 
+  // Use period context for month/year filtering
+  const { month: periodMonth, year: periodYear } = usePeriod();
+
   // Hooks must be called before any early return (Rules of Hooks)
-  // Timesheet stats
-  const pending = useMemo(() => timesheets.filter(t => t.status === 'submitted'), [timesheets]);
+  // Timesheet stats — filtered by selected period
+  const pending = useMemo(() => timesheets.filter(t => t.status === 'submitted' && t.month === periodMonth && t.year === periodYear), [timesheets, periodMonth, periodYear]);
   const approvedThisMonth = useMemo(() => {
-    const now = new Date();
-    return timesheets.filter(t => t.status === 'approved' && t.month === now.getMonth() + 1 && t.year === now.getFullYear());
-  }, [timesheets]);
-  // Attendance stats
-  const attPending = useMemo(() => attendances.filter(t => t.status === 'submitted'), [attendances]);
+    return timesheets.filter(t => t.status === 'approved' && t.month === periodMonth && t.year === periodYear);
+  }, [timesheets, periodMonth, periodYear]);
+  const totalThisMonth = useMemo(() => timesheets.filter(t => t.month === periodMonth && t.year === periodYear), [timesheets, periodMonth, periodYear]);
+  // Attendance stats — filtered by selected period
+  const attPending = useMemo(() => attendances.filter(t => t.status === 'submitted' && t.month === periodMonth && t.year === periodYear), [attendances, periodMonth, periodYear]);
   const attApprovedThisMonth = useMemo(() => {
-    const now = new Date();
-    return attendances.filter(t => t.status === 'approved' && t.month === now.getMonth() + 1 && t.year === now.getFullYear());
-  }, [attendances]);
+    return attendances.filter(t => t.status === 'approved' && t.month === periodMonth && t.year === periodYear);
+  }, [attendances, periodMonth, periodYear]);
+  const attTotalThisMonth = useMemo(() => attendances.filter(t => t.month === periodMonth && t.year === periodYear), [attendances, periodMonth, periodYear]);
 
   const selectedMonth = notApprovedData?.months?.[notApprovedTab] || null;
 
@@ -928,7 +930,7 @@ function AdminDashboard() {
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-white">{tsDataReady ? timesheets.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-white">{tsDataReady ? totalThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
         </div>
         {pending.length > 0 && (
@@ -964,7 +966,7 @@ function AdminDashboard() {
           </div>
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-white">{attDataReady ? attendances.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
+            <p className="text-2xl font-bold text-white">{attDataReady ? attTotalThisMonth.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
           </div>
         </div>
         {attPending.length > 0 && (
