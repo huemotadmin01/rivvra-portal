@@ -655,8 +655,8 @@ function AdminDashboard() {
         setTsDataReady(true);
         setAttDataReady(true);
       }).catch(() => {
-        // Fallback: if summary endpoint doesn't exist, fetch regular but lightweight
-        timesheetApi.get('/timesheets', sig).then(r => {
+        // Fallback: fetch ALL months so period filtering works
+        timesheetApi.get('/timesheets?all=true', sig).then(r => {
           const all = r.data || [];
           setTimesheets(all.filter(t => !t.isAttendance));
           setAttendances(all.filter(t => t.isAttendance));
