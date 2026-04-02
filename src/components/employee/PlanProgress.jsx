@@ -168,8 +168,8 @@ export default function PlanProgress({ employeeId, isAdmin }) {
                           {new Date(task.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </span>
 
-                        {/* Skip button (admin only, pending tasks) */}
-                        {isAdmin && isActive && isPending && (
+                        {/* Skip button (admin only, pending non-mandatory tasks) */}
+                        {isAdmin && isActive && isPending && !task.isMandatory && (
                           <button
                             type="button"
                             onClick={() => handleTaskAction(plan, task, 'skipped')}

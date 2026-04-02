@@ -11,6 +11,16 @@ const RESPONSIBLE_ICONS = {
 
 const RESPONSIBLE_LABELS = { hr: 'HR', manager: 'Manager', employee: 'Employee', it: 'IT' };
 
+// Derive the applicableType tag from employee record (mirrors backend logic)
+function getEmployeeApplicableType(emp) {
+  const et = emp?.employmentType || 'confirmed';
+  if (et === 'intern') return 'intern';
+  if (et === 'external_consultant') return 'external_consultant';
+  const billable = emp?.billable === true;
+  if (et === 'internal_consultant') return billable ? 'internal_consultant_billable' : 'internal_consultant_nonbillable';
+  return billable ? 'confirmed_billable' : 'confirmed_nonbillable';
+}
+
 export default function LaunchPlanModal({ isOpen, onClose, onLaunched, employee, orgSlug }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,18 +37,25 @@ export default function LaunchPlanModal({ isOpen, onClose, onLaunched, employee,
     setSuccess('');
     setSelectedId(null);
 
-    employeeApi.listPlanTemplates(orgSlug, planType)
+    // Derive employee's applicable type for strict filtering
+    const empType = getEmployeeApplicableType(employee);
+
+    employeeApi.listPlanTemplates(orgSlug, planType, empType)
       .then((res) => {
         if (res.success) {
           setTemplates(res.templates);
-          // Auto-select default if exists
-          const def = res.templates.find((t) => t.isDefault);
-          if (def) setSelectedId(def._id);
+          // Auto-select if only one template or default exists
+          if (res.templates.length === 1) {
+            setSelectedId(res.templates[0]._id);
+          } else {
+            const def = res.templates.find((t) => t.isDefault);
+            if (def) setSelectedId(def._id);
+          }
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isOpen, orgSlug, planType]);
+  }, [isOpen, orgSlug, planType, employee]);
 
   if (!isOpen || !employee) return null;
 

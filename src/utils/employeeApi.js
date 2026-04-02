@@ -334,8 +334,11 @@ const employeeApi = {
   },
 
   // ── Plan Templates ─────────────────────────────────────────────────────────
-  listPlanTemplates(orgSlug, planType) {
-    const qs = planType ? `?planType=${planType}` : '';
+  listPlanTemplates(orgSlug, planType, employeeType) {
+    const params = [];
+    if (planType) params.push(`planType=${planType}`);
+    if (employeeType) params.push(`employeeType=${employeeType}`);
+    const qs = params.length ? `?${params.join('&')}` : '';
     return api.request(`/api/org/${orgSlug}/employee/plan-templates${qs}`);
   },
 

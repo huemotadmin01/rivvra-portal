@@ -20,6 +20,15 @@ const PLAN_TYPES = [
   { value: 'offboarding', label: 'Offboarding', color: 'bg-amber-500/10 text-amber-400' },
 ];
 
+const APPLICABLE_TYPES = [
+  { value: 'confirmed_nonbillable', label: 'Confirmed (Non-Billable)' },
+  { value: 'confirmed_billable', label: 'Confirmed (Billable)' },
+  { value: 'intern', label: 'Intern' },
+  { value: 'internal_consultant_nonbillable', label: 'Internal Consultant (Non-Billable)' },
+  { value: 'internal_consultant_billable', label: 'Internal Consultant (Billable)' },
+  { value: 'external_consultant', label: 'External Consultant' },
+];
+
 function Badge({ children, className }) {
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${className}`}>{children}</span>;
 }
@@ -138,7 +147,7 @@ export default function PlanTemplates() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null); // null = not editing, 'new' = creating
-  const [formData, setFormData] = useState({ name: '', description: '', planType: 'onboarding', tasks: [] });
+  const [formData, setFormData] = useState({ name: '', description: '', planType: 'onboarding', tasks: [], applicableTypes: [] });
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [members, setMembers] = useState([]);
@@ -164,17 +173,17 @@ export default function PlanTemplates() {
 
   const startCreate = () => {
     setEditingId('new');
-    setFormData({ name: '', description: '', planType: 'onboarding', tasks: [] });
+    setFormData({ name: '', description: '', planType: 'onboarding', tasks: [], applicableTypes: [] });
   };
 
   const startEdit = (tpl) => {
     setEditingId(tpl._id);
-    setFormData({ name: tpl.name, description: tpl.description, planType: tpl.planType, tasks: [...tpl.tasks] });
+    setFormData({ name: tpl.name, description: tpl.description, planType: tpl.planType, tasks: [...tpl.tasks], applicableTypes: tpl.applicableTypes || [] });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setFormData({ name: '', description: '', planType: 'onboarding', tasks: [] });
+    setFormData({ name: '', description: '', planType: 'onboarding', tasks: [], applicableTypes: [] });
   };
 
   const handleSave = async () => {
@@ -247,6 +256,33 @@ export default function PlanTemplates() {
                 className="w-full px-3 py-2.5 bg-dark-800 border border-dark-600 rounded-xl text-white text-sm placeholder-dark-500 focus:outline-none focus:border-rivvra-500"
                 placeholder="Brief description" />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Applicable Employee Types</label>
+              <p className="text-dark-500 text-xs mb-2">Select which employee types this template applies to. Leave empty for all types.</p>
+              <div className="flex flex-wrap gap-2">
+                {APPLICABLE_TYPES.map((at) => {
+                  const isChecked = formData.applicableTypes.includes(at.value);
+                  return (
+                    <button
+                      key={at.value} type="button"
+                      onClick={() => {
+                        const next = isChecked
+                          ? formData.applicableTypes.filter(t => t !== at.value)
+                          : [...formData.applicableTypes, at.value];
+                        setFormData({ ...formData, applicableTypes: next });
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        isChecked
+                          ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
+                          : 'bg-dark-800 border-dark-600 text-dark-400 hover:text-white hover:border-dark-500'
+                      }`}
+                    >
+                      {at.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <TaskEditor tasks={formData.tasks} onChange={(tasks) => setFormData({ ...formData, tasks })} members={members} />
             <div className="flex items-center justify-end gap-3 pt-2">
               <button type="button" onClick={cancelEdit} className="px-4 py-2 text-sm text-dark-400 hover:text-white">Cancel</button>
@@ -280,11 +316,19 @@ export default function PlanTemplates() {
                 <div className="flex items-center gap-3">
                   <FileText size={18} className="text-dark-400" />
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-medium text-sm">{tpl.name}</span>
                       <Badge className={typeConfig.color}>{typeConfig.label}</Badge>
                       {tpl.isDefault && <Badge className="bg-dark-700 text-dark-400">Default</Badge>}
                     </div>
+                    {tpl.applicableTypes?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {tpl.applicableTypes.map(at => {
+                          const label = APPLICABLE_TYPES.find(a => a.value === at)?.label || at;
+                          return <Badge key={at} className="bg-dark-800 text-dark-400 border border-dark-700">{label}</Badge>;
+                        })}
+                      </div>
+                    )}
                     {tpl.description && <p className="text-dark-500 text-xs mt-0.5">{tpl.description}</p>}
                   </div>
                 </div>
