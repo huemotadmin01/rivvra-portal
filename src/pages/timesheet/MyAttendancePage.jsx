@@ -26,6 +26,7 @@ const statusConfig = {
   holiday:  { label: 'Holiday',  short: 'H',  emoji: '🎉', gradient: 'from-purple-500/20 to-purple-600/5', bg: 'bg-purple-500/15',  text: 'text-purple-400',  border: 'border-purple-500/25',  dot: 'bg-purple-500',  ring: 'ring-purple-500/40',  hoverBg: '' },
   weekend:    { label: 'Weekend',    short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/60',    text: 'text-dark-600',    border: 'border-dark-700/20',    dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
   not_joined: { label: 'Not Joined', short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-900/50',    text: 'text-dark-600',    border: 'border-dark-700/15',    dot: 'bg-dark-700',    ring: '',    hoverBg: '' },
+  upcoming:   { label: 'Upcoming',   short: '—',  emoji: '·', gradient: '', bg: 'bg-dark-800/20',    text: 'text-dark-500',    border: 'border-dark-700/20 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: '' },
   unfilled:   { label: 'Unfilled',   short: '—',  emoji: '—', gradient: '', bg: 'bg-dark-800/30',    text: 'text-dark-500',    border: 'border-dark-700/30 border-dashed', dot: 'bg-dark-600',    ring: '',    hoverBg: 'hover:bg-dark-700/30' },
 };
 
@@ -225,7 +226,7 @@ export default function MyAttendancePage() {
   const summary = (() => {
     let present = 0, halfDay = 0, leave = 0, holiday = 0, absent = 0, weekend = 0;
     entries.forEach(e => {
-      if (e.status === 'not_joined') return; // skip pre-joining days
+      if (e.status === 'not_joined' || e.status === 'upcoming') return; // skip pre-joining & future days
       if (e.status === 'weekend') weekend++;
       else if (e.status === 'holiday') holiday++;
       else if (e.status === 'leave') {

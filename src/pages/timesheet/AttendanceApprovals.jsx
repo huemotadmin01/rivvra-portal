@@ -16,6 +16,7 @@ const entryColors = {
   absent: 'bg-dark-700 text-red-400',
   weekend: 'bg-dark-800 text-dark-500',
   not_joined: 'bg-dark-900 text-dark-600',   // Before joining date
+  upcoming: 'bg-dark-900/50 text-dark-600 border border-dashed border-dark-700', // Future dates
 };
 
 export default function AttendanceApprovals() {
