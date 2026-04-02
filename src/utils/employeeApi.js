@@ -363,10 +363,10 @@ const employeeApi = {
   },
 
   // ── Plan Instances ─────────────────────────────────────────────────────────
-  launchPlan(orgSlug, employeeId, templateId) {
+  launchPlan(orgSlug, employeeId, templateId, taskOverrides = []) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/launch-plan`, {
       method: 'POST',
-      body: JSON.stringify({ templateId }),
+      body: JSON.stringify({ templateId, taskOverrides }),
     });
   },
 

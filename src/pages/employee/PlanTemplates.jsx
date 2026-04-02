@@ -150,7 +150,7 @@ export default function PlanTemplates() {
   const [formData, setFormData] = useState({ name: '', description: '', planType: 'onboarding', tasks: [], applicableTypes: [] });
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
-  const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState([]); // active employees for task assignment
 
   const loadTemplates = async () => {
     if (!currentOrg?.slug) return;
@@ -164,8 +164,15 @@ export default function PlanTemplates() {
   const loadMembers = async () => {
     if (!currentOrg?.slug) return;
     try {
-      const res = await api.getOrgMembers(currentOrg.slug);
-      if (res.success) setMembers(res.members?.filter(m => m.status === 'active') || []);
+      const res = await employeeApi.list(currentOrg.slug, { status: 'active' });
+      if (res.success) {
+        setMembers(
+          (res.employees || [])
+            .filter(e => e.fullName && e.linkedUserId)
+            .map(e => ({ userId: e.linkedUserId?.toString?.() || e.linkedUserId, name: e.fullName }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        );
+      }
     } catch (e) { console.error(e); }
   };
 
