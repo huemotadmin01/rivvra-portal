@@ -231,8 +231,8 @@ export default function AssetList() {
 
       {/* Add Asset Modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowAdd(false)}>
-          <div className="bg-dark-850 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAdd(false)}>
+          <div className="bg-dark-800 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Add Asset</h2>
               <button onClick={() => setShowAdd(false)} className="text-dark-400 hover:text-white"><X size={18} /></button>
