@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
-import { useTimesheetContext } from '../../context/TimesheetContext';
+import { useOrg } from '../../context/OrgContext';
 import assetApi from '../../utils/assetApi';
 import employeeApi from '../../utils/employeeApi';
 import {
@@ -28,8 +28,8 @@ export default function AssetDetail() {
   const { assetId } = useParams();
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
-  const { timesheetUser } = useTimesheetContext();
-  const isAdmin = timesheetUser?.role === 'admin' || timesheetUser?.role === 'manager';
+  const { getAppRole } = useOrg();
+  const isAdmin = getAppRole('employee') === 'admin';
 
   const [asset, setAsset] = useState(null);
   const [loading, setLoading] = useState(true);
