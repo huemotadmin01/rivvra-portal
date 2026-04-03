@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
+import assetApi from '../../utils/assetApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
 import AssetClearance from '../../components/employee/AssetClearance';
@@ -43,6 +44,8 @@ import {
   Clock,
   Upload,
   Download,
+  Package,
+  ExternalLink,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
@@ -174,6 +177,10 @@ export default function EmployeeDetail() {
   const [docUploading, setDocUploading] = useState(null); // category key currently uploading
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Employee assets
+  const [employeeAssets, setEmployeeAssets] = useState([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
 
   // Inline editing context
   const [myEmployeeId, setMyEmployeeId] = useState(null); // current user's employee _id
@@ -467,6 +474,16 @@ export default function EmployeeDetail() {
       .then(res => { if (res.success) setEmployeeDocs(res.documents || []); })
       .catch(() => {})
       .finally(() => setDocsLoading(false));
+  }, [currentOrg?.slug, employeeId]);
+
+  // Fetch assets assigned to this employee
+  useEffect(() => {
+    if (!currentOrg?.slug || !employeeId) return;
+    setAssetsLoading(true);
+    assetApi.list(currentOrg.slug, { assignee: employeeId })
+      .then(res => { if (res.success) setEmployeeAssets(res.data || []); })
+      .catch(() => {})
+      .finally(() => setAssetsLoading(false));
   }, [currentOrg?.slug, employeeId]);
 
   // Compensation tracking is available for all non-billable employees on payroll
@@ -1542,6 +1559,77 @@ export default function EmployeeDetail() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Assets ─────────────────────────────────────────────────── */}
+      {(employeeAssets.length > 0 || isAdmin) && (
+        <div className="card p-5 mt-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Package size={16} className="text-cyan-400" />
+            <h3 className="text-white font-semibold">Assets</h3>
+            <span className="ml-auto text-xs bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-medium">
+              {employeeAssets.filter(a => a.status === 'assigned' && a.assignedTo === emp._id).length} assigned
+            </span>
+          </div>
+          {assetsLoading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-dark-500" /></div>
+          ) : employeeAssets.length === 0 ? (
+            <p className="text-sm text-dark-500 text-center py-4">No assets assigned to this employee</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-dark-400 text-xs border-b border-dark-700">
+                    <th className="text-left pb-2 font-medium">Asset</th>
+                    <th className="text-left pb-2 font-medium">Type</th>
+                    <th className="text-left pb-2 font-medium">Condition</th>
+                    <th className="text-left pb-2 font-medium">Status</th>
+                    <th className="text-left pb-2 font-medium">Assigned Date</th>
+                    <th className="pb-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employeeAssets.map(a => {
+                    const isCurrentlyAssigned = a.status === 'assigned' && a.assignedTo === emp._id;
+                    const historyEntry = !isCurrentlyAssigned
+                      ? (a.assignmentHistory || []).find(h => h.employeeId?.toString() === emp._id || h.employeeId === emp._id)
+                      : null;
+                    const statusCfg = {
+                      assigned: 'bg-blue-500/10 text-blue-400',
+                      returned: 'bg-dark-700/50 text-dark-300',
+                      available: 'bg-emerald-500/10 text-emerald-400',
+                      lost: 'bg-red-500/10 text-red-400',
+                      retired: 'bg-dark-800 text-dark-500',
+                    };
+                    const displayStatus = isCurrentlyAssigned ? 'assigned' : (historyEntry?.returnedDate ? 'returned' : a.status);
+                    return (
+                      <tr key={a._id} className="border-b border-dark-800 hover:bg-dark-800/40 transition-colors">
+                        <td className="py-2.5 text-white font-medium">
+                          {a.name}{a.modelName ? <span className="text-dark-400 ml-1.5 text-xs">({a.modelName})</span> : ''}
+                        </td>
+                        <td className="py-2.5 text-dark-300">{a.assetTypeName}</td>
+                        <td className="py-2.5 text-dark-300 capitalize">{a.condition || '—'}</td>
+                        <td className="py-2.5">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg[displayStatus] || statusCfg.available}`}>
+                            {displayStatus === 'assigned' ? 'Assigned' : displayStatus === 'returned' ? 'Returned' : displayStatus}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-dark-400 text-xs">
+                          {isCurrentlyAssigned ? formatDate(a.assignedDate) : historyEntry ? formatDate(historyEntry.assignedDate) : '—'}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <Link to={orgPath(`/employee/assets/${a._id}`)} className="text-rivvra-400 hover:text-rivvra-300 text-xs flex items-center gap-1 justify-end">
+                            View <ExternalLink size={11} />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
