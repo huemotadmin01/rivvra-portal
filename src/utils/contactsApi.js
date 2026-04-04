@@ -71,6 +71,23 @@ const contactsApi = {
   listSalespersons(orgSlug) {
     return api.request(`/api/org/${orgSlug}/contacts/salespersons`);
   },
+
+  // ── Attachments ──────────────────────────────────────────────────────
+  listAttachments(orgSlug, contactId) {
+    return api.request(`/api/org/${orgSlug}/contacts/${contactId}/attachments`);
+  },
+  uploadAttachment(orgSlug, contactId, file, label) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (label) formData.append('label', label);
+    return api.uploadFile(`/api/org/${orgSlug}/contacts/${contactId}/attachments`, formData);
+  },
+  getAttachmentUrl(orgSlug, contactId, docId) {
+    return `${api.baseUrl}/api/org/${orgSlug}/contacts/${contactId}/attachments/${docId}`;
+  },
+  deleteAttachment(orgSlug, contactId, docId) {
+    return api.request(`/api/org/${orgSlug}/contacts/${contactId}/attachments/${docId}`, { method: 'DELETE' });
+  },
 };
 
 export default contactsApi;

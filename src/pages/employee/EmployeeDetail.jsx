@@ -1409,7 +1409,15 @@ export default function EmployeeDetail() {
                   };
                   return (<>
                     <tr key={i} className="hover:bg-dark-800/30 transition-colors group">
-                      <td className="px-3 py-2.5 text-sm text-white">{a.clientName || '\u2014'}</td>
+                      <td className="px-3 py-2.5 text-sm">
+                        {a.clientId ? (
+                          <Link to={orgPath(`/contacts/${a.clientId}`)} className="text-rivvra-400 hover:text-rivvra-300 hover:underline transition-colors">
+                            {a.clientName || '\u2014'}
+                          </Link>
+                        ) : (
+                          <span className="text-white">{a.clientName || '\u2014'}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-sm text-white">{a.projectName || '\u2014'}</td>
                       <td className="px-3 py-2.5 text-sm text-white text-right">{fmtRate(br)}</td>
                       <td className="px-3 py-2.5 text-sm text-white text-right">{fmtRate(cbr)}</td>

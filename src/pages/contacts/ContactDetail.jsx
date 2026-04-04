@@ -11,6 +11,7 @@ import {
   Edit2, Save, X, Loader2, Trash2,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users, Receipt,
+  Upload, Download, Paperclip, Eye,
 } from 'lucide-react';
 
 const GST_TREATMENT_OPTIONS = [
@@ -88,6 +89,11 @@ export default function ContactDetail() {
   // Tabs
   const [activeTab, setActiveTab] = useState('details');
 
+  // Attachments
+  const [attachments, setAttachments] = useState([]);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachUploading, setAttachUploading] = useState(false);
+
   // Edit mode
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
@@ -147,6 +153,19 @@ export default function ContactDetail() {
 
     return () => { cancelled = true; };
   }, [orgSlug]);
+
+  // Fetch attachments
+  const loadAttachments = useCallback(async () => {
+    if (!orgSlug || !contactId) return;
+    setAttachLoading(true);
+    try {
+      const res = await contactsApi.listAttachments(orgSlug, contactId);
+      if (res.success) setAttachments(res.documents || []);
+    } catch {}
+    finally { setAttachLoading(false); }
+  }, [orgSlug, contactId]);
+
+  useEffect(() => { loadAttachments(); }, [loadAttachments]);
 
   // ── Enter edit mode ───────────────────────────────────────────────────
   const startEditing = () => {
@@ -312,6 +331,7 @@ export default function ContactDetail() {
     { id: 'details', label: 'Details' },
     { id: 'activities', label: 'Activities' },
     { id: 'notes', label: 'Notes' },
+    { id: 'attachments', label: 'Attachments' },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -871,6 +891,104 @@ export default function ContactDetail() {
               {contact.internalNotes || (
                 <span className="text-dark-500 italic">No notes yet.</span>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Attachments Tab ─────────────────────────────────────────── */}
+      {activeTab === 'attachments' && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Paperclip size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Attachments</h3>
+            <span className="ml-auto text-xs bg-dark-700 text-dark-300 px-2 py-0.5 rounded-full font-medium">
+              {attachments.length} file{attachments.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {/* Upload area */}
+          <div className="mb-4">
+            <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-dark-600 rounded-xl text-sm text-dark-400 hover:border-rivvra-500 hover:text-rivvra-400 transition-colors cursor-pointer">
+              {attachUploading ? (
+                <><Loader2 size={16} className="animate-spin" /> Uploading...</>
+              ) : (
+                <><Upload size={16} /> Click to upload a file</>
+              )}
+              <input type="file" className="hidden" disabled={attachUploading} onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setAttachUploading(true);
+                try {
+                  await contactsApi.uploadAttachment(orgSlug, contactId, file);
+                  showToast('File uploaded');
+                  await loadAttachments();
+                } catch (err) {
+                  showToast(err.message || 'Upload failed', 'error');
+                } finally {
+                  setAttachUploading(false);
+                  e.target.value = '';
+                }
+              }} />
+            </label>
+          </div>
+
+          {/* File list */}
+          {attachLoading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-dark-500" /></div>
+          ) : attachments.length === 0 ? (
+            <p className="text-sm text-dark-500 text-center py-4">No attachments yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {attachments.map(doc => {
+                const isImage = doc.mimeType?.startsWith('image/');
+                const isPdf = doc.mimeType === 'application/pdf';
+                const sizeKb = doc.size ? `${(doc.size / 1024).toFixed(0)} KB` : '';
+                const url = contactsApi.getAttachmentUrl(orgSlug, contactId, doc._id);
+                const handleDownload = async () => {
+                  try {
+                    const token = localStorage.getItem('rivvra_token');
+                    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                    if (!resp.ok) throw new Error('Download failed');
+                    const blob = await resp.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    if (isImage || isPdf) {
+                      window.open(blobUrl, '_blank');
+                    } else {
+                      const a = document.createElement('a');
+                      a.href = blobUrl; a.download = doc.filename; a.click();
+                      URL.revokeObjectURL(blobUrl);
+                    }
+                  } catch { showToast('Download failed', 'error'); }
+                };
+                return (
+                  <div key={doc._id} className="flex items-center gap-3 p-3 bg-dark-800/60 border border-dark-700/50 rounded-xl hover:bg-dark-800 transition-colors group">
+                    <div className="w-10 h-10 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
+                      {isImage ? <Eye size={16} className="text-blue-400" /> : isPdf ? <FileText size={16} className="text-red-400" /> : <Paperclip size={16} className="text-dark-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{doc.filename}</p>
+                      <p className="text-xs text-dark-500">{sizeKb}{doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={handleDownload}
+                        className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-600 transition-colors" title="View/Download">
+                        <Download size={14} />
+                      </button>
+                      <button onClick={async () => {
+                        if (!confirm('Delete this attachment?')) return;
+                        try {
+                          await contactsApi.deleteAttachment(orgSlug, contactId, doc._id);
+                          showToast('Attachment deleted');
+                          await loadAttachments();
+                        } catch { showToast('Delete failed', 'error'); }
+                      }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
