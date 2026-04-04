@@ -93,6 +93,8 @@ export default function ContactDetail() {
   const [attachments, setAttachments] = useState([]);
   const [attachLoading, setAttachLoading] = useState(false);
   const [attachUploading, setAttachUploading] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null); // { _id, filename, mimeType, blobUrl }
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Edit mode
   const [editing, setEditing] = useState(false);
@@ -933,62 +935,112 @@ export default function ContactDetail() {
             </label>
           </div>
 
-          {/* File list */}
+          {/* File list + Preview */}
           {attachLoading ? (
             <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-dark-500" /></div>
           ) : attachments.length === 0 ? (
             <p className="text-sm text-dark-500 text-center py-4">No attachments yet.</p>
           ) : (
-            <div className="space-y-2">
-              {attachments.map(doc => {
-                const isImage = doc.mimeType?.startsWith('image/');
-                const isPdf = doc.mimeType === 'application/pdf';
-                const sizeKb = doc.size ? `${(doc.size / 1024).toFixed(0)} KB` : '';
-                const url = contactsApi.getAttachmentUrl(orgSlug, contactId, doc._id);
-                const handleDownload = async () => {
-                  try {
-                    const token = localStorage.getItem('rivvra_token');
-                    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                    if (!resp.ok) throw new Error('Download failed');
-                    const blob = await resp.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    if (isImage || isPdf) {
-                      window.open(blobUrl, '_blank');
-                    } else {
-                      const a = document.createElement('a');
-                      a.href = blobUrl; a.download = doc.filename; a.click();
-                      URL.revokeObjectURL(blobUrl);
+            <div className={`grid gap-4 ${previewDoc ? 'grid-cols-[300px_1fr]' : 'grid-cols-1'}`}>
+              {/* File list */}
+              <div className="space-y-2">
+                {attachments.map(doc => {
+                  const isImage = doc.mimeType?.startsWith('image/');
+                  const isPdf = doc.mimeType === 'application/pdf';
+                  const isPreviewable = isImage || isPdf;
+                  const sizeKb = doc.size ? `${(doc.size / 1024).toFixed(0)} KB` : '';
+                  const isSelected = previewDoc?._id === doc._id;
+                  const handlePreview = async () => {
+                    if (isSelected) { setPreviewDoc(null); return; }
+                    if (!isPreviewable) {
+                      // Non-previewable: download directly
+                      try {
+                        const url = contactsApi.getAttachmentUrl(orgSlug, contactId, doc._id);
+                        const token = localStorage.getItem('rivvra_token');
+                        const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                        const blob = await resp.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl; a.download = doc.filename; a.click();
+                        URL.revokeObjectURL(blobUrl);
+                      } catch { showToast('Download failed', 'error'); }
+                      return;
                     }
-                  } catch { showToast('Download failed', 'error'); }
-                };
-                return (
-                  <div key={doc._id} className="flex items-center gap-3 p-3 bg-dark-800/60 border border-dark-700/50 rounded-xl hover:bg-dark-800 transition-colors group">
-                    <div className="w-10 h-10 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
-                      {isImage ? <Eye size={16} className="text-blue-400" /> : isPdf ? <FileText size={16} className="text-red-400" /> : <Paperclip size={16} className="text-dark-400" />}
+                    setPreviewLoading(true);
+                    setPreviewDoc({ _id: doc._id, filename: doc.filename, mimeType: doc.mimeType, blobUrl: null });
+                    try {
+                      const url = contactsApi.getAttachmentUrl(orgSlug, contactId, doc._id);
+                      const token = localStorage.getItem('rivvra_token');
+                      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                      if (!resp.ok) throw new Error();
+                      const blob = await resp.blob();
+                      const blobUrl = URL.createObjectURL(blob);
+                      setPreviewDoc(prev => prev?._id === doc._id ? { ...prev, blobUrl } : prev);
+                    } catch { showToast('Preview failed', 'error'); setPreviewDoc(null); }
+                    finally { setPreviewLoading(false); }
+                  };
+                  return (
+                    <div key={doc._id} onClick={handlePreview}
+                      className={`flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer ${
+                        isSelected ? 'bg-rivvra-500/10 border border-rivvra-500/30' : 'bg-dark-800/60 border border-dark-700/50 hover:bg-dark-800'
+                      }`}>
+                      <div className="w-10 h-10 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
+                        {isImage ? <Eye size={16} className="text-blue-400" /> : isPdf ? <FileText size={16} className="text-red-400" /> : <Paperclip size={16} className="text-dark-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{doc.filename}</p>
+                        <p className="text-xs text-dark-500">{sizeKb}{doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm('Delete this attachment?')) return;
+                          try {
+                            await contactsApi.deleteAttachment(orgSlug, contactId, doc._id);
+                            showToast('Attachment deleted');
+                            if (isSelected) setPreviewDoc(null);
+                            await loadAttachments();
+                          } catch { showToast('Delete failed', 'error'); }
+                        }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{doc.filename}</p>
-                      <p className="text-xs text-dark-500">{sizeKb}{doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={handleDownload}
-                        className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-600 transition-colors" title="View/Download">
-                        <Download size={14} />
-                      </button>
-                      <button onClick={async () => {
-                        if (!confirm('Delete this attachment?')) return;
-                        try {
-                          await contactsApi.deleteAttachment(orgSlug, contactId, doc._id);
-                          showToast('Attachment deleted');
-                          await loadAttachments();
-                        } catch { showToast('Delete failed', 'error'); }
-                      }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
-                        <Trash2 size={14} />
+                  );
+                })}
+              </div>
+
+              {/* Inline Preview Panel */}
+              {previewDoc && (
+                <div className="bg-dark-800/60 border border-dark-700/50 rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-dark-700/50">
+                    <p className="text-sm text-white font-medium truncate">{previewDoc.filename}</p>
+                    <div className="flex items-center gap-1.5">
+                      {previewDoc.blobUrl && (
+                        <a href={previewDoc.blobUrl} download={previewDoc.filename}
+                          className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-600 transition-colors" title="Download">
+                          <Download size={14} />
+                        </a>
+                      )}
+                      <button onClick={() => setPreviewDoc(null)}
+                        className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-600 transition-colors" title="Close preview">
+                        <X size={14} />
                       </button>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="flex-1 min-h-[500px] bg-dark-900/50 flex items-center justify-center">
+                    {previewLoading || !previewDoc.blobUrl ? (
+                      <Loader2 size={24} className="animate-spin text-dark-500" />
+                    ) : previewDoc.mimeType?.startsWith('image/') ? (
+                      <img src={previewDoc.blobUrl} alt={previewDoc.filename} className="max-w-full max-h-[600px] object-contain p-2" />
+                    ) : previewDoc.mimeType === 'application/pdf' ? (
+                      <iframe src={previewDoc.blobUrl} className="w-full h-full min-h-[500px]" title={previewDoc.filename} />
+                    ) : (
+                      <p className="text-dark-500 text-sm">Preview not available for this file type</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
