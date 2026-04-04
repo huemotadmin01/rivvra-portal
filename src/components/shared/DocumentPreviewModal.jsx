@@ -30,15 +30,18 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
     setLoading(true);
     setError(false);
     let revoke = null;
+    console.log('[DocumentPreview] Fetching:', url);
     fetch(url, { headers })
       .then(res => {
+        console.log('[DocumentPreview] Response:', res.status, res.headers.get('content-type'));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const ct = res.headers.get('content-type') || '';
-        if (ct.includes('application/json')) throw new Error('API error');
+        if (ct.includes('application/json')) throw new Error('API error — got JSON instead of file');
         return res.blob();
       })
       .then(blob => {
-        if (!blob.size) throw new Error('Empty');
+        console.log('[DocumentPreview] Blob:', blob.size, blob.type);
+        if (!blob.size) throw new Error('Empty blob');
         const type = blob.type || mimeType || 'application/octet-stream';
         const file = new File([blob], filename || 'document', { type });
         revoke = URL.createObjectURL(file);
