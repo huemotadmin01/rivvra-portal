@@ -21,27 +21,35 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
   useEffect(() => {
     let revoke = null;
 
-    if (directUrl) {
-      // Direct URL mode — no fetch needed for images, but for PDF we still use it directly
-      setBlobUrl(directUrl);
-      setLoading(false);
-    } else if (fetchUrl) {
-      // Auth-fetched mode
-      const token = localStorage.getItem('rivvra_token');
-      fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    const fetchAsBlob = (url, headers = {}) => {
+      fetch(url, { headers })
         .then(res => {
           if (!res.ok) throw new Error('Fetch failed');
           return res.blob();
         })
         .then(blob => {
-          // Wrap in File object so PDF viewer shows real filename instead of blob UUID
-          const file = new File([blob], filename || 'document', { type: blob.type });
-          const url = URL.createObjectURL(file);
-          revoke = url;
-          setBlobUrl(url);
+          const file = new File([blob], filename || 'document', { type: blob.type || mimeType });
+          const blobUrl = URL.createObjectURL(file);
+          revoke = blobUrl;
+          setBlobUrl(blobUrl);
         })
         .catch(() => setError(true))
         .finally(() => setLoading(false));
+    };
+
+    if (directUrl) {
+      if (isImage) {
+        // Images can load cross-origin directly via <img> tag
+        setBlobUrl(directUrl);
+        setLoading(false);
+      } else {
+        // PDFs from external URLs (e.g. Cloudinary) must be fetched as blob
+        // to avoid cross-origin iframe restrictions
+        fetchAsBlob(directUrl);
+      }
+    } else if (fetchUrl) {
+      const token = localStorage.getItem('rivvra_token');
+      fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
     } else {
       setLoading(false);
       setError(true);
