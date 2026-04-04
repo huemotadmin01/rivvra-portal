@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs, uploadTaxProof, deleteTaxProof, downloadTaxProof, getPublicPlatformSetting } from '../../utils/payrollApi';
+import { getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs, uploadTaxProof, deleteTaxProof, downloadTaxProof, getTaxProofUrl, getPublicPlatformSetting } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
-import { Shield, ArrowRightLeft, Save, Upload, Trash2, Download, FileText, CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react';
+import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import { Shield, ArrowRightLeft, Save, Upload, Trash2, Download, FileText, Eye, CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
@@ -55,6 +56,7 @@ export default function MyTaxDeclarationsPage() {
   const [comparison, setComparison] = useState(null);
   const [proofs, setProofs] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const fileRef = useRef(null);
   const [uploadSection, setUploadSection] = useState('');
   const [sectionLabels, setSectionLabels] = useState(SECTION_LABELS);
@@ -446,24 +448,31 @@ export default function MyTaxDeclarationsPage() {
 
           {proofs.length > 0 && (
             <div className="space-y-2">
-              {proofs.map(p => (
-                <div key={p._id} className="flex items-center justify-between px-4 py-2.5 bg-dark-750 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText size={16} className="text-dark-400" />
-                    <div>
-                      <div className="text-sm text-white">{p.filename}</div>
-                      <div className="text-xs text-dark-400">{sectionLabels[p.section] || p.section} • {Math.round(p.size / 1024)}KB</div>
+              {proofs.map(p => {
+                const canPreview = p.mimeType?.startsWith('image/') || p.mimeType === 'application/pdf';
+                return (
+                  <div key={p._id} className={`flex items-center justify-between px-4 py-2.5 bg-dark-750 rounded-lg ${canPreview ? 'cursor-pointer hover:bg-dark-700 transition-colors' : ''}`}
+                    onClick={() => canPreview && setPreviewDoc(p)}>
+                    <div className="flex items-center gap-3">
+                      <FileText size={16} className="text-dark-400" />
+                      <div>
+                        <div className="text-sm text-white">{p.filename}</div>
+                        <div className="text-xs text-dark-400">{sectionLabels[p.section] || p.section} • {Math.round(p.size / 1024)}KB</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${p.status === 'verified' ? 'text-green-400 bg-green-500/10' : 'text-amber-400 bg-amber-500/10'}`}>
+                        {p.status === 'verified' ? 'Verified' : 'Uploaded'}
+                      </span>
+                      {canPreview && (
+                        <button onClick={(e) => { e.stopPropagation(); setPreviewDoc(p); }} className="p-1 text-dark-400 hover:text-rivvra-400"><Eye size={14} /></button>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); handleDownloadProof(p); }} className="p-1 text-dark-400 hover:text-white"><Download size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteProof(p._id); }} className="p-1 text-dark-400 hover:text-red-400"><Trash2 size={14} /></button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${p.status === 'verified' ? 'text-green-400 bg-green-500/10' : 'text-amber-400 bg-amber-500/10'}`}>
-                      {p.status === 'verified' ? 'Verified' : 'Uploaded'}
-                    </span>
-                    <button onClick={() => handleDownloadProof(p)} className="p-1 text-dark-400 hover:text-white"><Download size={14} /></button>
-                    <button onClick={() => handleDeleteProof(p._id)} className="p-1 text-dark-400 hover:text-red-400"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -476,6 +485,16 @@ export default function MyTaxDeclarationsPage() {
           <Save size={16} /> {saving ? 'Saving...' : 'Save Declarations'}
         </button>
       </div>
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <DocumentPreviewModal
+          filename={previewDoc.filename}
+          mimeType={previewDoc.mimeType}
+          fetchUrl={getTaxProofUrl(orgSlug, previewDoc._id)}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
     </div>
   );
 }

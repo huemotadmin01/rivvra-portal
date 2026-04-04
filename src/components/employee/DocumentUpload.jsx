@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import employeeApi from '../../utils/employeeApi';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
+import DocumentPreviewModal from '../shared/DocumentPreviewModal';
+import { Upload, FileText, Eye, X, Loader2 } from 'lucide-react';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = [
@@ -15,6 +16,10 @@ function formatSize(bytes) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function isPreviewable(mimeType) {
+  return mimeType?.startsWith('image/') || mimeType === 'application/pdf';
 }
 
 /**
@@ -38,6 +43,7 @@ export default function DocumentUpload({
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const fileRef = useRef(null);
 
   const isSelfService = !employeeId;
@@ -111,6 +117,12 @@ export default function DocumentUpload({
     }
   };
 
+  const getDocUrl = (docId) => {
+    return isSelfService
+      ? employeeApi.getMyDocUrl(orgSlug, docId)
+      : employeeApi.getEmployeeDocUrl(orgSlug, employeeId, docId);
+  };
+
   const borderColor = hasError && docs.length === 0
     ? 'border-red-500/40 bg-red-500/5'
     : 'border-dark-700';
@@ -126,21 +138,35 @@ export default function DocumentUpload({
       {/* Uploaded docs list */}
       {docs.length > 0 && (
         <div className="space-y-1.5 mb-2">
-          {docs.map(doc => (
-            <div key={doc._id} className="flex items-center gap-2 bg-dark-900/50 rounded-lg px-3 py-2 group">
-              <FileText size={14} className="text-dark-400 flex-shrink-0" />
-              <span className="text-xs text-dark-200 truncate flex-1">{doc.filename}</span>
-              <span className="text-[10px] text-dark-500">{formatSize(doc.size)}</span>
-              <button
-                type="button"
-                onClick={() => handleDelete(doc._id)}
-                className="opacity-0 group-hover:opacity-100 text-dark-500 hover:text-red-400 transition-all"
-                title="Remove"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ))}
+          {docs.map(doc => {
+            const canPreview = isPreviewable(doc.mimeType);
+            return (
+              <div key={doc._id} className="flex items-center gap-2 bg-dark-900/50 rounded-lg px-3 py-2 group">
+                <FileText size={14} className="text-dark-400 flex-shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => canPreview ? setPreviewDoc(doc) : null}
+                  className={`text-xs truncate flex-1 text-left ${canPreview ? 'text-blue-400 hover:underline cursor-pointer' : 'text-dark-200 cursor-default'}`}
+                >
+                  {doc.filename}
+                </button>
+                {canPreview && (
+                  <button type="button" onClick={() => setPreviewDoc(doc)} className="text-dark-500 hover:text-rivvra-400 transition-colors opacity-0 group-hover:opacity-100" title="Preview">
+                    <Eye size={13} />
+                  </button>
+                )}
+                <span className="text-[10px] text-dark-500">{formatSize(doc.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(doc._id)}
+                  className="opacity-0 group-hover:opacity-100 text-dark-500 hover:text-red-400 transition-all"
+                  title="Remove"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -178,6 +204,16 @@ export default function DocumentUpload({
 
       {/* Error message */}
       {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <DocumentPreviewModal
+          filename={previewDoc.filename}
+          mimeType={previewDoc.mimeType}
+          fetchUrl={getDocUrl(previewDoc._id)}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
     </div>
   );
 }

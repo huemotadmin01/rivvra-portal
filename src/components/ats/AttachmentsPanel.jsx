@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import DocumentPreviewModal from '../shared/DocumentPreviewModal';
 import {
   Upload, File, FileText, Image, Trash2, Loader2, Download,
-  Star, X, Paperclip,
+  Star, Eye, Paperclip,
 } from 'lucide-react';
 
 const MIME_ICONS = {
@@ -17,6 +18,10 @@ function getFileIcon(mimeType) {
     if (mimeType.startsWith(prefix)) return Icon;
   }
   return File;
+}
+
+function isPreviewable(mimeType) {
+  return mimeType?.startsWith('image/') || mimeType === 'application/pdf';
 }
 
 function formatSize(bytes) {
@@ -45,6 +50,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   const fetchAttachments = useCallback(async () => {
     if (!orgSlug || !applicationId) return;
@@ -177,6 +183,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
         <div className="space-y-1.5">
           {attachments.map((att) => {
             const FileIcon = getFileIcon(att.mimeType);
+            const canPreview = isPreviewable(att.mimeType);
             return (
               <div
                 key={att._id}
@@ -185,14 +192,13 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
                 <FileIcon size={16} className="text-dark-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-white hover:text-rivvra-400 truncate transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => canPreview ? setPreviewDoc(att) : window.open(att.url, '_blank')}
+                      className="text-sm text-white hover:text-rivvra-400 truncate transition-colors text-left"
                     >
                       {att.fileName}
-                    </a>
+                    </button>
                     {att.isResume && (
                       <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
                         Resume
@@ -205,6 +211,15 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
                   </p>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  {canPreview && (
+                    <button
+                      onClick={() => setPreviewDoc(att)}
+                      className="p-1 rounded text-dark-400 hover:text-rivvra-400 hover:bg-dark-700 transition-colors"
+                      title="Preview"
+                    >
+                      <Eye size={13} />
+                    </button>
+                  )}
                   <a
                     href={att.url}
                     target="_blank"
@@ -241,6 +256,16 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
             );
           })}
         </div>
+      )}
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <DocumentPreviewModal
+          filename={previewDoc.fileName}
+          mimeType={previewDoc.mimeType}
+          directUrl={previewDoc.url}
+          onClose={() => setPreviewDoc(null)}
+        />
       )}
     </div>
   );

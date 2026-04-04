@@ -306,6 +306,9 @@ export function getMyTaxProofs(orgSlug, financialYear) {
 export function downloadTaxProof(orgSlug, proofId) {
   return request('GET', `${orgUrl(orgSlug)}/my-tax/proofs/${proofId}/download`, { responseType: 'blob' });
 }
+export function getTaxProofUrl(orgSlug, proofId) {
+  return `${API_BASE_URL}${orgUrl(orgSlug)}/my-tax/proofs/${proofId}/download`;
+}
 export function deleteTaxProof(orgSlug, proofId) {
   return request('DELETE', `${orgUrl(orgSlug)}/my-tax/proofs/${proofId}`);
 }

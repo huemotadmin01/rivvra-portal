@@ -1,13 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
-import { Loader2, Upload, FileText, X } from 'lucide-react';
+import DocumentPreviewModal from '../shared/DocumentPreviewModal';
+import { Loader2, Upload, FileText, Eye, X } from 'lucide-react';
+
+function isPreviewable(mimeType) {
+  return mimeType?.startsWith('image/') || mimeType === 'application/pdf';
+}
 
 export default function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
   const { showToast } = useToast();
   const [docs, setDocs] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const fileRef = useRef(null);
 
   const fetchDocs = () => {
@@ -97,22 +103,30 @@ export default function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
         <>
           {docs.length > 0 && (
             <div className="space-y-1.5 mb-2">
-              {docs.map(doc => (
-                <div key={doc._id} className="flex items-center gap-2 bg-dark-900/50 rounded-lg px-3 py-1.5 group">
-                  <FileText size={14} className="text-dark-400 flex-shrink-0" />
-                  <button
-                    type="button"
-                    onClick={() => handleDownload(doc)}
-                    className="text-xs text-blue-400 hover:underline truncate flex-1 text-left"
-                  >
-                    {doc.filename}
-                  </button>
-                  <span className="text-[10px] text-dark-500">{formatSize(doc.size)}</span>
-                  <button type="button" onClick={() => handleDelete(doc._id)} className="p-0.5 text-dark-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
+              {docs.map(doc => {
+                const canPreview = isPreviewable(doc.mimeType);
+                return (
+                  <div key={doc._id} className="flex items-center gap-2 bg-dark-900/50 rounded-lg px-3 py-1.5 group">
+                    <FileText size={14} className="text-dark-400 flex-shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => canPreview ? setPreviewDoc(doc) : handleDownload(doc)}
+                      className="text-xs text-blue-400 hover:underline truncate flex-1 text-left"
+                    >
+                      {doc.filename}
+                    </button>
+                    {canPreview && (
+                      <button type="button" onClick={() => setPreviewDoc(doc)} className="text-dark-500 hover:text-rivvra-400 transition-colors opacity-0 group-hover:opacity-100" title="Preview">
+                        <Eye size={13} />
+                      </button>
+                    )}
+                    <span className="text-[10px] text-dark-500">{formatSize(doc.size)}</span>
+                    <button type="button" onClick={() => handleDelete(doc._id)} className="p-0.5 text-dark-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
           <input ref={fileRef} type="file" accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg" onChange={handleUpload} className="hidden" />
@@ -126,6 +140,16 @@ export default function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
             {uploading ? 'Uploading...' : '+ Upload Document'}
           </button>
         </>
+      )}
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <DocumentPreviewModal
+          filename={previewDoc.filename}
+          mimeType={previewDoc.mimeType}
+          fetchUrl={employeeApi.getAssignmentDocUrl(orgSlug, employeeId, previewDoc._id)}
+          onClose={() => setPreviewDoc(null)}
+        />
       )}
     </div>
   );

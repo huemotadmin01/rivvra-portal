@@ -250,6 +250,10 @@ const employeeApi = {
     return api.request(`/api/org/${orgSlug}/employee/my-documents/${docId}`, { method: 'DELETE' });
   },
 
+  getMyDocUrl(orgSlug, docId) {
+    return `${API_BASE_URL}/api/org/${orgSlug}/employee/my-documents/${docId}`;
+  },
+
   // ── Rate Revision ──────────────────────────────────────────────────────────
   reviseRate(orgSlug, employeeId, assignmentIndex, data) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/assignments/${assignmentIndex}/revise-rate`, {
