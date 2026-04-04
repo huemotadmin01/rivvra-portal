@@ -34,7 +34,9 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
           return res.blob();
         })
         .then(blob => {
-          const url = URL.createObjectURL(blob);
+          // Wrap in File object so PDF viewer shows real filename instead of blob UUID
+          const file = new File([blob], filename || 'document', { type: blob.type });
+          const url = URL.createObjectURL(file);
           revoke = url;
           setBlobUrl(url);
         })
