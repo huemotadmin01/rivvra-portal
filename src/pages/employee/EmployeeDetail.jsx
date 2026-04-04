@@ -46,12 +46,14 @@ import {
   Download,
   Package,
   ExternalLink,
+  Eye,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
+import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import ComboSelect from '../../components/ComboSelect';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
 import { Paperclip } from 'lucide-react';
@@ -175,6 +177,7 @@ export default function EmployeeDetail() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [docUploadOpen, setDocUploadOpen] = useState(null); // category key of open dropdown
   const [docUploading, setDocUploading] = useState(null); // category key currently uploading
+  const [docPreview, setDocPreview] = useState(null); // { _id, filename, mimeType }
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -1312,11 +1315,14 @@ export default function EmployeeDetail() {
                         </div>
                         {catDocs.length > 0 ? (
                           <div className="space-y-1.5">
-                            {catDocs.map(doc => (
-                              <div key={doc._id} className="flex items-center gap-3 bg-dark-900/50 rounded-lg px-4 py-2.5 group/doc">
+                            {catDocs.map(doc => {
+                              const canPreview = doc.mimeType?.startsWith('image/') || doc.mimeType === 'application/pdf';
+                              return (
+                              <div key={doc._id} className={`flex items-center gap-3 bg-dark-900/50 rounded-lg px-4 py-2.5 group/doc ${canPreview ? 'cursor-pointer hover:bg-dark-800/50' : ''}`}
+                                onClick={() => canPreview && setDocPreview(doc)}>
                                 <FileText size={14} className="text-dark-400 flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                  <button type="button" onClick={() => handleDocDownload(doc._id, doc.filename)}
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); canPreview ? setDocPreview(doc) : handleDocDownload(doc._id, doc.filename); }}
                                     className="text-sm text-blue-400 hover:underline truncate block text-left w-full">
                                     {doc.filename}
                                   </button>
@@ -1328,16 +1334,23 @@ export default function EmployeeDetail() {
                                 <span className="text-xs text-dark-600 flex-shrink-0">
                                   {formatDateUTC(doc.uploadedAt)}
                                 </span>
-                                <button onClick={() => handleDocDownload(doc._id, doc.filename)}
+                                {canPreview && (
+                                  <button onClick={(e) => { e.stopPropagation(); setDocPreview(doc); }}
+                                    className="text-dark-600 hover:text-rivvra-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Preview">
+                                    <Eye size={13} />
+                                  </button>
+                                )}
+                                <button onClick={(e) => { e.stopPropagation(); handleDocDownload(doc._id, doc.filename); }}
                                   className="text-dark-600 hover:text-blue-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Download">
                                   <Download size={13} />
                                 </button>
-                                <button onClick={() => handleDocDelete(doc._id, doc.filename)}
+                                <button onClick={(e) => { e.stopPropagation(); handleDocDelete(doc._id, doc.filename); }}
                                   className="text-dark-600 hover:text-red-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Delete">
                                   <Trash2 size={13} />
                                 </button>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-xs text-dark-600 italic">No documents uploaded</p>
@@ -1351,6 +1364,16 @@ export default function EmployeeDetail() {
           </div>
         );
       })()}
+
+      {/* Document Preview Modal */}
+      {docPreview && (
+        <DocumentPreviewModal
+          filename={docPreview.filename}
+          mimeType={docPreview.mimeType}
+          fetchUrl={employeeApi.getEmployeeDocUrl(currentOrg.slug, employeeId, docPreview._id)}
+          onClose={() => setDocPreview(null)}
+        />
+      )}
 
       {/* ── Activities & Log Notes ─────────────────────────────────────── */}
       <div className="mt-5">
