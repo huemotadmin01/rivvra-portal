@@ -1,66 +1,102 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Eye, Download, X, Loader2 } from 'lucide-react';
 
 /**
  * Shared document preview modal — displays PDFs and images in a large centered popup.
  *
- * Supports two modes:
- *  1. **Auth-fetched** (default): Fetches file via Bearer token from `fetchUrl`.
- *  2. **Direct URL**: Uses `directUrl` for publicly-accessible files (e.g. Cloudinary).
+ * Props:
+ *  - filename: string
+ *  - mimeType: string (e.g. 'application/pdf', 'image/png')
+ *  - fetchUrl: string — auth-fetched URL (Bearer token added automatically)
+ *  - directUrl: string — publicly-accessible URL (e.g. Cloudinary)
+ *  - onClose: () => void
  *
- * @param {{ filename: string, mimeType?: string, fetchUrl?: string, directUrl?: string, onClose: () => void }} props
+ * For images: directUrl is used directly (Cloudinary allows <img> cross-origin).
+ * For PDFs: fetchUrl is always preferred (proxied through our API) because
+ * Cloudinary blocks iframe embedding via X-Frame-Options. Falls back to directUrl
+ * only if fetchUrl is not provided.
  */
 export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, directUrl, onClose }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [triedDirect, setTriedDirect] = useState(false);
 
   const isImage = mimeType?.startsWith('image/');
   const isPdf = mimeType === 'application/pdf';
 
-  useEffect(() => {
+  const fetchAsBlob = useCallback((url, headers = {}) => {
+    setLoading(true);
+    setError(false);
     let revoke = null;
+    fetch(url, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) throw new Error('API error');
+        return res.blob();
+      })
+      .then(blob => {
+        if (!blob.size) throw new Error('Empty');
+        const type = blob.type || mimeType || 'application/octet-stream';
+        const file = new File([blob], filename || 'document', { type });
+        revoke = URL.createObjectURL(file);
+        setBlobUrl(revoke);
+      })
+      .catch(err => {
+        console.error('[DocumentPreview] Fetch failed:', err.message, url);
+        setError(true);
+      })
+      .finally(() => setLoading(false));
 
-    const fetchAsBlob = (url, headers = {}) => {
-      fetch(url, { headers })
-        .then(res => {
-          if (!res.ok) throw new Error('Fetch failed');
-          return res.blob();
-        })
-        .then(blob => {
-          const file = new File([blob], filename || 'document', { type: blob.type || mimeType });
-          const blobUrl = URL.createObjectURL(file);
-          revoke = blobUrl;
-          setBlobUrl(blobUrl);
-        })
-        .catch(() => setError(true))
-        .finally(() => setLoading(false));
-    };
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+  }, [filename, mimeType]);
 
-    if (directUrl) {
-      if (isImage) {
-        // Images can load cross-origin directly via <img> tag
-        setBlobUrl(directUrl);
-        setLoading(false);
-      } else {
-        // PDFs from external URLs (e.g. Cloudinary) must be fetched as blob
-        // to avoid cross-origin iframe restrictions
-        fetchAsBlob(directUrl);
-      }
+  useEffect(() => {
+    let cleanup = null;
+
+    if (directUrl && isImage) {
+      // Images work fine with direct Cloudinary URLs
+      setBlobUrl(directUrl);
+      setLoading(false);
     } else if (fetchUrl) {
+      // For PDFs (and when fetchUrl is available), always use the proxy
+      // because Cloudinary blocks iframe embedding via X-Frame-Options
       const token = localStorage.getItem('rivvra_token');
-      fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
+      cleanup = fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
+    } else if (directUrl) {
+      // Fallback: use directUrl if no fetchUrl (images already handled above)
+      setBlobUrl(directUrl);
+      setLoading(false);
+      setTriedDirect(true);
     } else {
       setLoading(false);
       setError(true);
     }
 
-    return () => { if (revoke) URL.revokeObjectURL(revoke); };
-  }, [fetchUrl, directUrl]);
+    return () => { if (cleanup) cleanup(); };
+  }, [fetchUrl, directUrl, fetchAsBlob, isImage]);
+
+  // Fallback: if direct URL iframe fails, try fetching via proxy
+  const handleIframeError = useCallback(() => {
+    if (triedDirect && fetchUrl) {
+      console.log('[DocumentPreview] Direct URL failed, trying proxy fetch...');
+      const token = localStorage.getItem('rivvra_token');
+      fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
+      setTriedDirect(false); // prevent infinite loop
+    } else {
+      setError(true);
+    }
+  }, [triedDirect, fetchUrl, fetchAsBlob]);
 
   const handleDownload = () => {
     if (!blobUrl) return;
+    // For direct URLs, open in new tab (can't trigger download cross-origin)
+    if (directUrl && blobUrl === directUrl) {
+      window.open(directUrl, '_blank');
+      return;
+    }
     const a = document.createElement('a');
     a.href = blobUrl;
     a.download = filename || 'document';
@@ -110,11 +146,28 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
           {loading ? (
             <Loader2 size={28} className="animate-spin text-dark-500" />
           ) : error ? (
-            <p className="text-dark-500 text-sm">Failed to load preview</p>
+            <div className="text-center">
+              <p className="text-dark-500 text-sm mb-3">Failed to load preview</p>
+              {(directUrl || fetchUrl) && (
+                <a
+                  href={directUrl || fetchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-rivvra-400 hover:text-rivvra-300 text-sm underline"
+                >
+                  Open in new tab
+                </a>
+              )}
+            </div>
           ) : isImage ? (
             <img src={blobUrl} alt={filename} className="max-w-full max-h-full object-contain p-4" />
           ) : isPdf ? (
-            <iframe src={blobUrl} className="w-full h-full" title={filename} />
+            <iframe
+              src={blobUrl}
+              className="w-full h-full"
+              title={filename}
+              onError={handleIframeError}
+            />
           ) : (
             <p className="text-dark-500 text-sm">Preview not available for this file type</p>
           )}

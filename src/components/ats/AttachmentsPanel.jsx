@@ -263,6 +263,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
         <DocumentPreviewModal
           filename={previewDoc.fileName}
           mimeType={previewDoc.mimeType}
+          directUrl={previewDoc.url}
           fetchUrl={atsApi.getAttachmentDownloadUrl(orgSlug, previewDoc._id)}
           onClose={() => setPreviewDoc(null)}
         />
