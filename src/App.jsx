@@ -86,6 +86,7 @@ const PayrollRunPage = lazy(() => import('./pages/payroll/PayrollRunPage'));
 const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
 const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
 const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
+const TaxReportsPage = lazy(() => import('./pages/payroll/TaxReportsPage'));
 const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboardPage'));
 const PayrollSettingsPage = lazy(() => import('./pages/payroll/PayrollSettingsPage'));
 const MyTaxDeclarationsPage = lazy(() => import('./pages/payroll/MyTaxDeclarationsPage'));
@@ -327,6 +328,7 @@ function App() {
                 <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PTMasterPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
+                <Route path="/org/:slug/payroll/tax-reports" element={<ErrorBoundary><TaxReportsPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/settings" element={<ErrorBoundary><PayrollSettingsPage /></ErrorBoundary>} />
                 <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><FnFDashboard /></ErrorBoundary>} />
               </Route>
