@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, Eye, Download, X, Loader2 } from 'lucide-react';
 
 /**
@@ -66,9 +67,9 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
     a.click();
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -119,6 +120,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -265,6 +265,9 @@ const atsApi = {
       method: 'DELETE',
     });
   },
+  getAttachmentDownloadUrl(orgSlug, attachmentId) {
+    return `${api.baseUrl}/api/org/${orgSlug}/ats/attachments/${attachmentId}/download`;
+  },
 
   // ── Skills Config ───────────────────────────────────────────────────
   listSkillTypes(orgSlug) {
