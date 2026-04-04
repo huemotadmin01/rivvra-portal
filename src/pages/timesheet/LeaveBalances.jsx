@@ -7,15 +7,6 @@ import { CalendarDays, Search, Loader2, ChevronDown, ChevronUp } from 'lucide-re
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 1 });
 
-const FY_OPTIONS = (() => {
-  const now = new Date();
-  const y = now.getFullYear();
-  return [
-    `${y - 1}-${y}`,
-    `${y}-${y + 1}`,
-  ];
-})();
-
 const EMP_TYPE_LABELS = {
   confirmed: 'Confirmed',
   internal_consultant: 'Internal Consultant',
@@ -28,14 +19,10 @@ export default function LeaveBalances() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
-  const { fy: periodFy } = usePeriod();
-  const [fy, setFy] = useState(periodFy);
+  const { fy } = usePeriod();
   const [search, setSearch] = useState('');
   const [expandedEmp, setExpandedEmp] = useState(null);
   const [deptFilter, setDeptFilter] = useState('');
-
-  // Sync FY when period picker changes
-  useEffect(() => { setFy(periodFy); }, [periodFy]);
 
   useEffect(() => { loadData(); }, [orgSlug, fy]);
 
@@ -102,10 +89,6 @@ export default function LeaveBalances() {
               {departments.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           )}
-          <select value={fy} onChange={e => setFy(e.target.value)}
-            className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none">
-            {FY_OPTIONS.map(f => <option key={f} value={f}>FY {f}</option>)}
-          </select>
           <div className="relative">
             <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}

@@ -21,21 +21,10 @@ function TaxRow({ label, value, bold, negative, sub, highlight, color }) {
   );
 }
 
-const FY_OPTIONS = (() => {
-  const now = new Date();
-  const y = now.getFullYear();
-  return [
-    `${y - 1}-${y.toString().slice(2)}`,
-    `${y}-${(y + 1).toString().slice(2)}`,
-    `${y + 1}-${(y + 2).toString().slice(2)}`,
-  ];
-})();
-
 export default function TaxDeclarationsPage() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
-  const { fyApi: periodFy } = usePeriod();
-  const [fy, setFy] = useState(periodFy);
+  const { fyApi: fy } = usePeriod();
   const [declarations, setDeclarations] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,9 +35,6 @@ export default function TaxDeclarationsPage() {
   const [taxReport, setTaxReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [fullReportEmp, setFullReportEmp] = useState(null); // employee object for full report modal
-
-  // Sync FY when period picker changes
-  useEffect(() => { setFy(periodFy); }, [periodFy]);
 
   const load = async () => {
     setLoading(true);
@@ -152,10 +138,6 @@ export default function TaxDeclarationsPage() {
           <p className="text-sm text-dark-400 mt-1">80C, 80D, 80E, 80G, 24(b) declarations per employee</p>
         </div>
         <div className="flex items-center gap-3">
-          <select value={fy} onChange={e => setFy(e.target.value)}
-            className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none">
-            {FY_OPTIONS.map(f => <option key={f} value={f}>FY {f}</option>)}
-          </select>
           <div className="relative">
             <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
