@@ -8,7 +8,8 @@ import { API_BASE_URL } from '../../utils/config';
 import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
   CheckSquare, AlignLeft, Loader2, Check, X, AlertTriangle,
-  ChevronDown, ChevronUp, FileText, Clock, Shield
+  ChevronDown, ChevronUp, FileText, Clock, Shield,
+  ArrowRight, ArrowDown,
 } from 'lucide-react';
 
 // Configure PDF.js worker
@@ -49,6 +50,32 @@ function generateTypedSignature(text, fontFamily, width = 400, height = 150) {
   ctx.textBaseline = 'middle';
   ctx.fillText(text, width / 2, height / 2);
   return canvas.toDataURL('image/png');
+}
+
+// Generate a short hash fingerprint from a data URL for signature identification
+async function generateSignatureHash(dataUrl) {
+  if (!dataUrl) return '';
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(dataUrl);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+  } catch {
+    return '';
+  }
+}
+
+// Format date as "04 April 2026" in user's local timezone
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
 }
 
 // ── Signature Pad Modal ─────────────────────────────────────────────────────
@@ -329,6 +356,7 @@ function PdfPageWithFields({
   activeFieldId,
   setActiveFieldId,
   scale,
+  signatureHashes,
 }) {
   const canvasRef = useRef(null);
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
@@ -364,7 +392,7 @@ function PdfPageWithFields({
   const pageItems = signItems.filter((item) => item.page === pageNum - 1);
 
   return (
-    <div className="relative mx-auto shadow-lg bg-white" style={{ width: pageDims.width || 'auto', height: pageDims.height || 'auto' }}>
+    <div className="relative mx-auto shadow-lg bg-white" data-page-index={pageNum - 1} style={{ width: pageDims.width || 'auto', height: pageDims.height || 'auto' }}>
       <canvas ref={canvasRef} className="block" />
 
       {rendered && pageItems.map((item) => {
@@ -384,28 +412,31 @@ function PdfPageWithFields({
 
         // For signature/initials: show image if filled, else clickable placeholder
         if (isSignatureType) {
+          const fieldId = item._id || item.id;
+          const hash = isFilled ? (signatureHashes?.[fieldId] || '') : '';
           return (
             <div
-              key={item._id || item.id}
-              className={`absolute cursor-pointer rounded transition-all flex items-center justify-center overflow-hidden ${
-                isFilled
-                  ? 'border-2 border-green-400 bg-green-50/30'
-                  : isRequired
-                    ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60'
-                    : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60'
-              }`}
-              style={{ left, top, width, height }}
-              onClick={() => onOpenSignaturePad(item._id || item.id, item.type)}
+              key={fieldId}
+              className="absolute cursor-pointer rounded transition-all overflow-hidden"
+              style={{
+                left, top, width, height: isFilled ? height + 20 : height,
+                border: isFilled ? '2px dashed #d4a0a0' : undefined,
+                backgroundColor: isFilled ? 'rgba(255, 230, 230, 0.5)' : undefined,
+              }}
+              onClick={() => onOpenSignaturePad(fieldId, item.type)}
             >
               {isFilled ? (
-                <>
-                  <img src={fieldValue} alt={item.type} className="max-w-full max-h-full object-contain" />
-                  <div className="absolute top-0.5 right-0.5">
-                    <Check className="w-3.5 h-3.5 text-green-600" />
+                <div className="flex flex-col items-center h-full">
+                  <span className="text-[9px] text-green-700 font-medium mt-0.5">Signed with Rivvra Sign</span>
+                  <div className="flex-1 flex items-center justify-center w-full px-1">
+                    <img src={fieldValue} alt={item.type} className="max-w-full max-h-full object-contain" />
                   </div>
-                </>
+                  {hash && <span className="text-[8px] text-gray-500 mb-0.5 font-mono">{hash}...</span>}
+                </div>
               ) : (
-                <div className="flex flex-col items-center gap-0.5">
+                <div className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded ${
+                  isRequired ? 'border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60' : 'border-gray-300 bg-gray-50/50 hover:bg-gray-100/60'
+                }`}>
                   <Icon className="w-4 h-4 text-indigo-500" />
                   <span className="text-[10px] text-indigo-600 font-medium">{meta.placeholder}</span>
                 </div>
@@ -473,7 +504,9 @@ function PdfPageWithFields({
               <div className="flex items-center h-full px-1.5 gap-1 overflow-hidden">
                 {isFilled ? (
                   <>
-                    <span className="text-xs text-gray-900 truncate flex-1">{fieldValue}</span>
+                    <span className="text-xs text-gray-900 truncate flex-1">
+                      {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
+                    </span>
                     <Check className="w-3 h-3 text-green-600 flex-shrink-0" />
                   </>
                 ) : (
@@ -519,6 +552,12 @@ export default function PublicSigningPage() {
   const [envelopeValues, setEnvelopeValues] = useState({}); // { [docId]: { [fieldId]: value } }
 
   const containerRef = useRef(null);
+
+  // Signature hash fingerprints for display
+  const [signatureHashes, setSignatureHashes] = useState({});
+
+  // Click to Start / Next field navigation
+  const [hasStarted, setHasStarted] = useState(false);
 
   // ── Verify signing link on mount ────────────────────────────────────
   useEffect(() => {
@@ -644,22 +683,79 @@ export default function PublicSigningPage() {
   }, [sigDataUrls, handleFieldChange]);
 
   // ── Adopt signature from modal ───────────────────────────────────────
-  const handleAdoptSignature = useCallback((dataUrl) => {
+  const handleAdoptSignature = useCallback(async (dataUrl) => {
     const { fieldId, type } = sigPadModal;
     // Store the data URL for reuse
     setSigDataUrls((prev) => ({ ...prev, [type]: dataUrl }));
     // Fill this field
     handleFieldChange(fieldId, dataUrl);
+
+    // Compute hash fingerprint for the signature
+    const hash = await generateSignatureHash(dataUrl);
+    const hashUpdates = { [fieldId]: hash };
+
     // Also fill any other fields of the same type that don't have a value yet
     if (template?.signItems) {
       template.signItems.forEach((item) => {
         const id = item._id || item.id;
         if (item.type === type && id !== fieldId && !values[id]) {
           handleFieldChange(id, dataUrl);
+          hashUpdates[id] = hash;
         }
       });
     }
+
+    setSignatureHashes((prev) => ({ ...prev, ...hashUpdates }));
   }, [sigPadModal, handleFieldChange, template?.signItems, values]);
+
+  // ── Navigate to next unfilled field ──────────────────────────────────
+  const scrollToNextField = useCallback((fromFieldId = null) => {
+    const items = template?.signItems || [];
+    // Sort by page then posY to get document order
+    const sorted = [...items].sort((a, b) => {
+      if ((a.page || 0) !== (b.page || 0)) return (a.page || 0) - (b.page || 0);
+      return (a.posY || 0) - (b.posY || 0);
+    });
+
+    // Find unfilled fields
+    let startIdx = 0;
+    if (fromFieldId) {
+      const currentIdx = sorted.findIndex(i => (i._id || i.id) === fromFieldId);
+      if (currentIdx >= 0) startIdx = currentIdx + 1;
+    }
+
+    // Search from startIdx, then wrap around
+    for (let offset = 0; offset < sorted.length; offset++) {
+      const idx = (startIdx + offset) % sorted.length;
+      const item = sorted[idx];
+      const id = item._id || item.id;
+      const v = values[id];
+      const isEmpty = v === undefined || v === '' || v === false || v === null;
+      if (isEmpty) {
+        // Scroll to this field's page
+        const pageIndex = item.page || 0;
+        const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[pageIndex];
+        if (pageEl) {
+          pageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // For signature fields, open the pad; for others, activate the field
+          setTimeout(() => {
+            if (item.type === 'signature' || item.type === 'initials') {
+              handleOpenSignaturePad(id, item.type);
+            } else {
+              setActiveFieldId(id);
+            }
+          }, 400);
+        }
+        return true;
+      }
+    }
+    return false; // all filled
+  }, [template?.signItems, values, handleOpenSignaturePad]);
+
+  const handleClickToStart = useCallback(() => {
+    setHasStarted(true);
+    scrollToNextField(null);
+  }, [scrollToNextField]);
 
   // ── Progress calculation ─────────────────────────────────────────────
   const signItems = template?.signItems || [];
@@ -685,6 +781,7 @@ export default function PublicSigningPage() {
         values,
         signatureDataUrl: sigDataUrls.signature || null,
         initialsDataUrl: sigDataUrls.initials || null,
+        signatureHashes: signatureHashes || {},
         ...(currentDoc && { documentId: currentDoc.id }),
       };
 
@@ -893,6 +990,19 @@ export default function PublicSigningPage() {
         </div>
       </header>
 
+      {/* ── Click to Start Banner ──────────────────────────────────────── */}
+      {!hasStarted && pdfDoc && (
+        <div className="sticky top-[57px] z-20 flex justify-center py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-md">
+          <button
+            onClick={handleClickToStart}
+            className="flex items-center gap-2 px-6 py-2.5 bg-white text-indigo-700 font-semibold text-sm rounded-full shadow-lg hover:shadow-xl hover:bg-indigo-50 transition-all"
+          >
+            <ArrowDown className="w-4 h-4" />
+            CLICK TO START
+          </button>
+        </div>
+      )}
+
       {/* ── PDF Viewer ──────────────────────────────────────────────────── */}
       <div ref={containerRef} className="flex-1 overflow-auto py-6 px-4" onClick={(e) => {
         // Click on background to deselect active field
@@ -914,6 +1024,7 @@ export default function PublicSigningPage() {
                 activeFieldId={activeFieldId}
                 setActiveFieldId={setActiveFieldId}
                 scale={scale}
+                signatureHashes={signatureHashes}
               />
             ))
           ) : (
@@ -944,26 +1055,34 @@ export default function PublicSigningPage() {
             )}
           </button>
 
-          {/* Center: Progress */}
-          <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span>
-                {filledTotalCount} of {totalFieldCount} field{totalFieldCount !== 1 ? 's' : ''} completed
-              </span>
+          {/* Center: Progress + Next Field */}
+          <div className="flex items-center gap-3">
+            {!allRequiredFilled && (
+              <button
+                onClick={() => scrollToNextField(activeFieldId)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-full transition-colors"
+              >
+                <ArrowRight className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Next Field</span>
+              </button>
+            )}
+            <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span>
+                  {filledTotalCount} of {totalFieldCount} field{totalFieldCount !== 1 ? 's' : ''} completed
+                </span>
+              </div>
+              <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 rounded-full transition-all duration-300"
+                  style={{ width: totalFieldCount > 0 ? `${(filledTotalCount / totalFieldCount) * 100}%` : '0%' }}
+                />
+              </div>
             </div>
-            {/* Mini progress bar */}
-            <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                style={{ width: totalFieldCount > 0 ? `${(filledTotalCount / totalFieldCount) * 100}%` : '0%' }}
-              />
+            <div className="sm:hidden text-xs text-gray-500">
+              {filledTotalCount}/{totalFieldCount}
             </div>
-          </div>
-
-          {/* Mobile progress */}
-          <div className="sm:hidden text-xs text-gray-500">
-            {filledTotalCount}/{totalFieldCount}
           </div>
 
           {/* Right: Submit */}

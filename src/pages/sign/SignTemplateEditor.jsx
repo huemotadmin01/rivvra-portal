@@ -191,8 +191,8 @@ export default function SignTemplateEditor() {
         }
 
         let rolesArr = rolesRes.roles || rolesRes.items || [];
-        // In quickSend mode, if no roles from API, create virtual roles from signer data
-        if (isQuickSend && rolesArr.length === 0 && quickSendSigners.length > 0) {
+        // In quickSend mode, always use signers from URL params (not all org roles)
+        if (isQuickSend && quickSendSigners.length > 0) {
           rolesArr = quickSendSigners.map((s, i) => ({
             _id: s.roleId,
             name: s.name || `Signer ${i + 1}`,
@@ -796,7 +796,7 @@ export default function SignTemplateEditor() {
           {isQuickSend && (
             <>
               <button
-                onClick={() => navigate(orgPath('/sign/requests?quicksend=true'))}
+                onClick={() => navigate(-1)}
                 className="flex items-center justify-center w-8 h-8 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors shrink-0"
                 title="Back to Quick Send"
               >
