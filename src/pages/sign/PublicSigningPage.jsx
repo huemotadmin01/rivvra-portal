@@ -362,6 +362,8 @@ function PdfPageWithFields({
   scale,
   signatureHashes,
   showValidation,
+  previousValues = {},
+  allSignItems = [],
 }) {
   const canvasRef = useRef(null);
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
@@ -396,9 +398,46 @@ function PdfPageWithFields({
   // signItems use 0-indexed page, but pageNum is 1-indexed (for PDF.js)
   const pageItems = signItems.filter((item) => item.page === pageNum - 1);
 
+  // Previous signers' fields for this page (read-only)
+  const currentSignerFieldIds = new Set(signItems.map(i => i._id || i.id));
+  const prevPageItems = allSignItems.filter(
+    (item) => item.page === pageNum - 1 && !currentSignerFieldIds.has(item._id || item.id) && previousValues[item._id || item.id]
+  );
+
   return (
     <div className="relative mx-auto shadow-lg bg-white" data-page-index={pageNum - 1} style={{ width: pageDims.width || 'auto', height: pageDims.height || 'auto' }}>
       <canvas ref={canvasRef} className="block" />
+
+      {/* Read-only previous signers' filled fields */}
+      {rendered && prevPageItems.map((item) => {
+        const fieldId = item._id || item.id;
+        const val = previousValues[fieldId];
+        if (!val) return null;
+        const left = (item.posX ?? item.x ?? 0) * pageDims.width;
+        const top = (item.posY ?? item.y ?? 0) * pageDims.height;
+        const width = (item.width ?? 0.22) * pageDims.width;
+        const height = (item.height ?? 0.03) * pageDims.height;
+        const isSignature = val === '__signed__';
+        const displayDate = item.type === 'date' ? formatDisplayDate(val) : val;
+
+        return (
+          <div
+            key={`prev-${fieldId}`}
+            className="absolute pointer-events-none"
+            style={{ left, top, width, height }}
+          >
+            {isSignature ? (
+              <div className="w-full h-full flex items-center justify-center bg-gray-50/50 border border-gray-200 rounded">
+                <span className="text-[10px] text-gray-400 italic">Signed</span>
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center text-gray-800 text-xs px-1 truncate" style={{ fontSize: Math.min(Math.max(height * 0.5, 10), 16) }}>
+                {displayDate}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {rendered && pageItems.map((item) => {
         const fieldValue = values[item._id || item.id];
@@ -567,6 +606,10 @@ export default function PublicSigningPage() {
   // Signature hash fingerprints for display
   const [signatureHashes, setSignatureHashes] = useState({});
 
+  // Previous signers' values (read-only display)
+  const [previousValues, setPreviousValues] = useState({});
+  const [allSignItems, setAllSignItems] = useState([]);
+
   // Click to Start / Next field navigation
   const [hasStarted, setHasStarted] = useState(false);
 
@@ -620,6 +663,10 @@ export default function PublicSigningPage() {
         } else {
           setTemplate(data.template);
         }
+
+        // Store previous signers' values and all sign items for read-only display
+        if (data.previousValues) setPreviousValues(data.previousValues);
+        if (data.template?.allSignItems) setAllSignItems(data.template.allSignItems);
 
         // Pre-fill name and email if available
         const items = data.envelope?.isEnvelope
@@ -1136,6 +1183,8 @@ export default function PublicSigningPage() {
                 scale={scale}
                 signatureHashes={signatureHashes}
                 showValidation={showValidation}
+                previousValues={previousValues}
+                allSignItems={allSignItems}
               />
             ))
           ) : (
