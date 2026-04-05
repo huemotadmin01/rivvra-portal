@@ -431,7 +431,7 @@ function PdfPageWithFields({
                 <span className="text-[10px] text-gray-400 italic">Signed</span>
               </div>
             ) : (
-              <div className="w-full h-full flex items-center text-gray-800 text-xs px-1 truncate" style={{ fontSize: Math.min(Math.max(height * 0.5, 10), 16) }}>
+              <div className="w-full h-full flex items-center text-gray-800 px-1 truncate font-medium" style={{ fontSize: Math.min(Math.max(height * 0.6, 13), 18) }}>
                 {displayDate}
               </div>
             )}
