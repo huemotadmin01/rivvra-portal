@@ -126,6 +126,8 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
 
   if (!isOpen) return null;
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-lg overflow-hidden max-h-[90vh] sm:max-h-none">
@@ -162,26 +164,28 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
         </div>
 
         {/* Content */}
-        <div className="p-5">
+        <div className="p-5 sm:p-5 p-3">
           {activeTab === 'draw' ? (
             <div>
               <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50 relative">
                 <SignatureCanvas
                   ref={sigCanvasRef}
                   canvasProps={{
-                    width: type === 'initials' ? 300 : 460,
-                    height: type === 'initials' ? 150 : 200,
+                    width: isMobile ? 600 : (type === 'initials' ? 300 : 460),
+                    height: isMobile ? 300 : (type === 'initials' ? 150 : 200),
                     className: 'w-full cursor-crosshair touch-none',
-                    style: { width: '100%', height: type === 'initials' ? '150px' : '200px' },
+                    style: { width: '100%', height: isMobile ? '250px' : (type === 'initials' ? '150px' : '200px') },
                   }}
                   penColor="#1e293b"
-                  minWidth={2}
-                  maxWidth={4}
+                  minWidth={isMobile ? 3 : 2}
+                  maxWidth={isMobile ? 6 : 4}
                   onBegin={() => setIsEmpty(false)}
                 />
                 {isEmpty && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p className="text-gray-400 text-sm">Sign here</p>
+                    <p className="text-gray-400 text-sm sm:text-sm text-base">
+                      {isMobile ? 'Use your finger to sign' : 'Sign here'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -357,6 +361,7 @@ function PdfPageWithFields({
   setActiveFieldId,
   scale,
   signatureHashes,
+  showValidation,
 }) {
   const canvasRef = useRef(null);
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
@@ -435,10 +440,14 @@ function PdfPageWithFields({
                 </div>
               ) : (
                 <div className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded ${
-                  isRequired ? 'border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60' : 'border-gray-300 bg-gray-50/50 hover:bg-gray-100/60'
+                  showValidation && isRequired && !isFilled
+                    ? 'border-red-500 bg-red-50/60 animate-pulse'
+                    : isRequired
+                      ? 'border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60'
+                      : 'border-gray-300 bg-gray-50/50 hover:bg-gray-100/60'
                 }`}>
-                  <Icon className="w-4 h-4 text-indigo-500" />
-                  <span className="text-[10px] text-indigo-600 font-medium">{meta.placeholder}</span>
+                  <Icon className={`w-4 h-4 ${showValidation && isRequired && !isFilled ? 'text-red-500' : 'text-indigo-500'}`} />
+                  <span className={`text-[10px] font-medium ${showValidation && isRequired && !isFilled ? 'text-red-600' : 'text-indigo-600'}`}>{meta.placeholder}</span>
                 </div>
               )}
             </div>
@@ -479,9 +488,11 @@ function PdfPageWithFields({
                 ? ''
                 : isFilled
                   ? 'border-2 border-green-400 bg-green-50/30 cursor-pointer'
-                  : isRequired
-                    ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer'
-                    : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer'
+                  : showValidation && isRequired
+                    ? 'border-2 border-dashed border-red-500 bg-red-50/60 cursor-pointer animate-pulse'
+                    : isRequired
+                      ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer'
+                      : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer'
             }`}
             style={{ left, top, width, height }}
             onClick={() => {
@@ -558,6 +569,18 @@ export default function PublicSigningPage() {
 
   // Click to Start / Next field navigation
   const [hasStarted, setHasStarted] = useState(false);
+
+  // Validation: highlight missing required fields on submit attempt
+  const [showValidation, setShowValidation] = useState(false);
+
+  // Toast notification
+  const [toast, setToast] = useState(null); // { message, type }
+  const toastTimerRef = useRef(null);
+  const showToast = useCallback((message, type = 'info') => {
+    setToast({ message, type });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
 
   // ── Verify signing link on mount ────────────────────────────────────
   useEffect(() => {
@@ -669,18 +692,39 @@ export default function PublicSigningPage() {
   // ── Field value change ───────────────────────────────────────────────
   const handleFieldChange = useCallback((fieldId, value) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
-  }, []);
+    if (showValidation) setShowValidation(false); // clear validation on any field change
+  }, [showValidation]);
 
-  // ── Open signature pad ───────────────────────────────────────────────
+  // ── Signature reuse prompt ───────────────────────────────────────────
+  const [sigReusePrompt, setSigReusePrompt] = useState({ open: false, fieldId: null, type: 'signature' });
+
   const handleOpenSignaturePad = useCallback((fieldId, type) => {
-    // If we already have a signature/initials data URL of this type, apply it directly
     const existing = sigDataUrls[type];
     if (existing) {
-      handleFieldChange(fieldId, existing);
+      // Show reuse prompt instead of silently applying
+      setSigReusePrompt({ open: true, fieldId, type });
     } else {
       setSigPadModal({ open: true, fieldId, type });
     }
-  }, [sigDataUrls, handleFieldChange]);
+  }, [sigDataUrls]);
+
+  const handleReuseExisting = useCallback(() => {
+    const { fieldId, type } = sigReusePrompt;
+    const existing = sigDataUrls[type];
+    if (existing && fieldId) {
+      handleFieldChange(fieldId, existing);
+      // Copy hash too
+      const existingHash = Object.values(signatureHashes)[0] || '';
+      if (existingHash) setSignatureHashes(prev => ({ ...prev, [fieldId]: existingHash }));
+    }
+    setSigReusePrompt({ open: false, fieldId: null, type: 'signature' });
+  }, [sigReusePrompt, sigDataUrls, handleFieldChange, signatureHashes]);
+
+  const handleDrawNew = useCallback(() => {
+    const { fieldId, type } = sigReusePrompt;
+    setSigReusePrompt({ open: false, fieldId: null, type: 'signature' });
+    setSigPadModal({ open: true, fieldId, type });
+  }, [sigReusePrompt]);
 
   // ── Adopt signature from modal ───────────────────────────────────────
   const handleAdoptSignature = useCallback(async (dataUrl) => {
@@ -773,7 +817,14 @@ export default function PublicSigningPage() {
 
   // ── Submit ───────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!allRequiredFilled || submitting) return;
+    if (submitting) return;
+    // If not all required filled, show validation and scroll to first missing
+    if (!allRequiredFilled) {
+      setShowValidation(true);
+      scrollToNextField(null); // scroll to first unfilled
+      showToast('Please complete all required fields before submitting', 'warning');
+      return;
+    }
     setSubmitting(true);
     try {
       const currentDoc = envelope?.documents?.[currentDocIndex];
@@ -892,19 +943,59 @@ export default function PublicSigningPage() {
 
   // ── Success state ───────────────────────────────────────────────────
   if (status === 'success') {
+    const signerCount = request?.signers?.length || 0;
+    const completedCount = request?.signers?.filter(s => s.state === 'completed').length || 0;
+    const signedDate = formatDisplayDate(todayStr());
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-            <Check className="w-8 h-8 text-green-600" />
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="mt-5 text-xl font-semibold text-gray-900">Document Signed Successfully!</h2>
+            <p className="mt-3 text-sm text-gray-600">
+              Thank you for signing <span className="font-medium">{request?.reference || 'this document'}</span>.
+            </p>
           </div>
-          <h2 className="mt-5 text-xl font-semibold text-gray-900">Document Signed Successfully!</h2>
-          <p className="mt-3 text-sm text-gray-600">
-            Thank you for signing <span className="font-medium">{request?.reference || 'this document'}</span>.
-          </p>
-          <p className="mt-2 text-sm text-gray-500">
+
+          {/* Signing summary */}
+          <div className="mt-6 bg-gray-50 rounded-lg p-4 space-y-2.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Signed by</span>
+              <span className="font-medium text-gray-900">{signer?.name}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Date</span>
+              <span className="font-medium text-gray-900">{signedDate}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Document</span>
+              <span className="font-medium text-gray-900 truncate ml-4">{request?.reference || 'Document'}</span>
+            </div>
+            {signerCount > 1 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Signers</span>
+                <span className="font-medium text-gray-900">{completedCount + 1} of {signerCount} signed</span>
+              </div>
+            )}
+            {signatureHashes && Object.values(signatureHashes)[0] && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Signature ID</span>
+                <span className="font-mono text-xs text-gray-700">{Object.values(signatureHashes)[0]}...</span>
+              </div>
+            )}
+          </div>
+
+          <p className="mt-4 text-sm text-gray-500 text-center">
             You will receive a copy via email once all parties have signed.
           </p>
+
+          <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-center gap-1.5">
+            <Shield size={12} className="text-gray-400" />
+            <span className="text-[11px] text-gray-400">Secured by Rivvra Sign</span>
+          </div>
         </div>
       </div>
     );
@@ -990,6 +1081,25 @@ export default function PublicSigningPage() {
         </div>
       </header>
 
+      {/* ── Expiry Countdown ──────────────────────────────────────────── */}
+      {request?.validity && (() => {
+        const now = new Date();
+        const expiry = new Date(request.validity);
+        const diffMs = expiry - now;
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays <= 0) return null;
+        const isUrgent = diffDays <= 3;
+        return (
+          <div className={`px-4 py-1.5 text-center text-xs font-medium ${
+            isUrgent ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+          }`}>
+            <Clock className="w-3 h-3 inline-block mr-1 -mt-0.5" />
+            {diffDays === 1 ? 'Expires tomorrow' : `Expires in ${diffDays} days`}
+            {' '}({formatDisplayDate(request.validity.split('T')[0])})
+          </div>
+        );
+      })()}
+
       {/* ── Click to Start Banner ──────────────────────────────────────── */}
       {!hasStarted && pdfDoc && (
         <div className="sticky top-[57px] z-20 flex justify-center py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-md">
@@ -1025,6 +1135,7 @@ export default function PublicSigningPage() {
                 setActiveFieldId={setActiveFieldId}
                 scale={scale}
                 signatureHashes={signatureHashes}
+                showValidation={showValidation}
               />
             ))
           ) : (
@@ -1088,7 +1199,7 @@ export default function PublicSigningPage() {
           {/* Right: Submit */}
           <button
             onClick={handleSubmit}
-            disabled={!allRequiredFilled || submitting}
+            disabled={submitting}
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
           >
             {submitting ? (
@@ -1130,6 +1241,60 @@ export default function PublicSigningPage() {
         confirmLabel={refusing ? 'Refusing...' : 'Yes, Refuse'}
         confirmColor="red"
       />
+
+      {/* ── Signature Reuse Prompt ──────────────────────────────────── */}
+      {sigReusePrompt.open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              {sigReusePrompt.type === 'initials' ? 'Reuse Initials?' : 'Reuse Signature?'}
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">
+              You already have a {sigReusePrompt.type === 'initials' ? 'initials' : 'signature'} on file. Would you like to reuse it or draw a new one?
+            </p>
+            {sigDataUrls[sigReusePrompt.type] && (
+              <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center">
+                <img
+                  src={sigDataUrls[sigReusePrompt.type]}
+                  alt="Existing"
+                  className="max-h-16 object-contain"
+                />
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={handleReuseExisting}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Use Existing
+              </button>
+              <button
+                onClick={handleDrawNew}
+                className="flex-1 px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg border border-gray-300 transition-colors"
+              >
+                Draw New
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast Notification ────────────────────────────────────────── */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200 ${
+          toast.type === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+          toast.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+          toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+          'bg-white text-gray-800 border border-gray-200'
+        }`}>
+          {toast.type === 'warning' && <AlertTriangle className="w-4 h-4 shrink-0" />}
+          {toast.type === 'success' && <Check className="w-4 h-4 shrink-0" />}
+          {toast.message}
+          <button onClick={() => setToast(null)} className="ml-2 text-current opacity-50 hover:opacity-100">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* ── Compliance Footer ─────────────────────────────────────────── */}
       <div className="mt-6 py-4 border-t border-gray-200 text-center">
