@@ -79,16 +79,16 @@ const FIELD_TYPES = [
 
 /** Default fractional width/height for each field type (0-1 relative to page). */
 const DEFAULT_SIZES = {
-  signature:  { w: 0.20,  h: 0.05  },
-  initials:   { w: 0.085, h: 0.03  },
-  text:       { w: 0.15,  h: 0.015 },
-  name:       { w: 0.15,  h: 0.015 },
-  email:      { w: 0.15,  h: 0.015 },
-  phone:      { w: 0.15,  h: 0.015 },
-  company:    { w: 0.15,  h: 0.015 },
-  date:       { w: 0.15,  h: 0.015 },
-  multiline:  { w: 0.30,  h: 0.05  },
-  checkbox:   { w: 0.05,  h: 0.025 },
+  signature:  { w: 0.28,  h: 0.08  },
+  initials:   { w: 0.12,  h: 0.05  },
+  text:       { w: 0.22,  h: 0.03  },
+  name:       { w: 0.22,  h: 0.03  },
+  email:      { w: 0.22,  h: 0.03  },
+  phone:      { w: 0.18,  h: 0.03  },
+  company:    { w: 0.22,  h: 0.03  },
+  date:       { w: 0.18,  h: 0.03  },
+  multiline:  { w: 0.35,  h: 0.07  },
+  checkbox:   { w: 0.025, h: 0.025 },
 };
 
 // ---------------------------------------------------------------------------
