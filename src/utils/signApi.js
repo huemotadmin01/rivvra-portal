@@ -146,6 +146,16 @@ const signApi = {
     return api.uploadFile(`/api/org/${orgSlug}/sign/quick-send`, formData);
   },
 
+  quickSendPrepare(orgSlug, formData) {
+    return api.uploadFile(`/api/org/${orgSlug}/sign/quick-send/prepare`, formData);
+  },
+
+  promoteTemplate(orgSlug, templateId) {
+    return api.request(`/api/org/${orgSlug}/sign/templates/${templateId}/promote`, {
+      method: 'PUT',
+    });
+  },
+
   // ── Signer Lookup (Auto-fill) ────────────────────────────────────
   lookupSigner(orgSlug, email) {
     return api.request(`/api/org/${orgSlug}/sign/lookup-signer?email=${encodeURIComponent(email)}`);

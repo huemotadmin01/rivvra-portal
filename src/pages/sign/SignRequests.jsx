@@ -703,23 +703,15 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
 /* ── Quick Send Modal ─────────────────────────────────────────────────── */
 function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
   const { showToast } = useToast();
-  const [step, setStep] = useState(1); // 1=upload, 2=signers, 3=send
+  const { orgPath } = usePlatform();
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1); // 1=upload, 2=signers
   const [file, setFile] = useState(null);
   const [reference, setReference] = useState('');
-  const [signers, setSigners] = useState([{ name: '', email: '', roleId: null }]);
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
-  const [validity, setValidity] = useState('');
-  const [sending, setSending] = useState(false);
-  const [roles, setRoles] = useState([]);
+  const [signers, setSigners] = useState([{ name: '', email: '' }]);
+  const [preparing, setPreparing] = useState(false);
 
-  useEffect(() => {
-    if (show && orgSlug) {
-      signApi.listRoles(orgSlug).then(res => { if (res.roles) setRoles(res.roles); }).catch(() => {});
-    }
-  }, [show, orgSlug]);
-
-  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '', roleId: null }]); setSubject(''); setMessage(''); setValidity(''); };
+  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '' }]); };
 
   const handleFile = (e) => {
     const f = e.target.files?.[0] || e.dataTransfer?.files?.[0];
@@ -729,37 +721,35 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
     }
   };
 
-  const addSigner = () => setSigners(prev => [...prev, { name: '', email: '', roleId: roles[0]?._id || null }]);
+  const addSigner = () => setSigners(prev => [...prev, { name: '', email: '' }]);
   const removeSigner = (idx) => setSigners(prev => prev.filter((_, i) => i !== idx));
   const updateSigner = (idx, field, val) => setSigners(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
 
-  const handleSend = async () => {
+  const handlePrepare = async () => {
     if (!file || signers.some(s => !s.email)) return;
-    setSending(true);
+    setPreparing(true);
     try {
       const fd = new FormData();
       fd.append('pdf', file);
       fd.append('reference', reference);
       fd.append('signers', JSON.stringify(signers.map((s, i) => ({
         ...s,
-        roleName: roles.find(r => r._id === s.roleId)?.name || `Signer ${i + 1}`,
+        roleName: `Signer ${i + 1}`,
       }))));
-      fd.append('subject', subject || `Signature Request - ${reference}`);
-      if (message) fd.append('message', message);
-      if (validity) fd.append('validity', validity);
-      const res = await signApi.quickSend(orgSlug, fd);
-      if (res.success !== false) {
-        showToast('Document sent for signature');
+      const res = await signApi.quickSendPrepare(orgSlug, fd);
+      if (res.success && res.template) {
+        const templateId = res.template._id;
+        const signerData = encodeURIComponent(JSON.stringify(res.signers || []));
         reset();
         onClose();
-        onSaved?.();
+        navigate(orgPath(`/sign/templates/${templateId}/edit?quickSend=true&signers=${signerData}`));
       } else {
-        showToast(res.error || 'Failed to send', 'error');
+        showToast(res.error || 'Failed to prepare document', 'error');
       }
     } catch (err) {
-      showToast(err.message || 'Failed to send', 'error');
+      showToast(err.message || 'Failed to prepare document', 'error');
     } finally {
-      setSending(false);
+      setPreparing(false);
     }
   };
 
@@ -818,7 +808,7 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
           {/* Step 2: Signers */}
           {step === 2 && (
             <>
-              <p className="text-dark-400 text-sm">Add people who need to sign this document.</p>
+              <p className="text-dark-400 text-sm">Add people who need to sign this document. Signer 1 signs first, then Signer 2, and so on.</p>
               <div className="space-y-3">
                 {signers.map((s, idx) => (
                   <div key={idx} className="bg-dark-900 rounded-lg p-3 border border-dark-700 space-y-2">
@@ -832,49 +822,14 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
                       <input value={s.name} onChange={e => updateSigner(idx, 'name', e.target.value)} placeholder="Name" className="input-field text-sm" />
                       <input value={s.email} onChange={e => updateSigner(idx, 'email', e.target.value)} placeholder="Email *" type="email" className="input-field text-sm" />
                     </div>
-                    {roles.length > 0 && (
-                      <select value={s.roleId || ''} onChange={e => updateSigner(idx, 'roleId', e.target.value || null)} className="input-field text-sm w-full">
-                        <option value="">No role</option>
-                        {roles.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
-                      </select>
-                    )}
                   </div>
                 ))}
               </div>
               <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button onClick={() => setStep(3)} disabled={signers.some(s => !s.email)} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
-                  Next <ArrowRight size={14} />
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Step 3: Options & Send */}
-          {step === 3 && (
-            <>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Subject</label>
-                <input value={subject} onChange={e => setSubject(e.target.value)} placeholder={`Signature Request - ${reference}`} className="input-field w-full" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
-                <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Add a message for the signers..." rows={3} className="input-field w-full resize-none" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
-                <input type="date" value={validity} onChange={e => setValidity(e.target.value)} className="input-field w-full" />
-              </div>
-              <div className="bg-dark-900 rounded-lg p-3 border border-dark-700">
-                <p className="text-xs text-dark-400 mb-2">Summary</p>
-                <p className="text-sm text-white">{reference || file?.name}</p>
-                <p className="text-xs text-dark-500 mt-1">{signers.length} signer(s) &middot; Signature fields auto-placed</p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep(2)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button onClick={handleSend} disabled={sending} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
-                  {sending ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><Send size={14} /> Send</>}
+                <button onClick={handlePrepare} disabled={preparing || signers.some(s => !s.email)} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
+                  {preparing ? <><Loader2 size={14} className="animate-spin" /> Preparing...</> : <>Place Fields <ArrowRight size={14} /></>}
                 </button>
               </div>
             </>

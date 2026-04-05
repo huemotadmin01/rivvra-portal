@@ -10,7 +10,7 @@
 // ============================================================================
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -35,6 +35,9 @@ import {
   Hash,
   Palette,
   MousePointer,
+  Send,
+  Bookmark,
+  X,
 } from 'lucide-react';
 import { EditorSkeleton } from '../../components/Skeletons';
 
@@ -110,6 +113,14 @@ export default function SignTemplateEditor() {
   const { orgSlug } = useOrg();
   const { showToast } = useToast();
   const { orgPath } = usePlatform();
+  const [searchParams] = useSearchParams();
+
+  // ── Quick Send mode ─────────────────────────────────────────────────
+  const isQuickSend = searchParams.get('quickSend') === 'true';
+  const quickSendSigners = useMemo(() => {
+    try { return JSON.parse(decodeURIComponent(searchParams.get('signers') || '[]')); }
+    catch { return []; }
+  }, [searchParams]);
 
   // ── Template state ──────────────────────────────────────────────────
   const [templateName, setTemplateName] = useState('');
@@ -375,6 +386,75 @@ export default function SignTemplateEditor() {
   }, [orgSlug, templateId, templateName, signItems, numPages, saving]);
 
   // ────────────────────────────────────────────────────────────────────
+  // Quick Send: Send dialog + Save as Template
+  // ────────────────────────────────────────────────────────────────────
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const [sendSubject, setSendSubject] = useState('');
+  const [sendMessage, setSendMessage] = useState('');
+  const [sendValidity, setSendValidity] = useState('');
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+
+  const handleQuickSendSubmit = useCallback(async () => {
+    if (sendingRequest || signItems.length === 0) return;
+    setSendingRequest(true);
+    try {
+      // First save fields to the template
+      const saveRes = await signApi.updateTemplate(orgSlug, templateId, { signItems, numPages });
+      if (!saveRes.success) {
+        showToast('Failed to save fields', 'error');
+        return;
+      }
+
+      // Then create the sign request
+      const requestData = {
+        templateId,
+        signers: quickSendSigners.map(s => ({
+          name: s.name,
+          email: s.email,
+          roleId: s.roleId,
+          order: s.order,
+        })),
+        subject: sendSubject || `Signature Request - ${templateName}`,
+        message: sendMessage || undefined,
+        validity: sendValidity || undefined,
+      };
+
+      const res = await signApi.createRequest(orgSlug, requestData);
+      if (res.success !== false) {
+        showToast('Document sent for signature');
+        navigate(orgPath('/sign/requests'));
+      } else {
+        showToast(res.error || 'Failed to send', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to send', 'error');
+    } finally {
+      setSendingRequest(false);
+    }
+  }, [orgSlug, templateId, signItems, numPages, quickSendSigners, sendSubject, sendMessage, sendValidity, templateName, sendingRequest]);
+
+  const handleSaveAsTemplate = useCallback(async () => {
+    if (promoting) return;
+    setPromoting(true);
+    try {
+      // Save fields first
+      await signApi.updateTemplate(orgSlug, templateId, { name: templateName, signItems, numPages });
+      // Then promote from ephemeral to permanent
+      const res = await signApi.promoteTemplate(orgSlug, templateId);
+      if (res.success) {
+        showToast('Saved as reusable template');
+      } else {
+        showToast(res.error || 'Failed to save template', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to save template', 'error');
+    } finally {
+      setPromoting(false);
+    }
+  }, [orgSlug, templateId, templateName, signItems, numPages, promoting]);
+
+  // ────────────────────────────────────────────────────────────────────
   // Drop NEW field from sidebar onto a PDF page
   // ────────────────────────────────────────────────────────────────────
   const handlePageDrop = useCallback(
@@ -623,18 +703,38 @@ export default function SignTemplateEditor() {
           )}
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+          {isQuickSend && (
+            <>
+              <button
+                onClick={handleSaveAsTemplate}
+                disabled={promoting || signItems.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-dark-300 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {promoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bookmark className="w-4 h-4" />}
+                Save as Template
+              </button>
+              <button
+                onClick={() => { setSendSubject(`Signature Request - ${templateName}`); setShowSendDialog(true); }}
+                disabled={signItems.length === 0}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send className="w-4 h-4" />
+                Send
+              </button>
+            </>
           )}
-          Save
-        </button>
+          {!isQuickSend && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save
+            </button>
+          )}
+        </div>
       </header>
 
       {/* ── Main body: left sidebar + PDF center + right sidebar ─── */}
@@ -672,25 +772,26 @@ export default function SignTemplateEditor() {
             </div>
           </div>
 
-          {/* Roles */}
+          {/* Roles / Signers */}
           <div className="p-4 border-t border-dark-700">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Roles
+              {isQuickSend ? 'Signers' : 'Roles'}
             </h3>
             {roles.length === 0 ? (
               <p className="text-xs text-gray-500 italic">
-                No roles configured. Go to Sign Settings to add roles.
+                {isQuickSend ? 'No signers found.' : 'No roles configured. Go to Sign Settings to add roles.'}
               </p>
             ) : (
               <div className="space-y-1">
                 {roles.map((role, idx) => {
                   const color = ROLE_COLORS[idx % ROLE_COLORS.length];
                   const isActive = role._id === activeRoleId;
+                  const signer = isQuickSend ? quickSendSigners.find(s => s.roleId === role._id) : null;
                   return (
                     <button
                       key={role._id}
                       onClick={() => setActiveRoleId(role._id)}
-                      className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                      className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left transition-colors ${
                         isActive
                           ? 'bg-dark-700 text-white'
                           : 'text-gray-400 hover:bg-dark-800 hover:text-gray-200'
@@ -700,7 +801,12 @@ export default function SignTemplateEditor() {
                         className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: color }}
                       />
-                      <span className="truncate">{role.name}</span>
+                      <div className="min-w-0 flex-1">
+                        <span className="truncate block text-sm">{signer?.name || role.name}</span>
+                        {signer?.email && (
+                          <span className="truncate block text-[10px] text-dark-500">{signer.email}</span>
+                        )}
+                      </div>
                       {isActive && (
                         <MousePointer className="w-3.5 h-3.5 ml-auto text-rivvra-400 shrink-0" />
                       )}
@@ -904,6 +1010,50 @@ export default function SignTemplateEditor() {
           )}
         </aside>
       </div>
+
+      {/* ── Quick Send Dialog ─────────────────────────────────────── */}
+      {isQuickSend && showSendDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-lg shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Send className="w-5 h-5 text-rivvra-400" />
+                Send for Signature
+              </h2>
+              <button onClick={() => setShowSendDialog(false)} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Subject</label>
+                <input value={sendSubject} onChange={e => setSendSubject(e.target.value)} placeholder={`Signature Request - ${templateName}`} className="w-full px-3 py-2 text-sm text-white bg-dark-900 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 placeholder:text-dark-500" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
+                <textarea value={sendMessage} onChange={e => setSendMessage(e.target.value)} placeholder="Add a message for the signers..." rows={3} className="w-full px-3 py-2 text-sm text-white bg-dark-900 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 placeholder:text-dark-500 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
+                <input type="date" value={sendValidity} onChange={e => setSendValidity(e.target.value)} className="w-full px-3 py-2 text-sm text-white bg-dark-900 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50" />
+              </div>
+              <div className="bg-dark-900 rounded-lg p-3 border border-dark-700">
+                <p className="text-xs text-dark-400 mb-2">Summary</p>
+                <p className="text-sm text-white">{templateName}</p>
+                <p className="text-xs text-dark-500 mt-1">{quickSendSigners.length} signer(s) &middot; {signItems.length} field(s) placed &middot; Sequential signing</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowSendDialog(false)} className="flex-1 px-4 py-2.5 text-sm font-medium text-dark-300 bg-dark-700 hover:bg-dark-600 rounded-lg transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleQuickSendSubmit} disabled={sendingRequest} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg transition-colors disabled:opacity-50">
+                  {sendingRequest ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : <><Send className="w-4 h-4" /> Send</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
