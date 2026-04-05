@@ -185,10 +185,19 @@ export default function SignTemplateEditor() {
           navigate(orgPath('/sign/templates'));
         }
 
-        if (rolesRes.success && Array.isArray(rolesRes.roles)) {
-          setRoles(rolesRes.roles);
-          if (rolesRes.roles.length > 0) {
-            setActiveRoleId(rolesRes.roles[0]._id);
+        let rolesArr = rolesRes.roles || rolesRes.items || [];
+        // In quickSend mode, if no roles from API, create virtual roles from signer data
+        if (isQuickSend && rolesArr.length === 0 && quickSendSigners.length > 0) {
+          rolesArr = quickSendSigners.map((s, i) => ({
+            _id: s.roleId,
+            name: s.name || `Signer ${i + 1}`,
+            sequence: i,
+          }));
+        }
+        if (rolesRes.success && Array.isArray(rolesArr)) {
+          setRoles(rolesArr);
+          if (rolesArr.length > 0) {
+            setActiveRoleId(rolesArr[0]._id);
           }
         }
       } catch (err) {
