@@ -191,7 +191,7 @@ let _signerIdCounter = 0;
 const makeSignerId = () => `signer_${++_signerIdCounter}_${Date.now()}`;
 const EMPTY_SIGNER = () => ({ _dragId: makeSignerId(), name: '', email: '', roleId: '', roleName: '' });
 
-function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
+function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateId }) {
   const modalRef = useRef(null);
   const { showToast } = useToast();
 
@@ -212,7 +212,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
 
   useEffect(() => {
     if (show && orgSlug) {
-      setStep(1);
+      setStep(preSelectedTemplateId ? 2 : 1);
       setSelectedTemplate(null);
       setEnvelopeDocs([]);
       setSigners([EMPTY_SIGNER()]);
@@ -227,6 +227,11 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug }) {
       ]).then(([tmpls, rls]) => {
         setTemplates(tmpls);
         setRoles(rls);
+        // Auto-select template if preSelectedTemplateId is provided
+        if (preSelectedTemplateId) {
+          const match = tmpls.find(t => (t._id || t.id) === preSelectedTemplateId);
+          if (match) setSelectedTemplate(match);
+        }
       }).finally(() => setLoadingTemplates(false));
     }
   }, [show, orgSlug]);
@@ -1074,6 +1079,7 @@ export default function SignRequests() {
   const [showModal, setShowModal] = useState(false);
   const [showQuickSend, setShowQuickSend] = useState(false);
   const [showBulkSend, setShowBulkSend] = useState(false);
+  const [preSelectedTemplateId, setPreSelectedTemplateId] = useState(null);
 
   // Action loading
   const [cancellingId, setCancellingId] = useState(null);
@@ -1091,6 +1097,12 @@ export default function SignRequests() {
     if (searchParams.get('quicksend') === 'true') {
       setShowQuickSend(true);
       searchParams.delete('quicksend');
+      setSearchParams(searchParams, { replace: true });
+    }
+    if (searchParams.get('template')) {
+      setPreSelectedTemplateId(searchParams.get('template'));
+      setShowModal(true);
+      searchParams.delete('template');
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
@@ -1482,9 +1494,10 @@ export default function SignRequests() {
       {/* New Request Modal */}
       <NewRequestModal
         show={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => { setShowModal(false); setPreSelectedTemplateId(null); }}
         onSaved={() => fetchRequests({ page: 1 })}
         orgSlug={orgSlug}
+        preSelectedTemplateId={preSelectedTemplateId}
       />
 
       {/* Quick Send Modal */}

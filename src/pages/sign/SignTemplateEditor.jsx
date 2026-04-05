@@ -399,7 +399,7 @@ export default function SignTemplateEditor() {
     } finally {
       setSaving(false);
     }
-  }, [orgSlug, templateId, templateName, signItems, numPages, saving]);
+  }, [orgSlug, templateId, templateName, signItems, numPages, saving, showToast]);
 
   // ────────────────────────────────────────────────────────────────────
   // Quick Send: Send dialog + Save as Template
@@ -792,21 +792,25 @@ export default function SignTemplateEditor() {
       {/* ── Header Bar ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-dark-900 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Back button + breadcrumb for Quick Send */}
+          {/* Back button + breadcrumb */}
+          <button
+            onClick={() => isQuickSend ? navigate(-1) : navigate(orgPath('/sign/templates'))}
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors shrink-0"
+            title={isQuickSend ? 'Back to Quick Send' : 'Back to Templates'}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
           {isQuickSend && (
-            <>
-              <button
-                onClick={() => navigate(-1)}
-                className="flex items-center justify-center w-8 h-8 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors shrink-0"
-                title="Back to Quick Send"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <div className="flex items-center gap-1.5 text-sm text-dark-400 shrink-0">
-                <span className="text-rivvra-400 font-medium">Quick Send</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </>
+            <div className="flex items-center gap-1.5 text-sm text-dark-400 shrink-0">
+              <span className="text-rivvra-400 font-medium">Quick Send</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+          )}
+          {!isQuickSend && (
+            <div className="flex items-center gap-1.5 text-sm text-dark-400 shrink-0">
+              <span className="text-rivvra-400 font-medium">Templates</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
           )}
           {/* Editable template name */}
           {editingName ? (
@@ -855,14 +859,23 @@ export default function SignTemplateEditor() {
             </>
           )}
           {!isQuickSend && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save
-            </button>
+            <>
+              <button
+                onClick={() => navigate(orgPath('/sign/templates'))}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-dark-300 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save
+              </button>
+            </>
           )}
         </div>
       </header>

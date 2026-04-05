@@ -7,7 +7,7 @@ import signApi from '../../utils/signApi';
 import {
   Loader2, Plus, Upload, FileText, LayoutTemplate,
   X, Copy, Trash2, Edit2, Tag, Search,
-  CloudUpload, File,
+  CloudUpload, File, Send,
 } from 'lucide-react';
 
 /* ── Upload Template Modal ────────────────────────────────────────────── */
@@ -471,6 +471,13 @@ export default function SignTemplates() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => navigate(orgPath(`/sign/requests?template=${tpl._id}`))}
+                            className="text-dark-400 hover:text-rivvra-400 transition-colors p-1.5 rounded hover:bg-dark-700"
+                            title="Send for signature"
+                          >
+                            <Send size={14} />
+                          </button>
                           <button
                             onClick={() => navigate(orgPath(`/sign/templates/${tpl._id}/edit`))}
                             className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"
