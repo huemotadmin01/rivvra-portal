@@ -518,6 +518,98 @@ export default function SignTemplateEditor() {
   }, []);
 
   // ────────────────────────────────────────────────────────────────────
+  // Auto-scroll the PDF container while dragging near edges
+  // ────────────────────────────────────────────────────────────────────
+  const scrollIntervalRef = useRef(null);
+
+  const handleContainerDragOver = useCallback((e) => {
+    e.preventDefault();
+    const container = pdfContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const edgeZone = 60; // px from top/bottom edge
+    const mouseY = e.clientY - rect.top;
+
+    // Clear previous interval
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+
+    if (mouseY < edgeZone) {
+      // Scroll up
+      const speed = Math.max(2, (edgeZone - mouseY) / 3);
+      scrollIntervalRef.current = setInterval(() => {
+        container.scrollTop -= speed;
+      }, 16);
+    } else if (mouseY > rect.height - edgeZone) {
+      // Scroll down
+      const speed = Math.max(2, (mouseY - (rect.height - edgeZone)) / 3);
+      scrollIntervalRef.current = setInterval(() => {
+        container.scrollTop += speed;
+      }, 16);
+    }
+  }, []);
+
+  const handleContainerDragLeave = useCallback(() => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  }, []);
+
+  const handleContainerDrop = useCallback(() => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  }, []);
+
+  // ────────────────────────────────────────────────────────────────────
+  // Click-to-place: click a field type in sidebar, then click on PDF
+  // ────────────────────────────────────────────────────────────────────
+  const [placingFieldType, setPlacingFieldType] = useState(null);
+
+  const handlePageClick = useCallback(
+    (e, pageIndex) => {
+      if (!placingFieldType) return;
+      e.stopPropagation();
+
+      const pageContainer = e.currentTarget;
+      const rect = pageContainer.getBoundingClientRect();
+      const dims = getPageDims(pageIndex);
+
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      const defaults = DEFAULT_SIZES[placingFieldType] || DEFAULT_SIZES.text;
+
+      const posX = clamp((clickX / dims.width) - defaults.w / 2, 0, 1 - defaults.w);
+      const posY = clamp((clickY / dims.height) - defaults.h / 2, 0, 1 - defaults.h);
+
+      const newItem = {
+        id: crypto.randomUUID(),
+        type: placingFieldType,
+        page: pageIndex,
+        posX,
+        posY,
+        width: defaults.w,
+        height: defaults.h,
+        roleId: activeRoleId || (roles[0]?._id ?? null),
+        required: true,
+        label: fieldMeta(placingFieldType).label,
+        alignment: 'left',
+      };
+
+      setSignItems((prev) => [...prev, newItem]);
+      setSelectedItemId(newItem.id);
+      setPlacingFieldType(null); // one-shot: clear after placing
+    },
+    [placingFieldType, getPageDims, activeRoleId, roles]
+  );
+
+  // ────────────────────────────────────────────────────────────────────
   // Move existing field (mouse-based drag)
   // ────────────────────────────────────────────────────────────────────
   const startFieldDrag = useCallback((e, itemId) => {
@@ -650,6 +742,12 @@ export default function SignTemplateEditor() {
   // ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     function onKeyDown(e) {
+      // Escape cancels field placement mode
+      if (e.key === 'Escape' && placingFieldType) {
+        setPlacingFieldType(null);
+        return;
+      }
+
       if (!selectedItemId) return;
       // Don't intercept if user is typing in an input
       const tag = e.target.tagName.toLowerCase();
@@ -690,7 +788,7 @@ export default function SignTemplateEditor() {
   // RENDER
   // ====================================================================
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-dark-950">
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden bg-dark-950">
       {/* ── Header Bar ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-dark-900 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -698,9 +796,9 @@ export default function SignTemplateEditor() {
           {isQuickSend && (
             <>
               <button
-                onClick={() => navigate(orgPath('/sign/requests'))}
+                onClick={() => navigate(orgPath('/sign/requests?quicksend=true'))}
                 className="flex items-center justify-center w-8 h-8 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors shrink-0"
-                title="Back to Sign Requests"
+                title="Back to Quick Send"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
@@ -770,7 +868,7 @@ export default function SignTemplateEditor() {
       </header>
 
       {/* ── Main body: left sidebar + PDF center + right sidebar ─── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ─── Left Sidebar ─────────────────────────────────────── */}
         <aside className="w-64 shrink-0 border-r border-dark-700 bg-dark-900 overflow-y-auto">
           {/* Field Types */}
@@ -781,6 +879,7 @@ export default function SignTemplateEditor() {
             <div className="grid grid-cols-2 gap-2">
               {FIELD_TYPES.map((ft) => {
                 const Icon = ft.icon;
+                const isPlacing = placingFieldType === ft.type;
                 return (
                   <button
                     key={ft.type}
@@ -788,20 +887,34 @@ export default function SignTemplateEditor() {
                     onDragStart={(e) => {
                       e.dataTransfer.setData('fieldType', ft.type);
                       e.dataTransfer.effectAllowed = 'copy';
+                      setPlacingFieldType(null);
                     }}
-                    className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-dark-700 bg-dark-800 hover:bg-dark-700 hover:border-dark-600 transition-colors cursor-grab active:cursor-grabbing group"
+                    onClick={() => setPlacingFieldType(isPlacing ? null : ft.type)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors cursor-grab active:cursor-grabbing group ${
+                      isPlacing
+                        ? 'border-rivvra-500 bg-rivvra-500/10 ring-1 ring-rivvra-500/30'
+                        : 'border-dark-700 bg-dark-800 hover:bg-dark-700 hover:border-dark-600'
+                    }`}
                   >
                     <Icon
                       className="w-5 h-5 transition-colors"
-                      style={{ color: ft.color }}
+                      style={{ color: isPlacing ? '#22c55e' : ft.color }}
                     />
-                    <span className="text-[11px] text-gray-400 group-hover:text-gray-200 leading-tight text-center">
+                    <span className={`text-[11px] leading-tight text-center ${isPlacing ? 'text-rivvra-400 font-medium' : 'text-gray-400 group-hover:text-gray-200'}`}>
                       {ft.label}
                     </span>
                   </button>
                 );
               })}
             </div>
+            {placingFieldType && (
+              <p className="mt-2 text-[10px] text-rivvra-400 text-center animate-pulse">
+                Click on the document to place {fieldMeta(placingFieldType).label}
+              </p>
+            )}
+            <p className="mt-2 text-[10px] text-dark-500 text-center">
+              Drag or click to place on document
+            </p>
           </div>
 
           {/* Roles / Signers */}
@@ -861,8 +974,11 @@ export default function SignTemplateEditor() {
         {/* ─── PDF Viewer (center) ──────────────────────────────── */}
         <main
           ref={pdfContainerRef}
-          className="flex-1 overflow-y-auto bg-dark-950 p-6"
-          onClick={() => setSelectedItemId(null)}
+          className={`flex-1 overflow-y-auto bg-dark-950 p-6 ${placingFieldType ? 'cursor-crosshair' : ''}`}
+          onClick={() => { setSelectedItemId(null); if (placingFieldType) setPlacingFieldType(null); }}
+          onDragOver={handleContainerDragOver}
+          onDragLeave={handleContainerDragLeave}
+          onDrop={handleContainerDrop}
         >
           {!pdfDoc && !loading && (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
@@ -895,6 +1011,8 @@ export default function SignTemplateEditor() {
                     setSelectedItemId={setSelectedItemId}
                     handlePageDragOver={handlePageDragOver}
                     handlePageDrop={handlePageDrop}
+                    handlePageClick={handlePageClick}
+                    placingFieldType={placingFieldType}
                     startFieldDrag={startFieldDrag}
                     startFieldResize={startFieldResize}
                     pagesRenderedKey={pagesRenderedKey}
@@ -1108,6 +1226,8 @@ function PageContainer({
   setSelectedItemId,
   handlePageDragOver,
   handlePageDrop,
+  handlePageClick,
+  placingFieldType,
   startFieldDrag,
   startFieldResize,
   pagesRenderedKey,
@@ -1118,12 +1238,16 @@ function PageContainer({
 
   return (
     <div
-      className="relative bg-white rounded-lg shadow-lg"
+      className={`relative bg-white rounded-lg shadow-lg ${placingFieldType ? 'cursor-crosshair' : ''}`}
       onDragOver={handlePageDragOver}
       onDrop={(e) => handlePageDrop(e, pageIndex)}
       onClick={(e) => {
-        e.stopPropagation();
-        setSelectedItemId(null);
+        if (placingFieldType) {
+          handlePageClick(e, pageIndex);
+        } else {
+          e.stopPropagation();
+          setSelectedItemId(null);
+        }
       }}
     >
       {/* Page number badge */}
