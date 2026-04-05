@@ -38,6 +38,8 @@ import {
   Send,
   Bookmark,
   X,
+  ArrowLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { EditorSkeleton } from '../../components/Skeletons';
 
@@ -152,6 +154,9 @@ export default function SignTemplateEditor() {
   // ── Editing name ────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const nameInputRef = useRef(null);
+
+  // ── Tracks when PDF canvases finish rendering (forces overlay re-calc) ──
+  const [pagesRenderedKey, setPagesRenderedKey] = useState(0);
 
   // ────────────────────────────────────────────────────────────────────
   // Fetch template + roles on mount
@@ -302,6 +307,8 @@ export default function SignTemplateEditor() {
         }
       }
     }
+    // Signal that all canvases have been sized — overlay dims will re-compute
+    setPagesRenderedKey((k) => k + 1);
   }, [pdfDoc, pageViewports]);
 
   useEffect(() => {
@@ -687,6 +694,22 @@ export default function SignTemplateEditor() {
       {/* ── Header Bar ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-dark-900 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
+          {/* Back button + breadcrumb for Quick Send */}
+          {isQuickSend && (
+            <>
+              <button
+                onClick={() => navigate(orgPath('/sign/requests'))}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors shrink-0"
+                title="Back to Sign Requests"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-1.5 text-sm text-dark-400 shrink-0">
+                <span className="text-rivvra-400 font-medium">Quick Send</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </>
+          )}
           {/* Editable template name */}
           {editingName ? (
             <input
@@ -874,6 +897,7 @@ export default function SignTemplateEditor() {
                     handlePageDrop={handlePageDrop}
                     startFieldDrag={startFieldDrag}
                     startFieldResize={startFieldResize}
+                    pagesRenderedKey={pagesRenderedKey}
                   />
                 );
               })}
@@ -1086,22 +1110,15 @@ function PageContainer({
   handlePageDrop,
   startFieldDrag,
   startFieldResize,
+  pagesRenderedKey,
 }) {
-  // We read dims lazily inside event handlers, but also on render for overlays.
-  // After canvas renders, dims become accurate via canvas.style.width/height.
-  const [, forceUpdate] = useState(0);
-
-  // Force a re-render after mount so that overlay dimensions pick up rendered canvas sizes.
-  useEffect(() => {
-    const timer = setTimeout(() => forceUpdate((n) => n + 1), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const dims = getPageDims(pageIndex);
+  // Re-compute dims whenever pagesRenderedKey changes (canvas sizes updated)
+  // eslint-disable-next-line no-unused-vars
+  const dims = useMemo(() => getPageDims(pageIndex), [getPageDims, pageIndex, pagesRenderedKey]);
 
   return (
     <div
-      className="relative bg-white rounded-lg shadow-lg overflow-hidden"
+      className="relative bg-white rounded-lg shadow-lg"
       onDragOver={handlePageDragOver}
       onDrop={(e) => handlePageDrop(e, pageIndex)}
       onClick={(e) => {
@@ -1120,10 +1137,10 @@ function PageContainer({
         className="block w-full"
       />
 
-      {/* Overlay container for sign items */}
+      {/* Overlay container for sign items — matches canvas exactly */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ width: dims.width, height: dims.height }}
+        className="absolute top-0 left-0 pointer-events-none"
+        style={{ width: dims.width || '100%', height: dims.height || '100%' }}
       >
         {pageItems.map((item) => (
           <FieldOverlay
