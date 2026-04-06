@@ -75,61 +75,64 @@ export default function AssetDetail() {
     finally { setLoading(false); }
   }
 
+  const [error, setError] = useState('');
+
   async function handleAssign() {
     if (!assignForm.employeeId) return;
-    setSaving(true);
+    setSaving(true); setError('');
     try {
-      await assetApi.assign(orgSlug, assetId, assignForm);
+      await assetApi.assign(orgSlug, assetId, { employeeId: assignForm.employeeId, notes: assignForm.notes });
       setShowAssign(false);
       setAssignForm({ employeeId: '', notes: '' });
+      setAssignSearch('');
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) { setError(e.message || 'Failed to assign'); }
     finally { setSaving(false); }
   }
 
   async function handleReassign() {
     if (!reassignForm.employeeId) return;
-    setSaving(true);
+    setSaving(true); setError('');
     try {
-      // Return from current employee first, then assign to new
       await assetApi.returnAsset(orgSlug, assetId, { condition: 'good', notes: 'Reassigned to another employee' });
-      await assetApi.assign(orgSlug, assetId, reassignForm);
+      await assetApi.assign(orgSlug, assetId, { employeeId: reassignForm.employeeId, notes: reassignForm.notes });
       setShowReassign(false);
       setReassignForm({ employeeId: '', notes: '' });
+      setReassignSearch('');
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) { setError(e.message || 'Failed to reassign'); }
     finally { setSaving(false); }
   }
 
   async function handleReturn() {
-    setSaving(true);
+    setSaving(true); setError('');
     try {
       await assetApi.returnAsset(orgSlug, assetId, returnForm);
       setShowReturn(false);
       setReturnForm({ condition: 'good', notes: '', deductionAmount: '' });
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) { setError(e.message || 'Failed to return'); }
     finally { setSaving(false); }
   }
 
   async function handleMarkLost() {
-    setSaving(true);
+    setSaving(true); setError('');
     try {
       await assetApi.markLost(orgSlug, assetId, lostForm);
       setShowLost(false);
       setLostForm({ notes: '', deductionAmount: '' });
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) { setError(e.message || 'Failed to mark lost'); }
     finally { setSaving(false); }
   }
 
   async function handleEdit() {
-    setSaving(true);
+    setSaving(true); setError('');
     try {
       await assetApi.update(orgSlug, assetId, editForm);
       setShowEdit(false);
       await load();
-    } catch (e) { console.error(e); }
+    } catch (e) { setError(e.message || 'Failed to update'); }
     finally { setSaving(false); }
   }
 
@@ -300,7 +303,7 @@ export default function AssetDetail() {
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleAssign} onCancel={() => { setShowAssign(false); setAssignSearch(''); }} saving={saving} disabled={!assignForm.employeeId} label="Assign" />
+          <ModalActions onSave={handleAssign} onCancel={() => { setShowAssign(false); setAssignSearch(''); setError(''); }} saving={saving} disabled={!assignForm.employeeId} label="Assign" error={error} />
         </Modal>
       )}
 
@@ -327,7 +330,7 @@ export default function AssetDetail() {
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleReassign} onCancel={() => { setShowReassign(false); setReassignSearch(''); }} saving={saving} disabled={!reassignForm.employeeId} label="Reassign" />
+          <ModalActions onSave={handleReassign} onCancel={() => { setShowReassign(false); setReassignSearch(''); setError(''); }} saving={saving} disabled={!reassignForm.employeeId} label="Reassign" error={error} />
         </Modal>
       )}
 
@@ -359,7 +362,7 @@ export default function AssetDetail() {
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleReturn} onCancel={() => setShowReturn(false)} saving={saving} label="Confirm Return" />
+          <ModalActions onSave={handleReturn} onCancel={() => { setShowReturn(false); setError(''); }} saving={saving} label="Confirm Return" error={error} />
         </Modal>
       )}
 
@@ -382,7 +385,7 @@ export default function AssetDetail() {
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleMarkLost} onCancel={() => setShowLost(false)} saving={saving} label="Mark as Lost" danger />
+          <ModalActions onSave={handleMarkLost} onCancel={() => { setShowLost(false); setError(''); }} saving={saving} label="Mark as Lost" danger error={error} />
         </Modal>
       )}
 
@@ -413,7 +416,7 @@ export default function AssetDetail() {
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleEdit} onCancel={() => setShowEdit(false)} saving={saving} label="Save Changes" />
+          <ModalActions onSave={handleEdit} onCancel={() => { setShowEdit(false); setError(''); }} saving={saving} label="Save Changes" error={error} />
         </Modal>
       )}
     </div>
@@ -494,19 +497,22 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-function ModalActions({ onSave, onCancel, saving, disabled, label, danger }) {
+function ModalActions({ onSave, onCancel, saving, disabled, label, danger, error }) {
   return (
-    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-dark-700">
-      <button onClick={onSave} disabled={saving || disabled}
-        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-          danger ? 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20' : 'bg-rivvra-500 hover:bg-rivvra-600 text-white'
-        }`}>
-        {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} {label}
-      </button>
-      <button onClick={onCancel}
-        className="px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-dark-300 text-sm font-medium transition-colors">
-        Cancel
-      </button>
+    <div className="mt-4 pt-3 border-t border-dark-700 space-y-2">
+      {error && <p className="text-xs text-red-400 bg-red-500/10 px-3 py-1.5 rounded-lg">{error}</p>}
+      <div className="flex items-center gap-2">
+        <button onClick={onSave} disabled={saving || disabled}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+            danger ? 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20' : 'bg-rivvra-500 hover:bg-rivvra-600 text-white'
+          }`}>
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} {label}
+        </button>
+        <button onClick={onCancel}
+          className="px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-dark-300 text-sm font-medium transition-colors">
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
