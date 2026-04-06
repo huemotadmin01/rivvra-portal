@@ -46,7 +46,11 @@ export default function AssetDetail() {
 
   // Forms
   const [assignForm, setAssignForm] = useState({ employeeId: '', notes: '' });
+  const [assignSearch, setAssignSearch] = useState('');
+  const [assignDropdown, setAssignDropdown] = useState(false);
   const [reassignForm, setReassignForm] = useState({ employeeId: '', notes: '' });
+  const [reassignSearch, setReassignSearch] = useState('');
+  const [reassignDropdown, setReassignDropdown] = useState(false);
   const [returnForm, setReturnForm] = useState({ condition: 'good', notes: '', deductionAmount: '' });
   const [lostForm, setLostForm] = useState({ notes: '', deductionAmount: '' });
   const [editForm, setEditForm] = useState({ name: '', modelName: '', condition: '', notes: '', assetTypeId: '' });
@@ -276,50 +280,54 @@ export default function AssetDetail() {
 
       {/* ── Assign Modal ── */}
       {showAssign && (
-        <Modal title="Assign Asset" onClose={() => setShowAssign(false)}>
+        <Modal title="Assign Asset" onClose={() => { setShowAssign(false); setAssignSearch(''); setAssignDropdown(false); }}>
           <div className="space-y-3">
-            <div>
-              <label className="text-xs text-dark-400 mb-1 block">Employee *</label>
-              <select value={assignForm.employeeId} onChange={e => setAssignForm(f => ({ ...f, employeeId: e.target.value }))}
-                className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500">
-                <option value="">Select employee...</option>
-                {employees.map(e => (
-                  <option key={e._id} value={e._id}>{e.fullName || `${e.firstName} ${e.lastName}`}</option>
-                ))}
-              </select>
-            </div>
+            <EmployeeLookup
+              label="Employee *"
+              employees={employees}
+              selectedId={assignForm.employeeId}
+              search={assignSearch}
+              showDropdown={assignDropdown}
+              onSearchChange={v => { setAssignSearch(v); setAssignDropdown(true); }}
+              onFocus={() => setAssignDropdown(true)}
+              onSelect={emp => { setAssignForm(f => ({ ...f, employeeId: emp._id })); setAssignSearch(''); setAssignDropdown(false); }}
+              onClear={() => { setAssignForm(f => ({ ...f, employeeId: '' })); setAssignSearch(''); }}
+              onCloseDropdown={() => setAssignDropdown(false)}
+            />
             <div>
               <label className="text-xs text-dark-400 mb-1 block">Notes</label>
               <textarea value={assignForm.notes} onChange={e => setAssignForm(f => ({ ...f, notes: e.target.value }))}
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleAssign} onCancel={() => setShowAssign(false)} saving={saving} disabled={!assignForm.employeeId} label="Assign" />
+          <ModalActions onSave={handleAssign} onCancel={() => { setShowAssign(false); setAssignSearch(''); }} saving={saving} disabled={!assignForm.employeeId} label="Assign" />
         </Modal>
       )}
 
       {/* ── Reassign Modal ── */}
       {showReassign && (
-        <Modal title="Reassign Asset" onClose={() => setShowReassign(false)}>
+        <Modal title="Reassign Asset" onClose={() => { setShowReassign(false); setReassignSearch(''); setReassignDropdown(false); }}>
           <p className="text-sm text-dark-400 mb-3">Currently assigned to: <span className="text-white font-medium">{asset.assignedToName}</span></p>
           <div className="space-y-3">
-            <div>
-              <label className="text-xs text-dark-400 mb-1 block">New Employee *</label>
-              <select value={reassignForm.employeeId} onChange={e => setReassignForm(f => ({ ...f, employeeId: e.target.value }))}
-                className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500">
-                <option value="">Select employee...</option>
-                {employees.filter(e => e._id !== asset.assignedTo).map(e => (
-                  <option key={e._id} value={e._id}>{e.fullName || `${e.firstName} ${e.lastName}`}</option>
-                ))}
-              </select>
-            </div>
+            <EmployeeLookup
+              label="New Employee *"
+              employees={employees.filter(e => e._id !== asset.assignedTo)}
+              selectedId={reassignForm.employeeId}
+              search={reassignSearch}
+              showDropdown={reassignDropdown}
+              onSearchChange={v => { setReassignSearch(v); setReassignDropdown(true); }}
+              onFocus={() => setReassignDropdown(true)}
+              onSelect={emp => { setReassignForm(f => ({ ...f, employeeId: emp._id })); setReassignSearch(''); setReassignDropdown(false); }}
+              onClear={() => { setReassignForm(f => ({ ...f, employeeId: '' })); setReassignSearch(''); }}
+              onCloseDropdown={() => setReassignDropdown(false)}
+            />
             <div>
               <label className="text-xs text-dark-400 mb-1 block">Notes</label>
               <textarea value={reassignForm.notes} onChange={e => setReassignForm(f => ({ ...f, notes: e.target.value }))}
                 rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
             </div>
           </div>
-          <ModalActions onSave={handleReassign} onCancel={() => setShowReassign(false)} saving={saving} disabled={!reassignForm.employeeId} label="Reassign" />
+          <ModalActions onSave={handleReassign} onCancel={() => { setShowReassign(false); setReassignSearch(''); }} saving={saving} disabled={!reassignForm.employeeId} label="Reassign" />
         </Modal>
       )}
 
@@ -413,6 +421,55 @@ export default function AssetDetail() {
 }
 
 // ── Shared Components ──
+
+function EmployeeLookup({ label, employees, selectedId, search, showDropdown, onSearchChange, onFocus, onSelect, onClear, onCloseDropdown }) {
+  const selectedEmp = selectedId ? employees.find(e => e._id === selectedId) : null;
+  const filtered = employees.filter(e => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (e.fullName || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
+  }).slice(0, 20);
+
+  return (
+    <div className="relative">
+      <label className="text-xs text-dark-400 mb-1 block">{label}</label>
+      {selectedEmp ? (
+        <div className="flex items-center justify-between px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg">
+          <div className="flex items-center gap-2">
+            <User size={14} className="text-rivvra-400" />
+            <span className="text-sm text-white">{selectedEmp.fullName}</span>
+          </div>
+          <button onClick={onClear} className="text-dark-400 hover:text-white"><X size={14} /></button>
+        </div>
+      ) : (
+        <>
+          <div className="relative">
+            <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
+            <input value={search} onChange={e => onSearchChange(e.target.value)}
+              onFocus={onFocus}
+              placeholder="Search employee..."
+              className="w-full pl-9 pr-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500" />
+          </div>
+          {showDropdown && (
+            <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-dark-900 border border-dark-700 rounded-lg shadow-xl">
+              {filtered.map(e => (
+                <button key={e._id} type="button"
+                  onClick={() => onSelect(e)}
+                  className="w-full text-left px-3 py-2 hover:bg-dark-750 transition-colors">
+                  <p className="text-sm text-white">{e.fullName || e.name}</p>
+                  <p className="text-[10px] text-dark-500">{e.email}</p>
+                </button>
+              ))}
+              {filtered.length === 0 && (
+                <p className="px-3 py-2 text-xs text-dark-500">No employees found</p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function InfoRow({ label, value }) {
   return (
