@@ -69,8 +69,9 @@ export default function AssetList() {
   // Load employees when add modal opens
   useEffect(() => {
     if (showAdd && employees.length === 0) {
-      employeeApi.list(orgSlug, { status: 'active' }).then(res => {
-        setEmployees((res.data || []).sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
+      employeeApi.list(orgSlug, { limit: 100 }).then(res => {
+        const list = (res.employees || res.data || []).filter(e => e.status !== 'separated');
+        setEmployees(list.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
       }).catch(() => {});
     }
   }, [showAdd]);
@@ -291,7 +292,7 @@ export default function AssetList() {
                   className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 resize-none" />
               </div>
               <div className="relative">
-                <label className="text-xs text-dark-400 mb-1 block">Assign To (optional)</label>
+                <label className="text-xs text-dark-400 mb-1 block">Assign To *</label>
                 {addForm.assignTo ? (
                   <div className="flex items-center justify-between px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg">
                     <div className="flex items-center gap-2">
@@ -341,7 +342,7 @@ export default function AssetList() {
               </div>
             </div>
             <div className="flex items-center gap-2 pt-2">
-              <button onClick={handleAdd} disabled={saving || !addForm.assetTypeId || !addForm.name.trim()}
+              <button onClick={handleAdd} disabled={saving || !addForm.assetTypeId || !addForm.name.trim() || !addForm.assignTo}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add Asset
               </button>
