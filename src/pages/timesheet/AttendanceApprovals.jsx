@@ -114,7 +114,7 @@ export default function AttendanceApprovals() {
     const ids = Array.isArray(employeeIds) ? employeeIds : [employeeIds];
     setSendingReminder(ids.length > 1 ? 'bulk' : ids[0]);
     try {
-      const res = await timesheetApi.post('/reminders/send-individual', { employeeIds: ids, type: 'attendance' });
+      const res = await timesheetApi.post('/reminders/send-individual', { employeeIds: ids, type: 'attendance', month: selectedMonth, year: selectedYear });
       showToast(`Sent ${res.data?.sent || ids.length} reminder(s)`, 'success');
       setSelectedIds(new Set());
     } catch (err) {

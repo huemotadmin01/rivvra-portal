@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useCallback } from 'react';
+import { createContext, useContext, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePlatform } from './PlatformContext';
 
@@ -9,6 +9,22 @@ const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
 // Apps that support the period filter
 const PERIOD_ENABLED_APPS = new Set(['timesheet', 'payroll']);
 
+const STORAGE_KEY = 'rivvra_period';
+
+function getStoredPeriod() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const { month, year } = JSON.parse(raw);
+    if (month >= 1 && month <= 12 && year >= 2020 && year <= 2100) return { month, year };
+  } catch {}
+  return null;
+}
+
+function storePeriod(month, year) {
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ month, year })); } catch {}
+}
+
 export function PeriodProvider({ children }) {
   const { currentApp } = usePlatform();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18,11 +34,43 @@ export function PeriodProvider({ children }) {
   const defaultMonth = now.getMonth() + 1;
   const defaultYear = now.getFullYear();
 
-  // Read from URL params (or default to current month)
+  // Priority: URL params > sessionStorage > current month
   const urlMonth = parseInt(searchParams.get('month'));
   const urlYear = parseInt(searchParams.get('year'));
-  const month = (isActive && urlMonth >= 1 && urlMonth <= 12) ? urlMonth : defaultMonth;
-  const year = (isActive && urlYear >= 2020 && urlYear <= 2100) ? urlYear : defaultYear;
+  const hasUrlPeriod = urlMonth >= 1 && urlMonth <= 12 && urlYear >= 2020 && urlYear <= 2100;
+  const stored = getStoredPeriod();
+
+  let month, year;
+  if (isActive && hasUrlPeriod) {
+    month = urlMonth;
+    year = urlYear;
+  } else if (isActive && stored) {
+    month = stored.month;
+    year = stored.year;
+  } else {
+    month = defaultMonth;
+    year = defaultYear;
+  }
+
+  // Sync URL if it doesn't match resolved period (e.g. restored from session)
+  useEffect(() => {
+    if (!isActive) return;
+    const curM = parseInt(searchParams.get('month'));
+    const curY = parseInt(searchParams.get('year'));
+    if (curM !== month || curY !== year) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('month', String(month));
+        next.set('year', String(year));
+        return next;
+      }, { replace: true });
+    }
+  }, [isActive, month, year]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist to sessionStorage whenever period changes
+  useEffect(() => {
+    if (isActive) storePeriod(month, year);
+  }, [isActive, month, year]);
 
   // FY derivation (India: April to March)
   const fyStartYear = month >= 4 ? year : year - 1;
@@ -32,6 +80,7 @@ export function PeriodProvider({ children }) {
   const fyShort = `FY ${fyApi}`; // "FY 2025-26" for display
 
   const setPeriod = useCallback((m, y) => {
+    storePeriod(m, y);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('month', String(m));
