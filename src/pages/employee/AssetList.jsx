@@ -56,13 +56,24 @@ export default function AssetList() {
 
   // Add asset modal
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '' });
+  const [addForm, setAddForm] = useState({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '', assignTo: '' });
   const [saving, setSaving] = useState(false);
   const [employees, setEmployees] = useState([]);
+  const [empSearch, setEmpSearch] = useState('');
+  const [showEmpDropdown, setShowEmpDropdown] = useState(false);
 
   useEffect(() => {
     loadAll();
   }, [orgSlug]);
+
+  // Load employees when add modal opens
+  useEffect(() => {
+    if (showAdd && employees.length === 0) {
+      employeeApi.list(orgSlug, { status: 'active' }).then(res => {
+        setEmployees((res.data || []).sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
+      }).catch(() => {});
+    }
+  }, [showAdd]);
 
   async function loadAll() {
     setLoading(true);
@@ -100,9 +111,15 @@ export default function AssetList() {
     if (!addForm.assetTypeId || !addForm.name.trim()) return;
     setSaving(true);
     try {
-      await assetApi.create(orgSlug, addForm);
+      const { assignTo, ...createData } = addForm;
+      const created = await assetApi.create(orgSlug, createData);
+      // If employee selected, assign immediately
+      if (assignTo && created?.data?._id) {
+        await assetApi.assign(orgSlug, created.data._id, { employeeId: assignTo });
+      }
       setShowAdd(false);
-      setAddForm({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '' });
+      setAddForm({ assetTypeId: '', name: '', modelName: '', condition: 'good', notes: '', assignTo: '' });
+      setEmpSearch('');
       await loadAll();
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
@@ -231,8 +248,8 @@ export default function AssetList() {
 
       {/* Add Asset Modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAdd(false)}>
-          <div className="bg-dark-800 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowAdd(false); setEmpSearch(''); setShowEmpDropdown(false); }}>
+          <div className="bg-dark-800 border border-dark-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-4 shadow-xl" onClick={e => { e.stopPropagation(); setShowEmpDropdown(false); }}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Add Asset</h2>
               <button onClick={() => setShowAdd(false)} className="text-dark-400 hover:text-white"><X size={18} /></button>
@@ -272,6 +289,55 @@ export default function AssetList() {
                 <textarea value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
                   rows={2} placeholder="Optional notes..."
                   className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 resize-none" />
+              </div>
+              <div className="relative">
+                <label className="text-xs text-dark-400 mb-1 block">Assign To (optional)</label>
+                {addForm.assignTo ? (
+                  <div className="flex items-center justify-between px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <User size={14} className="text-rivvra-400" />
+                      <span className="text-sm text-white">{employees.find(e => e._id === addForm.assignTo)?.fullName || 'Selected'}</span>
+                    </div>
+                    <button onClick={() => { setAddForm(f => ({ ...f, assignTo: '' })); setEmpSearch(''); }}
+                      className="text-dark-400 hover:text-white"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
+                      <input value={empSearch} onChange={e => { setEmpSearch(e.target.value); setShowEmpDropdown(true); }}
+                        onFocus={() => setShowEmpDropdown(true)}
+                        placeholder="Search employee..."
+                        className="w-full pl-9 pr-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500" />
+                    </div>
+                    {showEmpDropdown && (
+                      <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-dark-900 border border-dark-700 rounded-lg shadow-xl">
+                        {employees
+                          .filter(e => {
+                            if (!empSearch.trim()) return true;
+                            const q = empSearch.toLowerCase();
+                            return (e.fullName || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
+                          })
+                          .slice(0, 20)
+                          .map(e => (
+                            <button key={e._id} type="button"
+                              onClick={() => { setAddForm(f => ({ ...f, assignTo: e._id })); setEmpSearch(''); setShowEmpDropdown(false); }}
+                              className="w-full text-left px-3 py-2 hover:bg-dark-750 transition-colors">
+                              <p className="text-sm text-white">{e.fullName || e.name}</p>
+                              <p className="text-[10px] text-dark-500">{e.email}</p>
+                            </button>
+                          ))}
+                        {employees.filter(e => {
+                          if (!empSearch.trim()) return true;
+                          const q = empSearch.toLowerCase();
+                          return (e.fullName || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
+                        }).length === 0 && (
+                          <p className="px-3 py-2 text-xs text-dark-500">No employees found</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 pt-2">
