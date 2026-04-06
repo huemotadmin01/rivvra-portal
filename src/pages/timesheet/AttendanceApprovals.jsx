@@ -100,7 +100,7 @@ export default function AttendanceApprovals() {
   }, [records]);
 
   const filtered = records.filter(r => filter === 'all' || r.status === filter);
-  const draftFiltered = filtered.filter(r => r.status === 'draft' || r.status === 'rejected');
+  const draftFiltered = filtered.filter(r => r.status === 'draft' || r.status === 'rejected' || r.status === 'no_entry');
 
   const toggleSelect = (empId) => {
     setSelectedIds(prev => {
@@ -140,14 +140,17 @@ export default function AttendanceApprovals() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {['submitted', 'approved', 'rejected', 'draft', 'all'].map(f => (
+        {['submitted', 'approved', 'rejected', 'draft', 'no_entry', 'all'].map(f => {
+          const label = f === 'all' ? 'All' : f === 'no_entry' ? 'No Entry' : f.charAt(0).toUpperCase() + f.slice(1);
+          return (
           <button key={f} onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === f ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
             }`}>
-            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} ({records.filter(r => f === 'all' || r.status === f).length})
+            {label} ({records.filter(r => f === 'all' || r.status === f).length})
           </button>
-        ))}
+          );
+        })}
         {selectedIds.size > 0 && (
           <button
             onClick={() => sendReminder([...selectedIds])}
@@ -168,7 +171,7 @@ export default function AttendanceApprovals() {
             <div key={att._id} className="card">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === att._id ? null : att._id)}>
                 <div className="flex items-center gap-3">
-                  {(att.status === 'draft' || att.status === 'rejected') && (
+                  {(att.status === 'draft' || att.status === 'rejected' || att.status === 'no_entry') && (
                     <input type="checkbox" checked={selectedIds.has(att.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(att.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}
                   <div>
@@ -179,7 +182,7 @@ export default function AttendanceApprovals() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {(att.status === 'draft' || att.status === 'rejected') && (
+                  {(att.status === 'draft' || att.status === 'rejected' || att.status === 'no_entry') && (
                     <button
                       onClick={(e) => { e.stopPropagation(); sendReminder(att.contractor); }}
                       disabled={sendingReminder === att.contractor}
@@ -193,8 +196,9 @@ export default function AttendanceApprovals() {
                     att.status === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
                     att.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
                     att.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                    att.status === 'no_entry' ? 'bg-orange-500/10 text-orange-400' :
                     'bg-dark-700 text-dark-400'
-                  }`}>{att.status}</span>
+                  }`}>{att.status === 'no_entry' ? 'no entry' : att.status}</span>
                   {expanded === att._id ? <ChevronUp size={16} className="text-dark-400" /> : <ChevronDown size={16} className="text-dark-400" />}
                 </div>
               </div>

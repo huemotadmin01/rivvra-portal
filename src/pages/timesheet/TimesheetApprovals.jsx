@@ -92,7 +92,7 @@ export default function TimesheetApprovals() {
   }, [timesheets]);
 
   const filtered = timesheets.filter(t => filter === 'all' || t.status === filter);
-  const draftFiltered = filtered.filter(t => t.status === 'draft' || t.status === 'rejected');
+  const draftFiltered = filtered.filter(t => t.status === 'draft' || t.status === 'rejected' || t.status === 'no_entry');
 
   const toggleSelect = (empId) => {
     setSelectedIds(prev => {
@@ -137,14 +137,17 @@ export default function TimesheetApprovals() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {['submitted', 'approved', 'rejected', 'draft', 'all'].map(f => (
+        {['submitted', 'approved', 'rejected', 'draft', 'no_entry', 'all'].map(f => {
+          const label = f === 'all' ? 'All' : f === 'no_entry' ? 'No Entry' : f.charAt(0).toUpperCase() + f.slice(1);
+          return (
           <button key={f} onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === f ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-800 border border-dark-700 text-dark-300 hover:bg-dark-700'
             }`}>
-            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} ({timesheets.filter(t => f === 'all' || t.status === f).length})
+            {label} ({timesheets.filter(t => f === 'all' || t.status === f).length})
           </button>
-        ))}
+          );
+        })}
         {selectedIds.size > 0 && (
           <button
             onClick={() => sendReminder([...selectedIds])}
@@ -165,16 +168,16 @@ export default function TimesheetApprovals() {
             <div key={ts._id} className="card">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === ts._id ? null : ts._id)}>
                 <div className="flex items-center gap-3">
-                  {(ts.status === 'draft' || ts.status === 'rejected') && (
+                  {(ts.status === 'draft' || ts.status === 'rejected' || ts.status === 'no_entry') && (
                     <input type="checkbox" checked={selectedIds.has(ts.contractor?._id || ts.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(ts.contractor?._id || ts.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}
                   <div>
-                    <p className="font-medium text-white">{ts.contractor?.fullName} — {monthNames[ts.month]} {ts.year}</p>
-                    <p className="text-sm text-dark-400">{ts.isAttendance ? 'Attendance' : [ts.project?.name, ts.client?.name].filter(Boolean).join(' • ')} • {ts.totalHours || 0}h ({ts.totalWorkingDays} days)</p>
+                    <p className="font-medium text-white">{ts.contractor?.fullName || 'Unknown'} — {monthNames[ts.month]} {ts.year}</p>
+                    <p className="text-sm text-dark-400">{ts.status === 'no_entry' ? 'No entry submitted' : ts.isAttendance ? 'Attendance' : [ts.project?.name, ts.client?.name].filter(Boolean).join(' • ')} • {ts.totalHours || 0}h ({ts.totalWorkingDays || 0} days)</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {(ts.status === 'draft' || ts.status === 'rejected') && (
+                  {(ts.status === 'draft' || ts.status === 'rejected' || ts.status === 'no_entry') && (
                     <button
                       onClick={(e) => { e.stopPropagation(); sendReminder(ts.contractor?._id || ts.contractor); }}
                       disabled={sendingReminder === (ts.contractor?._id || ts.contractor)}
@@ -187,8 +190,9 @@ export default function TimesheetApprovals() {
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     ts.status === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
                     ts.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                    ts.status === 'no_entry' ? 'bg-orange-500/10 text-orange-400' :
                     'bg-dark-700 text-dark-400'
-                  }`}>{ts.status}</span>
+                  }`}>{ts.status === 'no_entry' ? 'no entry' : ts.status}</span>
                   {expanded === ts._id ? <ChevronUp size={16} className="text-dark-400" /> : <ChevronDown size={16} className="text-dark-400" />}
                 </div>
               </div>
