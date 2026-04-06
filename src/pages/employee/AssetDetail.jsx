@@ -38,6 +38,7 @@ export default function AssetDetail() {
 
   // Modal states
   const [showAssign, setShowAssign] = useState(false);
+  const [showReassign, setShowReassign] = useState(false);
   const [showReturn, setShowReturn] = useState(false);
   const [showLost, setShowLost] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -45,6 +46,7 @@ export default function AssetDetail() {
 
   // Forms
   const [assignForm, setAssignForm] = useState({ employeeId: '', notes: '' });
+  const [reassignForm, setReassignForm] = useState({ employeeId: '', notes: '' });
   const [returnForm, setReturnForm] = useState({ condition: 'good', notes: '', deductionAmount: '' });
   const [lostForm, setLostForm] = useState({ notes: '', deductionAmount: '' });
   const [editForm, setEditForm] = useState({ name: '', modelName: '', condition: '', notes: '', assetTypeId: '' });
@@ -56,12 +58,13 @@ export default function AssetDetail() {
     try {
       const [assetRes, empRes, typesRes] = await Promise.all([
         assetApi.get(orgSlug, assetId),
-        isAdmin ? employeeApi.list(orgSlug, { status: 'active' }) : Promise.resolve({ data: [] }),
+        isAdmin ? employeeApi.list(orgSlug, { limit: 100 }) : Promise.resolve({ employees: [] }),
         assetApi.listTypes(orgSlug),
       ]);
       const a = assetRes.data;
       setAsset(a);
-      setEmployees(Array.isArray(empRes.data) ? empRes.data : empRes.data?.employees || []);
+      const empList = empRes.employees || empRes.data || [];
+      setEmployees((Array.isArray(empList) ? empList : []).filter(e => e.status !== 'separated').sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
       setTypes(typesRes.data || []);
       setEditForm({ name: a.name, modelName: a.modelName || '', condition: a.condition || 'good', notes: a.notes || '', assetTypeId: a.assetTypeId });
     } catch (e) { console.error(e); }
@@ -75,6 +78,20 @@ export default function AssetDetail() {
       await assetApi.assign(orgSlug, assetId, assignForm);
       setShowAssign(false);
       setAssignForm({ employeeId: '', notes: '' });
+      await load();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  }
+
+  async function handleReassign() {
+    if (!reassignForm.employeeId) return;
+    setSaving(true);
+    try {
+      // Return from current employee first, then assign to new
+      await assetApi.returnAsset(orgSlug, assetId, { condition: 'good', notes: 'Reassigned to another employee' });
+      await assetApi.assign(orgSlug, assetId, reassignForm);
+      setShowReassign(false);
+      setReassignForm({ employeeId: '', notes: '' });
       await load();
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
@@ -167,6 +184,10 @@ export default function AssetDetail() {
           )}
           {asset.status === 'assigned' && (
             <>
+              <button onClick={() => setShowReassign(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium hover:bg-blue-500/20 transition-colors">
+                <User size={14} /> Reassign
+              </button>
               <button onClick={() => setShowReturn(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/20 transition-colors">
                 <RotateCcw size={14} /> Mark Returned
@@ -274,6 +295,31 @@ export default function AssetDetail() {
             </div>
           </div>
           <ModalActions onSave={handleAssign} onCancel={() => setShowAssign(false)} saving={saving} disabled={!assignForm.employeeId} label="Assign" />
+        </Modal>
+      )}
+
+      {/* ── Reassign Modal ── */}
+      {showReassign && (
+        <Modal title="Reassign Asset" onClose={() => setShowReassign(false)}>
+          <p className="text-sm text-dark-400 mb-3">Currently assigned to: <span className="text-white font-medium">{asset.assignedToName}</span></p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-dark-400 mb-1 block">New Employee *</label>
+              <select value={reassignForm.employeeId} onChange={e => setReassignForm(f => ({ ...f, employeeId: e.target.value }))}
+                className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500">
+                <option value="">Select employee...</option>
+                {employees.filter(e => e._id !== asset.assignedTo).map(e => (
+                  <option key={e._id} value={e._id}>{e.fullName || `${e.firstName} ${e.lastName}`}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-dark-400 mb-1 block">Notes</label>
+              <textarea value={reassignForm.notes} onChange={e => setReassignForm(f => ({ ...f, notes: e.target.value }))}
+                rows={2} className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-rivvra-500" />
+            </div>
+          </div>
+          <ModalActions onSave={handleReassign} onCancel={() => setShowReassign(false)} saving={saving} disabled={!reassignForm.employeeId} label="Reassign" />
         </Modal>
       )}
 
