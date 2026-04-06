@@ -635,11 +635,12 @@ export default function UserDetail() {
               <div className="space-y-2">
                 {MANAGEABLE_APPS.map(app => {
                   const access = editData.appAccess?.[app.id] || { enabled: false, role: null };
-                  const roles = app.roles || [];
                   return (
-                    <div key={app.id} className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
-                      <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
-                      <span className="text-sm text-white font-medium w-24">{app.name}</span>
+                    <div key={app.id} className="flex items-center justify-between px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
+                      <div className="flex items-center gap-3">
+                        <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
+                        <span className="text-sm text-white font-medium">{app.name}</span>
+                      </div>
                       <button
                         onClick={() => updateAppAccess(app.id, 'enabled', !access.enabled)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
@@ -650,25 +651,14 @@ export default function UserDetail() {
                           access.enabled ? 'translate-x-6' : 'translate-x-1'
                         }`} />
                       </button>
-                      {access.enabled && roles.length > 0 && !app.derivedRoles ? (
-                        <select
-                          value={access.role || roles[roles.length - 1].value}
-                          onChange={(e) => updateAppAccess(app.id, 'role', e.target.value)}
-                          className="px-2 py-1 bg-dark-800 border border-dark-600 rounded-lg text-xs text-white focus:outline-none focus:border-rivvra-500 min-w-[100px]"
-                        >
-                          {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                        </select>
-                      ) : !access.enabled ? (
-                        <span className="text-xs text-dark-500 min-w-[100px]">—</span>
-                      ) : null}
                     </div>
                   );
                 })}
                 {Object.values(APP_REGISTRY).filter(a => a.status === 'coming_soon').map(app => (
                   <div key={app.id} className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/20 rounded-lg border border-dark-700/30 opacity-50">
                     <app.icon className="w-4 h-4 text-dark-500 flex-shrink-0" />
-                    <span className="text-sm text-dark-400 font-medium w-24">{app.name}</span>
-                    <span className="text-xs text-dark-500">Coming Soon</span>
+                    <span className="text-sm text-dark-400 font-medium">{app.name}</span>
+                    <span className="text-xs text-dark-500 ml-auto">Coming Soon</span>
                   </div>
                 ))}
               </div>
@@ -678,14 +668,18 @@ export default function UserDetail() {
                   const access = member.appAccess?.[app.id];
                   const isEnabled = access?.enabled === true;
                   return (
-                    <div key={app.id} className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
-                      <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
-                      <span className="text-sm text-white font-medium w-24">{app.name}</span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
-                        isEnabled ? 'bg-rivvra-500/10 text-rivvra-400' : 'bg-dark-700/50 text-dark-500'
+                    <div key={app.id} className="flex items-center justify-between px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
+                      <div className="flex items-center gap-3">
+                        <app.icon className="w-4 h-4 text-dark-400 flex-shrink-0" />
+                        <span className="text-sm text-white font-medium">{app.name}</span>
+                      </div>
+                      <div className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                        isEnabled ? 'bg-rivvra-500' : 'bg-dark-600'
                       }`}>
-                        {isEnabled ? (access.role || 'Enabled') : 'No access'}
-                      </span>
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                          isEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </div>
                     </div>
                   );
                 })}
