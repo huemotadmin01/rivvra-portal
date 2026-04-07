@@ -1105,6 +1105,43 @@ export default function EmployeeDetail() {
                 This schedules an exit without changing status. The employee will be auto-separated the day after their Last Working Date.
               </p>
             )}
+            {emp.lastWorkingDate && emp.status === 'active' && (
+              <div className="mt-3 pt-3 border-t border-dark-700 flex items-center justify-between gap-3">
+                <p className="text-[11px] text-dark-400">
+                  This employee currently has a scheduled exit. Clear it to revert to a normal active employee.
+                </p>
+                <button
+                  disabled={sepSaving}
+                  onClick={async () => {
+                    if (!window.confirm('Clear the scheduled exit and revert this employee to a normal active state? This will remove the LWD, reason, and notes.')) return;
+                    setSepSaving(true);
+                    try {
+                      const res = await employeeApi.update(currentOrg.slug, emp._id, {
+                        status: 'active',
+                        lastWorkingDate: null,
+                        separationReason: null,
+                        separationNotes: null,
+                      });
+                      if (res.success) {
+                        setEmployee(prev => prev ? { ...prev, status: 'active', lastWorkingDate: null, separationReason: null, separationNotes: null } : prev);
+                        setSepForm({ status: 'active', lwd: '', reason: '', notes: '' });
+                        showToast('Scheduled exit cleared', 'success');
+                      } else {
+                        showToast(res.error || res.message || 'Failed to clear', 'error');
+                      }
+                    } catch (err) {
+                      showToast(err.message || 'Failed to clear', 'error');
+                    } finally {
+                      setSepSaving(false);
+                    }
+                  }}
+                  className="px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 disabled:opacity-40 flex items-center gap-2 shrink-0"
+                >
+                  {sepSaving && <Loader2 size={12} className="animate-spin" />}
+                  Clear Scheduled Exit
+                </button>
+              </div>
+            )}
             </>
             ); })()}
           </div>
