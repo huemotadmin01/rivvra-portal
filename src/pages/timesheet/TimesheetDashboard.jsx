@@ -628,11 +628,8 @@ function AdminDashboard() {
   const { orgPath } = usePlatform();
   const [timesheets, setTimesheets] = useState([]);
   const [attendances, setAttendances] = useState([]);
-  const [notApprovedData, setNotApprovedData] = useState(null);
   const [pendingLeaves, setPendingLeaves] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [notApprovedTab, setNotApprovedTab] = useState(0);
-  const [notApprovedExpanded, setNotApprovedExpanded] = useState(false);
   const [tsDataReady, setTsDataReady] = useState(false);
   const [attDataReady, setAttDataReady] = useState(false);
   // Social feed state
@@ -664,7 +661,6 @@ function AdminDashboard() {
           setAttDataReady(true);
         }).catch(() => { setTsDataReady(true); setAttDataReady(true); });
       }),
-      timesheetApi.get('/dashboard/not-approved', sig).then(r => setNotApprovedData(r.data)).catch(() => {}),
       getPendingLeaveRequests().then(data => {
         const arr = Array.isArray(data) ? data : data?.leaveRequests || data?.requests || [];
         setPendingLeaves(arr.length);
@@ -728,8 +724,6 @@ function AdminDashboard() {
     return attendances.filter(t => t.status === 'approved' && t.month === periodMonth && t.year === periodYear);
   }, [attendances, periodMonth, periodYear]);
   const attTotalThisMonth = useMemo(() => attendances.filter(t => t.month === periodMonth && t.year === periodYear), [attendances, periodMonth, periodYear]);
-
-  const selectedMonth = notApprovedData?.months?.[notApprovedTab] || null;
 
   return (
     <div className="p-3 sm:p-6 flex flex-col gap-4 sm:gap-6">
@@ -1000,123 +994,6 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* Not Approved — Collapsible, split by Timesheet + Attendance */}
-      {notApprovedData?.months?.length > 0 && (() => {
-        const tsEmps = selectedMonth?.notApprovedEmployees?.filter(e => e.mode === 'timesheet' || !e.mode) || [];
-        const attEmps = selectedMonth?.notApprovedEmployees?.filter(e => e.mode === 'attendance') || [];
-        // If no mode field, treat all as timesheet (backward compat)
-        const hasModeSplit = selectedMonth?.notApprovedEmployees?.some(e => e.mode);
-
-        const renderEmpList = (emps) => emps.map((emp, i) => (
-          <div key={emp.email || i} className="flex items-center justify-between px-4 py-2.5">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-md bg-dark-700 flex items-center justify-center flex-shrink-0">
-                <span className="text-[9px] font-bold text-dark-300">{emp.name?.charAt(0)?.toUpperCase() || '?'}</span>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-white">{emp.name}</p>
-                <p className="text-[10px] text-dark-500">{emp.employeeId || ''}</p>
-              </div>
-            </div>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-              emp.timesheetStatus === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
-              emp.timesheetStatus === 'draft' ? 'bg-dark-700 text-dark-400' :
-              emp.timesheetStatus === 'rejected' ? 'bg-red-500/10 text-red-400' :
-              'bg-dark-700 text-dark-500'
-            }`}>
-              {emp.timesheetStatus === 'not_submitted' ? 'No Entry' :
-               (emp.timesheetStatus || 'No Entry').charAt(0).toUpperCase() + (emp.timesheetStatus || 'no entry').slice(1)}
-            </span>
-          </div>
-        ));
-
-        return (
-          <div className="card overflow-hidden order-6">
-            <button
-              onClick={() => setNotApprovedExpanded(prev => !prev)}
-              className="w-full p-4 border-b border-dark-800 flex items-center justify-between hover:bg-dark-800/30 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <UserX size={18} className="text-red-400" />
-                <h3 className="font-semibold text-white">Not Approved</h3>
-                {selectedMonth && (
-                  <span className="text-xs text-dark-500 ml-2">
-                    {selectedMonth.approvedCount} of {selectedMonth.totalBillable} approved
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedMonth?.notApprovedCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400">{selectedMonth.notApprovedCount} pending</span>
-                )}
-                <ChevronDown size={16} className={`text-dark-400 transition-transform ${notApprovedExpanded ? 'rotate-180' : ''}`} />
-              </div>
-            </button>
-
-            {notApprovedExpanded && (
-              <>
-                {/* Month tabs */}
-                <div className="px-4 py-2 bg-dark-800/20 flex gap-1.5">
-                  {notApprovedData.months.map((m, i) => (
-                    <button key={`${m.month}-${m.year}`} onClick={() => setNotApprovedTab(i)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                        notApprovedTab === i
-                          ? 'bg-rivvra-500 text-dark-950'
-                          : 'bg-dark-800 text-dark-400 hover:bg-dark-700'
-                      }`}>
-                      {monthNames[m.month]} {m.year}
-                      {m.notApprovedCount > 0 && (
-                        <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] ${
-                          notApprovedTab === i ? 'bg-dark-950/20 text-dark-950' : 'bg-red-500/10 text-red-400'
-                        }`}>{m.notApprovedCount}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {selectedMonth?.notApprovedCount === 0 ? (
-                  <div className="p-6 text-center">
-                    <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-400" />
-                    <p className="text-sm text-dark-400">All approved for {fullMonthNames[selectedMonth.month]} {selectedMonth.year}</p>
-                  </div>
-                ) : selectedMonth ? (
-                  hasModeSplit ? (
-                    <div>
-                      {/* Timesheet not approved */}
-                      {tsEmps.length > 0 && (
-                        <div>
-                          <div className="px-4 py-2 bg-emerald-500/5 border-b border-dark-700/50">
-                            <p className="text-xs font-medium text-emerald-400 flex items-center gap-1.5"><FileText size={12} /> Timesheets — {tsEmps.length} not approved</p>
-                          </div>
-                          <div className="divide-y divide-dark-800/50">{renderEmpList(tsEmps)}</div>
-                        </div>
-                      )}
-                      {/* Attendance not approved */}
-                      {attEmps.length > 0 && (
-                        <div>
-                          <div className="px-4 py-2 bg-blue-500/5 border-b border-dark-700/50">
-                            <p className="text-xs font-medium text-blue-400 flex items-center gap-1.5"><CalendarCheck size={12} /> Attendance — {attEmps.length} not approved</p>
-                          </div>
-                          <div className="divide-y divide-dark-800/50">{renderEmpList(attEmps)}</div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-dark-800">
-                      <div className="px-4 py-2 bg-dark-800/30">
-                        <p className="text-xs text-red-400 font-medium">
-                          {selectedMonth.notApprovedCount} of {selectedMonth.totalBillable} not approved
-                        </p>
-                      </div>
-                      {renderEmpList(selectedMonth.notApprovedEmployees || [])}
-                    </div>
-                  )
-                ) : null}
-              </>
-            )}
-          </div>
-        );
-      })()}
     </div>
   );
 }
