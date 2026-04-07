@@ -1015,7 +1015,6 @@ export default function EmployeeDetail() {
                 <input
                   type="date"
                   value={sepForm.lwd}
-                  min={effStatus === 'active' ? new Date().toISOString().split('T')[0] : undefined}
                   onChange={(e) => setSepForm(prev => ({ ...prev, lwd: e.target.value }))}
                   className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
                 />
