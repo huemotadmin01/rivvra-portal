@@ -993,11 +993,13 @@ export default function EmployeeDetail() {
               <AlertTriangle size={16} className="text-amber-400" />
               <h3 className="text-white font-semibold">Separation</h3>
             </div>
+            {(() => { const effStatus = sepForm.status || 'active'; return (
+            <>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
                 <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Status</label>
                 <select
-                  value={sepForm.status || 'active'}
+                  value={effStatus}
                   onChange={(e) => setSepForm(prev => ({ ...prev, status: e.target.value }))}
                   className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
                 >
@@ -1006,37 +1008,42 @@ export default function EmployeeDetail() {
                   <option value="terminated">Terminated</option>
                 </select>
               </div>
-              {(sepForm.status === 'resigned' || sepForm.status === 'terminated') && (
-                <>
-                  <div>
-                    <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Last Working Date *</label>
-                    <input type="date" value={sepForm.lwd} onChange={(e) => setSepForm(prev => ({ ...prev, lwd: e.target.value }))}
-                      className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white" />
-                  </div>
-                  <div>
-                    <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Reason</label>
-                    <select value={sepForm.reason} onChange={(e) => setSepForm(prev => ({ ...prev, reason: e.target.value }))}
-                      className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white">
-                      <option value="">Select reason</option>
-                      <option value="Better opportunity">Better opportunity</option>
-                      <option value="Personal reasons">Personal reasons</option>
-                      <option value="Performance">Performance</option>
-                      <option value="Redundancy/Layoff">Redundancy/Layoff</option>
-                      <option value="Contract end">Contract end</option>
-                      <option value="Absconding">Absconding</option>
-                      <option value="Mutual agreement">Mutual agreement</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      disabled={!sepForm.lwd || sepSaving}
+              <div>
+                <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">
+                  Last Working Date {(effStatus === 'resigned' || effStatus === 'terminated') ? '*' : ''}
+                </label>
+                <input
+                  type="date"
+                  value={sepForm.lwd}
+                  min={effStatus === 'active' ? new Date().toISOString().split('T')[0] : undefined}
+                  onChange={(e) => setSepForm(prev => ({ ...prev, lwd: e.target.value }))}
+                  className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Reason</label>
+                <select value={sepForm.reason} onChange={(e) => setSepForm(prev => ({ ...prev, reason: e.target.value }))}
+                  className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white">
+                  <option value="">Select reason</option>
+                  <option value="Better opportunity">Better opportunity</option>
+                  <option value="Personal reasons">Personal reasons</option>
+                  <option value="Performance">Performance</option>
+                  <option value="Redundancy/Layoff">Redundancy/Layoff</option>
+                  <option value="Contract end">Contract end</option>
+                  <option value="Absconding">Absconding</option>
+                  <option value="Mutual agreement">Mutual agreement</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  disabled={!sepForm.lwd || sepSaving}
                       onClick={async () => {
                         if (!sepForm.lwd) { showToast('Last Working Date is required', 'error'); return; }
                         setSepSaving(true);
                         try {
                           const payload = {
-                            status: sepForm.status,
+                            status: effStatus,
                             lastWorkingDate: sepForm.lwd,
                             separationReason: sepForm.reason || 'Other',
                             separationNotes: sepForm.notes || '',
@@ -1047,12 +1054,12 @@ export default function EmployeeDetail() {
                           if (res.success) {
                             setEmployee(prev => prev ? {
                               ...prev,
-                              status: sepForm.status,
+                              status: effStatus,
                               lastWorkingDate: sepForm.lwd,
                               separationReason: payload.separationReason || 'Other',
                               separationNotes: sepForm.notes || '',
                             } : prev);
-                            showToast(`Employee marked as ${sepForm.status}`, 'success');
+                            showToast(effStatus === 'active' ? 'Exit scheduled' : `Employee marked as ${effStatus}`, 'success');
                             setSepForm({ status: '', lwd: '', reason: '', notes: '' });
                           } else {
                             showToast(res.error || res.message || 'Failed to update', 'error');
@@ -1064,23 +1071,30 @@ export default function EmployeeDetail() {
                           setSepSaving(false);
                         }
                       }}
-                      className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 text-sm font-medium disabled:opacity-40 flex items-center gap-2"
-                    >
-                      {sepSaving && <Loader2 size={14} className="animate-spin" />}
-                      Confirm Separation
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-            {(sepForm.status === 'resigned' || sepForm.status === 'terminated') && (
-              <div className="mt-3">
-                <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Notes (optional)</label>
-                <input type="text" value={sepForm.notes} onChange={(e) => setSepForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Additional notes about the separation"
-                  className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-600" />
+                  className={`px-4 py-2 border rounded-lg text-sm font-medium disabled:opacity-40 flex items-center gap-2 ${
+                    effStatus === 'active'
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+                      : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                  }`}
+                >
+                  {sepSaving && <Loader2 size={14} className="animate-spin" />}
+                  {effStatus === 'active' ? 'Schedule Exit' : 'Confirm Separation'}
+                </button>
               </div>
+            </div>
+            <div className="mt-3">
+              <label className="text-dark-500 text-xs uppercase tracking-wider mb-1 block">Notes (optional)</label>
+              <input type="text" value={sepForm.notes} onChange={(e) => setSepForm(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Additional notes about the separation"
+                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-600" />
+            </div>
+            {effStatus === 'active' && sepForm.lwd && (
+              <p className="mt-2 text-[11px] text-amber-400/80">
+                This schedules an exit without changing status. The employee will be auto-separated the day after their Last Working Date.
+              </p>
             )}
+            </>
+            ); })()}
           </div>
         </div>
       )}
