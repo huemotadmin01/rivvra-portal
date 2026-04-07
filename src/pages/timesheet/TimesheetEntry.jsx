@@ -230,7 +230,22 @@ export default function TimesheetEntry() {
     return date > endDateOnly;
   };
 
-  const isDayDisabled = (day) => isBeforeProjectStart(day) || isAfterProjectEnd(day);
+  // Last Working Date guard — disables every day after the employee's LWD
+  const lastWorkingDate = (() => {
+    const lwd = timesheetUser?.lastWorkingDate;
+    if (!lwd) return null;
+    const d = new Date(lwd);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+
+  const isAfterLwd = (day) => {
+    if (!lastWorkingDate) return false;
+    const date = new Date(year, month - 1, day);
+    const lwdOnly = new Date(lastWorkingDate.getFullYear(), lastWorkingDate.getMonth(), lastWorkingDate.getDate());
+    return date > lwdOnly;
+  };
+
+  const isDayDisabled = (day) => isBeforeProjectStart(day) || isAfterProjectEnd(day) || isAfterLwd(day);
 
   const isPreviousYear = year < new Date().getFullYear();
   const canEdit = !periodLocked && !isPreviousYear && (!timesheet || timesheet.status === 'draft' || timesheet.status === 'rejected');
@@ -492,6 +507,11 @@ export default function TimesheetEntry() {
           <h1 className="text-xl sm:text-2xl font-bold text-white">My Timesheet</h1>
           <p className="text-dark-400 text-sm hidden sm:block mt-1">Enter hours worked per day. Leaves and holidays are managed via the Leave module.</p>
         </div>
+        {lastWorkingDate && (
+          <div className="mx-auto max-w-2xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs sm:text-sm text-amber-200">
+            Your last working date is <span className="font-semibold">{lastWorkingDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>. You can log time only up to this date.
+          </div>
+        )}
         {hasProjects && (
           <div className="flex justify-center">
             <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
@@ -585,11 +605,21 @@ export default function TimesheetEntry() {
                 const isWeekendWorking = isWeekendDay && entry.status === 'working' && hoursNum > 0;
                 const isPreStart = isBeforeProjectStart(day);
                 const isPostEnd = isAfterProjectEnd(day);
+                const isPostLwd = isAfterLwd(day);
 
-                // Days before project start or after project end — render as disabled/greyed out
-                if (isPreStart || isPostEnd) {
+                // Days before project start, after project end, or after LWD — render as disabled/greyed out
+                if (isPreStart || isPostEnd || isPostLwd) {
+                  const tooltip = isPostLwd
+                    ? `Beyond last working date (${lastWorkingDate?.toISOString().slice(0, 10)})`
+                    : isPreStart
+                      ? 'Before project start date'
+                      : 'After project end date';
                   return (
-                    <div key={day} className="p-1 sm:p-1.5 border-b border-r border-dark-800/50 min-h-[72px] sm:min-h-[88px] bg-dark-900/60 opacity-40">
+                    <div
+                      key={day}
+                      title={tooltip}
+                      className="p-1 sm:p-1.5 border-b border-r border-dark-800/50 min-h-[72px] sm:min-h-[88px] bg-dark-900/60 opacity-40 cursor-not-allowed"
+                    >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-dark-600">{day}</span>
                         {isWeekendDay && (

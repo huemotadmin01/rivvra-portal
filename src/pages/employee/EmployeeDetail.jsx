@@ -47,6 +47,7 @@ import {
   Package,
   ExternalLink,
   Eye,
+  CalendarX,
 } from 'lucide-react';
 import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
@@ -792,6 +793,19 @@ export default function EmployeeDetail() {
         </div>
       </div>
 
+      {/* ── Scheduled Exit Banner (active employee with future LWD) ────── */}
+      {emp.status === 'active' && emp.lastWorkingDate && (
+        <div className="mb-5 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3">
+          <CalendarX size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-200">
+            <div className="font-semibold">Scheduled exit on {new Date(emp.lastWorkingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+            <div className="text-xs text-amber-300/80 mt-0.5">
+              The employee will be auto-separated the day after their last working date. Final-month payroll will be prorated to days worked. F&F can be prepared in advance below.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Info Sections (2-col grid) ──────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Work Information */}
@@ -1127,16 +1141,24 @@ export default function EmployeeDetail() {
         </div>
       )}
 
-      {/* ── Asset Clearance (for separated employees) ────────────────── */}
-      {(emp.status === 'resigned' || emp.status === 'terminated') && isAdmin && (
+      {/* Compute exit-related flags once for downstream sections */}
+      {(() => null)()}
+
+      {/* ── Asset Clearance (for separated or scheduled-exit employees) ── */}
+      {(emp.status === 'resigned' || emp.status === 'terminated' || (emp.status === 'active' && emp.lastWorkingDate)) && isAdmin && (
         <div className="mt-5">
           <AssetClearance employeeId={emp._id} employeeStatus={emp.status} isAdmin={isAdmin} />
         </div>
       )}
 
-      {/* ── F&F Settlement (for separated confirmed employees) ─────────── */}
-      {(emp.status === 'resigned' || emp.status === 'terminated') && emp.employmentType === 'confirmed' && isAdmin && (
+      {/* ── F&F Settlement (resigned/terminated OR active with LWD set) ── */}
+      {(emp.status === 'resigned' || emp.status === 'terminated' || (emp.status === 'active' && emp.lastWorkingDate)) && emp.employmentType === 'confirmed' && isAdmin && (
         <div className="mt-5 card p-5 border-amber-500/20">
+          {emp.status === 'active' && emp.lastWorkingDate && (
+            <div className="mb-4 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">
+              <span className="font-semibold">Scheduled exit:</span> This employee is still active. Their last working date is {new Date(emp.lastWorkingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}. F&F can be prepared in advance and finalized after auto-separation.
+            </div>
+          )}
           <FnFSettlement employeeId={emp._id.toString()} employee={emp} />
         </div>
       )}

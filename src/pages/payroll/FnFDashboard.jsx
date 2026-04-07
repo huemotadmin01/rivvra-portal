@@ -13,6 +13,13 @@ const STATUS_CONFIG = {
   finalized:   { label: 'Finalized',   bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
 };
 
+// Stage = backend-computed lifecycle category for the row
+const STAGE_CONFIG = {
+  scheduled: { label: 'Scheduled Exit', bg: 'bg-blue-500/10',    text: 'text-blue-400',    dot: 'bg-blue-500' },
+  pending:   { label: 'Pending F&F',    bg: 'bg-amber-500/10',   text: 'text-amber-400',   dot: 'bg-amber-500' },
+  settled:   { label: 'Settled',        bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
+};
+
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -29,7 +36,7 @@ export default function FnFDashboard() {
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState('all'); // all | not_started | draft | finalized
+  const [tab, setTab] = useState('all'); // all | scheduled | pending | settled
 
   useEffect(() => { loadAll(); }, [orgSlug]);
 
@@ -49,9 +56,18 @@ export default function FnFDashboard() {
   // Merge pending (employees) with settlements
   const merged = pending.map(emp => {
     const sett = settlements.find(s => s.employeeId === emp._id?.toString());
+    // Use backend-provided fnfStage when available; otherwise derive locally for safety
+    const status = sett?.status || emp.fnfStatus || 'not_started';
+    let stage = emp.fnfStage;
+    if (!stage) {
+      if (status === 'finalized' || status === 'paid') stage = 'settled';
+      else if (emp.status === 'active' && emp.lastWorkingDate) stage = 'scheduled';
+      else stage = 'pending';
+    }
     return {
       ...emp,
-      fnfStatus: sett?.status || 'not_started',
+      fnfStatus: status,
+      fnfStage: stage,
       netSettlement: sett?.netSettlement,
       finalizedAt: sett?.finalizedAt,
       updatedAt: sett?.updatedAt,
@@ -59,7 +75,7 @@ export default function FnFDashboard() {
   });
 
   const filtered = merged.filter(e => {
-    if (tab !== 'all' && e.fnfStatus !== tab) return false;
+    if (tab !== 'all' && e.fnfStage !== tab) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       return (e.fullName || '').toLowerCase().includes(q) ||
@@ -71,9 +87,9 @@ export default function FnFDashboard() {
 
   const stats = {
     total: merged.length,
-    notStarted: merged.filter(e => e.fnfStatus === 'not_started').length,
-    draft: merged.filter(e => e.fnfStatus === 'draft').length,
-    finalized: merged.filter(e => e.fnfStatus === 'finalized').length,
+    scheduled: merged.filter(e => e.fnfStage === 'scheduled').length,
+    pending: merged.filter(e => e.fnfStage === 'pending').length,
+    settled: merged.filter(e => e.fnfStage === 'settled').length,
   };
 
   if (loading) return (
@@ -94,15 +110,14 @@ export default function FnFDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Separated', value: stats.total, color: 'text-white', onClick: () => setTab('all') },
-          { label: 'Not Started', value: stats.notStarted, color: 'text-dark-400', onClick: () => setTab('not_started') },
-          { label: 'Draft', value: stats.draft, color: 'text-amber-400', onClick: () => setTab('draft') },
-          { label: 'Finalized', value: stats.finalized, color: 'text-emerald-400', onClick: () => setTab('finalized') },
+          { key: 'all',       label: 'Total Exits',    value: stats.total,     color: 'text-white' },
+          { key: 'scheduled', label: 'Scheduled Exit', value: stats.scheduled, color: 'text-blue-400' },
+          { key: 'pending',   label: 'Pending F&F',    value: stats.pending,   color: 'text-amber-400' },
+          { key: 'settled',   label: 'Settled',        value: stats.settled,   color: 'text-emerald-400' },
         ].map(s => (
-          <button key={s.label} onClick={s.onClick}
+          <button key={s.key} onClick={() => setTab(s.key)}
             className={`bg-dark-800/60 border rounded-xl p-3 text-left transition-colors ${
-              tab === s.label.toLowerCase().replace(' ', '_') || (s.label === 'Total Separated' && tab === 'all')
-                ? 'border-rivvra-500/40' : 'border-dark-700/50 hover:border-dark-600'
+              tab === s.key ? 'border-rivvra-500/40' : 'border-dark-700/50 hover:border-dark-600'
             }`}>
             <p className="text-xs text-dark-400">{s.label}</p>
             <p className={`text-2xl font-bold ${s.color} mt-1`}>{s.value}</p>
@@ -127,6 +142,7 @@ export default function FnFDashboard() {
         <div className="space-y-2">
           {filtered.map(emp => {
             const st = STATUS_CONFIG[emp.fnfStatus] || STATUS_CONFIG.not_started;
+            const stage = STAGE_CONFIG[emp.fnfStage] || STAGE_CONFIG.pending;
             return (
               <div key={emp._id}
                 onClick={() => navigate(orgPath(`/employee/${emp._id}`))}
@@ -135,12 +151,18 @@ export default function FnFDashboard() {
                   <User size={18} className="text-dark-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium text-white group-hover:text-rivvra-400 transition-colors truncate">{emp.fullName}</p>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${st.bg} ${st.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                      {st.label}
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${stage.bg} ${stage.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${stage.dot}`} />
+                      {stage.label}
                     </span>
+                    {emp.fnfStatus !== 'not_started' && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${st.bg} ${st.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                        {st.label}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-dark-500">
                     <span className="capitalize">{emp.status}</span>

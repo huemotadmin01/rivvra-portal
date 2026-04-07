@@ -279,30 +279,46 @@ export default function LeaveApply() {
           </div>
 
           {/* Date Range */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-dark-400 mb-1.5">From Date</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => {
-                  setFromDate(e.target.value);
-                  if (!toDate || e.target.value > toDate) setToDate(e.target.value);
-                }}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-dark-400 mb-1.5">To Date</label>
-              <input
-                type="date"
-                value={toDate}
-                min={fromDate || undefined}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-              />
-            </div>
-          </div>
+          {(() => {
+            const lwdMax = timesheetUser?.lastWorkingDate
+              ? new Date(timesheetUser.lastWorkingDate).toISOString().slice(0, 10)
+              : undefined;
+            return (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-dark-400 mb-1.5">From Date</label>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      max={lwdMax}
+                      onChange={(e) => {
+                        setFromDate(e.target.value);
+                        if (!toDate || e.target.value > toDate) setToDate(e.target.value);
+                      }}
+                      className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-dark-400 mb-1.5">To Date</label>
+                    <input
+                      type="date"
+                      value={toDate}
+                      min={fromDate || undefined}
+                      max={lwdMax}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
+                    />
+                  </div>
+                </div>
+                {lwdMax && (
+                  <p className="text-xs text-amber-300/80 -mt-2">
+                    Your last working date is {new Date(timesheetUser.lastWorkingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}. Leave cannot extend beyond this date.
+                  </p>
+                )}
+              </>
+            );
+          })()}
 
           {/* Half-day toggle (only if policy allows) */}
           {halfDayAllowed && (

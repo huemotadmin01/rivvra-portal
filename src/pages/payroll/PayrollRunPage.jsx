@@ -14,7 +14,7 @@ import { useToast } from '../../context/ToastContext';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
-  AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp, PauseCircle, Send, Loader2,
+  AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp, PauseCircle, Send, Loader2, CalendarX,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -574,6 +574,21 @@ export default function PayrollRunPage() {
                                 <div className="flex justify-between text-sm font-semibold mt-2 pt-2 border-t border-blue-500/20">
                                   <span className="text-blue-300">Combined Net Pay</span>
                                   <span className="text-green-400">₹{fmt(displayNet)}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Final settlement (LWD proration) banner */}
+                            {item.lwdProration?.isExitMonth && (
+                              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-2 flex items-start gap-2">
+                                <CalendarX size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-amber-400">Final Settlement Month</p>
+                                  <p className="text-[11px] text-amber-300/80 mt-0.5">
+                                    Paid for {item.lwdProration.calendarDaysWorked} of {item.lwdProration.calendarDaysInMonth} days
+                                    {' '}(LWD: {new Date(item.lwdProration.lastWorkingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}).
+                                    Calendar-day prorated on all salary components.
+                                  </p>
                                 </div>
                               </div>
                             )}

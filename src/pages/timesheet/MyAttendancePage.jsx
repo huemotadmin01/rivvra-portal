@@ -89,8 +89,26 @@ export default function MyAttendancePage() {
 
   const canEdit = !periodLocked && attendance && (attendance.status === 'draft' || attendance.status === 'rejected');
 
+  // Last Working Date guard — disables every day after the employee's LWD
+  const lastWorkingDate = (() => {
+    const lwd = timesheetUser?.lastWorkingDate;
+    if (!lwd) return null;
+    const d = new Date(lwd);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+
+  const isAfterLwd = (dateStr) => {
+    if (!lastWorkingDate) return false;
+    // dateStr format: YYYY-MM-DD
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const cell = new Date(y, m - 1, d);
+    const lwdOnly = new Date(lastWorkingDate.getFullYear(), lastWorkingDate.getMonth(), lastWorkingDate.getDate());
+    return cell > lwdOnly;
+  };
+
   const handleDayClick = (dateStr) => {
     if (!canEdit) return;
+    if (isAfterLwd(dateStr)) return;
 
     setEntries(prev => prev.map(e => {
       const eDate = toISTDateStr(e.date);
@@ -325,6 +343,16 @@ export default function MyAttendancePage() {
         </div>
       </div>
 
+      {/* ── Last Working Date Banner ── */}
+      {lastWorkingDate && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 mb-4 backdrop-blur-sm">
+          <AlertCircle size={18} className="text-amber-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-amber-200">
+            Your last working date is <span className="font-semibold">{lastWorkingDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>. You can mark attendance only up to this date.
+          </span>
+        </div>
+      )}
+
       {/* ── Period Locked Banner ── */}
       {periodLocked && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/10 to-amber-600/5 mb-4 backdrop-blur-sm">
@@ -407,19 +435,22 @@ export default function MyAttendancePage() {
                 const displayStatus = getEntryDisplayStatus(entry);
                 const config = statusConfig[displayStatus] || statusConfig.working;
                 const isLocked = ['leave', 'weekend', 'not_joined'].includes(entry.status);
-                const isClickable = canEdit && !isLocked;
+                const isPostLwd = isAfterLwd(dateStr);
+                const isClickable = canEdit && !isLocked && !isPostLwd;
                 const isToday = dateStr === todayStr;
                 const isWeekend = entry.status === 'weekend';
+                const lwdTooltip = isPostLwd ? `Beyond last working date (${lastWorkingDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})` : '';
 
                 return (
                   <div
                     key={ci}
+                    title={lwdTooltip}
                     onClick={() => isClickable && handleDayClick(dateStr)}
                     className={`
                       min-h-[68px] sm:min-h-[80px] md:min-h-[88px] p-1.5 sm:p-2
                       border-b border-r border-dark-700/20
                       transition-all duration-150 relative group
-                      ${isWeekend ? 'bg-dark-900/40' : `bg-gradient-to-br ${config.gradient}`}
+                      ${isPostLwd ? 'bg-dark-900/60 opacity-40 cursor-not-allowed' : isWeekend ? 'bg-dark-900/40' : `bg-gradient-to-br ${config.gradient}`}
                       ${isClickable ? 'cursor-pointer hover:brightness-125 active:scale-[0.97]' : ''}
                       ${isToday ? 'ring-2 ring-inset ring-rivvra-500/60' : ''}
                     `}
