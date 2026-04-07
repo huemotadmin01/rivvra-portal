@@ -247,6 +247,20 @@ export default function EmployeeDetail() {
   const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [sepForm, setSepForm] = useState({ status: '', lwd: '', reason: '', notes: '' });
   const [sepSaving, setSepSaving] = useState(false);
+
+  // Pre-fill separation form from employee record (e.g. existing scheduled exit)
+  useEffect(() => {
+    if (!employee) return;
+    const lwdStr = employee.lastWorkingDate
+      ? new Date(employee.lastWorkingDate).toISOString().split('T')[0]
+      : '';
+    setSepForm({
+      status: employee.status || 'active',
+      lwd: lwdStr,
+      reason: employee.separationReason || '',
+      notes: employee.separationNotes || '',
+    });
+  }, [employee?._id, employee?.lastWorkingDate, employee?.status, employee?.separationReason, employee?.separationNotes]);
   const [showEmpTypePrompt, setShowEmpTypePrompt] = useState(false);
   const [pendingEmpType, setPendingEmpType] = useState('');
 
@@ -1059,7 +1073,6 @@ export default function EmployeeDetail() {
                               separationNotes: sepForm.notes || '',
                             } : prev);
                             showToast(effStatus === 'active' ? 'Exit scheduled' : `Employee marked as ${effStatus}`, 'success');
-                            setSepForm({ status: '', lwd: '', reason: '', notes: '' });
                           } else {
                             showToast(res.error || res.message || 'Failed to update', 'error');
                           }
