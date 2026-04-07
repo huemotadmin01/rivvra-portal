@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import activityApi from '../../utils/activityApi';
 import { Check, Trash2, Calendar, Plus, Loader2, MessageSquare, ClipboardList, User } from 'lucide-react';
 
@@ -12,10 +13,15 @@ const TYPE_BADGES = {
   offboarding: 'bg-orange-500/10 text-orange-400',
 };
 
-function ActivityItem({ activity, onToggle, onDelete }) {
+function ActivityItem({ activity, onToggle, onDelete, highlight }) {
   const isNote = activity.type === 'note';
   return (
-    <div className={`flex items-start gap-3 px-3 py-2.5 rounded-lg ${activity.isDone ? 'opacity-50' : ''}`}>
+    <div
+      id={`activity-${activity._id}`}
+      className={`flex items-start gap-3 px-3 py-2.5 rounded-lg transition-colors ${activity.isDone ? 'opacity-50' : ''} ${
+        highlight ? 'bg-rivvra-500/10 ring-1 ring-rivvra-500/40' : ''
+      }`}
+    >
       {/* Done toggle — hide for notes */}
       {!isNote ? (
         <button onClick={() => onToggle(activity._id, !activity.isDone)}
@@ -139,12 +145,19 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formMode, setFormMode] = useState(null); // null | 'note' | 'activity'
+  const [highlightId, setHighlightId] = useState(null);
+  const location = useLocation();
+  const scrollDoneRef = useRef(false);
 
   const fetchActivities = async () => {
     if (!orgSlug || !entityType || !entityId) return;
     try {
       const res = await activityApi.list(orgSlug, entityType, entityId);
-      if (res.success) setActivities(res.activities || []);
+      if (res.success) {
+        // Hide plan-linked activities — they are surfaced in the Launch Plan card
+        const filtered = (res.activities || []).filter(a => !a.planInstanceId);
+        setActivities(filtered);
+      }
     } catch {
       // silently fail
     } finally {
@@ -153,6 +166,24 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
   };
 
   useEffect(() => { fetchActivities(); }, [orgSlug, entityType, entityId]);
+
+  // Scroll-to + highlight when navigated from My Activities dropdown
+  useEffect(() => {
+    if (loading || scrollDoneRef.current) return;
+    const params = new URLSearchParams(location.search);
+    const targetId = params.get('activityId');
+    if (!targetId) return;
+    if (!activities.some(a => a._id === targetId)) return;
+    scrollDoneRef.current = true;
+    setHighlightId(targetId);
+    setTimeout(() => {
+      const el = document.getElementById(`activity-${targetId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    // Fade highlight after a few seconds
+    const t = setTimeout(() => setHighlightId(null), 3500);
+    return () => clearTimeout(t);
+  }, [loading, activities, location.search]);
 
   const handleCreate = async (data) => {
     const res = await activityApi.create(orgSlug, { ...data, entityType, entityId });
@@ -227,7 +258,7 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
         <div className="space-y-0.5 max-h-[500px] overflow-y-auto">
           {activities.map(a => (
             <div key={a._id} className="group">
-              <ActivityItem activity={a} onToggle={handleToggle} onDelete={handleDelete} />
+              <ActivityItem activity={a} onToggle={handleToggle} onDelete={handleDelete} highlight={highlightId === a._id} />
             </div>
           ))}
         </div>

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
-import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar } from 'lucide-react';
+import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 import PeriodPicker from './PeriodPicker';
 import { API_BASE_URL } from '../../utils/config';
@@ -27,6 +27,19 @@ const ENTITY_LABELS = {
   ats_application: 'Application',
   ats_job: 'Job',
 };
+
+// Map an activity's entityType -> route path (relative, used with orgPath)
+function entityRoutePath(entityType, entityId) {
+  if (!entityType || !entityId) return null;
+  switch (entityType) {
+    case 'employee':         return `/employee/${entityId}`;
+    case 'crm_opportunity':  return `/crm/opportunities/${entityId}`;
+    case 'crm_contact':      return `/contacts/${entityId}`;
+    case 'ats_application':  return `/ats/applications/${entityId}`;
+    case 'ats_job':          return `/ats/jobs/${entityId}`;
+    default: return null;
+  }
+}
 
 const appColorMap = {
   rivvra: 'text-rivvra-400',
@@ -52,17 +65,61 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const [actOpen, setActOpen] = useState(false);
   const actRef = useRef(null);
 
+  const fetchActivities = async (slug) => {
+    if (!slug) return;
+    try {
+      const res = await activityApi.my(slug, { isDone: false, limit: 20 });
+      if (res?.success) {
+        const list = res.activities || [];
+        // Sort: overdue first (oldest dueDate first), then by dueDate asc, then by createdAt desc
+        const now = Date.now();
+        const isOverdue = (a) => a.dueDate && new Date(a.dueDate).getTime() < now;
+        list.sort((a, b) => {
+          const oa = isOverdue(a) ? 1 : 0;
+          const ob = isOverdue(b) ? 1 : 0;
+          if (oa !== ob) return ob - oa; // overdue first
+          const da = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+          const db = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+          if (da !== db) return da - db;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setActivities(list);
+      }
+    } catch {
+      // silently ignore
+    }
+  };
+
+  // Initial fetch + 60s polling
   useEffect(() => {
     if (!orgSlug) return;
-    activityApi.my(orgSlug, { isDone: false, limit: 10 })
-      .then(res => { if (res.success) setActivities(res.activities || []); })
-      .catch(() => {});
+    fetchActivities(orgSlug);
+    const interval = setInterval(() => fetchActivities(orgSlug), 60_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug]);
 
-  const handleMarkDone = async (id) => {
+  // Refetch on dropdown open
+  useEffect(() => {
+    if (actOpen && orgSlug) fetchActivities(orgSlug);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actOpen]);
+
+  const handleMarkDone = async (e, id) => {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
     await activityApi.markDone(orgSlug, id, true).catch(() => {});
     setActivities(prev => prev.filter(a => a._id !== id));
   };
+
+  const handleNavigateToActivity = (activity) => {
+    setActOpen(false);
+    const path = entityRoutePath(activity.entityType, activity.entityId);
+    if (!path) return; // unsupported entity → no-op (button is disabled visually)
+    // Use query string + hash so detail page can scroll/highlight after data load
+    navigate(`${orgPath(path)}?activityId=${activity._id}#activity-${activity._id}`);
+  };
+
+  const overdueCount = activities.filter(a => a.dueDate && new Date(a.dueDate).getTime() < Date.now() && !a.isDone).length;
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -172,7 +229,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
             >
               <Clock className="w-5 h-5" />
               {activities.length > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-rivvra-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                <span className={`absolute top-1 right-1 w-4 h-4 text-white text-[9px] font-bold rounded-full flex items-center justify-center ${
+                  overdueCount > 0 ? 'bg-red-500' : 'bg-rivvra-500'
+                }`}>
                   {activities.length > 9 ? '9+' : activities.length}
                 </span>
               )}
@@ -180,8 +239,13 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
 
             {actOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-80 bg-dark-900 border border-dark-700 rounded-xl shadow-xl z-50">
-                <div className="px-4 py-2.5 border-b border-dark-700">
+                <div className="px-4 py-2.5 border-b border-dark-700 flex items-center justify-between">
                   <p className="text-xs font-semibold text-dark-300">My Activities</p>
+                  {overdueCount > 0 && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 flex items-center gap-1">
+                      <AlertTriangle size={9} /> {overdueCount} overdue
+                    </span>
+                  )}
                 </div>
                 {activities.length === 0 ? (
                   <div className="px-4 py-6 text-center">
@@ -190,30 +254,48 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                   </div>
                 ) : (
                   <div className="max-h-[360px] overflow-y-auto p-1.5">
-                    {activities.map(a => (
-                      <div key={a._id} className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-dark-800/50 group">
-                        <button
-                          onClick={() => handleMarkDone(a._id)}
-                          className="mt-0.5 w-4 h-4 rounded border border-dark-600 hover:border-rivvra-400 hover:bg-rivvra-500/20 flex items-center justify-center flex-shrink-0 transition-colors"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${ACT_TYPE_BADGES[a.type] || ACT_TYPE_BADGES.note}`}>
-                              {a.type}
-                            </span>
-                            <span className="text-[9px] text-dark-500">
-                              {a.entityName || (ENTITY_LABELS[a.entityType] || a.entityType)}
-                            </span>
-                            {a.dueDate && (
-                              <span className="text-[9px] text-dark-500 flex items-center gap-0.5">
-                                <Calendar size={8} /> {new Date(a.dueDate).toLocaleDateString()}
+                    {activities.map(a => {
+                      const overdue = a.dueDate && new Date(a.dueDate).getTime() < Date.now();
+                      const targetPath = entityRoutePath(a.entityType, a.entityId);
+                      const navigable = !!targetPath;
+                      return (
+                        <div
+                          key={a._id}
+                          onClick={() => navigable && handleNavigateToActivity(a)}
+                          title={navigable ? 'Open record' : 'No detail page available for this entity'}
+                          className={`flex items-start gap-2.5 px-2.5 py-2 rounded-lg group ${
+                            navigable ? 'hover:bg-dark-800/50 cursor-pointer' : 'opacity-80 cursor-default'
+                          } ${overdue ? 'border-l-2 border-red-500/60' : ''}`}
+                        >
+                          <button
+                            onClick={(e) => handleMarkDone(e, a._id)}
+                            title="Mark done"
+                            className="mt-0.5 w-4 h-4 rounded border border-dark-600 hover:border-rivvra-400 hover:bg-rivvra-500/20 flex items-center justify-center flex-shrink-0 transition-colors"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${ACT_TYPE_BADGES[a.type] || ACT_TYPE_BADGES.note}`}>
+                                {a.type}
                               </span>
-                            )}
+                              <span className="text-[9px] text-dark-500">
+                                {a.entityName || (ENTITY_LABELS[a.entityType] || a.entityType)}
+                              </span>
+                              {a.dueDate && (
+                                <span className={`text-[9px] flex items-center gap-0.5 ${overdue ? 'text-red-400 font-medium' : 'text-dark-500'}`}>
+                                  <Calendar size={8} /> {new Date(a.dueDate).toLocaleDateString()}
+                                </span>
+                              )}
+                              {overdue && (
+                                <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-red-500/15 text-red-400">
+                                  Overdue
+                                </span>
+                              )}
+                            </div>
+                            {a.summary && <p className="text-xs text-dark-200 mt-0.5 truncate">{a.summary}</p>}
                           </div>
-                          {a.summary && <p className="text-xs text-dark-200 mt-0.5 truncate">{a.summary}</p>}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
