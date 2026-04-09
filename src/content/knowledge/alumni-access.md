@@ -12,7 +12,7 @@ Alumni go through four possible states:
 
 1. **Active** — normal employee. No alumni fields set.
 2. **Phase A (amber banner)** — from LWD to LWD + *grace period days* (default 90). Full read-only access to their own records. They see a top-of-page amber banner counting down to the cutoff.
-3. **Phase B (orange banner, confirmed employees only)** — from the end of Phase A until 30 June of the financial year after the one containing their LWD. Same read-only access; the banner switches to orange and explains that they're in the tax-filing window. Password reset now routes to their registered personal email for security.
+3. **Phase B (orange banner, confirmed employees only)** — from the end of Phase A until the **next 30 June on or after their LWD**. This is the deadline that lines up with the Indian ITR filing window (ITR for FY X-Y is due 31 July Y, so 30 June keeps access open with a day to spare). Same read-only access; the banner switches to orange and explains that they're in the tax-filing window. Password reset now routes to their registered personal email for security.
 4. **Archived (red banner, rarely rendered)** — cutoff has passed. The backend blocks login entirely with a 403 `ALUMNI_ARCHIVED` error. The only way back in is an admin reactivation.
 
 The phase is *computed* on every request from `alumniSince`, `alumniCutoffAt`, `alumniReactivatedUntil`, and the employee's employment type — there's no separate "phase" column to keep in sync.
