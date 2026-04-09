@@ -57,11 +57,11 @@ function PlatformLayout() {
         <div className={`min-h-screen bg-dark-950 ${isImpersonating ? 'pt-10' : ''}`}>
           <ImpersonationBanner />
           <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
-          <TrialBanner />
-          <AlumniBanner />
           <div className="flex">
             {showSidebar && <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
             <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${showSidebar ? 'md:ml-64' : ''}`}>
+              <TrialBanner />
+              <AlumniBanner />
               {!isFullScreenPage && <Breadcrumbs />}
               <Outlet />
             </main>
