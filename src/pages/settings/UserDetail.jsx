@@ -150,9 +150,12 @@ export default function UserDetail() {
 
     load();
 
-    // Load employees for linking
+    // Load employees for linking.
+    // Do NOT filter by status here: we want resigned/terminated employees to
+    // still be linkable (e.g. re-linking a portal user to a separated record
+    // for historical access, or fixing a stale link).
     if (canManage) {
-      employeeApi.list(orgSlug, { status: 'active' })
+      employeeApi.list(orgSlug, { limit: 500 })
         .then(res => { if (!cancelled && res.success) setEmployees(res.employees || []); })
         .catch(() => {});
     }
