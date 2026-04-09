@@ -209,9 +209,27 @@ export default function FnFSettlement({ employeeId, employee }) {
             <span className="text-sm text-emerald-400 font-medium">INR {fmt(leaveEnc)}</span>
           </div>
           <div className="pl-3 space-y-0.5 text-xs text-dark-500">
-            <p>Sick Leave: {calculation.leaveEncashment.sickLeaveBalance} days remaining</p>
-            <p>Casual Leave: {calculation.leaveEncashment.casualLeaveBalance} days remaining</p>
-            <p>Total: {calculation.leaveEncashment.totalEncashableLeaves} days x INR {fmt(calculation.leaveEncashment.dailyBasic)}/day (daily basic)</p>
+            {calculation.leaveEncashment.encashmentOnExit === false ? (
+              <p className="text-amber-400/80">
+                Leave encashment is disabled for this org. Enable
+                “Encashment on Exit” in Settings → ESS → Leave Policy.
+              </p>
+            ) : (calculation.leaveEncashment.perLeaveType || []).length === 0 ? (
+              <p className="text-amber-400/80">
+                No leave types are marked encashable. Toggle individual leave
+                types in Settings → ESS → Leave Policy.
+              </p>
+            ) : (
+              <>
+                {calculation.leaveEncashment.perLeaveType.map(p => (
+                  <p key={p.code}>{p.name}: {p.available} days available</p>
+                ))}
+                <p>
+                  Total: {calculation.leaveEncashment.totalEncashableLeaves} days
+                  {' × '}INR {fmt(calculation.leaveEncashment.dailyBasic)}/day (daily basic)
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -455,7 +473,12 @@ function generatePrintHTML(s, emp) {
       <tr><td colspan="3" style="font-weight:600; color:#16a34a; padding-top:10px">EARNINGS</td></tr>
       <tr>
         <td>Leave Encashment</td>
-        <td>Sick: ${le.sickLeaveBalance || 0}d + Casual: ${le.casualLeaveBalance || 0}d = ${le.totalEncashableLeaves || 0}d x INR ${fmtINR(le.dailyBasic)}/day</td>
+        <td>${
+          Array.isArray(le.perLeaveType) && le.perLeaveType.length > 0
+            ? le.perLeaveType.map(p => `${p.name}: ${p.available}d`).join(' + ')
+              + ` = ${le.totalEncashableLeaves || 0}d x INR ${fmtINR(le.dailyBasic)}/day`
+            : `${le.totalEncashableLeaves || 0}d x INR ${fmtINR(le.dailyBasic)}/day`
+        }</td>
         <td class="amount earning">${fmtINR(le.amount)}</td>
       </tr>
       ${(s.otherAdditions || 0) > 0 ? `<tr><td>Other Additions</td><td>${s.otherAdditionNotes || ''}</td><td class="amount earning">${fmtINR(s.otherAdditions)}</td></tr>` : ''}
