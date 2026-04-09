@@ -5,7 +5,19 @@ import fnfApi from '../../utils/fnfApi';
 import {
   Loader2, Calculator, CheckCircle2, AlertTriangle, FileText, IndianRupee,
   Calendar, Clock, Package, ShieldCheck, Download, RotateCcw, Lock, Unlock,
+  History, ChevronDown, ChevronUp,
 } from 'lucide-react';
+
+// Friendly labels for audit-trail field codes returned by the API.
+const FIELD_LABELS = {
+  leaveEncashment: 'Leave Encashment',
+  noticePeriodRecovery: 'Notice Period Recovery',
+  noticeDaysServed: 'Notice Days Served',
+  assetDeductions: 'Asset Deductions',
+  loanRecovery: 'Loan/Advance Recovery',
+  otherDeductions: 'Other Deductions',
+  otherAdditions: 'Other Additions',
+};
 
 function fmt(n) {
   if (n === null || n === undefined) return '—';
@@ -35,6 +47,8 @@ export default function FnFSettlement({ employeeId, employee }) {
   const [otherAdditions, setOtherAdditions] = useState('');
   const [otherAdditionNotes, setOtherAdditionNotes] = useState('');
   const [notes, setNotes] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => { load(); }, [employeeId, orgSlug]);
 
@@ -77,7 +91,9 @@ export default function FnFSettlement({ employeeId, employee }) {
         otherAdditions: parseFloat(otherAdditions) || 0,
         otherAdditionNotes,
         notes,
+        overrideReason: overrideReason?.trim() || undefined,
       });
+      setOverrideReason('');
       if (res.data) setSettlement(res.data);
       showToast('Settlement saved', 'success');
       await load();
@@ -370,6 +386,64 @@ export default function FnFSettlement({ employeeId, employee }) {
       )}
       {isFinalized && settlement.notes && (
         <div className="text-xs text-dark-500"><span className="text-dark-400 font-medium">Notes:</span> {settlement.notes}</div>
+      )}
+
+      {/* Override Reason — only asked for when there's an existing draft being edited */}
+      {!isFinalized && settlement && (
+        <div>
+          <label className="text-xs text-dark-400 mb-1 block">
+            Reason for change <span className="text-dark-600">(optional, recorded in audit trail)</span>
+          </label>
+          <input
+            value={overrideReason}
+            onChange={e => setOverrideReason(e.target.value)}
+            placeholder="e.g. HR-approved waiver of notice recovery"
+            className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+          />
+        </div>
+      )}
+
+      {/* Audit Trail — collapsible, shown only when we have history entries */}
+      {Array.isArray(settlement?.history) && settlement.history.length > 0 && (
+        <div className="bg-dark-800/60 border border-dark-700/50 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setShowHistory(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-dark-800 transition-colors rounded-xl"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-white">
+              <History size={14} className="text-dark-400" />
+              Change History
+              <span className="text-xs text-dark-500">({settlement.history.length})</span>
+            </span>
+            {showHistory ? <ChevronUp size={14} className="text-dark-500" /> : <ChevronDown size={14} className="text-dark-500" />}
+          </button>
+          {showHistory && (
+            <div className="border-t border-dark-700/50 divide-y divide-dark-700/40">
+              {[...settlement.history].reverse().map((h, i) => (
+                <div key={i} className="px-4 py-3 text-xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-dark-200 font-medium">
+                      {FIELD_LABELS[h.field] || h.field}
+                    </span>
+                    <span className="text-dark-500">
+                      {h.changedAt ? new Date(h.changedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-dark-400">
+                    <span className="text-red-400/80 line-through">INR {fmt(h.oldValue)}</span>
+                    <span className="text-dark-600">→</span>
+                    <span className="text-emerald-400">INR {fmt(h.newValue)}</span>
+                  </div>
+                  <div className="mt-0.5 text-dark-500">
+                    by <span className="text-dark-300">{h.changedByName || 'Unknown'}</span>
+                    {h.reason ? <> — <span className="text-dark-400 italic">{h.reason}</span></> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Action Buttons */}

@@ -494,6 +494,9 @@ export default function PayrollRunPage() {
                           )}
                         </div>
                         {(item.adHocEarnings?.length > 0 || item.adHocDeductions?.length > 0) && <span className="text-[9px] text-blue-400">Ad-hoc</span>}
+                        {item.fnfAdjustments && (
+                          <span className="text-[9px] text-amber-400 ml-1" title="F&F merged into this payslip">F&amp;F merged</span>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-dark-300 text-xs">{item.effectiveDays}/{item.totalWorkingDays}</td>
                       <td className="px-3 py-2.5 text-xs">
@@ -523,7 +526,11 @@ export default function PayrollRunPage() {
                       // Recalculate display values with live ad-hoc
                       const baseGross = item.grossSalary - (item.adHocEarnings || []).reduce((s, e) => s + (e.amount || 0), 0) - (item.holidayWorkAllowance || 0);
                       const displayGross = baseGross + adHocEarningsTotal + (item.holidayWorkAllowance || 0);
-                      const baseDeductions = item.totalDeductions - (item.otherDeductions || 0);
+                      // item.totalDeductions already includes both ad-hoc and F&F deductions
+                      // (backend bundles them into otherDeductions). Strip ad-hoc only so live
+                      // edits flow through; keep F&F in place so the total matches the payslip.
+                      const fnfDedAmt = item?.fnfAdjustments?.totalDeductions || 0;
+                      const baseDeductions = item.totalDeductions - (item.otherDeductions || 0) + fnfDedAmt;
                       const displayDeductions = baseDeductions + adHocDeductionsTotal;
                       const displayNet = Math.max(0, displayGross - displayDeductions);
 
@@ -632,6 +639,23 @@ export default function PayrollRunPage() {
                                     </div>
                                   )}
 
+                                  {/* F&F earnings (leave encashment + other additions) */}
+                                  {item.fnfAdjustments && item.fnfAdjustments.leaveEncashment > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">F&amp;F: Leave Encashment</span>
+                                      <span className="text-amber-400 text-xs">+₹{fmt(item.fnfAdjustments.leaveEncashment)}</span>
+                                    </div>
+                                  )}
+                                  {item.fnfAdjustments && item.fnfAdjustments.otherAdditions > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">
+                                        F&amp;F: Other Additions
+                                        {item.fnfAdjustments.otherAdditionNotes ? ` — ${item.fnfAdjustments.otherAdditionNotes}` : ''}
+                                      </span>
+                                      <span className="text-amber-400 text-xs">+₹{fmt(item.fnfAdjustments.otherAdditions)}</span>
+                                    </div>
+                                  )}
+
                                   {/* Contractor-specific fields */}
                                   {item.payrollMode === 'contractor' && (
                                     <>
@@ -722,6 +746,35 @@ export default function PayrollRunPage() {
                                       <span className="text-red-400 text-xs">₹{fmt(a.amount)}</span>
                                     </div>
                                   ))}
+
+                                  {/* F&F deductions */}
+                                  {item.fnfAdjustments && item.fnfAdjustments.noticePeriodRecovery > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">F&amp;F: Notice Period Recovery</span>
+                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.noticePeriodRecovery)}</span>
+                                    </div>
+                                  )}
+                                  {item.fnfAdjustments && item.fnfAdjustments.assetDeductions > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">F&amp;F: Asset Deductions</span>
+                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.assetDeductions)}</span>
+                                    </div>
+                                  )}
+                                  {item.fnfAdjustments && item.fnfAdjustments.loanRecovery > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">F&amp;F: Loan / Advance Recovery</span>
+                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.loanRecovery)}</span>
+                                    </div>
+                                  )}
+                                  {item.fnfAdjustments && item.fnfAdjustments.otherDeductions > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-400 text-xs">
+                                        F&amp;F: Other Deductions
+                                        {item.fnfAdjustments.otherDeductionNotes ? ` — ${item.fnfAdjustments.otherDeductionNotes}` : ''}
+                                      </span>
+                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.otherDeductions)}</span>
+                                    </div>
+                                  )}
 
 
                                   <hr className="border-dark-800 my-1" />
