@@ -23,13 +23,15 @@ export default function LeaveBalances() {
   const [search, setSearch] = useState('');
   const [expandedEmp, setExpandedEmp] = useState(null);
   const [deptFilter, setDeptFilter] = useState('');
+  // Employment-status filter: 'active' (default), 'resigned', 'terminated', 'all'
+  const [statusFilter, setStatusFilter] = useState('active');
 
-  useEffect(() => { loadData(); }, [orgSlug, fy]);
+  useEffect(() => { loadData(); }, [orgSlug, fy, statusFilter]);
 
   async function loadData() {
     setLoading(true);
     try {
-      const res = await getAllLeaveBalances({ financialYear: fy });
+      const res = await getAllLeaveBalances({ financialYear: fy, status: statusFilter });
       setData(res.balances || []);
       // Extract unique leave types from first balance that has them
       const types = res.leaveTypes || [];
@@ -82,6 +84,13 @@ export default function LeaveBalances() {
           <p className="text-sm text-dark-400 mt-1">{filtered.length} employees • FY {fy}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none">
+            <option value="active">Active</option>
+            <option value="resigned">Resigned</option>
+            <option value="terminated">Terminated</option>
+            <option value="all">All Statuses</option>
+          </select>
           {departments.length > 1 && (
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
               className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none">
@@ -127,7 +136,18 @@ export default function LeaveBalances() {
                       className={`border-b border-dark-700/50 hover:bg-dark-750 cursor-pointer transition-colors ${isExpanded ? 'bg-dark-750' : ''}`}
                     >
                       <td className="px-4 py-3">
-                        <div className="text-white font-medium text-xs">{item.employeeName}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-medium text-xs">{item.employeeName}</span>
+                          {item.employeeStatus && item.employeeStatus !== 'active' && (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wide ${
+                              item.employeeStatus === 'terminated'
+                                ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            }`}>
+                              {item.employeeStatus}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-dark-500">{item.email}</div>
                       </td>
                       <td className="px-4 py-3 text-xs text-dark-300">{item.departmentName || item.department || '—'}</td>
