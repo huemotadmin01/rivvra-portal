@@ -149,6 +149,12 @@ export default function LeaveBalances() {
                           )}
                         </div>
                         <div className="text-[10px] text-dark-500">{item.email}</div>
+                        {item.employeeStatus && item.employeeStatus !== 'active' && item.financialYear && item.financialYear !== fy && (
+                          <div className="text-[9px] text-amber-500/80 mt-0.5">as of FY {item.financialYear}</div>
+                        )}
+                        {item.employeeStatus && item.employeeStatus !== 'active' && !item.financialYear && (
+                          <div className="text-[9px] text-dark-500 mt-0.5">no balance record</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-dark-300">{item.departmentName || item.department || '—'}</td>
                       {leaveTypes.filter(t => t.code !== 'lop').map(lt => {
