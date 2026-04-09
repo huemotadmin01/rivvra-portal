@@ -85,6 +85,9 @@ const PTMasterPage = lazy(() => import('./pages/payroll/PTMasterPage'));
 const PayrollRunPage = lazy(() => import('./pages/payroll/PayrollRunPage'));
 const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
 const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
+const MyFnfReceipt = lazy(() => import('./pages/timesheet/MyFnfReceipt'));
+const AlumniPolicyPage = lazy(() => import('./pages/settings/AlumniPolicyPage'));
+const AlumniDirectoryPage = lazy(() => import('./pages/employee/AlumniDirectory'));
 const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
 const TaxReportsPage = lazy(() => import('./pages/payroll/TaxReportsPage'));
 const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboardPage'));
@@ -315,6 +318,9 @@ function App() {
                   {/* Employee-facing statutory payroll pages */}
                   <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><MySalaryPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-fnf" element={<ErrorBoundary><MyFnfReceipt /></ErrorBoundary>} />
+                  <Route path="/org/:slug/settings/alumni-policy" element={<ErrorBoundary><AlumniPolicyPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/alumni" element={<ErrorBoundary><AlumniDirectoryPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/declarations" element={<ErrorBoundary><MyTaxDeclarationsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/report" element={<ErrorBoundary><MyTaxReportPage /></ErrorBoundary>} />
                 </Route>

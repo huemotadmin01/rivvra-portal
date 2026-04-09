@@ -54,6 +54,13 @@ export const ARTICLES = [
     description: 'How to mark an employee resigned, prepare the F&F settlement, clear assets, and merge the final payout into payroll.',
     order: 2,
   },
+  {
+    slug: 'alumni-access',
+    title: 'Alumni Access (Post-Separation Portal)',
+    category: 'employee',
+    description: 'How the read-only alumni lifecycle works: phases, policy, directory, reactivation, and alumni-aware password reset.',
+    order: 3,
+  },
 ];
 
 export function getArticleBySlug(slug) {

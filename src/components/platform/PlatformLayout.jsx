@@ -8,6 +8,7 @@ import { PeriodProvider } from '../../context/PeriodContext';
 import TopBar from './TopBar';
 import AppSidebar from './AppSidebar';
 import TrialBanner from './TrialBanner';
+import AlumniBanner from './AlumniBanner';
 import Breadcrumbs from './Breadcrumbs';
 import { ArrowLeftRight, X } from 'lucide-react';
 
@@ -57,6 +58,7 @@ function PlatformLayout() {
           <ImpersonationBanner />
           <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
           <TrialBanner />
+          <AlumniBanner />
           <div className="flex">
             {showSidebar && <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
             <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${showSidebar ? 'md:ml-64' : ''}`}>

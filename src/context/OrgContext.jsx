@@ -123,6 +123,15 @@ export function OrgProvider({ children }) {
   const isReadOnly = trial?.status === 'grace';
   const trialDaysRemaining = trial?.daysRemaining ?? null;
 
+  // Alumni state helpers (read-only post-separation access window)
+  const alumniPhase = membership?.alumniPhase || 'active';
+  const isAlumni = alumniPhase === 'a' || alumniPhase === 'b';
+  const isArchivedAlumni = alumniPhase === 'archived';
+  const alumniCutoffAt = membership?.alumniCutoffAt ? new Date(membership.alumniCutoffAt) : null;
+  const alumniDaysRemaining = alumniCutoffAt
+    ? Math.max(0, Math.ceil((alumniCutoffAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
+
   // Memoize context value
   const value = useMemo(() => ({
     currentOrg,
@@ -140,13 +149,19 @@ export function OrgProvider({ children }) {
     isTrialActive,
     isGracePeriod,
     isTrialArchived,
-    isReadOnly,
+    isReadOnly: isReadOnly || isAlumni, // alumni are also read-only
     trialDaysRemaining,
+    // Alumni state
+    alumniPhase,
+    isAlumni,
+    isArchivedAlumni,
+    alumniCutoffAt,
+    alumniDaysRemaining,
     refetchOrg: () => {
       fetchedRef.current = false;
       fetchOrg();
     },
-  }), [currentOrg, membership, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, trial, isTrialActive, isGracePeriod, isTrialArchived, isReadOnly, trialDaysRemaining]);
+  }), [currentOrg, membership, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, trial, isTrialActive, isGracePeriod, isTrialArchived, isReadOnly, trialDaysRemaining, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
 
   return (
     <OrgContext.Provider value={value}>

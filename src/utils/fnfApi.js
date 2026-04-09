@@ -31,6 +31,10 @@ const fnfApi = {
   deleteSettlement(orgSlug, employeeId) {
     return api.request(`/api/org/${orgSlug}/fnf/settlement/${employeeId}`, { method: 'DELETE' });
   },
+  // Alumnus's own finalized F&F receipt (read-only)
+  getMySettlement(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/fnf/my-settlement`);
+  },
 };
 
 export default fnfApi;

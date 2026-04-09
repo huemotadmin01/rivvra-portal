@@ -86,8 +86,9 @@ export const APP_REGISTRY = {
       // Manager status is derived from the employee system (not from static role field)
       const isManager = timesheetUser?.isManager === true;
 
-      // Resigned/terminated employees: show same sidebar as their mode but read-only
-      if (timesheetUser?.resigned) {
+      // Alumni (post-separation read-only): restricted sidebar regardless of phase A or B.
+      // `resigned` is the legacy flag still set by un-migrated data paths — treat it the same.
+      if (timesheetUser?.alumni || timesheetUser?.resigned) {
         const isConsultant = timesheetUser?.timesheetMode === 'timesheet';
         return [
           { type: 'item', path: '/timesheet/dashboard', label: 'Dashboard', icon: Home },
@@ -115,6 +116,8 @@ export const APP_REGISTRY = {
               { path: '/timesheet/tax/report', label: 'Tax Report', icon: BarChart3 },
             ],
           }] : []),
+          // F&F Receipt — read-only view of the alumnus's finalized settlement
+          { type: 'item', path: '/timesheet/my-fnf', label: 'F&F Receipt', icon: FileText },
         ];
       }
 
@@ -251,12 +254,14 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/employee/departments', label: 'Departments', icon: Building2 },
         ...(isAdmin ? [
           { type: 'item', path: '/employee/add', label: 'Add Employee', icon: UserPlus },
+          { type: 'item', path: '/employee/alumni', label: 'Alumni', icon: UserSearch },
           { type: 'item', path: '/employee/assets', label: 'Assets', icon: Package },
           { type: 'item', path: '/employee/plan-templates', label: 'Plan Templates', icon: FileText },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
               { path: '/settings/employee', label: 'Settings', icon: Settings },
+              { path: '/settings/alumni-policy', label: 'Alumni Policy', icon: Shield },
               { path: '/employee/assets/types', label: 'Asset Types', icon: Package },
             ],
           },
