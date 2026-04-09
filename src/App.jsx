@@ -102,6 +102,9 @@ const LeaveReports = lazy(() => import('./pages/timesheet/LeaveReports'));
 const HolidayCalendar = lazy(() => import('./pages/timesheet/HolidayCalendar'));
 const MyAssets = lazy(() => import('./pages/timesheet/MyAssets'));
 
+// Lazy-loaded: Knowledge Base
+const KnowledgeBasePage = lazy(() => import('./pages/kb/KnowledgeBasePage'));
+
 // Lazy-loaded: Employee app pages
 const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
@@ -337,6 +340,15 @@ function App() {
               <Route path="/org/:slug/timesheet/payroll" element={<Navigate to="../../payroll/process" replace />} />
               <Route path="/org/:slug/timesheet/pay-config" element={<Navigate to="../../payroll/pay-overview" replace />} />
               <Route path="/org/:slug/timesheet/export" element={<Navigate to="../../payroll/export" replace />} />
+
+              {/* Knowledge Base — admin-only reader for platform guides.
+                  Uses AppRoleGate so org owners/admins automatically have
+                  access without needing an explicit appAccess membership
+                  entry (matches the pattern payroll uses). */}
+              <Route element={<AppRoleGate appId="knowledgeBase" requiredRole="admin" />}>
+                <Route path="/org/:slug/knowledge-base" element={<ErrorBoundary><KnowledgeBasePage /></ErrorBoundary>} />
+                <Route path="/org/:slug/knowledge-base/:articleSlug" element={<ErrorBoundary><KnowledgeBasePage /></ErrorBoundary>} />
+              </Route>
 
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
