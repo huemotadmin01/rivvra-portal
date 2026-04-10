@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield, User, Network, Package, Calculator, BookOpen, LifeBuoy,
+  Shield, User, Network, Package, Calculator, BookOpen,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -461,8 +461,6 @@ export const APP_REGISTRY = {
     ],
     getSidebarItems: () => [
       { type: 'item', path: '/knowledge-base', label: 'Browse Articles', icon: BookOpen },
-      { type: 'item', path: '/knowledge-base/employee-onboarding', label: 'Employee Onboarding', icon: UserPlus },
-      { type: 'item', path: '/knowledge-base/employee-offboarding', label: 'Employee Offboarding', icon: LifeBuoy },
     ],
   },
 
