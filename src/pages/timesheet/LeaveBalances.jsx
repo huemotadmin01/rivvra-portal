@@ -162,6 +162,15 @@ export default function LeaveBalances() {
                         if (!b) return <td key={lt.code} className="px-3 py-3 text-center text-xs text-dark-600">—</td>;
                         const available = b.available ?? 0;
                         const entitled = b.entitled ?? b.accrued ?? 0;
+                        // If FNF has been processed with leave encashment, show 0 with "Encashed" label
+                        if (item.fnfEncashed) {
+                          return (
+                            <td key={lt.code} className="px-3 py-3 text-center">
+                              <span className="text-xs text-dark-500">0</span>
+                              <span className="text-[10px] text-dark-500">/{fmt(entitled)}</span>
+                            </td>
+                          );
+                        }
                         return (
                           <td key={lt.code} className="px-3 py-3 text-center">
                             <span className={`text-xs font-medium ${available <= 0 ? 'text-red-400' : available <= 2 ? 'text-amber-400' : 'text-green-400'}`}>
@@ -182,6 +191,15 @@ export default function LeaveBalances() {
                       <tr>
                         <td colSpan={leaveTypes.length + 3} className="px-0 py-0 border-b border-dark-700/50">
                           <div className="bg-dark-950/50 p-5">
+                            {item.fnfEncashed && (
+                              <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                                <span>✓</span>
+                                <span>
+                                  Leave balance encashed in Full &amp; Final settlement
+                                  {item.fnfEncashmentAmount ? ` — ₹${Number(item.fnfEncashmentAmount).toLocaleString('en-IN')}` : ''}
+                                </span>
+                              </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {leaveTypes.filter(t => t.code !== 'lop').map(lt => {
                                 const b = balances[lt.code];
@@ -222,7 +240,11 @@ export default function LeaveBalances() {
                                       )}
                                       <div className="flex justify-between pt-2 border-t border-dark-800">
                                         <span className="text-white font-medium">Available</span>
-                                        <span className={`font-semibold ${(b.available || 0) <= 0 ? 'text-red-400' : 'text-green-400'}`}>{fmt(b.available || 0)}</span>
+                                        {item.fnfEncashed ? (
+                                          <span className="text-dark-500 font-medium">0 <span className="text-[9px]">(encashed)</span></span>
+                                        ) : (
+                                          <span className={`font-semibold ${(b.available || 0) <= 0 ? 'text-red-400' : 'text-green-400'}`}>{fmt(b.available || 0)}</span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
