@@ -40,6 +40,7 @@ export const CATEGORIES = [
 // Article metadata. The reader UI uses this to build navigation.
 // Articles without an entry here are ignored even if the .md file exists.
 export const ARTICLES = [
+  // ── Employee ──────────────────────────────────────────────────────────
   {
     slug: 'employee-onboarding',
     title: 'Employee Onboarding Workflow',
@@ -60,6 +61,22 @@ export const ARTICLES = [
     category: 'employee',
     description: 'How the read-only alumni lifecycle works: phases, policy, directory, reactivation, and alumni-aware password reset.',
     order: 3,
+  },
+  // ── Payroll ───────────────────────────────────────────────────────────
+  {
+    slug: 'running-payroll',
+    title: 'Running Payroll',
+    category: 'payroll',
+    description: 'End-to-end payroll processing: salary structures, statutory deductions (PF/ESI/PT/TDS), tax regimes, payroll runs, payslip release, challans, and exports.',
+    order: 1,
+  },
+  // ── Employee Self Service ─────────────────────────────────────────────
+  {
+    slug: 'employee-self-service',
+    title: 'Employee Self Service Guide',
+    category: 'timesheet',
+    description: 'Attendance marking, leave management, salary and payslip access, tax declarations, holiday calendar, and ESS configuration for admins.',
+    order: 1,
   },
 ];
 
