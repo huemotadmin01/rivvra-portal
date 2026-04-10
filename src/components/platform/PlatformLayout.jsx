@@ -46,9 +46,11 @@ function PlatformLayout() {
   // Close sidebar on route change (mobile)
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
-  // Full-screen focused pages — hide sidebar for distraction-free experience
+  // Full-screen focused pages — hide sidebar for distraction-free experience.
+  // Knowledge Base has its own in-content category nav, so the app sidebar is redundant.
   const isFullScreenPage = location.pathname.includes('/employee/onboarding');
-  const showSidebar = currentApp && !isFullScreenPage;
+  const isKnowledgeBase = currentApp?.id === 'knowledgeBase';
+  const showSidebar = currentApp && !isFullScreenPage && !isKnowledgeBase;
 
   return (
     <TimesheetProvider>
