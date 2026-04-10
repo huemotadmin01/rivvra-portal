@@ -135,6 +135,7 @@ If an employee reports they are "stuck on the onboarding page", check this field
 - **Portal invite email didn't arrive.** Check the org's email logs under **Settings → Email Logs**. Most delivery failures are caused by catch-all filters on the recipient's domain.
 - **Employee cannot see the apps I enabled.** App access on the `org_memberships` record is only re-read on login. Ask them to log out and back in.
 - **Probation end date looks wrong.** The default is 90 days from joining date. You can override it per-employee from the detail page, or change the org-wide default under **Settings → Employee → Probation period**.
+- **Re-hiring a former employee.** If someone was previously separated and their membership is now `alumni` or `archived`, you'll need to create a new employee record (or reactivate the old one by changing status back to *active* and clearing the LWD). The old `linkedUserId` is preserved on the employee record, so re-linking to the same portal user account is automatic if the work email matches. The alumni membership will need to be manually flipped back to `active` by an admin from Settings — the system won't do this automatically, because an accidental status change on the employee record shouldn't silently re-grant full access.
 
 ---
 

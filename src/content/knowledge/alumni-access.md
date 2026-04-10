@@ -25,6 +25,8 @@ The phase is *computed* on every request from `alumniSince`, `alumniCutoffAt`, `
 
 **Cannot do:** mark attendance, submit or edit timesheets, raise or cancel leave requests, approve anything, or reach any admin or team screens. Every member-facing write endpoint is gated by a `requireWriteAccess` middleware that returns 403 `ALUMNI_READ_ONLY` when the membership is in alumni/archived status.
 
+**How it works under the hood:** the shared `orgMiddleware` accepts both `active` and `alumni` memberships. For alumni, it computes the phase against the linked employee record and blocks `archived` outright with a 403 `ALUMNI_ARCHIVED` error (in case the daily cron hasn't caught up yet). It attaches `req.alumniReadOnly = true` so downstream write endpoints can gate accordingly. This means all read-only org-scoped endpoints — payslips, salary, tax report, F&F receipt — work seamlessly for alumni without any per-endpoint changes.
+
 **Seat count:** alumni *do not count* against your billing seat total. The moment someone flips to `alumni`, they stop consuming a seat.
 
 ---
@@ -34,7 +36,7 @@ The phase is *computed* on every request from `alumniSince`, `alumniCutoffAt`, `
 Navigate to **Employee → Configuration → Alumni Policy** (admin only). Three settings:
 
 - **Grace period (days)** — default 90. Length of Phase A. Applies to all separations across the org. Change this before a big reorg to give people more or less time.
-- **Extend to tax-filing window** — default on. When on, confirmed employees get Phase B extended until 30 June of next FY. Turn this off only if you have a specific reason to shorten confirmed employees' access.
+- **Extend to tax-filing window** — default on. When on, confirmed employees get Phase B extended until the next 30 June on or after their LWD (aligns with the Indian ITR filing window). Turn this off only if you have a specific reason to shorten confirmed employees' access.
 - **Reactivation default (days)** — default 7. How long a one-click reactivation grants an archived alumnus.
 
 Policy changes take effect for **new** separations only. Employees who are already in the alumni lifecycle keep the cutoff date that was computed at their separation time.
@@ -43,14 +45,14 @@ Policy changes take effect for **new** separations only. Employees who are alrea
 
 ## The Alumni Directory
 
-Navigate to **Employee → Alumni** (admin only) to see every alumnus and archived member in a single table. Columns:
+Navigate to **Employee → Alumni** (admin only) to see every alumnus and archived member in a single table. The directory enriches each row by joining the membership to the employee record via `linkedUserId` (not email), so alumni whose portal account uses a personal Gmail still show their HR-managed full name, LWD, and personal-email status correctly. Columns:
 
-- **Name and email** — with the work email used for login.
+- **Name and email** — the employee's HR-managed full name (preferred over the portal user display name) and the portal login email.
 - **Phase** — color-coded badge (amber A, orange B, red archived).
 - **LWD** — the last working date stamped at separation.
 - **Cutoff** — the computed end of read-only access.
 - **Days left** — countdown, auto-refreshes on page load.
-- **Personal email** — whether `employees.privateEmail` is set. If this column says *Missing*, the alumnus cannot use self-service password reset during Phase B.
+- **Personal email** — shows *On file* or *Missing* based on whether `employees.privateEmail` is set. This is a **readiness indicator for Phase B**: if *Missing*, the alumnus cannot use self-service password reset during Phase B (the forgot-password flow routes OTPs to the personal email, and without one it tells them to contact the admin). Admins should fill in the personal email from the employee detail page while the employee is still in Phase A.
 - **Actions** — Reactivate 7 days and Revoke.
 
 ### Reactivate 7 days
@@ -114,6 +116,14 @@ Run once per environment after deploying the alumni feature. The script is idemp
 **Billing seat count didn't go down after a separation.** The transition only fires when an employee's status changes to resigned/terminated **with** an LWD set. If the LWD was blank the alumni helper skips the transition (there's nothing to compute a cutoff from). Set the LWD and re-save the employee record.
 
 **Someone's password reset still goes to their work email.** They probably have at least one **active** membership in another org (Rivvra is multi-tenant — one portal user can be active in org A and an alumnus in org B). The alumni branch only triggers when the user has *no* active memberships anywhere.
+
+**Alumni gets "Failed to load payslips" or 403 errors on My Salary / Tax Report.** The shared `orgMiddleware` accepts alumni memberships and attaches `req.alumniReadOnly = true`. If this error appears, check that the backend is running the latest code — an older version may still filter memberships by `status: 'active'` only.
+
+**Alumni Directory shows wrong name or "—" for LWD.** The directory joins employee records by `linkedUserId`, not by email. If the portal user signed up with a personal Gmail that doesn't match the employee's work email, an older version using email-based joins would fail silently. Ensure `linkedUserId` on the employee record matches the portal user's `_id`. The migration script (`scripts/migrateAlumniStatus.js`) auto-heals this by matching on email and restoring the link.
+
+**Leave Balances page still shows remaining balance for a terminated employee.** If the employee has a finalized FNF settlement with leave encashment, the Leave Balances page (under the *Terminated* or *Resigned* filter) should show "0 (encashed)" with a green banner displaying the encashment amount. If the raw balance still appears, the FNF settlement may be in `draft` status — finalize it and refresh.
+
+**F&F Receipt shows "Employee record not found" for an alumnus.** The `/fnf/my-settlement` endpoint looks up the employee by `linkedUserId` (with an email fallback for legacy rows). If the portal user's email differs from the work email on the employee record, the link must be in place. Check `employee.linkedUserId` matches the portal user `_id`.
 
 ---
 
