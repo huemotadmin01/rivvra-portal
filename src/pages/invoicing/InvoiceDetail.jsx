@@ -220,9 +220,9 @@ export default function InvoiceDetail() {
   if (!invoice) return null;
 
   const status = invoice.status || 'draft';
-  const customer = invoice.customer || {};
+  const customer = invoice.customer || { name: invoice.contactName, email: invoice.contactEmail };
   const currency = invoice.currency || 'INR';
-  const lineItems = invoice.lineItems || [];
+  const lineItems = invoice.lines || invoice.lineItems || [];
   const payments = invoice.payments || [];
   const amountDue = invoice.amountDue ?? invoice.total ?? 0;
 
@@ -241,7 +241,7 @@ export default function InvoiceDetail() {
             <div className="min-w-0">
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-bold text-white truncate">
-                  {invoice.invoiceNumber || 'Invoice'}
+                  {invoice.number || 'Invoice'}
                 </h1>
                 <StatusBadge status={status} />
               </div>
@@ -485,19 +485,13 @@ export default function InvoiceDetail() {
               </thead>
               <tbody>
                 {lineItems.map((li, i) => {
-                  const base = (li.quantity || 0) * (li.unitPrice || 0);
-                  const discount = base * ((li.discountPercent || 0) / 100);
-                  const amount = base - discount;
-                  const productName = typeof li.product === 'object' ? li.product?.name : null;
+                  const lineTotal = li.total ?? ((li.quantity || 0) * (li.unitPrice || 0));
 
                   return (
                     <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
                       <td className="px-5 py-3 text-dark-400">{i + 1}</td>
                       <td className="px-3 py-3">
-                        {productName && (
-                          <p className="text-white font-medium">{productName}</p>
-                        )}
-                        <p className={productName ? 'text-dark-400 text-xs' : 'text-white'}>
+                        <p className="text-white">
                           {li.description || '-'}
                         </p>
                       </td>
@@ -506,15 +500,15 @@ export default function InvoiceDetail() {
                         {formatCurrency(li.unitPrice, currency)}
                       </td>
                       <td className="px-3 py-3 text-right text-white">
-                        {li.discountPercent ? `${li.discountPercent}%` : '-'}
+                        {(li.discount || li.discountPercent) ? `${li.discount || li.discountPercent}%` : '-'}
                       </td>
                       <td className="px-3 py-3 text-dark-400 text-xs">
-                        {(li.taxes || [])
+                        {(li.taxIds || li.taxes || [])
                           .map((t) => (typeof t === 'object' ? t.name : t))
                           .join(', ') || '-'}
                       </td>
                       <td className="px-5 py-3 text-right text-white font-medium">
-                        {formatCurrency(amount, currency)}
+                        {formatCurrency(lineTotal, currency)}
                       </td>
                     </tr>
                   );
@@ -659,7 +653,7 @@ export default function InvoiceDetail() {
           orgSlug={orgSlug}
           invoiceId={invoiceId}
           customerEmail={customer.email || ''}
-          invoiceNumber={invoice.invoiceNumber || ''}
+          invoiceNumber={invoice.number || ''}
           onClose={() => setShowEmailModal(false)}
           onSuccess={() => {
             setShowEmailModal(false);
@@ -673,7 +667,7 @@ export default function InvoiceDetail() {
       {showDeleteConfirm && (
         <ConfirmModal
           title="Delete Invoice"
-          message={`Are you sure you want to delete ${invoice.invoiceNumber || 'this invoice'}? This action cannot be undone.`}
+          message={`Are you sure you want to delete ${invoice.number || 'this invoice'}? This action cannot be undone.`}
           confirmLabel="Delete"
           danger
           loading={actionLoading === 'delete'}
