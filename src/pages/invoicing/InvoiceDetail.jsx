@@ -169,7 +169,7 @@ export default function InvoiceDetail() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${invoice?.invoiceNumber || 'invoice'}.pdf`;
+      a.download = `${invoice?.number || invoice?.invoiceNumber || 'invoice'}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -734,10 +734,10 @@ function RecordPaymentModal({ orgSlug, invoiceId, currency, amountDue, onClose, 
     try {
       setSaving(true);
       await invoicingApi.recordPayment(orgSlug, {
-        invoice: invoiceId,
+        invoiceId: invoiceId,
         amount: Number(form.amount),
-        paymentMethod: form.method,
-        paymentDate: form.date,
+        method: form.method,
+        date: form.date,
         reference: form.reference,
         notes: form.notes,
       });

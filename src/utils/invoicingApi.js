@@ -42,8 +42,14 @@ const invoicingApi = {
   duplicateInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/duplicate`, { method: 'POST' });
   },
-  downloadPdf(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/pdf`, { raw: true });
+  async downloadPdf(orgSlug, id) {
+    const token = localStorage.getItem('rivvra_token');
+    const baseUrl = api.baseUrl || '';
+    const res = await fetch(`${baseUrl}/api/org/${orgSlug}/invoicing/invoices/${id}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to download PDF');
+    return res;
   },
   emailInvoice(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/email`, { method: 'POST', body: JSON.stringify(data) });

@@ -212,8 +212,7 @@ export default function VendorBillForm() {
         lines: form.lines
           .filter(l => l.productName || l.description || l.product)
           .map(l => ({
-            product: l.product || undefined,
-            productName: l.productName,
+            productId: l.product || undefined,
             description: l.description,
             quantity: Number(l.quantity) || 1,
             unitPrice: Number(l.unitPrice) || 0,

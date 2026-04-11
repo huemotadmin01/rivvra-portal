@@ -300,18 +300,18 @@ export default function InvoiceForm() {
   // ── Build payload ──
   const buildPayload = () => {
     return {
-      customer: form.customer?._id || form.customer,
-      invoiceDate: form.invoiceDate,
+      contactId: form.customer?._id || null,
+      date: form.invoiceDate,
       dueDate: form.dueDate,
-      paymentTerms: form.paymentTerms || undefined,
+      paymentTermId: form.paymentTerms || undefined,
       currency: form.currency,
-      lineItems: form.lineItems.map((li) => ({
-        product: li.product?._id || li.product || undefined,
+      lines: form.lineItems.filter(li => li.description || li.unitPrice).map((li) => ({
+        productId: li.product?._id || li.product || undefined,
         description: li.description,
-        quantity: Number(li.quantity) || 0,
+        quantity: Number(li.quantity) || 1,
         unitPrice: Number(li.unitPrice) || 0,
-        discountPercent: Number(li.discountPercent) || 0,
-        taxes: li.taxes,
+        discount: Number(li.discountPercent) || 0,
+        taxIds: li.taxes || [],
       })),
       notes: form.notes,
       internalNotes: form.internalNotes,
@@ -323,8 +323,8 @@ export default function InvoiceForm() {
 
   // ── Submit ──
   const handleSubmit = async (andSend = false) => {
-    if (!form.customer) {
-      showToast('Please select a customer', 'error');
+    if (!form.customer && !form.customerSearch) {
+      showToast('Please enter a customer name or select a contact', 'error');
       return;
     }
     if (!form.invoiceDate) {
