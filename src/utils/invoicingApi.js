@@ -199,6 +199,30 @@ const invoicingApi = {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
     return api.request(`/api/org/${orgSlug}/invoicing/reports/pnl-summary${qs ? '?' + qs : ''}`);
   },
+
+  // ---------- ATTACHMENTS ----------
+  listAttachments(orgSlug, invoiceId) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/attachments`);
+  },
+  async uploadAttachment(orgSlug, invoiceId, file, label) {
+    const token = localStorage.getItem('rivvra_token');
+    const formData = new FormData();
+    formData.append('file', file);
+    if (label) formData.append('label', label);
+    const res = await fetch(`${api.baseUrl}/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Upload failed'); }
+    return res.json();
+  },
+  getAttachmentUrl(orgSlug, invoiceId, docId) {
+    return `${api.baseUrl}/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/attachments/${docId}`;
+  },
+  deleteAttachment(orgSlug, invoiceId, docId) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/attachments/${docId}`, { method: 'DELETE' });
+  },
 };
 
 export default invoicingApi;
