@@ -13,9 +13,9 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatCurrency(amount, currency = 'USD') {
-  if (amount == null) return '$0.00';
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(amount, currency = 'INR') {
+  if (amount == null) return '₹0.00';
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -158,7 +158,14 @@ export default function InvoicingDashboard() {
   const kpi = data.kpis || data.kpi || {};
   const recentInvoices = data.recentInvoices || [];
   const recentPayments = data.recentPayments || [];
-  const monthlyRevenue = data.monthlyRevenue || [];
+  const monthlyRevenueRaw = data.monthlyRevenue || [];
+
+  // Map backend shape { _id: { year, month }, total, count } to chart shape { amount, label }
+  const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthlyRevenue = monthlyRevenueRaw.map(d => ({
+    amount: d.amount ?? d.total ?? 0,
+    label: d.label || (d._id ? `${MONTH_SHORT[(d._id.month || 1) - 1]} ${d._id.year}` : d.month || ''),
+  }));
 
   return (
     <div className="bg-dark-900 min-h-screen">

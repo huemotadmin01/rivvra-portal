@@ -11,9 +11,9 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatCurrency(amount, currency = 'USD') {
-  if (amount == null) return '$0.00';
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(amount, currency = 'INR') {
+  if (amount == null) return '₹0.00';
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -92,7 +92,7 @@ export default function InvoiceAnalysis() {
     setLoading(true);
     setError(null);
     invoicingApi
-      .getInvoiceAnalysis(orgSlug, { from: fromDate, to: toDate })
+      .getInvoiceAnalysis(orgSlug, { dateFrom: fromDate, dateTo: toDate })
       .then((res) => setData(res))
       .catch((err) => setError(err.message || 'Failed to load invoice analysis'))
       .finally(() => setLoading(false));
@@ -103,9 +103,9 @@ export default function InvoiceAnalysis() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug]);
 
-  const revenueByPeriod = data?.revenueByPeriod || [];
-  const topCustomers = data?.topCustomers || [];
-  const topProducts = data?.topProducts || [];
+  const revenueByPeriod = data?.byPeriod || data?.revenueByPeriod || [];
+  const topCustomers = data?.byCustomer || data?.topCustomers || [];
+  const topProducts = data?.byProduct || data?.topProducts || [];
 
   return (
     <div className="min-h-screen bg-dark-900 p-6">

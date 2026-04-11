@@ -12,9 +12,9 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatCurrency(amount, currency = 'USD') {
-  if (amount == null) return '$0.00';
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(amount, currency = 'INR') {
+  if (amount == null) return '₹0.00';
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,

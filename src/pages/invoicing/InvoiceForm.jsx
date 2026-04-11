@@ -301,6 +301,7 @@ export default function InvoiceForm() {
   const buildPayload = () => {
     return {
       contactId: form.customer?._id || null,
+      contactName: form.customer?.name || form.customerSearch || '',
       date: form.invoiceDate,
       dueDate: form.dueDate,
       paymentTermId: form.paymentTerms || undefined,
