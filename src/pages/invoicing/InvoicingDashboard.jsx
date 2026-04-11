@@ -155,7 +155,7 @@ export default function InvoicingDashboard() {
     );
   }
 
-  const kpi = data.kpi || {};
+  const kpi = data.kpis || data.kpi || {};
   const recentInvoices = data.recentInvoices || [];
   const recentPayments = data.recentPayments || [];
   const monthlyRevenue = data.monthlyRevenue || [];
@@ -182,25 +182,25 @@ export default function InvoicingDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KPICard
             label="Total Invoiced"
-            value={formatCurrency(kpi.totalInvoiced)}
+            value={formatCurrency(kpi.totalInvoiced || 0)}
             icon={FileText}
             color="blue"
           />
           <KPICard
             label="Collected"
-            value={formatCurrency(kpi.collected)}
+            value={formatCurrency(kpi.totalCollected || kpi.collected || 0)}
             icon={Banknote}
             color="green"
           />
           <KPICard
             label="Outstanding"
-            value={formatCurrency(kpi.outstanding)}
+            value={formatCurrency(kpi.totalOutstanding || kpi.outstanding || 0)}
             icon={Clock}
             color="amber"
           />
           <KPICard
             label="Overdue"
-            value={formatCurrency(kpi.overdue)}
+            value={formatCurrency(kpi.totalOverdue || kpi.overdue || 0)}
             icon={AlertTriangle}
             color="red"
           />
@@ -300,8 +300,8 @@ export default function InvoicingDashboard() {
                       onClick={() => navigate(orgPath(`/invoicing/invoices/${inv._id}`))}
                       className="border-b border-dark-700/50 last:border-0 hover:bg-dark-800/50 cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 text-white font-medium">{inv.invoiceNumber || '-'}</td>
-                      <td className="py-2.5 px-3 text-dark-300">{inv.customerName || '-'}</td>
+                      <td className="py-2.5 px-3 text-white font-medium">{inv.number || inv.invoiceNumber || '-'}</td>
+                      <td className="py-2.5 px-3 text-dark-300">{inv.contactName || inv.customerName || '-'}</td>
                       <td className="py-2.5 px-3 text-dark-400">{formatDate(inv.date || inv.createdAt)}</td>
                       <td className="py-2.5 px-3 text-white text-right font-medium">{formatCurrency(inv.total)}</td>
                       <td className="py-2.5 px-3 text-center">
