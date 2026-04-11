@@ -199,11 +199,29 @@ export default function InvoiceForm() {
   );
 
   const selectContact = (contact) => {
-    setForm((f) => ({
-      ...f,
-      customer: contact,
-      customerSearch: contact.name || contact.company || contact.email || '',
-    }));
+    setForm((f) => {
+      const updates = {
+        ...f,
+        customer: contact,
+        customerSearch: contact.name || contact.company || contact.email || '',
+      };
+      // Auto-populate fields from contact
+      if (contact.defaultPaymentTermId) updates.paymentTerms = contact.defaultPaymentTermId;
+      if (contact.gstTreatment) updates.gstTreatment = contact.gstTreatment;
+      if (contact.gstin) updates.customerGstin = contact.gstin;
+      if (contact.placeOfSupply) updates.placeOfSupply = contact.placeOfSupply;
+
+      // Auto-calculate due date from payment term
+      if (contact.defaultPaymentTermId && f.invoiceDate) {
+        const term = paymentTermsList.find(t => t._id === contact.defaultPaymentTermId);
+        if (term) {
+          const invoiceDate = new Date(f.invoiceDate);
+          const dueDate = new Date(invoiceDate.getTime() + term.days * 24 * 60 * 60 * 1000);
+          updates.dueDate = dueDate.toISOString().split('T')[0];
+        }
+      }
+      return updates;
+    });
     setShowContactDropdown(false);
     setContactResults([]);
   };
