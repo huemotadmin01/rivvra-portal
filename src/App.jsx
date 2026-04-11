@@ -155,6 +155,23 @@ const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
 const SignConfig = lazy(() => import('./pages/sign/SignConfig'));
 const PublicSigningPage = lazy(() => import('./pages/sign/PublicSigningPage'));
 
+// Lazy-loaded: Invoicing app pages
+const InvoicingDashboard = lazy(() => import('./pages/invoicing/InvoicingDashboard'));
+const InvoiceList = lazy(() => import('./pages/invoicing/InvoiceList'));
+const InvoiceForm = lazy(() => import('./pages/invoicing/InvoiceForm'));
+const InvoiceDetail = lazy(() => import('./pages/invoicing/InvoiceDetail'));
+const VendorBillList = lazy(() => import('./pages/invoicing/VendorBillList'));
+const VendorBillForm = lazy(() => import('./pages/invoicing/VendorBillForm'));
+const PaymentsList = lazy(() => import('./pages/invoicing/PaymentsList'));
+const ProductCatalog = lazy(() => import('./pages/invoicing/ProductCatalog'));
+const BankReconciliation = lazy(() => import('./pages/invoicing/BankReconciliation'));
+const FollowUps = lazy(() => import('./pages/invoicing/FollowUps'));
+const AgedReceivables = lazy(() => import('./pages/invoicing/AgedReceivables'));
+const AgedPayables = lazy(() => import('./pages/invoicing/AgedPayables'));
+const TaxReportInv = lazy(() => import('./pages/invoicing/TaxReport'));
+const InvoiceAnalysis = lazy(() => import('./pages/invoicing/InvoiceAnalysis'));
+const SettingsInvoicing = lazy(() => import('./components/settings/SettingsInvoicing'));
+
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
@@ -294,6 +311,7 @@ function App() {
                 <Route path="/org/:slug/settings/contacts" element={<SettingsPageWrapper><SettingsContacts /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/companies" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/todo" element={<SettingsPageWrapper><SettingsTodo /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/invoicing" element={<SettingsPageWrapper><SettingsInvoicing /></SettingsPageWrapper>} />
               </Route>
 
               {/* Timesheet (ESS) app routes — gated by timesheet access + company match */}
@@ -433,6 +451,28 @@ function App() {
                 <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><TodoDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/todo/tasks" element={<ErrorBoundary><TodoTasks /></ErrorBoundary>} />
               </Route>
+
+              {/* Invoicing app routes — admin only */}
+              <Route element={<AppAccessGate appId="invoicing" />}>
+                <Route element={<AppRoleGate appId="invoicing" requiredRole="admin" />}>
+                  <Route path="/org/:slug/invoicing/dashboard" element={<ErrorBoundary><InvoicingDashboard /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/invoices" element={<ErrorBoundary><InvoiceList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/invoices/new" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/invoices/:invoiceId/edit" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/invoices/:invoiceId" element={<ErrorBoundary><InvoiceDetail /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/bills" element={<ErrorBoundary><VendorBillList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/bills/new" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/bills/:billId/edit" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PaymentsList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/products" element={<ErrorBoundary><ProductCatalog /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliation /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><AgedReceivables /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><AgedPayables /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/tax" element={<ErrorBoundary><TaxReportInv /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><InvoiceAnalysis /></ErrorBoundary>} />
+                </Route>
+              </Route>
             </Route>
 
             {/* ============================================================ */}
@@ -458,6 +498,7 @@ function App() {
             <Route path="/crm/*" element={<OrgRedirect />} />
             <Route path="/ats/*" element={<OrgRedirect />} />
             <Route path="/sign/*" element={<OrgRedirect />} />
+            <Route path="/invoicing/*" element={<OrgRedirect />} />
             <Route path="/todo/*" element={<OrgRedirect />} />
             <Route path="/settings" element={<OrgRedirect to="/settings" />} />
             <Route path="/settings/*" element={<OrgRedirect />} />

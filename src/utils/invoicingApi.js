@@ -1,0 +1,198 @@
+// ============================================================================
+// invoicingApi.js — Invoicing API client
+// ============================================================================
+
+import api from './api';
+
+const invoicingApi = {
+  // ---------- DASHBOARD ----------
+  getDashboard(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/dashboard`);
+  },
+
+  // ---------- INVOICES ----------
+  listInvoices(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices${qs ? '?' + qs : ''}`);
+  },
+  getInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`);
+  },
+  createInvoice(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateInvoice(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`, { method: 'DELETE' });
+  },
+  sendInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/send`, { method: 'PATCH' });
+  },
+  cancelInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/cancel`, { method: 'PATCH' });
+  },
+  resetToDraft(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/reset-to-draft`, { method: 'PATCH' });
+  },
+  createCreditNote(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/credit-note`, { method: 'POST' });
+  },
+  duplicateInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/duplicate`, { method: 'POST' });
+  },
+  downloadPdf(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/pdf`, { raw: true });
+  },
+  emailInvoice(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/email`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  createPaymentLink(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/payment-link`, { method: 'POST' });
+  },
+
+  // ---------- VENDOR BILLS ----------
+  listBills(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/bills${qs ? '?' + qs : ''}`);
+  },
+  receiveBill(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/bills/${id}/receive`, { method: 'PATCH' });
+  },
+
+  // ---------- PAYMENTS ----------
+  listPayments(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/payments${qs ? '?' + qs : ''}`);
+  },
+  getPayment(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payments/${id}`);
+  },
+  recordPayment(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payments`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  deletePayment(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payments/${id}`, { method: 'DELETE' });
+  },
+
+  // ---------- PRODUCTS ----------
+  listProducts(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/products${qs ? '?' + qs : ''}`);
+  },
+  createProduct(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/products`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateProduct(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/products/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteProduct(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/products/${id}`, { method: 'DELETE' });
+  },
+
+  // ---------- TAXES ----------
+  listTaxes(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/taxes${qs ? '?' + qs : ''}`);
+  },
+  createTax(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/taxes`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateTax(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/taxes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteTax(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/taxes/${id}`, { method: 'DELETE' });
+  },
+
+  // ---------- PAYMENT TERMS ----------
+  listPaymentTerms(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payment-terms`);
+  },
+  createPaymentTerm(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payment-terms`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updatePaymentTerm(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payment-terms/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deletePaymentTerm(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/payment-terms/${id}`, { method: 'DELETE' });
+  },
+
+  // ---------- SEQUENCES ----------
+  listSequences(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/sequences`);
+  },
+  updateSequence(orgSlug, type, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/sequences/${type}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+
+  // ---------- SETTINGS ----------
+  getSettings(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/settings`);
+  },
+  updateSettings(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/settings`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  seedDefaults(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/seed-defaults`, { method: 'POST' });
+  },
+
+  // ---------- BANK STATEMENTS ----------
+  listBankStatements(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/bank-statements`);
+  },
+  createBankStatement(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/bank-statements`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateBankStatement(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/bank-statements/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  getReconciliationSuggestions(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/bank-statements/${id}/suggestions`);
+  },
+  reconcileLine(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/bank-statements/${id}/reconcile`, { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  // ---------- FOLLOW-UPS ----------
+  getFollowUpConfig(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/follow-ups/config`);
+  },
+  updateFollowUpConfig(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/follow-ups/config`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  listOverdueInvoices(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/follow-ups/overdue`);
+  },
+  sendFollowUp(orgSlug, invoiceId, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/follow-ups/${invoiceId}/send`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  listFollowUpLogs(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/follow-ups/logs${qs ? '?' + qs : ''}`);
+  },
+
+  // ---------- REPORTS ----------
+  getAgedReceivables(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/reports/aged-receivables`);
+  },
+  getAgedPayables(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/reports/aged-payables`);
+  },
+  getInvoiceAnalysis(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/reports/invoice-analysis${qs ? '?' + qs : ''}`);
+  },
+  getTaxReport(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/reports/tax-report${qs ? '?' + qs : ''}`);
+  },
+  getPnlSummary(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/reports/pnl-summary${qs ? '?' + qs : ''}`);
+  },
+};
+
+export default invoicingApi;

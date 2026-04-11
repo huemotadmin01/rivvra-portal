@@ -5,7 +5,7 @@ import {
   Contact, Kanban, FileText, GripVertical, PenTool, FileSignature, Inbox,
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
-  Shield, User, Network, Package, Calculator, BookOpen,
+  Shield, User, Network, Package, Calculator, BookOpen, Receipt, CreditCard, Landmark,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -445,6 +445,41 @@ export const APP_REGISTRY = {
     },
   },
 
+  invoicing: {
+    id: 'invoicing',
+    name: 'Invoicing',
+    description: 'Invoices, payments & billing',
+    icon: Receipt,
+    color: 'amber',
+    basePath: '/invoicing',
+    status: 'active',
+    adminOnly: true,
+    defaultRoute: '/invoicing/dashboard',
+    derivedRoles: true,
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'amber' },
+    ],
+    getSidebarItems: () => [
+      { type: 'item', path: '/invoicing/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { type: 'item', path: '/invoicing/invoices', label: 'Invoices', icon: FileText },
+      { type: 'item', path: '/invoicing/bills', label: 'Vendor Bills', icon: Wallet },
+      { type: 'item', path: '/invoicing/payments', label: 'Payments', icon: CreditCard },
+      { type: 'item', path: '/invoicing/products', label: 'Products', icon: Package },
+      {
+        type: 'group', label: 'Reports', icon: BarChart3,
+        children: [
+          { path: '/invoicing/reports/receivables', label: 'Aged Receivables', icon: Clock },
+          { path: '/invoicing/reports/payables', label: 'Aged Payables', icon: Clock },
+          { path: '/invoicing/reports/tax', label: 'Tax Report', icon: Shield },
+          { path: '/invoicing/reports/analysis', label: 'Invoice Analysis', icon: BarChart3 },
+        ],
+      },
+      { type: 'item', path: '/invoicing/reconciliation', label: 'Bank Reconciliation', icon: Landmark },
+      { type: 'item', path: '/invoicing/follow-ups', label: 'Follow-ups', icon: Mail },
+      { type: 'item', path: '/settings/invoicing', label: 'Settings', icon: Settings },
+    ],
+  },
+
   knowledgeBase: {
     id: 'knowledgeBase',
     name: 'Knowledge Base',
@@ -491,6 +526,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/ats', label: 'ATS', icon: UserSearch },
         { type: 'item', path: '/settings/sign', label: 'Sign', icon: PenTool },
         { type: 'item', path: '/settings/todo', label: 'To-Do', icon: CheckSquare },
+        ...(isAdmin ? [{ type: 'item', path: '/settings/invoicing', label: 'Invoicing', icon: Receipt }] : []),
       ];
     },
   },
