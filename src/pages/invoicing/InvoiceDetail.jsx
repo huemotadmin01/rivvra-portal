@@ -74,7 +74,7 @@ export default function InvoiceDetail() {
       setLoading(true);
       const res = await invoicingApi.getInvoice(orgSlug, invoiceId);
       if (res?.invoice) {
-        setInvoice(res.invoice);
+        setInvoice({ ...res.invoice, payments: res.payments || res.invoice.payments || [] });
       } else {
         showToast('Invoice not found', 'error');
         navigate(orgPath('/invoicing/invoices'));
@@ -166,7 +166,7 @@ export default function InvoiceDetail() {
       setActionLoading('voidPayment');
       await invoicingApi.deletePayment(orgSlug, paymentId);
       showToast('Payment voided');
-      loadInvoice();
+      fetchInvoice();
     } catch (err) {
       showToast(err.message || 'Failed to void payment', 'error');
     } finally {
