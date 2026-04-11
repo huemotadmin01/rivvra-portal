@@ -282,7 +282,7 @@ export default function PaymentsList() {
                 {payments.map(pmt => (
                   <tr
                     key={pmt._id}
-                    onClick={() => navigate(orgPath(`/invoicing/payments/${pmt._id}`))}
+                    onClick={() => pmt.invoiceId && navigate(orgPath(`/invoicing/invoices/${pmt.invoiceId}`))}
                     className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3">
