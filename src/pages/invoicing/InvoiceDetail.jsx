@@ -1,13 +1,14 @@
 // ============================================================================
-// InvoiceDetail.jsx — Odoo-style invoice detail page with chatter sidebar
+// InvoiceDetail.jsx — Odoo-style invoice detail with inline editing
 // ============================================================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import api from '../../utils/api';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import {
@@ -15,6 +16,7 @@ import {
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
   AlertTriangle, Check, Info, Upload, Eye, Paperclip,
   User, Calendar, Clock, RefreshCw, BellRing, Edit3,
+  Pencil, Plus, Search, Package,
 } from 'lucide-react';
 
 // ── Helpers ──
@@ -62,6 +64,429 @@ function getInvoiceTypeLabel(invoice) {
   return 'Customer Invoice';
 }
 
+const GST_TREATMENTS = [
+  'Registered Business - Regular',
+  'Registered Business - Composition',
+  'Unregistered Business',
+  'Consumer',
+  'Overseas',
+  'SEZ',
+];
+
+const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
+
+// ── Debounce hook ──
+function useDebounce(callback, delay) {
+  const timerRef = useRef(null);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  const debounced = useCallback((...args) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => callbackRef.current(...args), delay);
+  }, [delay]);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  return debounced;
+}
+
+// ============================================================================
+// EditableField — click-to-edit field for draft invoices
+// ============================================================================
+
+function EditableField({ label, value, displayValue, field, type = 'text', options, editable, onSave, placeholder, children }) {
+  const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value ?? '');
+  const inputRef = useRef(null);
+
+  useEffect(() => { setLocalValue(value ?? ''); }, [value]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      if (type === 'text' || type === 'textarea') {
+        inputRef.current.select?.();
+      }
+    }
+  }, [editing, type]);
+
+  const handleSave = () => {
+    setEditing(false);
+    if (localValue !== (value ?? '')) {
+      onSave(field, localValue);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && type !== 'textarea') {
+      e.preventDefault();
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      setLocalValue(value ?? '');
+      setEditing(false);
+    }
+  };
+
+  const inputCls = 'w-full bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-rivvra-500';
+
+  // If custom children provided (like contact lookup), render those when editing
+  if (children && editable && editing) {
+    return (
+      <div>
+        <span className="text-sm text-dark-400">{label}</span>
+        <div className="mt-0.5">{children({ onClose: () => setEditing(false) })}</div>
+      </div>
+    );
+  }
+
+  // Read-only mode
+  if (!editable || !editing) {
+    return (
+      <div
+        className={editable ? 'group cursor-pointer rounded px-1 -mx-1 py-0.5 -my-0.5 hover:bg-dark-800 transition-colors' : ''}
+        onClick={() => editable && setEditing(true)}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-dark-400">{label}</span>
+          {editable && (
+            <Pencil size={11} className="text-dark-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </div>
+        <div className="mt-0.5">
+          {displayValue !== undefined ? displayValue : (
+            <span className="text-white">{value || <span className="text-dark-500 italic">{placeholder || 'Click to set'}</span>}</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Editing mode
+  return (
+    <div>
+      <span className="text-sm text-dark-400">{label}</span>
+      <div className="mt-0.5">
+        {type === 'select' ? (
+          <select
+            ref={inputRef}
+            value={localValue}
+            onChange={(e) => { setLocalValue(e.target.value); }}
+            onBlur={() => { handleSave(); }}
+            className={inputCls}
+          >
+            <option value="">-- Select --</option>
+            {(options || []).map((opt) => {
+              const val = typeof opt === 'object' ? opt.value : opt;
+              const lbl = typeof opt === 'object' ? opt.label : opt;
+              return <option key={val} value={val}>{lbl}</option>;
+            })}
+          </select>
+        ) : type === 'textarea' ? (
+          <textarea
+            ref={inputRef}
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            rows={3}
+            className={inputCls + ' resize-none'}
+            placeholder={placeholder}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type={type}
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className={inputCls}
+            placeholder={placeholder}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ContactLookup — searchable contact dropdown
+// ============================================================================
+
+function ContactLookup({ orgSlug, currentName, onSelect, onClose }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(true);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+  const searchTimer = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    // Close on outside click
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  const doSearch = useCallback(async (q) => {
+    if (!q || q.length < 1) { setResults([]); return; }
+    try {
+      setLoading(true);
+      const res = await api.request(`/api/org/${orgSlug}/contacts?search=${encodeURIComponent(q)}&limit=10`);
+      setResults(res?.contacts || res?.data || []);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    setShowDropdown(true);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => doSearch(val), 300);
+  };
+
+  const handleSelect = (contact) => {
+    onSelect(contact);
+    setShowDropdown(false);
+    onClose();
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex items-center gap-2 bg-dark-800 border border-rivvra-500 rounded px-2 py-1">
+        <Search size={14} className="text-dark-400 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          placeholder="Search contacts..."
+          className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-dark-500"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onClose();
+          }}
+        />
+        {loading && <Loader2 size={14} className="animate-spin text-dark-400" />}
+      </div>
+
+      {showDropdown && (query.length > 0) && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
+          {results.length === 0 && !loading && (
+            <div className="px-3 py-4 text-center text-sm text-dark-500">
+              {query.length > 0 ? 'No contacts found' : 'Type to search...'}
+            </div>
+          )}
+          {results.map((c) => {
+            const cId = c._id || c.id;
+            const cName = c.name || c.displayName || c.firstName + ' ' + (c.lastName || '');
+            const cEmail = c.email || '';
+            const cType = c.type || c.companyType || '';
+            return (
+              <button
+                key={cId}
+                type="button"
+                onClick={() => handleSelect(c)}
+                className="w-full text-left px-3 py-2.5 hover:bg-dark-700 transition-colors border-b border-dark-700/50 last:border-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-white font-medium">{cName}</span>
+                  {cType && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-dark-700 text-dark-300 uppercase tracking-wider">
+                      {cType}
+                    </span>
+                  )}
+                </div>
+                {cEmail && <p className="text-xs text-dark-400 mt-0.5">{cEmail}</p>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ProductSearch — searchable product dropdown for line items
+// ============================================================================
+
+function ProductSearch({ orgSlug, onSelect, onClose }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+  const searchTimer = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    // Load initial products
+    doSearch('');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  const doSearch = useCallback(async (q) => {
+    try {
+      setLoading(true);
+      const params = q ? { search: q } : {};
+      const res = await invoicingApi.listProducts(orgSlug, params);
+      setResults(res?.products || res?.data || []);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => doSearch(val), 300);
+  };
+
+  return (
+    <div ref={containerRef} className="absolute top-full left-0 mt-1 w-72 bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50">
+      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-dark-700">
+        <Search size={14} className="text-dark-400 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          placeholder="Search products..."
+          className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-dark-500"
+          onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+        />
+        {loading && <Loader2 size={14} className="animate-spin text-dark-400" />}
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {results.length === 0 && !loading && (
+          <div className="px-3 py-3 text-center text-xs text-dark-500">No products found</div>
+        )}
+        {results.map((p) => (
+          <button
+            key={p._id || p.id}
+            type="button"
+            onClick={() => { onSelect(p); onClose(); }}
+            className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors border-b border-dark-700/50 last:border-0"
+          >
+            <div className="flex items-center gap-2">
+              <Package size={12} className="text-dark-400 shrink-0" />
+              <span className="text-sm text-white">{p.name}</span>
+            </div>
+            {p.unitPrice != null && (
+              <p className="text-xs text-dark-400 mt-0.5 ml-5">{formatCurrency(p.unitPrice)}</p>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TaxMultiSelect — dropdown to pick taxes for a line item
+// ============================================================================
+
+function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose }) {
+  const [taxes, setTaxes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await invoicingApi.listTaxes(orgSlug);
+        setTaxes(res?.taxes || res?.data || []);
+      } catch { /* silent */ }
+      finally { setLoading(false); }
+    })();
+  }, [orgSlug]);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) onClose();
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  const toggleTax = (taxId) => {
+    const current = [...selectedIds];
+    const idx = current.indexOf(taxId);
+    if (idx >= 0) current.splice(idx, 1);
+    else current.push(taxId);
+    onChange(current);
+  };
+
+  return (
+    <div ref={containerRef} className="absolute top-full left-0 mt-1 w-56 bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50">
+      <div className="px-3 py-2 border-b border-dark-700 text-xs text-dark-400 font-medium">Select Taxes</div>
+      <div className="max-h-40 overflow-y-auto">
+        {loading && (
+          <div className="flex items-center justify-center py-3">
+            <Loader2 size={14} className="animate-spin text-dark-500" />
+          </div>
+        )}
+        {!loading && taxes.length === 0 && (
+          <div className="px-3 py-3 text-center text-xs text-dark-500">No taxes configured</div>
+        )}
+        {taxes.map((t) => {
+          const tId = t._id || t.id;
+          const isSelected = selectedIds.includes(tId);
+          return (
+            <button
+              key={tId}
+              type="button"
+              onClick={() => toggleTax(tId)}
+              className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors flex items-center gap-2 border-b border-dark-700/50 last:border-0"
+            >
+              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-rivvra-500 border-rivvra-500' : 'border-dark-500'}`}>
+                {isSelected && <Check size={10} className="text-white" />}
+              </div>
+              <span className="text-sm text-white">{t.name}</span>
+              {t.rate != null && <span className="text-xs text-dark-400 ml-auto">{t.rate}%</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="px-3 py-2 border-t border-dark-700 flex justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-rivvra-500 hover:text-rivvra-400 font-medium"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -91,6 +516,232 @@ export default function InvoiceDetail() {
   const [previewDoc, setPreviewDoc] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
+
+  // ── Inline editing state ──
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [savedField, setSavedField] = useState(null); // flash "Saved" indicator
+  const [paymentTermsList, setPaymentTermsList] = useState([]);
+
+  const isDraft = invoice?.status === 'draft';
+
+  // Sync editForm when invoice changes
+  useEffect(() => {
+    if (invoice) {
+      setEditForm({
+        contactId: invoice.contactId,
+        contactName: invoice.contactName || invoice.customer?.name || '',
+        contactEmail: invoice.contactEmail || invoice.customer?.email || '',
+        contactAddress: invoice.contactAddress || invoice.customer?.address || '',
+        invoiceDate: invoice.invoiceDate?.split?.('T')?.[0] || '',
+        dueDate: invoice.dueDate?.split?.('T')?.[0] || '',
+        paymentTermId: invoice.paymentTermId || (typeof invoice.paymentTerms === 'object' ? invoice.paymentTerms?._id : '') || '',
+        currency: invoice.currency || 'INR',
+        lines: (invoice.lines || invoice.lineItems || []).map((li, i) => ({
+          _id: li._id,
+          productId: li.productId || li.product?._id || li.product?.id || '',
+          productName: li.product?.name || li.productName || '',
+          description: li.description || '',
+          quantity: li.quantity ?? 1,
+          unitPrice: li.unitPrice ?? 0,
+          taxIds: (li.taxIds || li.taxes || []).map(t => typeof t === 'object' ? (t._id || t.id) : t),
+          taxNames: (li.taxIds || li.taxes || []).map(t => typeof t === 'object' ? t.name : ''),
+          discount: li.discount ?? 0,
+        })),
+        notes: invoice.notes || '',
+        internalNotes: invoice.internalNotes || '',
+        gstTreatment: invoice.gstTreatment || '',
+        placeOfSupply: invoice.placeOfSupply || '',
+        customerGstin: invoice.customerGstin || '',
+      });
+    }
+  }, [invoice]);
+
+  // Fetch payment terms for dropdown
+  useEffect(() => {
+    if (orgSlug) {
+      invoicingApi.listPaymentTerms(orgSlug)
+        .then(res => setPaymentTermsList(res?.paymentTerms || res?.data || []))
+        .catch(() => {});
+    }
+  }, [orgSlug]);
+
+  // ── Auto-save with debounce ──
+  const saveToApi = useCallback(async (data) => {
+    if (!orgSlug || !invoiceId || !isDraft) return;
+    try {
+      setSaving(true);
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, data);
+      // Update local invoice with response if available
+      if (res?.invoice) {
+        setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
+      }
+      setSavedField('all');
+      setTimeout(() => setSavedField(null), 1500);
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [orgSlug, invoiceId, isDraft, showToast]);
+
+  const debouncedSave = useDebounce(saveToApi, 500);
+
+  // Save a single field immediately
+  const saveField = useCallback(async (field, value) => {
+    if (!isDraft) return;
+    setEditForm(prev => ({ ...prev, [field]: value }));
+    try {
+      setSaving(true);
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, { [field]: value });
+      if (res?.invoice) {
+        setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
+      }
+      setSavedField(field);
+      setTimeout(() => setSavedField(null), 1500);
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [orgSlug, invoiceId, isDraft, showToast]);
+
+  // Save lines (debounced)
+  const saveLines = useCallback((lines) => {
+    const cleanLines = lines.map(l => ({
+      _id: l._id,
+      productId: l.productId || undefined,
+      productName: l.productName || undefined,
+      description: l.description,
+      quantity: Number(l.quantity) || 0,
+      unitPrice: Number(l.unitPrice) || 0,
+      taxIds: l.taxIds || [],
+      discount: Number(l.discount) || 0,
+    }));
+    debouncedSave({ lines: cleanLines });
+  }, [debouncedSave]);
+
+  // Handle contact selection
+  const handleContactSelect = useCallback(async (contact) => {
+    const cId = contact._id || contact.id;
+    const cName = contact.name || contact.displayName || `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    const cEmail = contact.email || '';
+
+    const updates = {
+      contactId: cId,
+      contactName: cName,
+      contactEmail: cEmail,
+    };
+
+    // Auto-populate fields from contact
+    if (contact.gstTreatment) updates.gstTreatment = contact.gstTreatment;
+    if (contact.gstin) {
+      updates.customerGstin = contact.gstin;
+    }
+    if (contact.placeOfSupply) updates.placeOfSupply = contact.placeOfSupply;
+    if (contact.defaultPaymentTermId) updates.paymentTermId = contact.defaultPaymentTermId;
+
+    setEditForm(prev => ({ ...prev, ...updates }));
+
+    try {
+      setSaving(true);
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
+      if (res?.invoice) {
+        setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
+      }
+      setSavedField('contact');
+      setTimeout(() => setSavedField(null), 1500);
+    } catch (err) {
+      showToast(err.message || 'Failed to save contact', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [orgSlug, invoiceId, showToast]);
+
+  // Handle payment term change — auto-recalculate due date
+  const handlePaymentTermChange = useCallback(async (field, value) => {
+    setEditForm(prev => ({ ...prev, paymentTermId: value }));
+    try {
+      setSaving(true);
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, { paymentTermId: value });
+      if (res?.invoice) {
+        setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
+        // Sync dueDate from server response
+        if (res.invoice.dueDate) {
+          setEditForm(prev => ({ ...prev, dueDate: res.invoice.dueDate.split('T')[0] }));
+        }
+      }
+      setSavedField('paymentTermId');
+      setTimeout(() => setSavedField(null), 1500);
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [orgSlug, invoiceId, showToast]);
+
+  // ── Line item helpers ──
+  const updateLine = useCallback((index, field, value) => {
+    setEditForm(prev => {
+      const newLines = [...prev.lines];
+      newLines[index] = { ...newLines[index], [field]: value };
+      // Trigger debounced save
+      setTimeout(() => saveLines(newLines), 0);
+      return { ...prev, lines: newLines };
+    });
+  }, [saveLines]);
+
+  const addLine = useCallback(() => {
+    setEditForm(prev => {
+      const newLines = [...prev.lines, {
+        productId: '',
+        productName: '',
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        taxIds: [],
+        taxNames: [],
+        discount: 0,
+      }];
+      return { ...prev, lines: newLines };
+    });
+  }, []);
+
+  const removeLine = useCallback((index) => {
+    setEditForm(prev => {
+      const newLines = prev.lines.filter((_, i) => i !== index);
+      setTimeout(() => saveLines(newLines), 0);
+      return { ...prev, lines: newLines };
+    });
+  }, [saveLines]);
+
+  const handleProductSelect = useCallback((index, product) => {
+    setEditForm(prev => {
+      const newLines = [...prev.lines];
+      newLines[index] = {
+        ...newLines[index],
+        productId: product._id || product.id,
+        productName: product.name || '',
+        description: product.description || newLines[index].description || '',
+        unitPrice: product.unitPrice ?? product.price ?? newLines[index].unitPrice,
+        taxIds: product.defaultTaxIds || product.taxIds || newLines[index].taxIds || [],
+      };
+      setTimeout(() => saveLines(newLines), 0);
+      return { ...prev, lines: newLines };
+    });
+  }, [saveLines]);
+
+  // Calculate local totals
+  const localTotals = useMemo(() => {
+    const lines = editForm.lines || [];
+    let subtotal = 0;
+    lines.forEach(l => {
+      const amt = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
+      const disc = Number(l.discount) || 0;
+      subtotal += amt - disc;
+    });
+    return { subtotal };
+  }, [editForm.lines]);
 
   // ── Fetch invoice ──
   const fetchInvoice = useCallback(async () => {
@@ -338,8 +989,8 @@ export default function InvoiceDetail() {
   }
 
   const status = invoice.status || 'draft';
-  const currency = invoice.currency || 'INR';
-  const lineItems = invoice.lines || invoice.lineItems || [];
+  const currency = editForm.currency || invoice.currency || 'INR';
+  const lineItems = isDraft ? (editForm.lines || []) : (invoice.lines || invoice.lineItems || []);
   const payments = invoice.payments || [];
   const amountDue = invoice.amountDue ?? invoice.total ?? 0;
   const stepIndex = getStepIndex(status);
@@ -354,6 +1005,23 @@ export default function InvoiceDetail() {
     invoice.customer?.country,
   ].filter(Boolean);
   const addressStr = addressParts.join(', ');
+
+  // Payment terms display
+  const paymentTermDisplay = (() => {
+    if (isDraft && editForm.paymentTermId) {
+      const found = paymentTermsList.find(pt => (pt._id || pt.id) === editForm.paymentTermId);
+      if (found) return found.name;
+    }
+    if (invoice.paymentTerms) {
+      return typeof invoice.paymentTerms === 'object' ? invoice.paymentTerms.name : invoice.paymentTerms;
+    }
+    return 'Due on Receipt';
+  })();
+
+  const paymentTermOptions = paymentTermsList.map(pt => ({
+    value: pt._id || pt.id,
+    label: pt.name,
+  }));
 
   return (
     <div className="min-h-screen bg-dark-900">
@@ -376,12 +1044,6 @@ export default function InvoiceDetail() {
               <>
                 <ActionBtn icon={Send} label="Send" onClick={handleSend} loading={actionLoading === 'send'} primary />
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
-                <Link
-                  to={orgPath(`/invoicing/invoices/${invoiceId}/edit`)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dark-600 text-dark-300 hover:text-white hover:border-dark-500 text-sm transition-colors"
-                >
-                  <Edit3 size={14} /> Edit
-                </Link>
                 <ActionBtn icon={Trash2} label="Delete" onClick={() => setShowDeleteConfirm(true)} danger />
               </>
             )}
@@ -413,6 +1075,20 @@ export default function InvoiceDetail() {
             {/* Cancelled actions */}
             {status === 'cancelled' && (
               <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
+            )}
+
+            {/* Save indicator */}
+            {saving && (
+              <div className="flex items-center gap-1.5 text-xs text-dark-400 ml-2">
+                <Loader2 size={12} className="animate-spin" />
+                <span>Saving...</span>
+              </div>
+            )}
+            {savedField && !saving && (
+              <div className="flex items-center gap-1 text-xs text-emerald-400 ml-2 animate-pulse">
+                <Check size={12} />
+                <span>Saved</span>
+              </div>
             )}
           </div>
 
@@ -485,59 +1161,121 @@ export default function InvoiceDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                 {/* Left column */}
                 <div className="space-y-4">
-                  <FormField label="Customer">
-                    <span className="text-rivvra-500 font-semibold">
-                      {invoice.contactName || invoice.customer?.name || '-'}
-                    </span>
-                    {addressStr && (
-                      <p className="text-sm text-dark-400 mt-0.5">{addressStr}</p>
+                  {/* Customer — with contact lookup */}
+                  <EditableField
+                    label="Customer"
+                    value={editForm.contactName || invoice.contactName || invoice.customer?.name || ''}
+                    field="contactId"
+                    editable={isDraft}
+                    onSave={() => {}}
+                    placeholder="Select a customer"
+                    displayValue={
+                      <div>
+                        <span className="text-rivvra-500 font-semibold">
+                          {editForm.contactName || invoice.contactName || invoice.customer?.name || '-'}
+                        </span>
+                        {addressStr && (
+                          <p className="text-sm text-dark-400 mt-0.5">{addressStr}</p>
+                        )}
+                        {(editForm.contactEmail || invoice.contactEmail) && (
+                          <p className="text-sm text-dark-400">{editForm.contactEmail || invoice.contactEmail}</p>
+                        )}
+                        {(editForm.customerGstin || invoice.customerGstin) && (
+                          <p className="text-sm text-dark-400 mt-0.5">GSTIN: {editForm.customerGstin || invoice.customerGstin}</p>
+                        )}
+                      </div>
+                    }
+                  >
+                    {({ onClose }) => (
+                      <ContactLookup
+                        orgSlug={orgSlug}
+                        currentName={editForm.contactName}
+                        onSelect={handleContactSelect}
+                        onClose={onClose}
+                      />
                     )}
-                    {invoice.contactEmail && (
-                      <p className="text-sm text-dark-400">{invoice.contactEmail}</p>
-                    )}
-                    {invoice.customerGstin && (
-                      <p className="text-sm text-dark-400 mt-0.5">GSTIN: {invoice.customerGstin}</p>
-                    )}
-                  </FormField>
+                  </EditableField>
+
+                  {/* Place of Supply */}
+                  <EditableField
+                    label="Place of Supply"
+                    value={isDraft ? editForm.placeOfSupply : (invoice.placeOfSupply || '')}
+                    field="placeOfSupply"
+                    type="text"
+                    editable={isDraft}
+                    onSave={saveField}
+                    placeholder="e.g. Maharashtra"
+                  />
+
+                  {/* GST Treatment */}
+                  <EditableField
+                    label="GST Treatment"
+                    value={isDraft ? editForm.gstTreatment : (invoice.gstTreatment || '')}
+                    field="gstTreatment"
+                    type="select"
+                    options={GST_TREATMENTS}
+                    editable={isDraft}
+                    onSave={saveField}
+                  />
+
+                  {/* Customer GSTIN (read-only display — set via contact) */}
+                  {(editForm.customerGstin || invoice.customerGstin) && !isDraft && (
+                    <FormField label="Customer GSTIN">
+                      <span className="text-white">{invoice.customerGstin}</span>
+                    </FormField>
+                  )}
                 </div>
 
                 {/* Right column */}
                 <div className="space-y-4">
-                  <FormField label="Invoice Date">
-                    <span className="text-white">{formatDate(invoice.invoiceDate)}</span>
-                  </FormField>
+                  <EditableField
+                    label="Invoice Date"
+                    value={isDraft ? editForm.invoiceDate : (invoice.invoiceDate?.split?.('T')?.[0] || '')}
+                    field="invoiceDate"
+                    type="date"
+                    editable={isDraft}
+                    onSave={saveField}
+                    displayValue={
+                      <span className="text-white">{formatDate(isDraft ? editForm.invoiceDate : invoice.invoiceDate)}</span>
+                    }
+                  />
 
-                  <FormField label="Payment Terms">
-                    <span className="text-white">
-                      {invoice.paymentTerms
-                        ? typeof invoice.paymentTerms === 'object'
-                          ? invoice.paymentTerms.name
-                          : invoice.paymentTerms
-                        : 'Due on Receipt'}
-                    </span>
-                  </FormField>
+                  <EditableField
+                    label="Payment Terms"
+                    value={isDraft ? editForm.paymentTermId : ''}
+                    field="paymentTermId"
+                    type="select"
+                    options={paymentTermOptions}
+                    editable={isDraft}
+                    onSave={handlePaymentTermChange}
+                    displayValue={
+                      <span className="text-white">{paymentTermDisplay}</span>
+                    }
+                  />
 
-                  <FormField label="Due Date">
-                    <span className={status === 'overdue' ? 'text-red-400 font-medium' : 'text-white'}>
-                      {formatDate(invoice.dueDate)}
-                    </span>
-                  </FormField>
+                  <EditableField
+                    label="Due Date"
+                    value={isDraft ? editForm.dueDate : (invoice.dueDate?.split?.('T')?.[0] || '')}
+                    field="dueDate"
+                    type="date"
+                    editable={isDraft}
+                    onSave={saveField}
+                    displayValue={
+                      <span className={status === 'overdue' ? 'text-red-400 font-medium' : 'text-white'}>
+                        {formatDate(isDraft ? editForm.dueDate : invoice.dueDate)}
+                      </span>
+                    }
+                  />
 
-                  <FormField label="Currency">
-                    <span className="text-white">{currency}</span>
-                  </FormField>
-
-                  {invoice.placeOfSupply && (
-                    <FormField label="Place of Supply">
-                      <span className="text-white">{invoice.placeOfSupply}</span>
-                    </FormField>
-                  )}
-
-                  {invoice.gstTreatment && (
-                    <FormField label="GST Treatment">
-                      <span className="text-white">{invoice.gstTreatment}</span>
-                    </FormField>
-                  )}
+                  <EditableField
+                    label="Currency"
+                    value={isDraft ? editForm.currency : currency}
+                    field="currency"
+                    type="select"
+                    options={CURRENCIES}
+                    editable={isDraft}
+                    onSave={saveField}
+                  />
                 </div>
               </div>
             </div>
@@ -582,40 +1320,79 @@ export default function InvoiceDetail() {
                           <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Unit Price</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Taxes</th>
                           <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
+                          {isDraft && <th className="w-10 px-2 py-3" />}
                         </tr>
                       </thead>
                       <tbody>
-                        {lineItems.map((li, i) => {
-                          const lineTotal = li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
-                          return (
-                            <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
-                              <td className="px-6 py-3 text-white">
-                                {li.product?.name || li.productName || '-'}
-                              </td>
-                              <td className="px-4 py-3 text-dark-300 max-w-xs">
-                                {li.description || '-'}
-                              </td>
-                              <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
-                              <td className="px-4 py-3 text-right text-white">
-                                {formatCurrency(li.unitPrice, currency)}
-                              </td>
-                              <td className="px-4 py-3 text-dark-400 text-xs">
-                                {(li.taxIds || li.taxes || [])
-                                  .map((t) => (typeof t === 'object' ? t.name : t))
-                                  .join(', ') || '-'}
-                              </td>
-                              <td className="px-6 py-3 text-right text-white font-medium">
-                                {formatCurrency(lineTotal, currency)}
+                        {isDraft ? (
+                          <>
+                            {lineItems.map((li, i) => (
+                              <InlineLineRow
+                                key={li._id || `line-${i}`}
+                                line={li}
+                                index={i}
+                                currency={currency}
+                                orgSlug={orgSlug}
+                                onUpdate={updateLine}
+                                onRemove={removeLine}
+                                onProductSelect={handleProductSelect}
+                              />
+                            ))}
+                            {lineItems.length === 0 && (
+                              <tr>
+                                <td colSpan={7} className="text-center py-8 text-dark-500">
+                                  No invoice lines yet
+                                </td>
+                              </tr>
+                            )}
+                            <tr>
+                              <td colSpan={7} className="px-6 py-3">
+                                <button
+                                  type="button"
+                                  onClick={addLine}
+                                  className="flex items-center gap-1.5 text-sm text-rivvra-500 hover:text-rivvra-400 transition-colors"
+                                >
+                                  <Plus size={14} />
+                                  Add a line
+                                </button>
                               </td>
                             </tr>
-                          );
-                        })}
-                        {lineItems.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="text-center py-10 text-dark-500">
-                              No invoice lines
-                            </td>
-                          </tr>
+                          </>
+                        ) : (
+                          <>
+                            {(invoice.lines || invoice.lineItems || []).map((li, i) => {
+                              const lineTotal = li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              return (
+                                <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
+                                  <td className="px-6 py-3 text-white">
+                                    {li.product?.name || li.productName || '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 max-w-xs">
+                                    {li.description || '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
+                                  <td className="px-4 py-3 text-right text-white">
+                                    {formatCurrency(li.unitPrice, currency)}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-400 text-xs">
+                                    {(li.taxIds || li.taxes || [])
+                                      .map((t) => (typeof t === 'object' ? t.name : t))
+                                      .join(', ') || '-'}
+                                  </td>
+                                  <td className="px-6 py-3 text-right text-white font-medium">
+                                    {formatCurrency(lineTotal, currency)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {(invoice.lines || invoice.lineItems || []).length === 0 && (
+                              <tr>
+                                <td colSpan={6} className="text-center py-10 text-dark-500">
+                                  No invoice lines
+                                </td>
+                              </tr>
+                            )}
+                          </>
                         )}
                       </tbody>
                     </table>
@@ -628,11 +1405,11 @@ export default function InvoiceDetail() {
                         <div className="flex justify-between text-sm">
                           <span className="text-dark-400">Untaxed Amount</span>
                           <span className="text-white">
-                            {formatCurrency(invoice.subtotal, currency)}
+                            {formatCurrency(isDraft ? localTotals.subtotal : invoice.subtotal, currency)}
                           </span>
                         </div>
 
-                        {/* Tax breakdown — show taxTotal or individual tax lines */}
+                        {/* Tax breakdown */}
                         {(invoice.taxTotal > 0 || invoice.totalTax > 0 || invoice.taxAmount > 0) && (
                           <div className="flex justify-between text-sm">
                             <span className="text-dark-400">
@@ -735,17 +1512,35 @@ export default function InvoiceDetail() {
                         </FormField>
                       )}
 
-                      {invoice.notes && (
-                        <FormField label="Notes (Customer-Facing)">
-                          <p className="text-dark-300 text-sm whitespace-pre-wrap">{invoice.notes}</p>
-                        </FormField>
-                      )}
+                      <EditableField
+                        label="Notes (Customer-Facing)"
+                        value={isDraft ? editForm.notes : (invoice.notes || '')}
+                        field="notes"
+                        type="textarea"
+                        editable={isDraft}
+                        onSave={saveField}
+                        placeholder="Add customer-facing notes..."
+                        displayValue={
+                          (isDraft ? editForm.notes : invoice.notes)
+                            ? <p className="text-dark-300 text-sm whitespace-pre-wrap">{isDraft ? editForm.notes : invoice.notes}</p>
+                            : undefined
+                        }
+                      />
 
-                      {invoice.internalNotes && (
-                        <FormField label="Internal Notes">
-                          <p className="text-dark-300 text-sm whitespace-pre-wrap">{invoice.internalNotes}</p>
-                        </FormField>
-                      )}
+                      <EditableField
+                        label="Internal Notes"
+                        value={isDraft ? editForm.internalNotes : (invoice.internalNotes || '')}
+                        field="internalNotes"
+                        type="textarea"
+                        editable={isDraft}
+                        onSave={saveField}
+                        placeholder="Add internal notes..."
+                        displayValue={
+                          (isDraft ? editForm.internalNotes : invoice.internalNotes)
+                            ? <p className="text-dark-300 text-sm whitespace-pre-wrap">{isDraft ? editForm.internalNotes : invoice.internalNotes}</p>
+                            : undefined
+                        }
+                      />
                     </div>
 
                     {/* Right column */}
@@ -976,7 +1771,172 @@ export default function InvoiceDetail() {
 }
 
 // ============================================================================
-// FormField — label:value display row (Odoo-style)
+// InlineLineRow — editable line item row for draft invoices
+// ============================================================================
+
+function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onProductSelect }) {
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [showTaxSelect, setShowTaxSelect] = useState(false);
+  const [editingField, setEditingField] = useState(null);
+
+  const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) - (Number(line.discount) || 0);
+
+  const cellInputCls = 'w-full bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500';
+
+  const handleFieldClick = (field) => {
+    setEditingField(field);
+  };
+
+  const handleFieldBlur = (field, value) => {
+    setEditingField(null);
+    onUpdate(index, field, value);
+  };
+
+  const handleFieldKeyDown = (e, field, value) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setEditingField(null);
+      onUpdate(index, field, value);
+    }
+    if (e.key === 'Escape') {
+      setEditingField(null);
+    }
+  };
+
+  return (
+    <tr className="border-b border-dark-700/50 hover:bg-dark-800/30">
+      {/* Product */}
+      <td className="px-6 py-2.5 relative">
+        <div
+          className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+          onClick={() => setShowProductSearch(true)}
+        >
+          <span className="text-white text-sm">{line.productName || <span className="text-dark-500 italic">Select product</span>}</span>
+          <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+        </div>
+        {showProductSearch && (
+          <ProductSearch
+            orgSlug={orgSlug}
+            onSelect={(p) => onProductSelect(index, p)}
+            onClose={() => setShowProductSearch(false)}
+          />
+        )}
+      </td>
+
+      {/* Description */}
+      <td className="px-4 py-2.5">
+        {editingField === 'description' ? (
+          <input
+            type="text"
+            autoFocus
+            defaultValue={line.description}
+            onBlur={(e) => handleFieldBlur('description', e.target.value)}
+            onKeyDown={(e) => handleFieldKeyDown(e, 'description', e.target.value)}
+            className={cellInputCls}
+          />
+        ) : (
+          <div
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+            onClick={() => handleFieldClick('description')}
+          >
+            <span className="text-dark-300 text-sm">{line.description || <span className="text-dark-500 italic">Description</span>}</span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+          </div>
+        )}
+      </td>
+
+      {/* Qty */}
+      <td className="px-4 py-2.5 text-right">
+        {editingField === 'quantity' ? (
+          <input
+            type="number"
+            autoFocus
+            min="0"
+            step="any"
+            defaultValue={line.quantity}
+            onBlur={(e) => handleFieldBlur('quantity', Number(e.target.value) || 0)}
+            onKeyDown={(e) => handleFieldKeyDown(e, 'quantity', Number(e.target.value) || 0)}
+            className={cellInputCls + ' text-right w-20'}
+          />
+        ) : (
+          <div
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 inline-flex items-center gap-1 min-h-[28px] justify-end"
+            onClick={() => handleFieldClick('quantity')}
+          >
+            <span className="text-white text-sm">{line.quantity ?? 0}</span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+          </div>
+        )}
+      </td>
+
+      {/* Unit Price */}
+      <td className="px-4 py-2.5 text-right">
+        {editingField === 'unitPrice' ? (
+          <input
+            type="number"
+            autoFocus
+            min="0"
+            step="any"
+            defaultValue={line.unitPrice}
+            onBlur={(e) => handleFieldBlur('unitPrice', Number(e.target.value) || 0)}
+            onKeyDown={(e) => handleFieldKeyDown(e, 'unitPrice', Number(e.target.value) || 0)}
+            className={cellInputCls + ' text-right w-28'}
+          />
+        ) : (
+          <div
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 inline-flex items-center gap-1 min-h-[28px] justify-end"
+            onClick={() => handleFieldClick('unitPrice')}
+          >
+            <span className="text-white text-sm">{formatCurrency(line.unitPrice, currency)}</span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+          </div>
+        )}
+      </td>
+
+      {/* Taxes */}
+      <td className="px-4 py-2.5 relative">
+        <div
+          className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1 min-h-[28px]"
+          onClick={() => setShowTaxSelect(true)}
+        >
+          <span className="text-dark-400 text-xs">
+            {(line.taxNames || []).filter(Boolean).join(', ') ||
+             (line.taxIds?.length ? `${line.taxIds.length} tax(es)` : <span className="text-dark-500 italic">Taxes</span>)}
+          </span>
+          <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+        </div>
+        {showTaxSelect && (
+          <TaxMultiSelect
+            orgSlug={orgSlug}
+            selectedIds={line.taxIds || []}
+            onChange={(newIds) => onUpdate(index, 'taxIds', newIds)}
+            onClose={() => setShowTaxSelect(false)}
+          />
+        )}
+      </td>
+
+      {/* Amount (read-only) */}
+      <td className="px-6 py-2.5 text-right text-white font-medium text-sm">
+        {formatCurrency(lineTotal, currency)}
+      </td>
+
+      {/* Delete */}
+      <td className="px-2 py-2.5">
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          className="p-1 rounded hover:bg-red-500/10 text-dark-500 hover:text-red-400 transition-colors"
+          title="Remove line"
+        >
+          <Trash2 size={14} />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ============================================================================
+// FormField — label:value display row (Odoo-style) for read-only fields
 // ============================================================================
 
 function FormField({ label, children }) {
