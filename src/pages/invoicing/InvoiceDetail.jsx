@@ -160,6 +160,20 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handleVoidPayment = async (paymentId) => {
+    if (!confirm('Are you sure you want to void this payment? The invoice status will be updated accordingly.')) return;
+    try {
+      setActionLoading('voidPayment');
+      await invoicingApi.deletePayment(orgSlug, paymentId);
+      showToast('Payment voided');
+      loadInvoice();
+    } catch (err) {
+      showToast(err.message || 'Failed to void payment', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     try {
       setActionLoading('pdf');
@@ -351,6 +365,12 @@ export default function InvoiceDetail() {
                   label="PDF"
                   onClick={handleDownloadPdf}
                   loading={actionLoading === 'pdf'}
+                />
+                <ActionBtn
+                  icon={FileText}
+                  label="Credit Note"
+                  onClick={handleCreateCreditNote}
+                  loading={actionLoading === 'creditNote'}
                 />
                 <ActionBtn
                   icon={Copy}
@@ -584,6 +604,7 @@ export default function InvoiceDetail() {
                     <th className="text-left text-xs font-medium text-dark-400 uppercase px-3 py-3">Reference</th>
                     <th className="text-left text-xs font-medium text-dark-400 uppercase px-3 py-3">Notes</th>
                     <th className="text-right text-xs font-medium text-dark-400 uppercase px-5 py-3">Amount</th>
+                    <th className="text-right text-xs font-medium text-dark-400 uppercase px-5 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -595,6 +616,15 @@ export default function InvoiceDetail() {
                       <td className="px-3 py-3 text-dark-400 max-w-xs truncate">{pmt.notes || '-'}</td>
                       <td className="px-5 py-3 text-right text-emerald-400 font-medium">
                         {formatCurrency(pmt.amount, currency)}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => handleVoidPayment(pmt._id)}
+                          disabled={actionLoading === 'voidPayment'}
+                          className="text-xs text-red-400 hover:text-red-300 border border-red-500/30 rounded px-2 py-1 hover:bg-red-500/10 transition-colors"
+                        >
+                          Void
+                        </button>
                       </td>
                     </tr>
                   ))}
