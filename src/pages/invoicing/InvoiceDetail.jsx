@@ -590,10 +590,36 @@ export default function InvoiceDetail() {
   // Save a single field immediately
   const saveField = useCallback(async (field, value) => {
     if (!isDraft) return;
-    setEditForm(prev => ({ ...prev, [field]: value }));
+    const updates = { [field]: value };
+
+    // Auto-calculate due date when invoice date or payment terms change
+    if (field === 'date' || field === 'invoiceDate') {
+      const termId = editForm.paymentTermId || invoice?.paymentTermId;
+      if (termId && paymentTermsList.length) {
+        const term = paymentTermsList.find(t => t._id === termId);
+        if (term?.days != null) {
+          const d = new Date(value);
+          d.setDate(d.getDate() + term.days);
+          updates.dueDate = d.toISOString().split('T')[0];
+        }
+      }
+    }
+    if (field === 'paymentTermId') {
+      const invDate = editForm.invoiceDate || editForm.date || invoice?.date;
+      if (invDate && paymentTermsList.length) {
+        const term = paymentTermsList.find(t => t._id === value);
+        if (term?.days != null) {
+          const d = new Date(invDate);
+          d.setDate(d.getDate() + term.days);
+          updates.dueDate = d.toISOString().split('T')[0];
+        }
+      }
+    }
+
+    setEditForm(prev => ({ ...prev, ...updates }));
     try {
       setSaving(true);
-      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, { [field]: value });
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
       if (res?.invoice) {
         setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
       }
@@ -604,7 +630,7 @@ export default function InvoiceDetail() {
     } finally {
       setSaving(false);
     }
-  }, [orgSlug, invoiceId, isDraft, showToast]);
+  }, [orgSlug, invoiceId, isDraft, showToast, editForm, invoice, paymentTermsList]);
 
   // Save lines (debounced)
   const saveLines = useCallback((lines) => {
@@ -660,13 +686,25 @@ export default function InvoiceDetail() {
 
   // Handle payment term change — auto-recalculate due date
   const handlePaymentTermChange = useCallback(async (field, value) => {
-    setEditForm(prev => ({ ...prev, paymentTermId: value }));
+    // Calculate due date locally
+    const invDate = editForm.invoiceDate || editForm.date || invoice?.date;
+    const term = paymentTermsList.find(t => t._id === value);
+    let newDueDate;
+    if (invDate && term?.days != null) {
+      const d = new Date(invDate);
+      d.setDate(d.getDate() + term.days);
+      newDueDate = d.toISOString().split('T')[0];
+    }
+
+    const updates = { paymentTermId: value };
+    if (newDueDate) updates.dueDate = newDueDate;
+
+    setEditForm(prev => ({ ...prev, paymentTermId: value, ...(newDueDate ? { dueDate: newDueDate } : {}) }));
     try {
       setSaving(true);
-      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, { paymentTermId: value });
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
       if (res?.invoice) {
         setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
-        // Sync dueDate from server response
         if (res.invoice.dueDate) {
           setEditForm(prev => ({ ...prev, dueDate: res.invoice.dueDate.split('T')[0] }));
         }
@@ -1171,7 +1209,13 @@ export default function InvoiceDetail() {
                     placeholder="Select a customer"
                     displayValue={
                       <div>
-                        <span className="text-rivvra-500 font-semibold">
+                        <span
+                          className="text-rivvra-500 font-semibold cursor-pointer hover:underline"
+                          onClick={(e) => {
+                            const cId = editForm.contactId || invoice.contactId;
+                            if (cId) { e.stopPropagation(); navigate(orgPath(`/contacts/${cId}`)); }
+                          }}
+                        >
                           {editForm.contactName || invoice.contactName || invoice.customer?.name || '-'}
                         </span>
                         {addressStr && (
@@ -1230,13 +1274,13 @@ export default function InvoiceDetail() {
                 <div className="space-y-4">
                   <EditableField
                     label="Invoice Date"
-                    value={isDraft ? editForm.invoiceDate : (invoice.invoiceDate?.split?.('T')?.[0] || '')}
-                    field="invoiceDate"
+                    value={isDraft ? (editForm.invoiceDate || editForm.date) : (invoice.date?.split?.('T')?.[0] || '')}
+                    field="date"
                     type="date"
                     editable={isDraft}
                     onSave={saveField}
                     displayValue={
-                      <span className="text-white">{formatDate(isDraft ? editForm.invoiceDate : invoice.invoiceDate)}</span>
+                      <span className="text-white">{formatDate(isDraft ? (editForm.invoiceDate || editForm.date) : invoice.date)}</span>
                     }
                   />
 
