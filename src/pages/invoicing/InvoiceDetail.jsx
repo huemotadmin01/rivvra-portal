@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -322,18 +323,24 @@ function ContactLookup({ orgSlug, currentName, onSelect, onClose }) {
 // ProductSearch — searchable product dropdown for line items
 // ============================================================================
 
-function ProductSearch({ orgSlug, onSelect, onClose }) {
+function ProductSearch({ orgSlug, onSelect, onClose, triggerRef }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const searchTimer = useRef(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
-    // Load initial products
+    inputRef.current?.focus();
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [triggerRef]);
+
+  useEffect(() => {
     doSearch('');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -367,8 +374,8 @@ function ProductSearch({ orgSlug, onSelect, onClose }) {
     searchTimer.current = setTimeout(() => doSearch(val), 300);
   };
 
-  return (
-    <div ref={containerRef} className="absolute top-full left-0 mt-1 w-72 bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50">
+  return createPortal(
+    <div ref={containerRef} style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }} className="w-72 bg-dark-800 border border-dark-600 rounded-lg shadow-2xl">
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-dark-700">
         <Search size={14} className="text-dark-400 shrink-0" />
         <input
@@ -397,13 +404,14 @@ function ProductSearch({ orgSlug, onSelect, onClose }) {
               <Package size={12} className="text-dark-400 shrink-0" />
               <span className="text-sm text-white">{p.name}</span>
             </div>
-            {p.unitPrice != null && (
-              <p className="text-xs text-dark-400 mt-0.5 ml-5">{formatCurrency(p.unitPrice)}</p>
+            {p.defaultPrice != null && (
+              <p className="text-xs text-dark-400 mt-0.5 ml-5">{formatCurrency(p.defaultPrice)}</p>
             )}
           </button>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -411,10 +419,24 @@ function ProductSearch({ orgSlug, onSelect, onClose }) {
 // TaxMultiSelect — dropdown to pick taxes for a line item
 // ============================================================================
 
-function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose }) {
+function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose, triggerRef }) {
   const [taxes, setTaxes] = useState([]);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      // Position above if near bottom of screen, otherwise below
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 250) {
+        setPos({ top: rect.top - 4, left: rect.left, openUp: true });
+      } else {
+        setPos({ top: rect.bottom + 4, left: rect.left, openUp: false });
+      }
+    }
+  }, [triggerRef]);
 
   useEffect(() => {
     (async () => {
@@ -442,8 +464,12 @@ function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose }) {
     onChange(current);
   };
 
-  return (
-    <div ref={containerRef} className="absolute bottom-full left-0 mb-1 w-56 bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 max-h-48">
+  const style = pos.openUp
+    ? { position: 'fixed', bottom: window.innerHeight - pos.top, left: pos.left, zIndex: 9999 }
+    : { position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 };
+
+  return createPortal(
+    <div ref={containerRef} style={style} className="w-56 bg-dark-800 border border-dark-600 rounded-lg shadow-2xl">
       <div className="px-3 py-2 border-b border-dark-700 text-xs text-dark-400 font-medium">Select Taxes</div>
       <div className="max-h-40 overflow-y-auto">
         {loading && (
@@ -482,7 +508,8 @@ function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose }) {
           Done
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1356,7 +1383,7 @@ export default function InvoiceDetail() {
             </div>
 
             {/* ── Tabs ── */}
-            <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+            <div className="bg-dark-850 border border-dark-700 rounded-xl">
               {/* Tab headers */}
               <div className="flex border-b border-dark-700 px-6">
                 <button
@@ -1385,7 +1412,7 @@ export default function InvoiceDetail() {
               {activeTab === 'lines' && (
                 <div>
                   {/* Invoice Lines table */}
-                  <div className="overflow-x-auto">
+                  <div>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-dark-800">
@@ -1853,6 +1880,8 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
   const [editingField, setEditingField] = useState(null);
+  const productTriggerRef = useRef(null);
+  const taxTriggerRef = useRef(null);
 
   const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * (1 - (Number(line.discount) || 0) / 100);
 
@@ -1881,8 +1910,9 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
   return (
     <tr className="border-b border-dark-700/50 hover:bg-dark-800/30">
       {/* Product */}
-      <td className="px-6 py-2.5 relative">
+      <td className="px-6 py-2.5">
         <div
+          ref={productTriggerRef}
           className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
           onClick={() => setShowProductSearch(true)}
         >
@@ -1892,6 +1922,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
         {showProductSearch && (
           <ProductSearch
             orgSlug={orgSlug}
+            triggerRef={productTriggerRef}
             onSelect={(p) => onProductSelect(index, p)}
             onClose={() => setShowProductSearch(false)}
           />
@@ -1969,8 +2000,9 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
       </td>
 
       {/* Taxes */}
-      <td className="px-4 py-2.5 relative">
+      <td className="px-4 py-2.5">
         <div
+          ref={taxTriggerRef}
           className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1 min-h-[28px]"
           onClick={() => setShowTaxSelect(true)}
         >
@@ -1983,6 +2015,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
         {showTaxSelect && (
           <TaxMultiSelect
             orgSlug={orgSlug}
+            triggerRef={taxTriggerRef}
             selectedIds={line.taxIds || []}
             onChange={(newIds) => onUpdate(index, 'taxIds', newIds)}
             onClose={() => setShowTaxSelect(false)}
