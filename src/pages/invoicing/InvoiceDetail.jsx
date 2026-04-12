@@ -726,6 +726,25 @@ export default function InvoiceDetail() {
 
     // Auto-calculate due date when invoice date or payment terms change
     if (field === 'date' || field === 'invoiceDate') {
+      // Check if FY changes — warn user
+      if (invoice?.journalCode && invoice?.date) {
+        const oldDate = new Date(invoice.date);
+        const newDate = new Date(value);
+        const getFY = (d) => { const m = d.getMonth() + 1; const y = d.getFullYear(); const s = m >= 4 ? y : y - 1; return `${s}-${s+1}`; };
+        const oldFY = getFY(oldDate);
+        const newFY = getFY(newDate);
+        if (oldFY !== newFY) {
+          if (!confirm(`Changing the date will move this invoice from FY ${oldFY.slice(-5)} to FY ${newFY.slice(-5)}. The invoice number will be regenerated. Continue?`)) {
+            return; // User cancelled
+          }
+        } else if (oldDate.getMonth() !== newDate.getMonth() || oldDate.getFullYear() !== newDate.getFullYear()) {
+          // Same FY but different month — number will regenerate
+          if (!confirm(`Changing the month will regenerate the invoice number. Continue?`)) {
+            return;
+          }
+        }
+      }
+
       const termId = editForm.paymentTermId || invoice?.paymentTermId;
       if (termId && paymentTermsList.length) {
         const term = paymentTermsList.find(t => t._id === termId);
