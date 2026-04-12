@@ -36,6 +36,7 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
     currency,
     draftCount = 0,
     draftAmount = 0,
+    hasIrregularSequences = false,
   } = journal;
 
   const hasStats = unpaidCount > 0 || lateCount > 0 || draftCount > 0;
@@ -141,6 +142,11 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
             )}
           </div>
         </div>
+      )}
+
+      {/* Irregular sequences warning */}
+      {hasIrregularSequences && (
+        <div className="text-xs text-red-400 mt-2">⚠ Irregular Sequences</div>
       )}
 
       {/* Mini bar chart */}
