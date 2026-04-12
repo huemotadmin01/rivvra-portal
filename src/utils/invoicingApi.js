@@ -9,6 +9,9 @@ const invoicingApi = {
   getDashboard(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/dashboard`);
   },
+  getJournalStats(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/dashboard/journal-stats`);
+  },
 
   // ---------- INVOICES ----------
   listInvoices(orgSlug, params = {}) {
