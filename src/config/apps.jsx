@@ -476,7 +476,16 @@ export const APP_REGISTRY = {
       },
       { type: 'item', path: '/invoicing/reconciliation', label: 'Bank Reconciliation', icon: Landmark },
       { type: 'item', path: '/invoicing/follow-ups', label: 'Follow-ups', icon: Mail },
-      { type: 'item', path: '/settings/invoicing', label: 'Settings', icon: Settings },
+      {
+        type: 'group', label: 'Configuration', icon: Settings,
+        children: [
+          { path: '/invoicing/config/products', label: 'Products', icon: Package },
+          { path: '/invoicing/config/taxes', label: 'Taxes', icon: Shield },
+          { path: '/invoicing/config/payment-terms', label: 'Payment Terms', icon: Clock },
+          { path: '/invoicing/config/journals', label: 'Journals', icon: FileText },
+          { path: '/invoicing/config/settings', label: 'Settings', icon: Settings },
+        ],
+      },
     ],
   },
 

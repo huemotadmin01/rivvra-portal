@@ -171,6 +171,10 @@ const AgedPayables = lazy(() => import('./pages/invoicing/AgedPayables'));
 const TaxReportInv = lazy(() => import('./pages/invoicing/TaxReport'));
 const InvoiceAnalysis = lazy(() => import('./pages/invoicing/InvoiceAnalysis'));
 const SettingsInvoicing = lazy(() => import('./components/settings/SettingsInvoicing'));
+const JournalsConfig = lazy(() => import('./pages/invoicing/JournalsConfig'));
+const TaxesConfig = lazy(() => import('./pages/invoicing/TaxesConfig'));
+const PaymentTermsConfig = lazy(() => import('./pages/invoicing/PaymentTermsConfig'));
+const InvoicingSettingsPage = lazy(() => import('./components/settings/SettingsInvoicing'));
 
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
@@ -471,6 +475,11 @@ function App() {
                   <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><AgedPayables /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/tax" element={<ErrorBoundary><TaxReportInv /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><InvoiceAnalysis /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/products" element={<ErrorBoundary><ProductCatalog /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/taxes" element={<ErrorBoundary><TaxesConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/payment-terms" element={<ErrorBoundary><PaymentTermsConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/journals" element={<ErrorBoundary><JournalsConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/settings" element={<ErrorBoundary><InvoicingSettingsPage /></ErrorBoundary>} />
                 </Route>
               </Route>
             </Route>

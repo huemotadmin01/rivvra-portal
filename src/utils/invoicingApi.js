@@ -145,6 +145,21 @@ const invoicingApi = {
     return api.request(`/api/org/${orgSlug}/invoicing/seed-defaults`, { method: 'POST' });
   },
 
+  // ---------- JOURNALS ----------
+  listJournals(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/journals${qs ? '?' + qs : ''}`);
+  },
+  createJournal(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/journals`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateJournal(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/journals/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteJournal(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/journals/${id}`, { method: 'DELETE' });
+  },
+
   // ---------- BANK STATEMENTS ----------
   listBankStatements(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/bank-statements`);
