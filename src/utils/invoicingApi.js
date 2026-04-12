@@ -21,6 +21,10 @@ const invoicingApi = {
   getInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`);
   },
+  previewNumber(orgSlug, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/preview-number${qs ? '?' + qs : ''}`);
+  },
   createInvoice(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices`, { method: 'POST', body: JSON.stringify(data) });
   },

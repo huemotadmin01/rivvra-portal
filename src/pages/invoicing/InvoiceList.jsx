@@ -250,7 +250,9 @@ export default function InvoiceList() {
                       className="border-b border-dark-700/50 last:border-0 hover:bg-dark-800/50 cursor-pointer transition-colors"
                     >
                       <td className="py-3 px-4">
-                        <span className="text-white font-medium">{inv.number || inv.invoiceNumber || '-'}</span>
+                        <span className={`font-medium ${inv.number ? 'text-white' : 'text-dark-500 italic'}`}>
+                          {inv.number || inv.invoiceNumber || 'Draft'}
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-dark-300">{inv.contactName || inv.customerName || '-'}</td>
                       <td className="py-3 px-4 text-dark-400">{formatDate(inv.date || inv.createdAt)}</td>

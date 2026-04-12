@@ -645,6 +645,7 @@ export default function InvoiceDetail() {
   const [savedField, setSavedField] = useState(null); // flash "Saved" indicator
   const [paymentTermsList, setPaymentTermsList] = useState([]);
   const [allTaxes, setAllTaxes] = useState([]);
+  const [previewNumber, setPreviewNumber] = useState(null);
 
   const isDraft = invoice?.status === 'draft';
 
@@ -698,6 +699,17 @@ export default function InvoiceDetail() {
       invoicingApi.listTaxes(orgSlug).then(r => setAllTaxes(r?.taxes || [])).catch(() => {});
     }
   }, [orgSlug]);
+
+  // Fetch preview number for drafts without a number
+  useEffect(() => {
+    if (!orgSlug || !invoice || invoice.number || invoice.status !== 'draft') return;
+    const params = { type: invoice.type || 'customer_invoice' };
+    if (invoice.journalId) params.journalId = invoice.journalId;
+    if (invoice.date) params.date = new Date(invoice.date).toISOString().split('T')[0];
+    invoicingApi.previewNumber(orgSlug, params)
+      .then(res => { if (res?.previewNumber) setPreviewNumber(res.previewNumber); })
+      .catch(() => {});
+  }, [orgSlug, invoice?.number, invoice?.status, invoice?.journalId, invoice?.date, invoice?.type]);
 
   // ── Auto-save with debounce ──
   const saveToApi = useCallback(async (data) => {
@@ -1373,8 +1385,11 @@ export default function InvoiceDetail() {
               <p className="text-sm text-dark-400 mb-1">{typeLabel}</p>
 
               {/* Invoice number */}
-              <h1 className="text-2xl font-bold text-white mb-6">
-                {invoice.number || 'Draft Invoice'}
+              <h1 className="text-2xl font-bold mb-6">
+                {invoice.number
+                  ? <span className="text-white">{invoice.number}</span>
+                  : <span className="text-dark-500 italic">{previewNumber || 'Draft Invoice'}</span>
+                }
               </h1>
 
               {/* Form fields — 2-column grid */}
