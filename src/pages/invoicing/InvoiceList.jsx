@@ -138,7 +138,7 @@ export default function InvoiceList() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-white">
-              {journalCode ? `Invoices — ${journalCode}` : 'Invoices'}
+              {journalCode ? `Customer Invoices — ${journalCode}` : 'Customer Invoices'}
             </h1>
             <p className="text-xs text-dark-400 mt-0.5">
               {journalCode ? `Filtered by journal: ${journalCode}` : 'Manage and track all your invoices'}

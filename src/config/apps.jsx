@@ -461,7 +461,7 @@ export const APP_REGISTRY = {
     ],
     getSidebarItems: () => [
       { type: 'item', path: '/invoicing/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { type: 'item', path: '/invoicing/invoices', label: 'Invoices', icon: FileText },
+      { type: 'item', path: '/invoicing/invoices', label: 'Customer Invoices', icon: FileText },
       { type: 'item', path: '/invoicing/bills', label: 'Vendor Bills', icon: Wallet },
       { type: 'item', path: '/invoicing/payments', label: 'Payments', icon: CreditCard },
       {
