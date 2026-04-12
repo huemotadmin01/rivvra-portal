@@ -552,7 +552,7 @@ function EmployeeSearch({ orgSlug, onSelect, onClose, triggerRef }) {
   const doSearch = useCallback(async (q) => {
     try {
       setLoading(true);
-      const res = await api.request(`/api/org/${orgSlug}/employee/directory?search=${q}&limit=10`);
+      const res = await api.request(`/api/org/${orgSlug}/employee/employees?search=${encodeURIComponent(q)}&limit=10&status=active`);
       setResults(res?.employees || res?.data || []);
     } catch {
       setResults([]);

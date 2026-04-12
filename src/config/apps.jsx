@@ -464,7 +464,6 @@ export const APP_REGISTRY = {
       { type: 'item', path: '/invoicing/invoices', label: 'Invoices', icon: FileText },
       { type: 'item', path: '/invoicing/bills', label: 'Vendor Bills', icon: Wallet },
       { type: 'item', path: '/invoicing/payments', label: 'Payments', icon: CreditCard },
-      { type: 'item', path: '/invoicing/products', label: 'Products', icon: Package },
       {
         type: 'group', label: 'Reports', icon: BarChart3,
         children: [
@@ -481,7 +480,6 @@ export const APP_REGISTRY = {
         children: [
           { path: '/invoicing/config/products', label: 'Products', icon: Package },
           { path: '/invoicing/config/taxes', label: 'Taxes', icon: Shield },
-          { path: '/invoicing/config/payment-terms', label: 'Payment Terms', icon: Clock },
           { path: '/invoicing/config/journals', label: 'Journals', icon: FileText },
           { path: '/invoicing/config/settings', label: 'Settings', icon: Settings },
         ],
