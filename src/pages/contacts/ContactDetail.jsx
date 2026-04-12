@@ -10,10 +10,10 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  Edit2, Save, X, Loader2, Trash2,
+  Loader2, Trash2,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users, Receipt,
-  Upload, Download, Paperclip, Eye,
+  Upload, Download, Paperclip, Eye, Pencil,
 } from 'lucide-react';
 
 const GST_TREATMENT_OPTIONS = [
@@ -25,6 +25,14 @@ const GST_TREATMENT_OPTIONS = [
   { value: 'Overseas', label: 'Overseas' },
   { value: 'Special Economic Zone', label: 'Special Economic Zone' },
   { value: 'Deemed Export', label: 'Deemed Export' },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: '', label: '-- None --' },
+  { value: 'INR', label: 'INR - Indian Rupee' },
+  { value: 'USD', label: 'USD - US Dollar' },
+  { value: 'EUR', label: 'EUR - Euro' },
+  { value: 'GBP', label: 'GBP - British Pound' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -50,15 +58,6 @@ function Badge({ children, className }) {
   );
 }
 
-function InfoRow({ label, value }) {
-  return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
-      <span className="text-dark-400 text-sm">{label}</span>
-      <span className="text-white text-sm">{value ?? '\u2014'}</span>
-    </div>
-  );
-}
-
 function SectionCard({ title, icon: Icon, children }) {
   return (
     <div className="card p-5">
@@ -68,6 +67,135 @@ function SectionCard({ title, icon: Icon, children }) {
       </div>
       {children}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditableField – inline editing sub-component
+// ---------------------------------------------------------------------------
+
+function EditableField({ label, value, field, type = 'text', options, editable, onSave, placeholder, maxLength, transform }) {
+  const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value ?? '');
+
+  useEffect(() => setLocalValue(value ?? ''), [value]);
+
+  const save = () => {
+    setEditing(false);
+    const finalValue = transform ? transform(localValue) : localValue;
+    if (finalValue !== (value ?? '')) onSave(field, finalValue);
+  };
+
+  if (!editable) {
+    return (
+      <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+        <span className="text-dark-400 text-sm">{label}</span>
+        <span className="text-white text-sm">{value || '\u2014'}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group">
+      <span className="text-dark-400 text-sm">{label}</span>
+      {editing ? (
+        type === 'select' ? (
+          <select
+            autoFocus
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={save}
+            className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
+          >
+            {options?.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        ) : type === 'textarea' ? (
+          <textarea
+            autoFocus
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={save}
+            className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none min-h-[60px]"
+          />
+        ) : (
+          <input
+            autoFocus
+            type={type}
+            value={localValue}
+            onChange={(e) => {
+              let v = e.target.value;
+              if (transform) v = transform(v);
+              setLocalValue(v);
+            }}
+            onBlur={save}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') save();
+              if (e.key === 'Escape') { setLocalValue(value ?? ''); setEditing(false); }
+            }}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
+          />
+        )
+      ) : (
+        <div
+          className="flex items-center gap-1.5 cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800 min-h-[28px]"
+          onClick={() => setEditing(true)}
+        >
+          <span className="text-white text-sm">
+            {value || <span className="text-dark-500 italic">{placeholder || '\u2014'}</span>}
+          </span>
+          <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Editable Name (header inline edit)
+// ---------------------------------------------------------------------------
+
+function EditableName({ value, editable, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value || '');
+
+  useEffect(() => setLocalValue(value || ''), [value]);
+
+  const save = () => {
+    setEditing(false);
+    const trimmed = localValue.trim();
+    if (trimmed && trimmed !== value) onSave('name', trimmed);
+    else setLocalValue(value || '');
+  };
+
+  if (!editable || !editing) {
+    return (
+      <div
+        className={`inline-flex items-center gap-2 ${editable ? 'group cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800' : ''}`}
+        onClick={() => editable && setEditing(true)}
+      >
+        <h1 className="text-2xl font-bold text-white">{value}</h1>
+        {editable && <Pencil size={12} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />}
+      </div>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') { setLocalValue(value || ''); setEditing(false); }
+      }}
+      className="text-2xl font-bold text-white bg-dark-800 border border-rivvra-500 rounded px-2 py-0.5 focus:outline-none w-full max-w-md"
+    />
   );
 }
 
@@ -98,25 +226,20 @@ export default function ContactDetail() {
   const [attachments, setAttachments] = useState([]);
   const [attachLoading, setAttachLoading] = useState(false);
   const [attachUploading, setAttachUploading] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState(null); // { _id, filename, mimeType }
+  const [previewDoc, setPreviewDoc] = useState(null);
 
-  // Edit mode
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({});
-  const [saving, setSaving] = useState(false);
+  // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Dropdown data for edit
-  const [companies, setCompanies] = useState([]);
-  const [tags, setTags] = useState([]);
+  // Dropdown data
   const [salespersons, setSalespersons] = useState([]);
   const [paymentTerms, setPaymentTerms] = useState([]);
 
   const isAdmin = getAppRole('contacts') === 'admin';
   const orgSlug = currentOrg?.slug;
 
-  // ── Fetch contact ─────────────────────────────────────────────────────
+  // -- Fetch contact ----------------------------------------------------------
   const fetchContact = useCallback(async () => {
     if (!orgSlug || !contactId) return;
     setLoading(true);
@@ -142,25 +265,18 @@ export default function ContactDetail() {
     fetchContact();
   }, [fetchContact]);
 
-  // Fetch companies + tags for edit mode
+  // Fetch dropdown data
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
 
-    Promise.all([
-      contactsApi.listCompanies(orgSlug).catch(() => ({ success: false })),
-      contactsApi.listTags(orgSlug).catch(() => ({ success: false })),
-      contactsApi.listSalespersons(orgSlug).catch(() => ({ success: false })),
-    ]).then(([compRes, tagRes, spRes]) => {
-      if (cancelled) return;
-      if (compRes.success) setCompanies(compRes.companies || []);
-      if (tagRes.success) setTags(tagRes.tags || []);
-      if (spRes.success) setSalespersons(spRes.salespersons || []);
-    });
+    contactsApi.listSalespersons(orgSlug).catch(() => ({ success: false }))
+      .then((spRes) => {
+        if (!cancelled && spRes.success) setSalespersons(spRes.salespersons || []);
+      });
 
-    // Load payment terms for invoicing dropdown
     invoicingApi.listPaymentTerms(orgSlug)
-      .then(res => setPaymentTerms(res?.paymentTerms || []))
+      .then((res) => { if (!cancelled) setPaymentTerms(res?.paymentTerms || []); })
       .catch(() => {});
 
     return () => { cancelled = true; };
@@ -179,122 +295,29 @@ export default function ContactDetail() {
 
   useEffect(() => { loadAttachments(); }, [loadAttachments]);
 
-  // ── Enter edit mode ───────────────────────────────────────────────────
-  const startEditing = () => {
-    if (!contact) return;
-    const addr = contact.address || {};
-    setForm({
-      title: contact.title || '',
-      name: contact.name || '',
-      email: contact.email || '',
-      phone: contact.phone || '',
-      mobile: contact.mobile || '',
-      website: contact.website || '',
-      jobTitle: contact.jobTitle || '',
-      parentCompany: contact.parentCompanyId || '',
-      street: addr.street || '',
-      street2: addr.street2 || '',
-      city: addr.city || '',
-      state: addr.state || '',
-      zip: addr.zip || '',
-      country: addr.country || '',
-      tags: contact.tags || [],
-      notes: contact.internalNotes || '',
-      isCustomer: contact.isCustomer || false,
-      isSupplier: contact.isSupplier || false,
-      salespersonId: contact.salespersonId || '',
-      gstTreatment: contact.gstTreatment || '',
-      gstin: contact.gstin || '',
-      pan: contact.pan || '',
-      countryCode: contact.countryCode || '',
-      defaultPaymentTermId: contact.defaultPaymentTermId || '',
-      placeOfSupply: contact.placeOfSupply || '',
-      defaultCurrency: contact.defaultCurrency || '',
-    });
-    setEditing(true);
-  };
-
-  const cancelEditing = () => {
-    setEditing(false);
-    setForm({});
-  };
-
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const toggleTag = (tagId) => {
-    setForm((prev) => ({
-      ...prev,
-      tags: prev.tags.includes(tagId)
-        ? prev.tags.filter((t) => t !== tagId)
-        : [...prev.tags, tagId],
-    }));
-  };
-
-  // ── Save edits ────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!form.name.trim()) {
-      showToast('Name is required', 'error');
-      return;
-    }
-    // Tax field validation
-    if (form.gstin.trim() && (form.gstin.trim().length !== 15 || !/^[0-9A-Z]{15}$/.test(form.gstin.trim()))) {
-      showToast('GSTIN must be exactly 15 alphanumeric characters', 'error'); return;
-    }
-    if (form.pan.trim() && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(form.pan.trim())) {
-      showToast('PAN must be in format ABCDE1234F', 'error'); return;
-    }
-    if (form.countryCode.trim() && !/^[A-Z]{2}$/.test(form.countryCode.trim())) {
-      showToast('Country code must be a 2-letter ISO code (e.g., IN)', 'error'); return;
-    }
-
+  // -- Inline save handlers ---------------------------------------------------
+  const saveField = async (field, value) => {
     try {
-      setSaving(true);
-      const payload = {
-        title: form.title,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        mobile: form.mobile.trim(),
-        website: form.website.trim(),
-        jobTitle: contact.type === 'individual' ? form.jobTitle.trim() : '',
-        parentCompanyId: contact.type === 'individual' ? form.parentCompany : '',
-        address: {
-          street: form.street.trim(),
-          street2: form.street2.trim(),
-          city: form.city.trim(),
-          state: form.state.trim(),
-          zip: form.zip.trim(),
-          country: form.country.trim(),
-        },
-        tags: form.tags,
-        internalNotes: form.notes.trim(),
-        isCustomer: form.isCustomer,
-        isSupplier: form.isSupplier,
-        salespersonId: form.salespersonId || '',
-        gstTreatment: form.gstTreatment,
-        gstin: form.gstin.trim(),
-        pan: form.pan.trim(),
-        countryCode: form.countryCode.trim(),
-        defaultPaymentTermId: form.defaultPaymentTermId || null,
-        placeOfSupply: form.placeOfSupply.trim(),
-        defaultCurrency: form.defaultCurrency || null,
-      };
-
-      const res = await contactsApi.update(orgSlug, contactId, payload);
-      if (res.success) {
-        showToast('Contact updated');
-        setEditing(false);
-        fetchContact();
-      }
+      await contactsApi.update(orgSlug, contactId, { [field]: value });
+      setContact((prev) => ({ ...prev, [field]: value }));
+      showToast('Saved');
     } catch (err) {
-      showToast(err.message || 'Failed to update contact', 'error');
-    } finally {
-      setSaving(false);
+      showToast(err.message || 'Failed to save', 'error');
     }
   };
 
+  const saveAddressField = async (field, value) => {
+    const newAddress = { ...(contact.address || {}), [field]: value };
+    try {
+      await contactsApi.update(orgSlug, contactId, { address: newAddress });
+      setContact((prev) => ({ ...prev, address: newAddress }));
+      showToast('Saved');
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+    }
+  };
+
+  // -- Delete handler ---------------------------------------------------------
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -319,7 +342,7 @@ export default function ContactDetail() {
     }
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────
+  // -- Loading state ----------------------------------------------------------
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -328,7 +351,7 @@ export default function ContactDetail() {
     );
   }
 
-  // ── 404 state ─────────────────────────────────────────────────────────
+  // -- 404 state --------------------------------------------------------------
   if (notFound || !contact) {
     return (
       <div className="p-6">
@@ -341,9 +364,6 @@ export default function ContactDetail() {
   }
 
   const addr = contact.address || {};
-  const addressLines = [addr.street, addr.street2, addr.city, addr.state, addr.zip, addr.country]
-    .filter(Boolean)
-    .join(', ');
 
   const tabs = [
     { id: 'details', label: 'Details' },
@@ -352,20 +372,40 @@ export default function ContactDetail() {
     { id: 'attachments', label: 'Attachments' },
   ];
 
-  // ── Render ────────────────────────────────────────────────────────────
+  // Helper: build salesperson options
+  const salespersonOptions = [
+    { value: '', label: 'No salesperson' },
+    ...salespersons.map((sp) => ({ value: sp._id, label: sp.name })),
+  ];
+
+  // Helper: build payment terms options
+  const paymentTermOptions = [
+    { value: '', label: '-- None --' },
+    ...paymentTerms.map((pt) => ({ value: pt._id, label: pt.name })),
+  ];
+
+  // Helper: display value for salesperson
+  const salespersonDisplayValue = contact.salespersonName || (
+    salespersons.find((sp) => sp._id === contact.salespersonId)?.name || ''
+  );
+
+  // Helper: display value for payment terms
+  const paymentTermDisplayValue = paymentTerms.find((pt) => pt._id === contact.defaultPaymentTermId)?.name || '';
+
+  // -- Render -----------------------------------------------------------------
   return (
     <div className="p-6 max-w-5xl">
-      {/* ── Back to Invoice link ─────────────────────────────────────── */}
+      {/* Back to Invoice link */}
       {fromInvoice && fromInvoiceId && (
         <button
           onClick={() => navigate(orgPath(`/invoicing/invoices/${fromInvoiceId}`))}
           className="flex items-center gap-1.5 text-sm text-rivvra-500 hover:text-rivvra-400 mb-4 transition-colors"
         >
-          <span>←</span> Back to Invoice
+          <span>&larr;</span> Back to Invoice
         </button>
       )}
 
-      {/* ── Header Card ──────────────────────────────────────────────── */}
+      {/* Header Card */}
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-5">
           {/* Avatar */}
@@ -385,31 +425,15 @@ export default function ContactDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div>
-                {editing ? (
-                  <div className="flex items-center gap-2 mb-1">
-                    <select
-                      value={form.title}
-                      onChange={(e) => handleChange('title', e.target.value)}
-                      className="input-field w-24 text-sm"
-                    >
-                      <option value="">Title</option>
-                      {['Mr.', 'Mrs.', 'Miss', 'Ms.', 'Dr.', 'Prof.'].map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(e) => handleChange('name', e.target.value)}
-                      className="input-field text-xl font-bold flex-1"
-                    />
-                  </div>
-                ) : (
-                  <h1 className="text-2xl font-bold text-white">
-                    {contact.title ? `${contact.title} ` : ''}{contact.name}
-                  </h1>
-                )}
-                {contact.jobTitle && !editing && (
+                <EditableName
+                  value={contact.title ? `${contact.title} ${contact.name}` : contact.name}
+                  editable={isAdmin}
+                  onSave={(_, val) => {
+                    // If there was a title prefix, strip it for saving just the name
+                    saveField('name', val.replace(/^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|Prof\.)\s*/i, '').trim() || val);
+                  }}
+                />
+                {contact.jobTitle && (
                   <p className="text-dark-400 mt-0.5">{contact.jobTitle}</p>
                 )}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -432,16 +456,9 @@ export default function ContactDetail() {
                 </div>
               </div>
 
-              {/* Edit / Delete / Save / Cancel buttons */}
-              {isAdmin && !editing && (
+              {/* Delete button only */}
+              {isAdmin && (
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={startEditing}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
                   <button
                     onClick={() => setShowDeleteModal(true)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-dark-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-sm transition-colors"
@@ -451,31 +468,12 @@ export default function ContactDetail() {
                   </button>
                 </div>
               )}
-              {editing && (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={cancelEditing}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm transition-colors"
-                  >
-                    <X size={14} />
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm"
-                  >
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Save
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Tab bar ──────────────────────────────────────────────────── */}
+      {/* Tab bar */}
       <div className="flex gap-1 mb-6 border-b border-dark-700">
         {tabs.map((tab) => (
           <button
@@ -495,395 +493,189 @@ export default function ContactDetail() {
         ))}
       </div>
 
-      {/* ── Details Tab ──────────────────────────────────────────────── */}
+      {/* Details Tab */}
       {activeTab === 'details' && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Contact Information */}
             <SectionCard title="Contact Information" icon={Mail}>
-              {editing ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => handleChange('email', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Phone</label>
-                    <input
-                      type="text"
-                      value={form.phone}
-                      onChange={(e) => handleChange('phone', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Mobile</label>
-                    <input
-                      type="text"
-                      value={form.mobile}
-                      onChange={(e) => handleChange('mobile', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Website</label>
-                    <input
-                      type="text"
-                      value={form.website}
-                      onChange={(e) => handleChange('website', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <InfoRow label="Email" value={contact.email} />
-                  <InfoRow label="Phone" value={contact.phone} />
-                  <InfoRow label="Mobile" value={contact.mobile} />
-                  <InfoRow label="Website" value={
-                    contact.website ? (
-                      <a
-                        href={contact.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-rivvra-400 hover:underline"
-                      >
-                        {contact.website}
-                      </a>
-                    ) : null
-                  } />
-                </>
-              )}
+              <EditableField label="Email" value={contact.email} field="email" type="email" editable={isAdmin} onSave={saveField} placeholder="Add email" />
+              <EditableField label="Phone" value={contact.phone} field="phone" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
+              <EditableField label="Mobile" value={contact.mobile} field="mobile" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
+              <EditableField label="Website" value={contact.website} field="website" editable={isAdmin} onSave={saveField} placeholder="Add website" />
             </SectionCard>
 
-            {/* Work / Organization */}
+            {/* Company / Work Details */}
             <SectionCard
               title={contact.type === 'company' ? 'Company Details' : 'Work Details'}
               icon={contact.type === 'company' ? Building2 : Briefcase}
             >
-              {editing && contact.type === 'individual' ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Job Title</label>
-                    <input
-                      type="text"
-                      value={form.jobTitle}
-                      onChange={(e) => handleChange('jobTitle', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Company</label>
-                    <select
-                      value={form.parentCompany}
-                      onChange={(e) => handleChange('parentCompany', e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="">No company</option>
-                      {companies.map((c) => (
-                        <option key={c._id} value={c._id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ) : contact.type === 'individual' ? (
+              {contact.type === 'individual' ? (
                 <>
-                  <InfoRow label="Job Title" value={contact.jobTitle} />
-                  <InfoRow
-                    label="Company"
-                    value={
-                      contact.parentCompanyName ? (
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Type</span>
+                    <span className="text-white text-sm">
+                      <Badge className="bg-emerald-500/10 text-emerald-400">Individual</Badge>
+                    </span>
+                  </div>
+                  <EditableField label="Job Title" value={contact.jobTitle} field="jobTitle" editable={isAdmin} onSave={saveField} placeholder="Add job title" />
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Company</span>
+                    <span className="text-white text-sm">
+                      {contact.parentCompanyName ? (
                         <Link
                           to={orgPath(`/contacts/${contact.parentCompanyId}`)}
                           className="text-rivvra-400 hover:underline"
                         >
                           {contact.parentCompanyName}
                         </Link>
-                      ) : null
-                    }
-                  />
+                      ) : '\u2014'}
+                    </span>
+                  </div>
                 </>
               ) : (
                 <>
-                  <InfoRow label="Type" value="Company" />
-                  <InfoRow
-                    label="Employees"
-                    value={childContacts.length > 0 ? `${childContacts.length} contact(s)` : null}
-                  />
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Type</span>
+                    <span className="text-white text-sm">
+                      <Badge className="bg-blue-500/10 text-blue-400">Company</Badge>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Employees</span>
+                    <span className="text-white text-sm">
+                      {childContacts.length > 0 ? `${childContacts.length} contact(s)` : '\u2014'}
+                    </span>
+                  </div>
                 </>
               )}
             </SectionCard>
 
-            {/* Address */}
+            {/* Billing Address */}
             <SectionCard title="Billing Address" icon={MapPin}>
-              {editing ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Street</label>
-                    <input
-                      type="text"
-                      value={form.street}
-                      onChange={(e) => handleChange('street', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Street 2</label>
-                    <input
-                      type="text"
-                      value={form.street2}
-                      onChange={(e) => handleChange('street2', e.target.value)}
-                      placeholder="Apt, Suite, Floor"
-                      className="input-field"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-sm text-dark-400 mb-1">City</label>
-                      <input
-                        type="text"
-                        value={form.city}
-                        onChange={(e) => handleChange('city', e.target.value)}
-                        className="input-field"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-dark-400 mb-1">State</label>
-                      <input
-                        type="text"
-                        value={form.state}
-                        onChange={(e) => handleChange('state', e.target.value)}
-                        className="input-field"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-sm text-dark-400 mb-1">ZIP</label>
-                      <input
-                        type="text"
-                        value={form.zip}
-                        onChange={(e) => handleChange('zip', e.target.value)}
-                        className="input-field"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-dark-400 mb-1">Country</label>
-                      <input
-                        type="text"
-                        value={form.country}
-                        onChange={(e) => handleChange('country', e.target.value)}
-                        className="input-field"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <InfoRow label="Billing Address" value={addressLines || null} />
-              )}
-            </SectionCard>
-
-            {/* Tags */}
-            <SectionCard title="Tags" icon={Tag}>
-              {editing ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.length === 0 ? (
-                    <p className="text-dark-500 text-sm">No tags available. Create tags in Contacts Config.</p>
-                  ) : (
-                    tags.map((tag) => (
-                      <button
-                        key={tag._id}
-                        type="button"
-                        onClick={() => toggleTag(tag._id)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                          form.tags.includes(tag._id)
-                            ? 'bg-rivvra-500/20 text-rivvra-400 border border-rivvra-500/30'
-                            : 'bg-dark-700 text-dark-400 border border-dark-600 hover:text-dark-200'
-                        }`}
-                      >
-                        {tag.name}
-                      </button>
-                    ))
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {(contact.tagNames || []).length > 0 ? (
-                    contact.tagNames.map((tag, i) => (
-                      <Badge key={i} className="bg-dark-700 text-dark-300">{tag}</Badge>
-                    ))
-                  ) : (
-                    <p className="text-dark-500 text-sm">No tags assigned</p>
-                  )}
-                </div>
-              )}
+              <EditableField label="Street" value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField} placeholder="Add street" />
+              <EditableField label="Street 2" value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField} placeholder="Apt, Suite, Floor" />
+              <EditableField label="City" value={addr.city} field="city" editable={isAdmin} onSave={saveAddressField} placeholder="Add city" />
+              <EditableField label="State" value={addr.state} field="state" editable={isAdmin} onSave={saveAddressField} placeholder="Add state" />
+              <EditableField label="ZIP" value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField} placeholder="Add ZIP" />
+              <EditableField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
             </SectionCard>
 
             {/* Classification */}
             <SectionCard title="Classification" icon={Users}>
-              {editing ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Salesperson</label>
-                    <select
-                      value={form.salespersonId}
-                      onChange={(e) => handleChange('salespersonId', e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="">No salesperson</option>
-                      {salespersons.map((sp) => (
-                        <option key={sp._id} value={sp._id}>{sp.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-6 pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.isCustomer}
-                        onChange={(e) => handleChange('isCustomer', e.target.checked)}
-                        className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500 focus:ring-offset-0"
-                      />
-                      <span className="text-sm text-dark-300">Customer</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.isSupplier}
-                        onChange={(e) => handleChange('isSupplier', e.target.checked)}
-                        className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500 focus:ring-offset-0"
-                      />
-                      <span className="text-sm text-dark-300">Supplier</span>
-                    </label>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <InfoRow
-                    label="Salesperson"
-                    value={contact.salespersonName || null}
-                  />
-                  <InfoRow
-                    label="Customer"
-                    value={contact.isCustomer ? 'Yes' : 'No'}
-                  />
-                  <InfoRow
-                    label="Supplier"
-                    value={contact.isSupplier ? 'Yes' : 'No'}
-                  />
-                </>
-              )}
+              <EditableField
+                label="Salesperson"
+                value={salespersonDisplayValue}
+                field="salespersonId"
+                type="select"
+                options={salespersonOptions}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val)}
+              />
+              <EditableField
+                label="Customer"
+                value={contact.isCustomer ? 'Yes' : 'No'}
+                field="isCustomer"
+                type="select"
+                options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val === 'true')}
+              />
+              <EditableField
+                label="Supplier"
+                value={contact.isSupplier ? 'Yes' : 'No'}
+                field="isSupplier"
+                type="select"
+                options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val === 'true')}
+              />
             </SectionCard>
 
             {/* Tax Information */}
             <SectionCard title="Tax Information" icon={Receipt}>
-              {editing ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">GST Treatment</label>
-                    <select
-                      value={form.gstTreatment}
-                      onChange={(e) => handleChange('gstTreatment', e.target.value)}
-                      className="input-field"
-                    >
-                      {GST_TREATMENT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-sm text-dark-400 mb-1">GSTIN</label>
-                      <input
-                        type="text"
-                        value={form.gstin}
-                        onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
-                        placeholder="29AALCR0152L1Z2"
-                        maxLength={15}
-                        className="input-field"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-dark-400 mb-1">PAN</label>
-                      <input
-                        type="text"
-                        value={form.pan}
-                        onChange={(e) => handleChange('pan', e.target.value.toUpperCase())}
-                        placeholder="AALCR0152L"
-                        maxLength={10}
-                        className="input-field"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Country Code</label>
-                    <input
-                      type="text"
-                      value={form.countryCode}
-                      onChange={(e) => handleChange('countryCode', e.target.value.toUpperCase())}
-                      placeholder="IN"
-                      maxLength={2}
-                      className="input-field w-24"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Place of Supply</label>
-                    <input
-                      type="text"
-                      value={form.placeOfSupply}
-                      onChange={(e) => handleChange('placeOfSupply', e.target.value)}
-                      placeholder="e.g. Karnataka (KA)"
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Default Payment Terms</label>
-                    <select
-                      value={form.defaultPaymentTermId}
-                      onChange={(e) => handleChange('defaultPaymentTermId', e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="">-- None --</option>
-                      {paymentTerms.map(pt => (
-                        <option key={pt._id} value={pt._id}>{pt.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-dark-400 mb-1">Default Currency</label>
-                    <select
-                      value={form.defaultCurrency}
-                      onChange={(e) => handleChange('defaultCurrency', e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="">-- None --</option>
-                      <option value="INR">INR - Indian Rupee</option>
-                      <option value="USD">USD - US Dollar</option>
-                      <option value="EUR">EUR - Euro</option>
-                      <option value="GBP">GBP - British Pound</option>
-                    </select>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <InfoRow label="GST Treatment" value={contact.gstTreatment || null} />
-                  <InfoRow label="GSTIN" value={contact.gstin || null} />
-                  <InfoRow label="PAN" value={contact.pan || null} />
-                  <InfoRow label="Country Code" value={contact.countryCode || null} />
-                  <InfoRow label="Place of Supply" value={contact.placeOfSupply || null} />
-                  <InfoRow label="Payment Terms" value={paymentTerms.find(pt => pt._id === contact.defaultPaymentTermId)?.name || null} />
-                  <InfoRow label="Default Currency" value={contact.defaultCurrency || null} />
-                </>
-              )}
+              <EditableField
+                label="GST Treatment"
+                value={contact.gstTreatment}
+                field="gstTreatment"
+                type="select"
+                options={GST_TREATMENT_OPTIONS}
+                editable={isAdmin}
+                onSave={saveField}
+              />
+              <EditableField
+                label="GSTIN"
+                value={contact.gstin}
+                field="gstin"
+                editable={isAdmin}
+                onSave={saveField}
+                placeholder="29AALCR0152L1Z2"
+                maxLength={15}
+                transform={(v) => v.toUpperCase()}
+              />
+              <EditableField
+                label="PAN"
+                value={contact.pan}
+                field="pan"
+                editable={isAdmin}
+                onSave={saveField}
+                placeholder="AALCR0152L"
+                maxLength={10}
+                transform={(v) => v.toUpperCase()}
+              />
+              <EditableField
+                label="Country Code"
+                value={contact.countryCode}
+                field="countryCode"
+                editable={isAdmin}
+                onSave={saveField}
+                placeholder="IN"
+                maxLength={2}
+                transform={(v) => v.toUpperCase()}
+              />
+              <EditableField
+                label="Place of Supply"
+                value={contact.placeOfSupply}
+                field="placeOfSupply"
+                editable={isAdmin}
+                onSave={saveField}
+                placeholder="e.g. Karnataka (KA)"
+              />
+              <EditableField
+                label="Payment Terms"
+                value={paymentTermDisplayValue}
+                field="defaultPaymentTermId"
+                type="select"
+                options={paymentTermOptions}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val || null)}
+              />
+              <EditableField
+                label="Default Currency"
+                value={contact.defaultCurrency}
+                field="defaultCurrency"
+                type="select"
+                options={CURRENCY_OPTIONS}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val || null)}
+              />
+            </SectionCard>
+
+            {/* Tags (read-only) */}
+            <SectionCard title="Tags" icon={Tag}>
+              <div className="flex flex-wrap gap-1.5">
+                {(contact.tagNames || []).length > 0 ? (
+                  contact.tagNames.map((tag, i) => (
+                    <Badge key={i} className="bg-dark-700 text-dark-300">{tag}</Badge>
+                  ))
+                ) : (
+                  <p className="text-dark-500 text-sm">No tags assigned</p>
+                )}
+              </div>
             </SectionCard>
           </div>
 
-          {/* ── Child Contacts (for companies) ─────────────────────────── */}
+          {/* Child Contacts (for companies) */}
           {contact.type === 'company' && childContacts.length > 0 && (
             <div className="card p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -924,7 +716,7 @@ export default function ContactDetail() {
         </div>
       )}
 
-      {/* ── Activities Tab ─────────────────────────────────────────── */}
+      {/* Activities Tab */}
       {activeTab === 'activities' && (
         <>
           <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} />
@@ -939,32 +731,26 @@ export default function ContactDetail() {
         </>
       )}
 
-      {/* ── Notes Tab ────────────────────────────────────────────────── */}
+      {/* Notes Tab */}
       {activeTab === 'notes' && (
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
             <FileText size={16} className="text-dark-400" />
             <h3 className="text-white font-semibold">Internal Notes</h3>
           </div>
-          {editing ? (
-            <textarea
-              value={form.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Add internal notes about this contact..."
-              rows={8}
-              className="input-field min-h-[200px] w-full"
-            />
-          ) : (
-            <div className="text-dark-300 text-sm whitespace-pre-wrap min-h-[100px]">
-              {contact.internalNotes || (
-                <span className="text-dark-500 italic">No notes yet.</span>
-              )}
-            </div>
-          )}
+          <EditableField
+            label=""
+            value={contact.internalNotes}
+            field="internalNotes"
+            type="textarea"
+            editable={isAdmin}
+            onSave={saveField}
+            placeholder="Add internal notes about this contact..."
+          />
         </div>
       )}
 
-      {/* ── Attachments Tab ─────────────────────────────────────────── */}
+      {/* Attachments Tab */}
       {activeTab === 'attachments' && (
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -1030,7 +816,7 @@ export default function ContactDetail() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">{doc.filename}</p>
-                      <p className="text-xs text-dark-500">{sizeKb}{doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
+                      <p className="text-xs text-dark-500">{sizeKb}{doc.uploadedAt ? ` \u00b7 ${new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
                     </div>
                     <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       {isPreviewable && (
