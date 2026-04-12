@@ -34,9 +34,11 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
     lateAmount = 0,
     bars = [],
     currency,
+    draftCount = 0,
+    draftAmount = 0,
   } = journal;
 
-  const hasStats = unpaidCount > 0 || lateCount > 0;
+  const hasStats = unpaidCount > 0 || lateCount > 0 || draftCount > 0;
   const maxBar = Math.max(...bars.map((b) => b.amount), 1);
 
   const fmtAmount = (amt) =>
@@ -104,6 +106,22 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
                 </span>
               </div>
             )}
+            {draftCount > 0 && (
+              <div
+                className="text-sm cursor-pointer hover:underline"
+                onClick={() =>
+                  navigate(
+                    orgPath(
+                      `/invoicing/invoices?journalCode=${code}&status=draft`
+                    )
+                  )
+                }
+              >
+                <span className="text-dark-300 font-medium">
+                  {draftCount} Draft
+                </span>
+              </div>
+            )}
           </div>
           <div className="text-right space-y-1">
             {unpaidCount > 0 && (
@@ -114,6 +132,11 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
             {lateCount > 0 && (
               <div className="text-sm text-red-400">
                 {fmtAmount(lateAmount)}
+              </div>
+            )}
+            {draftCount > 0 && (
+              <div className="text-sm text-dark-400">
+                {fmtAmount(draftAmount)}
               </div>
             )}
           </div>
