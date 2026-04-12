@@ -798,6 +798,7 @@ export default function InvoiceDetail() {
     if (contact.gstin) {
       updates.customerGstin = contact.gstin;
     }
+    if (contact.address) updates.contactAddress = contact.address;
     if (contact.placeOfSupply) updates.placeOfSupply = contact.placeOfSupply;
     if (contact.defaultPaymentTermId) updates.paymentTermId = contact.defaultPaymentTermId;
     if (contact.defaultCurrency) updates.currency = contact.defaultCurrency;
@@ -1204,13 +1205,10 @@ export default function InvoiceDetail() {
   const typeLabel = getInvoiceTypeLabel(invoice);
 
   // Build address string
-  const addressParts = [
-    invoice.contactAddress || invoice.customer?.address,
-    invoice.customer?.city,
-    invoice.customer?.state,
-    invoice.customer?.zip,
-    invoice.customer?.country,
-  ].filter(Boolean);
+  const addrObj = invoice.contactAddress || invoice.customer?.address;
+  const addressParts = typeof addrObj === 'object' && addrObj
+    ? [addrObj.street, addrObj.city, addrObj.state, addrObj.zip, addrObj.country].filter(Boolean)
+    : [addrObj, invoice.customer?.city, invoice.customer?.state, invoice.customer?.zip, invoice.customer?.country].filter(Boolean);
   const addressStr = addressParts.join(', ');
 
   // Payment terms display
@@ -1279,8 +1277,8 @@ export default function InvoiceDetail() {
               </>
             )}
 
-            {/* Cancelled actions */}
-            {status === 'cancelled' && (
+            {/* Reset to Draft */}
+            {(status === 'cancelled' || status === 'sent' || status === 'paid' || status === 'partial') && (
               <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
             )}
 
@@ -1304,7 +1302,7 @@ export default function InvoiceDetail() {
             {STATUS_STEPS.map((step, i) => {
               const isActive = i === stepIndex;
               const isPast = i < stepIndex;
-              const label = step.charAt(0).toUpperCase() + step.slice(1);
+              const label = step === 'sent' ? 'Posted' : step.charAt(0).toUpperCase() + step.slice(1);
 
               let cls = 'px-4 py-1.5 text-xs font-semibold rounded-full transition-colors ';
               if (isActive) {
@@ -1604,9 +1602,7 @@ export default function InvoiceDetail() {
                                     {li.lineCurrency || invoice.currency || 'INR'}
                                   </td>
                                   <td className="px-4 py-3 text-dark-400 text-xs">
-                                    {(li.taxIds || li.taxes || [])
-                                      .map((t) => (typeof t === 'object' ? t.name : t))
-                                      .join(', ') || '-'}
+                                    {(li.taxNames || []).filter(Boolean).join(', ') || (li.taxIds?.length ? `${li.taxIds.length} tax(es)` : '-')}
                                   </td>
                                   <td className="px-6 py-3 text-right text-white font-medium">
                                     {formatCurrency(lineTotal, currency)}
