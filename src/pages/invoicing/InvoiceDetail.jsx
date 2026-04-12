@@ -656,8 +656,9 @@ export default function InvoiceDetail() {
         contactName: invoice.contactName || invoice.customer?.name || '',
         contactEmail: invoice.contactEmail || invoice.customer?.email || '',
         contactAddress: invoice.contactAddress || invoice.customer?.address || '',
-        invoiceDate: invoice.invoiceDate?.split?.('T')?.[0] || '',
-        dueDate: invoice.dueDate?.split?.('T')?.[0] || '',
+        invoiceDate: (invoice.date || invoice.invoiceDate || '')?.split?.('T')?.[0] || '',
+        date: (invoice.date || invoice.invoiceDate || '')?.split?.('T')?.[0] || '',
+        dueDate: (invoice.dueDate || '')?.split?.('T')?.[0] || '',
         paymentTermId: invoice.paymentTermId || (typeof invoice.paymentTerms === 'object' ? invoice.paymentTerms?._id : '') || '',
         currency: invoice.currency || 'INR',
         lines: (invoice.lines || invoice.lineItems || []).map((li, i) => ({
