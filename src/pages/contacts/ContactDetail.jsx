@@ -607,7 +607,7 @@ export default function ContactDetail() {
             </SectionCard>
 
             {/* Address */}
-            <SectionCard title="Address" icon={MapPin}>
+            <SectionCard title="Billing Address" icon={MapPin}>
               {editing ? (
                 <div className="space-y-3">
                   <div>
@@ -671,7 +671,7 @@ export default function ContactDetail() {
                   </div>
                 </div>
               ) : (
-                <InfoRow label="Full Address" value={addressLines || null} />
+                <InfoRow label="Billing Address" value={addressLines || null} />
               )}
             </SectionCard>
 
