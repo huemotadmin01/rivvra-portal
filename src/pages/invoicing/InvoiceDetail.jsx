@@ -681,6 +681,9 @@ export default function InvoiceDetail() {
         gstTreatment: invoice.gstTreatment || '',
         placeOfSupply: invoice.placeOfSupply || '',
         customerGstin: invoice.customerGstin || '',
+        journalId: invoice.journalId || '',
+        journalCode: invoice.journalCode || '',
+        journalName: invoice.journalName || '',
       });
     }
   }, [invoice]);
@@ -1213,8 +1216,9 @@ export default function InvoiceDetail() {
 
   // Payment terms display
   const paymentTermDisplay = (() => {
-    if (isDraft && editForm.paymentTermId) {
-      const found = paymentTermsList.find(pt => (pt._id || pt.id) === editForm.paymentTermId);
+    const termId = isDraft ? (editForm.paymentTermId || invoice.paymentTermId) : invoice.paymentTermId;
+    if (termId && paymentTermsList.length) {
+      const found = paymentTermsList.find(pt => (pt._id || pt.id) === termId);
       if (found) return found.name;
     }
     if (invoice.paymentTerms) {
@@ -1488,6 +1492,21 @@ export default function InvoiceDetail() {
                     editable={isDraft}
                     onSave={saveField}
                   />
+
+                  {/* Journal (read-only) */}
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-dark-400 text-sm">Journal</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white text-sm">
+                        {invoice.journalName || invoice.journalCode || '-'}
+                      </span>
+                      {invoice.journalCode && (
+                        <span className="text-xs bg-dark-700 text-dark-300 px-1.5 py-0.5 rounded">
+                          {invoice.journalCode}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

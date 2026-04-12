@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import {
   FileText, Banknote, Clock, AlertTriangle, ArrowRight,
-  Loader2, TrendingUp, CreditCard, Calendar,
+  Loader2, CreditCard, Calendar, Plus, BookOpen,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -14,7 +14,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '₹0.00';
+  if (amount == null) return '\u20B90.00';
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
@@ -63,36 +63,62 @@ function KPICard({ label, value, icon: Icon, color = 'blue' }) {
   );
 }
 
-function RevenueChart({ data = [] }) {
-  if (!data.length) {
-    return (
-      <div className="flex items-center justify-center h-48 text-dark-500 text-sm">
-        No revenue data yet
-      </div>
-    );
-  }
-
-  const maxAmount = Math.max(...data.map(d => d.amount || 0), 1);
-
+function JournalCard({ journal, navigate, orgPath }) {
   return (
-    <div className="flex items-end gap-2 h-48">
-      {data.map((d, i) => {
-        const heightPct = Math.max(((d.amount || 0) / maxAmount) * 100, 2);
-        return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-[10px] text-dark-400 font-medium">
-              {formatCurrency(d.amount)}
+    <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 hover:border-dark-600 transition-colors">
+      <div className="flex items-center justify-between mb-3">
+        <h3
+          className="text-rivvra-500 font-semibold cursor-pointer hover:underline text-base"
+          onClick={() => navigate(orgPath(`/invoicing/invoices?journalId=${journal._id}`))}
+        >
+          {journal.name}
+        </h3>
+        <button
+          onClick={() => navigate(orgPath(`/invoicing/invoices/new?journalId=${journal._id}`))}
+          className="bg-rivvra-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rivvra-600 transition-colors flex items-center gap-1"
+        >
+          <Plus size={12} />
+          New
+        </button>
+      </div>
+      <div className="text-sm text-dark-400">{journal.code} &middot; {journal.type}</div>
+      {(journal.unpaidCount > 0 || journal.lateCount > 0) && (
+        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-dark-700">
+          {journal.unpaidCount > 0 && (
+            <span className="text-xs text-amber-400">
+              {journal.unpaidCount} Unpaid {formatCurrency(journal.unpaidAmount)}
             </span>
-            <div className="w-full flex items-end justify-center" style={{ height: '140px' }}>
-              <div
-                className="w-full max-w-[40px] bg-gradient-to-t from-amber-500 to-amber-400 rounded-t-md transition-all duration-500"
-                style={{ height: `${heightPct}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-dark-500">{d.label || d.month}</span>
-          </div>
-        );
-      })}
+          )}
+          {journal.lateCount > 0 && (
+            <span className="text-xs text-red-400">
+              {journal.lateCount} Late {formatCurrency(journal.lateAmount)}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompactJournalCard({ journal, navigate, orgPath }) {
+  return (
+    <div className="bg-dark-850 border border-dark-700 rounded-lg p-3 hover:border-dark-600 transition-colors flex items-center justify-between">
+      <div className="flex items-center gap-2 min-w-0">
+        <BookOpen size={14} className="text-dark-500 flex-shrink-0" />
+        <span
+          className="text-rivvra-500 text-sm font-medium cursor-pointer hover:underline truncate"
+          onClick={() => navigate(orgPath(`/invoicing/invoices?journalId=${journal._id}`))}
+        >
+          {journal.name}
+        </span>
+        <span className="text-xs text-dark-500">{journal.code}</span>
+      </div>
+      <button
+        onClick={() => navigate(orgPath(`/invoicing/invoices/new?journalId=${journal._id}`))}
+        className="bg-dark-700 text-dark-300 text-xs px-2 py-1 rounded hover:bg-dark-600 transition-colors flex-shrink-0"
+      >
+        New
+      </button>
     </div>
   );
 }
@@ -125,15 +151,21 @@ export default function InvoicingDashboard() {
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
+  const [journals, setJournals] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!orgSlug) return;
     setLoading(true);
-    invoicingApi
-      .getDashboard(orgSlug)
-      .then(res => {
-        if (res.success !== false) setData(res);
+
+    Promise.all([
+      invoicingApi.getDashboard(orgSlug).catch(() => null),
+      invoicingApi.listJournals(orgSlug, { active: true }).catch(() => null),
+    ])
+      .then(([dashRes, journalRes]) => {
+        if (dashRes && dashRes.success !== false) setData(dashRes);
+        const jList = journalRes?.journals || journalRes?.data || [];
+        setJournals(jList);
       })
       .catch(() => showToast('Failed to load invoicing dashboard', 'error'))
       .finally(() => setLoading(false));
@@ -147,7 +179,7 @@ export default function InvoicingDashboard() {
     );
   }
 
-  if (!data) {
+  if (!data && journals.length === 0) {
     return (
       <div className="bg-dark-900 min-h-screen flex items-center justify-center">
         <p className="text-dark-500 text-sm">Unable to load dashboard data.</p>
@@ -155,17 +187,13 @@ export default function InvoicingDashboard() {
     );
   }
 
-  const kpi = data.kpis || data.kpi || {};
-  const recentInvoices = data.recentInvoices || [];
-  const recentPayments = data.recentPayments || [];
-  const monthlyRevenueRaw = data.monthlyRevenue || [];
+  const kpi = data?.kpis || data?.kpi || {};
+  const recentInvoices = data?.recentInvoices || [];
 
-  // Map backend shape { _id: { year, month }, total, count } to chart shape { amount, label }
-  const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const monthlyRevenue = monthlyRevenueRaw.map(d => ({
-    amount: d.amount ?? d.total ?? 0,
-    label: d.label || (d._id ? `${MONTH_SHORT[(d._id.month || 1) - 1]} ${d._id.year}` : d.month || ''),
-  }));
+  // Group journals by type
+  const saleJournals = journals.filter(j => j.type === 'sale');
+  const purchaseJournals = journals.filter(j => j.type === 'purchase');
+  const otherJournals = journals.filter(j => j.type !== 'sale' && j.type !== 'purchase');
 
   return (
     <div className="bg-dark-900 min-h-screen">
@@ -173,8 +201,8 @@ export default function InvoicingDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-white">Invoicing Dashboard</h1>
-            <p className="text-xs text-dark-400 mt-0.5">Overview of your invoicing activity</p>
+            <h1 className="text-lg font-semibold text-white">Invoicing</h1>
+            <p className="text-xs text-dark-400 mt-0.5">Journals &amp; invoicing overview</p>
           </div>
           <button
             onClick={() => navigate(orgPath('/invoicing/invoices/new'))}
@@ -186,86 +214,76 @@ export default function InvoicingDashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard
-            label="Total Invoiced"
-            value={formatCurrency(kpi.totalInvoiced || 0)}
-            icon={FileText}
-            color="blue"
-          />
-          <KPICard
-            label="Collected"
-            value={formatCurrency(kpi.totalCollected || kpi.collected || 0)}
-            icon={Banknote}
-            color="green"
-          />
-          <KPICard
-            label="Outstanding"
-            value={formatCurrency(kpi.totalOutstanding || kpi.outstanding || 0)}
-            icon={Clock}
-            color="amber"
-          />
-          <KPICard
-            label="Overdue"
-            value={formatCurrency(kpi.totalOverdue || kpi.overdue || 0)}
-            icon={AlertTriangle}
-            color="red"
-          />
-        </div>
-
-        {/* Charts & Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Monthly Revenue Chart */}
-          <div className="lg:col-span-2 bg-dark-850 border border-dark-700 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp size={16} className="text-amber-400" />
-                <h3 className="text-sm font-semibold text-dark-200">Monthly Revenue</h3>
-              </div>
-            </div>
-            <RevenueChart data={monthlyRevenue} />
+        {data && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPICard
+              label="Total Invoiced"
+              value={formatCurrency(kpi.totalInvoiced || 0)}
+              icon={FileText}
+              color="blue"
+            />
+            <KPICard
+              label="Collected"
+              value={formatCurrency(kpi.totalCollected || kpi.collected || 0)}
+              icon={Banknote}
+              color="green"
+            />
+            <KPICard
+              label="Outstanding"
+              value={formatCurrency(kpi.totalOutstanding || kpi.outstanding || 0)}
+              icon={Clock}
+              color="amber"
+            />
+            <KPICard
+              label="Overdue"
+              value={formatCurrency(kpi.totalOverdue || kpi.overdue || 0)}
+              icon={AlertTriangle}
+              color="red"
+            />
           </div>
+        )}
 
-          {/* Recent Payments */}
-          <div className="bg-dark-850 border border-dark-700 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <CreditCard size={16} className="text-emerald-400" />
-                <h3 className="text-sm font-semibold text-dark-200">Recent Payments</h3>
-              </div>
-              <button
-                onClick={() => navigate(orgPath('/invoicing/payments'))}
-                className="text-xs text-rivvra-400 hover:text-rivvra-300 flex items-center gap-1"
-              >
-                View All <ArrowRight size={12} />
-              </button>
+        {/* Customer Invoices Section */}
+        {saleJournals.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider mb-3">
+              Customer Invoices
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {saleJournals.map(j => (
+                <JournalCard key={j._id} journal={j} navigate={navigate} orgPath={orgPath} />
+              ))}
             </div>
-
-            {recentPayments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-dark-500">
-                <CreditCard size={24} className="mb-2 opacity-40" />
-                <p className="text-xs">No payments yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentPayments.slice(0, 5).map(p => (
-                  <div
-                    key={p._id}
-                    className="flex items-center justify-between py-2 border-b border-dark-700 last:border-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm text-white truncate">{p.customerName || p.invoiceNumber || 'Payment'}</p>
-                      <p className="text-[10px] text-dark-500">{formatDate(p.date || p.createdAt)}</p>
-                    </div>
-                    <span className="text-sm font-medium text-emerald-400 whitespace-nowrap ml-3">
-                      {formatCurrency(p.amount)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
+        )}
+
+        {/* Vendor Bills Section */}
+        {purchaseJournals.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider mb-3">
+              Vendor Bills
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {purchaseJournals.map(j => (
+                <JournalCard key={j._id} journal={j} navigate={navigate} orgPath={orgPath} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Other Journals (bank, cash, misc) */}
+        {otherJournals.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider mb-3">
+              Other
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {otherJournals.map(j => (
+                <CompactJournalCard key={j._id} journal={j} navigate={navigate} orgPath={orgPath} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Recent Invoices Table */}
         <div className="bg-dark-850 border border-dark-700 rounded-xl p-5">

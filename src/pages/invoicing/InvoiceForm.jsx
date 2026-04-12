@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -14,6 +14,8 @@ import { Loader2 } from 'lucide-react';
 export default function InvoiceForm() {
   const { invoiceId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const journalId = searchParams.get('journalId');
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
@@ -36,6 +38,7 @@ export default function InvoiceForm() {
             type: 'customer_invoice',
             date: today,
             lines: [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }],
+            ...(journalId ? { journalId } : {}),
           });
           const newId = res?.invoice?._id;
           if (newId) {
