@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
+import invoicingApi from '../../utils/invoicingApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
@@ -107,6 +108,7 @@ export default function ContactDetail() {
   const [companies, setCompanies] = useState([]);
   const [tags, setTags] = useState([]);
   const [salespersons, setSalespersons] = useState([]);
+  const [paymentTerms, setPaymentTerms] = useState([]);
 
   const isAdmin = getAppRole('contacts') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -153,6 +155,11 @@ export default function ContactDetail() {
       if (spRes.success) setSalespersons(spRes.salespersons || []);
     });
 
+    // Load payment terms for invoicing dropdown
+    invoicingApi.listPaymentTerms(orgSlug)
+      .then(res => setPaymentTerms(res?.paymentTerms || []))
+      .catch(() => {});
+
     return () => { cancelled = true; };
   }, [orgSlug]);
 
@@ -197,6 +204,9 @@ export default function ContactDetail() {
       gstin: contact.gstin || '',
       pan: contact.pan || '',
       countryCode: contact.countryCode || '',
+      defaultPaymentTermId: contact.defaultPaymentTermId || '',
+      placeOfSupply: contact.placeOfSupply || '',
+      defaultCurrency: contact.defaultCurrency || '',
     });
     setEditing(true);
   };
@@ -264,6 +274,9 @@ export default function ContactDetail() {
         gstin: form.gstin.trim(),
         pan: form.pan.trim(),
         countryCode: form.countryCode.trim(),
+        defaultPaymentTermId: form.defaultPaymentTermId || null,
+        placeOfSupply: form.placeOfSupply.trim(),
+        defaultCurrency: form.defaultCurrency || null,
       };
 
       const res = await contactsApi.update(orgSlug, contactId, payload);
@@ -805,6 +818,43 @@ export default function ContactDetail() {
                       className="input-field w-24"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm text-dark-400 mb-1">Place of Supply</label>
+                    <input
+                      type="text"
+                      value={form.placeOfSupply}
+                      onChange={(e) => handleChange('placeOfSupply', e.target.value)}
+                      placeholder="e.g. Karnataka (KA)"
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-dark-400 mb-1">Default Payment Terms</label>
+                    <select
+                      value={form.defaultPaymentTermId}
+                      onChange={(e) => handleChange('defaultPaymentTermId', e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">-- None --</option>
+                      {paymentTerms.map(pt => (
+                        <option key={pt._id} value={pt._id}>{pt.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-dark-400 mb-1">Default Currency</label>
+                    <select
+                      value={form.defaultCurrency}
+                      onChange={(e) => handleChange('defaultCurrency', e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">-- None --</option>
+                      <option value="INR">INR - Indian Rupee</option>
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                    </select>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -812,6 +862,9 @@ export default function ContactDetail() {
                   <InfoRow label="GSTIN" value={contact.gstin || null} />
                   <InfoRow label="PAN" value={contact.pan || null} />
                   <InfoRow label="Country Code" value={contact.countryCode || null} />
+                  <InfoRow label="Place of Supply" value={contact.placeOfSupply || null} />
+                  <InfoRow label="Payment Terms" value={paymentTerms.find(pt => pt._id === contact.defaultPaymentTermId)?.name || null} />
+                  <InfoRow label="Default Currency" value={contact.defaultCurrency || null} />
                 </>
               )}
             </SectionCard>
