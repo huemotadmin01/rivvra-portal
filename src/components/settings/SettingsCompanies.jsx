@@ -47,6 +47,7 @@ const EMPTY_FORM = {
   pan: '',
   address: { street: '', street2: '', city: '', state: '', zip: '', country: 'India', countryCode: 'IN' },
   socialMedia: { x: '', facebook: '', github: '', linkedin: '', youtube: '', instagram: '' },
+  bankDetails: { accountName: '', bankName: '', accountNo: '', ifsc: '' },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -142,6 +143,12 @@ export default function SettingsCompanies() {
         youtube: company.socialMedia?.youtube || '',
         instagram: company.socialMedia?.instagram || '',
       },
+      bankDetails: {
+        accountName: company.bankDetails?.accountName || '',
+        bankName: company.bankDetails?.bankName || '',
+        accountNo: company.bankDetails?.accountNo || '',
+        ifsc: company.bankDetails?.ifsc || '',
+      },
     });
   };
 
@@ -155,6 +162,10 @@ export default function SettingsCompanies() {
 
   const handleSocialChange = (field, value) => {
     setForm((prev) => ({ ...prev, socialMedia: { ...prev.socialMedia, [field]: value } }));
+  };
+
+  const handleBankChange = (field, value) => {
+    setForm((prev) => ({ ...prev, bankDetails: { ...prev.bankDetails, [field]: value } }));
   };
 
   // ─── Navigation ────────────────────────────────────────────────────────────
@@ -700,6 +711,53 @@ export default function SettingsCompanies() {
                       onChange={(e) => handleSocialChange('instagram', e.target.value)}
                       className="input-field text-sm"
                       placeholder="https://instagram.com/company"
+                    />
+                  </FieldRow>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── BANK DETAILS Section ─── */}
+            <div className="mt-8 pt-5 border-t border-dark-700">
+              <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Bank Details</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
+                <div className="divide-y divide-dark-800">
+                  <FieldRow label="Account Name">
+                    <input
+                      type="text"
+                      value={form.bankDetails.accountName}
+                      onChange={(e) => handleBankChange('accountName', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="Company Legal Name"
+                    />
+                  </FieldRow>
+                  <FieldRow label="Bank Name">
+                    <input
+                      type="text"
+                      value={form.bankDetails.bankName}
+                      onChange={(e) => handleBankChange('bankName', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="e.g. HDFC BANK"
+                    />
+                  </FieldRow>
+                </div>
+                <div className="divide-y divide-dark-800">
+                  <FieldRow label="Account Number">
+                    <input
+                      type="text"
+                      value={form.bankDetails.accountNo}
+                      onChange={(e) => handleBankChange('accountNo', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="e.g. 50200072741421"
+                    />
+                  </FieldRow>
+                  <FieldRow label="IFSC Code">
+                    <input
+                      type="text"
+                      value={form.bankDetails.ifsc}
+                      onChange={(e) => handleBankChange('ifsc', e.target.value)}
+                      className="input-field text-sm"
+                      placeholder="e.g. HDFC0004668"
                     />
                   </FieldRow>
                 </div>
