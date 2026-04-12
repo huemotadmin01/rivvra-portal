@@ -1205,10 +1205,10 @@ export default function InvoiceDetail() {
   const typeLabel = getInvoiceTypeLabel(invoice);
 
   // Build address string
-  const addrObj = invoice.contactAddress || invoice.customer?.address;
+  const addrObj = editForm.contactAddress || invoice.contactAddress || invoice.customer?.address;
   const addressParts = typeof addrObj === 'object' && addrObj
-    ? [addrObj.street, addrObj.city, addrObj.state, addrObj.zip, addrObj.country].filter(Boolean)
-    : [addrObj, invoice.customer?.city, invoice.customer?.state, invoice.customer?.zip, invoice.customer?.country].filter(Boolean);
+    ? [addrObj.street, addrObj.street2, addrObj.city, addrObj.state, addrObj.zip, addrObj.country].filter(Boolean)
+    : typeof addrObj === 'string' ? [addrObj] : [];
   const addressStr = addressParts.join(', ');
 
   // Payment terms display
@@ -1247,7 +1247,7 @@ export default function InvoiceDetail() {
             {/* Draft actions */}
             {status === 'draft' && (
               <>
-                <ActionBtn icon={Send} label="Send" onClick={handleSend} loading={actionLoading === 'send'} primary />
+                <ActionBtn icon={Check} label="Confirm" onClick={handleSend} loading={actionLoading === 'send'} primary />
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 <ActionBtn icon={Trash2} label="Delete" onClick={() => setShowDeleteConfirm(true)} danger />
               </>
@@ -1380,7 +1380,7 @@ export default function InvoiceDetail() {
                           className="text-rivvra-500 font-semibold cursor-pointer hover:underline"
                           onClick={(e) => {
                             const cId = editForm.contactId || invoice.contactId;
-                            if (cId) { e.stopPropagation(); navigate(orgPath(`/contacts/${cId}`)); }
+                            if (cId) { e.stopPropagation(); navigate(orgPath(`/contacts/${cId}?from=invoice&invoiceId=${invoiceId}`)); }
                           }}
                         >
                           {editForm.contactName || invoice.contactName || invoice.customer?.name || '-'}
@@ -1521,8 +1521,8 @@ export default function InvoiceDetail() {
               {activeTab === 'lines' && (
                 <div>
                   {/* Invoice Lines table */}
-                  <div>
-                    <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[1100px] w-full text-sm">
                       <thead>
                         <tr className="bg-dark-800">
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-6 py-3">Product</th>
@@ -2154,11 +2154,11 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
             defaultValue={line.quantity}
             onBlur={(e) => handleFieldBlur('quantity', Number(e.target.value) || 0)}
             onKeyDown={(e) => handleFieldKeyDown(e, 'quantity', Number(e.target.value) || 0)}
-            className={cellInputCls + ' text-right w-20'}
+            className={cellInputCls + ' text-right w-16'}
           />
         ) : (
           <div
-            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 inline-flex items-center gap-1 min-h-[28px] justify-end"
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 inline-flex items-center gap-1 min-h-[28px] justify-end w-full"
             onClick={() => handleFieldClick('quantity')}
           >
             <span className="text-white text-sm">{Number(line.quantity) || 1}</span>

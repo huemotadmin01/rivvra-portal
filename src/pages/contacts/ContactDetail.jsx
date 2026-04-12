@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -78,9 +78,12 @@ function SectionCard({ title, icon: Icon, children }) {
 export default function ContactDetail() {
   const { contactId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
+  const fromInvoice = searchParams.get('from') === 'invoice';
+  const fromInvoiceId = searchParams.get('invoiceId');
 
   const [contact, setContact] = useState(null);
   usePageTitle(contact?.name || contact?.companyName);
@@ -352,6 +355,16 @@ export default function ContactDetail() {
   // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="p-6 max-w-5xl">
+      {/* ── Back to Invoice link ─────────────────────────────────────── */}
+      {fromInvoice && fromInvoiceId && (
+        <button
+          onClick={() => navigate(orgPath(`/invoicing/invoices/${fromInvoiceId}`))}
+          className="flex items-center gap-1.5 text-sm text-rivvra-500 hover:text-rivvra-400 mb-4 transition-colors"
+        >
+          <span>←</span> Back to Invoice
+        </button>
+      )}
+
       {/* ── Header Card ──────────────────────────────────────────────── */}
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-5">
