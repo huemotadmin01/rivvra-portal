@@ -443,7 +443,7 @@ function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose }) {
   };
 
   return (
-    <div ref={containerRef} className="absolute top-full left-0 mt-1 w-56 bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50">
+    <div ref={containerRef} className="absolute bottom-full left-0 mb-1 w-56 bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 max-h-48">
       <div className="px-3 py-2 border-b border-dark-700 text-xs text-dark-400 font-medium">Select Taxes</div>
       <div className="max-h-40 overflow-y-auto">
         {loading && (
@@ -522,6 +522,7 @@ export default function InvoiceDetail() {
   const [saving, setSaving] = useState(false);
   const [savedField, setSavedField] = useState(null); // flash "Saved" indicator
   const [paymentTermsList, setPaymentTermsList] = useState([]);
+  const [allTaxes, setAllTaxes] = useState([]);
 
   const isDraft = invoice?.status === 'draft';
 
@@ -563,6 +564,7 @@ export default function InvoiceDetail() {
       invoicingApi.listPaymentTerms(orgSlug)
         .then(res => setPaymentTermsList(res?.paymentTerms || res?.data || []))
         .catch(() => {});
+      invoicingApi.listTaxes(orgSlug).then(r => setAllTaxes(r?.taxes || [])).catch(() => {});
     }
   }, [orgSlug]);
 
@@ -722,12 +724,20 @@ export default function InvoiceDetail() {
   const updateLine = useCallback((index, field, value) => {
     setEditForm(prev => {
       const newLines = [...prev.lines];
-      newLines[index] = { ...newLines[index], [field]: value };
+      const updatedLine = { ...newLines[index], [field]: value };
+      // When updating taxIds, also update taxNames for display
+      if (field === 'taxIds') {
+        updatedLine.taxNames = value.map(id => {
+          const tax = allTaxes.find(t => (t._id || t.id) === id);
+          return tax?.name || '';
+        }).filter(Boolean);
+      }
+      newLines[index] = updatedLine;
       // Trigger debounced save
       setTimeout(() => saveLines(newLines), 0);
       return { ...prev, lines: newLines };
     });
-  }, [saveLines]);
+  }, [saveLines, allTaxes]);
 
   const addLine = useCallback(() => {
     setEditForm(prev => {
@@ -773,13 +783,34 @@ export default function InvoiceDetail() {
   const localTotals = useMemo(() => {
     const lines = editForm.lines || [];
     let subtotal = 0;
+    let taxTotal = 0;
     lines.forEach(l => {
-      const amt = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
-      const disc = Number(l.discount) || 0;
-      subtotal += amt - disc;
+      const qty = Number(l.quantity) || 0;
+      const price = Number(l.unitPrice) || 0;
+      const discPct = Number(l.discount) || 0;
+      const lineSubtotal = qty * price * (1 - discPct / 100);
+      subtotal += lineSubtotal;
+      // Estimate tax from loaded taxes
+      (l.taxIds || []).forEach(taxId => {
+        const tax = allTaxes.find(t => (t._id || t.id) === taxId);
+        if (tax?.rate) {
+          if (tax.inclusive) {
+            taxTotal += lineSubtotal - (lineSubtotal / (1 + tax.rate / 100));
+          } else {
+            taxTotal += lineSubtotal * (tax.rate / 100);
+          }
+        }
+      });
     });
-    return { subtotal };
-  }, [editForm.lines]);
+    const total = subtotal + taxTotal;
+    const discountTotal = lines.reduce((s, l) => {
+      const qty = Number(l.quantity) || 0;
+      const price = Number(l.unitPrice) || 0;
+      const discPct = Number(l.discount) || 0;
+      return s + qty * price * (discPct / 100);
+    }, 0);
+    return { subtotal: Math.round(subtotal * 100) / 100, taxTotal: Math.round(taxTotal * 100) / 100, total: Math.round(total * 100) / 100, discountTotal: Math.round(discountTotal * 100) / 100 };
+  }, [editForm.lines, allTaxes]);
 
   // ── Fetch invoice ──
   const fetchInvoice = useCallback(async () => {
@@ -1454,22 +1485,22 @@ export default function InvoiceDetail() {
                         </div>
 
                         {/* Tax breakdown */}
-                        {(invoice.taxTotal > 0 || invoice.totalTax > 0 || invoice.taxAmount > 0) && (
+                        {((isDraft ? localTotals.taxTotal : (invoice.taxTotal || invoice.totalTax || invoice.taxAmount)) > 0) && (
                           <div className="flex justify-between text-sm">
                             <span className="text-dark-400">
                               {invoice.taxBreakdown?.[0]?.name || 'Taxes'}
                             </span>
                             <span className="text-white">
-                              {formatCurrency(invoice.taxTotal || invoice.totalTax || invoice.taxAmount, currency)}
+                              {formatCurrency(isDraft ? localTotals.taxTotal : (invoice.taxTotal || invoice.totalTax || invoice.taxAmount || 0), currency)}
                             </span>
                           </div>
                         )}
 
-                        {(invoice.totalDiscount > 0 || invoice.discountAmount > 0) && (
+                        {((isDraft ? localTotals.discountTotal : (invoice.totalDiscount || invoice.discountAmount)) > 0) && (
                           <div className="flex justify-between text-sm">
                             <span className="text-dark-400">Discount</span>
                             <span className="text-amber-400">
-                              -{formatCurrency(invoice.totalDiscount || invoice.discountAmount, currency)}
+                              -{formatCurrency(isDraft ? localTotals.discountTotal : (invoice.totalDiscount || invoice.discountAmount || 0), currency)}
                             </span>
                           </div>
                         )}
@@ -1479,7 +1510,7 @@ export default function InvoiceDetail() {
                         <div className="flex justify-between text-base font-bold">
                           <span className="text-white">Total</span>
                           <span className="text-white">
-                            {formatCurrency(invoice.total, currency)}
+                            {formatCurrency(isDraft ? localTotals.total : invoice.total, currency)}
                           </span>
                         </div>
 
@@ -1823,7 +1854,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
   const [showTaxSelect, setShowTaxSelect] = useState(false);
   const [editingField, setEditingField] = useState(null);
 
-  const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) - (Number(line.discount) || 0);
+  const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * (1 - (Number(line.discount) || 0) / 100);
 
   const cellInputCls = 'w-full bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500';
 
@@ -1907,7 +1938,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
             className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 inline-flex items-center gap-1 min-h-[28px] justify-end"
             onClick={() => handleFieldClick('quantity')}
           >
-            <span className="text-white text-sm">{line.quantity ?? 0}</span>
+            <span className="text-white text-sm">{Number(line.quantity) || 1}</span>
             <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
           </div>
         )}
