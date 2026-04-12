@@ -1253,18 +1253,18 @@ export default function InvoiceDetail() {
               </>
             )}
 
-            {/* Sent / Viewed / Partial / Overdue actions */}
+            {/* Posted / Viewed / Partial / Overdue actions */}
             {['sent', 'viewed', 'partial', 'overdue'].includes(status) && (
               <>
                 <ActionBtn icon={CreditCard} label="Record Payment" onClick={() => setShowPaymentModal(true)} primary />
                 <ActionBtn icon={Send} label="Send" onClick={handleSend} loading={actionLoading === 'send'} />
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} loading={actionLoading === 'credit'} />
-                <ActionBtn icon={Mail} label="Email" onClick={() => setShowEmailModal(true)} />
                 {status === 'overdue' && (
                   <ActionBtn icon={BellRing} label="Follow-up" onClick={handleSendFollowUp} loading={actionLoading === 'followup'} />
                 )}
                 <ActionBtn icon={XCircle} label="Cancel" onClick={handleCancel} loading={actionLoading === 'cancel'} danger />
+                <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
               </>
             )}
 
@@ -1274,11 +1274,12 @@ export default function InvoiceDetail() {
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} loading={actionLoading === 'credit'} />
                 <ActionBtn icon={Copy} label="Duplicate" onClick={handleDuplicate} loading={actionLoading === 'duplicate'} />
+                <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
               </>
             )}
 
-            {/* Reset to Draft */}
-            {(status === 'cancelled' || status === 'sent' || status === 'paid' || status === 'partial') && (
+            {/* Cancelled actions */}
+            {status === 'cancelled' && (
               <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
             )}
 
@@ -1530,7 +1531,7 @@ export default function InvoiceDetail() {
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Start Date</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">End Date</th>
-                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Qty</th>
+                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3 w-20">Qty</th>
                           <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Billing Rate</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Currency</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Taxes</th>
@@ -2144,7 +2145,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
       </td>
 
       {/* Qty */}
-      <td className="px-4 py-2.5 text-right">
+      <td className="px-4 py-2.5 text-right w-20">
         {editingField === 'quantity' ? (
           <input
             type="number"
@@ -2154,7 +2155,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
             defaultValue={line.quantity}
             onBlur={(e) => handleFieldBlur('quantity', Number(e.target.value) || 0)}
             onKeyDown={(e) => handleFieldKeyDown(e, 'quantity', Number(e.target.value) || 0)}
-            className={cellInputCls + ' text-right w-16'}
+            className={cellInputCls + ' text-right w-full'}
           />
         ) : (
           <div
