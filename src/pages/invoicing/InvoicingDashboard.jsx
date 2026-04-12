@@ -123,20 +123,16 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
       {/* Mini bar chart */}
       {hasStats && bars.length > 0 && (
         <div className="mt-3">
-          <div className="flex items-end gap-1 h-16 mb-1">
+          <div className="flex items-end gap-2 mb-1" style={{ height: 64 }}>
             {bars.map((bar, i) => {
-              const height =
-                maxBar > 0
-                  ? Math.max(4, (bar.amount / maxBar) * 100)
-                  : 4;
+              const pct = maxBar > 0 ? bar.amount / maxBar : 0;
+              const h = Math.max(4, Math.round(pct * 56));
               const hasValue = bar.amount > 0;
               return (
-                <div key={i} className="flex-1 flex flex-col items-center">
+                <div key={i} className="flex-1">
                   <div
-                    className={`w-full rounded-t transition-all ${
-                      hasValue ? 'bg-teal-500/60' : 'bg-dark-700'
-                    }`}
-                    style={{ height: `${height}%` }}
+                    className={`w-full rounded-t ${hasValue ? 'bg-teal-500/70' : 'bg-dark-700'}`}
+                    style={{ height: h, marginTop: 64 - h }}
                   />
                 </div>
               );
