@@ -515,6 +515,101 @@ function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose, triggerR
 
 
 // ============================================================================
+// EmployeeSearch — dropdown to search and select a consultant for a line item
+// ============================================================================
+
+function EmployeeSearch({ orgSlug, onSelect, onClose, triggerRef }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+  const searchTimer = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [triggerRef]);
+
+  useEffect(() => {
+    doSearch('');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  const doSearch = useCallback(async (q) => {
+    try {
+      setLoading(true);
+      const res = await api.request(`/api/org/${orgSlug}/employee/directory?search=${q}&limit=10`);
+      setResults(res?.employees || res?.data || []);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => doSearch(val), 300);
+  };
+
+  return createPortal(
+    <div ref={containerRef} style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }} className="w-72 bg-dark-800 border border-dark-600 rounded-lg shadow-2xl">
+      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-dark-700">
+        <Search size={14} className="text-dark-400 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          placeholder="Search employees..."
+          className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-dark-500"
+          onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+        />
+        {loading && <Loader2 size={14} className="animate-spin text-dark-400" />}
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {results.length === 0 && !loading && (
+          <div className="px-3 py-3 text-center text-xs text-dark-500">No employees found</div>
+        )}
+        {results.map((emp) => (
+          <button
+            key={emp._id || emp.id}
+            type="button"
+            onClick={() => { onSelect({ _id: emp._id || emp.id, fullName: emp.fullName, designation: emp.designation }); onClose(); }}
+            className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors border-b border-dark-700/50 last:border-0"
+          >
+            <div className="flex items-center gap-2">
+              <User size={12} className="text-dark-400 shrink-0" />
+              <span className="text-sm text-white">{emp.fullName}</span>
+            </div>
+            {emp.designation && (
+              <p className="text-xs text-dark-400 mt-0.5 ml-5">{emp.designation}</p>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -672,6 +767,11 @@ export default function InvoiceDetail() {
       unitPrice: Number(l.unitPrice) || 0,
       taxIds: l.taxIds || [],
       discount: Number(l.discount) || 0,
+      consultantId: l.consultantId || undefined,
+      consultantName: l.consultantName || undefined,
+      startDate: l.startDate || undefined,
+      endDate: l.endDate || undefined,
+      lineCurrency: l.lineCurrency || undefined,
     }));
     debouncedSave({ lines: cleanLines });
   }, [debouncedSave]);
@@ -695,6 +795,7 @@ export default function InvoiceDetail() {
     }
     if (contact.placeOfSupply) updates.placeOfSupply = contact.placeOfSupply;
     if (contact.defaultPaymentTermId) updates.paymentTermId = contact.defaultPaymentTermId;
+    if (contact.defaultCurrency) updates.currency = contact.defaultCurrency;
 
     setEditForm(prev => ({ ...prev, ...updates }));
 
@@ -772,15 +873,20 @@ export default function InvoiceDetail() {
         productId: '',
         productName: '',
         description: '',
+        consultantId: '',
+        consultantName: '',
+        startDate: '',
+        endDate: '',
         quantity: 1,
         unitPrice: 0,
+        lineCurrency: prev.currency || invoice?.currency || 'INR',
         taxIds: [],
         taxNames: [],
         discount: 0,
       }];
       return { ...prev, lines: newLines };
     });
-  }, []);
+  }, [invoice]);
 
   const removeLine = useCallback((index) => {
     setEditForm(prev => {
@@ -1417,9 +1523,13 @@ export default function InvoiceDetail() {
                       <thead>
                         <tr className="bg-dark-800">
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-6 py-3">Product</th>
+                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Consultant</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
+                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Start Date</th>
+                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">End Date</th>
                           <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Qty</th>
-                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Unit Price</th>
+                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Billing Rate</th>
+                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Currency</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Taxes</th>
                           <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
                           {isDraft && <th className="w-10 px-2 py-3" />}
@@ -1442,13 +1552,13 @@ export default function InvoiceDetail() {
                             ))}
                             {lineItems.length === 0 && (
                               <tr>
-                                <td colSpan={7} className="text-center py-8 text-dark-500">
+                                <td colSpan={11} className="text-center py-8 text-dark-500">
                                   No invoice lines yet
                                 </td>
                               </tr>
                             )}
                             <tr>
-                              <td colSpan={7} className="px-6 py-3">
+                              <td colSpan={11} className="px-6 py-3">
                                 <button
                                   type="button"
                                   onClick={addLine}
@@ -1469,12 +1579,24 @@ export default function InvoiceDetail() {
                                   <td className="px-6 py-3 text-white">
                                     {li.product?.name || li.productName || '-'}
                                   </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.consultantName || '-'}
+                                  </td>
                                   <td className="px-4 py-3 text-dark-300 max-w-xs">
                                     {li.description || '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.startDate ? formatDate(li.startDate) : '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.endDate ? formatDate(li.endDate) : '-'}
                                   </td>
                                   <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
                                   <td className="px-4 py-3 text-right text-white">
                                     {formatCurrency(li.unitPrice, currency)}
+                                  </td>
+                                  <td className="px-4 py-3 text-white text-sm">
+                                    {li.lineCurrency || invoice.currency || 'INR'}
                                   </td>
                                   <td className="px-4 py-3 text-dark-400 text-xs">
                                     {(li.taxIds || li.taxes || [])
@@ -1489,7 +1611,7 @@ export default function InvoiceDetail() {
                             })}
                             {(invoice.lines || invoice.lineItems || []).length === 0 && (
                               <tr>
-                                <td colSpan={6} className="text-center py-10 text-dark-500">
+                                <td colSpan={10} className="text-center py-10 text-dark-500">
                                   No invoice lines
                                 </td>
                               </tr>
@@ -1878,9 +2000,11 @@ export default function InvoiceDetail() {
 
 function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onProductSelect }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
+  const [showConsultantSearch, setShowConsultantSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const productTriggerRef = useRef(null);
+  const consultantTriggerRef = useRef(null);
   const taxTriggerRef = useRef(null);
 
   const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * (1 - (Number(line.discount) || 0) / 100);
@@ -1929,6 +2053,29 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
         )}
       </td>
 
+      {/* Consultant */}
+      <td className="px-4 py-2.5">
+        <div
+          ref={consultantTriggerRef}
+          className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+          onClick={() => setShowConsultantSearch(true)}
+        >
+          <span className="text-white text-sm">{line.consultantName || <span className="text-dark-500 italic">Consultant</span>}</span>
+          <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+        </div>
+        {showConsultantSearch && (
+          <EmployeeSearch
+            orgSlug={orgSlug}
+            triggerRef={consultantTriggerRef}
+            onSelect={(emp) => {
+              onUpdate(index, 'consultantId', emp._id);
+              onUpdate(index, 'consultantName', emp.fullName);
+            }}
+            onClose={() => setShowConsultantSearch(false)}
+          />
+        )}
+      </td>
+
       {/* Description */}
       <td className="px-4 py-2.5">
         {editingField === 'description' ? (
@@ -1946,6 +2093,50 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
             onClick={() => handleFieldClick('description')}
           >
             <span className="text-dark-300 text-sm">{line.description || <span className="text-dark-500 italic">Description</span>}</span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+          </div>
+        )}
+      </td>
+
+      {/* Start Date */}
+      <td className="px-4 py-2.5">
+        {editingField === 'startDate' ? (
+          <input
+            type="date"
+            autoFocus
+            defaultValue={line.startDate ? line.startDate.slice(0, 10) : ''}
+            onBlur={(e) => handleFieldBlur('startDate', e.target.value)}
+            onKeyDown={(e) => handleFieldKeyDown(e, 'startDate', e.target.value)}
+            className={cellInputCls + ' w-36'}
+          />
+        ) : (
+          <div
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+            onClick={() => handleFieldClick('startDate')}
+          >
+            <span className="text-white text-sm">{line.startDate ? formatDate(line.startDate) : <span className="text-dark-500 italic">Start Date</span>}</span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+          </div>
+        )}
+      </td>
+
+      {/* End Date */}
+      <td className="px-4 py-2.5">
+        {editingField === 'endDate' ? (
+          <input
+            type="date"
+            autoFocus
+            defaultValue={line.endDate ? line.endDate.slice(0, 10) : ''}
+            onBlur={(e) => handleFieldBlur('endDate', e.target.value)}
+            onKeyDown={(e) => handleFieldKeyDown(e, 'endDate', e.target.value)}
+            className={cellInputCls + ' w-36'}
+          />
+        ) : (
+          <div
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+            onClick={() => handleFieldClick('endDate')}
+          >
+            <span className="text-white text-sm">{line.endDate ? formatDate(line.endDate) : <span className="text-dark-500 italic">End Date</span>}</span>
             <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
           </div>
         )}
@@ -1997,6 +2188,11 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
             <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
           </div>
         )}
+      </td>
+
+      {/* Currency (read-only) */}
+      <td className="px-4 py-2.5">
+        <span className="text-white text-sm">{line.lineCurrency || currency || 'INR'}</span>
       </td>
 
       {/* Taxes */}
