@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -69,10 +69,13 @@ export default function InvoiceList() {
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const journalCode = searchParams.get('journalCode');
+  const journalStatus = searchParams.get('status');
 
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(journalStatus || '');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
@@ -97,6 +100,7 @@ export default function InvoiceList() {
       const params = { page };
       if (statusFilter) params.status = statusFilter;
       if (search) params.search = search;
+      if (journalCode) params.journalCode = journalCode;
 
       const res = await invoicingApi.listInvoices(orgSlug, params);
       if (res.success !== false) {
@@ -110,7 +114,7 @@ export default function InvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, statusFilter, search, page]);
+  }, [orgSlug, statusFilter, search, page, journalCode]);
 
   useEffect(() => {
     fetchInvoices();
@@ -133,9 +137,11 @@ export default function InvoiceList() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold text-white">Invoices</h1>
+            <h1 className="text-lg font-semibold text-white">
+              {journalCode ? `Invoices — ${journalCode}` : 'Invoices'}
+            </h1>
             <p className="text-xs text-dark-400 mt-0.5">
-              Manage and track all your invoices
+              {journalCode ? `Filtered by journal: ${journalCode}` : 'Manage and track all your invoices'}
             </p>
           </div>
           <button
