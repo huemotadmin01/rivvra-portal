@@ -9,6 +9,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
@@ -646,6 +647,7 @@ export default function InvoiceDetail() {
   const [paymentTermsList, setPaymentTermsList] = useState([]);
   const [allTaxes, setAllTaxes] = useState([]);
   const [previewNumber, setPreviewNumber] = useState(null);
+  const [customerDefaultProduct, setCustomerDefaultProduct] = useState(null); // { _id, name }
 
   const isDraft = invoice?.status === 'draft';
 
@@ -710,6 +712,26 @@ export default function InvoiceDetail() {
       .then(res => { if (res?.previewNumber) setPreviewNumber(res.previewNumber); })
       .catch(() => {});
   }, [orgSlug, invoice?.number, invoice?.status, invoice?.journalId, invoice?.date, invoice?.type]);
+
+  // Fetch customer's default product when invoice has a contact
+  useEffect(() => {
+    if (!orgSlug || !invoice?.contactId) { setCustomerDefaultProduct(null); return; }
+    (async () => {
+      try {
+        const cRes = await contactsApi.get(orgSlug, invoice.contactId);
+        const contact = cRes?.contact;
+        if (contact?.defaultProductId) {
+          const pRes = await invoicingApi.listProducts(orgSlug, {});
+          const product = (pRes?.products || []).find(p => p._id === contact.defaultProductId);
+          if (product) {
+            setCustomerDefaultProduct({ _id: product._id, name: product.name });
+            return;
+          }
+        }
+        setCustomerDefaultProduct(null);
+      } catch { setCustomerDefaultProduct(null); }
+    })();
+  }, [orgSlug, invoice?.contactId]);
 
   // ── Auto-save with debounce ──
   const saveToApi = useCallback(async (data) => {
@@ -841,8 +863,11 @@ export default function InvoiceDetail() {
         if (product) {
           updates.defaultProductId = product._id;
           updates.defaultProductName = product.name;
+          setCustomerDefaultProduct({ _id: product._id, name: product.name });
         }
       } catch {}
+    } else {
+      setCustomerDefaultProduct(null);
     }
 
     setEditForm(prev => {
@@ -942,8 +967,8 @@ export default function InvoiceDetail() {
   const addLine = useCallback(() => {
     setEditForm(prev => {
       const newLines = [...prev.lines, {
-        productId: '',
-        productName: '',
+        productId: customerDefaultProduct?._id || '',
+        productName: customerDefaultProduct?.name || '',
         description: '',
         consultantId: '',
         consultantName: '',
@@ -958,7 +983,7 @@ export default function InvoiceDetail() {
       }];
       return { ...prev, lines: newLines };
     });
-  }, [invoice]);
+  }, [invoice, customerDefaultProduct]);
 
   const removeLine = useCallback((index) => {
     setEditForm(prev => {
