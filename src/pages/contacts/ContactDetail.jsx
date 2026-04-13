@@ -235,6 +235,7 @@ export default function ContactDetail() {
   // Dropdown data
   const [salespersons, setSalespersons] = useState([]);
   const [paymentTerms, setPaymentTerms] = useState([]);
+  const [products, setProducts] = useState([]);
 
   const isAdmin = getAppRole('contacts') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -277,6 +278,10 @@ export default function ContactDetail() {
 
     invoicingApi.listPaymentTerms(orgSlug)
       .then((res) => { if (!cancelled) setPaymentTerms(res?.paymentTerms || []); })
+      .catch(() => {});
+
+    invoicingApi.listProducts(orgSlug)
+      .then((res) => { if (!cancelled) setProducts(res?.products || []); })
       .catch(() => {});
 
     return () => { cancelled = true; };
@@ -391,6 +396,19 @@ export default function ContactDetail() {
 
   // Helper: display value for payment terms
   const paymentTermDisplayValue = paymentTerms.find((pt) => pt._id === contact.defaultPaymentTermId)?.name || '';
+
+  // Helper: build product options
+  const productOptions = [
+    { value: '', label: '-- None --' },
+    ...products.map((p) => ({ value: p._id, label: (p.internalRef ? `[${p.internalRef}] ` : '') + p.name })),
+  ];
+
+  // Helper: display value for product
+  const productDisplayValue = (() => {
+    const p = products.find((p) => p._id === contact.defaultProductId);
+    if (!p) return '';
+    return (p.internalRef ? `[${p.internalRef}] ` : '') + p.name;
+  })();
 
   // -- Render -----------------------------------------------------------------
   return (
@@ -571,6 +589,16 @@ export default function ContactDetail() {
                 options={salespersonOptions}
                 editable={isAdmin}
                 onSave={(field, val) => saveField(field, val)}
+              />
+              <EditableField
+                label="Product"
+                value={productDisplayValue}
+                field="defaultProductId"
+                type="select"
+                options={productOptions}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val)}
+                placeholder="Select default product"
               />
               <EditableField
                 label="Customer"

@@ -833,11 +833,47 @@ export default function InvoiceDetail() {
       updates.currency = 'INR';
     }
 
-    setEditForm(prev => ({ ...prev, ...updates }));
+    // Auto-populate product on all lines from contact's defaultProductId
+    if (contact.defaultProductId) {
+      try {
+        const prodRes = await invoicingApi.listProducts(orgSlug, { search: '' });
+        const product = (prodRes?.products || []).find(p => p._id === contact.defaultProductId);
+        if (product) {
+          updates.defaultProductId = product._id;
+          updates.defaultProductName = product.name;
+        }
+      } catch {}
+    }
+
+    setEditForm(prev => {
+      const updated = { ...prev, ...updates };
+      // If product resolved, auto-fill on all lines
+      if (updates.defaultProductId) {
+        updated.lines = (prev.lines || []).map(line => ({
+          ...line,
+          productId: updates.defaultProductId,
+          productName: updates.defaultProductName || '',
+        }));
+      }
+      return updated;
+    });
 
     try {
       setSaving(true);
-      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
+      // Build line updates with product if available
+      const savePayload = { ...updates };
+      if (updates.defaultProductId) {
+        delete savePayload.defaultProductId;
+        delete savePayload.defaultProductName;
+        // Update lines with product
+        const currentLines = editForm.lines || invoice?.lines || [];
+        savePayload.lines = currentLines.map(line => ({
+          ...line,
+          productId: updates.defaultProductId,
+          productName: updates.defaultProductName || '',
+        }));
+      }
+      const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, savePayload);
       if (res?.invoice) {
         setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
       }
@@ -848,7 +884,7 @@ export default function InvoiceDetail() {
     } finally {
       setSaving(false);
     }
-  }, [orgSlug, invoiceId, showToast]);
+  }, [orgSlug, invoiceId, showToast, editForm, invoice]);
 
   // Handle payment term change — auto-recalculate due date
   const handlePaymentTermChange = useCallback(async (field, value) => {
@@ -1601,6 +1637,7 @@ export default function InvoiceDetail() {
                                 onUpdate={updateLine}
                                 onRemove={removeLine}
                                 onProductSelect={handleProductSelect}
+                                productLocked={!!(invoice?.contactId && li.productId && invoice?.contactId === editForm.contactId)}
                               />
                             ))}
                             {lineItems.length === 0 && (
@@ -2049,7 +2086,7 @@ export default function InvoiceDetail() {
 // InlineLineRow — editable line item row for draft invoices
 // ============================================================================
 
-function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onProductSelect }) {
+function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onProductSelect, productLocked }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showConsultantSearch, setShowConsultantSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
@@ -2086,21 +2123,29 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
     <tr className="border-b border-dark-700/50 hover:bg-dark-800/30">
       {/* Product */}
       <td className="px-6 py-2.5">
-        <div
-          ref={productTriggerRef}
-          className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
-          onClick={() => setShowProductSearch(true)}
-        >
-          <span className="text-white text-sm">{line.productName || <span className="text-dark-500 italic">Select product</span>}</span>
-          <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
-        </div>
-        {showProductSearch && (
-          <ProductSearch
-            orgSlug={orgSlug}
-            triggerRef={productTriggerRef}
-            onSelect={(p) => onProductSelect(index, p)}
-            onClose={() => setShowProductSearch(false)}
-          />
+        {productLocked ? (
+          <div className="flex items-center gap-1.5 min-h-[28px] px-1 -mx-1 py-0.5">
+            <span className="text-white text-sm">{line.productName || '-'}</span>
+          </div>
+        ) : (
+          <>
+            <div
+              ref={productTriggerRef}
+              className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+              onClick={() => setShowProductSearch(true)}
+            >
+              <span className="text-white text-sm">{line.productName || <span className="text-dark-500 italic">Select product</span>}</span>
+              <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+            </div>
+            {showProductSearch && (
+              <ProductSearch
+                orgSlug={orgSlug}
+                triggerRef={productTriggerRef}
+                onSelect={(p) => onProductSelect(index, p)}
+                onClose={() => setShowProductSearch(false)}
+              />
+            )}
+          </>
         )}
       </td>
 
