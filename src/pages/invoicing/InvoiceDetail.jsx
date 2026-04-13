@@ -1075,13 +1075,22 @@ export default function InvoiceDetail() {
 
   // ── Action handlers ──
   const handleSend = async () => {
+    // Validate before confirming
+    if (!invoice.contactId && !editForm.contactId) {
+      return showToast('Please select a customer before confirming', 'error');
+    }
+    const lines = editForm.lines || invoice.lines || [];
+    const hasValidLine = lines.some(l => (Number(l.unitPrice) || 0) > 0 && (Number(l.quantity) || 0) > 0);
+    if (!hasValidLine) {
+      return showToast('At least one line item must have a quantity and billing rate', 'error');
+    }
     try {
       setActionLoading('send');
       await invoicingApi.sendInvoice(orgSlug, invoiceId);
-      showToast('Invoice sent');
+      showToast('Invoice confirmed');
       fetchInvoice();
     } catch (err) {
-      showToast(err.message || 'Failed to send invoice', 'error');
+      showToast(err.message || 'Failed to confirm invoice', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -1286,12 +1295,16 @@ export default function InvoiceDetail() {
   const stepIndex = getStepIndex(status);
   const typeLabel = getInvoiceTypeLabel(invoice);
 
-  // Build address string
+  // Build address lines (multi-line display)
   const addrObj = editForm.contactAddress || invoice.contactAddress || invoice.customer?.address;
-  const addressParts = typeof addrObj === 'object' && addrObj
-    ? [addrObj.street, addrObj.street2, addrObj.city, addrObj.state, addrObj.zip, addrObj.country].filter(Boolean)
+  const addressLines = typeof addrObj === 'object' && addrObj
+    ? [
+        [addrObj.street, addrObj.street2].filter(Boolean).join(', '),
+        [addrObj.city, addrObj.state, addrObj.zip].filter(Boolean).join(', '),
+        addrObj.country,
+      ].filter(Boolean)
     : typeof addrObj === 'string' ? [addrObj] : [];
-  const addressStr = addressParts.join(', ');
+  const addressStr = addressLines.join(', '); // fallback for any code using addressStr
 
   // Payment terms display
   const paymentTermDisplay = (() => {
@@ -1390,7 +1403,11 @@ export default function InvoiceDetail() {
 
               let cls = 'px-4 py-1.5 text-xs font-semibold rounded-full transition-colors ';
               if (isActive) {
-                cls += 'bg-rivvra-500 text-white';
+                // Distinct colors per active state
+                if (step === 'draft') cls += 'bg-amber-600 text-white';
+                else if (step === 'sent') cls += 'bg-blue-600 text-white';
+                else if (step === 'paid') cls += 'bg-emerald-600 text-white';
+                else cls += 'bg-rivvra-500 text-white';
               } else if (isPast) {
                 cls += 'bg-dark-700 text-dark-300';
               } else {
@@ -1472,8 +1489,10 @@ export default function InvoiceDetail() {
                         >
                           {editForm.contactName || invoice.contactName || invoice.customer?.name || '-'}
                         </span>
-                        {addressStr && (
-                          <p className="text-sm text-dark-400 mt-0.5">{addressStr}</p>
+                        {addressLines.length > 0 && (
+                          <div className="text-sm text-dark-400 mt-0.5">
+                            {addressLines.map((line, i) => <div key={i}>{line}</div>)}
+                          </div>
                         )}
                         {(editForm.contactEmail || invoice.contactEmail) && (
                           <p className="text-sm text-dark-400">{editForm.contactEmail || invoice.contactEmail}</p>
@@ -1516,12 +1535,7 @@ export default function InvoiceDetail() {
                     onSave={saveField}
                   />
 
-                  {/* Customer GSTIN (read-only display — set via contact) */}
-                  {(editForm.customerGstin || invoice.customerGstin) && !isDraft && (
-                    <FormField label="Customer GSTIN">
-                      <span className="text-white">{invoice.customerGstin}</span>
-                    </FormField>
-                  )}
+                  {/* Customer GSTIN — shown in address block above, no duplicate needed */}
                 </div>
 
                 {/* Right column */}
@@ -1683,19 +1697,19 @@ export default function InvoiceDetail() {
                               return (
                                 <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
                                   <td className="px-6 py-3 text-white">
-                                    {li.product?.name || li.productName || '-'}
+                                    {li.product?.name || li.productName || <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-white">
-                                    {li.consultantName || '-'}
+                                    {li.consultantName || <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-dark-300 max-w-xs">
-                                    {li.description || '-'}
+                                    {li.description || <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-white">
-                                    {li.startDate ? formatDate(li.startDate) : '-'}
+                                    {li.startDate ? formatDate(li.startDate) : <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-white">
-                                    {li.endDate ? formatDate(li.endDate) : '-'}
+                                    {li.endDate ? formatDate(li.endDate) : <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
                                   <td className="px-4 py-3 text-right text-white">
