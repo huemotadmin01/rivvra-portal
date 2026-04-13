@@ -5,7 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { API_BASE_URL } from '../../utils/config';
 import {
-  Loader2, Save, Building2, Settings2, ToggleLeft, ToggleRight,
+  Loader2, Save, Settings2, ToggleLeft, ToggleRight,
   Hash, Sparkles, AlertCircle, Upload, PenTool,
 } from 'lucide-react';
 
@@ -262,15 +262,9 @@ export default function SettingsInvoicing() {
         const s = settingsRes.settings || settingsRes.data || settingsRes;
         setSettings(prev => ({
           ...prev,
-          companyName: s.companyName || '',
-          companyAddress: s.companyAddress || '',
-          companyPhone: s.companyPhone || '',
-          companyEmail: s.companyEmail || '',
-          companyWebsite: s.companyWebsite || '',
-          companyTaxId: s.companyTaxId || '',
           defaultPaymentTermId: s.defaultPaymentTermId || s.defaultPaymentTerm || '',
           defaultTaxIds: s.defaultTaxIds || s.defaultTaxes || [],
-          defaultCurrency: s.defaultCurrency || 'USD',
+          defaultCurrency: s.defaultCurrency || 'INR',
           enableStripePayments: s.enableStripePayments ?? false,
           enableRecurringInvoices: s.enableRecurringInvoices ?? false,
           enableFollowUps: s.enableFollowUps ?? false,
@@ -344,78 +338,7 @@ export default function SettingsInvoicing() {
   return (
     <div className="space-y-6">
 
-      {/* ──── Section 1: Company Details ──── */}
-      <SectionCard
-        icon={Building2}
-        title="Company Details"
-        onSave={() => saveSettings('company')}
-        saving={savingSection === 'company'}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-dark-300 mb-1">Company Name</label>
-            <input
-              type="text"
-              value={settings.companyName}
-              onChange={e => update('companyName', e.target.value)}
-              placeholder="Acme Inc."
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-dark-300 mb-1">Tax ID / VAT Number</label>
-            <input
-              type="text"
-              value={settings.companyTaxId}
-              onChange={e => update('companyTaxId', e.target.value)}
-              placeholder="e.g. US12-3456789"
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-sm text-dark-300 mb-1">Address</label>
-            <textarea
-              value={settings.companyAddress}
-              onChange={e => update('companyAddress', e.target.value)}
-              rows={2}
-              placeholder="123 Business St, Suite 100, City, State, ZIP"
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 resize-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-dark-300 mb-1">Phone</label>
-            <input
-              type="tel"
-              value={settings.companyPhone}
-              onChange={e => update('companyPhone', e.target.value)}
-              placeholder="+1 (555) 123-4567"
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-dark-300 mb-1">Email</label>
-            <input
-              type="email"
-              value={settings.companyEmail}
-              onChange={e => update('companyEmail', e.target.value)}
-              placeholder="billing@company.com"
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-sm text-dark-300 mb-1">Website</label>
-            <input
-              type="url"
-              value={settings.companyWebsite}
-              onChange={e => update('companyWebsite', e.target.value)}
-              placeholder="https://www.company.com"
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* ──── Section 2: Defaults ──── */}
+      {/* ──── Section 1: Defaults ──── */}
       <SectionCard
         icon={Settings2}
         title="Defaults"
