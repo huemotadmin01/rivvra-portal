@@ -826,7 +826,12 @@ export default function InvoiceDetail() {
     if (contact.address) updates.contactAddress = contact.address;
     if (contact.placeOfSupply) updates.placeOfSupply = contact.placeOfSupply;
     if (contact.defaultPaymentTermId) updates.paymentTermId = contact.defaultPaymentTermId;
-    if (contact.defaultCurrency) updates.currency = contact.defaultCurrency;
+    // Currency: use contact default, or infer INR for Indian addresses
+    if (contact.defaultCurrency) {
+      updates.currency = contact.defaultCurrency;
+    } else if (contact.address?.country?.toLowerCase() === 'india' || contact.placeOfSupply || contact.gstin) {
+      updates.currency = 'INR';
+    }
 
     setEditForm(prev => ({ ...prev, ...updates }));
 
