@@ -631,6 +631,8 @@ export default function InvoiceDetail() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
+  const [showTdsModal, setShowTdsModal] = useState(false);
 
   // Attachments
   const [attachments, setAttachments] = useState([]);
@@ -1137,20 +1139,7 @@ export default function InvoiceDetail() {
     }
   };
 
-  const handleCreateCreditNote = async () => {
-    try {
-      setActionLoading('credit');
-      const res = await invoicingApi.createCreditNote(orgSlug, invoiceId);
-      showToast('Credit note created');
-      if (res?.invoice?._id) {
-        navigate(orgPath(`/invoicing/invoices/${res.invoice._id}`));
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to create credit note', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  const handleCreateCreditNote = () => setShowCreditNoteModal(true);
 
   const handleVoidPayment = async (paymentId) => {
     if (!confirm('Are you sure you want to void this payment?')) return;
@@ -1353,9 +1342,10 @@ export default function InvoiceDetail() {
             {['sent', 'viewed', 'partial', 'overdue'].includes(status) && (
               <>
                 <ActionBtn icon={CreditCard} label="Record Payment" onClick={() => setShowPaymentModal(true)} primary />
-                <ActionBtn icon={Send} label="Send" onClick={handleSend} loading={actionLoading === 'send'} />
+                <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
-                <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} loading={actionLoading === 'credit'} />
+                <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
+                <ActionBtn icon={AlertTriangle} label="TDS Entry" onClick={() => setShowTdsModal(true)} />
                 {status === 'overdue' && (
                   <ActionBtn icon={BellRing} label="Follow-up" onClick={handleSendFollowUp} loading={actionLoading === 'followup'} />
                 )}
@@ -1368,7 +1358,7 @@ export default function InvoiceDetail() {
             {status === 'paid' && (
               <>
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
-                <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} loading={actionLoading === 'credit'} />
+                <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
                 <ActionBtn icon={Copy} label="Duplicate" onClick={handleDuplicate} loading={actionLoading === 'duplicate'} />
                 <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
               </>
@@ -2062,6 +2052,7 @@ export default function InvoiceDetail() {
         <RecordPaymentModal
           orgSlug={orgSlug}
           invoiceId={invoiceId}
+          invoiceNumber={invoice.number || ''}
           currency={currency}
           amountDue={amountDue}
           onClose={() => setShowPaymentModal(false)}
@@ -2083,6 +2074,38 @@ export default function InvoiceDetail() {
           onSuccess={() => {
             setShowEmailModal(false);
             showToast('Email sent');
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {showCreditNoteModal && (
+        <CreditNoteModal
+          orgSlug={orgSlug}
+          invoiceId={invoiceId}
+          invoiceNumber={invoice.number || ''}
+          journalName={invoice.journalName || ''}
+          onClose={() => setShowCreditNoteModal(false)}
+          onSuccess={(newId) => {
+            setShowCreditNoteModal(false);
+            showToast('Credit note created');
+            if (newId) navigate(orgPath(`/invoicing/invoices/${newId}`));
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {showTdsModal && (
+        <TDSEntryModal
+          orgSlug={orgSlug}
+          invoiceId={invoiceId}
+          invoiceNumber={invoice.number || ''}
+          currency={currency}
+          total={invoice.total || 0}
+          onClose={() => setShowTdsModal(false)}
+          onSuccess={() => {
+            setShowTdsModal(false);
+            fetchInvoice();
           }}
           showToast={showToast}
         />
@@ -2405,18 +2428,20 @@ function ActionBtn({ icon: Icon, label, onClick, loading, primary, danger }) {
 // RecordPaymentModal
 // ============================================================================
 
-function RecordPaymentModal({ orgSlug, invoiceId, currency, amountDue, onClose, onSuccess, showToast }) {
+function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, amountDue, onClose, onSuccess, showToast }) {
   const [form, setForm] = useState({
+    journal: 'Bank',
     amount: amountDue || 0,
-    method: 'bank_transfer',
+    method: 'manual',
     date: new Date().toISOString().slice(0, 10),
-    reference: '',
-    notes: '',
+    memo: invoiceNumber || '',
   });
   const [saving, setSaving] = useState(false);
 
   const inputCls =
     'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
+  const labelCls = 'text-sm text-dark-400 py-2.5 whitespace-nowrap';
+  const valCls = 'text-sm text-white py-2.5';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -2430,9 +2455,10 @@ function RecordPaymentModal({ orgSlug, invoiceId, currency, amountDue, onClose, 
         invoiceId,
         amount: Number(form.amount),
         method: form.method,
+        journal: form.journal,
         date: form.date,
-        reference: form.reference,
-        notes: form.notes,
+        reference: form.memo,
+        notes: '',
       });
       showToast('Payment recorded');
       onSuccess();
@@ -2445,100 +2471,52 @@ function RecordPaymentModal({ orgSlug, invoiceId, currency, amountDue, onClose, 
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h2 className="text-lg font-bold text-white">Record Payment</h2>
+          <h2 className="text-lg font-bold text-white">Pay</h2>
           <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Amount ({currency}) <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="number"
-              step="any"
-              min="0"
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              className={inputCls}
-              autoFocus
-            />
-            {amountDue > 0 && (
-              <p className="text-xs text-dark-400 mt-1">
-                Amount due: {formatCurrency(amountDue, currency)}
-              </p>
-            )}
+        <form onSubmit={handleSubmit} className="p-5">
+          {/* Odoo-style two-column layout */}
+          <div className="grid grid-cols-[1fr_1fr] gap-x-8 gap-y-0">
+            {/* Left column */}
+            <div className="grid grid-cols-[100px_1fr] gap-x-3 items-center">
+              <span className={labelCls}>Journal</span>
+              <select value={form.journal} onChange={(e) => setForm(f => ({ ...f, journal: e.target.value }))} className={inputCls}>
+                <option value="Bank">Bank</option>
+                <option value="Cash">Cash</option>
+              </select>
+              <span className={labelCls}>Payment Method</span>
+              <select value={form.method} onChange={(e) => setForm(f => ({ ...f, method: e.target.value }))} className={inputCls}>
+                <option value="manual">Manual Payment</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="upi">UPI</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
+            {/* Right column */}
+            <div className="grid grid-cols-[110px_1fr] gap-x-3 items-center">
+              <span className={labelCls}>Amount</span>
+              <div className="flex items-center gap-2">
+                <input type="number" step="any" min="0" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className={inputCls + ' flex-1'} autoFocus />
+                <span className="text-dark-400 text-sm">{currency}</span>
+              </div>
+              <span className={labelCls}>Payment Date</span>
+              <input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+              <span className={labelCls}>Memo</span>
+              <input type="text" value={form.memo} onChange={(e) => setForm(f => ({ ...f, memo: e.target.value }))} placeholder={invoiceNumber || ''} className={inputCls} />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Payment Method</label>
-            <select
-              value={form.method}
-              onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
-              className={inputCls}
-            >
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cash">Cash</option>
-              <option value="cheque">Cheque</option>
-              <option value="credit_card">Credit Card</option>
-              <option value="debit_card">Debit Card</option>
-              <option value="upi">UPI</option>
-              <option value="paypal">PayPal</option>
-              <option value="stripe">Stripe</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Payment Date</label>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Reference / Transaction ID</label>
-            <input
-              type="text"
-              value={form.reference}
-              onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
-              placeholder="e.g. TXN-123456"
-              className={inputCls}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Notes</label>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              rows={2}
-              placeholder="Optional notes..."
-              className={inputCls}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white hover:border-dark-500 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
-            >
+          <div className="flex gap-3 pt-5 mt-3 border-t border-dark-700">
+            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Record Payment
+              Create Payment
+            </button>
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors">
+              Discard
             </button>
           </div>
         </form>
@@ -2645,6 +2623,249 @@ function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, o
             </button>
           </div>
         </form>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ============================================================================
+// CreditNoteModal — Odoo-style: Reason, Journal, Reversal Date, Reverse options
+// ============================================================================
+
+function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClose, onSuccess, showToast }) {
+  const [form, setForm] = useState({
+    reason: '',
+    reversalDate: new Date().toISOString().slice(0, 10),
+  });
+  const [saving, setSaving] = useState(false);
+
+  const inputCls = 'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
+  const labelCls = 'text-sm text-dark-400 py-2.5';
+
+  const handleReverse = async (createNew = false) => {
+    try {
+      setSaving(true);
+      const res = await invoicingApi.createCreditNote(orgSlug, invoiceId, {
+        reason: form.reason,
+        reversalDate: form.reversalDate,
+        createNewInvoice: createNew,
+      });
+      onSuccess(res?.invoice?._id);
+    } catch (err) {
+      showToast(err.message || 'Failed to create credit note', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h2 className="text-lg font-bold text-white">Credit Note</h2>
+          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-[120px_1fr] gap-x-3 items-center gap-y-2">
+            <span className={labelCls}>Reason</span>
+            <input type="text" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Reason displayed on Credit Note" className={inputCls} autoFocus />
+            <span className={labelCls}>Journal</span>
+            <span className="text-white text-sm py-2.5">{journalName || 'Default'}</span>
+            <span className={labelCls}>Reversal date</span>
+            <input type="date" value={form.reversalDate} onChange={e => setForm(f => ({ ...f, reversalDate: e.target.value }))} className={inputCls} />
+          </div>
+
+          <div className="flex gap-3 pt-4 mt-2 border-t border-dark-700">
+            <button onClick={() => handleReverse(false)} disabled={saving} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
+              Reverse
+            </button>
+            <button onClick={() => handleReverse(true)} disabled={saving} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors disabled:opacity-50">
+              Reverse and Create Invoice
+            </button>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors">
+              Discard
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ============================================================================
+// TDSEntryModal — Create TDS journal entry against invoice
+// ============================================================================
+
+function TDSEntryModal({ orgSlug, invoiceId, invoiceNumber, currency, total, onClose, onSuccess, showToast }) {
+  const [tdsTaxes, setTdsTaxes] = useState([]);
+  const [lines, setLines] = useState([{ taxId: '', base: total || 0, tdsAmount: 0 }]);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const inputCls = 'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
+
+  // Fetch TDS taxes (taxes with 'tds' in name or scope)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await invoicingApi.listTaxes(orgSlug);
+        const allTaxes = res?.taxes || [];
+        // Filter for TDS taxes (name contains 'TDS')
+        const tds = allTaxes.filter(t => t.name?.toUpperCase().includes('TDS'));
+        setTdsTaxes(tds);
+      } catch {}
+      finally { setLoading(false); }
+    })();
+  }, [orgSlug]);
+
+  const updateLine = (index, field, value) => {
+    setLines(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      // Auto-calculate TDS amount when tax is selected
+      if (field === 'taxId') {
+        const tax = tdsTaxes.find(t => t._id === value);
+        if (tax) {
+          updated[index].tdsAmount = Math.round((updated[index].base * tax.rate / 100) * 100) / 100;
+        }
+      }
+      if (field === 'base') {
+        const tax = tdsTaxes.find(t => t._id === updated[index].taxId);
+        if (tax) {
+          updated[index].tdsAmount = Math.round((Number(value) * tax.rate / 100) * 100) / 100;
+        }
+      }
+      return updated;
+    });
+  };
+
+  const addLine = () => setLines(prev => [...prev, { taxId: '', base: 0, tdsAmount: 0 }]);
+  const removeLine = (i) => setLines(prev => prev.filter((_, idx) => idx !== i));
+
+  const totalTds = lines.reduce((sum, l) => sum + (Number(l.tdsAmount) || 0), 0);
+
+  const handleSubmit = async () => {
+    const validLines = lines.filter(l => l.taxId && l.tdsAmount > 0);
+    if (!validLines.length) {
+      showToast('Select at least one TDS tax with an amount', 'error');
+      return;
+    }
+    try {
+      setSaving(true);
+      await invoicingApi.recordPayment(orgSlug, {
+        invoiceId,
+        amount: totalTds,
+        method: 'tds',
+        journal: 'Miscellaneous Operations',
+        date: new Date().toISOString().slice(0, 10),
+        reference: `TDS of ${invoiceNumber}`,
+        notes: validLines.map(l => {
+          const tax = tdsTaxes.find(t => t._id === l.taxId);
+          return `${tax?.name || 'TDS'}: ${l.tdsAmount}`;
+        }).join(', '),
+        isTds: true,
+      });
+      showToast('TDS entry recorded');
+      onSuccess();
+    } catch (err) {
+      showToast(err.message || 'Failed to record TDS entry', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-xl mx-4 shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h2 className="text-lg font-bold text-white">Create TDS Entry</h2>
+          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+        </div>
+        <div className="p-5">
+          {/* Header info */}
+          <div className="grid grid-cols-[1fr_1fr] gap-4 mb-4 text-sm">
+            <div>
+              <span className="text-dark-400">Date</span>
+              <p className="text-white">{new Date().toLocaleDateString('en-IN')}</p>
+            </div>
+            <div>
+              <span className="text-dark-400">Reference</span>
+              <p className="text-white">TDS of {invoiceNumber}</p>
+            </div>
+            <div>
+              <span className="text-dark-400">Journal</span>
+              <p className="text-white">Miscellaneous Operations</p>
+            </div>
+          </div>
+
+          {/* TDS Tax Details */}
+          <div className="border-t border-dark-700 pt-4">
+            <h3 className="text-sm font-semibold text-dark-300 mb-3">TDS Tax Details</h3>
+            {loading ? (
+              <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-rivvra-500" /></div>
+            ) : tdsTaxes.length === 0 ? (
+              <p className="text-dark-500 text-sm py-4">No TDS taxes found. Add taxes with "TDS" in the name under Configuration → Taxes.</p>
+            ) : (
+              <>
+                <table className="w-full text-sm mb-3">
+                  <thead>
+                    <tr className="text-dark-400 text-xs uppercase border-b border-dark-700">
+                      <th className="text-left pb-2 font-medium">TDS Tax</th>
+                      <th className="text-right pb-2 font-medium">Base</th>
+                      <th className="text-right pb-2 font-medium">TDS Amount</th>
+                      <th className="w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, i) => (
+                      <tr key={i} className="border-b border-dark-700/50">
+                        <td className="py-2 pr-2">
+                          <select value={line.taxId} onChange={e => updateLine(i, 'taxId', e.target.value)} className={inputCls}>
+                            <option value="">Select TDS tax...</option>
+                            {tdsTaxes.map(t => <option key={t._id} value={t._id}>{t.name} ({t.rate}%)</option>)}
+                          </select>
+                        </td>
+                        <td className="py-2 px-2">
+                          <input type="number" step="any" value={line.base} onChange={e => updateLine(i, 'base', e.target.value)} className={inputCls + ' text-right'} />
+                        </td>
+                        <td className="py-2 px-2">
+                          <input type="number" step="any" value={line.tdsAmount} onChange={e => updateLine(i, 'tdsAmount', e.target.value)} className={inputCls + ' text-right'} />
+                        </td>
+                        <td className="py-2">
+                          {lines.length > 1 && (
+                            <button onClick={() => removeLine(i)} className="text-dark-500 hover:text-red-400 transition-colors"><X size={14} /></button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-dark-600">
+                      <td className="py-2 text-dark-400 font-medium">Total</td>
+                      <td></td>
+                      <td className="py-2 text-right text-white font-bold">{formatCurrency(totalTds, currency)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+                <button onClick={addLine} className="text-rivvra-500 hover:text-rivvra-400 text-sm flex items-center gap-1">
+                  <Plus size={14} /> Add line
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-4 mt-4 border-t border-dark-700">
+            <button onClick={handleSubmit} disabled={saving || tdsTaxes.length === 0} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              Create TDS Entry
+            </button>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors">
+              Discard
+            </button>
+          </div>
+        </div>
       </div>
     </ModalOverlay>
   );

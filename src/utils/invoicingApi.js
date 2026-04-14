@@ -43,8 +43,8 @@ const invoicingApi = {
   resetToDraft(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/reset-to-draft`, { method: 'PATCH' });
   },
-  createCreditNote(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/credit-note`, { method: 'POST' });
+  createCreditNote(orgSlug, id, data = {}) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/credit-note`, { method: 'POST', body: JSON.stringify(data) });
   },
   duplicateInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/duplicate`, { method: 'POST' });
