@@ -74,7 +74,7 @@ const TimesheetApprovals = lazy(() => import('./pages/timesheet/TimesheetApprova
 const TimesheetUsers = lazy(() => import('./pages/timesheet/TimesheetUsers'));
 const TimesheetPayConfig = lazy(() => import('./pages/timesheet/TimesheetPayConfig'));
 const TimesheetProjects = lazy(() => import('./pages/timesheet/TimesheetProjects'));
-const TimesheetExport = lazy(() => import('./pages/timesheet/TimesheetExport'));
+
 const TimesheetPayroll = lazy(() => import('./pages/timesheet/TimesheetPayroll'));
 
 // Lazy-loaded: Statutory Payroll pages
@@ -352,7 +352,7 @@ function App() {
               <Route element={<AppRoleGate appId="payroll" requiredRole="admin" />}>
                 <Route path="/org/:slug/payroll/process" element={<PayrollProcessRedirect />} />
                 <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PayrollDashboardPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/export" element={<ErrorBoundary><TimesheetExport /></ErrorBoundary>} />
+
                 <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
 
                 <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
@@ -367,7 +367,7 @@ function App() {
               {/* Legacy payroll redirects — old /timesheet/ paths → new /payroll/ paths */}
               <Route path="/org/:slug/timesheet/payroll" element={<Navigate to="../../payroll/process" replace />} />
               <Route path="/org/:slug/timesheet/pay-config" element={<Navigate to="../../payroll/pay-overview" replace />} />
-              <Route path="/org/:slug/timesheet/export" element={<Navigate to="../../payroll/export" replace />} />
+
 
               {/* Knowledge Base — admin-only reader for platform guides.
                   Uses AppRoleGate so org owners/admins automatically have
@@ -499,7 +499,7 @@ function App() {
             {/* Payroll app legacy redirects — moved from /timesheet/ */}
             <Route path="/timesheet/payroll" element={<OrgRedirect to="/payroll/process" />} />
             <Route path="/timesheet/pay-config" element={<OrgRedirect to="/payroll/pay-overview" />} />
-            <Route path="/timesheet/export" element={<OrgRedirect to="/payroll/export" />} />
+
             <Route path="/payroll/*" element={<OrgRedirect />} />
             <Route path="/timesheet/*" element={<OrgRedirect />} />
             <Route path="/employee/*" element={<OrgRedirect />} />
