@@ -726,7 +726,7 @@ export default function InvoiceDetail() {
           const pRes = await invoicingApi.listProducts(orgSlug, {});
           const product = (pRes?.products || []).find(p => p._id === contact.defaultProductId);
           if (product) {
-            setCustomerDefaultProduct({ _id: product._id, name: product.name });
+            setCustomerDefaultProduct({ _id: product._id, name: product.name, hsnSacCode: product.hsnSacCode || '', unit: product.unit || '' });
             return;
           }
         }
@@ -856,7 +856,9 @@ export default function InvoiceDetail() {
         if (product) {
           updates.defaultProductId = product._id;
           updates.defaultProductName = product.name;
-          setCustomerDefaultProduct({ _id: product._id, name: product.name });
+          updates.defaultProductHsn = product.hsnSacCode || '';
+          updates.defaultProductUnit = product.unit || '';
+          setCustomerDefaultProduct({ _id: product._id, name: product.name, hsnSacCode: product.hsnSacCode || '', unit: product.unit || '' });
         }
       } catch {}
     } else {
@@ -871,6 +873,8 @@ export default function InvoiceDetail() {
           ...line,
           productId: updates.defaultProductId,
           productName: updates.defaultProductName || '',
+          hsnSacCode: updates.defaultProductHsn || '',
+          unit: updates.defaultProductUnit || '',
         }));
       }
       return updated;
@@ -883,12 +887,16 @@ export default function InvoiceDetail() {
       if (updates.defaultProductId) {
         delete savePayload.defaultProductId;
         delete savePayload.defaultProductName;
+        delete savePayload.defaultProductHsn;
+        delete savePayload.defaultProductUnit;
         // Update lines with product
         const currentLines = editForm.lines || invoice?.lines || [];
         savePayload.lines = currentLines.map(line => ({
           ...line,
           productId: updates.defaultProductId,
           productName: updates.defaultProductName || '',
+          hsnSacCode: updates.defaultProductHsn || '',
+          unit: updates.defaultProductUnit || '',
         }));
       }
       const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, savePayload);
@@ -962,6 +970,8 @@ export default function InvoiceDetail() {
       const newLines = [...prev.lines, {
         productId: customerDefaultProduct?._id || '',
         productName: customerDefaultProduct?.name || '',
+        hsnSacCode: customerDefaultProduct?.hsnSacCode || '',
+        unit: customerDefaultProduct?.unit || '',
         description: '',
         consultantId: '',
         consultantName: '',
@@ -993,6 +1003,8 @@ export default function InvoiceDetail() {
         ...newLines[index],
         productId: product._id || product.id,
         productName: product.name || '',
+        hsnSacCode: product.hsnSacCode || newLines[index].hsnSacCode || '',
+        unit: product.unit || newLines[index].unit || '',
         description: product.description || newLines[index].description || '',
         unitPrice: product.unitPrice ?? product.price ?? newLines[index].unitPrice,
         taxIds: product.defaultTaxIds || product.taxIds || newLines[index].taxIds || [],
