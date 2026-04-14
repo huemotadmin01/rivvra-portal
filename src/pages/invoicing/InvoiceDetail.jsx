@@ -1350,17 +1350,18 @@ export default function InvoiceDetail() {
                   <ActionBtn icon={BellRing} label="Follow-up" onClick={handleSendFollowUp} loading={actionLoading === 'followup'} />
                 )}
                 <ActionBtn icon={XCircle} label="Cancel" onClick={handleCancel} loading={actionLoading === 'cancel'} danger />
-                <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
+                {(invoice.amountPaid || 0) === 0 && (
+                  <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
+                )}
               </>
             )}
 
-            {/* Paid actions */}
+            {/* Paid actions — no Reset to Draft (has payments) */}
             {status === 'paid' && (
               <>
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
                 <ActionBtn icon={Copy} label="Duplicate" onClick={handleDuplicate} loading={actionLoading === 'duplicate'} />
-                <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
               </>
             )}
 
