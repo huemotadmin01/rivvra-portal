@@ -34,6 +34,9 @@ const EMPTY_PRODUCT = {
   type: 'service',
   description: '',
   defaultPrice: '',
+  hsnSacCode: '',
+  unit: '',
+  internalRef: '',
   taxIds: [],
   active: true,
 };
@@ -100,6 +103,9 @@ export default function ProductCatalog() {
       type: product.type || 'service',
       description: product.description || '',
       defaultPrice: product.defaultPrice ?? product.price ?? '',
+      hsnSacCode: product.hsnSacCode || '',
+      unit: product.unit || '',
+      internalRef: product.internalRef || '',
       taxIds: product.taxIds || product.defaultTaxIds || [],
       active: product.active !== false,
     });
@@ -122,6 +128,9 @@ export default function ProductCatalog() {
         type: form.type,
         description: form.description,
         defaultPrice: form.defaultPrice !== '' ? Number(form.defaultPrice) : undefined,
+        hsnSacCode: form.hsnSacCode.trim(),
+        unit: form.unit.trim(),
+        internalRef: form.internalRef.trim(),
         taxIds: form.taxIds,
         active: form.active,
       };
@@ -197,6 +206,30 @@ export default function ProductCatalog() {
             <option value="consumable">Consumable</option>
             <option value="product">Product</option>
           </select>
+        </td>
+        <td className="px-4 py-3">
+          <input
+            value={form.internalRef}
+            onChange={e => setForm(prev => ({ ...prev, internalRef: e.target.value }))}
+            placeholder="e.g. CONS-DAY"
+            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[100px]"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <input
+            value={form.hsnSacCode}
+            onChange={e => setForm(prev => ({ ...prev, hsnSacCode: e.target.value }))}
+            placeholder="e.g. 998513"
+            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[90px]"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <input
+            value={form.unit}
+            onChange={e => setForm(prev => ({ ...prev, unit: e.target.value }))}
+            placeholder="e.g. Days"
+            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[80px]"
+          />
         </td>
         <td className="px-4 py-3">
           <input
@@ -339,6 +372,15 @@ export default function ProductCatalog() {
                   <th className="text-left px-4 py-3">
                     <span className="text-xs font-medium text-dark-400">Type</span>
                   </th>
+                  <th className="text-left px-4 py-3">
+                    <span className="text-xs font-medium text-dark-400">Internal Ref</span>
+                  </th>
+                  <th className="text-left px-4 py-3">
+                    <span className="text-xs font-medium text-dark-400">HSN/SAC</span>
+                  </th>
+                  <th className="text-left px-4 py-3">
+                    <span className="text-xs font-medium text-dark-400">Unit</span>
+                  </th>
                   <th className="text-right px-4 py-3">
                     <span className="text-xs font-medium text-dark-400">Default Price</span>
                   </th>
@@ -359,7 +401,7 @@ export default function ProductCatalog() {
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-16">
+                    <td colSpan={9} className="text-center py-16">
                       <Package size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
                       <p className="text-sm text-dark-500">
                         {products.length === 0 ? 'No products yet' : 'No products match your filters'}
@@ -394,6 +436,15 @@ export default function ProductCatalog() {
                         </td>
                         <td className="px-4 py-3">
                           <TypeBadge type={product.type} />
+                        </td>
+                        <td className="px-4 py-3 text-dark-300 text-sm">
+                          {product.internalRef || <span className="text-dark-600">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-dark-300 text-sm">
+                          {product.hsnSacCode || <span className="text-dark-600">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-dark-300 text-sm">
+                          {product.unit || <span className="text-dark-600">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-white">
                           {formatCurrency(product.defaultPrice ?? product.price)}
