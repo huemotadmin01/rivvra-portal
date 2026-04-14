@@ -9,6 +9,7 @@ import {
   releasePayslips, holdPayslips,
   setAdHocAdjustment, createSalaryHold, releaseSalaryHold,
   downloadPayslipPdf, downloadAllPayslips, downloadBankTransfer, downloadPayrollExport, downloadPayrollSheet,
+  downloadBankSheetHdfc, downloadBankSheetNonHdfc,
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -261,6 +262,12 @@ export default function PayrollRunPage() {
       } else if (type === 'payslips') {
         blob = await downloadAllPayslips(orgSlug, selectedRun._id);
         filename = `Payslips_${selectedRun.month}_${selectedRun.year}.zip`;
+      } else if (type === 'bank-sheet-hdfc') {
+        blob = await downloadBankSheetHdfc(orgSlug, selectedRun._id);
+        filename = `Bank_Sheet_HDFC_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`;
+      } else if (type === 'bank-sheet-non-hdfc') {
+        blob = await downloadBankSheetNonHdfc(orgSlug, selectedRun._id);
+        filename = `Bank_Sheet_Non_HDFC_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`;
       }
       triggerDownload(blob, filename);
       showToast(`Downloaded ${type}`);
@@ -386,6 +393,8 @@ export default function PayrollRunPage() {
             )}
             <button onClick={() => handleDownload('payslips')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Download all payslips as ZIP"><FileText size={12} /> All Payslips</button>
             <div className="border-l border-dark-700 mx-1" />
+            <button onClick={() => handleDownload('bank-sheet-hdfc')} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 border border-green-500/30 rounded-lg text-xs text-green-400 hover:bg-green-600/30" title="HDFC Bank Transfer Sheet (Excel)"><Download size={12} /> HDFC Bank Sheet</button>
+            <button onClick={() => handleDownload('bank-sheet-non-hdfc')} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 border border-green-500/30 rounded-lg text-xs text-green-400 hover:bg-green-600/30" title="Non-HDFC Bank Transfer Sheet (Excel)"><Download size={12} /> Non-HDFC Bank Sheet</button>
             <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-400 hover:bg-rivvra-600/30" title="Full payroll Excel with all employees & deductions"><Download size={12} /> Payroll Sheet</button>
           </div>
         )}

@@ -198,6 +198,14 @@ export function downloadBankTransfer(orgSlug, runId) {
   return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/bank-transfer`, { responseType: 'blob' });
 }
 
+// Bank Sheet (HDFC / Non-HDFC) Excel
+export function downloadBankSheetHdfc(orgSlug, runId) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/bank-sheet/hdfc`, { responseType: 'blob' });
+}
+export function downloadBankSheetNonHdfc(orgSlug, runId) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/bank-sheet/non-hdfc`, { responseType: 'blob' });
+}
+
 // Export Reports
 export function downloadPayrollExport(orgSlug, runId, type) {
   return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export`, { params: { type }, responseType: 'blob' });
