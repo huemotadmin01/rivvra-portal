@@ -807,6 +807,8 @@ export default function InvoiceDetail() {
       _id: l._id,
       productId: l.productId || undefined,
       productName: l.productName || undefined,
+      hsnSacCode: l.hsnSacCode || undefined,
+      unit: l.unit || undefined,
       description: l.description,
       quantity: Number(l.quantity) || 0,
       unitPrice: Number(l.unitPrice) || 0,
