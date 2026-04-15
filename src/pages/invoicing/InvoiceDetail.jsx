@@ -623,7 +623,20 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
           <button
             key={emp._id || emp.id}
             type="button"
-            onClick={() => { onSelect({ _id: emp._id || emp.id, fullName: emp.fullName, designation: emp.designation }); onClose(); }}
+            onClick={() => {
+              // Find the matching assignment for this customer
+              const assignment = customerContactId
+                ? (emp.assignments || []).find(a => a.clientId === customerContactId || String(a.clientId) === customerContactId)
+                : null;
+              onSelect({
+                _id: emp._id || emp.id,
+                fullName: emp.fullName,
+                designation: emp.designation,
+                clientBillingRate: assignment?.clientBillingRate || assignment?.billingRate || null,
+                assignmentStatus: assignment?.status || null,
+              });
+              onClose();
+            }}
             className="w-full text-left px-3 py-2 hover:bg-dark-700 transition-colors border-b border-dark-700/50 last:border-0"
           >
             <div className="flex items-center gap-2">
@@ -989,23 +1002,6 @@ export default function InvoiceDetail() {
   }, [orgSlug, invoiceId, showToast]);
 
   // ── Line item helpers ──
-  const updateLine = useCallback((index, field, value) => {
-    setEditForm(prev => {
-      const newLines = [...prev.lines];
-      const updatedLine = { ...newLines[index], [field]: value };
-      // When updating taxIds, also update taxNames for display
-      if (field === 'taxIds') {
-        updatedLine.taxNames = value.map(id => {
-          const tax = allTaxes.find(t => (t._id || t.id) === id);
-          return tax?.name || '';
-        }).filter(Boolean);
-      }
-      newLines[index] = updatedLine;
-      // Trigger debounced save
-      setTimeout(() => saveLines(newLines), 0);
-      return { ...prev, lines: newLines };
-    });
-  }, [saveLines, allTaxes]);
 
   const addLine = useCallback(() => {
     setEditForm(prev => {
@@ -1055,6 +1051,91 @@ export default function InvoiceDetail() {
       return { ...prev, lines: newLines };
     });
   }, [saveLines]);
+
+  // ── Billing rate calculation based on product + assignment + dates ──
+  const calculateBillingRate = useCallback((line) => {
+    const rate = line._clientBillingRate;
+    const productName = (line.productName || '').toLowerCase();
+    if (!rate || !line.startDate || !line.endDate) return null;
+
+    const start = new Date(line.startDate);
+    const end = new Date(line.endDate);
+    if (isNaN(start) || isNaN(end) || end < start) return null;
+
+    if (productName.includes('monthly-working day') || productName.includes('month-wd')) {
+      // Monthly-Working Day: monthly rate / working days (Mon-Fri)
+      const monthly = Number(rate.monthly) || 0;
+      if (!monthly) return null;
+      let workingDays = 0;
+      const d = new Date(start);
+      while (d <= end) {
+        const day = d.getDay();
+        if (day !== 0 && day !== 6) workingDays++;
+        d.setDate(d.getDate() + 1);
+      }
+      return workingDays > 0 ? monthly / workingDays : null;
+    }
+    if (productName.includes('monthly')) {
+      // Monthly: monthly rate / total days in period
+      const monthly = Number(rate.monthly) || 0;
+      if (!monthly) return null;
+      const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      return totalDays > 0 ? monthly / totalDays : null;
+    }
+    if (productName.includes('hour')) {
+      const hourly = Number(rate.hourly) || 0;
+      return hourly || null;
+    }
+    if (productName.includes('day')) {
+      const daily = Number(rate.daily) || 0;
+      return daily || null;
+    }
+    return null;
+  }, []);
+
+  const handleConsultantSelect = useCallback((index, emp) => {
+    setEditForm(prev => {
+      const newLines = [...prev.lines];
+      const line = {
+        ...newLines[index],
+        consultantId: emp._id,
+        consultantName: emp.fullName,
+        _clientBillingRate: emp.clientBillingRate || null,
+      };
+      // Auto-calculate billing rate if all required fields are present
+      const rate = calculateBillingRate(line);
+      if (rate !== null) {
+        line.unitPrice = Math.round(rate * 1000000) / 1000000; // preserve precision
+      }
+      newLines[index] = line;
+      setTimeout(() => saveLines(newLines), 0);
+      return { ...prev, lines: newLines };
+    });
+  }, [saveLines, calculateBillingRate]);
+
+  // Recalculate billing rate when start/end date changes (if consultant has assignment rate)
+  const updateLine = useCallback((index, field, value) => {
+    setEditForm(prev => {
+      const newLines = [...prev.lines];
+      const updatedLine = { ...newLines[index], [field]: value };
+      if (field === 'taxIds') {
+        updatedLine.taxNames = value.map(id => {
+          const tax = allTaxes.find(t => (t._id || t.id) === id);
+          return tax?.name || '';
+        }).filter(Boolean);
+      }
+      // Recalculate billing rate when dates change and assignment rate exists
+      if ((field === 'startDate' || field === 'endDate') && updatedLine._clientBillingRate) {
+        const rate = calculateBillingRate(updatedLine);
+        if (rate !== null) {
+          updatedLine.unitPrice = Math.round(rate * 1000000) / 1000000;
+        }
+      }
+      newLines[index] = updatedLine;
+      setTimeout(() => saveLines(newLines), 0);
+      return { ...prev, lines: newLines };
+    });
+  }, [saveLines, allTaxes, calculateBillingRate]);
 
   // Calculate local totals
   const localTotals = useMemo(() => {
@@ -1727,6 +1808,7 @@ export default function InvoiceDetail() {
                                 onUpdate={updateLine}
                                 onRemove={removeLine}
                                 onProductSelect={handleProductSelect}
+                                onConsultantSelect={handleConsultantSelect}
                                 productLocked={!!(invoice?.contactId && li.productId && invoice?.contactId === editForm.contactId)}
                               />
                             ))}
@@ -2244,7 +2326,7 @@ export default function InvoiceDetail() {
 // InlineLineRow — editable line item row for draft invoices
 // ============================================================================
 
-function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, productLocked }) {
+function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, onConsultantSelect, productLocked }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showConsultantSearch, setShowConsultantSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
@@ -2323,8 +2405,7 @@ function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUp
             customerContactId={customerContactId}
             triggerRef={consultantTriggerRef}
             onSelect={(emp) => {
-              onUpdate(index, 'consultantId', emp._id);
-              onUpdate(index, 'consultantName', emp.fullName);
+              onConsultantSelect(index, emp);
             }}
             onClose={() => setShowConsultantSearch(false)}
           />
