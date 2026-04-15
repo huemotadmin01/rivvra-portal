@@ -1073,24 +1073,25 @@ export default function InvoiceDetail() {
     if (isNaN(start) || isNaN(end) || end < start) return null;
 
     if (productName.includes('monthly-working day') || productName.includes('month-wd')) {
-      // Monthly-Working Day: monthly rate / working days (Mon-Fri)
+      // Monthly-Working Day: monthly rate / total working days in the FULL calendar month
       const monthly = Number(rate.monthly) || 0;
       if (!monthly) return null;
+      const year = start.getFullYear();
+      const month = start.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
       let workingDays = 0;
-      const d = new Date(start);
-      while (d <= end) {
-        const day = d.getDay();
+      for (let i = 1; i <= daysInMonth; i++) {
+        const day = new Date(year, month, i).getDay();
         if (day !== 0 && day !== 6) workingDays++;
-        d.setDate(d.getDate() + 1);
       }
       return workingDays > 0 ? monthly / workingDays : null;
     }
     if (productName.includes('monthly')) {
-      // Monthly: monthly rate / total days in period
+      // Monthly: monthly rate / total days in the FULL calendar month (not period)
       const monthly = Number(rate.monthly) || 0;
       if (!monthly) return null;
-      const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      return totalDays > 0 ? monthly / totalDays : null;
+      const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+      return monthly / daysInMonth;
     }
     if (productName.includes('hour')) {
       const hourly = Number(rate.hourly) || 0;
