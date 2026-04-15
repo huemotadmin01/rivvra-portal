@@ -712,6 +712,7 @@ export default function InvoiceDetail() {
   const [allTaxes, setAllTaxes] = useState([]);
   const [previewNumber, setPreviewNumber] = useState(null);
   const [customerDefaultProduct, setCustomerDefaultProduct] = useState(null); // { _id, name }
+  const [consultantRates, setConsultantRates] = useState({}); // { consultantId: clientBillingRate }
 
   const isDraft = invoice?.status === 'draft';
 
@@ -1103,18 +1104,25 @@ export default function InvoiceDetail() {
   }, []);
 
   const handleConsultantSelect = useCallback((index, emp) => {
+    // Store the billing rate in the map (keyed by consultantId) so it survives editForm resets
+    if (emp.clientBillingRate && emp._id) {
+      setConsultantRates(prev => ({ ...prev, [emp._id]: emp.clientBillingRate }));
+    }
     setEditForm(prev => {
       const newLines = [...prev.lines];
       const line = {
         ...newLines[index],
         consultantId: emp._id,
         consultantName: emp.fullName,
-        _clientBillingRate: emp.clientBillingRate || null,
       };
       // Auto-calculate billing rate if all required fields are present
-      const rate = calculateBillingRate(line);
-      if (rate !== null) {
-        line.unitPrice = Math.round(rate * 1000000) / 1000000; // preserve precision
+      const rateData = emp.clientBillingRate || null;
+      if (rateData) {
+        const calcLine = { ...line, _clientBillingRate: rateData };
+        const rate = calculateBillingRate(calcLine);
+        if (rate !== null) {
+          line.unitPrice = Math.round(rate * 1000000) / 1000000;
+        }
       }
       newLines[index] = line;
       setTimeout(() => saveLines(newLines), 0);
@@ -1133,18 +1141,22 @@ export default function InvoiceDetail() {
           return tax?.name || '';
         }).filter(Boolean);
       }
-      // Recalculate billing rate when dates change and assignment rate exists
-      if ((field === 'startDate' || field === 'endDate') && updatedLine._clientBillingRate) {
-        const rate = calculateBillingRate(updatedLine);
-        if (rate !== null) {
-          updatedLine.unitPrice = Math.round(rate * 1000000) / 1000000;
+      // Recalculate billing rate when dates change and consultant has an assignment rate
+      if ((field === 'startDate' || field === 'endDate') && updatedLine.consultantId) {
+        const rateData = consultantRates[updatedLine.consultantId];
+        if (rateData) {
+          const calcLine = { ...updatedLine, _clientBillingRate: rateData };
+          const rate = calculateBillingRate(calcLine);
+          if (rate !== null) {
+            updatedLine.unitPrice = Math.round(rate * 1000000) / 1000000;
+          }
         }
       }
       newLines[index] = updatedLine;
       setTimeout(() => saveLines(newLines), 0);
       return { ...prev, lines: newLines };
     });
-  }, [saveLines, allTaxes, calculateBillingRate]);
+  }, [saveLines, allTaxes, calculateBillingRate, consultantRates]);
 
   // Calculate local totals
   const localTotals = useMemo(() => {
