@@ -789,7 +789,7 @@ export default function InvoiceDetail() {
           const pRes = await invoicingApi.listProducts(orgSlug, {});
           const product = (pRes?.products || []).find(p => p._id === contact.defaultProductId);
           if (product) {
-            setCustomerDefaultProduct({ _id: product._id, name: product.name, hsnSacCode: product.hsnSacCode || '', unit: product.unit || '' });
+            setCustomerDefaultProduct({ _id: product._id, name: product.name, internalRef: product.internalRef || '', hsnSacCode: product.hsnSacCode || '', unit: product.unit || '' });
             return;
           }
         }
@@ -870,6 +870,7 @@ export default function InvoiceDetail() {
       _id: l._id,
       productId: l.productId || undefined,
       productName: l.productName || undefined,
+      internalRef: l.internalRef || undefined,
       hsnSacCode: l.hsnSacCode || undefined,
       unit: l.unit || undefined,
       description: l.description,
@@ -921,9 +922,10 @@ export default function InvoiceDetail() {
         if (product) {
           updates.defaultProductId = product._id;
           updates.defaultProductName = product.name;
+          updates.defaultProductRef = product.internalRef || '';
           updates.defaultProductHsn = product.hsnSacCode || '';
           updates.defaultProductUnit = product.unit || '';
-          setCustomerDefaultProduct({ _id: product._id, name: product.name, hsnSacCode: product.hsnSacCode || '', unit: product.unit || '' });
+          setCustomerDefaultProduct({ _id: product._id, name: product.name, internalRef: product.internalRef || '', hsnSacCode: product.hsnSacCode || '', unit: product.unit || '' });
         }
       } catch {}
     } else {
@@ -938,6 +940,7 @@ export default function InvoiceDetail() {
           ...line,
           productId: updates.defaultProductId,
           productName: updates.defaultProductName || '',
+          internalRef: updates.defaultProductRef || '',
           hsnSacCode: updates.defaultProductHsn || '',
           unit: updates.defaultProductUnit || '',
         }));
@@ -952,6 +955,7 @@ export default function InvoiceDetail() {
       if (updates.defaultProductId) {
         delete savePayload.defaultProductId;
         delete savePayload.defaultProductName;
+        delete savePayload.defaultProductRef;
         delete savePayload.defaultProductHsn;
         delete savePayload.defaultProductUnit;
         // Update lines with product
@@ -960,6 +964,7 @@ export default function InvoiceDetail() {
           ...line,
           productId: updates.defaultProductId,
           productName: updates.defaultProductName || '',
+          internalRef: updates.defaultProductRef || '',
           hsnSacCode: updates.defaultProductHsn || '',
           unit: updates.defaultProductUnit || '',
         }));
@@ -1018,6 +1023,7 @@ export default function InvoiceDetail() {
       const newLines = [...prev.lines, {
         productId: customerDefaultProduct?._id || '',
         productName: customerDefaultProduct?.name || '',
+        internalRef: customerDefaultProduct?.internalRef || '',
         hsnSacCode: customerDefaultProduct?.hsnSacCode || '',
         unit: customerDefaultProduct?.unit || '',
         description: '',
@@ -1051,6 +1057,7 @@ export default function InvoiceDetail() {
         ...newLines[index],
         productId: product._id || product.id,
         productName: product.name || '',
+        internalRef: product.internalRef || newLines[index].internalRef || '',
         hsnSacCode: product.hsnSacCode || newLines[index].hsnSacCode || '',
         unit: product.unit || newLines[index].unit || '',
         description: product.description || newLines[index].description || '',
@@ -1065,15 +1072,22 @@ export default function InvoiceDetail() {
   // ── Billing rate calculation based on product + assignment + dates ──
   const calculateBillingRate = useCallback((line) => {
     const rate = line._clientBillingRate;
-    const productName = (line.productName || '').toLowerCase();
     if (!rate || !line.startDate || !line.endDate) return null;
 
     const start = new Date(line.startDate);
     const end = new Date(line.endDate);
     if (isNaN(start) || isNaN(end) || end < start) return null;
 
-    if (productName.includes('monthly-working day') || productName.includes('month-wd')) {
-      // Monthly-Working Day: monthly rate / total working days in the FULL calendar month
+    // Use internalRef for reliable matching, fallback to name
+    const ref = (line.internalRef || '').toUpperCase();
+    const name = (line.productName || '').toLowerCase();
+
+    const isMonthlyWD = ref === 'CONS-MONTH-WD' || name.includes('monthly-working day') || name.includes('month-wd');
+    const isMonthly = !isMonthlyWD && (ref === 'CONS-MONTHLY' || name.includes('monthly'));
+    const isHourly = ref === 'CONS-HOUR' || name.includes('hour');
+    const isDaily = ref === 'CONS-DAY' || name.includes('day');
+
+    if (isMonthlyWD) {
       const monthly = Number(rate.monthly) || 0;
       if (!monthly) return null;
       const year = start.getFullYear();
@@ -1081,26 +1095,22 @@ export default function InvoiceDetail() {
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       let workingDays = 0;
       for (let i = 1; i <= daysInMonth; i++) {
-        const day = new Date(year, month, i).getDay();
-        if (day !== 0 && day !== 6) workingDays++;
+        if (new Date(year, month, i).getDay() % 6 !== 0) workingDays++;
       }
       return workingDays > 0 ? monthly / workingDays : null;
     }
-    if (productName.includes('monthly')) {
-      // Monthly: monthly rate / total days in the FULL calendar month (not period)
+    if (isMonthly) {
       const monthly = Number(rate.monthly) || 0;
       if (!monthly) return null;
-      const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
-      return monthly / daysInMonth;
+      return monthly / new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
     }
-    if (productName.includes('hour')) {
-      const hourly = Number(rate.hourly) || 0;
-      return hourly || null;
+    if (isHourly) {
+      return Number(rate.hourly) || null;
     }
-    if (productName.includes('day')) {
-      const daily = Number(rate.daily) || 0;
-      return daily || null;
+    if (isDaily) {
+      return Number(rate.daily) || null;
     }
+    // Other products: no auto-calculation, stays 0
     return null;
   }, []);
 
