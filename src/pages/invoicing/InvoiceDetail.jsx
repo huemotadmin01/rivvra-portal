@@ -580,7 +580,7 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
       if (customerContactId) {
         emps.forEach(emp => {
           const assignment = (emp.assignments || []).find(a =>
-            a.clientId === customerContactId || String(a.clientId) === customerContactId
+            String(a.clientId) === String(customerContactId)
           );
           emp._assignmentStatus = assignment?.status || 'unknown';
         });
@@ -600,8 +600,17 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
     searchTimer.current = setTimeout(() => doSearch(val), 300);
   };
 
+  // Use a more reliable portal positioning approach
+  const getPosition = () => {
+    if (!triggerRef?.current) return { top: 100, left: 100 };
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < 260 ? Math.max(10, rect.top - 260) : rect.bottom + 2;
+    return { top, left: Math.min(rect.left, window.innerWidth - 300) };
+  };
+
   return createPortal(
-    <div ref={containerRef} style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }} className="w-72 bg-dark-800 border border-dark-600 rounded-lg shadow-2xl">
+    <div ref={containerRef} style={{ position: 'fixed', ...getPosition(), zIndex: 9999 }} className="w-72 bg-dark-800 border border-dark-600 rounded-lg shadow-2xl">
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-dark-700">
         <Search size={14} className="text-dark-400 shrink-0" />
         <input
@@ -626,7 +635,7 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
             onClick={() => {
               // Find the matching assignment for this customer
               const assignment = customerContactId
-                ? (emp.assignments || []).find(a => a.clientId === customerContactId || String(a.clientId) === customerContactId)
+                ? (emp.assignments || []).find(a => String(a.clientId) === String(customerContactId))
                 : null;
               onSelect({
                 _id: emp._id || emp.id,
