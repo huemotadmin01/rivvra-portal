@@ -186,6 +186,9 @@ export function downloadAllPayslips(orgSlug, runId) {
 export function downloadMyPayslipPdf(orgSlug, runId) {
   return request('GET', `${orgUrl(orgSlug)}/my-payslip/${runId}`, { responseType: 'blob' });
 }
+export function downloadMyPayslipByMonth(orgSlug, year, month) {
+  return request('GET', `${orgUrl(orgSlug)}/my-payslip/by-month/${year}/${month}`, { responseType: 'blob' });
+}
 export function downloadImportedPayslipPdf(orgSlug, year, month) {
   return request('GET', `${orgUrl(orgSlug)}/my-payslip/imported/${year}/${month}`, { responseType: 'blob' });
 }

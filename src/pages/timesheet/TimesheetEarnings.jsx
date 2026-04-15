@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { useOrg } from '../../context/OrgContext';
 import timesheetApi from '../../utils/timesheetApi';
+import { downloadMyPayslipByMonth } from '../../utils/payrollApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import { PageSkeleton, HeaderSkeleton, TwoCardSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
@@ -8,8 +10,27 @@ import { formatDateUTC } from '../../utils/dateUtils';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/** Download payslip as PDF — fetches data from ESS endpoint then generates PDF */
-async function downloadPayslipPDF(month, year, showToast) {
+/** Download payslip — try backend PDF first, fallback to frontend jsPDF */
+async function downloadPayslipPDF(month, year, showToast, orgSlug) {
+  // Try backend endpoint first (unified PDF with ad-hoc adjustments)
+  if (orgSlug) {
+    try {
+      const blob = await downloadMyPayslipByMonth(orgSlug, year, month);
+      if (blob && blob.size > 0) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Payslip_${monthNames[month]}_${year}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Payslip downloaded');
+        return;
+      }
+    } catch {
+      // Backend not available or no payroll run — fall through to frontend
+    }
+  }
+  // Fallback: frontend jsPDF generation
   const res = await timesheetApi.get('/earnings/payslip', { params: { month, year } });
   await generatePayslipPDF(res.data);
   showToast('Payslip downloaded');
@@ -112,6 +133,8 @@ function EarningsCard({ data, title, onDownload, downloading }) {
 
 export default function TimesheetEarnings() {
   const { showToast } = useToast();
+  const { currentOrg } = useOrg();
+  const orgSlug = currentOrg?.slug;
 
   const [current, setCurrent] = useState(null);
   const [previous, setPrevious] = useState(null);
@@ -137,7 +160,7 @@ export default function TimesheetEarnings() {
 
   const handleDownloadPayslip = async (month, year) => {
     setDownloading(`${month}-${year}`);
-    await downloadPayslipPDF(month, year, showToast);
+    await downloadPayslipPDF(month, year, showToast, orgSlug);
     setDownloading(null);
   };
 
