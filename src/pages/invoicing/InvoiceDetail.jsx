@@ -2511,7 +2511,7 @@ function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUp
       </td>
 
       {/* Qty */}
-      <td className="px-4 py-2.5 text-right w-20">
+      <td className="px-4 py-2.5 text-right w-28">
         {editingField === 'quantity' ? (
           <input
             type="number"
