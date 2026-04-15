@@ -333,13 +333,22 @@ function ProductSearch({ orgSlug, onSelect, onClose, triggerRef }) {
   const searchTimer = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
-  useEffect(() => {
-    inputRef.current?.focus();
+  const updatePos = useCallback(() => {
     if (triggerRef?.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
+      const dropdownH = 250;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow < dropdownH ? rect.top - dropdownH : rect.bottom + 4;
+      setPos({ top, left: rect.left });
     }
   }, [triggerRef]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    updatePos();
+    window.addEventListener('scroll', updatePos, true);
+    return () => window.removeEventListener('scroll', updatePos, true);
+  }, [updatePos]);
 
   useEffect(() => {
     doSearch('');
@@ -528,13 +537,23 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
   const searchTimer = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
-  useEffect(() => {
-    inputRef.current?.focus();
+  // Position dropdown relative to trigger and reposition on scroll
+  const updatePos = useCallback(() => {
     if (triggerRef?.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
+      const dropdownH = 250;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow < dropdownH ? rect.top - dropdownH : rect.bottom + 4;
+      setPos({ top, left: rect.left });
     }
   }, [triggerRef]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    updatePos();
+    window.addEventListener('scroll', updatePos, true);
+    return () => window.removeEventListener('scroll', updatePos, true);
+  }, [updatePos]);
 
   useEffect(() => {
     doSearch('');
@@ -1121,6 +1140,12 @@ export default function InvoiceDetail() {
     if (!hasValidLine) {
       return showToast('At least one line item must have a quantity and billing rate', 'error');
     }
+    // Validate start/end dates on all lines with amounts
+    const linesWithAmounts = lines.filter(l => (Number(l.unitPrice) || 0) > 0 && (Number(l.quantity) || 0) > 0);
+    const missingDates = linesWithAmounts.some(l => !l.startDate || !l.endDate);
+    if (missingDates) {
+      return showToast('Start Date and End Date are required on all line items', 'error');
+    }
     try {
       setActionLoading('send');
       await invoicingApi.sendInvoice(orgSlug, invoiceId);
@@ -1133,11 +1158,13 @@ export default function InvoiceDetail() {
     }
   };
 
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const handleCancel = async () => {
     try {
       setActionLoading('cancel');
       await invoicingApi.cancelInvoice(orgSlug, invoiceId);
       showToast('Invoice cancelled');
+      setShowCancelConfirm(false);
       fetchInvoice();
     } catch (err) {
       showToast(err.message || 'Failed to cancel invoice', 'error');
@@ -1176,8 +1203,11 @@ export default function InvoiceDetail() {
 
   const handleCreateCreditNote = () => setShowCreditNoteModal(true);
 
+  const [voidPaymentId, setVoidPaymentId] = useState(null);
   const handleVoidPayment = async (paymentId) => {
-    if (!confirm('Are you sure you want to void this payment?')) return;
+    const pid = paymentId || voidPaymentId;
+    if (!pid) return;
+    setVoidPaymentId(null);
     try {
       setActionLoading('voidPayment');
       await invoicingApi.deletePayment(orgSlug, paymentId);
@@ -1198,7 +1228,7 @@ export default function InvoiceDetail() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${invoice?.number || 'invoice'}.pdf`;
+      a.download = `${(invoice?.number || invoiceId || 'invoice').replace(/\//g, '_')}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1256,10 +1286,13 @@ export default function InvoiceDetail() {
     }
   };
 
+  const [deleteAttachId, setDeleteAttachId] = useState(null);
   const handleDeleteAttachment = async (docId) => {
-    if (!confirm('Delete this attachment?')) return;
+    const did = docId || deleteAttachId;
+    if (!did) return;
+    setDeleteAttachId(null);
     try {
-      await invoicingApi.deleteAttachment(orgSlug, invoiceId, docId);
+      await invoicingApi.deleteAttachment(orgSlug, invoiceId, did);
       showToast('Attachment deleted');
       fetchAttachments();
     } catch (err) {
@@ -1384,7 +1417,7 @@ export default function InvoiceDetail() {
                 {status === 'overdue' && (
                   <ActionBtn icon={BellRing} label="Follow-up" onClick={handleSendFollowUp} loading={actionLoading === 'followup'} />
                 )}
-                <ActionBtn icon={XCircle} label="Cancel" onClick={handleCancel} loading={actionLoading === 'cancel'} danger />
+                <ActionBtn icon={XCircle} label="Cancel" onClick={() => setShowCancelConfirm(true)} danger />
                 {(invoice.amountPaid || 0) === 0 && (
                   <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
                 )}
@@ -1841,7 +1874,7 @@ export default function InvoiceDetail() {
                           </span>
                           {pmt._id && (
                             <button
-                              onClick={() => handleVoidPayment(pmt._id)}
+                              onClick={() => setVoidPaymentId(pmt._id)}
                               disabled={actionLoading === 'voidPayment'}
                               className="ml-auto text-xs text-red-400 hover:text-red-300 border border-red-500/30 rounded px-2 py-0.5 hover:bg-red-500/10 transition-colors"
                             >
@@ -2065,7 +2098,7 @@ export default function InvoiceDetail() {
                           <Download size={14} />
                         </a>
                         <button
-                          onClick={() => handleDeleteAttachment(docId)}
+                          onClick={() => setDeleteAttachId(docId)}
                           className="p-1 rounded hover:bg-red-500/10 text-dark-400 hover:text-red-400 transition-colors"
                           title="Delete"
                         >
@@ -2157,6 +2190,41 @@ export default function InvoiceDetail() {
           loading={actionLoading === 'delete'}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {deleteAttachId && (
+        <ConfirmModal
+          title="Delete Attachment"
+          message="Are you sure you want to delete this attachment?"
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => handleDeleteAttachment(deleteAttachId)}
+          onCancel={() => setDeleteAttachId(null)}
+        />
+      )}
+
+      {voidPaymentId && (
+        <ConfirmModal
+          title="Void Payment"
+          message="Are you sure you want to void this payment? The invoice balance will be restored."
+          confirmLabel="Void Payment"
+          danger
+          loading={actionLoading === 'voidPayment'}
+          onConfirm={() => handleVoidPayment(voidPaymentId)}
+          onCancel={() => setVoidPaymentId(null)}
+        />
+      )}
+
+      {showCancelConfirm && (
+        <ConfirmModal
+          title="Cancel Invoice"
+          message={`Are you sure you want to cancel ${invoice.number || 'this invoice'}? This action cannot be undone.`}
+          confirmLabel="Cancel Invoice"
+          danger
+          loading={actionLoading === 'cancel'}
+          onConfirm={handleCancel}
+          onCancel={() => setShowCancelConfirm(false)}
         />
       )}
 
@@ -2784,7 +2852,7 @@ function TDSEntryModal({ orgSlug, invoiceId, invoiceNumber, currency, total, onC
   const totalTds = lines.reduce((sum, l) => sum + (Number(l.tdsAmount) || 0), 0);
 
   const handleSubmit = async () => {
-    const validLines = lines.filter(l => l.taxId && l.tdsAmount > 0);
+    const validLines = lines.filter(l => l.taxId && Number(l.base) > 0 && Number(l.tdsAmount) > 0);
     if (!validLines.length) {
       showToast('Select at least one TDS tax with an amount', 'error');
       return;
