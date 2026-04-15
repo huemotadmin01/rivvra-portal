@@ -120,16 +120,28 @@ export function CompanyProvider({ children }) {
     } catch {}
   }, [orgSlug]);
 
+  // Derive company country for country-aware forms (India/US/Canada/etc.)
+  const companyCountry = useMemo(() => {
+    const country = (currentCompany?.address?.country || '').toLowerCase();
+    const code = (currentCompany?.address?.countryCode || '').toUpperCase();
+    if (country.includes('india') || code === 'IN') return 'IN';
+    if (country.includes('united states') || country.includes('usa') || code === 'US') return 'US';
+    if (country.includes('canada') || code === 'CA') return 'CA';
+    if (country.includes('united kingdom') || code === 'UK' || code === 'GB') return 'GB';
+    return code || 'IN'; // default to India
+  }, [currentCompany]);
+
   const value = useMemo(() => ({
     companies,
     currentCompany,
     currentCompanyId: currentCompany?._id || null,
+    companyCountry, // 'IN', 'US', 'CA', 'GB', etc.
     switchCompany,
     refreshCompanies,
     loading,
     switching,
     hasMultipleCompanies: companies.length > 1,
-  }), [companies, currentCompany, switchCompany, refreshCompanies, loading, switching]);
+  }), [companies, currentCompany, companyCountry, switchCompany, refreshCompanies, loading, switching]);
 
   return (
     <CompanyContext.Provider value={value}>

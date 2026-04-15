@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import {
@@ -130,12 +131,14 @@ function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags, sal
     e.preventDefault();
     if (!form.name.trim()) return;
 
-    // Tax field validation
-    if (form.gstin.trim() && (form.gstin.trim().length !== 15 || !/^[0-9A-Z]{15}$/.test(form.gstin.trim()))) {
-      showToast('GSTIN must be exactly 15 alphanumeric characters', 'error'); return;
-    }
-    if (form.pan.trim() && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(form.pan.trim())) {
-      showToast('PAN must be in format ABCDE1234F', 'error'); return;
+    // Tax field validation — country-aware
+    if (companyCountry === 'IN') {
+      if (form.gstin.trim() && (form.gstin.trim().length !== 15 || !/^[0-9A-Z]{15}$/.test(form.gstin.trim()))) {
+        showToast('GSTIN must be exactly 15 alphanumeric characters', 'error'); return;
+      }
+      if (form.pan.trim() && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(form.pan.trim())) {
+        showToast('PAN must be in format ABCDE1234F', 'error'); return;
+      }
     }
     if (form.countryCode.trim() && !/^[A-Z]{2}$/.test(form.countryCode.trim())) {
       showToast('Country code must be a 2-letter ISO code (e.g., IN)', 'error'); return;
@@ -458,53 +461,58 @@ function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags, sal
             </div>
           </div>
 
-          {/* Tax Information */}
+          {/* Tax Information — country-aware */}
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1.5">Tax Information</label>
             <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">GST Treatment</label>
-                <select
-                  value={form.gstTreatment}
-                  onChange={(e) => handleChange('gstTreatment', e.target.value)}
-                  className="input-field"
-                >
-                  {GST_TREATMENT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
+              {/* India-specific */}
+              {companyCountry === 'IN' && (
+                <>
+                  <div>
+                    <label className="block text-xs text-dark-400 mb-1">GST Treatment</label>
+                    <select
+                      value={form.gstTreatment}
+                      onChange={(e) => handleChange('gstTreatment', e.target.value)}
+                      className="input-field"
+                    >
+                      {GST_TREATMENT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-dark-400 mb-1">GSTIN</label>
+                      <input type="text" value={form.gstin} onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())} placeholder="29AALCR0152L1Z2" maxLength={15} className="input-field" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-dark-400 mb-1">PAN</label>
+                      <input type="text" value={form.pan} onChange={(e) => handleChange('pan', e.target.value.toUpperCase())} placeholder="AALCR0152L" maxLength={10} className="input-field" />
+                    </div>
+                  </div>
+                </>
+              )}
+              {/* US-specific */}
+              {companyCountry === 'US' && (
                 <div>
-                  <label className="block text-xs text-dark-400 mb-1">GSTIN</label>
-                  <input
-                    type="text"
-                    value={form.gstin}
-                    onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
-                    placeholder="29AALCR0152L1Z2"
-                    maxLength={15}
-                    className="input-field"
-                  />
+                  <label className="block text-xs text-dark-400 mb-1">Tax ID (EIN)</label>
+                  <input type="text" value={form.gstin} onChange={(e) => handleChange('gstin', e.target.value)} placeholder="XX-XXXXXXX" className="input-field" />
                 </div>
+              )}
+              {/* Canada-specific */}
+              {companyCountry === 'CA' && (
                 <div>
-                  <label className="block text-xs text-dark-400 mb-1">PAN</label>
-                  <input
-                    type="text"
-                    value={form.pan}
-                    onChange={(e) => handleChange('pan', e.target.value.toUpperCase())}
-                    placeholder="AALCR0152L"
-                    maxLength={10}
-                    className="input-field"
-                  />
+                  <label className="block text-xs text-dark-400 mb-1">GST/HST Number</label>
+                  <input type="text" value={form.gstin} onChange={(e) => handleChange('gstin', e.target.value)} placeholder="123456789 RT0001" className="input-field" />
                 </div>
-              </div>
+              )}
               <div>
                 <label className="block text-xs text-dark-400 mb-1">Country Code</label>
                 <input
                   type="text"
                   value={form.countryCode}
                   onChange={(e) => handleChange('countryCode', e.target.value.toUpperCase())}
-                  placeholder="IN"
+                  placeholder={companyCountry || 'IN'}
                   maxLength={2}
                   className="input-field w-20"
                 />
@@ -540,6 +548,7 @@ function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags, sal
 export default function ContactsList({ filterType }) {
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
+  const { companyCountry } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
 

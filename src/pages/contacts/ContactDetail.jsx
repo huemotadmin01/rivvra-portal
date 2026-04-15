@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import invoicingApi from '../../utils/invoicingApi';
@@ -209,6 +210,7 @@ export default function ContactDetail() {
   const [searchParams] = useSearchParams();
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
+  const { companyCountry } = useCompany();
   const { showToast } = useToast();
   const fromInvoice = searchParams.get('from') === 'invoice';
   const fromInvoiceId = searchParams.get('invoiceId');
@@ -620,54 +622,102 @@ export default function ContactDetail() {
               />
             </SectionCard>
 
-            {/* Tax Information */}
+            {/* Tax Information — country-aware fields */}
             <SectionCard title="Tax Information" icon={Receipt}>
-              <EditableField
-                label="GST Treatment"
-                value={contact.gstTreatment}
-                field="gstTreatment"
-                type="select"
-                options={GST_TREATMENT_OPTIONS}
-                editable={isAdmin}
-                onSave={saveField}
-              />
-              <EditableField
-                label="GSTIN"
-                value={contact.gstin}
-                field="gstin"
-                editable={isAdmin}
-                onSave={saveField}
-                placeholder="29AALCR0152L1Z2"
-                maxLength={15}
-                transform={(v) => v.toUpperCase()}
-              />
-              <EditableField
-                label="PAN"
-                value={contact.pan}
-                field="pan"
-                editable={isAdmin}
-                onSave={saveField}
-                placeholder="AALCR0152L"
-                maxLength={10}
-                transform={(v) => v.toUpperCase()}
-              />
+              {/* India-specific fields */}
+              {companyCountry === 'IN' && (
+                <>
+                  <EditableField
+                    label="GST Treatment"
+                    value={contact.gstTreatment}
+                    field="gstTreatment"
+                    type="select"
+                    options={GST_TREATMENT_OPTIONS}
+                    editable={isAdmin}
+                    onSave={saveField}
+                  />
+                  <EditableField
+                    label="GSTIN"
+                    value={contact.gstin}
+                    field="gstin"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="29AALCR0152L1Z2"
+                    maxLength={15}
+                    transform={(v) => v.toUpperCase()}
+                  />
+                  <EditableField
+                    label="PAN"
+                    value={contact.pan}
+                    field="pan"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="AALCR0152L"
+                    maxLength={10}
+                    transform={(v) => v.toUpperCase()}
+                  />
+                  <EditableField
+                    label="Place of Supply"
+                    value={contact.placeOfSupply}
+                    field="placeOfSupply"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="e.g. Karnataka (KA)"
+                  />
+                </>
+              )}
+              {/* US-specific fields */}
+              {companyCountry === 'US' && (
+                <>
+                  <EditableField
+                    label="Tax ID (EIN)"
+                    value={contact.taxId || contact.gstin}
+                    field="taxId"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="XX-XXXXXXX"
+                  />
+                  <EditableField
+                    label="State"
+                    value={contact.address?.state || contact.placeOfSupply}
+                    field="placeOfSupply"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="e.g. California"
+                  />
+                </>
+              )}
+              {/* Canada-specific fields */}
+              {companyCountry === 'CA' && (
+                <>
+                  <EditableField
+                    label="GST/HST Number"
+                    value={contact.taxId || contact.gstin}
+                    field="taxId"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="123456789 RT0001"
+                  />
+                  <EditableField
+                    label="Province"
+                    value={contact.address?.state || contact.placeOfSupply}
+                    field="placeOfSupply"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="e.g. Ontario"
+                  />
+                </>
+              )}
+              {/* Common fields for all countries */}
               <EditableField
                 label="Country Code"
                 value={contact.countryCode}
                 field="countryCode"
                 editable={isAdmin}
                 onSave={saveField}
-                placeholder="IN"
+                placeholder={companyCountry || 'IN'}
                 maxLength={2}
                 transform={(v) => v.toUpperCase()}
-              />
-              <EditableField
-                label="Place of Supply"
-                value={contact.placeOfSupply}
-                field="placeOfSupply"
-                editable={isAdmin}
-                onSave={saveField}
-                placeholder="e.g. Karnataka (KA)"
               />
               <EditableField
                 label="Payment Terms"
