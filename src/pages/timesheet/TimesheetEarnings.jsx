@@ -106,7 +106,7 @@ function EarningsCard({ data, title, onDownload, downloading }) {
                 data.timesheetStatus === 'submitted' ? 'bg-amber-500/10 text-amber-400' :
                 'bg-dark-700 text-dark-400'
               }`}>{data.timesheetStatus}</span>
-              {data.month && data.year && data.timesheetStatus === 'approved' && (
+              {data.month && data.year && data.timesheetStatus === 'approved' && data.payslipReleased && (
                 <button onClick={() => onDownload(data.month, data.year)} disabled={downloading === `${data.month}-${data.year}`}
                   className="flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50">
                   {downloading === `${data.month}-${data.year}` ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -338,7 +338,7 @@ export default function TimesheetEarnings() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {h.grossAmount > 0 && h.status === 'approved' ? (
+                    {h.grossAmount > 0 && h.status === 'approved' && h.payslipReleased ? (
                       <button
                         onClick={() => handleDownloadPayslip(h.month, h.year)}
                         disabled={downloading === `${h.month}-${h.year}`}
@@ -347,8 +347,8 @@ export default function TimesheetEarnings() {
                       >
                         {downloading === `${h.month}-${h.year}` ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                       </button>
-                    ) : h.grossAmount > 0 ? (
-                      <span className="text-dark-600 text-xs" title="Payslip available after approval">—</span>
+                    ) : h.grossAmount > 0 && h.status === 'approved' ? (
+                      <span className="text-dark-600 text-xs" title="Payslip not yet released by admin">—</span>
                     ) : null}
                   </td>
                 </tr>
