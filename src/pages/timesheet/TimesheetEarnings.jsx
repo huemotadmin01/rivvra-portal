@@ -26,8 +26,8 @@ async function downloadPayslipPDF(month, year, showToast, orgSlug) {
         showToast('Payslip downloaded');
         return;
       }
-    } catch {
-      // Backend not available or no payroll run — fall through to frontend
+    } catch (err) {
+      console.warn('[payslip] Backend download failed, falling back to frontend:', err?.message || err);
     }
   }
   // Fallback: frontend jsPDF generation
