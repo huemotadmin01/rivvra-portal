@@ -519,7 +519,7 @@ function TaxMultiSelect({ orgSlug, selectedIds = [], onChange, onClose, triggerR
 // EmployeeSearch — dropdown to search and select a consultant for a line item
 // ============================================================================
 
-function EmployeeSearch({ orgSlug, onSelect, onClose, triggerRef }) {
+function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, triggerRef }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -553,14 +553,26 @@ function EmployeeSearch({ orgSlug, onSelect, onClose, triggerRef }) {
   const doSearch = useCallback(async (q) => {
     try {
       setLoading(true);
-      const res = await api.request(`/api/org/${orgSlug}/employee/employees?search=${encodeURIComponent(q)}&limit=10&status=active`);
-      setResults(res?.employees || res?.data || []);
+      let url = `/api/org/${orgSlug}/employee/employees?search=${encodeURIComponent(q)}&limit=20&status=active`;
+      if (customerContactId) url += `&customerContactId=${customerContactId}`;
+      const res = await api.request(url);
+      const emps = res?.employees || res?.data || [];
+      // Enrich with assignment status for the selected customer
+      if (customerContactId) {
+        emps.forEach(emp => {
+          const assignment = (emp.assignments || []).find(a =>
+            a.clientId === customerContactId || String(a.clientId) === customerContactId
+          );
+          emp._assignmentStatus = assignment?.status || 'unknown';
+        });
+      }
+      setResults(emps);
     } catch {
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, customerContactId]);
 
   const handleChange = (e) => {
     const val = e.target.value;
@@ -598,6 +610,15 @@ function EmployeeSearch({ orgSlug, onSelect, onClose, triggerRef }) {
             <div className="flex items-center gap-2">
               <User size={12} className="text-dark-400 shrink-0" />
               <span className="text-sm text-white">{emp.fullName}</span>
+              {emp._assignmentStatus && (
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                  emp._assignmentStatus === 'active'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-dark-700 text-dark-400'
+                }`}>
+                  {emp._assignmentStatus === 'active' ? 'Active' : 'Ended'}
+                </span>
+              )}
             </div>
             {emp.designation && (
               <p className="text-xs text-dark-400 mt-0.5 ml-5">{emp.designation}</p>
@@ -1669,6 +1690,7 @@ export default function InvoiceDetail() {
                                 index={i}
                                 currency={currency}
                                 orgSlug={orgSlug}
+                                customerContactId={editForm.contactId || invoice?.contactId || ''}
                                 onUpdate={updateLine}
                                 onRemove={removeLine}
                                 onProductSelect={handleProductSelect}
@@ -2154,7 +2176,7 @@ export default function InvoiceDetail() {
 // InlineLineRow — editable line item row for draft invoices
 // ============================================================================
 
-function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onProductSelect, productLocked }) {
+function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, productLocked }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showConsultantSearch, setShowConsultantSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
@@ -2230,6 +2252,7 @@ function InlineLineRow({ line, index, currency, orgSlug, onUpdate, onRemove, onP
         {showConsultantSearch && (
           <EmployeeSearch
             orgSlug={orgSlug}
+            customerContactId={customerContactId}
             triggerRef={consultantTriggerRef}
             onSelect={(emp) => {
               onUpdate(index, 'consultantId', emp._id);
