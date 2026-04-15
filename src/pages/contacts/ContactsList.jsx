@@ -101,7 +101,7 @@ const GST_TREATMENT_OPTIONS = [
 
 const TITLE_OPTIONS = ['Mr.', 'Mrs.', 'Miss', 'Ms.', 'Dr.', 'Prof.'];
 
-function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags, salespersons }) {
+function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags, salespersons, companyCountry = 'IN' }) {
   const modalRef = useRef(null);
   const { showToast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
@@ -972,6 +972,7 @@ export default function ContactsList({ filterType }) {
         companies={companies}
         tags={tags}
         salespersons={salespersons}
+        companyCountry={companyCountry}
       />
     </div>
   );
