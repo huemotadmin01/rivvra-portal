@@ -37,14 +37,29 @@ async function downloadPayslipPDF(month, year, showToast, orgSlug) {
 }
 
 function EarningsCard({ data, title, onDownload, downloading }) {
+  const tdsPercent = data?.earnings?.tdsRate ? `${(data.earnings.tdsRate * 100).toFixed(0)}%` : '2%';
   return (
     <div className="card p-5">
-      <h3 className="text-sm font-medium text-dark-400 mb-3">{title}</h3>
+      <div className="flex items-center gap-2 mb-3">
+        <h3 className="text-sm font-medium text-dark-400">{title}</h3>
+        {data?.payrollOverlayed && (
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400">Payroll</span>
+        )}
+      </div>
       {data ? (
         <>
           <p className="text-lg font-semibold text-dark-300">Gross: ₹{(data.earnings?.grossAmount || 0).toLocaleString()}</p>
-          <p className="text-sm text-red-400 mt-1">TDS (2%): -₹{(data.earnings?.tdsAmount || 0).toLocaleString()}</p>
+          <p className="text-sm text-red-400 mt-1">TDS ({tdsPercent}): -₹{(data.earnings?.tdsAmount || 0).toLocaleString()}</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">Net: ₹{(data.earnings?.netAmount || data.earnings?.grossAmount || 0).toLocaleString()}</p>
+          {data.adjustments?.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {data.adjustments.map((a, i) => (
+                <p key={i} className={`text-xs ${a.type === 'bonus' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {a.type === 'bonus' ? '+' : '-'} {a.label}: ₹{(a.amount || 0).toLocaleString()}
+                </p>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-dark-500 mt-1">{data.earnings?.calculation}</p>
           {data.revisionData?.revisionApplied && (
             <div className="mt-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
@@ -259,7 +274,7 @@ export default function TimesheetEarnings() {
               <p className="text-sm text-dark-400">{disbursement.isApproved ? 'Net Amount' : 'Estimated Net Amount'}</p>
               <p className="text-xl font-bold text-emerald-400">₹{(disbursement.netAmount || 0).toLocaleString()}</p>
               {disbursement.tdsAmount > 0 && (
-                <p className="text-xs text-dark-500 mt-0.5">After 2% TDS (₹{disbursement.tdsAmount.toLocaleString()})</p>
+                <p className="text-xs text-dark-500 mt-0.5">After {disbursement.tdsRate ? `${(disbursement.tdsRate * 100).toFixed(0)}%` : '2%'} TDS (₹{disbursement.tdsAmount.toLocaleString()})</p>
               )}
             </div>
           </div>
@@ -283,7 +298,7 @@ export default function TimesheetEarnings() {
                 <th className="text-left px-4 py-3 font-medium text-dark-400">Month</th>
                 <th className="text-right px-4 py-3 font-medium text-dark-400">Days</th>
                 <th className="text-right px-4 py-3 font-medium text-dark-400">Gross</th>
-                <th className="text-right px-4 py-3 font-medium text-dark-400">TDS (2%)</th>
+                <th className="text-right px-4 py-3 font-medium text-dark-400">TDS</th>
                 <th className="text-right px-4 py-3 font-medium text-dark-400">Net Pay</th>
                 <th className="text-center px-4 py-3 font-medium text-dark-400">Status</th>
                 <th className="text-center px-4 py-3 font-medium text-dark-400">Payment</th>
