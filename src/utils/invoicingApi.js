@@ -222,6 +222,14 @@ const invoicingApi = {
     return api.request(`/api/org/${orgSlug}/invoicing/reports/pnl-summary${qs ? '?' + qs : ''}`);
   },
 
+  // ---------- E-INVOICE ----------
+  generateEInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/e-invoice`, { method: 'POST' });
+  },
+  cancelEInvoice(orgSlug, id, data = {}) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/e-invoice`, { method: 'DELETE', body: JSON.stringify(data) });
+  },
+
   // ---------- ATTACHMENTS ----------
   listAttachments(orgSlug, invoiceId) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/attachments`);

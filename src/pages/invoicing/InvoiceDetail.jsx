@@ -18,7 +18,7 @@ import {
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
   AlertTriangle, Check, Info, Upload, Eye, Paperclip,
   User, Calendar, Clock, RefreshCw, BellRing, Edit3,
-  Pencil, Plus, Search, Package,
+  Pencil, Plus, Search, Package, ShieldCheck,
 } from 'lucide-react';
 
 // ── Helpers ──
@@ -696,6 +696,10 @@ export default function InvoiceDetail() {
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
   const [showTdsModal, setShowTdsModal] = useState(false);
 
+  // E-Invoice
+  const [eInvoiceStep, setEInvoiceStep] = useState(null); // null | 'validating' | 'submitting' | 'done' | 'error'
+  const [eInvoiceError, setEInvoiceError] = useState(null);
+
   // Attachments
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
@@ -1323,6 +1327,23 @@ export default function InvoiceDetail() {
 
   const handleCreateCreditNote = () => setShowCreditNoteModal(true);
 
+  // E-Invoice: generate IRN via IRP
+  const handleGenerateEInvoice = async () => {
+    setEInvoiceError(null);
+    setEInvoiceStep('validating');
+    try {
+      setEInvoiceStep('submitting');
+      const res = await invoicingApi.generateEInvoice(orgSlug, invoiceId);
+      if (!res?.success) throw new Error(res?.error || 'E-invoice generation failed');
+      setEInvoiceStep('done');
+      showToast(`E-Invoice generated — IRN: ${res.irn}`);
+      fetchInvoice(); // refresh to show IRN on invoice
+    } catch (err) {
+      setEInvoiceError(err.message || 'E-invoice generation failed');
+      setEInvoiceStep('error');
+    }
+  };
+
   const [voidPaymentId, setVoidPaymentId] = useState(null);
   const handleVoidPayment = async (paymentId) => {
     const pid = paymentId || voidPaymentId;
@@ -1544,6 +1565,23 @@ export default function InvoiceDetail() {
               </>
             )}
 
+            {/* E-Invoice button — Indian companies only, customer invoices only */}
+            {invoice?.companyGstin && invoice?.type === 'customer_invoice' && !isDraft && (
+              invoice.eInvoiceStatus === 'generated' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
+                  <ShieldCheck size={13} />
+                  E-Invoice Generated
+                </span>
+              ) : (
+                <ActionBtn
+                  icon={ShieldCheck}
+                  label={eInvoiceStep === 'submitting' ? 'Submitting to IRP...' : eInvoiceStep === 'validating' ? 'Validating...' : 'Generate E-Invoice'}
+                  onClick={handleGenerateEInvoice}
+                  loading={eInvoiceStep === 'validating' || eInvoiceStep === 'submitting'}
+                />
+              )
+            )}
+
             {/* Paid actions — no Reset to Draft (has payments) */}
             {status === 'paid' && (
               <>
@@ -1638,12 +1676,59 @@ export default function InvoiceDetail() {
               <p className="text-sm text-dark-400 mb-1">{typeLabel}</p>
 
               {/* Invoice number */}
-              <h1 className="text-2xl font-bold mb-6">
+              <h1 className="text-2xl font-bold mb-4">
                 {invoice.number
                   ? <span className="text-white">{invoice.number}</span>
                   : <span className="text-dark-500 italic">{previewNumber || 'Draft Invoice'}</span>
                 }
               </h1>
+
+              {/* E-Invoice IRN block — shown after IRN is generated */}
+              {invoice.eInvoiceStatus === 'generated' && invoice.irn && (
+                <div className="mb-6 p-3 rounded-lg bg-emerald-900/20 border border-emerald-800/40 flex flex-col sm:flex-row sm:items-start gap-2">
+                  <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">E-Invoice Registered</p>
+                    <p className="text-xs text-dark-300 font-mono break-all">IRN: {invoice.irn}</p>
+                    {invoice.ackNo && (
+                      <p className="text-xs text-dark-400">Ack No: {invoice.ackNo} &nbsp;·&nbsp; {invoice.ackDt || ''}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* E-Invoice step indicator — shown while generating */}
+              {eInvoiceStep && eInvoiceStep !== 'done' && (
+                <div className="mb-6 p-3 rounded-lg bg-dark-800 border border-dark-700 space-y-2">
+                  {[
+                    { key: 'validating', label: 'Validating invoice' },
+                    { key: 'submitting', label: 'Submitting to IRP (Govt portal)' },
+                  ].map(({ key, label }) => {
+                    const isDone = eInvoiceStep === 'done' || (key === 'validating' && eInvoiceStep === 'submitting');
+                    const isActive = eInvoiceStep === key;
+                    const isErr = eInvoiceStep === 'error';
+                    return (
+                      <div key={key} className="flex items-center gap-2 text-xs">
+                        {isDone ? (
+                          <Check size={13} className="text-emerald-400 shrink-0" />
+                        ) : isActive && !isErr ? (
+                          <Loader2 size={13} className="animate-spin text-rivvra-400 shrink-0" />
+                        ) : isErr && isActive ? (
+                          <XCircle size={13} className="text-red-400 shrink-0" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border border-dark-600 shrink-0" />
+                        )}
+                        <span className={isDone ? 'text-emerald-400' : isActive ? 'text-white' : 'text-dark-500'}>
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {eInvoiceStep === 'error' && eInvoiceError && (
+                    <p className="text-xs text-red-400 mt-1 pl-5">{eInvoiceError}</p>
+                  )}
+                </div>
+              )}
 
               {/* Form fields — 2-column grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
