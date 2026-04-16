@@ -68,8 +68,9 @@ const contactsApi = {
   },
 
   // ── Salespersons dropdown ──────────────────────────────────────────────
-  listSalespersons(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/contacts/salespersons`);
+  listSalespersons(orgSlug, search = '') {
+    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+    return api.request(`/api/org/${orgSlug}/contacts/salespersons${qs}`);
   },
 
   // ── Attachments ──────────────────────────────────────────────────────

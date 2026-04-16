@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -204,6 +204,105 @@ function EditableName({ value, editable, onSave, autoEdit = false, placeholder =
       placeholder={placeholder || 'Contact name'}
       className="text-2xl font-bold text-white bg-dark-800 border border-rivvra-500 rounded px-2 py-0.5 focus:outline-none w-full max-w-md placeholder:text-dark-500 placeholder:italic placeholder:font-normal"
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SalespersonLookup — inline employee search for salesperson field
+// ---------------------------------------------------------------------------
+
+function SalespersonLookup({ orgSlug, currentValue, currentName, editable, onSelect }) {
+  const [editing, setEditing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+  const searchTimer = useRef(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      doSearch('');
+    }
+  }, [editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setEditing(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [editing]);
+
+  const doSearch = async (q) => {
+    try {
+      setLoading(true);
+      const res = await contactsApi.listSalespersons(orgSlug, q);
+      setResults(res?.salespersons || []);
+    } catch { setResults([]); }
+    finally { setLoading(false); }
+  };
+
+  const handleChange = (e) => {
+    setQuery(e.target.value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => doSearch(e.target.value), 300);
+  };
+
+  if (!editing) {
+    return (
+      <div
+        className={`grid grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
+        onClick={() => editable && setEditing(true)}
+      >
+        <span className="text-dark-400 text-sm">Salesperson</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-white text-sm">{currentName || <span className="text-dark-500">—</span>}</span>
+          {editable && <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100" />}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="grid grid-cols-[140px_1fr] gap-2 py-2">
+      <span className="text-dark-400 text-sm pt-1">Salesperson</span>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          placeholder="Search employees..."
+          className="w-full bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
+          onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
+        />
+        <div className="absolute top-full left-0 right-0 mt-1 bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
+          <button
+            type="button"
+            onClick={() => { onSelect('', ''); setEditing(false); setQuery(''); }}
+            className="w-full text-left px-3 py-2 text-sm text-dark-400 hover:bg-dark-700 border-b border-dark-700/50"
+          >
+            No salesperson
+          </button>
+          {loading && <div className="px-3 py-2 text-xs text-dark-500">Searching...</div>}
+          {!loading && results.length === 0 && <div className="px-3 py-2 text-xs text-dark-500">No employees found</div>}
+          {results.map((emp) => (
+            <button
+              key={emp._id}
+              type="button"
+              onClick={() => { onSelect(emp._id, emp.name); setEditing(false); setQuery(''); }}
+              className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0"
+            >
+              <span className="text-sm text-white">{emp.name}</span>
+              {emp.designation && <span className="text-xs text-dark-400 ml-2">{emp.designation}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -681,14 +780,15 @@ export default function ContactDetail() {
 
             {/* Classification */}
             <SectionCard title="Classification" icon={Users}>
-              <EditableField
-                label="Salesperson"
-                value={salespersonDisplayValue}
-                field="salespersonId"
-                type="select"
-                options={salespersonOptions}
-                editable={isAdmin}
-                onSave={(field, val) => saveField(field, val)}
+              <SalespersonLookup
+                orgSlug={orgSlug}
+                currentValue={contact.salespersonId}
+                currentName={salespersonDisplayValue}
+                editable={isAdmin || isCreateMode}
+                onSelect={(id, name) => {
+                  saveField('salespersonId', id);
+                  setContact(prev => ({ ...prev, salespersonId: id, salespersonName: name }));
+                }}
               />
               <EditableField
                 label="Product"
