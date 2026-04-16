@@ -163,8 +163,8 @@ function EditableField({ label, value, field, type = 'text', options, editable, 
 // Editable Name (header inline edit)
 // ---------------------------------------------------------------------------
 
-function EditableName({ value, editable, onSave }) {
-  const [editing, setEditing] = useState(false);
+function EditableName({ value, editable, onSave, autoEdit = false, placeholder = '' }) {
+  const [editing, setEditing] = useState(autoEdit && !value);
   const [localValue, setLocalValue] = useState(value || '');
 
   useEffect(() => setLocalValue(value || ''), [value]);
@@ -182,7 +182,9 @@ function EditableName({ value, editable, onSave }) {
         className={`inline-flex items-center gap-2 ${editable ? 'group cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800' : ''}`}
         onClick={() => editable && setEditing(true)}
       >
-        <h1 className="text-2xl font-bold text-white">{value}</h1>
+        <h1 className="text-2xl font-bold text-white">
+          {value || <span className="text-dark-500 italic">{placeholder || 'e.g. Company Name'}</span>}
+        </h1>
         {editable && <Pencil size={12} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />}
       </div>
     );
@@ -199,7 +201,8 @@ function EditableName({ value, editable, onSave }) {
         if (e.key === 'Enter') save();
         if (e.key === 'Escape') { setLocalValue(value || ''); setEditing(false); }
       }}
-      className="text-2xl font-bold text-white bg-dark-800 border border-rivvra-500 rounded px-2 py-0.5 focus:outline-none w-full max-w-md"
+      placeholder={placeholder || 'Contact name'}
+      className="text-2xl font-bold text-white bg-dark-800 border border-rivvra-500 rounded px-2 py-0.5 focus:outline-none w-full max-w-md placeholder:text-dark-500 placeholder:italic placeholder:font-normal"
     />
   );
 }
@@ -488,9 +491,10 @@ export default function ContactDetail() {
               <div>
                 <EditableName
                   value={contact.title ? `${contact.title} ${contact.name}` : contact.name}
-                  editable={isAdmin}
+                  editable={isAdmin || isCreateMode}
+                  autoEdit={isCreateMode}
+                  placeholder={contact.type === 'company' ? 'e.g. Lumber Inc' : 'e.g. John Doe'}
                   onSave={(_, val) => {
-                    // If there was a title prefix, strip it for saving just the name
                     saveField('name', val.replace(/^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|Prof\.)\s*/i, '').trim() || val);
                   }}
                 />
