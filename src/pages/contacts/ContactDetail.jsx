@@ -498,13 +498,32 @@ export default function ContactDetail() {
                   <p className="text-dark-400 mt-0.5">{contact.jobTitle}</p>
                 )}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <Badge className={
-                    contact.type === 'company'
-                      ? 'bg-blue-500/10 text-blue-400'
-                      : 'bg-emerald-500/10 text-emerald-400'
-                  }>
-                    {contact.type === 'company' ? 'Company' : 'Individual'}
-                  </Badge>
+                  {isCreateMode ? (
+                    <div className="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setContact(prev => ({ ...prev, type: 'individual' }))}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${contact.type === 'individual' ? 'bg-emerald-500/20 text-emerald-400' : 'text-dark-400 hover:text-white'}`}
+                      >
+                        <User size={11} className="inline mr-1" />Individual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContact(prev => ({ ...prev, type: 'company' }))}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${contact.type === 'company' ? 'bg-blue-500/20 text-blue-400' : 'text-dark-400 hover:text-white'}`}
+                      >
+                        <Building2 size={11} className="inline mr-1" />Company
+                      </button>
+                    </div>
+                  ) : (
+                    <Badge className={
+                      contact.type === 'company'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'bg-emerald-500/10 text-emerald-400'
+                    }>
+                      {contact.type === 'company' ? 'Company' : 'Individual'}
+                    </Badge>
+                  )}
                   {contact.isCustomer && (
                     <Badge className="bg-purple-500/10 text-purple-400">Customer</Badge>
                   )}
