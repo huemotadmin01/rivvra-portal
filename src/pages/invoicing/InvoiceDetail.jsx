@@ -740,7 +740,7 @@ export default function InvoiceDetail() {
           endDate: li.endDate?.split?.('T')?.[0] || li.endDate || '',
           quantity: li.quantity ?? 1,
           unitPrice: li.unitPrice ?? 0,
-          lineCurrency: li.lineCurrency || invoice.currency || 'INR',
+          lineCurrency: invoice.currency || li.lineCurrency || 'INR',
           taxIds: (li.taxIds || li.taxes || []).map(t => typeof t === 'object' ? (t._id || t.id) : t),
           taxNames: (li.taxIds || li.taxes || []).map(t => typeof t === 'object' ? t.name : ''),
           discount: li.discount ?? 0,
@@ -848,7 +848,14 @@ export default function InvoiceDetail() {
       }
     }
 
-    setEditForm(prev => ({ ...prev, ...updates }));
+    if (field === 'currency') {
+      // Sync lineCurrency on all lines when invoice currency changes
+      const updatedLines = editForm.lines.map(l => ({ ...l, lineCurrency: value }));
+      setEditForm(prev => ({ ...prev, ...updates, lines: updatedLines }));
+      saveLines(updatedLines);
+    } else {
+      setEditForm(prev => ({ ...prev, ...updates }));
+    }
     try {
       setSaving(true);
       const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
