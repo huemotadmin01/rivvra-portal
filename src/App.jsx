@@ -124,6 +124,7 @@ const AssetTypeConfig = lazy(() => import('./pages/employee/AssetTypeConfig'));
 // Lazy-loaded: Contacts app pages
 const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
 const ContactDetail = lazy(() => import('./pages/contacts/ContactDetail'));
+const ContactForm = lazy(() => import('./pages/contacts/ContactForm'));
 const ContactsConfig = lazy(() => import('./pages/contacts/ContactsConfig'));
 
 // Lazy-loaded: ATS app pages
@@ -404,6 +405,7 @@ function App() {
                 <Route element={<AppRoleGate appId="contacts" requiredRole="admin" />}>
                   <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><ContactsConfig /></ErrorBoundary>} />
                 </Route>
+                <Route path="/org/:slug/contacts/new" element={<ErrorBoundary><ContactForm /></ErrorBoundary>} />
                 <Route path="/org/:slug/contacts/:contactId" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
               </Route>
 

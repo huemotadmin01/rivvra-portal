@@ -710,7 +710,7 @@ export default function ContactsList({ filterType }) {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => navigate(orgPath(`/contacts/new?type=${filterType || 'company'}`))}
             className="btn-primary flex items-center gap-2 self-start"
           >
             <Plus size={16} />
