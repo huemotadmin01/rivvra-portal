@@ -11,7 +11,7 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  Loader2, Trash2,
+  Loader2, Trash2, Check,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users, Receipt,
   Upload, Download, Paperclip, Eye, Pencil,
@@ -219,10 +219,38 @@ export default function ContactDetail() {
   const fromInvoice = searchParams.get('from') === 'invoice';
   const fromInvoiceId = searchParams.get('invoiceId');
 
-  const [contact, setContact] = useState(null);
-  usePageTitle(contact?.name || contact?.companyName);
+  // Create mode: no contactId means new record (not yet saved to DB)
+  const isCreateMode = !contactId;
+  const createType = searchParams.get('type') || 'company';
+
+  const [contact, setContact] = useState(isCreateMode ? {
+    type: createType,
+    name: '',
+    email: '',
+    phone: '',
+    mobile: '',
+    website: '',
+    jobTitle: '',
+    address: { street: '', street2: '', city: '', state: '', zip: '', country: '', countryCode: '' },
+    gstTreatment: '',
+    gstin: '',
+    pan: '',
+    countryCode: companyCountry || '',
+    placeOfSupply: '',
+    defaultPaymentTermId: '',
+    defaultCurrency: '',
+    defaultProductId: '',
+    salespersonId: '',
+    isCustomer: false,
+    isSupplier: false,
+    tags: [],
+    internalNotes: '',
+  } : null);
+  const [createSaving, setCreateSaving] = useState(false);
+
+  usePageTitle(contact?.name || contact?.companyName || (isCreateMode ? 'New Contact' : ''));
   const [childContacts, setChildContacts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isCreateMode);
   const [notFound, setNotFound] = useState(false);
 
   // Tabs
@@ -308,6 +336,11 @@ export default function ContactDetail() {
 
   // -- Inline save handlers ---------------------------------------------------
   const saveField = async (field, value) => {
+    if (isCreateMode) {
+      // Create mode: just update local state, no API call
+      setContact((prev) => ({ ...prev, [field]: value }));
+      return;
+    }
     try {
       await contactsApi.update(orgSlug, contactId, { [field]: value });
       setContact((prev) => ({ ...prev, [field]: value }));
@@ -319,6 +352,10 @@ export default function ContactDetail() {
 
   const saveAddressField = async (field, value) => {
     const newAddress = { ...(contact.address || {}), [field]: value };
+    if (isCreateMode) {
+      setContact((prev) => ({ ...prev, address: newAddress }));
+      return;
+    }
     try {
       await contactsApi.update(orgSlug, contactId, { address: newAddress });
       setContact((prev) => ({ ...prev, address: newAddress }));
@@ -480,8 +517,42 @@ export default function ContactDetail() {
                 </div>
               </div>
 
-              {/* Delete button only */}
-              {isAdmin && (
+              {/* Action buttons */}
+              {isCreateMode ? (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      if (!contact.name?.trim()) {
+                        showToast('Contact name is required', 'error');
+                        return;
+                      }
+                      setCreateSaving(true);
+                      try {
+                        const res = await contactsApi.create(orgSlug, contact);
+                        if (res?.contact?._id) {
+                          showToast('Contact created');
+                          navigate(orgPath(`/contacts/${res.contact._id}`), { replace: true });
+                        }
+                      } catch (err) {
+                        showToast(err.message || 'Failed to create contact', 'error');
+                      } finally {
+                        setCreateSaving(false);
+                      }
+                    }}
+                    disabled={createSaving}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {createSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    Save
+                  </button>
+                  <button
+                    onClick={() => navigate(orgPath('/contacts/list'))}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors"
+                  >
+                    Discard
+                  </button>
+                </div>
+              ) : isAdmin && (
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => setShowDeleteModal(true)}

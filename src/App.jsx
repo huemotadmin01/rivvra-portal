@@ -405,7 +405,7 @@ function App() {
                 <Route element={<AppRoleGate appId="contacts" requiredRole="admin" />}>
                   <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><ContactsConfig /></ErrorBoundary>} />
                 </Route>
-                <Route path="/org/:slug/contacts/new" element={<ErrorBoundary><ContactForm /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/new-record" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/contacts/:contactId" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
               </Route>
 
