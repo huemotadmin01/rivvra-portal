@@ -32,8 +32,12 @@ const CURRENCY_OPTIONS = [
   { value: '', label: '-- None --' },
   { value: 'INR', label: 'INR - Indian Rupee' },
   { value: 'USD', label: 'USD - US Dollar' },
+  { value: 'CAD', label: 'CAD - Canadian Dollar' },
   { value: 'EUR', label: 'EUR - Euro' },
   { value: 'GBP', label: 'GBP - British Pound' },
+  { value: 'AED', label: 'AED - UAE Dirham' },
+  { value: 'SGD', label: 'SGD - Singapore Dollar' },
+  { value: 'AUD', label: 'AUD - Australian Dollar' },
 ];
 
 // ---------------------------------------------------------------------------
