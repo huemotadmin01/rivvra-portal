@@ -720,6 +720,14 @@ export default function InvoiceDetail() {
 
   const isDraft = invoice?.status === 'draft';
 
+  const countryCode = (() => {
+    const c = String(invoice?.companyCountry || '').trim().toLowerCase();
+    if (['us', 'usa', 'united states', 'united states of america'].includes(c)) return 'US';
+    if (['ca', 'canada'].includes(c)) return 'CA';
+    return 'IN';
+  })();
+  const isIndia = countryCode === 'IN';
+
   // Sync editForm when invoice changes
   useEffect(() => {
     if (invoice) {
@@ -1777,27 +1785,41 @@ export default function InvoiceDetail() {
                     )}
                   </EditableField>
 
-                  {/* Place of Supply */}
-                  <EditableField
-                    label="Place of Supply"
-                    value={isDraft ? editForm.placeOfSupply : (invoice.placeOfSupply || '')}
-                    field="placeOfSupply"
-                    type="text"
-                    editable={isDraft}
-                    onSave={saveField}
-                    placeholder="e.g. Maharashtra"
-                  />
+                  {/* India-only GST fields */}
+                  {isIndia && (
+                    <>
+                      <EditableField
+                        label="Place of Supply"
+                        value={isDraft ? editForm.placeOfSupply : (invoice.placeOfSupply || '')}
+                        field="placeOfSupply"
+                        type="text"
+                        editable={isDraft}
+                        onSave={saveField}
+                        placeholder="e.g. Maharashtra"
+                      />
 
-                  {/* GST Treatment */}
-                  <EditableField
-                    label="GST Treatment"
-                    value={isDraft ? editForm.gstTreatment : (invoice.gstTreatment || '')}
-                    field="gstTreatment"
-                    type="select"
-                    options={GST_TREATMENTS}
-                    editable={isDraft}
-                    onSave={saveField}
-                  />
+                      <EditableField
+                        label="GST Treatment"
+                        value={isDraft ? editForm.gstTreatment : (invoice.gstTreatment || '')}
+                        field="gstTreatment"
+                        type="select"
+                        options={GST_TREATMENTS}
+                        editable={isDraft}
+                        onSave={saveField}
+                      />
+                    </>
+                  )}
+
+                  {/* US/CA: show a read-only country hint so users know they're in non-IN mode */}
+                  {!isIndia && (
+                    <div>
+                      <label className="block text-xs text-dark-400 mb-1">Region</label>
+                      <div className="text-sm text-white">
+                        {countryCode === 'US' ? 'United States' : 'Canada'} —
+                        <span className="text-dark-400"> GST fields hidden (use {countryCode === 'US' ? 'state sales tax' : 'GST/HST'} taxes on line items)</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Customer GSTIN — shown in address block above, no duplicate needed */}
                 </div>
