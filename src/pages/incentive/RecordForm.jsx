@@ -201,7 +201,7 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
-          <Field label="Untaxed invoice value (\u20B9)" required>
+          <Field label="Untaxed invoice value (₹)" required>
             <input
               type="number"
               step="0.01"
