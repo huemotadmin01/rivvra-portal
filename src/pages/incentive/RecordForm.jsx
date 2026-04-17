@@ -274,7 +274,7 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
-          <Field label="Recruiter amount override (\u20B9)">
+          <Field label="Recruiter amount override (₹)">
             <input
               type="number"
               step="0.01"
@@ -302,7 +302,7 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
-          <Field label="AM amount override (\u20B9)">
+          <Field label="AM amount override (₹)">
             <input
               type="number"
               step="0.01"
