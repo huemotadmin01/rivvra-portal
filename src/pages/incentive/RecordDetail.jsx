@@ -56,8 +56,8 @@ export default function RecordDetail() {
   async function load() {
     setLoading(true);
     try {
-      const r = await incentiveApi.getRecord(orgSlug, recordId);
-      setRecord(r);
+      const resp = await incentiveApi.getRecord(orgSlug, recordId);
+      setRecord(resp?.record || resp);
     } catch (e) {
       showToast('Failed to load record', 'error');
       console.error(e);

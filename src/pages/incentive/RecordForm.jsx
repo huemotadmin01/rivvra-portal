@@ -68,7 +68,8 @@ export default function RecordForm() {
   async function loadRecord() {
     setLoading(true);
     try {
-      const r = await incentiveApi.getRecord(orgSlug, recordId);
+      const resp = await incentiveApi.getRecord(orgSlug, recordId);
+      const r = resp?.record || resp || {};
       setForm({
         invoiceNumber: r.invoiceNumber || '',
         clientContactId: r.clientContactId || '',
@@ -139,7 +140,7 @@ export default function RecordForm() {
       const res = isEdit
         ? await incentiveApi.updateRecord(orgSlug, recordId, payload)
         : await incentiveApi.createRecord(orgSlug, payload);
-      const id = res?._id || recordId;
+      const id = res?.record?._id || res?._id || recordId;
       showToast(isEdit ? 'Record updated' : 'Record created', 'success');
       navigate(orgPath(`/incentive/records/${id}`));
     } catch (e) {
