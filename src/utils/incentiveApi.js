@@ -84,8 +84,11 @@ const incentiveApi = {
   approve(slug, id) {
     return api.request(`${base(slug)}/records/${id}/approve`, { method: 'POST' });
   },
-  unapprove(slug, id) {
-    return api.request(`${base(slug)}/records/${id}/unapprove`, { method: 'POST' });
+  unapprove(slug, id, data = {}) {
+    return api.request(`${base(slug)}/records/${id}/unapprove`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
   cancel(slug, id, data = {}) {
     return api.request(`${base(slug)}/records/${id}/cancel`, {

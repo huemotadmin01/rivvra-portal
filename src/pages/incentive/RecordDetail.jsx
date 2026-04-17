@@ -77,6 +77,26 @@ export default function RecordDetail() {
     }
   }
 
+  async function actWithReason(promptMsg, apiFn, successMsg) {
+    const reason = window.prompt(promptMsg);
+    if (reason == null) return;
+    const trimmed = String(reason).trim();
+    if (!trimmed) {
+      showToast('A reason is required', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiFn(trimmed);
+      showToast(successMsg, 'success');
+      await load();
+    } catch (e) {
+      showToast(e?.message || 'Action failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -161,9 +181,9 @@ export default function RecordDetail() {
           {canUnapprove && (
             <ActionBtn
               onClick={() =>
-                act(
-                  () => incentiveApi.unapprove(orgSlug, recordId),
-                  'Unapprove and return to Draft?',
+                actWithReason(
+                  'Reason for unapproving? (required — audit trail)',
+                  (reason) => incentiveApi.unapprove(orgSlug, recordId, { reason }),
                   'Returned to draft'
                 )
               }
@@ -192,9 +212,9 @@ export default function RecordDetail() {
             <ActionBtn
               danger
               onClick={() =>
-                act(
-                  () => incentiveApi.cancel(orgSlug, recordId),
-                  'Cancel this record?',
+                actWithReason(
+                  'Reason for cancelling? (required — audit trail)',
+                  (reason) => incentiveApi.cancel(orgSlug, recordId, { reason }),
                   'Record cancelled'
                 )
               }
@@ -208,9 +228,9 @@ export default function RecordDetail() {
             <ActionBtn
               danger
               onClick={() =>
-                act(
-                  () => incentiveApi.reverse(orgSlug, recordId),
-                  'Create an adjustment (negative) record linked to this one?',
+                actWithReason(
+                  'Reason for reversal? (required — creates a negative adjustment record)',
+                  (reason) => incentiveApi.reverse(orgSlug, recordId, { reason }),
                   'Adjustment created'
                 )
               }
