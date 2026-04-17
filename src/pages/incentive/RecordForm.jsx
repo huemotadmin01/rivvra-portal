@@ -24,7 +24,7 @@ const INITIAL = {
   recruiterAmountOverride: '',
   accountManagerAmountOverride: '',
   payoutMonth: '',
-  notes: '',
+  remarks: '',
 };
 
 export default function RecordForm() {
@@ -85,7 +85,7 @@ export default function RecordForm() {
         recruiterAmountOverride: r.recruiterAmountOverride ?? '',
         accountManagerAmountOverride: r.accountManagerAmountOverride ?? '',
         payoutMonth: r.payoutMonth || '',
-        notes: r.notes || '',
+        remarks: r.remarks || '',
       });
     } catch (e) {
       showToast('Failed to load record', 'error');
@@ -319,8 +319,8 @@ export default function RecordForm() {
         <Section title="Notes">
           <div className="col-span-2">
             <textarea
-              value={form.notes}
-              onChange={(e) => setField('notes', e.target.value)}
+              value={form.remarks}
+              onChange={(e) => setField('remarks', e.target.value)}
               rows={3}
               className={inputCls}
               placeholder="Internal notes…"

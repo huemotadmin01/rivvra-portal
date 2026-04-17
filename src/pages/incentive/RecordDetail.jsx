@@ -310,8 +310,8 @@ export default function RecordDetail() {
               <Row
                 k="Rate"
                 v={
-                  record.recruiterEffectiveRate != null
-                    ? `${(record.recruiterEffectiveRate * 100).toFixed(2)}%`
+                  record.recruiterRateSnapshot != null
+                    ? `${(record.recruiterRateSnapshot * 100).toFixed(2)}%`
                     : '—'
                 }
               />
@@ -330,8 +330,8 @@ export default function RecordDetail() {
             <Row
               k="Rate"
               v={
-                record.accountManagerEffectiveRate != null
-                  ? `${(record.accountManagerEffectiveRate * 100).toFixed(2)}%`
+                record.accountManagerRateSnapshot != null
+                  ? `${(record.accountManagerRateSnapshot * 100).toFixed(2)}%`
                   : '—'
               }
             />
@@ -344,13 +344,13 @@ export default function RecordDetail() {
         )}
       </div>
 
-      {record.notes && (
+      {record.remarks && (
         <div className="bg-dark-900 border border-dark-800 rounded-xl p-5">
           <h3 className="text-xs font-semibold text-dark-400 uppercase mb-2">
             Notes
           </h3>
           <p className="text-sm text-dark-200 whitespace-pre-wrap">
-            {record.notes}
+            {record.remarks}
           </p>
         </div>
       )}
