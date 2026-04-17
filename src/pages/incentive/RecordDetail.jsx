@@ -31,7 +31,7 @@ const STATUS_STYLE = {
 };
 
 export default function RecordDetail() {
-  const { currentOrg } = useOrg();
+  const { currentOrg, isOrgAdmin, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const { user } = useAuth();
@@ -43,10 +43,7 @@ export default function RecordDetail() {
   const [record, setRecord] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const isAdmin =
-    currentOrg?.membership?.orgRole === 'admin' ||
-    currentOrg?.membership?.orgRole === 'owner' ||
-    currentOrg?.membership?.appAccess?.incentive?.role === 'admin';
+  const isAdmin = isOrgAdmin || getAppRole('incentive') === 'admin';
 
   useEffect(() => {
     if (orgSlug && recordId) load();
