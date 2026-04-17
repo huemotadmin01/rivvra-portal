@@ -24,7 +24,7 @@ import {
 // ── Helpers ──
 
 function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '\u20B90.00';
+  if (amount == null) return '₹0.00';
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
@@ -2099,12 +2099,13 @@ export default function InvoiceDetail() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     {/* Left column */}
                     <div className="space-y-4">
-                      {invoice.salesperson && (
+                      {(invoice.salespersonName || invoice.salesperson) && (
                         <FormField label="Salesperson">
                           <span className="text-white">
-                            {typeof invoice.salesperson === 'object'
-                              ? invoice.salesperson.name || invoice.salesperson.email
-                              : invoice.salesperson}
+                            {invoice.salespersonName
+                              || (typeof invoice.salesperson === 'object'
+                                ? invoice.salesperson.name || invoice.salesperson.email
+                                : invoice.salesperson)}
                           </span>
                         </FormField>
                       )}
@@ -2153,12 +2154,13 @@ export default function InvoiceDetail() {
 
                     {/* Right column */}
                     <div className="space-y-4">
-                      {invoice.createdBy && (
+                      {(invoice.createdByName || invoice.createdBy) && (
                         <FormField label="Created By">
                           <span className="text-white">
-                            {typeof invoice.createdBy === 'object'
-                              ? invoice.createdBy.name || invoice.createdBy.email
-                              : invoice.createdBy}
+                            {invoice.createdByName
+                              || (typeof invoice.createdBy === 'object'
+                                ? invoice.createdBy.name || invoice.createdBy.email
+                                : invoice.createdBy)}
                           </span>
                         </FormField>
                       )}

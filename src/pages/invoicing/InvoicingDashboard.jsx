@@ -10,7 +10,7 @@ import { Loader2, Plus, FileText } from 'lucide-react';
 // ---------------------------------------------------------------------------
 
 function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '\u20B90.00';
+  if (amount == null) return '₹0.00';
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,

@@ -12,12 +12,13 @@ import {
 const TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
-  { key: 'received', label: 'Received' },
+  { key: 'sent', label: 'Received' },
   { key: 'paid', label: 'Paid' },
 ];
 
 const STATUS_STYLES = {
   draft:     { bg: 'bg-dark-700',        text: 'text-dark-300',    dot: 'bg-dark-400' },
+  sent:      { bg: 'bg-blue-500/10',     text: 'text-blue-400',    dot: 'bg-blue-500' },
   received:  { bg: 'bg-blue-500/10',     text: 'text-blue-400',    dot: 'bg-blue-500' },
   partial:   { bg: 'bg-amber-500/10',    text: 'text-amber-400',   dot: 'bg-amber-500' },
   paid:      { bg: 'bg-emerald-500/10',  text: 'text-emerald-400', dot: 'bg-emerald-500' },
@@ -77,7 +78,9 @@ export default function VendorBillList() {
 
       const res = await invoicingApi.listBills(orgSlug, params);
       setBills(res.bills || res.data || []);
-      setTotalPages(res.totalPages || res.pages || 1);
+      setTotalPages(
+        res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / limit))
+      );
       setTotal(res.total || 0);
     } catch (err) {
       showToast(err.message || 'Failed to load bills', 'error');

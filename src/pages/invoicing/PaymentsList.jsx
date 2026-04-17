@@ -87,7 +87,9 @@ export default function PaymentsList() {
 
       const res = await invoicingApi.listPayments(orgSlug, params);
       setPayments(res.payments || res.data || []);
-      setTotalPages(res.totalPages || res.pages || 1);
+      setTotalPages(
+        res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / limit))
+      );
       setTotal(res.total || 0);
     } catch (err) {
       showToast(err.message || 'Failed to load payments', 'error');
@@ -293,7 +295,7 @@ export default function PaymentsList() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-dark-300 truncate max-w-[180px] block">
-                        {pmt.contactName || pmt.contact?.name || pmt.customerName || pmt.vendorName || '-'}
+                        {pmt.invoiceContactName || pmt.contactName || pmt.contact?.name || pmt.customerName || pmt.vendorName || '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

@@ -105,7 +105,10 @@ export default function InvoiceList() {
       const res = await invoicingApi.listInvoices(orgSlug, params);
       if (res.success !== false) {
         setInvoices(res.invoices || res.data || []);
-        setTotalPages(res.totalPages || res.pages || 1);
+        const pageLimit = res.limit || 20;
+        setTotalPages(
+          res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / pageLimit))
+        );
         setTotal(res.total || 0);
         if (res.statusCounts) setStatusCounts(res.statusCounts);
       }

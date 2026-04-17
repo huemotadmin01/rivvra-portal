@@ -155,16 +155,16 @@ function FollowUpConfig({ orgSlug, showToast }) {
                         <label className="block text-sm text-dark-300 mb-1">Email Subject</label>
                         <input
                           type="text"
-                          value={level.subject || ''}
-                          onChange={e => updateLevel(idx, 'subject', e.target.value)}
+                          value={level.emailSubject || ''}
+                          onChange={e => updateLevel(idx, 'emailSubject', e.target.value)}
                           className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
                         />
                       </div>
                       <div className="sm:col-span-2 lg:col-span-1">
                         <label className="block text-sm text-dark-300 mb-1">Template</label>
                         <textarea
-                          value={level.template || ''}
-                          onChange={e => updateLevel(idx, 'template', e.target.value)}
+                          value={level.emailBody || ''}
+                          onChange={e => updateLevel(idx, 'emailBody', e.target.value)}
                           rows={3}
                           className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 resize-none"
                         />
@@ -268,7 +268,7 @@ function FollowUpLogs({ orgSlug, showToast }) {
                     <tr key={log._id || log.id || idx} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
                       <td className="px-4 py-3 text-dark-300">{formatDate(log.sentAt || log.createdAt)}</td>
                       <td className="px-4 py-3 text-white font-medium">{log.invoiceNumber || log.invoiceId || '-'}</td>
-                      <td className="px-4 py-3 text-dark-300">{log.customerName || log.customer || '-'}</td>
+                      <td className="px-4 py-3 text-dark-300">{log.contactName || log.customerName || log.customer || '-'}</td>
                       <td className="px-4 py-3 text-center"><LevelDot level={log.level} /></td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 text-xs font-medium ${
@@ -407,7 +407,7 @@ export default function FollowUps() {
                         {inv.number || inv.invoiceNumber || '-'}
                       </td>
                       <td className="px-4 py-3 text-dark-300">
-                        {inv.customerName || inv.customer?.name || '-'}
+                        {inv.contactName || inv.customerName || inv.customer?.name || '-'}
                       </td>
                       <td className="px-4 py-3 text-right text-white font-medium">
                         {formatCurrency(inv.amountDue ?? inv.total)}
@@ -425,7 +425,7 @@ export default function FollowUps() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-dark-400 text-xs">
-                        {formatDate(inv.lastFollowUp || inv.lastFollowUpAt)}
+                        {formatDate(inv.lastFollowUpDate || inv.lastFollowUp || inv.lastFollowUpAt)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <LevelDot level={nextLevel} />
