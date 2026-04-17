@@ -6,7 +6,7 @@ import AppCard from './AppCard';
 
 function AppGrid() {
   const { user } = useAuth();
-  const { hasAppAccess, currentOrg, isOrgAdmin, isOrgOwner, loading, membership } = useOrg();
+  const { hasAppAccess, currentOrg, loading, membership } = useOrg();
   const { installed: extInstalled } = useExtensionDetector();
   const apps = getAllApps(user, membership);
 
@@ -26,18 +26,15 @@ function AppGrid() {
   }
 
   // Filter apps:
-  // 1. Remove "coming_soon" apps entirely
-  // 2. For non-admins, hide apps they don't have access to (instead of showing locked)
+  //   - Remove "coming_soon" apps entirely
+  //   - Settings tile is always visible (gated by OrgAdminGate on entry)
+  //   - Otherwise the per-user app toggle is the single source of truth —
+  //     even org admins/owners must have the toggle on to see the tile.
+  //     Admins can enable any app for themselves in user settings.
   const visibleApps = apps.filter((app) => {
-    // Never show coming_soon apps
     if (app.status === 'coming_soon') return false;
-    // Settings is always visible
     if (app.id === 'settings') return true;
-    // No org context = show all active apps
     if (!currentOrg) return true;
-    // Admins/owners see all active apps (even ones they haven't enabled yet)
-    if (isOrgAdmin || isOrgOwner) return true;
-    // Non-admins only see apps they have access to
     return hasAppAccess(app.id);
   });
 
