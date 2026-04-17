@@ -838,6 +838,14 @@ export default function EmployeeDetail() {
           <InlineField label="Manager" field="manager" value={emp.manager} type="select"
             options={managerOptions} editable={fp('manager').editable} required={fp('manager').required}
             onSave={handleFieldSave} displayValue={emp.managerName || null} />
+          <InlineField label="Sourced By" field="sourcedByEmployeeId" value={emp.sourcedByEmployeeId} type="select"
+            options={managerOptions} editable={fp('sourcedByEmployeeId').editable}
+            onSave={handleFieldSave}
+            displayValue={
+              managerOptions.find(m => m.value === (emp.sourcedByEmployeeId?.toString?.() || emp.sourcedByEmployeeId))?.label
+              || emp.sourcedByName
+              || null
+            } />
           <InlineField label="Employment Type" field="employmentType" value={emp.employmentType} type="select"
             options={Object.entries(empTypeMap).map(([key, cfg]) => ({ value: key, label: cfg.label }))}
             editable={fp('employmentType').editable} onSave={handleFieldSave}

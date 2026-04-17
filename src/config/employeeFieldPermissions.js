@@ -14,6 +14,7 @@ const FIELD_PERMISSIONS = {
   department:         { admin: true, manager: true,  self: false },
   designation:        { admin: true, manager: true,  self: false },
   manager:            { admin: true, manager: true,  self: false },
+  sourcedByEmployeeId:{ admin: true, manager: false, self: false },
   employmentType:     { admin: true, manager: false, self: false },
   joiningDate:        { admin: true, manager: false, self: false },
   billable:           { admin: true, manager: true,  self: false },

@@ -12,6 +12,7 @@ const DEFAULTS = {
   paymentCutoffDay: 25,
   forfeitOnSeparation: true,
   rollForwardOnMissedPayslip: true,
+  autoCreateOnPaid: true,
   defaultRecruiterRate: 0.06,
   defaultAccountManagerRate: 0.06,
 };
@@ -119,6 +120,13 @@ export default function IncentiveSettings() {
             className={inputCls}
           />
         </Field>
+
+        <Toggle
+          label="Auto-create on invoice paid"
+          hint="When an invoice is marked fully paid, auto-create Draft incentive records for each consultant line. Recruiter is pulled from the consultant's Sourced By; AM from the client's Salesperson. Skipped groups raise an admin notification."
+          value={form.autoCreateOnPaid}
+          onChange={(v) => setForm({ ...form, autoCreateOnPaid: v })}
+        />
 
         <Toggle
           label="Roll forward on missed payslip"
