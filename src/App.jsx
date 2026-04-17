@@ -177,6 +177,15 @@ const TaxesConfig = lazy(() => import('./pages/invoicing/TaxesConfig'));
 const PaymentTermsConfig = lazy(() => import('./pages/invoicing/PaymentTermsConfig'));
 const InvoicingSettingsPage = lazy(() => import('./components/settings/SettingsInvoicing'));
 
+// Lazy-loaded: Incentive app pages
+const IncentiveMyEarnings = lazy(() => import('./pages/incentive/MyEarnings'));
+const IncentiveDashboard = lazy(() => import('./pages/incentive/IncentiveDashboard'));
+const IncentiveRecordsList = lazy(() => import('./pages/incentive/RecordsList'));
+const IncentiveRecordForm = lazy(() => import('./pages/incentive/RecordForm'));
+const IncentiveRecordDetail = lazy(() => import('./pages/incentive/RecordDetail'));
+const IncentiveRatesTable = lazy(() => import('./pages/incentive/RatesTable'));
+const IncentiveSettings = lazy(() => import('./pages/incentive/IncentiveSettings'));
+
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
@@ -484,6 +493,22 @@ function App() {
                   <Route path="/org/:slug/invoicing/config/settings" element={<ErrorBoundary><InvoicingSettingsPage /></ErrorBoundary>} />
                 </Route>
               </Route>
+
+              {/* Incentive app routes — member for own earnings, admin for everything else */}
+              <Route element={<AppAccessGate appId="incentive" />}>
+                {/* Member-accessible */}
+                <Route path="/org/:slug/incentive/my-earnings" element={<ErrorBoundary><IncentiveMyEarnings /></ErrorBoundary>} />
+                <Route path="/org/:slug/incentive/records/:recordId" element={<ErrorBoundary><IncentiveRecordDetail /></ErrorBoundary>} />
+                {/* Admin-only */}
+                <Route element={<AppRoleGate appId="incentive" requiredRole="admin" />}>
+                  <Route path="/org/:slug/incentive/dashboard" element={<ErrorBoundary><IncentiveDashboard /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/records" element={<ErrorBoundary><IncentiveRecordsList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/records/new" element={<ErrorBoundary><IncentiveRecordForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/records/:recordId/edit" element={<ErrorBoundary><IncentiveRecordForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/rates" element={<ErrorBoundary><IncentiveRatesTable /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/settings" element={<ErrorBoundary><IncentiveSettings /></ErrorBoundary>} />
+                </Route>
+              </Route>
             </Route>
 
             {/* ============================================================ */}
@@ -510,6 +535,7 @@ function App() {
             <Route path="/ats/*" element={<OrgRedirect />} />
             <Route path="/sign/*" element={<OrgRedirect />} />
             <Route path="/invoicing/*" element={<OrgRedirect />} />
+            <Route path="/incentive/*" element={<OrgRedirect />} />
             <Route path="/todo/*" element={<OrgRedirect />} />
             <Route path="/settings" element={<OrgRedirect to="/settings" />} />
             <Route path="/settings/*" element={<OrgRedirect />} />

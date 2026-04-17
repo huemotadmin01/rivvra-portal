@@ -6,6 +6,7 @@ import {
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
   Shield, User, Network, Package, Calculator, BookOpen, Receipt, CreditCard, Landmark,
+  TrendingUp, Award, Percent,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -485,6 +486,40 @@ export const APP_REGISTRY = {
         ],
       },
     ],
+  },
+
+  incentive: {
+    id: 'incentive',
+    name: 'Incentive',
+    description: 'Recruiter & AM commission tracking',
+    icon: Award,
+    color: 'fuchsia',
+    basePath: '/incentive',
+    status: 'active',
+    defaultRoute: '/incentive/my-earnings',
+    derivedRoles: true,
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'fuchsia' },
+      { value: 'member', label: 'Member', color: 'dark' },
+    ],
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/incentive/my-earnings', label: 'My Earnings', icon: IndianRupee },
+        ...(isAdmin ? [
+          { type: 'item', path: '/incentive/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { type: 'item', path: '/incentive/records', label: 'All Records', icon: FileText },
+          { type: 'item', path: '/incentive/records/new', label: 'New Record', icon: PlusCircle },
+          {
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/incentive/rates', label: 'Rate Table', icon: Percent },
+              { path: '/incentive/settings', label: 'Settings', icon: Settings },
+            ],
+          },
+        ] : []),
+      ];
+    },
   },
 
   knowledgeBase: {
