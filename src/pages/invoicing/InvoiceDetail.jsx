@@ -32,9 +32,10 @@ function formatCurrency(amount, currency = 'INR') {
   }).format(amount);
 }
 
-function formatDate(d) {
+function formatDate(d, cc = 'IN') {
   if (!d) return '-';
-  return new Date(d).toLocaleDateString('en-IN', {
+  const locale = cc === 'US' ? 'en-US' : 'en-IN';
+  return new Date(d).toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -1834,7 +1835,7 @@ export default function InvoiceDetail() {
                     editable={isDraft}
                     onSave={saveField}
                     displayValue={
-                      <span className="text-white">{formatDate(isDraft ? (editForm.invoiceDate || editForm.date) : invoice.date)}</span>
+                      <span className="text-white">{formatDate(isDraft ? (editForm.invoiceDate || editForm.date) : invoice.date, countryCode)}</span>
                     }
                   />
 
@@ -1860,7 +1861,7 @@ export default function InvoiceDetail() {
                     onSave={saveField}
                     displayValue={
                       <span className={status === 'overdue' ? 'text-red-400 font-medium' : 'text-white'}>
-                        {formatDate(isDraft ? editForm.dueDate : invoice.dueDate)}
+                        {formatDate(isDraft ? editForm.dueDate : invoice.dueDate, countryCode)}
                       </span>
                     }
                   />
@@ -1949,6 +1950,7 @@ export default function InvoiceDetail() {
                                 line={li}
                                 index={i}
                                 currency={currency}
+                                countryCode={countryCode}
                                 orgSlug={orgSlug}
                                 customerContactId={editForm.contactId || invoice?.contactId || ''}
                                 onUpdate={updateLine}
@@ -1994,10 +1996,10 @@ export default function InvoiceDetail() {
                                     {li.description || <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-white">
-                                    {li.startDate ? formatDate(li.startDate) : <span className="text-dark-600 italic">—</span>}
+                                    {li.startDate ? formatDate(li.startDate, countryCode) : <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-white">
-                                    {li.endDate ? formatDate(li.endDate) : <span className="text-dark-600 italic">—</span>}
+                                    {li.endDate ? formatDate(li.endDate, countryCode) : <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
                                   <td className="px-4 py-3 text-right text-white">
@@ -2095,7 +2097,7 @@ export default function InvoiceDetail() {
                         <div key={pmt._id || i} className="flex items-center gap-2 text-sm text-emerald-400">
                           <Info size={14} className="shrink-0" />
                           <span>
-                            Paid on {formatDate(pmt.date || pmt.paymentDate)}
+                            Paid on {formatDate(pmt.date || pmt.paymentDate, countryCode)}
                           </span>
                           <span className="font-medium ml-4">
                             {formatCurrency(pmt.amount, currency)}
@@ -2189,7 +2191,7 @@ export default function InvoiceDetail() {
 
                       {invoice.createdAt && (
                         <FormField label="Created At">
-                          <span className="text-white">{formatDate(invoice.createdAt)}</span>
+                          <span className="text-white">{formatDate(invoice.createdAt, countryCode)}</span>
                         </FormField>
                       )}
 
@@ -2202,7 +2204,7 @@ export default function InvoiceDetail() {
                           </span>
                           {invoice.nextRecurringDate && (
                             <p className="text-sm text-dark-400 mt-0.5">
-                              Next: {formatDate(invoice.nextRecurringDate)}
+                              Next: {formatDate(invoice.nextRecurringDate, countryCode)}
                             </p>
                           )}
                         </FormField>
@@ -2474,7 +2476,7 @@ export default function InvoiceDetail() {
 // InlineLineRow — editable line item row for draft invoices
 // ============================================================================
 
-function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, onConsultantSelect, productLocked }) {
+function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, onConsultantSelect, productLocked }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showConsultantSearch, setShowConsultantSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
@@ -2598,7 +2600,7 @@ function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUp
             className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
             onClick={() => handleFieldClick('startDate')}
           >
-            <span className="text-white text-sm">{line.startDate ? formatDate(line.startDate) : <span className="text-dark-500 italic">Start Date</span>}</span>
+            <span className="text-white text-sm">{line.startDate ? formatDate(line.startDate, countryCode) : <span className="text-dark-500 italic">Start Date</span>}</span>
             <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
           </div>
         )}
@@ -2620,7 +2622,7 @@ function InlineLineRow({ line, index, currency, orgSlug, customerContactId, onUp
             className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
             onClick={() => handleFieldClick('endDate')}
           >
-            <span className="text-white text-sm">{line.endDate ? formatDate(line.endDate) : <span className="text-dark-500 italic">End Date</span>}</span>
+            <span className="text-white text-sm">{line.endDate ? formatDate(line.endDate, countryCode) : <span className="text-dark-500 italic">End Date</span>}</span>
             <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
           </div>
         )}
