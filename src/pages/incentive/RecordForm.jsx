@@ -19,6 +19,7 @@ const INITIAL = {
   serviceMonth: '',
   paymentReceivedDate: '',
   untaxedInvoicedValue: '',
+  consultantSalarySnapshot: '',
   recruiterEmployeeId: '',
   accountManagerEmployeeId: '',
   recruiterAmountOverride: '',
@@ -42,6 +43,7 @@ export default function RecordForm() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [salaryMeta, setSalaryMeta] = useState({ source: null, original: null });
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -81,12 +83,17 @@ export default function RecordForm() {
           ? r.paymentReceivedDate.slice(0, 10)
           : '',
         untaxedInvoicedValue: r.untaxedInvoicedValue ?? '',
+        consultantSalarySnapshot: r.consultantSalarySnapshot ?? '',
         recruiterEmployeeId: r.recruiterEmployeeId || '',
         accountManagerEmployeeId: r.accountManagerEmployeeId || '',
         recruiterAmountOverride: r.recruiterAmountOverride ?? '',
         accountManagerAmountOverride: r.accountManagerAmountOverride ?? '',
         payoutMonth: r.payoutMonth || '',
         remarks: r.remarks || '',
+      });
+      setSalaryMeta({
+        source: r.consultantSalarySource || null,
+        original: r.consultantSalarySnapshot ?? null,
       });
     } catch (e) {
       showToast('Failed to load record', 'error');
@@ -125,6 +132,10 @@ export default function RecordForm() {
     const payload = {
       ...form,
       untaxedInvoicedValue: Number(form.untaxedInvoicedValue) || 0,
+      consultantSalarySnapshot:
+        form.consultantSalarySnapshot === '' || form.consultantSalarySnapshot == null
+          ? null
+          : Number(form.consultantSalarySnapshot),
       recruiterAmountOverride:
         form.recruiterAmountOverride === ''
           ? null
@@ -258,6 +269,19 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
+          <Field
+            label="Consultant salary snapshot (₹)"
+            hint={salaryHint(salaryMeta.source, isEdit)}
+          >
+            <input
+              type="number"
+              step="0.01"
+              value={form.consultantSalarySnapshot}
+              onChange={(e) => setField('consultantSalarySnapshot', e.target.value)}
+              className={inputCls}
+              placeholder="Leave blank to pull from payroll"
+            />
+          </Field>
         </Section>
 
         <Section title="Recruiter / Account Manager">
@@ -364,13 +388,24 @@ function Section({ title, children }) {
   );
 }
 
-function Field({ label, required, children }) {
+function Field({ label, required, hint, children }) {
   return (
     <label className="block">
       <span className="text-xs text-dark-300 block mb-1">
         {label} {required && <span className="text-red-400">*</span>}
       </span>
       {children}
+      {hint && <span className="text-[11px] text-dark-400 mt-1 block">{hint}</span>}
     </label>
   );
+}
+
+function salaryHint(source, isEdit) {
+  if (!isEdit) return 'Leave blank to auto-pull from the paid payroll run.';
+  if (source === 'admin_override') return 'Manually overridden by an admin.';
+  if (source === 'payroll_run') return 'Pulled from the paid payroll run. Editing here overrides it.';
+  if (source === 'pending_payroll' || source === 'salary_hold' || !source) {
+    return 'Payroll not yet released — enter a value manually or leave blank until payslip is released.';
+  }
+  return null;
 }
