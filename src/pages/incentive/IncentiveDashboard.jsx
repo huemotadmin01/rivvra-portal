@@ -9,7 +9,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
 import {
-  Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Plus,
+  Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Plus, Hourglass,
 } from 'lucide-react';
 
 function formatINR(amount) {
@@ -45,6 +45,8 @@ export default function IncentiveDashboard() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState('');
   const [data, setData] = useState(null);
+  const [waiting, setWaiting] = useState({ count: 0, groups: [] });
+  const [waitingOpen, setWaitingOpen] = useState(false);
 
   useEffect(() => {
     if (orgSlug) load();
@@ -54,11 +56,17 @@ export default function IncentiveDashboard() {
   async function load() {
     setLoading(true);
     try {
-      const res = await incentiveApi.getSummary(orgSlug, {
-        scope: 'admin',
-        month: month || undefined,
-      });
-      setData(res || null);
+      const [summary, waitingRes] = await Promise.all([
+        incentiveApi.getSummary(orgSlug, {
+          scope: 'admin',
+          month: month || undefined,
+        }),
+        incentiveApi.getWaitingOnPayroll(orgSlug).catch(() => null),
+      ]);
+      setData(summary || null);
+      if (waitingRes?.success) {
+        setWaiting({ count: waitingRes.count || 0, groups: waitingRes.groups || [] });
+      }
     } catch (e) {
       console.error('Failed to load dashboard', e);
     } finally {
@@ -137,6 +145,14 @@ export default function IncentiveDashboard() {
           color="bg-fuchsia-950 text-fuchsia-400"
         />
       </div>
+
+      <WaitingOnPayrollCard
+        count={waiting.count}
+        groups={waiting.groups}
+        open={waitingOpen}
+        onToggle={() => setWaitingOpen((v) => !v)}
+      />
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-dark-900 border border-dark-800 rounded-xl p-5">
@@ -219,6 +235,73 @@ export default function IncentiveDashboard() {
                   </td>
                   <td className="px-2 py-2 text-right font-semibold text-white">
                     {formatINR(c.incentive)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WaitingOnPayrollCard({ count, groups, open, onToggle }) {
+  if (!count) return null;
+  return (
+    <div className="bg-amber-950/30 border border-amber-900/40 rounded-xl p-5">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-amber-900/40 text-amber-300">
+            <Hourglass size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">
+              Waiting on payroll
+              <span className="ml-2 text-2xl font-bold text-amber-300">{count}</span>
+            </p>
+            <p className="text-xs text-dark-400 mt-0.5">
+              Paid invoices waiting for the consultant&apos;s payslip to release.
+              Drafts auto-create once payroll is marked paid.
+            </p>
+          </div>
+        </div>
+        <span className="text-xs text-amber-300">{open ? 'Hide' : 'Show details'}</span>
+      </button>
+      {open && groups.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-lg border border-amber-900/40">
+          <table className="w-full text-sm">
+            <thead className="text-dark-400 text-xs uppercase bg-dark-900/50">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Consultant</th>
+                <th className="text-left px-3 py-2 font-medium">Service Month</th>
+                <th className="text-left px-3 py-2 font-medium">Invoices</th>
+                <th className="text-right px-3 py-2 font-medium">Value</th>
+                <th className="text-left px-3 py-2 font-medium">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <tr
+                  key={`${g.consultantEmployeeId}|${g.serviceMonth}`}
+                  className="border-t border-amber-900/30"
+                >
+                  <td className="px-3 py-2 text-white">{g.consultantName || '—'}</td>
+                  <td className="px-3 py-2 text-dark-300">{g.serviceMonth}</td>
+                  <td className="px-3 py-2 text-dark-300">
+                    {(g.invoiceNumbers || []).join(', ') || '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right text-dark-300">
+                    {formatINR(g.untaxedInvoicedValue)}
+                  </td>
+                  <td className="px-3 py-2 text-amber-300">
+                    {g.reason === 'salary_hold'
+                      ? 'Salary on hold'
+                      : 'Payslip not released'}
                   </td>
                 </tr>
               ))}

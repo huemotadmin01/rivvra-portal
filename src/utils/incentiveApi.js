@@ -111,6 +111,11 @@ const incentiveApi = {
     return api.request(`${base(slug)}/summary${qs(params)}`);
   },
 
+  // ---------- WAITING ON PAYROLL ----------
+  getWaitingOnPayroll(slug) {
+    return api.request(`${base(slug)}/waiting-on-payroll`);
+  },
+
   // ---------- EXPORT ----------
   async exportRecordsCsv(slug, params = {}) {
     const token = localStorage.getItem('rivvra_token');
