@@ -52,11 +52,11 @@ function formatFileSize(bytes) {
 }
 
 // ── Status stepper config ──
-const STATUS_STEPS = ['draft', 'sent', 'paid'];
+const STATUS_STEPS = ['draft', 'posted', 'paid'];
 
 function getStepIndex(status) {
   if (status === 'paid') return 2;
-  if (status === 'sent' || status === 'overdue' || status === 'partial' || status === 'viewed') return 1;
+  if (status === 'posted' || status === 'overdue' || status === 'partial' || status === 'viewed') return 1;
   if (status === 'cancelled') return -1;
   return 0;
 }
@@ -1557,7 +1557,7 @@ export default function InvoiceDetail() {
             )}
 
             {/* Posted / Viewed / Partial / Overdue actions */}
-            {['sent', 'viewed', 'partial', 'overdue'].includes(status) && (
+            {['posted', 'viewed', 'partial', 'overdue'].includes(status) && (
               <>
                 <ActionBtn icon={CreditCard} label="Record Payment" onClick={() => setShowPaymentModal(true)} primary />
                 <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
@@ -1625,13 +1625,13 @@ export default function InvoiceDetail() {
             {STATUS_STEPS.map((step, i) => {
               const isActive = i === stepIndex;
               const isPast = i < stepIndex;
-              const label = step === 'sent' ? 'Posted' : step.charAt(0).toUpperCase() + step.slice(1);
+              const label = step.charAt(0).toUpperCase() + step.slice(1);
 
               let cls = 'px-4 py-1.5 text-xs font-semibold rounded-full transition-colors ';
               if (isActive) {
                 // Distinct colors per active state
                 if (step === 'draft') cls += 'bg-amber-600 text-white';
-                else if (step === 'sent') cls += 'bg-blue-600 text-white';
+                else if (step === 'posted') cls += 'bg-blue-600 text-white';
                 else if (step === 'paid') cls += 'bg-emerald-600 text-white';
                 else cls += 'bg-rivvra-500 text-white';
               } else if (isPast) {

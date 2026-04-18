@@ -38,7 +38,7 @@ function formatDate(dateStr) {
 const STATUS_TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
-  { key: 'sent', label: 'Sent' },
+  { key: 'posted', label: 'Posted' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
 ];
@@ -46,7 +46,7 @@ const STATUS_TABS = [
 function StatusBadge({ status }) {
   const styles = {
     draft: 'bg-dark-700 text-dark-300',
-    sent: 'bg-blue-500/10 text-blue-400',
+    posted: 'bg-blue-500/10 text-blue-400',
     paid: 'bg-emerald-500/10 text-emerald-400',
     overdue: 'bg-red-500/10 text-red-400',
     partial: 'bg-amber-500/10 text-amber-400',
