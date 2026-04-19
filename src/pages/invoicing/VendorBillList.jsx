@@ -17,9 +17,6 @@ const TABS = [
   { key: 'paid', label: 'Paid' },
 ];
 
-// Map dashboard status query params (sent/overdue/draft/paid) to tab keys.
-// 'sent' is the dashboard's "unpaid" bucket — on bills we treat that as All
-// since there's no single equivalent status filter.
 const TAB_FROM_QUERY = {
   draft: 'draft',
   overdue: 'overdue',
@@ -263,7 +260,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
                 {bills.map(bill => (
                   <tr
                     key={bill._id}
-                    onClick={() => navigate(orgPath(`/invoicing/bills/${bill._id}`))}
+                    onClick={() => navigate(orgPath(`/invoicing/invoices/${bill._id}`))}
                     className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3">

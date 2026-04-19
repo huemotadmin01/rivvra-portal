@@ -45,12 +45,17 @@ function listUrlFor(journal, params = {}) {
   return q ? `${base}?${q}` : base;
 }
 
-function JournalCard({ journal, orgSlug, orgPath, navigate }) {
+// All bill types share /invoicing/bills/new (the form reads journalId from
+// the query). There is no /invoicing/employee-bills/new route.
+function newUrlFor(journal) {
+  const isBillJournal = journal.code === 'EMPBI' || journal.type === 'purchase';
+  const base = isBillJournal ? '/invoicing/bills/new' : '/invoicing/invoices/new';
+  return journal._id ? `${base}?journalId=${journal._id}` : base;
+}
+
+function JournalCard({ journal, orgPath, navigate }) {
   const {
     name,
-    code,
-    type,
-    _id,
     unpaidCount = 0,
     unpaidAmount = 0,
     lateCount = 0,
@@ -72,10 +77,7 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
       minimumFractionDigits: 2,
     }).format(amt);
 
-  const newPath =
-    listBaseFor(journal) === '/invoicing/invoices'
-      ? `/invoicing/invoices/new?journalId=${_id}`
-      : `${listBaseFor(journal)}/new?journalId=${_id}`;
+  const newPath = newUrlFor(journal);
 
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 hover:border-dark-600 transition-all group">
@@ -103,7 +105,7 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  navigate(orgPath(listUrlFor(journal, { status: 'sent' })))
+                  navigate(orgPath(listUrlFor(journal, { status: 'posted' })))
                 }
               >
                 <span className="text-amber-400 font-medium">
@@ -204,12 +206,8 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
 // ---------------------------------------------------------------------------
 
 function CompactJournalCard({ journal, orgPath, navigate }) {
-  const { name, _id } = journal;
-
-  const newPath =
-    listBaseFor(journal) === '/invoicing/invoices'
-      ? `/invoicing/invoices/new?journalId=${_id}`
-      : `${listBaseFor(journal)}/new?journalId=${_id}`;
+  const { name } = journal;
+  const newPath = newUrlFor(journal);
 
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 hover:border-dark-600 transition-all flex items-center justify-between">
@@ -352,7 +350,7 @@ export default function InvoicingDashboard() {
   // Top row: purchase + bank journals combined (like Odoo shows Vendor Bills, Bank, Employee Bills together)
   const topRowJournals = [...purchaseJournals, ...bankJournals];
 
-  const cardProps = { orgSlug, orgPath, navigate };
+  const cardProps = { orgPath, navigate };
 
   return (
     <div className="bg-dark-900 min-h-screen">

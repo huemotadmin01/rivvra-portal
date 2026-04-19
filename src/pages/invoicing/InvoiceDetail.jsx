@@ -67,6 +67,19 @@ function getInvoiceTypeLabel(invoice) {
   return 'Customer Invoice';
 }
 
+// Route back to the list page that matches this document's type so a bill
+// doesn't land on /invoicing/invoices (and vice versa).
+function listUrlForDoc(invoice) {
+  if (!invoice) return '/invoicing/invoices';
+  const isBill = invoice.type === 'vendor_bill' || invoice.isVendorBill;
+  if (isBill) {
+    return invoice.journalCode === 'EMPBI'
+      ? '/invoicing/employee-bills'
+      : '/invoicing/bills';
+  }
+  return '/invoicing/invoices';
+}
+
 const GST_TREATMENTS = [
   'Registered Business - Regular',
   'Registered Business - Composition',
@@ -1396,7 +1409,7 @@ export default function InvoiceDetail() {
       setActionLoading('delete');
       await invoicingApi.deleteInvoice(orgSlug, invoiceId);
       showToast('Invoice deleted');
-      navigate(orgPath('/invoicing/invoices'));
+      navigate(orgPath(listUrlForDoc(invoice)));
     } catch (err) {
       showToast(err.message || 'Failed to delete invoice', 'error');
     } finally {
@@ -1484,10 +1497,10 @@ export default function InvoiceDetail() {
           <h2 className="text-lg font-semibold text-white mb-1">Invoice Not Found</h2>
           <p className="text-sm text-dark-400 mb-4">{error || 'The invoice could not be loaded.'}</p>
           <button
-            onClick={() => navigate(orgPath('/invoicing/invoices'))}
+            onClick={() => navigate(orgPath(listUrlForDoc(invoice)))}
             className="px-4 py-2 bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm rounded-lg transition-colors"
           >
-            Back to Invoices
+            Back to List
           </button>
         </div>
       </div>
@@ -1541,7 +1554,7 @@ export default function InvoiceDetail() {
           {/* Left: Back + Action Buttons */}
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <button
-              onClick={() => navigate(orgPath('/invoicing/invoices'))}
+              onClick={() => navigate(orgPath(listUrlForDoc(invoice)))}
               className="p-2 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors shrink-0"
             >
               <ArrowLeft size={18} />
