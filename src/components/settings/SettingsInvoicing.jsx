@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { API_BASE_URL } from '../../utils/config';
 import {
@@ -212,6 +213,8 @@ function SignatureUpload({ orgSlug }) {
 export default function SettingsInvoicing() {
   const { orgSlug } = useOrg();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
+  const companyId = currentCompany?._id;
 
   // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -315,8 +318,17 @@ export default function SettingsInvoicing() {
     setSeeding(true);
     try {
       await invoicingApi.seedDefaults(orgSlug);
-      showToast('Default data seeded successfully. Reloading...');
-      // Reload all data after seeding
+      // Also seed TDS sections when a company is selected (TDS is company-scoped)
+      let tdsMsg = '';
+      if (companyId) {
+        try {
+          const tdsRes = await invoicingApi.seedTdsDefaults(orgSlug, { companyId });
+          if (tdsRes?.inserted) tdsMsg = ` + ${tdsRes.inserted} TDS section(s)`;
+        } catch (tdsErr) {
+          console.warn('TDS seed failed:', tdsErr);
+        }
+      }
+      showToast(`Default data seeded${tdsMsg}. Reloading...`);
       setTimeout(() => window.location.reload(), 1000);
     } catch (err) {
       showToast(err.message || 'Failed to seed defaults', 'error');
