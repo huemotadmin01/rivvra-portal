@@ -1883,7 +1883,9 @@ export default function InvoiceDetail() {
                       <span className="text-white text-sm">
                         {invoice.journalName || invoice.journalCode || '-'}
                       </span>
-                      {invoice.journalCode && (
+                      {invoice.journalCode
+                        && invoice.journalName
+                        && invoice.journalCode.trim().toUpperCase() !== invoice.journalName.trim().toUpperCase() && (
                         <span className="text-xs bg-dark-700 text-dark-300 px-1.5 py-0.5 rounded">
                           {invoice.journalCode}
                         </span>
