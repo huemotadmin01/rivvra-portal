@@ -477,6 +477,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/invoices/:invoiceId/edit" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/:invoiceId" element={<ErrorBoundary><InvoiceDetail /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills" element={<ErrorBoundary><VendorBillList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/employee-bills" element={<ErrorBoundary><VendorBillList mode="employee" /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills/new" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills/:billId/edit" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PaymentsList /></ErrorBoundary>} />

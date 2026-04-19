@@ -47,10 +47,18 @@ function formatCurrency(amount) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount);
 }
 
-export default function VendorBillList() {
+const EMPLOYEE_JOURNAL_CODE = 'EMPBI';
+
+export default function VendorBillList({ mode = 'vendor' } = {}) {
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
   const { showToast } = useToast();
+  const isEmployeeMode = mode === 'employee';
+  const headerTitle = isEmployeeMode ? 'Employee Bills' : 'Vendor Bills';
+  const headerSubtitle = isEmployeeMode
+    ? 'Employee reimbursements and expense claims'
+    : 'Manage purchase bills from vendors';
+  const emptyHint = isEmployeeMode ? 'No employee bills yet' : 'No vendor bills yet';
 
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +81,8 @@ export default function VendorBillList() {
         sort: sortField,
         order: sortOrder,
       };
+      if (isEmployeeMode) params.journalCode = EMPLOYEE_JOURNAL_CODE;
+      else params.journalCodeExclude = EMPLOYEE_JOURNAL_CODE;
       if (activeTab) params.status = activeTab;
       if (search.trim()) params.search = search.trim();
 
@@ -87,7 +97,7 @@ export default function VendorBillList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, activeTab, search, sortField, sortOrder]);
+  }, [orgSlug, page, activeTab, search, sortField, sortOrder, isEmployeeMode]);
 
   useEffect(() => {
     if (orgSlug) loadBills();
@@ -138,8 +148,8 @@ export default function VendorBillList() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Vendor Bills</h1>
-          <p className="text-sm text-dark-400 mt-0.5">Manage purchase bills from vendors</p>
+          <h1 className="text-xl font-bold text-white">{headerTitle}</h1>
+          <p className="text-sm text-dark-400 mt-0.5">{headerSubtitle}</p>
         </div>
         <button
           onClick={() => navigate(orgPath('/invoicing/bills/new'))}
@@ -195,7 +205,7 @@ export default function VendorBillList() {
       ) : bills.length === 0 ? (
         <div className="text-center py-16 text-dark-500">
           <FileText size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">{search || activeTab ? 'No bills match your filters' : 'No vendor bills yet'}</p>
+          <p className="text-sm">{search || activeTab ? 'No bills match your filters' : emptyHint}</p>
           {!search && !activeTab && (
             <button
               onClick={() => navigate(orgPath('/invoicing/bills/new'))}
