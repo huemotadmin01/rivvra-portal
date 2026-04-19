@@ -12,6 +12,7 @@ import {
 const TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
+  { key: 'unpaid', label: 'Unpaid' },
   { key: 'posted', label: 'Received' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
@@ -19,6 +20,7 @@ const TABS = [
 
 const TAB_FROM_QUERY = {
   draft: 'draft',
+  unpaid: 'unpaid',
   overdue: 'overdue',
   paid: 'paid',
   posted: 'posted',

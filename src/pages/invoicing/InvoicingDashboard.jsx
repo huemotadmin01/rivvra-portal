@@ -105,7 +105,7 @@ function JournalCard({ journal, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  navigate(orgPath(listUrlFor(journal, { status: 'posted' })))
+                  navigate(orgPath(listUrlFor(journal, { status: 'unpaid' })))
                 }
               >
                 <span className="text-amber-400 font-medium">

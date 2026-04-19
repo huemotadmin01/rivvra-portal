@@ -42,6 +42,7 @@ function formatDate(dateStr) {
 const STATUS_TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
+  { key: 'unpaid', label: 'Unpaid' },
   { key: 'posted', label: 'Posted' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
@@ -139,6 +140,13 @@ export default function InvoiceList() {
       const sum = Object.values(statusCounts || {}).reduce((s, c) => s + (Number(c) || 0), 0);
       if (sum > 0) return sum;
       return statusCounts.all ?? (statusFilter ? null : total);
+    }
+    if (key === 'unpaid') {
+      const posted = Number(statusCounts.posted) || 0;
+      const overdue = Number(statusCounts.overdue) || 0;
+      const partial = Number(statusCounts.partial) || 0;
+      const combined = posted + overdue + partial;
+      return combined || null;
     }
     return statusCounts[key] ?? null;
   }
