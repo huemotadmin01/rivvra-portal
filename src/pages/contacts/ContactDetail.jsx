@@ -337,6 +337,7 @@ export default function ContactDetail() {
     gstTreatment: '',
     gstin: '',
     pan: '',
+    tan: '',
     countryCode: companyCountry || '',
     placeOfSupply: '',
     defaultPaymentTermId: '',
@@ -851,6 +852,16 @@ export default function ContactDetail() {
                     editable={isAdmin}
                     onSave={saveField}
                     placeholder="AALCR0152L"
+                    maxLength={10}
+                    transform={(v) => v.toUpperCase()}
+                  />
+                  <EditableField
+                    label="TAN"
+                    value={contact.tan}
+                    field="tan"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="BLRR12345A"
                     maxLength={10}
                     transform={(v) => v.toUpperCase()}
                   />

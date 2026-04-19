@@ -481,6 +481,7 @@ export const APP_REGISTRY = {
         children: [
           { path: '/invoicing/config/products', label: 'Products', icon: Package },
           { path: '/invoicing/config/taxes', label: 'Taxes', icon: Shield },
+          { path: '/invoicing/config/tds', label: 'TDS', icon: Percent },
           { path: '/invoicing/config/journals', label: 'Journals', icon: FileText },
           { path: '/invoicing/config/settings', label: 'Settings', icon: Settings },
         ],

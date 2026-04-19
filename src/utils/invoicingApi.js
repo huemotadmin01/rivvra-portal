@@ -133,6 +133,24 @@ const invoicingApi = {
     return api.request(`/api/org/${orgSlug}/invoicing/payment-terms/${id}`, { method: 'DELETE' });
   },
 
+  // ---------- TDS CONFIG ----------
+  listTdsConfig(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/tds-config${qs ? '?' + qs : ''}`);
+  },
+  createTdsConfig(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/tds-config`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateTdsConfig(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/tds-config/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+  deleteTdsConfig(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/tds-config/${id}`, { method: 'DELETE' });
+  },
+  seedTdsDefaults(orgSlug, data = {}) {
+    return api.request(`/api/org/${orgSlug}/invoicing/tds-config/seed-defaults`, { method: 'POST', body: JSON.stringify(data) });
+  },
+
   // ---------- SEQUENCES ----------
   listSequences(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/sequences`);
