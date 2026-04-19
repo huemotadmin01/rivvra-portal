@@ -14,10 +14,14 @@ import {
 // ---------------------------------------------------------------------------
 
 function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '₹0.00';
-  return new Intl.NumberFormat('en-IN', {
+  const cur = currency || 'INR';
+  const locale = cur === 'INR' ? 'en-IN' : 'en-US';
+  if (amount == null) {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(0);
+  }
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency,
+    currency: cur,
     minimumFractionDigits: 2,
   }).format(amount);
 }
@@ -130,7 +134,12 @@ export default function InvoiceList() {
   }
 
   function getTabCount(key) {
-    if (!key) return total || statusCounts.all || null;
+    if (!key) {
+      // Sum all per-status counts so the "All" tab is correct regardless of active filter.
+      const sum = Object.values(statusCounts || {}).reduce((s, c) => s + (Number(c) || 0), 0);
+      if (sum > 0) return sum;
+      return statusCounts.all ?? (statusFilter ? null : total);
+    }
     return statusCounts[key] ?? null;
   }
 
@@ -260,10 +269,10 @@ export default function InvoiceList() {
                       <td className="py-3 px-4 text-dark-300">{inv.contactName || inv.customerName || '-'}</td>
                       <td className="py-3 px-4 text-dark-400">{formatDate(inv.date || inv.createdAt)}</td>
                       <td className="py-3 px-4 text-dark-400">{formatDate(inv.dueDate)}</td>
-                      <td className="py-3 px-4 text-white text-right font-medium">{formatCurrency(inv.total)}</td>
+                      <td className="py-3 px-4 text-white text-right font-medium">{formatCurrency(inv.total, inv.currency)}</td>
                       <td className="py-3 px-4 text-right">
                         <span className={inv.amountDue > 0 ? 'text-amber-400 font-medium' : 'text-dark-400'}>
-                          {formatCurrency(inv.amountDue)}
+                          {formatCurrency(inv.amountDue, inv.currency)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">

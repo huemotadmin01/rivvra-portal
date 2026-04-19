@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { Loader2, Plus, FileText } from 'lucide-react';
 
@@ -10,10 +11,14 @@ import { Loader2, Plus, FileText } from 'lucide-react';
 // ---------------------------------------------------------------------------
 
 function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '₹0.00';
-  return new Intl.NumberFormat('en-IN', {
+  const cur = currency || 'INR';
+  const locale = cur === 'INR' ? 'en-IN' : 'en-US';
+  if (amount == null) {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(0);
+  }
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency,
+    currency: cur,
     minimumFractionDigits: 2,
   }).format(amount);
 }
@@ -232,7 +237,7 @@ function SectionHeader({ title }) {
 // KPI strip (top-level numbers)
 // ---------------------------------------------------------------------------
 
-function KPIStrip({ kpis }) {
+function KPIStrip({ kpis, currency }) {
   const items = [
     { label: 'Total Invoiced', value: kpis.totalInvoiced, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
     { label: 'Collected', value: kpis.totalCollected, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -251,7 +256,7 @@ function KPIStrip({ kpis }) {
             {item.label}
           </span>
           <p className={`text-xl font-bold ${item.color}`}>
-            {formatCurrency(item.value || 0)}
+            {formatCurrency(item.value || 0, currency)}
           </p>
         </div>
       ))}
@@ -266,7 +271,9 @@ function KPIStrip({ kpis }) {
 export default function InvoicingDashboard() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const navigate = useNavigate();
+  const companyCurrency = currentCompany?.currency || 'INR';
 
   const [journals, setJournals] = useState([]);
   const [kpis, setKpis] = useState(null);
@@ -358,7 +365,7 @@ export default function InvoicingDashboard() {
         </div>
 
         {/* ---- KPI Strip ---- */}
-        {kpis && <KPIStrip kpis={kpis} />}
+        {kpis && <KPIStrip kpis={kpis} currency={companyCurrency} />}
 
         {/* ---- Top row: Purchase + Bank journals ---- */}
         {topRowJournals.length > 0 && (
