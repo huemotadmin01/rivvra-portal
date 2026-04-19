@@ -56,8 +56,8 @@ function newUrlFor(journal) {
 function JournalCard({ journal, orgPath, navigate }) {
   const {
     name,
-    unpaidCount = 0,
-    unpaidAmount = 0,
+    notPaidCount = 0,
+    notPaidAmount = 0,
     lateCount = 0,
     lateAmount = 0,
     bars = [],
@@ -67,7 +67,7 @@ function JournalCard({ journal, orgPath, navigate }) {
     hasIrregularSequences = false,
   } = journal;
 
-  const hasStats = unpaidCount > 0 || lateCount > 0 || draftCount > 0;
+  const hasStats = notPaidCount > 0 || lateCount > 0 || draftCount > 0;
   const maxBar = Math.max(...bars.map((b) => b.amount), 1);
 
   const fmtAmount = (amt) =>
@@ -101,16 +101,15 @@ function JournalCard({ journal, orgPath, navigate }) {
       {hasStats && (
         <div className="flex items-start justify-between mb-4">
           <div className="space-y-1">
-            {unpaidCount > 0 && (
+            {notPaidCount > 0 && (
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  // Legacy combined filter — backend expands to posted+partial+overdue.
-                  navigate(orgPath(listUrlFor(journal, { status: 'unpaid' })))
+                  navigate(orgPath(listUrlFor(journal, { paymentStatus: 'not_paid' })))
                 }
               >
                 <span className="text-amber-400 font-medium">
-                  {unpaidCount} Unpaid
+                  {notPaidCount} Not Paid
                 </span>
               </div>
             )}
@@ -140,9 +139,9 @@ function JournalCard({ journal, orgPath, navigate }) {
             )}
           </div>
           <div className="text-right space-y-1">
-            {unpaidCount > 0 && (
+            {notPaidCount > 0 && (
               <div className="text-sm text-white font-medium">
-                {fmtAmount(unpaidAmount)}
+                {fmtAmount(notPaidAmount)}
               </div>
             )}
             {lateCount > 0 && (

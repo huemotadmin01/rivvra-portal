@@ -42,13 +42,9 @@ function formatDate(dateStr) {
 // Tab model: separates document lifecycle (draft/cancelled) from payment status
 // (not_paid/partial/paid) and treats overdue as a derived view.
 // `filterKind` tells the fetch code which backend param to set.
-// Tabs separate document lifecycle (draft/cancelled) from payment status
-// (not_paid/partial/paid) and treat overdue as a derived view. "Unpaid" is a
-// combined convenience view covering not_paid + partial (legacy dashboard link).
 const STATUS_TABS = [
   { key: '', label: 'All', filterKind: null },
   { key: 'draft', label: 'Draft', filterKind: 'status', value: 'draft' },
-  { key: 'unpaid', label: 'Unpaid', filterKind: 'status', value: 'unpaid' },
   { key: 'not_paid', label: 'Not Paid', filterKind: 'paymentStatus', value: 'not_paid' },
   { key: 'partial', label: 'Partial', filterKind: 'paymentStatus', value: 'partial' },
   { key: 'overdue', label: 'Overdue', filterKind: 'overdue', value: 'true' },
@@ -110,14 +106,14 @@ export default function InvoiceList() {
   const rawStatus = searchParams.get('status');
   const rawPaymentStatus = searchParams.get('paymentStatus');
   const rawOverdue = searchParams.get('overdue');
-  // Translate legacy/new URL params to a tab key. Older dashboard links still
-  // send ?status=unpaid/paid/etc; new ones use ?paymentStatus=... or ?overdue=true.
+  // Translate URL params to a tab key. Legacy ?status=unpaid redirects to
+  // Not Paid.
   const initialTab = (() => {
     if (rawOverdue === 'true') return 'overdue';
     if (rawPaymentStatus === 'paid') return 'paid';
     if (rawPaymentStatus === 'partial') return 'partial';
     if (rawPaymentStatus === 'not_paid') return 'not_paid';
-    if (rawStatus === 'unpaid') return 'unpaid';
+    if (rawStatus === 'unpaid') return 'not_paid';
     if (rawStatus === 'draft') return 'draft';
     if (rawStatus === 'cancelled') return 'cancelled';
     if (rawStatus === 'paid') return 'paid';
@@ -196,13 +192,7 @@ export default function InvoiceList() {
       if (sum > 0) return sum;
       return statusCounts.all ?? (statusFilter ? null : total);
     }
-    if (tab.filterKind === 'status') {
-      if (tab.value === 'unpaid') {
-        const p = (paymentStatusCounts.not_paid || 0) + (paymentStatusCounts.partial || 0);
-        return p || null;
-      }
-      return statusCounts[tab.value] ?? null;
-    }
+    if (tab.filterKind === 'status') return statusCounts[tab.value] ?? null;
     if (tab.filterKind === 'paymentStatus') return paymentStatusCounts[tab.value] ?? null;
     if (tab.filterKind === 'overdue') return overdueCount || null;
     return null;

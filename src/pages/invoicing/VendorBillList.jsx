@@ -14,7 +14,6 @@ import {
 const TABS = [
   { key: '', label: 'All', filterKind: null },
   { key: 'draft', label: 'Draft', filterKind: 'status', value: 'draft' },
-  { key: 'unpaid', label: 'Unpaid', filterKind: 'status', value: 'unpaid' },
   { key: 'not_paid', label: 'Not Paid', filterKind: 'paymentStatus', value: 'not_paid' },
   { key: 'partial', label: 'Partial', filterKind: 'paymentStatus', value: 'partial' },
   { key: 'overdue', label: 'Overdue', filterKind: 'overdue', value: 'true' },
@@ -29,7 +28,7 @@ function resolveInitialTab(sp) {
   if (ps === 'partial') return 'partial';
   if (ps === 'not_paid') return 'not_paid';
   const st = sp.get('status');
-  if (st === 'unpaid') return 'unpaid';
+  if (st === 'unpaid') return 'not_paid';
   if (st === 'draft') return 'draft';
   if (st === 'cancelled') return 'cancelled';
   if (st === 'paid') return 'paid';
