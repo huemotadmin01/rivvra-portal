@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
@@ -13,8 +13,20 @@ const TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
   { key: 'posted', label: 'Received' },
+  { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
 ];
+
+// Map dashboard status query params (sent/overdue/draft/paid) to tab keys.
+// 'sent' is the dashboard's "unpaid" bucket — on bills we treat that as All
+// since there's no single equivalent status filter.
+const TAB_FROM_QUERY = {
+  draft: 'draft',
+  overdue: 'overdue',
+  paid: 'paid',
+  posted: 'posted',
+  received: 'posted',
+};
 
 const STATUS_STYLES = {
   draft:     { bg: 'bg-dark-700',        text: 'text-dark-300',    dot: 'bg-dark-400' },
@@ -51,6 +63,7 @@ const EMPLOYEE_JOURNAL_CODE = 'EMPBI';
 
 export default function VendorBillList({ mode = 'vendor' } = {}) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { orgSlug, orgPath } = usePlatform();
   const { showToast } = useToast();
   const isEmployeeMode = mode === 'employee';
@@ -60,10 +73,12 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     : 'Manage purchase bills from vendors';
   const emptyHint = isEmployeeMode ? 'No employee bills yet' : 'No vendor bills yet';
 
+  const initialTab = TAB_FROM_QUERY[searchParams.get('status') || ''] || '';
+
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);

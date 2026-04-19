@@ -27,6 +27,24 @@ function formatCurrency(amount, currency = 'INR') {
 // Journal Card (Odoo-style)
 // ---------------------------------------------------------------------------
 
+// Maps a journal to the correct list page. Vendor/employee bills live on
+// their own routes; everything else (sale/bank/cash/misc) stays on /invoices.
+function listBaseFor(journal) {
+  if (journal.code === 'EMPBI') return '/invoicing/employee-bills';
+  if (journal.type === 'purchase') return '/invoicing/bills';
+  return '/invoicing/invoices';
+}
+
+function listUrlFor(journal, params = {}) {
+  const base = listBaseFor(journal);
+  const usesJournalCode = base === '/invoicing/invoices';
+  const qs = new URLSearchParams();
+  if (usesJournalCode && journal.code) qs.set('journalCode', journal.code);
+  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
+  const q = qs.toString();
+  return q ? `${base}?${q}` : base;
+}
+
 function JournalCard({ journal, orgSlug, orgPath, navigate }) {
   const {
     name,
@@ -54,22 +72,23 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
       minimumFractionDigits: 2,
     }).format(amt);
 
+  const newPath =
+    listBaseFor(journal) === '/invoicing/invoices'
+      ? `/invoicing/invoices/new?journalId=${_id}`
+      : `${listBaseFor(journal)}/new?journalId=${_id}`;
+
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 hover:border-dark-600 transition-all group">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <h3
           className="text-rivvra-500 font-semibold text-base cursor-pointer hover:underline leading-tight"
-          onClick={() =>
-            navigate(orgPath(`/invoicing/invoices?journalCode=${code}`))
-          }
+          onClick={() => navigate(orgPath(listUrlFor(journal)))}
         >
           {name}
         </h3>
         <button
-          onClick={() =>
-            navigate(orgPath(`/invoicing/invoices/new?journalId=${_id}`))
-          }
+          onClick={() => navigate(orgPath(newPath))}
           className="bg-rivvra-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-rivvra-600 transition-colors shrink-0 ml-3"
         >
           New
@@ -84,11 +103,7 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  navigate(
-                    orgPath(
-                      `/invoicing/invoices?journalCode=${code}&status=sent`
-                    )
-                  )
+                  navigate(orgPath(listUrlFor(journal, { status: 'sent' })))
                 }
               >
                 <span className="text-amber-400 font-medium">
@@ -100,11 +115,7 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  navigate(
-                    orgPath(
-                      `/invoicing/invoices?journalCode=${code}&status=overdue`
-                    )
-                  )
+                  navigate(orgPath(listUrlFor(journal, { status: 'overdue' })))
                 }
               >
                 <span className="text-red-400 font-medium">
@@ -116,11 +127,7 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  navigate(
-                    orgPath(
-                      `/invoicing/invoices?journalCode=${code}&status=draft`
-                    )
-                  )
+                  navigate(orgPath(listUrlFor(journal, { status: 'draft' })))
                 }
               >
                 <span className="text-dark-300 font-medium">
@@ -197,22 +204,23 @@ function JournalCard({ journal, orgSlug, orgPath, navigate }) {
 // ---------------------------------------------------------------------------
 
 function CompactJournalCard({ journal, orgPath, navigate }) {
-  const { name, code, _id } = journal;
+  const { name, _id } = journal;
+
+  const newPath =
+    listBaseFor(journal) === '/invoicing/invoices'
+      ? `/invoicing/invoices/new?journalId=${_id}`
+      : `${listBaseFor(journal)}/new?journalId=${_id}`;
 
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 hover:border-dark-600 transition-all flex items-center justify-between">
       <h3
         className="text-rivvra-500 font-medium text-sm cursor-pointer hover:underline truncate"
-        onClick={() =>
-          navigate(orgPath(`/invoicing/invoices?journalCode=${code}`))
-        }
+        onClick={() => navigate(orgPath(listUrlFor(journal)))}
       >
         {name}
       </h3>
       <button
-        onClick={() =>
-          navigate(orgPath(`/invoicing/invoices/new?journalId=${_id}`))
-        }
+        onClick={() => navigate(orgPath(newPath))}
         className="bg-dark-700 text-dark-300 text-xs px-2.5 py-1 rounded-lg hover:bg-dark-600 transition-colors shrink-0 ml-3"
       >
         New
