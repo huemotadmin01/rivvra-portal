@@ -39,28 +39,59 @@ function formatDate(dateStr) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+// Tab model: separates document lifecycle (draft/cancelled) from payment status
+// (not_paid/partial/paid) and treats overdue as a derived view.
+// `filterKind` tells the fetch code which backend param to set.
+// Tabs separate document lifecycle (draft/cancelled) from payment status
+// (not_paid/partial/paid) and treat overdue as a derived view. "Unpaid" is a
+// combined convenience view covering not_paid + partial (legacy dashboard link).
 const STATUS_TABS = [
-  { key: '', label: 'All' },
-  { key: 'draft', label: 'Draft' },
-  { key: 'unpaid', label: 'Unpaid' },
-  { key: 'posted', label: 'Posted' },
-  { key: 'overdue', label: 'Overdue' },
-  { key: 'paid', label: 'Paid' },
+  { key: '', label: 'All', filterKind: null },
+  { key: 'draft', label: 'Draft', filterKind: 'status', value: 'draft' },
+  { key: 'unpaid', label: 'Unpaid', filterKind: 'status', value: 'unpaid' },
+  { key: 'not_paid', label: 'Not Paid', filterKind: 'paymentStatus', value: 'not_paid' },
+  { key: 'partial', label: 'Partial', filterKind: 'paymentStatus', value: 'partial' },
+  { key: 'overdue', label: 'Overdue', filterKind: 'overdue', value: 'true' },
+  { key: 'paid', label: 'Paid', filterKind: 'paymentStatus', value: 'paid' },
+  { key: 'cancelled', label: 'Cancelled', filterKind: 'status', value: 'cancelled' },
 ];
 
-function StatusBadge({ status }) {
-  const styles = {
+function StatusChips({ invoice }) {
+  const { status, paymentStatus } = invoice || {};
+  const lifecycleStyles = {
     draft: 'bg-dark-700 text-dark-300',
-    posted: 'bg-blue-500/10 text-blue-400',
-    paid: 'bg-emerald-500/10 text-emerald-400',
-    overdue: 'bg-red-500/10 text-red-400',
-    partial: 'bg-amber-500/10 text-amber-400',
-    cancelled: 'bg-dark-800 text-dark-500',
+    cancelled: 'bg-dark-800 text-dark-500 line-through',
   };
-  const key = (status || '').toLowerCase();
+  const paymentStyles = {
+    not_paid: 'bg-blue-500/10 text-blue-400',
+    partial: 'bg-amber-500/10 text-amber-400',
+    paid: 'bg-emerald-500/10 text-emerald-400',
+  };
+  const paymentLabel = {
+    not_paid: 'Not Paid',
+    partial: 'Partial',
+    paid: 'Paid',
+  };
+
+  // Draft and Cancelled override payment state for a cleaner row
+  if (status === 'draft') {
+    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${lifecycleStyles.draft}`}>Draft</span>;
+  }
+  if (status === 'cancelled') {
+    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${lifecycleStyles.cancelled}`}>Cancelled</span>;
+  }
+
+  const isOverdue = invoice?.dueDate && new Date(invoice.dueDate) < new Date() && paymentStatus !== 'paid';
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[key] || styles.draft}`}>
-      {status ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase() : 'Draft'}
+    <span className="inline-flex items-center gap-1">
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStyles[paymentStatus] || paymentStyles.not_paid}`}>
+        {paymentLabel[paymentStatus] || 'Not Paid'}
+      </span>
+      {isOverdue && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400">
+          Overdue
+        </span>
+      )}
     </span>
   );
 }
@@ -76,17 +107,36 @@ export default function InvoiceList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const journalCode = searchParams.get('journalCode');
-  const journalStatus = searchParams.get('status');
+  const rawStatus = searchParams.get('status');
+  const rawPaymentStatus = searchParams.get('paymentStatus');
+  const rawOverdue = searchParams.get('overdue');
+  // Translate legacy/new URL params to a tab key. Older dashboard links still
+  // send ?status=unpaid/paid/etc; new ones use ?paymentStatus=... or ?overdue=true.
+  const initialTab = (() => {
+    if (rawOverdue === 'true') return 'overdue';
+    if (rawPaymentStatus === 'paid') return 'paid';
+    if (rawPaymentStatus === 'partial') return 'partial';
+    if (rawPaymentStatus === 'not_paid') return 'not_paid';
+    if (rawStatus === 'unpaid') return 'unpaid';
+    if (rawStatus === 'draft') return 'draft';
+    if (rawStatus === 'cancelled') return 'cancelled';
+    if (rawStatus === 'paid') return 'paid';
+    if (rawStatus === 'partial') return 'partial';
+    if (rawStatus === 'overdue') return 'overdue';
+    return '';
+  })();
 
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState(journalStatus || '');
+  const [statusFilter, setStatusFilter] = useState(initialTab);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState({});
+  const [paymentStatusCounts, setPaymentStatusCounts] = useState({});
+  const [overdueCount, setOverdueCount] = useState(0);
 
   // Debounce search input
   useEffect(() => {
@@ -103,7 +153,10 @@ export default function InvoiceList() {
     setLoading(true);
     try {
       const params = { page };
-      if (statusFilter) params.status = statusFilter;
+      const tab = STATUS_TABS.find(t => t.key === statusFilter);
+      if (tab?.filterKind === 'status') params.status = tab.value;
+      else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
+      else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
       if (search) params.search = search;
       if (journalCode) params.journalCode = journalCode;
 
@@ -116,6 +169,8 @@ export default function InvoiceList() {
         );
         setTotal(res.total || 0);
         if (res.statusCounts) setStatusCounts(res.statusCounts);
+        if (res.paymentStatusCounts) setPaymentStatusCounts(res.paymentStatusCounts);
+        if (res.overdueCount != null) setOverdueCount(res.overdueCount);
       }
     } catch {
       showToast('Failed to load invoices', 'error');
@@ -135,20 +190,22 @@ export default function InvoiceList() {
   }
 
   function getTabCount(key) {
-    if (!key) {
-      // Sum all per-status counts so the "All" tab is correct regardless of active filter.
+    const tab = STATUS_TABS.find(t => t.key === key);
+    if (!tab || !tab.filterKind) {
       const sum = Object.values(statusCounts || {}).reduce((s, c) => s + (Number(c) || 0), 0);
       if (sum > 0) return sum;
       return statusCounts.all ?? (statusFilter ? null : total);
     }
-    if (key === 'unpaid') {
-      const posted = Number(statusCounts.posted) || 0;
-      const overdue = Number(statusCounts.overdue) || 0;
-      const partial = Number(statusCounts.partial) || 0;
-      const combined = posted + overdue + partial;
-      return combined || null;
+    if (tab.filterKind === 'status') {
+      if (tab.value === 'unpaid') {
+        const p = (paymentStatusCounts.not_paid || 0) + (paymentStatusCounts.partial || 0);
+        return p || null;
+      }
+      return statusCounts[tab.value] ?? null;
     }
-    return statusCounts[key] ?? null;
+    if (tab.filterKind === 'paymentStatus') return paymentStatusCounts[tab.value] ?? null;
+    if (tab.filterKind === 'overdue') return overdueCount || null;
+    return null;
   }
 
   return (
@@ -284,7 +341,7 @@ export default function InvoiceList() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <StatusBadge status={inv.status} />
+                        <StatusChips invoice={inv} />
                       </td>
                     </tr>
                   ))}

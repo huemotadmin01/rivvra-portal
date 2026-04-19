@@ -708,7 +708,6 @@ export default function InvoiceDetail() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
-  const [showTdsModal, setShowTdsModal] = useState(false);
 
   // E-Invoice
   const [eInvoiceStep, setEInvoiceStep] = useState(null); // null | 'validating' | 'submitting' | 'done' | 'error'
@@ -1512,8 +1511,27 @@ export default function InvoiceDetail() {
   const lineItems = isDraft ? (editForm.lines || []) : (invoice.lines || invoice.lineItems || []);
   const payments = invoice.payments || [];
   const amountDue = invoice.amountDue ?? invoice.total ?? 0;
-  const stepIndex = getStepIndex(status);
   const typeLabel = getInvoiceTypeLabel(invoice);
+
+  // Derive payment status (fallback from legacy status values when not set)
+  const paymentStatus = invoice.paymentStatus
+    || (status === 'paid' ? 'paid'
+      : status === 'partial' ? 'partial'
+      : status === 'cancelled' ? null
+      : status === 'draft' ? 'not_paid'
+      : 'not_paid');
+  const isFullyPaid = paymentStatus === 'paid' || status === 'paid';
+  const isLifecyclePosted = ['posted', 'viewed', 'partial', 'overdue', 'paid'].includes(status);
+  const isCancelled = status === 'cancelled';
+  const isActionablePosted = isLifecyclePosted && !isCancelled && !isFullyPaid;
+  const isOverdue = Boolean(
+    invoice.dueDate
+    && new Date(invoice.dueDate) < new Date()
+    && !isFullyPaid
+    && !isCancelled
+    && status !== 'draft'
+  );
+  const stepIndex = isFullyPaid ? 2 : isLifecyclePosted ? 1 : 0;
 
   // Build address lines (multi-line display)
   const addrObj = editForm.contactAddress || invoice.contactAddress || invoice.customer?.address;
@@ -1569,15 +1587,14 @@ export default function InvoiceDetail() {
               </>
             )}
 
-            {/* Posted / Viewed / Partial / Overdue actions */}
-            {['posted', 'viewed', 'partial', 'overdue'].includes(status) && (
+            {/* Posted + unpaid/partial/overdue actions */}
+            {isActionablePosted && (
               <>
                 <ActionBtn icon={CreditCard} label="Record Payment" onClick={() => setShowPaymentModal(true)} primary />
                 <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
-                <ActionBtn icon={AlertTriangle} label="TDS Entry" onClick={() => setShowTdsModal(true)} />
-                {status === 'overdue' && (
+                {isOverdue && (
                   <ActionBtn icon={BellRing} label="Follow-up" onClick={handleSendFollowUp} loading={actionLoading === 'followup'} />
                 )}
                 <ActionBtn icon={XCircle} label="Cancel" onClick={() => setShowCancelConfirm(true)} danger />
@@ -1605,7 +1622,7 @@ export default function InvoiceDetail() {
             )}
 
             {/* Paid actions — no Reset to Draft (has payments) */}
-            {status === 'paid' && (
+            {isFullyPaid && !isCancelled && (
               <>
                 <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
@@ -1660,13 +1677,25 @@ export default function InvoiceDetail() {
                 </div>
               );
             })}
-            {status === 'cancelled' && (
+            {isCancelled && (
               <div className="flex items-center">
                 <div className="w-6 h-px mx-0.5 bg-dark-600" />
                 <span className="px-4 py-1.5 text-xs font-semibold rounded-full bg-red-500/15 text-red-400">
                   Cancelled
                 </span>
               </div>
+            )}
+
+            {/* Payment-status chip: Partial (and Overdue sub-chip) */}
+            {!isCancelled && paymentStatus === 'partial' && (
+              <span className="ml-2 px-3 py-1.5 text-xs font-semibold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                Partial
+              </span>
+            )}
+            {!isCancelled && isOverdue && (
+              <span className="ml-2 px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
+                Overdue
+              </span>
             )}
           </div>
         </div>
@@ -1684,7 +1713,7 @@ export default function InvoiceDetail() {
             {/* Header card with PAID stamp */}
             <div className="bg-dark-850 border border-dark-700 rounded-xl p-6 relative overflow-hidden">
               {/* PAID stamp overlay */}
-              {status === 'paid' && (
+              {isFullyPaid && (
                 <div className="absolute top-6 right-[-20px] rotate-[30deg] z-10 pointer-events-none">
                   <div className="bg-emerald-500/20 border-2 border-emerald-500/40 px-8 py-1.5 rounded">
                     <span className="text-emerald-500 font-extrabold text-3xl tracking-widest uppercase">
@@ -1873,7 +1902,7 @@ export default function InvoiceDetail() {
                     editable={isDraft}
                     onSave={saveField}
                     displayValue={
-                      <span className={status === 'overdue' ? 'text-red-400 font-medium' : 'text-white'}>
+                      <span className={isOverdue ? 'text-red-400 font-medium' : 'text-white'}>
                         {formatDate(isDraft ? editForm.dueDate : invoice.dueDate, countryCode)}
                       </span>
                     }
@@ -2371,7 +2400,11 @@ export default function InvoiceDetail() {
           invoiceId={invoiceId}
           invoiceNumber={invoice.number || ''}
           currency={currency}
+          total={invoice.total || 0}
+          subtotal={invoice.subtotal || 0}
           amountDue={amountDue}
+          invoiceType={invoice.type}
+          isIndia={isIndia}
           onClose={() => setShowPaymentModal(false)}
           onSuccess={() => {
             setShowPaymentModal(false);
@@ -2407,22 +2440,6 @@ export default function InvoiceDetail() {
             setShowCreditNoteModal(false);
             showToast('Credit note created');
             if (newId) navigate(orgPath(`/invoicing/invoices/${newId}`));
-          }}
-          showToast={showToast}
-        />
-      )}
-
-      {showTdsModal && (
-        <TDSEntryModal
-          orgSlug={orgSlug}
-          invoiceId={invoiceId}
-          invoiceNumber={invoice.number || ''}
-          currency={currency}
-          total={invoice.total || 0}
-          onClose={() => setShowTdsModal(false)}
-          onSuccess={() => {
-            setShowTdsModal(false);
-            fetchInvoice();
           }}
           showToast={showToast}
         />
@@ -2780,39 +2797,131 @@ function ActionBtn({ icon: Icon, label, onClick, loading, primary, danger }) {
 // RecordPaymentModal
 // ============================================================================
 
-function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, amountDue, onClose, onSuccess, showToast }) {
-  const [form, setForm] = useState({
-    journal: 'Bank',
-    amount: amountDue || 0,
-    method: 'manual',
-    date: new Date().toISOString().slice(0, 10),
-    memo: invoiceNumber || '',
-  });
+function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isIndia, onClose, onSuccess, showToast }) {
+  const [journals, setJournals] = useState([]);
+  const [tdsConfigs, setTdsConfigs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const inputCls =
-    'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
-  const labelCls = 'text-sm text-dark-400 py-2.5 whitespace-nowrap';
-  const valCls = 'text-sm text-white py-2.5';
+  const [form, setForm] = useState({
+    journalId: '',
+    amount: amountDue || 0,
+    method: 'bank_transfer',
+    date: new Date().toISOString().slice(0, 10),
+    memo: '',
+  });
+  const [tdsEnabled, setTdsEnabled] = useState(false);
+  const [tdsConfigId, setTdsConfigId] = useState('');
+  const [tdsBase, setTdsBase] = useState(subtotal || 0);
+  const [tdsAmount, setTdsAmount] = useState(0);
+
+  const inputCls = 'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
+  const labelCls = 'block text-xs font-medium text-dark-400 mb-1';
+
+  const selectedTds = tdsConfigs.find(t => t._id === tdsConfigId);
+  const tdsRate = selectedTds ? (Number(selectedTds.rateIndividual) || 0) : 0;
+
+  const isCustomerInvoice = invoiceType === 'customer_invoice';
+  const showTdsWarning = isIndia && isCustomerInvoice && !tdsEnabled && Number(total) >= 30000;
+
+  // Fetch journals + tds configs in parallel
+  useEffect(() => {
+    (async () => {
+      try {
+        const [jRes, tRes] = await Promise.all([
+          invoicingApi.listJournals(orgSlug, { active: 'true' }).catch(() => ({ journals: [] })),
+          invoicingApi.listTdsConfig(orgSlug, { active: 'true' }).catch(() => ({ rows: [] })),
+        ]);
+        const payableJournals = (jRes?.journals || []).filter(j => j.type === 'bank' || j.type === 'cash');
+        setJournals(payableJournals);
+        setTdsConfigs(tRes?.rows || []);
+        if (payableJournals.length > 0) {
+          const defaultJournal = payableJournals.find(j => j.type === 'bank') || payableJournals[0];
+          setForm(f => ({ ...f, journalId: defaultJournal._id }));
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [orgSlug]);
+
+  // Recompute TDS amount when tax or base changes
+  useEffect(() => {
+    if (!tdsEnabled || !selectedTds) {
+      setTdsAmount(0);
+      return;
+    }
+    const computed = Math.round((Number(tdsBase) || 0) * tdsRate) / 100;
+    setTdsAmount(Math.round(computed * 100) / 100);
+  }, [tdsEnabled, tdsConfigId, tdsBase, tdsRate, selectedTds]);
+
+  // Auto-populate net amount = total - tds
+  useEffect(() => {
+    if (!tdsEnabled) {
+      setForm(f => ({ ...f, amount: amountDue || 0 }));
+    } else {
+      const net = Math.max(0, Math.round(((Number(amountDue) || 0) - tdsAmount) * 100) / 100);
+      setForm(f => ({ ...f, amount: net }));
+    }
+  }, [tdsEnabled, tdsAmount, amountDue]);
+
+  const selectedJournal = journals.find(j => j._id === form.journalId);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.amount || Number(form.amount) <= 0) {
-      showToast('Enter a valid amount', 'error');
+    if (!form.journalId) {
+      showToast('Select a journal', 'error');
       return;
     }
+    if (!form.amount || Number(form.amount) <= 0) {
+      showToast('Enter a valid payment amount', 'error');
+      return;
+    }
+    if (tdsEnabled) {
+      if (!tdsConfigId) {
+        showToast('Select a TDS section', 'error');
+        return;
+      }
+      if (!tdsAmount || tdsAmount <= 0) {
+        showToast('TDS amount must be positive', 'error');
+        return;
+      }
+    }
+
     try {
       setSaving(true);
+
+      if (tdsEnabled && selectedTds) {
+        await invoicingApi.recordPayment(orgSlug, {
+          invoiceId,
+          amount: tdsAmount,
+          method: 'tds',
+          journal: 'TDS Deducted',
+          date: form.date,
+          reference: `TDS ${selectedTds.sectionCode} on ${invoiceNumber}`,
+          notes: `${selectedTds.sectionCode} @ ${tdsRate}% on base ${tdsBase}`,
+          isTds: true,
+          tds: {
+            configId: selectedTds._id,
+            sectionCode: selectedTds.sectionCode,
+            rate: tdsRate,
+            baseAmount: Number(tdsBase) || 0,
+            deductedAt: form.date,
+          },
+        });
+      }
+
       await invoicingApi.recordPayment(orgSlug, {
         invoiceId,
         amount: Number(form.amount),
         method: form.method,
-        journal: form.journal,
+        journal: selectedJournal?.name || '',
         date: form.date,
-        reference: form.memo,
+        reference: form.memo || invoiceNumber || '',
         notes: '',
       });
-      showToast('Payment recorded');
+
+      showToast(tdsEnabled ? 'Payment + TDS recorded' : 'Payment recorded');
       onSuccess();
     } catch (err) {
       showToast(err.message || 'Failed to record payment', 'error');
@@ -2821,57 +2930,239 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, amoun
     }
   };
 
+  const totalSettled = (Number(form.amount) || 0) + (tdsEnabled ? tdsAmount : 0);
+  const remaining = Math.max(0, Math.round(((Number(amountDue) || 0) - totalSettled) * 100) / 100);
+
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h2 className="text-lg font-bold text-white">Pay</h2>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 bg-dark-850 z-10">
+          <div>
+            <h2 className="text-lg font-bold text-white">Record Payment</h2>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {invoiceNumber} • Due {formatCurrency(amountDue, currency)}
+            </p>
+          </div>
           <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5">
-          {/* Odoo-style two-column layout */}
-          <div className="grid grid-cols-[1fr_1fr] gap-x-8 gap-y-0">
-            {/* Left column */}
-            <div className="grid grid-cols-[100px_1fr] gap-x-3 items-center">
-              <span className={labelCls}>Journal</span>
-              <select value={form.journal} onChange={(e) => setForm(f => ({ ...f, journal: e.target.value }))} className={inputCls}>
-                <option value="Bank">Bank</option>
-                <option value="Cash">Cash</option>
+
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-rivvra-500" /></div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {/* TDS Warning Banner */}
+            {showTdsWarning && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <AlertTriangle size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-amber-200">
+                  <p className="font-medium">TDS may apply on this invoice</p>
+                  <p className="text-amber-300/80 mt-0.5">Invoice total ≥ ₹30,000. If the customer deducted TDS under section 194C/194J, toggle "TDS Deducted" below.</p>
+                </div>
+              </div>
+            )}
+
+            {/* No journals warning */}
+            {journals.length === 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                <AlertTriangle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-red-200">
+                  <p className="font-medium">No bank or cash journal found</p>
+                  <p className="text-red-300/80 mt-0.5">Add one under Invoicing → Configuration → Journals before recording a payment.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Journal */}
+            <div>
+              <label className={labelCls}>Journal</label>
+              <select
+                value={form.journalId}
+                onChange={(e) => setForm(f => ({ ...f, journalId: e.target.value }))}
+                className={inputCls}
+                disabled={journals.length === 0}
+              >
+                <option value="">Select journal…</option>
+                {journals.map(j => (
+                  <option key={j._id} value={j._id}>{j.name} ({j.type === 'bank' ? 'Bank' : 'Cash'})</option>
+                ))}
               </select>
-              <span className={labelCls}>Payment Method</span>
-              <select value={form.method} onChange={(e) => setForm(f => ({ ...f, method: e.target.value }))} className={inputCls}>
-                <option value="manual">Manual Payment</option>
+            </div>
+
+            {/* Payment Method */}
+            <div>
+              <label className={labelCls}>Payment Method</label>
+              <select
+                value={form.method}
+                onChange={(e) => setForm(f => ({ ...f, method: e.target.value }))}
+                className={inputCls}
+              >
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="upi">UPI</option>
                 <option value="cheque">Cheque</option>
+                <option value="cash">Cash</option>
+                <option value="manual">Manual</option>
+                <option value="other">Other</option>
               </select>
             </div>
-            {/* Right column */}
-            <div className="grid grid-cols-[110px_1fr] gap-x-3 items-center">
-              <span className={labelCls}>Amount</span>
-              <div className="flex items-center gap-2">
-                <input type="number" step="any" min="0" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className={inputCls + ' flex-1'} autoFocus />
-                <span className="text-dark-400 text-sm">{currency}</span>
-              </div>
-              <span className={labelCls}>Payment Date</span>
-              <input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
-              <span className={labelCls}>Memo</span>
-              <input type="text" value={form.memo} onChange={(e) => setForm(f => ({ ...f, memo: e.target.value }))} placeholder={invoiceNumber || ''} className={inputCls} />
-            </div>
-          </div>
 
-          <div className="flex gap-3 pt-5 mt-3 border-t border-dark-700">
-            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Create Payment
-            </button>
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors">
-              Discard
-            </button>
-          </div>
-        </form>
+            {/* Payment Date */}
+            <div>
+              <label className={labelCls}>Payment Date</label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))}
+                className={inputCls}
+              />
+            </div>
+
+            {/* TDS Toggle */}
+            {isIndia && isCustomerInvoice && (
+              <div className="border border-dark-700 rounded-lg overflow-hidden">
+                <label className="flex items-center justify-between gap-3 px-3 py-2.5 bg-dark-800/50 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={tdsEnabled}
+                      onChange={(e) => setTdsEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-rivvra-500"
+                    />
+                    <span className="text-sm font-medium text-white">Customer deducted TDS</span>
+                  </div>
+                  {tdsEnabled && tdsAmount > 0 && (
+                    <span className="text-xs text-rivvra-400 font-medium">
+                      −{formatCurrency(tdsAmount, currency)}
+                    </span>
+                  )}
+                </label>
+
+                {tdsEnabled && (
+                  <div className="p-3 space-y-3 border-t border-dark-700">
+                    {tdsConfigs.length === 0 ? (
+                      <p className="text-xs text-amber-300">
+                        No TDS sections configured. Go to Invoicing → Configuration → TDS and click "Seed Defaults", then try again.
+                      </p>
+                    ) : (
+                      <>
+                        <div>
+                          <label className={labelCls}>TDS Section</label>
+                          <select
+                            value={tdsConfigId}
+                            onChange={(e) => setTdsConfigId(e.target.value)}
+                            className={inputCls}
+                          >
+                            <option value="">Select section…</option>
+                            {tdsConfigs.map(t => (
+                              <option key={t._id} value={t._id}>
+                                {t.sectionCode} — {t.description} ({t.rateIndividual}%)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={labelCls}>TDS Base (untaxed)</label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={tdsBase}
+                              onChange={(e) => setTdsBase(e.target.value)}
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>TDS Amount ({tdsRate}%)</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={tdsAmount}
+                              onChange={(e) => setTdsAmount(Number(e.target.value) || 0)}
+                              className={inputCls}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Amount */}
+            <div>
+              <label className={labelCls}>Amount Received</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={form.amount}
+                  onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))}
+                  className={inputCls + ' flex-1'}
+                />
+                <span className="text-dark-400 text-sm w-12 text-right">{currency}</span>
+              </div>
+            </div>
+
+            {/* Memo */}
+            <div>
+              <label className={labelCls}>Reference / Memo</label>
+              <input
+                type="text"
+                value={form.memo}
+                onChange={(e) => setForm(f => ({ ...f, memo: e.target.value }))}
+                placeholder={`e.g. UTR, cheque no., ${invoiceNumber}`}
+                className={inputCls}
+              />
+            </div>
+
+            {/* Summary */}
+            <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-3 space-y-1.5 text-sm">
+              <div className="flex justify-between text-dark-300">
+                <span>Invoice Due</span>
+                <span>{formatCurrency(amountDue, currency)}</span>
+              </div>
+              {tdsEnabled && (
+                <div className="flex justify-between text-dark-300">
+                  <span>TDS Credit</span>
+                  <span>−{formatCurrency(tdsAmount, currency)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-dark-300">
+                <span>Payment Received</span>
+                <span>−{formatCurrency(Number(form.amount) || 0, currency)}</span>
+              </div>
+              <div className="flex justify-between font-semibold pt-1.5 border-t border-dark-700">
+                <span className={remaining > 0 ? 'text-amber-400' : 'text-emerald-400'}>Remaining</span>
+                <span className={remaining > 0 ? 'text-amber-400' : 'text-emerald-400'}>
+                  {formatCurrency(remaining, currency)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-dark-700">
+              <button
+                type="submit"
+                disabled={saving || journals.length === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {tdsEnabled ? 'Record Payment + TDS' : 'Record Payment'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </ModalOverlay>
   );
@@ -3034,184 +3325,6 @@ function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClo
             </button>
             <button onClick={() => handleReverse(true)} disabled={saving} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors disabled:opacity-50">
               Reverse and Create Invoice
-            </button>
-            <button onClick={onClose} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors">
-              Discard
-            </button>
-          </div>
-        </div>
-      </div>
-    </ModalOverlay>
-  );
-}
-
-// ============================================================================
-// TDSEntryModal — Create TDS journal entry against invoice
-// ============================================================================
-
-function TDSEntryModal({ orgSlug, invoiceId, invoiceNumber, currency, total, onClose, onSuccess, showToast }) {
-  const [tdsTaxes, setTdsTaxes] = useState([]);
-  const [lines, setLines] = useState([{ taxId: '', base: total || 0, tdsAmount: 0 }]);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const inputCls = 'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
-
-  // Fetch TDS taxes (taxes with 'tds' in name or scope)
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await invoicingApi.listTaxes(orgSlug);
-        const allTaxes = res?.taxes || [];
-        // Filter for TDS taxes (name contains 'TDS')
-        const tds = allTaxes.filter(t => t.name?.toUpperCase().includes('TDS'));
-        setTdsTaxes(tds);
-      } catch {}
-      finally { setLoading(false); }
-    })();
-  }, [orgSlug]);
-
-  const updateLine = (index, field, value) => {
-    setLines(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      // Auto-calculate TDS amount when tax is selected
-      if (field === 'taxId') {
-        const tax = tdsTaxes.find(t => t._id === value);
-        if (tax) {
-          updated[index].tdsAmount = Math.round((updated[index].base * tax.rate / 100) * 100) / 100;
-        }
-      }
-      if (field === 'base') {
-        const tax = tdsTaxes.find(t => t._id === updated[index].taxId);
-        if (tax) {
-          updated[index].tdsAmount = Math.round((Number(value) * tax.rate / 100) * 100) / 100;
-        }
-      }
-      return updated;
-    });
-  };
-
-  const addLine = () => setLines(prev => [...prev, { taxId: '', base: 0, tdsAmount: 0 }]);
-  const removeLine = (i) => setLines(prev => prev.filter((_, idx) => idx !== i));
-
-  const totalTds = lines.reduce((sum, l) => sum + (Number(l.tdsAmount) || 0), 0);
-
-  const handleSubmit = async () => {
-    const validLines = lines.filter(l => l.taxId && Number(l.base) > 0 && Number(l.tdsAmount) > 0);
-    if (!validLines.length) {
-      showToast('Select at least one TDS tax with an amount', 'error');
-      return;
-    }
-    try {
-      setSaving(true);
-      await invoicingApi.recordPayment(orgSlug, {
-        invoiceId,
-        amount: totalTds,
-        method: 'tds',
-        journal: 'Miscellaneous Operations',
-        date: new Date().toISOString().slice(0, 10),
-        reference: `TDS of ${invoiceNumber}`,
-        notes: validLines.map(l => {
-          const tax = tdsTaxes.find(t => t._id === l.taxId);
-          return `${tax?.name || 'TDS'}: ${l.tdsAmount}`;
-        }).join(', '),
-        isTds: true,
-      });
-      showToast('TDS entry recorded');
-      onSuccess();
-    } catch (err) {
-      showToast(err.message || 'Failed to record TDS entry', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-xl mx-4 shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h2 className="text-lg font-bold text-white">Create TDS Entry</h2>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
-        </div>
-        <div className="p-5">
-          {/* Header info */}
-          <div className="grid grid-cols-[1fr_1fr] gap-4 mb-4 text-sm">
-            <div>
-              <span className="text-dark-400">Date</span>
-              <p className="text-white">{new Date().toLocaleDateString('en-IN')}</p>
-            </div>
-            <div>
-              <span className="text-dark-400">Reference</span>
-              <p className="text-white">TDS of {invoiceNumber}</p>
-            </div>
-            <div>
-              <span className="text-dark-400">Journal</span>
-              <p className="text-white">Miscellaneous Operations</p>
-            </div>
-          </div>
-
-          {/* TDS Tax Details */}
-          <div className="border-t border-dark-700 pt-4">
-            <h3 className="text-sm font-semibold text-dark-300 mb-3">TDS Tax Details</h3>
-            {loading ? (
-              <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-rivvra-500" /></div>
-            ) : tdsTaxes.length === 0 ? (
-              <p className="text-dark-500 text-sm py-4">No TDS taxes found. Add taxes with "TDS" in the name under Configuration → Taxes.</p>
-            ) : (
-              <>
-                <table className="w-full text-sm mb-3">
-                  <thead>
-                    <tr className="text-dark-400 text-xs uppercase border-b border-dark-700">
-                      <th className="text-left pb-2 font-medium">TDS Tax</th>
-                      <th className="text-right pb-2 font-medium">Base</th>
-                      <th className="text-right pb-2 font-medium">TDS Amount</th>
-                      <th className="w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((line, i) => (
-                      <tr key={i} className="border-b border-dark-700/50">
-                        <td className="py-2 pr-2">
-                          <select value={line.taxId} onChange={e => updateLine(i, 'taxId', e.target.value)} className={inputCls}>
-                            <option value="">Select TDS tax...</option>
-                            {tdsTaxes.map(t => <option key={t._id} value={t._id}>{t.name} ({t.rate}%)</option>)}
-                          </select>
-                        </td>
-                        <td className="py-2 px-2">
-                          <input type="number" step="any" value={line.base} onChange={e => updateLine(i, 'base', e.target.value)} className={inputCls + ' text-right'} />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input type="number" step="any" value={line.tdsAmount} onChange={e => updateLine(i, 'tdsAmount', e.target.value)} className={inputCls + ' text-right'} />
-                        </td>
-                        <td className="py-2">
-                          {lines.length > 1 && (
-                            <button onClick={() => removeLine(i)} className="text-dark-500 hover:text-red-400 transition-colors"><X size={14} /></button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-dark-600">
-                      <td className="py-2 text-dark-400 font-medium">Total</td>
-                      <td></td>
-                      <td className="py-2 text-right text-white font-bold">{formatCurrency(totalTds, currency)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-                <button onClick={addLine} className="text-rivvra-500 hover:text-rivvra-400 text-sm flex items-center gap-1">
-                  <Plus size={14} /> Add line
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-4 mt-4 border-t border-dark-700">
-            <button onClick={handleSubmit} disabled={saving || tdsTaxes.length === 0} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Create TDS Entry
             </button>
             <button onClick={onClose} className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors">
               Discard

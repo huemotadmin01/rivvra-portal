@@ -105,6 +105,7 @@ function JournalCard({ journal, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
+                  // Legacy combined filter — backend expands to posted+partial+overdue.
                   navigate(orgPath(listUrlFor(journal, { status: 'unpaid' })))
                 }
               >
@@ -117,7 +118,7 @@ function JournalCard({ journal, orgPath, navigate }) {
               <div
                 className="text-sm cursor-pointer hover:underline"
                 onClick={() =>
-                  navigate(orgPath(listUrlFor(journal, { status: 'overdue' })))
+                  navigate(orgPath(listUrlFor(journal, { overdue: 'true' })))
                 }
               >
                 <span className="text-red-400 font-medium">

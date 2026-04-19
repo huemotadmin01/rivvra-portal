@@ -9,41 +9,67 @@ import {
   Calendar, X, ArrowUpDown, Building2,
 } from 'lucide-react';
 
+// Tab model: separates document lifecycle (draft/cancelled) from payment status
+// (not_paid/partial/paid) and treats overdue as a derived view.
 const TABS = [
-  { key: '', label: 'All' },
-  { key: 'draft', label: 'Draft' },
-  { key: 'unpaid', label: 'Unpaid' },
-  { key: 'posted', label: 'Received' },
-  { key: 'overdue', label: 'Overdue' },
-  { key: 'paid', label: 'Paid' },
+  { key: '', label: 'All', filterKind: null },
+  { key: 'draft', label: 'Draft', filterKind: 'status', value: 'draft' },
+  { key: 'unpaid', label: 'Unpaid', filterKind: 'status', value: 'unpaid' },
+  { key: 'not_paid', label: 'Not Paid', filterKind: 'paymentStatus', value: 'not_paid' },
+  { key: 'partial', label: 'Partial', filterKind: 'paymentStatus', value: 'partial' },
+  { key: 'overdue', label: 'Overdue', filterKind: 'overdue', value: 'true' },
+  { key: 'paid', label: 'Paid', filterKind: 'paymentStatus', value: 'paid' },
+  { key: 'cancelled', label: 'Cancelled', filterKind: 'status', value: 'cancelled' },
 ];
 
-const TAB_FROM_QUERY = {
-  draft: 'draft',
-  unpaid: 'unpaid',
-  overdue: 'overdue',
-  paid: 'paid',
-  posted: 'posted',
-  received: 'posted',
-};
+function resolveInitialTab(sp) {
+  if (sp.get('overdue') === 'true') return 'overdue';
+  const ps = sp.get('paymentStatus');
+  if (ps === 'paid') return 'paid';
+  if (ps === 'partial') return 'partial';
+  if (ps === 'not_paid') return 'not_paid';
+  const st = sp.get('status');
+  if (st === 'unpaid') return 'unpaid';
+  if (st === 'draft') return 'draft';
+  if (st === 'cancelled') return 'cancelled';
+  if (st === 'paid') return 'paid';
+  if (st === 'partial') return 'partial';
+  if (st === 'overdue') return 'overdue';
+  return '';
+}
 
-const STATUS_STYLES = {
-  draft:     { bg: 'bg-dark-700',        text: 'text-dark-300',    dot: 'bg-dark-400' },
-  posted:    { bg: 'bg-blue-500/10',     text: 'text-blue-400',    dot: 'bg-blue-500' },
-  received:  { bg: 'bg-blue-500/10',     text: 'text-blue-400',    dot: 'bg-blue-500' },
-  partial:   { bg: 'bg-amber-500/10',    text: 'text-amber-400',   dot: 'bg-amber-500' },
-  paid:      { bg: 'bg-emerald-500/10',  text: 'text-emerald-400', dot: 'bg-emerald-500' },
-  overdue:   { bg: 'bg-red-500/10',      text: 'text-red-400',     dot: 'bg-red-500' },
-  cancelled: { bg: 'bg-dark-800',        text: 'text-dark-500',    dot: 'bg-dark-600' },
-};
+function StatusChips({ bill }) {
+  const { status, paymentStatus } = bill || {};
 
-function StatusBadge({ status }) {
-  const st = STATUS_STYLES[status] || STATUS_STYLES.draft;
-  const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Draft';
+  if (status === 'draft') {
+    return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-dark-700 text-dark-300">
+      <span className="w-1.5 h-1.5 rounded-full bg-dark-400" />Draft
+    </span>;
+  }
+  if (status === 'cancelled') {
+    return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-dark-800 text-dark-500 line-through">
+      <span className="w-1.5 h-1.5 rounded-full bg-dark-600" />Cancelled
+    </span>;
+  }
+
+  const paymentStyles = {
+    not_paid: { bg: 'bg-blue-500/10', text: 'text-blue-400', dot: 'bg-blue-500', label: 'Not Paid' },
+    partial:  { bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-500', label: 'Partial' },
+    paid:     { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500', label: 'Paid' },
+  };
+  const st = paymentStyles[paymentStatus] || paymentStyles.not_paid;
+  const isOverdue = bill?.dueDate && new Date(bill.dueDate) < new Date() && paymentStatus !== 'paid';
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${st.bg} ${st.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-      {label}
+    <span className="inline-flex items-center gap-1">
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${st.bg} ${st.text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+        {st.label}
+      </span>
+      {isOverdue && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400">
+          Overdue
+        </span>
+      )}
     </span>
   );
 }
@@ -72,7 +98,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     : 'Manage purchase bills from vendors';
   const emptyHint = isEmployeeMode ? 'No employee bills yet' : 'No vendor bills yet';
 
-  const initialTab = TAB_FROM_QUERY[searchParams.get('status') || ''] || '';
+  const initialTab = resolveInitialTab(searchParams);
 
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +107,9 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({});
+  const [paymentStatusCounts, setPaymentStatusCounts] = useState({});
+  const [overdueCount, setOverdueCount] = useState(0);
   const [sortField, setSortField] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const limit = 20;
@@ -97,7 +126,10 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       };
       if (isEmployeeMode) params.journalCode = EMPLOYEE_JOURNAL_CODE;
       else params.journalCodeExclude = EMPLOYEE_JOURNAL_CODE;
-      if (activeTab) params.status = activeTab;
+      const tab = TABS.find(t => t.key === activeTab);
+      if (tab?.filterKind === 'status') params.status = tab.value;
+      else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
+      else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
       if (search.trim()) params.search = search.trim();
 
       const res = await invoicingApi.listBills(orgSlug, params);
@@ -106,6 +138,9 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / limit))
       );
       setTotal(res.total || 0);
+      if (res.statusCounts) setStatusCounts(res.statusCounts);
+      if (res.paymentStatusCounts) setPaymentStatusCounts(res.paymentStatusCounts);
+      if (res.overdueCount != null) setOverdueCount(res.overdueCount);
     } catch (err) {
       showToast(err.message || 'Failed to load bills', 'error');
     } finally {
@@ -144,18 +179,23 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     );
   }
 
-  // Tab counts from API or local filter
+  // Tab counts from backend aggregate — stable regardless of active tab.
   const tabCounts = useMemo(() => {
-    const counts = { '': total };
+    const counts = {};
     TABS.forEach(t => {
-      if (t.key) {
-        counts[t.key] = bills.filter(b => b.status === t.key).length;
+      if (!t.filterKind) {
+        const totalAll = Object.values(statusCounts || {}).reduce((s, c) => s + (Number(c) || 0), 0);
+        counts[t.key] = totalAll || total || null;
+      } else if (t.filterKind === 'status') {
+        counts[t.key] = statusCounts[t.value] ?? null;
+      } else if (t.filterKind === 'paymentStatus') {
+        counts[t.key] = paymentStatusCounts[t.value] ?? null;
+      } else if (t.filterKind === 'overdue') {
+        counts[t.key] = overdueCount || null;
       }
     });
-    // If we have the total, use it for 'All'
-    counts[''] = total;
     return counts;
-  }, [bills, total]);
+  }, [statusCounts, paymentStatusCounts, overdueCount, total]);
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -174,20 +214,31 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-dark-700">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? 'border-rivvra-500 text-rivvra-400'
-                : 'border-transparent text-dark-400 hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-1 border-b border-dark-700 overflow-x-auto">
+        {TABS.map(tab => {
+          const count = tabCounts[tab.key];
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                isActive
+                  ? 'border-rivvra-500 text-rivvra-400'
+                  : 'border-transparent text-dark-400 hover:text-white'
+              }`}
+            >
+              {tab.label}
+              {count != null && (
+                <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
+                  isActive ? 'bg-rivvra-500/20 text-rivvra-400' : 'bg-dark-800 text-dark-500'
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
@@ -285,7 +336,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
                       {formatCurrency(bill.total)}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={bill.status} />
+                      <StatusChips bill={bill} />
                     </td>
                   </tr>
                 ))}
