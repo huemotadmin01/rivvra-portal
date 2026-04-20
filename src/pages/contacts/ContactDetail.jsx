@@ -11,7 +11,7 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  Loader2, Trash2, Check,
+  Loader2, Trash2, Check, X, Plus,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users, Receipt,
   Upload, Download, Paperclip, Eye, Pencil,
@@ -84,6 +84,207 @@ function SectionCard({ title, icon: Icon, children }) {
         <h3 className="text-white font-semibold">{title}</h3>
       </div>
       {children}
+    </div>
+  );
+}
+
+function formatUpdatedAt(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// ---------------------------------------------------------------------------
+// NotesEditor — full-width textarea editor (no 140px label column)
+// ---------------------------------------------------------------------------
+
+function NotesEditor({ value, editable, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value ?? '');
+
+  useEffect(() => setLocalValue(value ?? ''), [value]);
+
+  const save = () => {
+    setEditing(false);
+    if ((localValue ?? '') !== (value ?? '')) onSave(localValue);
+  };
+
+  if (!editable) {
+    return (
+      <p className="text-sm text-dark-300 whitespace-pre-wrap">
+        {value || <span className="text-dark-500 italic">No notes</span>}
+      </p>
+    );
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={save}
+        placeholder="Add internal notes about this contact..."
+        className="w-full min-h-[120px] bg-dark-800 border border-rivvra-500 rounded px-3 py-2 text-sm text-white focus:outline-none resize-y"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      className="cursor-pointer rounded px-2 py-2 -mx-2 hover:bg-dark-800/60 min-h-[48px] text-sm text-white whitespace-pre-wrap"
+    >
+      {value || <span className="text-dark-500 italic">Add internal notes about this contact...</span>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ToggleRow — inline boolean field (used for isCustomer / isSupplier)
+// ---------------------------------------------------------------------------
+
+function ToggleRow({ label, value, editable, onChange }) {
+  const handleClick = () => editable && onChange(!value);
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+      <span className="text-dark-400 text-sm">{label}</span>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!editable}
+        role="switch"
+        aria-checked={!!value}
+        className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors ${
+          value ? 'bg-rivvra-500' : 'bg-dark-700'
+        } ${editable ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${
+            value ? 'translate-x-[18px]' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TagsEditor — add/remove tags inline on the detail page
+// ---------------------------------------------------------------------------
+
+function TagsEditor({ orgSlug, tagIds, tagNames, editable, onChange }) {
+  const [available, setAvailable] = useState([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [query, setQuery] = useState('');
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!orgSlug) return;
+    let cancelled = false;
+    contactsApi.listTags(orgSlug)
+      .then((res) => { if (!cancelled && res?.success) setAvailable(res.tags || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [orgSlug]);
+
+  useEffect(() => {
+    if (!showPicker) return;
+    const handleClick = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showPicker]);
+
+  const currentIds = tagIds || [];
+  const currentNameMap = {};
+  (tagIds || []).forEach((id, i) => { currentNameMap[id] = (tagNames || [])[i] || id; });
+  available.forEach((t) => { currentNameMap[t._id] = t.name; });
+
+  const remaining = available.filter((t) => !currentIds.includes(t._id));
+  const filtered = query
+    ? remaining.filter((t) => t.name.toLowerCase().includes(query.toLowerCase()))
+    : remaining;
+
+  const addTag = (tag) => {
+    const nextIds = [...currentIds, tag._id];
+    const nextNames = [...(tagNames || []), tag.name];
+    onChange(nextIds, nextNames);
+    setShowPicker(false);
+    setQuery('');
+  };
+
+  const removeTag = (id) => {
+    const idx = currentIds.indexOf(id);
+    if (idx === -1) return;
+    const nextIds = currentIds.filter((x) => x !== id);
+    const nextNames = (tagNames || []).filter((_, i) => i !== idx);
+    onChange(nextIds, nextNames);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {currentIds.length === 0 && !editable && (
+        <p className="text-dark-500 text-sm">No tags assigned</p>
+      )}
+      {currentIds.map((id) => (
+        <span key={id} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-dark-700 text-dark-200 text-xs font-medium">
+          {currentNameMap[id] || id}
+          {editable && (
+            <button
+              type="button"
+              onClick={() => removeTag(id)}
+              className="text-dark-400 hover:text-red-400 transition-colors"
+              title="Remove tag"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </span>
+      ))}
+      {editable && (
+        <div className="relative" ref={pickerRef}>
+          <button
+            type="button"
+            onClick={() => setShowPicker((s) => !s)}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed border-dark-600 text-dark-400 hover:text-rivvra-400 hover:border-rivvra-500 text-xs transition-colors"
+          >
+            <Plus size={11} /> Add tag
+          </button>
+          {showPicker && (
+            <div className="absolute top-full left-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 overflow-hidden">
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search tags..."
+                className="w-full px-3 py-2 bg-dark-800 border-b border-dark-700 text-sm text-white placeholder:text-dark-500 focus:outline-none"
+              />
+              <div className="max-h-48 overflow-y-auto">
+                {filtered.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-dark-500">
+                    {remaining.length === 0 ? 'All tags added' : 'No matches'}
+                  </div>
+                ) : (
+                  filtered.map((t) => (
+                    <button
+                      key={t._id}
+                      type="button"
+                      onClick={() => addTag(t)}
+                      className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-dark-700 transition-colors"
+                    >
+                      {t.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -557,7 +758,6 @@ export default function ContactDetail() {
   const tabs = [
     { id: 'details', label: 'Details' },
     { id: 'activities', label: 'Activities' },
-    { id: 'notes', label: 'Notes' },
     { id: 'attachments', label: 'Attachments' },
   ];
 
@@ -676,6 +876,44 @@ export default function ContactDetail() {
                     <Badge key={i} className="bg-dark-700 text-dark-300">{tag}</Badge>
                   ))}
                 </div>
+                {!isCreateMode && (contact.email || contact.phone || contact.mobile || contact.website) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                    {contact.email && (
+                      <a
+                        href={`mailto:${contact.email}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dark-800 border border-dark-700 text-xs text-dark-300 hover:text-rivvra-400 hover:border-rivvra-500/50 transition-colors"
+                        title={contact.email}
+                      >
+                        <Mail size={12} /> Email
+                      </a>
+                    )}
+                    {(contact.phone || contact.mobile) && (
+                      <a
+                        href={`tel:${contact.phone || contact.mobile}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dark-800 border border-dark-700 text-xs text-dark-300 hover:text-rivvra-400 hover:border-rivvra-500/50 transition-colors"
+                        title={contact.phone || contact.mobile}
+                      >
+                        <Phone size={12} /> Call
+                      </a>
+                    )}
+                    {contact.website && (
+                      <a
+                        href={/^https?:\/\//i.test(contact.website) ? contact.website : `https://${contact.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dark-800 border border-dark-700 text-xs text-dark-300 hover:text-rivvra-400 hover:border-rivvra-500/50 transition-colors"
+                        title={contact.website}
+                      >
+                        <Globe size={12} /> Website
+                      </a>
+                    )}
+                  </div>
+                )}
+                {!isCreateMode && contact.updatedAt && (
+                  <p className="text-[11px] text-dark-500 mt-3">
+                    Updated {formatUpdatedAt(contact.updatedAt)}
+                  </p>
+                )}
               </div>
 
               {/* Action buttons */}
@@ -839,23 +1077,17 @@ export default function ContactDetail() {
                 onSave={(field, val) => saveField(field, val)}
                 placeholder="Select default product"
               />
-              <EditableField
+              <ToggleRow
                 label="Customer"
-                value={contact.isCustomer ? 'Yes' : 'No'}
-                field="isCustomer"
-                type="select"
-                options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
+                value={!!contact.isCustomer}
                 editable={isAdmin}
-                onSave={(field, val) => saveField(field, val === 'true')}
+                onChange={(val) => saveField('isCustomer', val)}
               />
-              <EditableField
+              <ToggleRow
                 label="Supplier"
-                value={contact.isSupplier ? 'Yes' : 'No'}
-                field="isSupplier"
-                type="select"
-                options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
+                value={!!contact.isSupplier}
                 editable={isAdmin}
-                onSave={(field, val) => saveField(field, val === 'true')}
+                onChange={(val) => saveField('isSupplier', val)}
               />
             </SectionCard>
 
@@ -986,17 +1218,22 @@ export default function ContactDetail() {
               />
             </SectionCard>
 
-            {/* Tags (read-only) */}
+            {/* Tags */}
             <SectionCard title="Tags" icon={Tag}>
-              <div className="flex flex-wrap gap-1.5">
-                {(contact.tagNames || []).length > 0 ? (
-                  contact.tagNames.map((tag, i) => (
-                    <Badge key={i} className="bg-dark-700 text-dark-300">{tag}</Badge>
-                  ))
-                ) : (
-                  <p className="text-dark-500 text-sm">No tags assigned</p>
-                )}
-              </div>
+              <TagsEditor
+                orgSlug={orgSlug}
+                tagIds={contact.tags || []}
+                tagNames={contact.tagNames || []}
+                editable={isAdmin}
+                onChange={(nextIds, nextNames) => {
+                  setContact((prev) => ({ ...prev, tags: nextIds, tagNames: nextNames }));
+                  if (!isCreateMode) {
+                    contactsApi.update(orgSlug, contactId, { tags: nextIds })
+                      .then(() => showToast('Tags updated'))
+                      .catch((err) => showToast(err.message || 'Failed to save tags', 'error'));
+                  }
+                }}
+              />
             </SectionCard>
           </div>
 
@@ -1102,6 +1339,15 @@ export default function ContactDetail() {
               </div>
             </div>
           )}
+
+          {/* Internal Notes */}
+          <SectionCard title="Internal Notes" icon={FileText}>
+            <NotesEditor
+              value={contact.internalNotes}
+              editable={isAdmin}
+              onSave={(val) => saveField('internalNotes', val)}
+            />
+          </SectionCard>
         </div>
       )}
 
@@ -1118,25 +1364,6 @@ export default function ContactDetail() {
             />
           </div>
         </>
-      )}
-
-      {/* Notes Tab */}
-      {activeTab === 'notes' && (
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText size={16} className="text-dark-400" />
-            <h3 className="text-white font-semibold">Internal Notes</h3>
-          </div>
-          <EditableField
-            label=""
-            value={contact.internalNotes}
-            field="internalNotes"
-            type="textarea"
-            editable={isAdmin}
-            onSave={saveField}
-            placeholder="Add internal notes about this contact..."
-          />
-        </div>
       )}
 
       {/* Attachments Tab */}
