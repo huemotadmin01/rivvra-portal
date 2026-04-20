@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   FileText, Plus, Search, ChevronLeft, ChevronRight,
   Loader2, Filter, Inbox,
@@ -12,19 +13,6 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatCurrency(amount, currency = 'INR') {
-  const cur = currency || 'INR';
-  const locale = cur === 'INR' ? 'en-IN' : 'en-US';
-  if (amount == null) {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(0);
-  }
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: cur,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
 
 function formatDate(dateStr) {
   if (!dateStr) return '-';

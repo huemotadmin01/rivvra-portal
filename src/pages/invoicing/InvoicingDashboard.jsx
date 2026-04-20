@@ -4,24 +4,8 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, Plus, FileText } from 'lucide-react';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatCurrency(amount, currency = 'INR') {
-  const cur = currency || 'INR';
-  const locale = cur === 'INR' ? 'en-IN' : 'en-US';
-  if (amount == null) {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(0);
-  }
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: cur,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
 
 // ---------------------------------------------------------------------------
 // Journal Card (Odoo-style)

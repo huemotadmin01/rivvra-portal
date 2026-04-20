@@ -3,20 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, ArrowLeft, Receipt, Search } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '₹0.00';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
 
 function getDefaultDateRange() {
   const now = new Date();

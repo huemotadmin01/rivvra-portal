@@ -11,6 +11,7 @@ import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
+import { formatCurrency } from '../../utils/formatCurrency';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -23,15 +24,6 @@ import {
 } from 'lucide-react';
 
 // ── Helpers ──
-
-function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '₹0.00';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
 
 function formatDate(d, cc = 'IN') {
   if (!d) return '-';

@@ -3,6 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Loader2, Plus, ChevronDown, ChevronRight, Landmark,
   CheckCircle2, Clock, RefreshCw, X, ArrowDownLeft, ArrowUpRight,
@@ -12,15 +13,6 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatCurrency(amount) {
-  if (amount == null) return '₹0.00';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
 
 function formatDate(dateStr) {
   if (!dateStr) return '-';
