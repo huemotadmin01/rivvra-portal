@@ -92,6 +92,21 @@ function SectionCard({ title, icon: Icon, children }) {
 // EditableField – inline editing sub-component
 // ---------------------------------------------------------------------------
 
+function renderLinkedValue(value, type) {
+  if (!value) return null;
+  if (type === 'email') {
+    return <a href={`mailto:${value}`} className="text-rivvra-400 hover:underline" onClick={(e) => e.stopPropagation()}>{value}</a>;
+  }
+  if (type === 'tel') {
+    return <a href={`tel:${value}`} className="text-rivvra-400 hover:underline" onClick={(e) => e.stopPropagation()}>{value}</a>;
+  }
+  if (type === 'url') {
+    const href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:underline" onClick={(e) => e.stopPropagation()}>{value}</a>;
+  }
+  return null;
+}
+
 function EditableField({ label, value, field, type = 'text', options, editable, onSave, placeholder, maxLength, transform }) {
   const [editing, setEditing] = useState(false);
   const [localValue, setLocalValue] = useState(value ?? '');
@@ -104,11 +119,13 @@ function EditableField({ label, value, field, type = 'text', options, editable, 
     if (finalValue !== (value ?? '')) onSave(field, finalValue);
   };
 
+  const linked = renderLinkedValue(value, type);
+
   if (!editable) {
     return (
       <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
         <span className="text-dark-400 text-sm">{label}</span>
-        <span className="text-white text-sm">{value || '\u2014'}</span>
+        <span className="text-white text-sm">{linked || value || '\u2014'}</span>
       </div>
     );
   }
@@ -163,7 +180,7 @@ function EditableField({ label, value, field, type = 'text', options, editable, 
           onClick={() => setEditing(true)}
         >
           <span className="text-white text-sm">
-            {value || <span className="text-dark-500 italic">{placeholder || '\u2014'}</span>}
+            {linked || value || <span className="text-dark-500 italic">{placeholder || '\u2014'}</span>}
           </span>
           <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />
         </div>
@@ -739,9 +756,9 @@ export default function ContactDetail() {
             {/* Contact Information */}
             <SectionCard title="Contact Information" icon={Mail}>
               <EditableField label="Email" value={contact.email} field="email" type="email" editable={isAdmin} onSave={saveField} placeholder="Add email" />
-              <EditableField label="Phone" value={contact.phone} field="phone" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
-              <EditableField label="Mobile" value={contact.mobile} field="mobile" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
-              <EditableField label="Website" value={contact.website} field="website" editable={isAdmin} onSave={saveField} placeholder="Add website" />
+              <EditableField label="Phone" value={contact.phone} field="phone" type="tel" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
+              <EditableField label="Mobile" value={contact.mobile} field="mobile" type="tel" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
+              <EditableField label="Website" value={contact.website} field="website" type="url" editable={isAdmin} onSave={saveField} placeholder="Add website" />
             </SectionCard>
 
             {/* Company / Work Details */}
@@ -1097,7 +1114,7 @@ export default function ContactDetail() {
               orgSlug={orgSlug}
               linkedModel="contact"
               linkedId={contactId}
-              prefillData={{ name: contact?.name || '', email: contact?.email || '', phone: contact?.phone || '', company: contact?.company || '' }}
+              prefillData={{ name: contact?.name || '', email: contact?.email || '', phone: contact?.phone || '', company: contact?.parentCompanyName || '' }}
             />
           </div>
         </>
