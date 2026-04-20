@@ -368,6 +368,8 @@ export default function ContactDetail() {
   // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // FK-conflict modal (populated from a 409 response on DELETE)
+  const [deleteConflict, setDeleteConflict] = useState(null);
 
   // Dropdown data
   const [salespersons, setSalespersons] = useState([]);
@@ -469,10 +471,21 @@ export default function ContactDetail() {
   };
 
   // -- Delete handler ---------------------------------------------------------
-  const handleDelete = async () => {
+  // Called twice in the worst case: once without force (may return a 409 with
+  // an FK-reference breakdown), and once with force: true after the user
+  // confirms the override in the conflict modal.
+  const handleDelete = async ({ force = false } = {}) => {
     setDeleting(true);
     try {
-      const res = await contactsApi.delete(orgSlug, contactId);
+      const res = await contactsApi.delete(orgSlug, contactId, { force });
+      if (res.status === 409) {
+        // Server blocked the delete — show the reference breakdown instead
+        // of a generic toast so the user knows exactly what's in the way.
+        setDeleteConflict(res);
+        setShowDeleteModal(false);
+        setDeleting(false);
+        return;
+      }
       if (res.success) {
         const count = res.childrenDeleted || 0;
         showToast(
@@ -485,11 +498,13 @@ export default function ContactDetail() {
         showToast(res.error || 'Failed to delete', 'error');
         setDeleting(false);
         setShowDeleteModal(false);
+        setDeleteConflict(null);
       }
-    } catch {
-      showToast('Failed to delete contact', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete contact', 'error');
       setDeleting(false);
       setShowDeleteModal(false);
+      setDeleteConflict(null);
     }
   };
 
@@ -1159,7 +1174,7 @@ export default function ContactDetail() {
                 className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
                 Cancel
               </button>
-              <button onClick={handleDelete} disabled={deleting}
+              <button onClick={() => handleDelete()} disabled={deleting}
                 className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
                 {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                 Delete
@@ -1168,6 +1183,101 @@ export default function ContactDetail() {
           </div>
         </div>
       )}
+
+      {/* FK-reference conflict modal — shown when the server returns 409. */}
+      {deleteConflict && (
+        <DeleteConflictModal
+          contact={contact}
+          conflict={deleteConflict}
+          deleting={deleting}
+          onCancel={() => { setDeleteConflict(null); setDeleting(false); }}
+          onForceDelete={() => handleDelete({ force: true })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DeleteConflictModal — lists FK references that are blocking the delete.
+// Shown when DELETE returns 409 with a { references, samples } payload.
+// ---------------------------------------------------------------------------
+
+const REFERENCE_LABELS = {
+  invoices: 'Invoices',
+  creditNotes: 'Credit notes',
+  followUpLogs: 'Follow-up logs',
+  crmOpportunitiesByContact: 'CRM opportunities (as contact)',
+  crmOpportunitiesByCompany: 'CRM opportunities (as company)',
+  incentiveRecords: 'Incentive records',
+  childContacts: 'Child contacts',
+  employeeAssignments: 'Employee assignments',
+  timesheets: 'Timesheets',
+};
+
+function DeleteConflictModal({ contact, conflict, deleting, onCancel, onForceDelete }) {
+  const refs = conflict.references || {};
+  const samples = conflict.samples || {};
+  const rows = Object.entries(refs).filter(([, n]) => n > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-sm font-semibold text-dark-100 mb-2">
+          Can&apos;t delete {contact.name}
+        </h2>
+        <p className="text-xs text-dark-400 mb-3">
+          This contact is referenced by {conflict.totalRefs || 0} other record{(conflict.totalRefs || 0) === 1 ? '' : 's'}.
+          Remove or reassign them first, or choose Force delete to proceed anyway (this will leave orphaned records).
+        </p>
+
+        <div className="bg-dark-900 border border-dark-700 rounded-lg divide-y divide-dark-700 mb-3">
+          {rows.map(([key, count]) => (
+            <div key={key} className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs text-dark-300">{REFERENCE_LABELS[key] || key}</span>
+              <span className="text-xs font-medium text-red-400">{count}</span>
+            </div>
+          ))}
+        </div>
+
+        {samples.invoices?.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[11px] uppercase tracking-wide text-dark-500 mb-1">Sample invoices</p>
+            <ul className="text-xs text-dark-300 space-y-0.5 pl-3">
+              {samples.invoices.map((inv) => (
+                <li key={inv._id} className="list-disc">
+                  {inv.invoiceNumber || inv._id}
+                  {inv.type === 'credit_note' ? ' (credit note)' : ''}
+                  {inv.status ? ` — ${inv.status}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {samples.childContacts?.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[11px] uppercase tracking-wide text-dark-500 mb-1">Sample child contacts</p>
+            <ul className="text-xs text-dark-300 space-y-0.5 pl-3">
+              {samples.childContacts.map((c) => (
+                <li key={c._id} className="list-disc">{c.name}{c.email ? ` — ${c.email}` : ''}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button onClick={onCancel}
+            className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onForceDelete} disabled={deleting}
+            className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+            {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            Force delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

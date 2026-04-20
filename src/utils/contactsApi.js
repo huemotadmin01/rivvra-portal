@@ -31,10 +31,32 @@ const contactsApi = {
     });
   },
 
-  delete(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/contacts/${id}`, {
-      method: 'DELETE',
-    });
+  // Returns the parsed JSON body whether the response is 200 or 409 so callers
+  // can inspect the `references`/`samples` payload produced by the server's FK
+  // safety check and offer the user a force-delete confirmation. Non-JSON or
+  // other error statuses still throw.
+  async delete(orgSlug, id, { force = false } = {}) {
+    const qs = force ? '?force=true' : '';
+    const url = `${api.baseUrl}/api/org/${orgSlug}/contacts/${id}${qs}`;
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('rivvra_token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const companyId = localStorage.getItem('rivvra_current_company');
+    if (companyId) headers['X-Company-Id'] = companyId;
+
+    const response = await fetch(url, { method: 'DELETE', headers });
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+    const data = await response.json();
+    if (response.status === 409) {
+      return { ...data, status: 409 };
+    }
+    if (!response.ok) {
+      throw new Error(data.error || 'Request failed');
+    }
+    return data;
   },
 
   // ── Companies dropdown ────────────────────────────────────────────────
