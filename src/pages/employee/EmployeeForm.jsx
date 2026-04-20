@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
@@ -92,6 +93,7 @@ export default function EmployeeForm() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { companyCountry } = useCompany();
 
   const { showToast } = useToast();
   const isEdit = !!employeeId;
@@ -1724,53 +1726,55 @@ export default function EmployeeForm() {
             </div>
           </div>
 
-          {/* Statutory Details sub-section */}
-          <div className="border-t border-dark-700 pt-4 mt-4">
-            <h3 className="text-white font-medium text-sm mb-3">Statutory Details</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Aadhaar Number</label>
-                <input
-                  type={showSensitive ? 'text' : 'password'}
-                  value={form.statutory.aadhaar}
-                  onChange={(e) => setNested('statutory', 'aadhaar', e.target.value)}
-                  className="input-field w-full"
-                  placeholder="1234 5678 9012"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">UAN</label>
-                <input
-                  type="text"
-                  value={form.statutory.uan}
-                  onChange={(e) => setNested('statutory', 'uan', e.target.value)}
-                  className="input-field w-full"
-                  placeholder="100123456789"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">PF Number</label>
-                <input
-                  type="text"
-                  value={form.statutory.pfNumber}
-                  onChange={(e) => setNested('statutory', 'pfNumber', e.target.value)}
-                  className="input-field w-full"
-                  placeholder="MH/BAN/12345/123"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">ESIC Number</label>
-                <input
-                  type="text"
-                  value={form.statutory.esicNumber}
-                  onChange={(e) => setNested('statutory', 'esicNumber', e.target.value)}
-                  className="input-field w-full"
-                  placeholder="31-00-123456-000-0001"
-                />
+          {/* Statutory Details sub-section — India only (Aadhaar/UAN/PF/ESIC) */}
+          {companyCountry === 'IN' && (
+            <div className="border-t border-dark-700 pt-4 mt-4">
+              <h3 className="text-white font-medium text-sm mb-3">Statutory Details</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Aadhaar Number</label>
+                  <input
+                    type={showSensitive ? 'text' : 'password'}
+                    value={form.statutory.aadhaar}
+                    onChange={(e) => setNested('statutory', 'aadhaar', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="1234 5678 9012"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">UAN</label>
+                  <input
+                    type="text"
+                    value={form.statutory.uan}
+                    onChange={(e) => setNested('statutory', 'uan', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="100123456789"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">PF Number</label>
+                  <input
+                    type="text"
+                    value={form.statutory.pfNumber}
+                    onChange={(e) => setNested('statutory', 'pfNumber', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="MH/BAN/12345/123"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">ESIC Number</label>
+                  <input
+                    type="text"
+                    value={form.statutory.esicNumber}
+                    onChange={(e) => setNested('statutory', 'esicNumber', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="31-00-123456-000-0001"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── Family Members ──────────────────────────────────────────── */}
