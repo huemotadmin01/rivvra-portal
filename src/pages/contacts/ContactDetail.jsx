@@ -981,33 +981,97 @@ export default function ContactDetail() {
           {contact.type === 'company' && childContacts.length > 0 && (
             <div className="card p-5">
               <div className="flex items-center gap-2 mb-4">
-                <Users size={16} className="text-blue-400" />
+                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Users size={14} className="text-blue-400" />
+                </div>
                 <h3 className="text-white font-semibold">Contacts at {contact.name}</h3>
                 <span className="ml-auto text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-medium">
                   {childContacts.length}
                 </span>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-hidden rounded-xl border border-dark-700/60">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-dark-700">
-                      <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Name</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Job Title</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Email</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-dark-400 uppercase tracking-wider">Phone</th>
+                    <tr className="bg-dark-800/40 border-b border-dark-700/60">
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Name</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Job Title</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Email</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Phone</th>
+                      {isAdmin && <th className="w-10 px-2"></th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-dark-800">
+                  <tbody className="divide-y divide-dark-800/70">
                     {childContacts.map((child) => (
-                      <tr
-                        key={child._id}
-                        onClick={() => navigate(orgPath(`/contacts/${child._id}`))}
-                        className="hover:bg-dark-800/30 transition-colors cursor-pointer"
-                      >
-                        <td className="px-3 py-2.5 text-sm text-white font-medium">{child.name}</td>
-                        <td className="px-3 py-2.5 text-sm text-dark-300">{child.jobTitle || '\u2014'}</td>
-                        <td className="px-3 py-2.5 text-sm text-dark-300">{child.email || '\u2014'}</td>
-                        <td className="px-3 py-2.5 text-sm text-dark-300">{child.phone || '\u2014'}</td>
+                      <tr key={child._id} className="group hover:bg-dark-800/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link
+                            to={orgPath(`/contacts/${child._id}`)}
+                            className="flex items-center gap-3 min-w-0"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0 text-[11px] font-semibold text-orange-400">
+                              {getInitials(child.name)}
+                            </div>
+                            <span className="text-sm font-medium text-white group-hover:text-rivvra-400 transition-colors truncate">
+                              {child.name}
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-dark-300">
+                          {child.jobTitle ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-dark-800 text-dark-200 text-xs font-medium">
+                              {child.jobTitle}
+                            </span>
+                          ) : (
+                            <span className="text-dark-600">{'\u2014'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {child.email ? (
+                            <a href={`mailto:${child.email}`} className="text-dark-300 hover:text-rivvra-400 transition-colors">
+                              {child.email}
+                            </a>
+                          ) : (
+                            <span className="text-dark-600">{'\u2014'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {child.phone ? (
+                            <a href={`tel:${child.phone}`} className="text-dark-300 hover:text-rivvra-400 transition-colors">
+                              {child.phone}
+                            </a>
+                          ) : (
+                            <span className="text-dark-600">{'\u2014'}</span>
+                          )}
+                        </td>
+                        {isAdmin && (
+                          <td className="px-2 py-3 text-right">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!confirm(`Delete contact "${child.name}"?`)) return;
+                                try {
+                                  const res = await contactsApi.delete(orgSlug, child._id);
+                                  if (res.status === 409) {
+                                    showToast('Contact has linked records and can\u2019t be deleted here. Open the contact to review.', 'error');
+                                    return;
+                                  }
+                                  if (res.success) {
+                                    showToast('Contact deleted');
+                                    setChildContacts((prev) => prev.filter((c) => c._id !== child._id));
+                                  } else {
+                                    showToast(res.error || 'Failed to delete', 'error');
+                                  }
+                                } catch (err) {
+                                  showToast(err?.message || 'Failed to delete', 'error');
+                                }
+                              }}
+                              className="p-1.5 rounded-lg text-dark-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                              title="Delete contact"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
