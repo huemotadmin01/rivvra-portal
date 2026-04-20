@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { getFYConfigs, getFYConfig, updateFYConfig, copyFYConfig, seedFYConfig } from '../../utils/payrollApi';
 import { Settings2, ChevronDown, ChevronRight, Plus, Save, Loader2, Copy, Database, Trash2, Shield } from 'lucide-react';
+import RecordMeta from '../../components/shared/RecordMeta';
 
 const CURRENT_FY = (() => {
   const now = new Date();
@@ -357,11 +358,14 @@ export default function PayrollSettingsPage({ embedded = false }) {
           </div>
 
           {/* Metadata */}
-          {config.updatedBy && (
-            <p className="text-xs text-dark-500 text-right">
-              Last updated by {config.updatedBy} on {new Date(config.updatedAt).toLocaleDateString()}
-            </p>
-          )}
+          <RecordMeta
+            className="text-right"
+            compact
+            createdAt={config.createdAt}
+            createdByName={config.createdByName}
+            updatedAt={config.updatedAt}
+            updatedByName={config.updatedByName || config.updatedBy}
+          />
         </div>
       )}
 

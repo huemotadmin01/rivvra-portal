@@ -13,6 +13,7 @@ import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import RecordMeta from '../../components/shared/RecordMeta';
 import {
   ArrowLeft, Send, Trash2, Download, Mail, Copy,
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
@@ -2222,22 +2223,17 @@ export default function InvoiceDetail() {
 
                     {/* Right column */}
                     <div className="space-y-4">
-                      {(invoice.createdByName || invoice.createdBy) && (
-                        <FormField label="Created By">
-                          <span className="text-white">
-                            {invoice.createdByName
-                              || (typeof invoice.createdBy === 'object'
-                                ? invoice.createdBy.name || invoice.createdBy.email
-                                : invoice.createdBy)}
-                          </span>
-                        </FormField>
-                      )}
-
-                      {invoice.createdAt && (
-                        <FormField label="Created At">
-                          <span className="text-white">{formatDate(invoice.createdAt, countryCode)}</span>
-                        </FormField>
-                      )}
+                      <RecordMeta
+                        createdAt={invoice.createdAt}
+                        createdByName={
+                          invoice.createdByName
+                          || (typeof invoice.createdBy === 'object'
+                            ? invoice.createdBy?.name || invoice.createdBy?.email
+                            : invoice.createdBy) || null
+                        }
+                        updatedAt={invoice.updatedAt}
+                        updatedByName={invoice.updatedByName}
+                      />
 
                       {invoice.isRecurring && (
                         <FormField label="Recurring">

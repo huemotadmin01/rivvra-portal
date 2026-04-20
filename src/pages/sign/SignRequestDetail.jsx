@@ -15,6 +15,7 @@ import {
   Shield, Plus, AlertCircle, MapPin,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
+import RecordMeta from '../../components/shared/RecordMeta';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -509,8 +510,6 @@ export default function SignRequestDetail() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 divide-y divide-dark-800 sm:divide-y-0">
               <div className="space-y-0 divide-y divide-dark-800">
                 <InfoRow icon={FileText} label="Template" value={template?.name || request.templateName} />
-                <InfoRow icon={User} label="Created By" value={request.createdByName || request.createdBy?.name} />
-                <InfoRow icon={Calendar} label="Created" value={formatDate(request.createdAt)} />
               </div>
               <div className="space-y-0 divide-y divide-dark-800">
                 <InfoRow icon={Send} label="Sent Date" value={formatDate(request.sentAt || request.createdAt)} />
@@ -522,6 +521,13 @@ export default function SignRequestDetail() {
                 <InfoRow icon={Clock} label="Valid Until" value={request.validityDate ? formatDateShort(request.validityDate) : 'No expiry'} />
               </div>
             </div>
+            <RecordMeta
+              className="mt-4 pt-3 border-t border-dark-800"
+              createdAt={request.createdAt}
+              createdByName={request.createdByName || request.createdBy?.name}
+              updatedAt={request.updatedAt}
+              updatedByName={request.updatedByName}
+            />
           </div>
 
           {/* Linked ATS Application */}
