@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
-import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import {
-  Search, Plus, Loader2, Users, Building2, User,
+  Search, Plus, Users, Building2, User,
   ChevronLeft, ChevronRight, ChevronDown, X,
-  Mail, Phone, MapPin, Tag,
 } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeletons';
+
+const PAGE_SIZE = 25;
 
 /* ── Inline FilterChip component ─────────────────────────────────────── */
 function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
@@ -60,495 +60,10 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
   );
 }
 
-/* ── New Contact Modal ────────────────────────────────────────────────── */
-const EMPTY_FORM = {
-  type: 'individual',
-  title: '',
-  name: '',
-  email: '',
-  phone: '',
-  mobile: '',
-  website: '',
-  jobTitle: '',
-  parentCompany: '',
-  street: '',
-  street2: '',
-  city: '',
-  state: '',
-  zip: '',
-  country: '',
-  tags: [],
-  notes: '',
-  isCustomer: false,
-  isSupplier: false,
-  salespersonId: '',
-  gstTreatment: '',
-  gstin: '',
-  pan: '',
-  countryCode: '',
-};
-
-const GST_TREATMENT_OPTIONS = [
-  { value: '', label: 'Select GST Treatment' },
-  { value: 'Registered Business - Regular', label: 'Registered Business - Regular' },
-  { value: 'Registered Business - Composition', label: 'Registered Business - Composition' },
-  { value: 'Unregistered Business', label: 'Unregistered Business' },
-  { value: 'Consumer', label: 'Consumer' },
-  { value: 'Overseas', label: 'Overseas' },
-  { value: 'Special Economic Zone', label: 'Special Economic Zone' },
-  { value: 'Deemed Export', label: 'Deemed Export' },
-];
-
-const TITLE_OPTIONS = ['Mr.', 'Mrs.', 'Miss', 'Ms.', 'Dr.', 'Prof.'];
-
-function NewContactModal({ show, onClose, onSaved, orgSlug, companies, tags, salespersons, companyCountry = 'IN' }) {
-  const modalRef = useRef(null);
-  const { showToast } = useToast();
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (show) {
-      setForm(EMPTY_FORM);
-      setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
-    }
-  }, [show]);
-
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const toggleTag = (tagId) => {
-    setForm((prev) => ({
-      ...prev,
-      tags: prev.tags.includes(tagId)
-        ? prev.tags.filter((t) => t !== tagId)
-        : [...prev.tags, tagId],
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-
-    // Tax field validation — country-aware
-    if (companyCountry === 'IN') {
-      if (form.gstin.trim() && (form.gstin.trim().length !== 15 || !/^[0-9A-Z]{15}$/.test(form.gstin.trim()))) {
-        showToast('GSTIN must be exactly 15 alphanumeric characters', 'error'); return;
-      }
-      if (form.pan.trim() && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(form.pan.trim())) {
-        showToast('PAN must be in format ABCDE1234F', 'error'); return;
-      }
-    }
-    if (form.countryCode.trim() && !/^[A-Z]{2}$/.test(form.countryCode.trim())) {
-      showToast('Country code must be a 2-letter ISO code (e.g., IN)', 'error'); return;
-    }
-
-    try {
-      setSaving(true);
-      const payload = {
-        type: form.type,
-        title: form.title,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        mobile: form.mobile.trim(),
-        website: form.website.trim(),
-        jobTitle: form.type === 'individual' ? form.jobTitle.trim() : '',
-        parentCompanyId: form.type === 'individual' ? form.parentCompany : '',
-        address: {
-          street: form.street.trim(),
-          street2: form.street2.trim(),
-          city: form.city.trim(),
-          state: form.state.trim(),
-          zip: form.zip.trim(),
-          country: form.country.trim(),
-        },
-        tags: form.tags,
-        internalNotes: form.notes.trim(),
-        isCustomer: form.isCustomer,
-        isSupplier: form.isSupplier,
-        salespersonId: form.salespersonId || '',
-        gstTreatment: form.gstTreatment,
-        gstin: form.gstin.trim(),
-        pan: form.pan.trim(),
-        countryCode: form.countryCode.trim(),
-      };
-      const res = await contactsApi.create(orgSlug, payload);
-      if (res.success) {
-        showToast('Contact created');
-        onSaved();
-        onClose();
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to create contact', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!show) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="contact-modal-title"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg my-8"
-      >
-        {/* Modal header */}
-        <div className="flex items-center justify-between mb-5">
-          <h3 id="contact-modal-title" className="text-lg font-semibold text-white">
-            New Contact
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-dark-400 hover:text-white transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Type toggle */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1.5">Type</label>
-            <div className="flex gap-2">
-              {['individual', 'company'].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => handleChange('type', t)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    form.type === t
-                      ? 'bg-rivvra-500/10 border border-rivvra-500/30 text-rivvra-400'
-                      : 'bg-dark-700 border border-dark-600 text-dark-300 hover:text-white'
-                  }`}
-                >
-                  {t === 'company' ? <Building2 size={14} /> : <User size={14} />}
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Title & Name */}
-          <div className="grid grid-cols-[100px_1fr] gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Title</label>
-              <select
-                value={form.title}
-                onChange={(e) => handleChange('title', e.target.value)}
-                className="input-field"
-              >
-                <option value="">--</option>
-                {TITLE_OPTIONS.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">
-                Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                placeholder={form.type === 'company' ? 'Company name' : 'Full name'}
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Email & Phone row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => handleChange('email', e.target.value)}
-                placeholder="email@example.com"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Phone</label>
-              <input
-                type="text"
-                value={form.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder="+1 234 567 8900"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Mobile & Website row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Mobile</label>
-              <input
-                type="text"
-                value={form.mobile}
-                onChange={(e) => handleChange('mobile', e.target.value)}
-                placeholder="Mobile number"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Website</label>
-              <input
-                type="text"
-                value={form.website}
-                onChange={(e) => handleChange('website', e.target.value)}
-                placeholder="https://..."
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Individual-only fields */}
-          {form.type === 'individual' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Job Title</label>
-                <input
-                  type="text"
-                  value={form.jobTitle}
-                  onChange={(e) => handleChange('jobTitle', e.target.value)}
-                  placeholder="e.g. Software Engineer"
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Company</label>
-                <select
-                  value={form.parentCompany}
-                  onChange={(e) => handleChange('parentCompany', e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">No company</option>
-                  {companies.map((c) => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-
-          {/* Address */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Address</label>
-            <input
-              type="text"
-              value={form.street}
-              onChange={(e) => handleChange('street', e.target.value)}
-              placeholder="Street"
-              className="input-field mb-2"
-            />
-            <input
-              type="text"
-              value={form.street2}
-              onChange={(e) => handleChange('street2', e.target.value)}
-              placeholder="Street 2 (Apt, Suite, Floor)"
-              className="input-field mb-2"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => handleChange('city', e.target.value)}
-                placeholder="City"
-                className="input-field"
-              />
-              <input
-                type="text"
-                value={form.state}
-                onChange={(e) => handleChange('state', e.target.value)}
-                placeholder="State"
-                className="input-field"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <input
-                type="text"
-                value={form.zip}
-                onChange={(e) => handleChange('zip', e.target.value)}
-                placeholder="ZIP"
-                className="input-field"
-              />
-              <input
-                type="text"
-                value={form.country}
-                onChange={(e) => handleChange('country', e.target.value)}
-                placeholder="Country"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Tags multi-select */}
-          {tags.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1.5">Tags</label>
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map((tag) => (
-                  <button
-                    key={tag._id}
-                    type="button"
-                    onClick={() => toggleTag(tag._id)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                      form.tags.includes(tag._id)
-                        ? 'bg-rivvra-500/20 text-rivvra-400 border border-rivvra-500/30'
-                        : 'bg-dark-700 text-dark-400 border border-dark-600 hover:text-dark-200'
-                    }`}
-                  >
-                    {tag.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Classification */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1.5">Classification</label>
-            <div className="space-y-3">
-              {/* Salesperson */}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">Salesperson</label>
-                <select
-                  value={form.salespersonId}
-                  onChange={(e) => handleChange('salespersonId', e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">No salesperson</option>
-                  {salespersons.map((sp) => (
-                    <option key={sp._id} value={sp._id}>{sp.name}</option>
-                  ))}
-                </select>
-              </div>
-              {/* Customer / Supplier toggles */}
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.isCustomer}
-                    onChange={(e) => handleChange('isCustomer', e.target.checked)}
-                    className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500 focus:ring-offset-0"
-                  />
-                  <span className="text-sm text-dark-300">Customer</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.isSupplier}
-                    onChange={(e) => handleChange('isSupplier', e.target.checked)}
-                    className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500 focus:ring-offset-0"
-                  />
-                  <span className="text-sm text-dark-300">Supplier</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Tax Information — country-aware */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1.5">Tax Information</label>
-            <div className="space-y-3">
-              {/* India-specific */}
-              {companyCountry === 'IN' && (
-                <>
-                  <div>
-                    <label className="block text-xs text-dark-400 mb-1">GST Treatment</label>
-                    <select
-                      value={form.gstTreatment}
-                      onChange={(e) => handleChange('gstTreatment', e.target.value)}
-                      className="input-field"
-                    >
-                      {GST_TREATMENT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-dark-400 mb-1">GSTIN</label>
-                      <input type="text" value={form.gstin} onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())} placeholder="29AALCR0152L1Z2" maxLength={15} className="input-field" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-dark-400 mb-1">PAN</label>
-                      <input type="text" value={form.pan} onChange={(e) => handleChange('pan', e.target.value.toUpperCase())} placeholder="AALCR0152L" maxLength={10} className="input-field" />
-                    </div>
-                  </div>
-                </>
-              )}
-              {/* US-specific */}
-              {companyCountry === 'US' && (
-                <div>
-                  <label className="block text-xs text-dark-400 mb-1">Tax ID (EIN)</label>
-                  <input type="text" value={form.gstin} onChange={(e) => handleChange('gstin', e.target.value)} placeholder="XX-XXXXXXX" className="input-field" />
-                </div>
-              )}
-              {/* Canada-specific */}
-              {companyCountry === 'CA' && (
-                <div>
-                  <label className="block text-xs text-dark-400 mb-1">GST/HST Number</label>
-                  <input type="text" value={form.gstin} onChange={(e) => handleChange('gstin', e.target.value)} placeholder="123456789 RT0001" className="input-field" />
-                </div>
-              )}
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">Country Code</label>
-                <input
-                  type="text"
-                  value={form.countryCode}
-                  onChange={(e) => handleChange('countryCode', e.target.value.toUpperCase())}
-                  placeholder={companyCountry || 'IN'}
-                  maxLength={2}
-                  className="input-field w-20"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {saving && <Loader2 size={16} className="animate-spin" />}
-              Create Contact
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function ContactsList({ filterType }) {
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
-  const { companyCountry } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -566,12 +81,8 @@ export default function ContactsList({ filterType }) {
   const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
-  const [companies, setCompanies] = useState([]);
   const [tags, setTags] = useState([]);
   const [salespersons, setSalespersons] = useState([]);
-
-  // Modal
-  const [showModal, setShowModal] = useState(false);
 
   const debounceRef = useRef(null);
   const isAdmin = getAppRole('contacts') === 'admin';
@@ -580,18 +91,16 @@ export default function ContactsList({ filterType }) {
   // Active filter count
   const activeFilterCount = [typeFilter, tagFilter, salespersonFilter].filter(Boolean).length;
 
-  // ── Fetch companies + tags once ─────────────────────────────────────
+  // ── Fetch tags + salespersons once ──────────────────────────────────
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
 
     Promise.all([
-      contactsApi.listCompanies(orgSlug).catch(() => ({ success: false })),
       contactsApi.listTags(orgSlug).catch(() => ({ success: false })),
       contactsApi.listSalespersons(orgSlug).catch(() => ({ success: false })),
-    ]).then(([compRes, tagRes, spRes]) => {
+    ]).then(([tagRes, spRes]) => {
       if (cancelled) return;
-      if (compRes.success) setCompanies(compRes.companies || []);
       if (tagRes.success) setTags(tagRes.tags || []);
       if (spRes.success) setSalespersons(spRes.salespersons || []);
     });
@@ -606,6 +115,7 @@ export default function ContactsList({ filterType }) {
     try {
       const res = await contactsApi.list(orgSlug, {
         page: params.page || page,
+        limit: PAGE_SIZE,
         search: params.search !== undefined ? params.search : search,
         type: params.type !== undefined ? params.type : typeFilter,
         tag: params.tag !== undefined ? params.tag : tagFilter,
@@ -695,8 +205,8 @@ export default function ContactsList({ filterType }) {
   ];
 
   // Pagination
-  const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
-  const pageEnd = Math.min(page * 20, total);
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -835,14 +345,34 @@ export default function ContactsList({ filterType }) {
                         </div>
                       </td>
 
-                      {/* Email */}
+                      {/* Email — mailto link so the row click doesn't hijack it */}
                       <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
-                        <span className="truncate block max-w-[200px]">{contact.email || '\u2014'}</span>
+                        {contact.email ? (
+                          <a
+                            href={`mailto:${contact.email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="truncate block max-w-[200px] hover:text-rivvra-400 transition-colors"
+                          >
+                            {contact.email}
+                          </a>
+                        ) : (
+                          <span className="text-dark-600">{'\u2014'}</span>
+                        )}
                       </td>
 
-                      {/* Phone */}
+                      {/* Phone — tel link */}
                       <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                        {contact.phone || '\u2014'}
+                        {contact.phone ? (
+                          <a
+                            href={`tel:${contact.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-rivvra-400 transition-colors"
+                          >
+                            {contact.phone}
+                          </a>
+                        ) : (
+                          <span className="text-dark-600">{'\u2014'}</span>
+                        )}
                       </td>
 
                       {/* Type badge + Customer/Supplier */}
@@ -912,7 +442,7 @@ export default function ContactsList({ filterType }) {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
-                Showing {pageStart}\u2013{pageEnd} of {total}
+                Showing {pageStart}{'\u2013'}{pageEnd} of {total}
               </p>
               <div className="flex items-center gap-1">
                 <button
@@ -962,18 +492,6 @@ export default function ContactsList({ filterType }) {
           )}
         </>
       )}
-
-      {/* New Contact Modal */}
-      <NewContactModal
-        show={showModal}
-        onClose={() => setShowModal(false)}
-        onSaved={() => fetchContacts({ page: 1 })}
-        orgSlug={orgSlug}
-        companies={companies}
-        tags={tags}
-        salespersons={salespersons}
-        companyCountry={companyCountry}
-      />
     </div>
   );
 }
