@@ -66,7 +66,7 @@ function Badge({ children, className }) {
 function NotFoundRedirect({ orgPath, showToast }) {
   const navigate = useNavigate();
   useEffect(() => {
-    showToast('Contact not available in the current company', 'error');
+    showToast('Contact not found', 'error');
     navigate(orgPath('/contacts/list'), { replace: true });
   }, [navigate, orgPath, showToast]);
   return (
@@ -531,10 +531,6 @@ export default function ContactDetail() {
   }
 
   // -- 404 state --------------------------------------------------------------
-  // A common trigger is the user switching companies from the TopBar: the app
-  // reloads with the same URL but this contact lives under a different company
-  // scope, so the fetch 404s. Bounce to the list so they aren't stuck on a
-  // dead page, and show a toast that matches the likely cause.
   if (notFound || !contact) {
     return <NotFoundRedirect orgPath={orgPath} showToast={showToast} />;
   }

@@ -20,6 +20,30 @@ import api from '../utils/api';
 
 const CompanyContext = createContext(null);
 
+// Parent paths that don't have a route at the bare segment and need a
+// canonical list path instead. e.g. `/org/x/contacts` isn't a route; the
+// list lives at `/org/x/contacts/list`.
+const DETAIL_PARENT_FALLBACKS = {
+  '/contacts': '/contacts/list',
+  '/employee': '/employee/directory',
+  '/employee/edit': '/employee/directory',
+  '/outreach/engage/edit-sequence': '/outreach/engage',
+};
+
+// Given a pathname, if it ends in an ObjectId-looking detail segment (with an
+// optional trailing `/edit`), return the parent list path. Otherwise null.
+// Used when switching companies so users don't land on a 404'd detail page
+// that belongs to the previous company scope.
+export function stripDetailIdFromPath(pathname) {
+  const cleaned = pathname.replace(/\/[a-f0-9]{24}(?:\/edit)?\/?$/i, '');
+  if (cleaned === pathname) return null;
+  const orgMatch = cleaned.match(/^(\/org\/[^/]+)(\/.*)?$/);
+  if (!orgMatch) return cleaned;
+  const suffix = orgMatch[2] || '';
+  const fallback = DETAIL_PARENT_FALLBACKS[suffix];
+  return fallback ? orgMatch[1] + fallback : cleaned;
+}
+
 export function CompanyProvider({ children }) {
   const { currentOrg, membership } = useOrg();
   const { orgSlug: platformOrgSlug } = usePlatform();
@@ -99,8 +123,16 @@ export function CompanyProvider({ children }) {
 
       if (res.success) {
         setCurrentCompanyId(String(companyId));
-        // Force page reload to refetch all data with new company context
-        window.location.reload();
+        // Force navigation to refetch all data with new company context.
+        // If we're on a company-scoped detail page (/.../:id or /.../:id/edit),
+        // the new company doesn't own that record, so a plain reload would
+        // 404. Strip the ID segment and land on the parent list instead.
+        const safePath = stripDetailIdFromPath(window.location.pathname);
+        if (safePath) {
+          window.location.href = safePath;
+        } else {
+          window.location.reload();
+        }
       } else {
         console.error('switchCompany: API returned failure', res);
         setSwitching(false);
