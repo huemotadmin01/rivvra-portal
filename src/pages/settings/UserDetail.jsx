@@ -811,41 +811,21 @@ export default function UserDetail() {
                     })}
                   </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] text-dark-400 mb-1">Default Company</label>
-                  <span className="text-xs text-white">
-                    {(() => {
-                      const currentId = member.currentCompanyId?.toString ? member.currentCompanyId.toString() : member.currentCompanyId;
-                      const company = allCompanies.find(c => (c._id?.toString ? c._id.toString() : c._id) === currentId);
-                      return company?.name || 'Not set';
-                    })()}
-                  </span>
-                </div>
               </div>
             ) : (
-              <>
-                <InfoRow
-                  label="Allowed"
-                  value={
-                    <div className="flex flex-wrap gap-1">
-                      {allCompanies.filter(c => {
-                        const memberAllowed = (member.allowedCompanyIds || []).map(id => id?.toString ? id.toString() : id);
-                        return memberAllowed.includes(c._id?.toString ? c._id.toString() : c._id);
-                      }).map(c => (
-                        <Badge key={c._id} className="bg-dark-700/50 text-dark-300 border border-dark-600 text-[10px]">{c.name}</Badge>
-                      ))}
-                    </div>
-                  }
-                />
-                <InfoRow
-                  label="Default"
-                  value={(() => {
-                    const currentId = member.currentCompanyId?.toString ? member.currentCompanyId.toString() : member.currentCompanyId;
-                    const company = allCompanies.find(c => (c._id?.toString ? c._id.toString() : c._id) === currentId);
-                    return company?.name || 'Not set';
-                  })()}
-                />
-              </>
+              <InfoRow
+                label="Allowed"
+                value={
+                  <div className="flex flex-wrap gap-1">
+                    {allCompanies.filter(c => {
+                      const memberAllowed = (member.allowedCompanyIds || []).map(id => id?.toString ? id.toString() : id);
+                      return memberAllowed.includes(c._id?.toString ? c._id.toString() : c._id);
+                    }).map(c => (
+                      <Badge key={c._id} className="bg-dark-700/50 text-dark-300 border border-dark-600 text-[10px]">{c.name}</Badge>
+                    ))}
+                  </div>
+                }
+              />
             )}
           </SectionCard>
         )}
