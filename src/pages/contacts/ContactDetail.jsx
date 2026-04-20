@@ -8,6 +8,7 @@ import contactsApi from '../../utils/contactsApi';
 import invoicingApi from '../../utils/invoicingApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import RecordMeta from '../../components/shared/RecordMeta';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
@@ -86,13 +87,6 @@ function SectionCard({ title, icon: Icon, children }) {
       {children}
     </div>
   );
-}
-
-function formatUpdatedAt(iso) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // ---------------------------------------------------------------------------
@@ -909,10 +903,14 @@ export default function ContactDetail() {
                     )}
                   </div>
                 )}
-                {!isCreateMode && contact.updatedAt && (
-                  <p className="text-[11px] text-dark-500 mt-3">
-                    Updated {formatUpdatedAt(contact.updatedAt)}
-                  </p>
+                {!isCreateMode && (
+                  <RecordMeta
+                    className="mt-3"
+                    createdAt={contact.createdAt}
+                    createdByName={contact.createdByName}
+                    updatedAt={contact.updatedAt}
+                    updatedByName={contact.updatedByName}
+                  />
                 )}
               </div>
 
