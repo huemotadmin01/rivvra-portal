@@ -12,6 +12,7 @@ import OrgRedirect from './components/OrgRedirect';
 import AppAccessGate from './components/AppAccessGate';
 import AppRoleGate from './components/AppRoleGate';
 import ESSCompanyGate from './components/ESSCompanyGate';
+import CountryGate from './components/CountryGate';
 import OrgAdminGate from './components/OrgAdminGate';
 import { Loader2 } from 'lucide-react';
 
@@ -329,8 +330,9 @@ function App() {
                 <Route path="/org/:slug/settings/invoicing" element={<SettingsPageWrapper><SettingsInvoicing /></SettingsPageWrapper>} />
               </Route>
 
-              {/* Timesheet (ESS) app routes — gated by timesheet access + company match */}
+              {/* Timesheet (ESS) app routes — gated by timesheet access + country (IN-only for now) + company match */}
               <Route element={<AppAccessGate appId="timesheet" />}>
+                <Route element={<CountryGate allowed={['IN']} appName="Employee Self Service" />}>
                 <Route element={<ESSCompanyGate />}>
                   <Route path="/org/:slug/timesheet/dashboard" element={<ErrorBoundary><TimesheetDashboard /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-timesheet" element={<ErrorBoundary><TimesheetEntry /></ErrorBoundary>} />
@@ -357,22 +359,25 @@ function App() {
                   <Route path="/org/:slug/timesheet/tax/declarations" element={<ErrorBoundary><MyTaxDeclarationsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/report" element={<ErrorBoundary><MyTaxReportPage /></ErrorBoundary>} />
                 </Route>
+                </Route>
               </Route>
 
-              {/* Payroll app routes — gated by payroll app admin role */}
+              {/* Payroll app routes — gated by payroll app admin role + country (IN-only for now) */}
               <Route element={<AppRoleGate appId="payroll" requiredRole="admin" />}>
-                <Route path="/org/:slug/payroll/process" element={<PayrollProcessRedirect />} />
-                <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PayrollDashboardPage /></ErrorBoundary>} />
+                <Route element={<CountryGate allowed={['IN']} appName="Payroll" />}>
+                  <Route path="/org/:slug/payroll/process" element={<PayrollProcessRedirect />} />
+                  <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PayrollDashboardPage /></ErrorBoundary>} />
 
-                <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
 
-                <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PTMasterPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/tax-reports" element={<ErrorBoundary><TaxReportsPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/settings" element={<ErrorBoundary><PayrollSettingsPage /></ErrorBoundary>} />
-                <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><FnFDashboard /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PTMasterPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/tax-reports" element={<ErrorBoundary><TaxReportsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/settings" element={<ErrorBoundary><PayrollSettingsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><FnFDashboard /></ErrorBoundary>} />
+                </Route>
               </Route>
 
               {/* Legacy payroll redirects — old /timesheet/ paths → new /payroll/ paths */}
