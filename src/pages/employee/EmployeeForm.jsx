@@ -36,7 +36,6 @@ const INITIAL_FORM = {
   separationNotes: '',
   department: '',
   designation: '',
-  monthlyGrossSalary: '',
   // Default matches backend (`employee.js` POST handler defaults `billable`
   // to true when undefined). An earlier `false` default here was the root
   // cause of "Non-billable employees require: Joining Date" firing on every
@@ -73,6 +72,13 @@ const INITIAL_FORM = {
   spouseName: '',
   religion: '',
   alternatePhone: '',
+  // Audit H5 — these fields were silently dropped on edit because they
+  // were missing from INITIAL_FORM / the loader. Now first-class.
+  privateEmail: '',
+  privatePhone: '',
+  nationality: '',
+  maritalStatus: '',
+  sourcedByEmployeeId: '',
   permanentAddress: {
     street: '',
     street2: '',
@@ -192,7 +198,6 @@ export default function EmployeeForm() {
             status: emp.status || 'active',
             department: emp.department || '',
             designation: emp.designation || '',
-            monthlyGrossSalary: emp.monthlyGrossSalary ?? '',
             billable: emp.billable || false,
             manager: emp.manager || '',
             assignments: (emp.assignments || []).map(a => {
@@ -253,6 +258,11 @@ export default function EmployeeForm() {
             spouseName: emp.spouseName || '',
             religion: emp.religion || '',
             alternatePhone: emp.alternatePhone || '',
+            privateEmail: emp.privateEmail || '',
+            privatePhone: emp.privatePhone || '',
+            nationality: emp.nationality || '',
+            maritalStatus: emp.maritalStatus || '',
+            sourcedByEmployeeId: emp.sourcedByEmployeeId || '',
             permanentAddress: {
               street: emp.permanentAddress?.street || '',
               street2: emp.permanentAddress?.street2 || '',
@@ -1032,6 +1042,77 @@ export default function EmployeeForm() {
                 className="input-field w-full"
                 placeholder="+91 98765 43210"
               />
+            </div>
+
+            {/* Private Email */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Private Email</label>
+              <input
+                type="email"
+                value={form.privateEmail}
+                onChange={(e) => setField('privateEmail', e.target.value)}
+                className="input-field w-full"
+                placeholder="personal@example.com"
+              />
+              <p className="text-xs text-dark-500 mt-1">Personal email, visible only to the employee and admins.</p>
+            </div>
+
+            {/* Private Phone */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Private Phone</label>
+              <input
+                type="text"
+                value={form.privatePhone}
+                onChange={(e) => setField('privatePhone', e.target.value)}
+                className="input-field w-full"
+                placeholder="+91 98765 43210"
+              />
+            </div>
+
+            {/* Nationality */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Nationality</label>
+              <input
+                type="text"
+                value={form.nationality}
+                onChange={(e) => setField('nationality', e.target.value)}
+                className="input-field w-full"
+                placeholder="e.g., Indian"
+              />
+            </div>
+
+            {/* Marital Status */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Marital Status</label>
+              <select
+                value={form.maritalStatus}
+                onChange={(e) => setField('maritalStatus', e.target.value)}
+                className="input-field w-full"
+              >
+                <option value="">Select Status</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="divorced">Divorced</option>
+                <option value="widowed">Widowed</option>
+              </select>
+            </div>
+
+            {/* Sourced By (referring employee) */}
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Sourced By</label>
+              <select
+                value={form.sourcedByEmployeeId}
+                onChange={(e) => setField('sourcedByEmployeeId', e.target.value)}
+                className="input-field w-full"
+              >
+                <option value="">— None —</option>
+                {managerOptions
+                  .filter(m => m._id !== employeeId)
+                  .map(m => (
+                    <option key={m._id} value={m._id}>{m.fullName}</option>
+                  ))}
+              </select>
+              <p className="text-xs text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
             </div>
           </div>
         </div>

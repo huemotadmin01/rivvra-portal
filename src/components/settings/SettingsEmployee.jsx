@@ -139,16 +139,10 @@ export default function SettingsEmployee() {
                 onChange={v => update('billableByDefault', v)}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-dark-300">Require Manager Assignment</p>
-                <p className="text-xs text-dark-500">Manager field is required when creating employees</p>
-              </div>
-              <ToggleSwitch
-                checked={settings?.requireManager ?? false}
-                onChange={v => update('requireManager', v)}
-              />
-            </div>
+            {/* Audit H7 — `requireManager` toggle was orphaned: the UI wrote
+                the flag to org settings but nothing on the client or server
+                enforced it. Removed to prevent misleading admins into
+                thinking they'd hardened a workflow they hadn't. */}
           </div>
         </div>
 

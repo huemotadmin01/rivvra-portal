@@ -247,6 +247,53 @@ export default function EmployeeDetail() {
   const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [sepForm, setSepForm] = useState({ status: '', lwd: '', reason: '', notes: '' });
   const [sepSaving, setSepSaving] = useState(false);
+  // Audit M1 — confirm modal before firing an irreversible separation.
+  const [showSeparationConfirm, setShowSeparationConfirm] = useState(false);
+  // Audit M2 — separation reasons from platform settings (not hardcoded).
+  const [separationReasons, setSeparationReasons] = useState([
+    'Better opportunity', 'Personal reasons', 'Performance',
+    'Redundancy/Layoff', 'Contract end', 'Absconding', 'Mutual agreement', 'Other',
+  ]);
+  useEffect(() => {
+    getPublicPlatformSetting('separation_reasons')
+      .then(res => { if (res?.items?.length) setSeparationReasons(res.items.map(r => r.label || r)); })
+      .catch(() => {});
+  }, []);
+
+  // Extracted so both the inline button (for scheduled exits) and the
+  // confirm modal (for actual separations) can invoke the same write.
+  const runSeparationSave = useCallback(async () => {
+    if (!employee?._id || !currentOrg?.slug) return;
+    if (!sepForm.lwd) { showToast('Last Working Date is required', 'error'); return; }
+    const effStatus = sepForm.status || 'active';
+    setSepSaving(true);
+    try {
+      const payload = {
+        status: effStatus,
+        lastWorkingDate: sepForm.lwd,
+        separationReason: sepForm.reason || 'Other',
+        separationNotes: sepForm.notes || '',
+      };
+      const res = await employeeApi.update(currentOrg.slug, employee._id, payload);
+      if (res.success) {
+        setEmployee(prev => prev ? {
+          ...prev,
+          status: effStatus,
+          lastWorkingDate: sepForm.lwd,
+          separationReason: payload.separationReason,
+          separationNotes: sepForm.notes || '',
+        } : prev);
+        showToast(effStatus === 'active' ? 'Exit scheduled' : `Employee marked as ${effStatus}`, 'success');
+        setShowSeparationConfirm(false);
+      } else {
+        showToast(res.error || res.message || 'Failed to update', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to update', 'error');
+    } finally {
+      setSepSaving(false);
+    }
+  }, [employee?._id, currentOrg?.slug, sepForm, showToast]);
 
   // Pre-fill separation form from employee record (e.g. existing scheduled exit)
   useEffect(() => {
@@ -947,8 +994,10 @@ export default function EmployeeDetail() {
         <SectionCard title="Personal Information" icon={User}>
           <InlineField label="Private Email" field="privateEmail" value={emp.privateEmail} type="email"
             editable={fp('privateEmail').editable} onSave={handleFieldSave} />
-          <InlineField label="Private Phone" field="privatePhone" value={emp.privatePhone || emp.alternatePhone} type="phone"
+          <InlineField label="Private Phone" field="privatePhone" value={emp.privatePhone} type="phone"
             editable={fp('privatePhone').editable} onSave={handleFieldSave} />
+          <InlineField label="Alternate Phone" field="alternatePhone" value={emp.alternatePhone} type="phone"
+            editable={fp('alternatePhone').editable} onSave={handleFieldSave} />
           <InlineField label="Date of Birth" field="dateOfBirth" value={emp.dateOfBirth} type="date"
             editable={fp('dateOfBirth').editable} required={fp('dateOfBirth').required} onSave={handleFieldSave} />
           <InlineField label="Gender" field="gender" value={emp.gender} type="select"
@@ -1055,49 +1104,25 @@ export default function EmployeeDetail() {
                 <select value={sepForm.reason} onChange={(e) => setSepForm(prev => ({ ...prev, reason: e.target.value }))}
                   className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white">
                   <option value="">Select reason</option>
-                  <option value="Better opportunity">Better opportunity</option>
-                  <option value="Personal reasons">Personal reasons</option>
-                  <option value="Performance">Performance</option>
-                  <option value="Redundancy/Layoff">Redundancy/Layoff</option>
-                  <option value="Contract end">Contract end</option>
-                  <option value="Absconding">Absconding</option>
-                  <option value="Mutual agreement">Mutual agreement</option>
-                  <option value="Other">Other</option>
+                  {separationReasons.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex items-end">
                 <button
                   disabled={!sepForm.lwd || sepSaving}
-                      onClick={async () => {
-                        if (!sepForm.lwd) { showToast('Last Working Date is required', 'error'); return; }
-                        setSepSaving(true);
-                        try {
-                          const payload = {
-                            status: effStatus,
-                            lastWorkingDate: sepForm.lwd,
-                            separationReason: sepForm.reason || 'Other',
-                            separationNotes: sepForm.notes || '',
-                          };
-                          const res = await employeeApi.update(currentOrg.slug, emp._id, payload);
-                          if (res.success) {
-                            setEmployee(prev => prev ? {
-                              ...prev,
-                              status: effStatus,
-                              lastWorkingDate: sepForm.lwd,
-                              separationReason: payload.separationReason || 'Other',
-                              separationNotes: sepForm.notes || '',
-                            } : prev);
-                            showToast(effStatus === 'active' ? 'Exit scheduled' : `Employee marked as ${effStatus}`, 'success');
-                          } else {
-                            showToast(res.error || res.message || 'Failed to update', 'error');
-                          }
-                        } catch (err) {
-                          console.error('Separation error:', err);
-                          showToast(err.message || 'Failed to update', 'error');
-                        } finally {
-                          setSepSaving(false);
-                        }
-                      }}
+                  onClick={() => {
+                    if (!sepForm.lwd) { showToast('Last Working Date is required', 'error'); return; }
+                    // Audit M1 — destructive flow gated behind a confirm
+                    // modal. Scheduled exits (status still `active`) go
+                    // through without the modal since they're reversible.
+                    if (effStatus === 'active') {
+                      runSeparationSave();
+                    } else {
+                      setShowSeparationConfirm(true);
+                    }
+                  }}
                   className={`px-4 py-2 border rounded-lg text-sm font-medium disabled:opacity-40 flex items-center gap-2 ${
                     effStatus === 'active'
                       ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
@@ -1768,6 +1793,47 @@ export default function EmployeeDetail() {
       <div className="mt-5">
         <PlanProgress employeeId={emp._id} isAdmin={isAdmin} />
       </div>
+
+      {/* ── Separation Confirm Modal (audit M1) ──────────────────────── */}
+      {showSeparationConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => !sepSaving && setShowSeparationConfirm(false)}>
+          <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-red-500/30 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={18} className="text-red-400" />
+              <h3 className="text-white font-semibold text-lg">Confirm Separation</h3>
+            </div>
+            <p className="text-dark-300 text-sm mb-2">
+              Mark <span className="text-white font-medium">{emp.fullName}</span> as <span className="text-red-400 font-medium">{sepForm.status}</span>?
+            </p>
+            <ul className="text-xs text-dark-400 space-y-1 mb-4 list-disc list-inside">
+              <li>All active assignments will be ended.</li>
+              {emp.linkedUserId && <li>Linked portal user will be unlinked and timesheet access blocked.</li>}
+              <li>Last working date: <span className="text-white">{sepForm.lwd || '—'}</span></li>
+              {sepForm.reason && <li>Reason: <span className="text-white">{sepForm.reason}</span></li>}
+            </ul>
+            <p className="text-xs text-amber-400/80 mb-4">
+              This cannot be fully undone — you can only revert to active state by re-activating the record.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={sepSaving}
+                onClick={() => setShowSeparationConfirm(false)}
+                className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors disabled:opacity-40"
+              >Cancel</button>
+              <button
+                type="button"
+                disabled={sepSaving}
+                onClick={runSeparationSave}
+                className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-40"
+              >
+                {sepSaving && <Loader2 size={14} className="animate-spin" />}
+                Confirm Separation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Employment Type Prompt Modal ─────────────────────────────── */}
       {showEmpTypePrompt && (

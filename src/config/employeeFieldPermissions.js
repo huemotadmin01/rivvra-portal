@@ -23,6 +23,7 @@ const FIELD_PERMISSIONS = {
   // Personal Information
   privateEmail:       { admin: true, manager: false, self: true },
   privatePhone:       { admin: true, manager: false, self: true },
+  alternatePhone:     { admin: true, manager: false, self: true },
   dateOfBirth:        { admin: true, manager: false, self: true },
   gender:             { admin: true, manager: false, self: true },
   bloodGroup:         { admin: true, manager: false, self: true },
@@ -68,8 +69,10 @@ const FIELD_PERMISSIONS = {
 // the first place threw a bogus "required" error.
 //
 // If your org wants to enforce tighter-than-backend rules, do it with a
-// separate per-org settings flag (see the orphaned `settings.requireManager`
-// hook) rather than silently hard-coding requirements on the client.
+// separate per-org settings flag wired into both client validators AND the
+// server-side validator — not silently hard-coded on the client. The old
+// `settings.requireManager` orphan was removed in audit H7 because it
+// wrote to settings but nothing read it.
 const REQUIRED_FIELDS = new Set([
   'email',
   // joiningDate is conditionally required (only when billable=false); the
