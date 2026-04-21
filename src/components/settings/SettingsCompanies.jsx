@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -75,6 +76,12 @@ export default function SettingsCompanies() {
   const { refreshCompanies } = useCompany();
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
+  // URL-driven selection: /settings/companies (list) | /settings/companies/new
+  // (create) | /settings/companies/:companyId (edit a specific record). The
+  // state below is still the source of truth for rendering; these two hooks
+  // keep URL + state in lockstep.
+  const { companyId: routeCompanyId } = useParams();
+  const navigate = useNavigate();
 
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,42 +177,73 @@ export default function SettingsCompanies() {
 
   // ─── Navigation ────────────────────────────────────────────────────────────
 
-  const openCreate = () => {
-    setSelectedCompany(null);
-    setSelectedIndex(-1);
-    setIsCreating(true);
-    setForm(EMPTY_FORM);
-    setActiveTab('general');
-  };
-
-  const openDetail = (company, index) => {
+  // applyDetail() mutates local state only — used both by direct user clicks
+  // (via openDetail) and by the URL-sync effect below to avoid circular nav.
+  const applyDetail = useCallback((company, index) => {
     setIsCreating(false);
     setSelectedCompany(company);
     setSelectedIndex(index);
     populateForm(company);
     setActiveTab('general');
+  }, []);
+
+  const openCreate = () => {
+    navigate(`/org/${orgSlug}/settings/companies/new`);
+  };
+
+  const openDetail = (company /* , index (re-derived from list) */) => {
+    if (!company?._id) return;
+    navigate(`/org/${orgSlug}/settings/companies/${company._id}`);
   };
 
   const goBack = () => {
-    setSelectedCompany(null);
-    setSelectedIndex(-1);
-    setIsCreating(false);
-    setForm(EMPTY_FORM);
+    navigate(`/org/${orgSlug}/settings/companies`);
   };
 
   const navigatePrev = () => {
     if (selectedIndex > 0) {
       const prev = companies[selectedIndex - 1];
-      openDetail(prev, selectedIndex - 1);
+      openDetail(prev);
     }
   };
 
   const navigateNext = () => {
     if (selectedIndex < companies.length - 1) {
       const next = companies[selectedIndex + 1];
-      openDetail(next, selectedIndex + 1);
+      openDetail(next);
     }
   };
+
+  // ─── URL → state sync ──────────────────────────────────────────────────────
+  // Whenever the URL param changes (deep link, back/forward, or after our
+  // own navigate()), realign local state. Runs once companies have loaded so
+  // we can resolve a companyId to its list entry.
+  useEffect(() => {
+    if (loading) return;
+    if (routeCompanyId === 'new') {
+      setSelectedCompany(null);
+      setSelectedIndex(-1);
+      setIsCreating(true);
+      setForm(EMPTY_FORM);
+      setActiveTab('general');
+      return;
+    }
+    if (routeCompanyId) {
+      const idx = companies.findIndex((c) => c._id === routeCompanyId);
+      if (idx >= 0) {
+        applyDetail(companies[idx], idx);
+      } else if (companies.length > 0) {
+        // URL points to a companyId we don't have — bounce to the list.
+        navigate(`/org/${orgSlug}/settings/companies`, { replace: true });
+      }
+      return;
+    }
+    // No route param: list view.
+    setSelectedCompany(null);
+    setSelectedIndex(-1);
+    setIsCreating(false);
+    setForm(EMPTY_FORM);
+  }, [routeCompanyId, companies, loading, orgSlug, navigate, applyDetail]);
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -231,10 +269,10 @@ export default function SettingsCompanies() {
 
       if (res.success) {
         showToast(selectedCompany ? 'Company updated' : 'Company created');
-        if (!selectedCompany && res.company) {
-          setIsCreating(false);
-          setSelectedCompany(res.company);
-          populateForm(res.company);
+        if (!selectedCompany && res.company?._id) {
+          // Created: jump to the canonical detail URL for the new record
+          // so the URL and state agree (and refresh works).
+          navigate(`/org/${orgSlug}/settings/companies/${res.company._id}`, { replace: true });
         }
         fetchCompanies();
         refreshCompanies();
