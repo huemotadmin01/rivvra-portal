@@ -37,7 +37,11 @@ const INITIAL_FORM = {
   department: '',
   designation: '',
   monthlyGrossSalary: '',
-  billable: false,
+  // Default matches backend (`employee.js` POST handler defaults `billable`
+  // to true when undefined). An earlier `false` default here was the root
+  // cause of "Non-billable employees require: Joining Date" firing on every
+  // new-record save — see audit H1.
+  billable: true,
   manager: '',
   assignments: [],
   joiningDate: '',
@@ -427,8 +431,12 @@ export default function EmployeeForm() {
     });
   };
 
-  // Update a nested field inside an assignment (e.g. billingRate.daily)
-  // For rate groups (billingRate, clientBillingRate): only one field at a time
+  // Update a nested field inside an assignment (e.g. billingRate.daily).
+  // For rate groups (billingRate, clientBillingRate) the UI treats "daily
+  // OR hourly OR monthly" as mutually exclusive — BUT we only clear the
+  // other two on the transition from empty→non-empty, so editing a value
+  // the user already entered doesn't silently wipe a paste into a sibling
+  // field (audit M3).
   const updateAssignmentNested = (idx, group, field, value) => {
     const isRateGroup = group === 'billingRate' || group === 'clientBillingRate';
     setForm(prev => ({
@@ -436,8 +444,15 @@ export default function EmployeeForm() {
       assignments: prev.assignments.map((a, i) => {
         if (i !== idx) return a;
         if (isRateGroup) {
-          // Clear other rate fields when one is set
-          return { ...a, [group]: { daily: '', hourly: '', monthly: '', [field]: value } };
+          const existing = a[group] || {};
+          const wasEmpty = !existing[field];
+          const becomingNonEmpty = value !== '' && value != null;
+          // Only wipe siblings on the empty→non-empty transition. Editing an
+          // already-filled rate just updates that one field.
+          if (wasEmpty && becomingNonEmpty) {
+            return { ...a, [group]: { daily: '', hourly: '', monthly: '', [field]: value } };
+          }
+          return { ...a, [group]: { ...existing, [field]: value } };
         }
         return { ...a, [group]: { ...a[group], [field]: value } };
       }),
@@ -511,9 +526,11 @@ export default function EmployeeForm() {
       return false;
     }
 
-    // Joining date is required for all employees
-    if (!form.joiningDate) {
-      setError('Joining Date is required.');
+    // Joining date is only required for NON-billable employees (match
+    // backend behaviour at employee.js:703-708). Billable consultants
+    // often don't have a joining date yet at create time.
+    if (!form.billable && !form.joiningDate) {
+      setError('Joining Date is required for non-billable employees.');
       return false;
     }
 

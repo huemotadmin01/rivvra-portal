@@ -58,9 +58,23 @@ const FIELD_PERMISSIONS = {
   'statutory.esicNumber': { admin: true, manager: false, self: false },
 };
 
+// Fields the BACKEND hard-requires. The audit (H3) found this set had
+// drifted far wider than the server's actual contract — it listed 10
+// fields as required while employee.js only enforces `fullName` + `email`
+// (+ conditional `joiningDate` when non-billable, and `lastWorkingDate` +
+// `separationReason` during status change). The old overreach meant a
+// founder-level employee with no manager could never have `manager`
+// cleared via InlineField, and blanking a DOB that was never required in
+// the first place threw a bogus "required" error.
+//
+// If your org wants to enforce tighter-than-backend rules, do it with a
+// separate per-org settings flag (see the orphaned `settings.requireManager`
+// hook) rather than silently hard-coding requirements on the client.
 const REQUIRED_FIELDS = new Set([
-  'employeeId', 'email', 'department', 'joiningDate', 'manager',
-  'phone', 'dateOfBirth', 'gender', 'fatherName', 'bankDetails.pan',
+  'email',
+  // joiningDate is conditionally required (only when billable=false); the
+  // inline-edit flow doesn't toggle billable, so enforcement of this edge
+  // stays server-side.
 ]);
 
 /**

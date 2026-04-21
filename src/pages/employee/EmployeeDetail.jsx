@@ -689,10 +689,6 @@ export default function EmployeeDetail() {
   const emergency = emp.emergencyContact || {};
   const bank = emp.bankDetails || {};
 
-  const addressLines = [addr.street, addr.street2, addr.city, addr.state, addr.zip, addr.country]
-    .filter(Boolean)
-    .join(', ');
-
   const hasBankData = bank.accountNumber || bank.ifsc || bank.pan || bank.bankName;
 
   const maskedAccount = bank.accountNumber
@@ -976,9 +972,22 @@ export default function EmployeeDetail() {
             editable={fp('religion').editable} onSave={handleFieldSave} />
         </SectionCard>
 
-        {/* Address */}
+        {/* Address — six inline-editable rows matching FIELD_PERMISSIONS
+            entries. Was a read-only InfoRow before; that blocked self-
+            service users from updating their own address (audit H6). */}
         <SectionCard title="Address" icon={MapPin}>
-          <InfoRow label="Full Address" value={addressLines || null} />
+          <InlineField label="Street" field="address.street" value={addr.street}
+            editable={fp('address.street').editable} onSave={handleFieldSave} />
+          <InlineField label="Street 2" field="address.street2" value={addr.street2}
+            editable={fp('address.street2').editable} onSave={handleFieldSave} />
+          <InlineField label="City" field="address.city" value={addr.city}
+            editable={fp('address.city').editable} onSave={handleFieldSave} />
+          <InlineField label="State" field="address.state" value={addr.state}
+            editable={fp('address.state').editable} onSave={handleFieldSave} />
+          <InlineField label="Zip" field="address.zip" value={addr.zip}
+            editable={fp('address.zip').editable} onSave={handleFieldSave} />
+          <InlineField label="Country" field="address.country" value={addr.country}
+            editable={fp('address.country').editable} onSave={handleFieldSave} />
         </SectionCard>
 
         {/* Emergency Contact */}
@@ -1069,9 +1078,7 @@ export default function EmployeeDetail() {
                             separationReason: sepForm.reason || 'Other',
                             separationNotes: sepForm.notes || '',
                           };
-                          console.log('Separation payload:', payload);
                           const res = await employeeApi.update(currentOrg.slug, emp._id, payload);
-                          console.log('Separation response:', res);
                           if (res.success) {
                             setEmployee(prev => prev ? {
                               ...prev,

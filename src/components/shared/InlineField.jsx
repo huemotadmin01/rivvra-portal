@@ -76,15 +76,41 @@ export default function InlineField({
   }, []);
 
   const save = useCallback(async (val) => {
-    const newVal = typeof val === 'string' ? val.trim() : val;
-    // Skip if unchanged
-    const oldVal = value ?? '';
-    if (String(newVal) === String(oldVal)) {
-      setStatus('idle');
-      return;
+    let newVal = typeof val === 'string' ? val.trim() : val;
+
+    // Normalize for equality check. Dates are the tricky case: the input
+    // gives us `"2026-04-21"` but `value` from the API is the ISO string
+    // `"2026-04-21T00:00:00.000Z"`. A naive String() compare marks every
+    // blur as a change and fires a no-op PUT (audit H4). Collapse both
+    // sides to YYYY-MM-DD for the comparison, and send `null` (not `""`)
+    // when clearing — matches what the backend stores.
+    if (type === 'date') {
+      if (newVal === '' || newVal == null) {
+        newVal = null;
+      }
+      const toYMD = (v) => {
+        if (v == null || v === '') return '';
+        const s = String(v);
+        const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+        const d = new Date(s);
+        if (Number.isNaN(d.getTime())) return '';
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+      };
+      if (toYMD(newVal) === toYMD(value)) {
+        setStatus('idle');
+        return;
+      }
+    } else {
+      const oldVal = value ?? '';
+      if (String(newVal) === String(oldVal)) {
+        setStatus('idle');
+        return;
+      }
     }
-    // Required validation
-    if (required && !newVal) {
+
+    // Required validation — treat `null` and empty string as blank.
+    if (required && (newVal === '' || newVal == null)) {
       setErrMsg(`${label} is required`);
       setStatus('error');
       return;
@@ -98,7 +124,7 @@ export default function InlineField({
       setErrMsg(err?.message || 'Failed to save');
       setStatus('error');
     }
-  }, [value, required, label, field, onSave]);
+  }, [value, required, label, field, type, onSave]);
 
   const handleBlur = useCallback(() => {
     if (skipBlurRef.current) { skipBlurRef.current = false; return; }
