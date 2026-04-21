@@ -116,6 +116,7 @@ const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
+const EmployeeQuickCreate = lazy(() => import('./pages/employee/EmployeeQuickCreate'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
 const PlanTemplates = lazy(() => import('./pages/employee/PlanTemplates'));
 const AssetList = lazy(() => import('./pages/employee/AssetList'));
@@ -402,7 +403,12 @@ function App() {
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
                 {/* Add/Edit/Plan Templates require employee admin role */}
                 <Route element={<AppRoleGate appId="employee" requiredRole="admin" />}>
-                  <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                  {/* /employee/add now uses the Odoo-style quick-create flow:
+                      minimal fields → POST → redirect to the inline-editable
+                      EmployeeDetail page. EmployeeForm stays wired to
+                      /employee/edit/:id until EmployeeDetail absorbs all
+                      remaining edit affordances. */}
+                  <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeQuickCreate /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PlanTemplates /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/assets/types" element={<ErrorBoundary><AssetTypeConfig /></ErrorBoundary>} />
