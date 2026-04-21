@@ -1580,7 +1580,9 @@ export default function EmployeeForm() {
         {/* ── Address ───────────────────────────────────────────────── */}
         {/* Labels + placeholders + zip hint come from the record's own
             country via utils/addressLocale — NOT the company switcher.
-            See addressLocale.js header for rationale. */}
+            See addressLocale.js header for rationale. Country is
+            rendered first so the subsequent labels re-localise before
+            the user types into them. */}
         {(() => {
           const addrLocale = getAddressLocale(form.address.country);
           const addrZipWarn = validateZip(form.address.zip, form.address.country);
@@ -1588,6 +1590,16 @@ export default function EmployeeForm() {
             <div className="card p-5 space-y-4">
               <h2 className="text-white font-semibold text-lg">Address</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={form.address.country}
+                    onChange={(e) => setNested('address', 'country', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="India"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">{addrLocale.street1Label}</label>
                   <input
@@ -1641,16 +1653,6 @@ export default function EmployeeForm() {
                     <p className="text-[11px] text-amber-400/80 mt-1 leading-tight">{addrZipWarn}</p>
                   )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
-                  <input
-                    type="text"
-                    value={form.address.country}
-                    onChange={(e) => setNested('address', 'country', e.target.value)}
-                    className="input-field w-full"
-                    placeholder="India"
-                  />
-                </div>
               </div>
             </div>
           );
@@ -1673,6 +1675,16 @@ export default function EmployeeForm() {
                 </button>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.country}
+                    onChange={(e) => setNested('permanentAddress', 'country', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="India"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">{permLocale.street1Label}</label>
                   <input
@@ -1725,16 +1737,6 @@ export default function EmployeeForm() {
                   {permZipWarn && (
                     <p className="text-[11px] text-amber-400/80 mt-1 leading-tight">{permZipWarn}</p>
                   )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
-                  <input
-                    type="text"
-                    value={form.permanentAddress.country}
-                    onChange={(e) => setNested('permanentAddress', 'country', e.target.value)}
-                    className="input-field w-full"
-                    placeholder="India"
-                  />
                 </div>
               </div>
             </div>

@@ -1026,11 +1026,15 @@ export default function EmployeeDetail() {
             entries. Was a read-only InfoRow before; that blocked self-
             service users from updating their own address (audit H6).
             Labels + zip hint are country-aware, driven by addr.country
-            (not the company switcher — see utils/addressLocale.js). */}
+            (not the company switcher — see utils/addressLocale.js).
+            Country is intentionally the FIRST row so that setting it
+            relabels the rows below before the user types into them. */}
         {(() => {
           const addrLocale = getAddressLocale(addr.country);
           return (
             <SectionCard title="Address" icon={MapPin}>
+              <InlineField label="Country" field="address.country" value={addr.country}
+                editable={fp('address.country').editable} onSave={handleFieldSave} />
               <InlineField label={addrLocale.street1Label} field="address.street" value={addr.street}
                 placeholder={addrLocale.street1Placeholder}
                 editable={fp('address.street').editable} onSave={handleFieldSave} />
@@ -1047,8 +1051,6 @@ export default function EmployeeDetail() {
                 placeholder={addrLocale.zipPlaceholder}
                 warn={validateZip(addr.zip, addr.country)}
                 editable={fp('address.zip').editable} onSave={handleFieldSave} />
-              <InlineField label="Country" field="address.country" value={addr.country}
-                editable={fp('address.country').editable} onSave={handleFieldSave} />
             </SectionCard>
           );
         })()}

@@ -1056,11 +1056,13 @@ export default function ContactDetail() {
 
             {/* Billing Address — country-aware labels + soft zip warn via
                 utils/addressLocale (driven by the contact's own country,
-                not the company switcher). */}
+                not the company switcher). Country is rendered first so
+                the rest of the rows re-label before the user types. */}
             {(() => {
               const billingLocale = getAddressLocale(addr.country);
               return (
                 <SectionCard title="Billing Address" icon={MapPin}>
+                  <EditableField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
                   <EditableField label={billingLocale.street1Label} value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.street1Placeholder || 'Add street'} />
                   <EditableField label={billingLocale.street2Label} value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField}
@@ -1072,7 +1074,6 @@ export default function ContactDetail() {
                   <EditableField label={billingLocale.zipLabel} value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.zipPlaceholder || 'Add postal code'}
                     warn={validateZip(addr.zip, addr.country)} />
-                  <EditableField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
                 </SectionCard>
               );
             })()}
