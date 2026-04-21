@@ -517,13 +517,8 @@ export default function EmployeeForm() {
       return false;
     }
 
-    // Non-billable: manager is required
-    if (!form.billable) {
-      if (!form.manager) {
-        setError('Manager is required for non-billable employees.');
-        return false;
-      }
-    }
+    // Manager is optional. A founder / org owner may legitimately have no
+    // manager (top of hierarchy) — backend accepts null, so don't block here.
 
     // Billable: at least one assignment is required (skip if separating — assignments will be auto-ended)
     if (form.billable && form.assignments.length === 0 && !isSeparating) {
