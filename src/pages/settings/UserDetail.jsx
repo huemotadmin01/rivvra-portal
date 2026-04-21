@@ -81,9 +81,13 @@ export default function UserDetail() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  // Employee linking
+  // Employee linking — multi-company: a single human can have one employee
+  // row per internal company (Huemot Pvt Ltd IN, Huemot Inc US, …), all
+  // sharing linkedUserId. We show every linked row grouped by company.
   const [employees, setEmployees] = useState([]);
+  const [linkedEmployees, setLinkedEmployees] = useState([]);
   const [linkingEmployee, setLinkingEmployee] = useState(false);
+  const [unlinkingEmpId, setUnlinkingEmpId] = useState(null);
   const [empSearchQuery, setEmpSearchQuery] = useState('');
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
 
@@ -109,9 +113,10 @@ export default function UserDetail() {
     async function load() {
       setLoading(true);
       try {
-        const [membersRes, rateLimitsRes] = await Promise.all([
+        const [membersRes, rateLimitsRes, linkedRes] = await Promise.all([
           api.getOrgMembers(orgSlug),
           api.getMemberRateLimits().catch(() => null),
+          api.getMemberLinkedEmployees(orgSlug, userId).catch(() => null),
         ]);
 
         if (cancelled) return;
@@ -128,6 +133,10 @@ export default function UserDetail() {
           }
         } else {
           setNotFound(true);
+        }
+
+        if (linkedRes?.success) {
+          setLinkedEmployees(linkedRes.linkedEmployees || []);
         }
 
         if (rateLimitsRes?.success) {
@@ -295,15 +304,23 @@ export default function UserDetail() {
 
   // ─── Employee Linking ───────────────────────────────────────────────────
 
+  async function refetchLinkedEmployees() {
+    try {
+      const res = await api.getMemberLinkedEmployees(orgSlug, userId);
+      if (res.success) setLinkedEmployees(res.linkedEmployees || []);
+    } catch { /* non-fatal */ }
+  }
+
   async function handleLinkEmployee(employeeId) {
     if (!employeeId || linkingEmployee) return;
     setLinkingEmployee(true);
     try {
       const res = await api.linkMemberEmployee(orgSlug, member.userId, employeeId);
       if (res.success) {
-        setMember(prev => ({ ...prev, linkedEmployee: res.linkedEmployee }));
+        await refetchLinkedEmployees();
         setEmpDropdownOpen(false);
         setEmpSearchQuery('');
+        showToast('Employee linked', 'success');
       } else {
         showToast(res.error || 'Failed to link employee', 'error');
       }
@@ -314,20 +331,21 @@ export default function UserDetail() {
     }
   }
 
-  async function handleUnlinkEmployee() {
-    if (linkingEmployee) return;
-    setLinkingEmployee(true);
+  async function handleUnlinkEmployee(employeeId) {
+    if (!employeeId || unlinkingEmpId) return;
+    setUnlinkingEmpId(employeeId);
     try {
-      const res = await api.unlinkMemberEmployee(orgSlug, member.userId);
+      const res = await api.unlinkMemberEmployee(orgSlug, member.userId, employeeId);
       if (res.success) {
-        setMember(prev => ({ ...prev, linkedEmployee: null }));
+        setLinkedEmployees(prev => prev.filter(e => e._id?.toString() !== employeeId?.toString()));
+        showToast('Employee unlinked', 'success');
       } else {
         showToast(res.error || 'Failed to unlink', 'error');
       }
     } catch (err) {
       showToast(err.message || 'Failed to unlink', 'error');
     } finally {
-      setLinkingEmployee(false);
+      setUnlinkingEmpId(null);
     }
   }
 
@@ -691,37 +709,71 @@ export default function UserDetail() {
           </SectionCard>
         </div>
 
-        {/* Related Employee */}
-        <SectionCard title="Related Employee" icon={Link2}>
-          {member.linkedEmployee ? (
-            <div>
-              <div className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50">
-                <Link2 className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p
-                    className="text-sm text-white truncate cursor-pointer hover:text-rivvra-400 hover:underline"
-                    onClick={() => navigate(orgPath(`/employee/${member.linkedEmployee._id}`))}
-                  >
-                    {member.linkedEmployee.fullName}
-                  </p>
-                  <p className="text-xs text-dark-400 truncate">
-                    {member.linkedEmployee.designation || member.linkedEmployee.email || member.linkedEmployee.employeeId}
-                  </p>
-                </div>
-                {canManage && (
-                  <button
-                    onClick={handleUnlinkEmployee}
-                    disabled={linkingEmployee}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                  >
-                    {linkingEmployee ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
-                    Unlink
-                  </button>
-                )}
+        {/* Linked Employees — one row per internal company */}
+        <SectionCard title="Linked Employees" icon={Link2}>
+          {linkedEmployees.length > 0 && (() => {
+            // Group by company (null-company rows fall under "Unassigned").
+            const groups = new Map();
+            linkedEmployees.forEach(emp => {
+              const key = emp.companyId || '__unassigned__';
+              const label = emp.companyName
+                || (key === '__unassigned__' ? 'Unassigned' : 'Unknown company');
+              if (!groups.has(key)) groups.set(key, { label, country: emp.companyCountry, rows: [] });
+              groups.get(key).rows.push(emp);
+            });
+            return (
+              <div className="space-y-3 mb-3">
+                {Array.from(groups.entries()).map(([key, group]) => (
+                  <div key={key}>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Building2 className="w-3 h-3 text-dark-500" />
+                      <span className="text-[11px] font-semibold text-dark-300 uppercase tracking-wide">
+                        {group.label}
+                      </span>
+                      {group.country && (
+                        <span className="text-[10px] text-dark-500">· {group.country}</span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {group.rows.map(emp => (
+                        <div
+                          key={emp._id}
+                          className="flex items-center gap-3 px-3 py-2.5 bg-dark-800/50 rounded-lg border border-dark-700/50"
+                        >
+                          <Link2 className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="text-sm text-white truncate cursor-pointer hover:text-rivvra-400 hover:underline"
+                              onClick={() => navigate(orgPath(`/employee/${emp._id}`))}
+                            >
+                              {emp.fullName}
+                            </p>
+                            <p className="text-xs text-dark-400 truncate">
+                              {emp.designation || emp.email || emp.employeeId}
+                            </p>
+                          </div>
+                          {canManage && (
+                            <button
+                              onClick={() => handleUnlinkEmployee(emp._id)}
+                              disabled={unlinkingEmpId === emp._id}
+                              className="flex items-center gap-1 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors disabled:opacity-50"
+                            >
+                              {unlinkingEmpId === emp._id
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <Unlink className="w-3 h-3" />}
+                              Unlink
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <p className="text-[10px] text-dark-500 mt-1">This user is linked to an employee record for timesheet access.</p>
-            </div>
-          ) : canManage ? (
+            );
+          })()}
+
+          {canManage ? (
             <div>
               <div className="relative">
                 <div className="relative flex items-center gap-2">
@@ -729,7 +781,7 @@ export default function UserDetail() {
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-dark-500" />
                     <input
                       type="text"
-                      placeholder="Search employees..."
+                      placeholder={linkedEmployees.length > 0 ? 'Link another employee (different company)…' : 'Search employees…'}
                       value={empDropdownOpen ? empSearchQuery : ''}
                       onChange={(e) => { setEmpSearchQuery(e.target.value); setEmpDropdownOpen(true); }}
                       onFocus={() => { setEmpDropdownOpen(true); setEmpSearchQuery(''); }}
@@ -742,9 +794,15 @@ export default function UserDetail() {
                 </div>
                 {empDropdownOpen && (() => {
                   const q = empSearchQuery.toLowerCase();
-                  const filtered = employees.filter(emp =>
-                    !q || emp.fullName?.toLowerCase().includes(q) || emp.email?.toLowerCase().includes(q) || emp.employeeId?.toLowerCase().includes(q) || emp.designation?.toLowerCase().includes(q)
-                  );
+                  const linkedIds = new Set(linkedEmployees.map(e => e._id?.toString()));
+                  const filtered = employees.filter(emp => {
+                    if (linkedIds.has(emp._id?.toString())) return false;
+                    if (!q) return true;
+                    return emp.fullName?.toLowerCase().includes(q)
+                      || emp.email?.toLowerCase().includes(q)
+                      || emp.employeeId?.toLowerCase().includes(q)
+                      || emp.designation?.toLowerCase().includes(q);
+                  });
                   return (
                     <div className="absolute z-50 top-full mt-1 w-full bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                       {filtered.length === 0 ? (
@@ -765,11 +823,13 @@ export default function UserDetail() {
                   );
                 })()}
               </div>
-              <p className="text-[10px] text-dark-500 mt-1">Link to an employee record for timesheet & HR features.</p>
+              <p className="text-[10px] text-dark-500 mt-1">
+                One row per internal company. Linking across companies lets this user access timesheet &amp; HR features for each.
+              </p>
             </div>
-          ) : (
+          ) : linkedEmployees.length === 0 ? (
             <p className="text-sm text-dark-500">Not linked</p>
-          )}
+          ) : null}
         </SectionCard>
 
         {/* Companies (only if multi-company) */}

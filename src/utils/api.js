@@ -830,10 +830,17 @@ class ApiClient {
     });
   }
 
-  async unlinkMemberEmployee(orgSlug, userId) {
+  async unlinkMemberEmployee(orgSlug, userId, employeeId) {
+    // Pass employeeId to unlink one specific per-company row. Omit to unlink
+    // every linked row for this user (legacy behaviour).
     return this.request(`/api/org/${orgSlug}/members/${userId}/unlink-employee`, {
       method: 'PUT',
+      body: JSON.stringify(employeeId ? { employeeId } : {}),
     });
+  }
+
+  async getMemberLinkedEmployees(orgSlug, userId) {
+    return this.request(`/api/org/${orgSlug}/members/${userId}/linked-employees`);
   }
 
   // Org invite validation + acceptance (public endpoints for invite flow)
