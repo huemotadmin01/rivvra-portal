@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import invoicingApi from '../../utils/invoicingApi';
+import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -302,7 +303,7 @@ function renderLinkedValue(value, type) {
   return null;
 }
 
-function EditableField({ label, value, field, type = 'text', options, editable, onSave, placeholder, maxLength, transform }) {
+function EditableField({ label, value, field, type = 'text', options, editable, onSave, placeholder, maxLength, transform, warn = '' }) {
   const [editing, setEditing] = useState(false);
   const [localValue, setLocalValue] = useState(value ?? '');
 
@@ -320,7 +321,12 @@ function EditableField({ label, value, field, type = 'text', options, editable, 
     return (
       <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
         <span className="text-dark-400 text-sm">{label}</span>
-        <span className="text-white text-sm">{linked || value || '\u2014'}</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-white text-sm">{linked || value || '\u2014'}</span>
+          {warn && (
+            <span className="text-[11px] text-amber-400/80 mt-0.5 leading-tight">{warn}</span>
+          )}
+        </div>
       </div>
     );
   }
@@ -370,14 +376,19 @@ function EditableField({ label, value, field, type = 'text', options, editable, 
           />
         )
       ) : (
-        <div
-          className="flex items-center gap-1.5 cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800 min-h-[28px]"
-          onClick={() => setEditing(true)}
-        >
-          <span className="text-white text-sm">
-            {linked || value || <span className="text-dark-500 italic">{placeholder || '\u2014'}</span>}
-          </span>
-          <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />
+        <div className="flex flex-col min-w-0">
+          <div
+            className="flex items-center gap-1.5 cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800 min-h-[28px]"
+            onClick={() => setEditing(true)}
+          >
+            <span className="text-white text-sm">
+              {linked || value || <span className="text-dark-500 italic">{placeholder || '\u2014'}</span>}
+            </span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />
+          </div>
+          {warn && (
+            <span className="text-[11px] text-amber-400/80 mt-0.5 leading-tight px-1 -mx-1">{warn}</span>
+          )}
         </div>
       )}
     </div>
@@ -1043,15 +1054,28 @@ export default function ContactDetail() {
               )}
             </SectionCard>
 
-            {/* Billing Address */}
-            <SectionCard title="Billing Address" icon={MapPin}>
-              <EditableField label="Street" value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField} placeholder="Add street" />
-              <EditableField label="Street 2" value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField} placeholder="Apt, Suite, Floor" />
-              <EditableField label="City" value={addr.city} field="city" editable={isAdmin} onSave={saveAddressField} placeholder="Add city" />
-              <EditableField label="State" value={addr.state} field="state" editable={isAdmin} onSave={saveAddressField} placeholder="Add state" />
-              <EditableField label="ZIP" value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField} placeholder="Add ZIP" />
-              <EditableField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
-            </SectionCard>
+            {/* Billing Address — country-aware labels + soft zip warn via
+                utils/addressLocale (driven by the contact's own country,
+                not the company switcher). */}
+            {(() => {
+              const billingLocale = getAddressLocale(addr.country);
+              return (
+                <SectionCard title="Billing Address" icon={MapPin}>
+                  <EditableField label={billingLocale.street1Label} value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.street1Placeholder || 'Add street'} />
+                  <EditableField label={billingLocale.street2Label} value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.street2Placeholder || 'Apt, Suite, Floor'} />
+                  <EditableField label={billingLocale.cityLabel} value={addr.city} field="city" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.cityPlaceholder || 'Add city'} />
+                  <EditableField label={billingLocale.stateLabel} value={addr.state} field="state" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.statePlaceholder || 'Add state'} />
+                  <EditableField label={billingLocale.zipLabel} value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.zipPlaceholder || 'Add postal code'}
+                    warn={validateZip(addr.zip, addr.country)} />
+                  <EditableField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
+                </SectionCard>
+              );
+            })()}
 
             {/* Classification */}
             <SectionCard title="Classification" icon={Users}>

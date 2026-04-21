@@ -8,6 +8,7 @@ import employeeApi from '../../utils/employeeApi';
 import api from '../../utils/api';
 import { formatDateUTC, todayStr } from '../../utils/dateUtils';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
+import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock, GraduationCap, Users, Building2 } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
@@ -1577,147 +1578,168 @@ export default function EmployeeForm() {
           </div>
 
         {/* ── Address ───────────────────────────────────────────────── */}
-        <div className="card p-5 space-y-4">
-          <h2 className="text-white font-semibold text-lg">Address</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Street</label>
-              <input
-                type="text"
-                value={form.address.street}
-                onChange={(e) => setNested('address', 'street', e.target.value)}
-                className="input-field w-full"
-                placeholder="123 Main Street"
-              />
+        {/* Labels + placeholders + zip hint come from the record's own
+            country via utils/addressLocale — NOT the company switcher.
+            See addressLocale.js header for rationale. */}
+        {(() => {
+          const addrLocale = getAddressLocale(form.address.country);
+          const addrZipWarn = validateZip(form.address.zip, form.address.country);
+          return (
+            <div className="card p-5 space-y-4">
+              <h2 className="text-white font-semibold text-lg">Address</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{addrLocale.street1Label}</label>
+                  <input
+                    type="text"
+                    value={form.address.street}
+                    onChange={(e) => setNested('address', 'street', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={addrLocale.street1Placeholder || '123 Main Street'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{addrLocale.street2Label}</label>
+                  <input
+                    type="text"
+                    value={form.address.street2}
+                    onChange={(e) => setNested('address', 'street2', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={addrLocale.street2Placeholder || 'Apt, Suite, Floor'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{addrLocale.cityLabel}</label>
+                  <input
+                    type="text"
+                    value={form.address.city}
+                    onChange={(e) => setNested('address', 'city', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={addrLocale.cityPlaceholder || 'City'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{addrLocale.stateLabel}</label>
+                  <input
+                    type="text"
+                    value={form.address.state}
+                    onChange={(e) => setNested('address', 'state', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={addrLocale.statePlaceholder || 'State'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{addrLocale.zipLabel}</label>
+                  <input
+                    type="text"
+                    value={form.address.zip}
+                    onChange={(e) => setNested('address', 'zip', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={addrLocale.zipPlaceholder || ''}
+                  />
+                  {addrZipWarn && (
+                    <p className="text-[11px] text-amber-400/80 mt-1 leading-tight">{addrZipWarn}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={form.address.country}
+                    onChange={(e) => setNested('address', 'country', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="India"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Street 2</label>
-              <input
-                type="text"
-                value={form.address.street2}
-                onChange={(e) => setNested('address', 'street2', e.target.value)}
-                className="input-field w-full"
-                placeholder="Apt, Suite, Floor"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">City</label>
-              <input
-                type="text"
-                value={form.address.city}
-                onChange={(e) => setNested('address', 'city', e.target.value)}
-                className="input-field w-full"
-                placeholder="Mumbai"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">State</label>
-              <input
-                type="text"
-                value={form.address.state}
-                onChange={(e) => setNested('address', 'state', e.target.value)}
-                className="input-field w-full"
-                placeholder="Maharashtra"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">ZIP / Pincode</label>
-              <input
-                type="text"
-                value={form.address.zip}
-                onChange={(e) => setNested('address', 'zip', e.target.value)}
-                className="input-field w-full"
-                placeholder="400001"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
-              <input
-                type="text"
-                value={form.address.country}
-                onChange={(e) => setNested('address', 'country', e.target.value)}
-                className="input-field w-full"
-                placeholder="India"
-              />
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* ── Permanent Address ────────────────────────────────────── */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-white font-semibold text-lg">Permanent Address</h2>
-            <button
-              type="button"
-              onClick={copyAddressToPermanent}
-              className="text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
-            >
-              Same as Current Address
-            </button>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Street</label>
-              <input
-                type="text"
-                value={form.permanentAddress.street}
-                onChange={(e) => setNested('permanentAddress', 'street', e.target.value)}
-                className="input-field w-full"
-                placeholder="123 Main Street"
-              />
+        {(() => {
+          const permLocale = getAddressLocale(form.permanentAddress.country);
+          const permZipWarn = validateZip(form.permanentAddress.zip, form.permanentAddress.country);
+          return (
+            <div className="card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-white font-semibold text-lg">Permanent Address</h2>
+                <button
+                  type="button"
+                  onClick={copyAddressToPermanent}
+                  className="text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                >
+                  Same as Current Address
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{permLocale.street1Label}</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.street}
+                    onChange={(e) => setNested('permanentAddress', 'street', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={permLocale.street1Placeholder || '123 Main Street'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{permLocale.street2Label}</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.street2}
+                    onChange={(e) => setNested('permanentAddress', 'street2', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={permLocale.street2Placeholder || 'Apt, Suite, Floor'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{permLocale.cityLabel}</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.city}
+                    onChange={(e) => setNested('permanentAddress', 'city', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={permLocale.cityPlaceholder || 'City'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{permLocale.stateLabel}</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.state}
+                    onChange={(e) => setNested('permanentAddress', 'state', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={permLocale.statePlaceholder || 'State'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">{permLocale.zipLabel}</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.zip}
+                    onChange={(e) => setNested('permanentAddress', 'zip', e.target.value)}
+                    className="input-field w-full"
+                    placeholder={permLocale.zipPlaceholder || ''}
+                  />
+                  {permZipWarn && (
+                    <p className="text-[11px] text-amber-400/80 mt-1 leading-tight">{permZipWarn}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={form.permanentAddress.country}
+                    onChange={(e) => setNested('permanentAddress', 'country', e.target.value)}
+                    className="input-field w-full"
+                    placeholder="India"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Street 2</label>
-              <input
-                type="text"
-                value={form.permanentAddress.street2}
-                onChange={(e) => setNested('permanentAddress', 'street2', e.target.value)}
-                className="input-field w-full"
-                placeholder="Apt, Suite, Floor"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">City</label>
-              <input
-                type="text"
-                value={form.permanentAddress.city}
-                onChange={(e) => setNested('permanentAddress', 'city', e.target.value)}
-                className="input-field w-full"
-                placeholder="Mumbai"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">State</label>
-              <input
-                type="text"
-                value={form.permanentAddress.state}
-                onChange={(e) => setNested('permanentAddress', 'state', e.target.value)}
-                className="input-field w-full"
-                placeholder="Maharashtra"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">ZIP / Pincode</label>
-              <input
-                type="text"
-                value={form.permanentAddress.zip}
-                onChange={(e) => setNested('permanentAddress', 'zip', e.target.value)}
-                className="input-field w-full"
-                placeholder="400001"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Country</label>
-              <input
-                type="text"
-                value={form.permanentAddress.country}
-                onChange={(e) => setNested('permanentAddress', 'country', e.target.value)}
-                className="input-field w-full"
-                placeholder="India"
-              />
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* ── Emergency Contact ─────────────────────────────────────── */}
         <div className="card p-5 space-y-4">

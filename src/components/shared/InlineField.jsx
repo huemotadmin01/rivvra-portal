@@ -16,6 +16,9 @@ import { Loader2, Check, X, Pencil } from 'lucide-react';
  *  maskFn      — function to mask value in read mode (e.g. bank account)
  *  onSave      — async (field, newValue) => void — throws on error
  *  placeholder — placeholder text in input
+ *  warn        — optional soft-warning string (non-blocking). Rendered as an
+ *                amber hint line in read mode; does NOT prevent save. Used for
+ *                things like country-aware ZIP format nudges. Falsy ⇒ hidden.
  */
 export default function InlineField({
   label,
@@ -29,6 +32,7 @@ export default function InlineField({
   maskFn,
   onSave,
   placeholder = '',
+  warn = '',
 }) {
   const [status, setStatus] = useState('idle'); // idle | editing | saving | saved | error
   const [editVal, setEditVal] = useState('');
@@ -184,13 +188,18 @@ export default function InlineField({
         onClick={editable ? startEdit : undefined}
       >
         <span className="text-dark-400 text-sm">{label}</span>
-        <span className="flex items-center gap-2 text-white text-sm min-h-[20px]">
-          {display || <span className="text-dark-600">—</span>}
-          {editable && status !== 'saved' && (
-            <Pencil size={12} className="text-dark-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+        <div className="flex flex-col min-w-0">
+          <span className="flex items-center gap-2 text-white text-sm min-h-[20px]">
+            {display || <span className="text-dark-600">—</span>}
+            {editable && status !== 'saved' && (
+              <Pencil size={12} className="text-dark-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            )}
+            <StatusIcon status={status} errMsg={errMsg} />
+          </span>
+          {warn && (
+            <span className="text-[11px] text-amber-400/80 mt-0.5 leading-tight">{warn}</span>
           )}
-          <StatusIcon status={status} errMsg={errMsg} />
-        </span>
+        </div>
       </div>
     );
   }

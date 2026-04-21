@@ -14,6 +14,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
 import { formatDateUTC, toDateInputValue, todayStr } from '../../utils/dateUtils';
+import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import {
   Building2,
   Calendar,
@@ -1023,21 +1024,34 @@ export default function EmployeeDetail() {
 
         {/* Address — six inline-editable rows matching FIELD_PERMISSIONS
             entries. Was a read-only InfoRow before; that blocked self-
-            service users from updating their own address (audit H6). */}
-        <SectionCard title="Address" icon={MapPin}>
-          <InlineField label="Street" field="address.street" value={addr.street}
-            editable={fp('address.street').editable} onSave={handleFieldSave} />
-          <InlineField label="Street 2" field="address.street2" value={addr.street2}
-            editable={fp('address.street2').editable} onSave={handleFieldSave} />
-          <InlineField label="City" field="address.city" value={addr.city}
-            editable={fp('address.city').editable} onSave={handleFieldSave} />
-          <InlineField label="State" field="address.state" value={addr.state}
-            editable={fp('address.state').editable} onSave={handleFieldSave} />
-          <InlineField label="Zip" field="address.zip" value={addr.zip}
-            editable={fp('address.zip').editable} onSave={handleFieldSave} />
-          <InlineField label="Country" field="address.country" value={addr.country}
-            editable={fp('address.country').editable} onSave={handleFieldSave} />
-        </SectionCard>
+            service users from updating their own address (audit H6).
+            Labels + zip hint are country-aware, driven by addr.country
+            (not the company switcher — see utils/addressLocale.js). */}
+        {(() => {
+          const addrLocale = getAddressLocale(addr.country);
+          return (
+            <SectionCard title="Address" icon={MapPin}>
+              <InlineField label={addrLocale.street1Label} field="address.street" value={addr.street}
+                placeholder={addrLocale.street1Placeholder}
+                editable={fp('address.street').editable} onSave={handleFieldSave} />
+              <InlineField label={addrLocale.street2Label} field="address.street2" value={addr.street2}
+                placeholder={addrLocale.street2Placeholder}
+                editable={fp('address.street2').editable} onSave={handleFieldSave} />
+              <InlineField label={addrLocale.cityLabel} field="address.city" value={addr.city}
+                placeholder={addrLocale.cityPlaceholder}
+                editable={fp('address.city').editable} onSave={handleFieldSave} />
+              <InlineField label={addrLocale.stateLabel} field="address.state" value={addr.state}
+                placeholder={addrLocale.statePlaceholder}
+                editable={fp('address.state').editable} onSave={handleFieldSave} />
+              <InlineField label={addrLocale.zipLabel} field="address.zip" value={addr.zip}
+                placeholder={addrLocale.zipPlaceholder}
+                warn={validateZip(addr.zip, addr.country)}
+                editable={fp('address.zip').editable} onSave={handleFieldSave} />
+              <InlineField label="Country" field="address.country" value={addr.country}
+                editable={fp('address.country').editable} onSave={handleFieldSave} />
+            </SectionCard>
+          );
+        })()}
 
         {/* Emergency Contact */}
         <SectionCard title="Emergency Contact" icon={Phone}>
