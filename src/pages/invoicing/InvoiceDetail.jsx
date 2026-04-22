@@ -1729,10 +1729,21 @@ export default function InvoiceDetail() {
 
               {/* E-Invoice IRN block — shown after IRN is generated */}
               {invoice.eInvoiceStatus === 'generated' && invoice.irn && (
-                <div className="mb-6 p-3 rounded-lg bg-emerald-900/20 border border-emerald-800/40 flex flex-col sm:flex-row sm:items-start gap-2">
-                  <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="space-y-0.5 min-w-0">
-                    <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">E-Invoice Registered</p>
+                <div className={`mb-6 p-3 rounded-lg flex flex-col sm:flex-row sm:items-start gap-2 border ${
+                  invoice.eInvoiceMock
+                    ? 'bg-amber-900/20 border-amber-800/40'
+                    : 'bg-emerald-900/20 border-emerald-800/40'
+                }`}>
+                  <ShieldCheck size={16} className={`shrink-0 mt-0.5 ${invoice.eInvoiceMock ? 'text-amber-400' : 'text-emerald-400'}`} />
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <p className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-2 ${invoice.eInvoiceMock ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      E-Invoice Registered
+                      {invoice.eInvoiceMock && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 tracking-wider">
+                          MOCK · NOT LIVE
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-dark-300 font-mono break-all">IRN: {invoice.irn}</p>
                     {invoice.ackNo && (
                       <p className="text-xs text-dark-400">Ack No: {invoice.ackNo} &nbsp;·&nbsp; {invoice.ackDt || ''}</p>
