@@ -734,6 +734,7 @@ export default function InvoiceDetail() {
   const [consultantRates, setConsultantRates] = useState({}); // { consultantId: clientBillingRate }
   const [expenseCategories, setExpenseCategories] = useState([]); // vendor bill line categorization
   const [tdsConfigs, setTdsConfigs] = useState([]); // vendor bill TDS sections
+  const [journals, setJournals] = useState([]); // journals of matching type for DRAFT journal change
 
   const isDraft = invoice?.status === 'draft';
   // Real Vendor Bills run on the BILL journal. Employee Bills (EMPBI) and
@@ -828,6 +829,17 @@ export default function InvoiceDetail() {
       .then(res => setTdsConfigs(res?.rows || res?.configs || []))
       .catch(() => {});
   }, [orgSlug, isVendorBill]);
+
+  // Fetch active journals of the matching type so users can correct the
+  // journal on a DRAFT invoice. listJournals is scoped to the current company
+  // via the X-Company-Id header, so this is already per-company correct.
+  useEffect(() => {
+    if (!orgSlug || !isDraft || !invoice?.type) { setJournals([]); return; }
+    const journalType = invoice.type === 'vendor_bill' ? 'purchase' : 'sale';
+    invoicingApi.listJournals(orgSlug, { active: 'true', type: journalType })
+      .then(res => setJournals(res?.journals || res?.data || []))
+      .catch(() => setJournals([]));
+  }, [orgSlug, isDraft, invoice?.type]);
 
   // Fetch preview number for drafts without a number
   useEffect(() => {
@@ -2317,22 +2329,36 @@ export default function InvoiceDetail() {
                     onSave={saveField}
                   />
 
-                  {/* Journal (read-only) */}
-                  <div className="flex items-center justify-between py-2">
-                    <span className="text-dark-400 text-sm">Journal</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-white text-sm">
-                        {invoice.journalName || invoice.journalCode || '-'}
-                      </span>
-                      {invoice.journalCode
-                        && invoice.journalName
-                        && invoice.journalCode.trim().toUpperCase() !== invoice.journalName.trim().toUpperCase() && (
-                        <span className="text-xs bg-dark-700 text-dark-300 px-1.5 py-0.5 rounded">
-                          {invoice.journalCode}
+                  {/* Journal — editable on DRAFT so users can fix a wrong-journal pick
+                      (e.g. when Mongo natural order picked the wrong default). */}
+                  <EditableField
+                    label="Journal"
+                    value={isDraft ? (editForm.journalId || '') : ''}
+                    displayValue={
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-sm">
+                          {invoice.journalName || invoice.journalCode || '-'}
                         </span>
-                      )}
-                    </div>
-                  </div>
+                        {invoice.journalCode
+                          && invoice.journalName
+                          && invoice.journalCode.trim().toUpperCase() !== invoice.journalName.trim().toUpperCase() && (
+                          <span className="text-xs bg-dark-700 text-dark-300 px-1.5 py-0.5 rounded">
+                            {invoice.journalCode}
+                          </span>
+                        )}
+                      </div>
+                    }
+                    field="journalId"
+                    type="select"
+                    options={journals.map(j => ({
+                      value: j._id,
+                      label: j.code && j.name && j.code.trim().toUpperCase() !== j.name.trim().toUpperCase()
+                        ? `${j.name} (${j.code})`
+                        : (j.name || j.code || ''),
+                    }))}
+                    editable={isDraft && journals.length > 0}
+                    onSave={saveField}
+                  />
                 </div>
               </div>
             </div>

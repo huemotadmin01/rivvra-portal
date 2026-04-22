@@ -4,7 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import {
   Loader2, Plus, Pencil, Trash2, FileText, X, Check,
-  ToggleLeft, ToggleRight, Search,
+  ToggleLeft, ToggleRight, Search, Star,
 } from 'lucide-react';
 
 const TYPE_STYLES = {
@@ -33,6 +33,7 @@ const EMPTY_JOURNAL = {
   defaultAccount: '',
   currency: 'INR',
   active: true,
+  isDefault: false,
 };
 
 export default function JournalsConfig() {
@@ -92,6 +93,7 @@ export default function JournalsConfig() {
       defaultAccount: journal.defaultAccount || '',
       currency: journal.currency || 'INR',
       active: journal.active !== false,
+      isDefault: !!journal.isDefault,
     });
   }
 
@@ -118,6 +120,7 @@ export default function JournalsConfig() {
         defaultAccount: form.defaultAccount.trim() || undefined,
         currency: form.currency,
         active: form.active,
+        isDefault: !!form.isDefault,
       };
 
       if (editingId === 'new') {
@@ -160,6 +163,22 @@ export default function JournalsConfig() {
       showToast(journal.active ? 'Journal deactivated' : 'Journal activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
+    }
+  }
+
+  async function makeDefault(journal) {
+    try {
+      await invoicingApi.updateJournal(orgSlug, journal._id, { isDefault: true });
+      // Backend unsets siblings of the same (company, type). Mirror that here
+      // so the UI reflects the change without a full reload.
+      setJournals(prev => prev.map(j => {
+        if (j._id === journal._id) return { ...j, isDefault: true };
+        if (j.type === journal.type) return { ...j, isDefault: false };
+        return j;
+      }));
+      showToast(`${journal.name} set as default ${journal.type} journal`);
+    } catch (err) {
+      showToast(err.message || 'Failed to set default', 'error');
     }
   }
 
@@ -220,17 +239,28 @@ export default function JournalsConfig() {
           </select>
         </td>
         <td className="px-4 py-3">
-          <button
-            type="button"
-            onClick={() => setForm(prev => ({ ...prev, active: !prev.active }))}
-            className="text-dark-400 hover:text-white transition-colors"
-          >
-            {form.active ? (
-              <ToggleRight size={20} className="text-emerald-400" />
-            ) : (
-              <ToggleLeft size={20} className="text-dark-600" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setForm(prev => ({ ...prev, active: !prev.active }))}
+              className="text-dark-400 hover:text-white transition-colors"
+              title={form.active ? 'Active' : 'Inactive'}
+            >
+              {form.active ? (
+                <ToggleRight size={20} className="text-emerald-400" />
+              ) : (
+                <ToggleLeft size={20} className="text-dark-600" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm(prev => ({ ...prev, isDefault: !prev.isDefault }))}
+              className={form.isDefault ? 'text-amber-400' : 'text-dark-600 hover:text-dark-400'}
+              title={form.isDefault ? 'Default for this type' : 'Set as default for this type'}
+            >
+              <Star size={16} fill={form.isDefault ? 'currentColor' : 'none'} />
+            </button>
+          </div>
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-1">
@@ -370,7 +400,17 @@ export default function JournalsConfig() {
                         className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
                       >
                         <td className="px-4 py-3">
-                          <p className="font-medium text-white">{journal.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-white">{journal.name}</p>
+                            {journal.isDefault && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400"
+                                title={`Default ${journal.type} journal — used when Create Invoice / Create Bill is clicked`}
+                              >
+                                <Star size={10} fill="currentColor" /> Default
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-dark-700 text-dark-300">
@@ -407,6 +447,16 @@ export default function JournalsConfig() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
+                            {!journal.isDefault && journal.active !== false && (
+                              <button
+                                onClick={() => makeDefault(journal)}
+                                disabled={editingId !== null}
+                                className="p-1.5 rounded-lg text-dark-400 hover:text-amber-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
+                                title={`Set as default ${journal.type} journal`}
+                              >
+                                <Star size={14} />
+                              </button>
+                            )}
                             <button
                               onClick={() => startEdit(journal)}
                               disabled={editingId !== null}
