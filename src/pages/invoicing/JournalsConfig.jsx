@@ -140,13 +140,18 @@ export default function JournalsConfig() {
     }
   }
 
-  async function handleDelete(journalId) {
-    setDeletingId(journalId);
+  async function handleDelete(journal) {
+    const ok = window.confirm(
+      `Delete "${journal.name}" (${journal.code})? This permanently removes the journal. ` +
+      `If invoices reference it, deletion is refused — deactivate the journal instead to hide it.`
+    );
+    if (!ok) return;
+    setDeletingId(journal._id);
     try {
-      await invoicingApi.deleteJournal(orgSlug, journalId);
+      await invoicingApi.deleteJournal(orgSlug, journal._id);
       showToast('Journal deleted');
-      setJournals(prev => prev.filter(j => j._id !== journalId));
-      if (editingId === journalId) cancelEdit();
+      setJournals(prev => prev.filter(j => j._id !== journal._id));
+      if (editingId === journal._id) cancelEdit();
     } catch (err) {
       showToast(err.message || 'Failed to delete journal', 'error');
     } finally {
@@ -466,7 +471,7 @@ export default function JournalsConfig() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(journal._id)}
+                              onClick={() => handleDelete(journal)}
                               disabled={deletingId === journal._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"
