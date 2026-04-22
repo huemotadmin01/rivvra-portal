@@ -1371,7 +1371,12 @@ export default function InvoiceDetail() {
   }, [fetchInvoice, fetchAttachments]);
 
   // ── Action handlers ──
-  const handleSend = async (opts = {}) => {
+  const handleSend = async (maybeOpts = {}) => {
+    // When wired as `onClick={handleSend}`, React passes the SyntheticEvent
+    // here — stringifying it later fails with "circular structure" (event →
+    // currentTarget → __reactFiber$ → stateNode → event). Only treat the arg
+    // as options if it's a plain object (no nativeEvent).
+    const opts = maybeOpts && !maybeOpts.nativeEvent && !maybeOpts.preventDefault ? maybeOpts : {};
     // Validate before confirming
     if (!invoice.contactId && !editForm.contactId) {
       return showToast(isVendorBill ? 'Please select a vendor before confirming' : 'Please select a customer before confirming', 'error');
