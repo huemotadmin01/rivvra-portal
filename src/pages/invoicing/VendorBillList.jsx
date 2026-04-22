@@ -118,7 +118,8 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [aiStep, setAiStep] = useState('idle'); // idle | extracting | choose | creating
-  const [aiPayload, setAiPayload] = useState(null); // { extracted, vendorMatch, pdfFile }
+  const [aiPayload, setAiPayload] = useState(null); // { extracted, vendorMatch }
+  const [aiFile, setAiFile] = useState(null); // PDF blob — re-uploaded as attachment on bill creation
 
   const loadBills = useCallback(async () => {
     setLoading(true);
@@ -175,37 +176,80 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       const today = new Date().toISOString().split('T')[0];
       const invDate = extracted?.invoice?.date || today;
       const dueDate = extracted?.invoice?.dueDate || invDate;
+
+      // Resolve tax IDs from extracted rates. Prefer IGST tax when the PDF
+      // reports an IGST amount (inter-state), else GST (intra-state).
+      let taxList = [];
+      try {
+        const taxRes = await invoicingApi.listTaxes(orgSlug);
+        taxList = (taxRes?.taxes || []).filter(t => t.active !== false);
+      } catch { /* non-blocking */ }
+      const preferIgst = Number(extracted?.totals?.igstAmount || 0) > 0;
+      const resolveTaxId = (rate) => {
+        if (rate == null || rate === '' || isNaN(Number(rate))) return null;
+        const r = Number(rate);
+        const candidates = taxList.filter(t => Number(t.rate) === r);
+        if (!candidates.length) return null;
+        const match = candidates.find(t => preferIgst
+          ? /igst/i.test(t.name)
+          : !/igst/i.test(t.name));
+        return (match || candidates[0])._id;
+      };
+
       const lines = (extracted?.lines || []).length
-        ? extracted.lines.map((l) => ({
-            description: l.description || '',
-            quantity: Number(l.quantity) || 1,
-            unitPrice: Number(l.unitPrice) || 0,
-            hsnSacCode: l.hsnSac || undefined,
-            taxIds: [],
-          }))
+        ? extracted.lines.map((l) => {
+            const taxId = resolveTaxId(l.taxRate);
+            return {
+              description: l.description || '',
+              quantity: Number(l.quantity) || 1,
+              unitPrice: Number(l.unitPrice) || 0,
+              hsnSacCode: l.hsnSac || undefined,
+              taxIds: taxId ? [taxId] : [],
+            };
+          })
         : [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }];
+
+      // India-first extraction: if the PDF had a GSTIN on either side, it's
+      // an INR invoice regardless of the contact's or journal's default.
+      const looksIndian = !!(extracted?.vendor?.gstin);
+
       const payload = {
         type: 'vendor_bill',
         date: invDate,
         dueDate,
         contactId: contactId || undefined,
+        currency: looksIndian ? 'INR' : undefined,
         vendorInvoiceNumber: extracted?.invoice?.number || undefined,
         placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
         gstTreatment: extracted?.invoice?.gstTreatment || undefined,
         customerGstin: extracted?.vendor?.gstin || undefined,
+        tdsRate: Number(extracted?.tds?.rate) > 0 ? Number(extracted.tds.rate) : undefined,
+        tdsSection: extracted?.tds?.section || undefined,
         lines,
       };
       const res = await invoicingApi.createInvoice(orgSlug, payload);
       const newId = res?.invoice?._id;
       if (!newId) throw new Error('Bill creation returned no id');
+
+      // Attach the original PDF to the bill (non-blocking — don't fail the flow)
+      if (aiFile) {
+        try {
+          await invoicingApi.uploadAttachment(orgSlug, newId, aiFile, 'Vendor PDF');
+        } catch (e) {
+          console.warn('Failed to attach PDF to bill:', e);
+        }
+      }
+
       showToast('Bill drafted from PDF — please verify');
+      setAiFile(null);
       navigate(orgPath(`/invoicing/invoices/${newId}?ai=1`));
     } catch (err) {
       showToast(err.message || 'Failed to create bill', 'error');
       setAiStep('idle');
       setAiPayload(null);
+      setAiFile(null);
     }
-  }, [orgSlug, orgPath, navigate, showToast]);
+  }, [orgSlug, orgPath, navigate, showToast, aiFile]);
 
   const handlePdfDropped = useCallback(async (file) => {
     if (!file) return;
@@ -217,6 +261,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     }
     try {
       setAiStep('extracting');
+      setAiFile(file);
       const fd = new FormData();
       fd.append('file', file);
       const res = await invoicingApi.extractVendorBill(orgSlug, fd);
@@ -233,6 +278,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       showToast(err.message || 'AI extraction failed', 'error');
       setAiStep('idle');
       setAiPayload(null);
+      setAiFile(null);
     }
   }, [orgSlug, showToast, createBillFromExtracted]);
 
@@ -252,6 +298,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const closeChoiceModal = () => {
     setAiStep('idle');
     setAiPayload(null);
+    setAiFile(null);
   };
 
   function handleSort(field) {

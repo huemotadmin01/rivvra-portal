@@ -58,33 +58,28 @@ export function useBreadcrumbs() {
       builtPath += '/' + segments[i];
       const isLast = i === segments.length - 1;
 
-      // Check sidebar map
-      if (pathLabelMap[builtPath]) {
+      // Dynamic labels win over sidebar map so detail pages can override
+      // the parent crumb (e.g. vendor bills showing "Vendor Bills" instead
+      // of the default "Customer Invoices" for /invoicing/invoices).
+      const dynamicLabel = getDetailLabel(builtPath);
+      const label = dynamicLabel || pathLabelMap[builtPath] || null;
+
+      if (label) {
         breadcrumbs.push({
-          label: pathLabelMap[builtPath],
+          label,
           path: isLast ? null : orgPath(builtPath),
         });
-      } else {
-        // Not in sidebar — likely a detail page (ID segment)
-        const dynamicLabel = getDetailLabel(builtPath);
-
-        if (dynamicLabel) {
-          breadcrumbs.push({
-            label: dynamicLabel,
-            path: isLast ? null : orgPath(builtPath),
-          });
-        } else if (isLast) {
-          // Final segment with no label yet
-          const isObjectId = /^[a-f0-9]{24}$/.test(segments[i]);
-          breadcrumbs.push({
-            label: isObjectId
-              ? '...'
-              : segments[i].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            path: null,
-          });
-        }
-        // Skip intermediate unknown segments
+      } else if (isLast) {
+        // Final segment with no label yet
+        const isObjectId = /^[a-f0-9]{24}$/.test(segments[i]);
+        breadcrumbs.push({
+          label: isObjectId
+            ? '...'
+            : segments[i].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          path: null,
+        });
       }
+      // Skip intermediate unknown segments
     }
 
     return breadcrumbs;

@@ -8,6 +8,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
+import { useBreadcrumbContext } from '../../context/BreadcrumbContext';
 import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
@@ -734,6 +735,18 @@ export default function InvoiceDetail() {
   // Real Vendor Bills run on the BILL journal. Employee Bills (EMPBI) and
   // customer invoices share the same detail page but must not see these fields.
   const isVendorBill = invoice?.journalCode === 'BILL';
+
+  // Vendor bills share the /invoicing/invoices/:id route with customer
+  // invoices; override the parent crumb so it doesn't read "Customer Invoices".
+  const { setDetailLabel, clearDetailLabel } = useBreadcrumbContext();
+  useEffect(() => {
+    if (!invoice?._id) return;
+    const parent = '/invoicing/invoices';
+    if (isVendorBill) {
+      setDetailLabel(parent, 'Vendor Bills');
+      return () => clearDetailLabel(parent);
+    }
+  }, [isVendorBill, invoice?._id, setDetailLabel, clearDetailLabel]);
 
   const countryCode = (() => {
     const c = String(invoice?.companyCountry || '').trim().toLowerCase();
@@ -1976,14 +1989,14 @@ export default function InvoiceDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                 {/* Left column */}
                 <div className="space-y-4">
-                  {/* Customer — with contact lookup */}
+                  {/* Vendor/Customer — with contact lookup */}
                   <EditableField
-                    label="Customer"
+                    label={isVendorBill ? 'Vendor' : 'Customer'}
                     value={editForm.contactName || invoice.contactName || invoice.customer?.name || ''}
                     field="contactId"
                     editable={isDraft}
                     onSave={() => {}}
-                    placeholder="Select a customer"
+                    placeholder={isVendorBill ? 'Select a vendor' : 'Select a customer'}
                     displayValue={
                       <div>
                         <span
