@@ -740,17 +740,23 @@ export default function InvoiceDetail() {
   // customer invoices share the same detail page but must not see these fields.
   const isVendorBill = invoice?.journalCode === 'BILL';
 
-  // Vendor bills share the /invoicing/invoices/:id route with customer
-  // invoices; override the parent crumb so it doesn't read "Customer Invoices".
+  // Vendor bills and employee bills share the /invoicing/invoices/:id route
+  // with customer invoices; override the parent crumb so it reads the right
+  // list name AND links back to the right list page.
   const { setDetailLabel, clearDetailLabel } = useBreadcrumbContext();
   useEffect(() => {
     if (!invoice?._id) return;
     const parent = '/invoicing/invoices';
-    if (isVendorBill) {
-      setDetailLabel(parent, 'Vendor Bills');
+    const jc = invoice?.journalCode;
+    if (jc === 'BILL') {
+      setDetailLabel(parent, 'Vendor Bills', { pathOverride: '/invoicing/bills' });
       return () => clearDetailLabel(parent);
     }
-  }, [isVendorBill, invoice?._id, setDetailLabel, clearDetailLabel]);
+    if (jc === 'EMPBI') {
+      setDetailLabel(parent, 'Employee Bills', { pathOverride: '/invoicing/employee-bills' });
+      return () => clearDetailLabel(parent);
+    }
+  }, [invoice?.journalCode, invoice?._id, setDetailLabel, clearDetailLabel]);
 
   const countryCode = (() => {
     const c = String(invoice?.companyCountry || '').trim().toLowerCase();

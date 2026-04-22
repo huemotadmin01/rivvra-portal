@@ -18,7 +18,7 @@ export function useBreadcrumbs() {
   const { user } = useAuth();
   const { getAppRole, isOrgAdmin } = useOrg();
   const { timesheetUser } = useTimesheetContext();
-  const { getDetailLabel } = useBreadcrumbContext();
+  const { getDetailLabel, getDetailPathOverride } = useBreadcrumbContext();
 
   return useMemo(() => {
     if (!currentApp) return [];
@@ -63,11 +63,15 @@ export function useBreadcrumbs() {
       // of the default "Customer Invoices" for /invoicing/invoices).
       const dynamicLabel = getDetailLabel(builtPath);
       const label = dynamicLabel || pathLabelMap[builtPath] || null;
+      // Some detail pages share a URL with another list (vendor bills live
+      // under /invoicing/invoices/:id); when set, the crumb links to the
+      // real list instead of the default URL-derived path.
+      const pathOverride = getDetailPathOverride(builtPath);
 
       if (label) {
         breadcrumbs.push({
           label,
-          path: isLast ? null : orgPath(builtPath),
+          path: isLast ? null : orgPath(pathOverride || builtPath),
         });
       } else if (isLast) {
         // Final segment with no label yet
@@ -83,5 +87,5 @@ export function useBreadcrumbs() {
     }
 
     return breadcrumbs;
-  }, [location.pathname, currentApp, orgPath, user, timesheetUser, getAppRole, getDetailLabel]);
+  }, [location.pathname, currentApp, orgPath, user, timesheetUser, getAppRole, getDetailLabel, getDetailPathOverride]);
 }
