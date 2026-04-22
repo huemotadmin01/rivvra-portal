@@ -723,8 +723,13 @@ export default function InvoiceDetail() {
   const [previewNumber, setPreviewNumber] = useState(null);
   const [customerDefaultProduct, setCustomerDefaultProduct] = useState(null); // { _id, name }
   const [consultantRates, setConsultantRates] = useState({}); // { consultantId: clientBillingRate }
+  const [expenseCategories, setExpenseCategories] = useState([]); // vendor bill line categorization
+  const [tdsConfigs, setTdsConfigs] = useState([]); // vendor bill TDS sections
 
   const isDraft = invoice?.status === 'draft';
+  // Real Vendor Bills run on the BILL journal. Employee Bills (EMPBI) and
+  // customer invoices share the same detail page but must not see these fields.
+  const isVendorBill = invoice?.journalCode === 'BILL';
 
   const countryCode = (() => {
     const c = String(invoice?.companyCountry || '').trim().toLowerCase();
@@ -762,6 +767,7 @@ export default function InvoiceDetail() {
           taxIds: (li.taxIds || li.taxes || []).map(t => typeof t === 'object' ? (t._id || t.id) : t),
           taxNames: (li.taxIds || li.taxes || []).map(t => typeof t === 'object' ? t.name : ''),
           discount: li.discount ?? 0,
+          expenseCategory: li.expenseCategory || '',
         })),
         notes: invoice.notes || '',
         internalNotes: invoice.internalNotes || '',
@@ -784,6 +790,17 @@ export default function InvoiceDetail() {
       invoicingApi.listTaxes(orgSlug).then(r => setAllTaxes(r?.taxes || [])).catch(() => {});
     }
   }, [orgSlug]);
+
+  // Vendor-bill-only: fetch expense categories + TDS configs
+  useEffect(() => {
+    if (!orgSlug || !isVendorBill) return;
+    invoicingApi.listExpenseCategories(orgSlug)
+      .then(res => setExpenseCategories(res?.categories || []))
+      .catch(() => {});
+    invoicingApi.listTdsConfig(orgSlug, { active: 'true' })
+      .then(res => setTdsConfigs(res?.rows || res?.configs || []))
+      .catch(() => {});
+  }, [orgSlug, isVendorBill]);
 
   // Fetch preview number for drafts without a number
   useEffect(() => {
@@ -908,6 +925,7 @@ export default function InvoiceDetail() {
       startDate: l.startDate || undefined,
       endDate: l.endDate || undefined,
       lineCurrency: l.lineCurrency || undefined,
+      expenseCategory: l.expenseCategory || undefined,
     }));
     debouncedSave({ lines: cleanLines });
   }, [debouncedSave]);
@@ -1332,29 +1350,50 @@ export default function InvoiceDetail() {
   }, [fetchInvoice, fetchAttachments]);
 
   // ── Action handlers ──
-  const handleSend = async () => {
+  const handleSend = async (opts = {}) => {
     // Validate before confirming
     if (!invoice.contactId && !editForm.contactId) {
-      return showToast('Please select a customer before confirming', 'error');
+      return showToast(isVendorBill ? 'Please select a vendor before confirming' : 'Please select a customer before confirming', 'error');
     }
     const lines = editForm.lines || invoice.lines || [];
     const hasValidLine = lines.some(l => (Number(l.unitPrice) || 0) > 0 && (Number(l.quantity) || 0) > 0);
     if (!hasValidLine) {
       return showToast('At least one line item must have a quantity and billing rate', 'error');
     }
-    // Validate start/end dates on all lines with amounts
-    const linesWithAmounts = lines.filter(l => (Number(l.unitPrice) || 0) > 0 && (Number(l.quantity) || 0) > 0);
-    const missingDates = linesWithAmounts.some(l => !l.startDate || !l.endDate);
-    if (missingDates) {
-      return showToast('Start Date and End Date are required on all line items', 'error');
+    if (isVendorBill) {
+      if (!(editForm.vendorInvoiceNumber || invoice.vendorInvoiceNumber)) {
+        return showToast('Vendor Invoice Number is required', 'error');
+      }
+      if (isIndia) {
+        if (!(editForm.placeOfSupply || invoice.placeOfSupply)) {
+          return showToast('Place of Supply is required', 'error');
+        }
+        if (!(editForm.gstTreatment || invoice.gstTreatment)) {
+          return showToast('GST Treatment is required', 'error');
+        }
+      }
+    } else {
+      // Customer invoices: start/end dates required on every revenue line
+      const linesWithAmounts = lines.filter(l => (Number(l.unitPrice) || 0) > 0 && (Number(l.quantity) || 0) > 0);
+      const missingDates = linesWithAmounts.some(l => !l.startDate || !l.endDate);
+      if (missingDates) {
+        return showToast('Start Date and End Date are required on all line items', 'error');
+      }
     }
     try {
       setActionLoading('send');
-      await invoicingApi.sendInvoice(orgSlug, invoiceId);
-      showToast('Invoice confirmed');
+      await invoicingApi.sendInvoice(orgSlug, invoiceId, opts);
+      showToast(isVendorBill ? 'Bill confirmed' : 'Invoice confirmed');
       fetchInvoice();
     } catch (err) {
-      showToast(err.message || 'Failed to confirm invoice', 'error');
+      // Vendor bill: soft-warn on duplicate vendor invoice number
+      if (err.message === 'duplicate_vendor_bill' || /duplicate/i.test(err.message || '')) {
+        if (window.confirm('A bill with this invoice number already exists for this vendor. Continue anyway?')) {
+          return handleSend({ confirmDuplicate: true });
+        }
+      } else {
+        showToast(err.message || 'Failed to confirm invoice', 'error');
+      }
     } finally {
       setActionLoading(null);
     }
@@ -1662,7 +1701,9 @@ export default function InvoiceDetail() {
             {status === 'draft' && (
               <>
                 <ActionBtn icon={Check} label="Confirm" onClick={handleSend} loading={actionLoading === 'send'} primary />
-                <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                {!isVendorBill && (
+                  <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                )}
                 <ActionBtn icon={Trash2} label="Delete" onClick={() => setShowDeleteConfirm(true)} danger />
               </>
             )}
@@ -1671,8 +1712,12 @@ export default function InvoiceDetail() {
             {isActionablePosted && (
               <>
                 <ActionBtn icon={CreditCard} label="Record Payment" onClick={() => setShowPaymentModal(true)} primary />
-                <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
-                <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                {!isVendorBill && (
+                  <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
+                )}
+                {!isVendorBill && (
+                  <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                )}
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
                 {isOverdue && (
                   <ActionBtn icon={BellRing} label="Follow-up" onClick={handleSendFollowUp} loading={actionLoading === 'followup'} />
@@ -1704,7 +1749,9 @@ export default function InvoiceDetail() {
             {/* Paid actions — no Reset to Draft (has payments) */}
             {isFullyPaid && !isCancelled && (
               <>
-                <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                {!isVendorBill && (
+                  <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                )}
                 <ActionBtn icon={FileText} label="Credit Note" onClick={handleCreateCreditNote} />
                 <ActionBtn icon={Copy} label="Duplicate" onClick={handleDuplicate} loading={actionLoading === 'duplicate'} />
               </>
@@ -2022,6 +2069,66 @@ export default function InvoiceDetail() {
                     }
                   />
 
+                  {/* Vendor Bill: vendor's own invoice number (distinct from internal BILL/…) */}
+                  {isVendorBill && (
+                    <EditableField
+                      label="Vendor Invoice #"
+                      value={isDraft ? (editForm.vendorInvoiceNumber || '') : (invoice.vendorInvoiceNumber || '')}
+                      field="vendorInvoiceNumber"
+                      type="text"
+                      editable={isDraft}
+                      onSave={saveField}
+                      placeholder="As printed on the vendor's bill"
+                    />
+                  )}
+
+                  {/* Vendor Bill: TDS section dropdown (India) */}
+                  {isVendorBill && isIndia && (
+                    <EditableField
+                      label="TDS Section"
+                      value={isDraft ? (editForm.tdsConfigId || '') : (invoice.tdsConfigId || '')}
+                      field="tdsConfigId"
+                      type="select"
+                      options={[
+                        { value: '', label: 'No TDS' },
+                        ...tdsConfigs.map(t => ({
+                          value: t._id,
+                          label: `${t.section} @ ${t.rate}% — ${t.description || ''}`.trim(),
+                        })),
+                      ]}
+                      editable={isDraft}
+                      displayValue={
+                        <span className="text-white">
+                          {invoice.tdsSection
+                            ? `${invoice.tdsSection} @ ${invoice.tdsRate ?? 0}%`
+                            : <span className="text-dark-500 italic">No TDS</span>}
+                        </span>
+                      }
+                      onSave={async (_field, value) => {
+                        const cfg = tdsConfigs.find(t => t._id === value);
+                        const updates = {
+                          tdsConfigId: value || null,
+                          tdsSection: cfg?.section || null,
+                          tdsRate: cfg ? Number(cfg.rate) || 0 : 0,
+                        };
+                        setEditForm(prev => ({ ...prev, ...updates }));
+                        try {
+                          setSaving(true);
+                          const res = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
+                          if (res?.invoice) {
+                            setInvoice(prev => ({ ...prev, ...res.invoice, payments: prev?.payments || [] }));
+                          }
+                          setSavedField('tdsConfigId');
+                          setTimeout(() => setSavedField(null), 1500);
+                        } catch (err) {
+                          showToast(err.message || 'Failed to save', 'error');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    />
+                  )}
+
                   <EditableField
                     label="Currency"
                     value={isDraft ? editForm.currency : currency}
@@ -2087,7 +2194,12 @@ export default function InvoiceDetail() {
                       <thead>
                         <tr className="bg-dark-800">
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-6 py-3">Product</th>
-                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Consultant</th>
+                          {!isVendorBill && (
+                            <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Consultant</th>
+                          )}
+                          {isVendorBill && (
+                            <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Expense Category</th>
+                          )}
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Start Date</th>
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">End Date</th>
@@ -2116,6 +2228,8 @@ export default function InvoiceDetail() {
                                 onProductSelect={handleProductSelect}
                                 onConsultantSelect={handleConsultantSelect}
                                 productLocked={!!(invoice?.contactId && li.productId && invoice?.contactId === editForm.contactId)}
+                                isVendorBill={isVendorBill}
+                                expenseCategories={expenseCategories}
                               />
                             ))}
                             {lineItems.length === 0 && (
@@ -2148,7 +2262,9 @@ export default function InvoiceDetail() {
                                     {li.product?.name || li.productName || <span className="text-dark-600 italic">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-white">
-                                    {li.consultantName || <span className="text-dark-600 italic">—</span>}
+                                    {isVendorBill
+                                      ? (li.expenseCategory || <span className="text-dark-600 italic">—</span>)
+                                      : (li.consultantName || <span className="text-dark-600 italic">—</span>)}
                                   </td>
                                   <td className="px-4 py-3 text-dark-300 max-w-xs">
                                     {li.description || <span className="text-dark-600 italic">—</span>}
@@ -2243,6 +2359,31 @@ export default function InvoiceDetail() {
                             {formatCurrency(isDraft ? localTotals.total : invoice.total, currency)}
                           </span>
                         </div>
+
+                        {/* Vendor Bill: TDS deduction + Net Payable */}
+                        {isVendorBill && (Number(invoice.tdsRate) > 0 || Number(invoice.tdsAmount) > 0) && (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-dark-400">
+                                TDS {invoice.tdsSection ? `(${invoice.tdsSection} @ ${invoice.tdsRate}%)` : ''}
+                              </span>
+                              <span className="text-amber-400">
+                                -{formatCurrency(invoice.tdsAmount || 0, currency)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-base font-bold border-t border-dark-600 pt-1">
+                              <span className="text-white">Net Payable</span>
+                              <span className="text-white">
+                                {formatCurrency(
+                                  invoice.netPayable != null
+                                    ? invoice.netPayable
+                                    : ((isDraft ? localTotals.total : invoice.total) - (invoice.tdsAmount || 0)),
+                                  currency,
+                                )}
+                              </span>
+                            </div>
+                          </>
+                        )}
 
                         {invoice.amountPaid > 0 && (
                           <div className="flex justify-between text-sm">
@@ -2632,7 +2773,7 @@ export default function InvoiceDetail() {
 // InlineLineRow — editable line item row for draft invoices
 // ============================================================================
 
-function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, onConsultantSelect, productLocked }) {
+function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, customerContactId, onUpdate, onRemove, onProductSelect, onConsultantSelect, productLocked, isVendorBill = false, expenseCategories = [] }) {
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showConsultantSearch, setShowConsultantSearch] = useState(false);
   const [showTaxSelect, setShowTaxSelect] = useState(false);
@@ -2695,28 +2836,43 @@ function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, cus
         )}
       </td>
 
-      {/* Consultant */}
-      <td className="px-4 py-2.5">
-        <div
-          ref={consultantTriggerRef}
-          className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
-          onClick={() => setShowConsultantSearch(true)}
-        >
-          <span className="text-white text-sm">{line.consultantName || <span className="text-dark-500 italic">Consultant</span>}</span>
-          <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
-        </div>
-        {showConsultantSearch && (
-          <EmployeeSearch
-            orgSlug={orgSlug}
-            customerContactId={customerContactId}
-            triggerRef={consultantTriggerRef}
-            onSelect={(emp) => {
-              onConsultantSelect(index, emp);
-            }}
-            onClose={() => setShowConsultantSearch(false)}
-          />
-        )}
-      </td>
+      {/* Consultant (customer invoices) OR Expense Category (vendor bills) */}
+      {isVendorBill ? (
+        <td className="px-4 py-2.5">
+          <select
+            value={line.expenseCategory || ''}
+            onChange={(e) => onUpdate(index, 'expenseCategory', e.target.value)}
+            className="w-full bg-transparent hover:bg-dark-800 border border-transparent hover:border-dark-600 focus:border-rivvra-500 rounded px-1 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 min-h-[28px]"
+          >
+            <option value="" className="bg-dark-800">Select category</option>
+            {(expenseCategories || []).map((c) => (
+              <option key={c._id} value={c.name} className="bg-dark-800">{c.name}</option>
+            ))}
+          </select>
+        </td>
+      ) : (
+        <td className="px-4 py-2.5">
+          <div
+            ref={consultantTriggerRef}
+            className="cursor-pointer group/cell rounded px-1 -mx-1 py-0.5 hover:bg-dark-800 flex items-center gap-1.5 min-h-[28px]"
+            onClick={() => setShowConsultantSearch(true)}
+          >
+            <span className="text-white text-sm">{line.consultantName || <span className="text-dark-500 italic">Consultant</span>}</span>
+            <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
+          </div>
+          {showConsultantSearch && (
+            <EmployeeSearch
+              orgSlug={orgSlug}
+              customerContactId={customerContactId}
+              triggerRef={consultantTriggerRef}
+              onSelect={(emp) => {
+                onConsultantSelect(index, emp);
+              }}
+              onClose={() => setShowConsultantSearch(false)}
+            />
+          )}
+        </td>
+      )}
 
       {/* Description */}
       <td className="px-4 py-2.5">

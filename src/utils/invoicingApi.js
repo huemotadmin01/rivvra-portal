@@ -34,8 +34,11 @@ const invoicingApi = {
   deleteInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`, { method: 'DELETE' });
   },
-  sendInvoice(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/send`, { method: 'PATCH' });
+  sendInvoice(orgSlug, id, data = {}) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/send`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   },
   cancelInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/cancel`, { method: 'PATCH' });
@@ -149,6 +152,34 @@ const invoicingApi = {
   },
   seedTdsDefaults(orgSlug, data = {}) {
     return api.request(`/api/org/${orgSlug}/invoicing/tds-config/seed-defaults`, { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  // ---------- EXPENSE CATEGORIES (vendor-bill line categorization) ----------
+  listExpenseCategories(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/expense-categories${qs ? '?' + qs : ''}`);
+  },
+  createExpenseCategory(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/expense-categories`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateExpenseCategory(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/expense-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteExpenseCategory(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/expense-categories/${id}`, { method: 'DELETE' });
+  },
+
+  // ---------- VENDOR BILL: duplicate check + AI extract ----------
+  checkVendorBillDuplicate(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/vendor-bills/check-duplicate${qs ? '?' + qs : ''}`);
+  },
+  extractVendorBill(orgSlug, formDataOrBody) {
+    const endpoint = `/api/org/${orgSlug}/invoicing/vendor-bills/extract`;
+    if (typeof FormData !== 'undefined' && formDataOrBody instanceof FormData) {
+      return api.uploadFile(endpoint, formDataOrBody);
+    }
+    return api.request(endpoint, { method: 'POST', body: JSON.stringify(formDataOrBody || {}) });
   },
 
   // ---------- SEQUENCES ----------
