@@ -1227,6 +1227,54 @@ export default function InvoiceDetail() {
     return { subtotal: Math.round(subtotal * 100) / 100, taxTotal: Math.round(taxTotal * 100) / 100, total: Math.round(total * 100) / 100, discountTotal: Math.round(discountTotal * 100) / 100 };
   }, [editForm.lines, allTaxes]);
 
+  // Build a per-tax-type breakdown (CGST / SGST / IGST / TDS / CESS, etc.) from invoice lines.
+  // For lines with multiple taxes, allocate the line's tax amount by rate-weight so the
+  // sum of per-type rows equals the invoice's total tax.
+  const taxMapById = useMemo(() => {
+    const m = {};
+    (allTaxes || []).forEach(t => { m[String(t._id || t.id)] = t; });
+    return m;
+  }, [allTaxes]);
+
+  const buildTaxBreakdown = useCallback((lines) => {
+    const totals = {};
+    for (const line of lines || []) {
+      const taxIds = line.taxIds || [];
+      if (!taxIds.length) continue;
+      const taxes = taxIds.map(id => taxMapById[String(id)]).filter(Boolean);
+      if (!taxes.length) continue;
+
+      const qty = Number(line.quantity) || 0;
+      const price = Number(line.unitPrice) || 0;
+      const discPct = Number(line.discount) || 0;
+      const taxable = qty * price * (1 - discPct / 100);
+
+      let lineTaxAmount;
+      if (line.taxAmount != null) {
+        lineTaxAmount = Number(line.taxAmount) || 0;
+      } else {
+        lineTaxAmount = taxes.reduce((s, t) => {
+          const rate = Number(t.rate) || 0;
+          if (t.inclusive) return s + (taxable - taxable / (1 + rate / 100));
+          return s + taxable * (rate / 100);
+        }, 0);
+      }
+
+      const totalRate = taxes.reduce((s, t) => s + (Number(t.rate) || 0), 0);
+      if (totalRate === 0) continue;
+
+      for (const tax of taxes) {
+        const key = tax.name || String(tax._id || tax.id);
+        const share = ((Number(tax.rate) || 0) / totalRate) * lineTaxAmount;
+        totals[key] = (totals[key] || 0) + share;
+      }
+    }
+    return Object.entries(totals).map(([name, amount]) => ({
+      name,
+      amount: Math.round(amount * 100) / 100,
+    }));
+  }, [taxMapById]);
+
   // ── Fetch invoice ──
   const fetchInvoice = useCallback(async () => {
     if (!orgSlug || !invoiceId) return;
@@ -2129,23 +2177,38 @@ export default function InvoiceDetail() {
                     <div className="flex justify-end">
                       <div className="w-full max-w-xs space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span className="text-dark-400">Untaxed Amount</span>
+                          <span className="text-dark-400">Taxable Value</span>
                           <span className="text-white">
                             {formatCurrency(isDraft ? localTotals.subtotal : invoice.subtotal, currency)}
                           </span>
                         </div>
 
-                        {/* Tax breakdown */}
-                        {((isDraft ? localTotals.taxTotal : (invoice.taxTotal || invoice.totalTax || invoice.taxAmount)) > 0) && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-dark-400">
-                              {invoice.taxBreakdown?.[0]?.name || 'Taxes'}
-                            </span>
-                            <span className="text-white">
-                              {formatCurrency(isDraft ? localTotals.taxTotal : (invoice.taxTotal || invoice.totalTax || invoice.taxAmount || 0), currency)}
-                            </span>
-                          </div>
-                        )}
+                        {/* Per-tax-type breakdown (CGST / SGST / IGST / TDS / CESS) */}
+                        {(() => {
+                          const sourceLines = isDraft ? (editForm.lines || []) : (invoice.lines || invoice.lineItems || []);
+                          const breakdown = buildTaxBreakdown(sourceLines);
+                          const taxTotalFallback = isDraft
+                            ? localTotals.taxTotal
+                            : (invoice.taxTotal || invoice.totalTax || invoice.taxAmount || 0);
+
+                          if (breakdown.length > 0) {
+                            return breakdown.map((t) => (
+                              <div key={t.name} className="flex justify-between text-sm">
+                                <span className="text-dark-400">{t.name}</span>
+                                <span className="text-white">{formatCurrency(t.amount, currency)}</span>
+                              </div>
+                            ));
+                          }
+                          if (taxTotalFallback > 0) {
+                            return (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-dark-400">Taxes</span>
+                                <span className="text-white">{formatCurrency(taxTotalFallback, currency)}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
 
                         {((isDraft ? localTotals.discountTotal : (invoice.totalDiscount || invoice.discountAmount)) > 0) && (
                           <div className="flex justify-between text-sm">

@@ -355,7 +355,12 @@ export default function InvoicingDashboard() {
         </div>
 
         {/* ---- KPI Strip ---- */}
-        {kpis && <KPIStrip kpis={kpis} currency={companyCurrency} />}
+        {kpis && (
+          <div>
+            <SectionHeader title="Customer Invoices Summary" />
+            <KPIStrip kpis={kpis} currency={companyCurrency} />
+          </div>
+        )}
 
         {/* ---- Top row: Purchase + Bank journals ---- */}
         {topRowJournals.length > 0 && (
