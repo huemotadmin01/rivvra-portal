@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -20,7 +20,7 @@ import {
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
   AlertTriangle, Check, Info, Upload, Eye, Paperclip,
   User, Calendar, Clock, RefreshCw, BellRing, Edit3,
-  Pencil, Plus, Search, Package, ShieldCheck,
+  Pencil, Plus, Search, Package, ShieldCheck, Sparkles,
 } from 'lucide-react';
 
 // ── Helpers ──
@@ -689,6 +689,10 @@ export default function InvoiceDetail() {
   const { showToast } = useToast();
   const { invoiceId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Yellow "AI-filled, verify" banner is opt-in via ?ai=1 on the URL
+  // (set by VendorBillList after a PDF extraction). Dismissed on first edit.
+  const [showAiBanner, setShowAiBanner] = useState(searchParams.get('ai') === '1');
 
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1847,6 +1851,32 @@ export default function InvoiceDetail() {
                       PAID
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* AI-filled verify banner — shown on bills created via PDF extraction */}
+              {isVendorBill && showAiBanner && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-800/40 flex items-start gap-3">
+                  <Sparkles size={16} className="shrink-0 mt-0.5 text-amber-400" />
+                  <div className="flex-1 min-w-0 text-xs">
+                    <p className="font-semibold text-amber-400 tracking-wide uppercase">AI-filled — please verify</p>
+                    <p className="text-dark-300 mt-0.5">
+                      Fields below were extracted from the PDF you uploaded. Double-check vendor,
+                      amounts, GSTIN and Place of Supply before confirming the bill.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowAiBanner(false);
+                      const next = new URLSearchParams(searchParams);
+                      next.delete('ai');
+                      setSearchParams(next, { replace: true });
+                    }}
+                    className="shrink-0 p-1 rounded-lg text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10"
+                    aria-label="Dismiss"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               )}
 

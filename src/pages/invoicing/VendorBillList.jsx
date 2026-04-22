@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import contactsApi from '../../utils/contactsApi';
 import {
   Search, Plus, Loader2, FileText, ChevronLeft, ChevronRight,
-  Calendar, X, ArrowUpDown, Building2,
+  Calendar, X, ArrowUpDown, Building2, Upload, Sparkles, UserPlus, UserCheck,
 } from 'lucide-react';
 
 // Tab model: separates document lifecycle (draft/cancelled) from payment status
@@ -113,6 +114,12 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const [sortOrder, setSortOrder] = useState('desc');
   const limit = 20;
 
+  // AI extraction state — only used on vendor-bill list (not employee bills)
+  const fileInputRef = useRef(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [aiStep, setAiStep] = useState('idle'); // idle | extracting | choose | creating
+  const [aiPayload, setAiPayload] = useState(null); // { extracted, vendorMatch, pdfFile }
+
   const loadBills = useCallback(async () => {
     setLoading(true);
     try {
@@ -155,6 +162,97 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   useEffect(() => {
     setPage(1);
   }, [activeTab, search]);
+
+  // ── AI extraction flow ─────────────────────────────────────────────────
+  // 1. User drops a PDF → extractVendorBill → get { extracted, vendorMatch }
+  // 2. If vendor matched → go straight to step 3.
+  //    Else → open VendorChoiceModal for Create / Match / Blank.
+  // 3. Create draft bill pre-filled from `extracted` + chosen contactId,
+  //    then navigate to detail with ?ai=1 to show the yellow verify banner.
+  const createBillFromExtracted = useCallback(async ({ extracted, contactId }) => {
+    try {
+      setAiStep('creating');
+      const today = new Date().toISOString().split('T')[0];
+      const invDate = extracted?.invoice?.date || today;
+      const dueDate = extracted?.invoice?.dueDate || invDate;
+      const lines = (extracted?.lines || []).length
+        ? extracted.lines.map((l) => ({
+            description: l.description || '',
+            quantity: Number(l.quantity) || 1,
+            unitPrice: Number(l.unitPrice) || 0,
+            hsnSacCode: l.hsnSac || undefined,
+            taxIds: [],
+          }))
+        : [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }];
+      const payload = {
+        type: 'vendor_bill',
+        date: invDate,
+        dueDate,
+        contactId: contactId || undefined,
+        vendorInvoiceNumber: extracted?.invoice?.number || undefined,
+        placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
+        gstTreatment: extracted?.invoice?.gstTreatment || undefined,
+        customerGstin: extracted?.vendor?.gstin || undefined,
+        lines,
+      };
+      const res = await invoicingApi.createInvoice(orgSlug, payload);
+      const newId = res?.invoice?._id;
+      if (!newId) throw new Error('Bill creation returned no id');
+      showToast('Bill drafted from PDF — please verify');
+      navigate(orgPath(`/invoicing/invoices/${newId}?ai=1`));
+    } catch (err) {
+      showToast(err.message || 'Failed to create bill', 'error');
+      setAiStep('idle');
+      setAiPayload(null);
+    }
+  }, [orgSlug, orgPath, navigate, showToast]);
+
+  const handlePdfDropped = useCallback(async (file) => {
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      return showToast('Only PDF files are supported', 'error');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return showToast('PDF must be under 10 MB', 'error');
+    }
+    try {
+      setAiStep('extracting');
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await invoicingApi.extractVendorBill(orgSlug, fd);
+      const extracted = res?.extracted;
+      const vendorMatch = res?.vendorMatch || null;
+      if (!extracted) throw new Error('Extraction returned no data');
+      if (vendorMatch?.contactId) {
+        await createBillFromExtracted({ extracted, contactId: vendorMatch.contactId });
+      } else {
+        setAiPayload({ extracted, vendorMatch });
+        setAiStep('choose');
+      }
+    } catch (err) {
+      showToast(err.message || 'AI extraction failed', 'error');
+      setAiStep('idle');
+      setAiPayload(null);
+    }
+  }, [orgSlug, showToast, createBillFromExtracted]);
+
+  const handleFileSelect = (e) => {
+    const f = e.target.files?.[0];
+    if (f) handlePdfDropped(f);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    const f = e.dataTransfer?.files?.[0];
+    if (f) handlePdfDropped(f);
+  };
+
+  const closeChoiceModal = () => {
+    setAiStep('idle');
+    setAiPayload(null);
+  };
 
   function handleSort(field) {
     if (sortField === field) {
@@ -204,13 +302,74 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           <h1 className="text-xl font-bold text-white">{headerTitle}</h1>
           <p className="text-sm text-dark-400 mt-0.5">{headerSubtitle}</p>
         </div>
-        <button
-          onClick={() => navigate(orgPath('/invoicing/bills/new'))}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors"
-        >
-          <Plus size={16} /> Create Bill
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate(orgPath('/invoicing/bills/new'))}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors"
+          >
+            <Plus size={16} /> Create Bill
+          </button>
+        </div>
       </div>
+
+      {/* AI extraction drop zone (vendor bills only) */}
+      {!isEmployeeMode && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); if (!dragActive) setDragActive(true); }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={handleDrop}
+          onClick={() => aiStep === 'idle' && fileInputRef.current?.click()}
+          className={`relative cursor-pointer rounded-xl border-2 border-dashed transition-colors px-5 py-4 ${
+            dragActive
+              ? 'border-rivvra-500 bg-rivvra-500/10'
+              : 'border-dark-700 hover:border-dark-600 bg-dark-850'
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <div className="flex items-center gap-3">
+            <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+              aiStep === 'extracting' || aiStep === 'creating'
+                ? 'bg-rivvra-500/20 text-rivvra-400'
+                : 'bg-dark-800 text-dark-400'
+            }`}>
+              {aiStep === 'extracting' || aiStep === 'creating'
+                ? <Loader2 size={18} className="animate-spin" />
+                : <Sparkles size={18} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white">
+                {aiStep === 'extracting' ? 'Reading PDF with AI…'
+                  : aiStep === 'creating' ? 'Creating draft bill…'
+                  : 'Drop a vendor PDF here to auto-fill a new bill'}
+              </div>
+              <div className="text-xs text-dark-400 mt-0.5">
+                Powered by GPT — extracts vendor, invoice #, GST, line items. PDFs up to 10 MB.
+              </div>
+            </div>
+            {aiStep === 'idle' && (
+              <div className="shrink-0 text-xs text-dark-400 inline-flex items-center gap-1">
+                <Upload size={12} /> or click to upload
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Vendor choice modal — shown when AI extract found no vendor match */}
+      {aiStep === 'choose' && aiPayload && (
+        <VendorChoiceModal
+          extracted={aiPayload.extracted}
+          orgSlug={orgSlug}
+          onCancel={closeChoiceModal}
+          onDone={(contactId) => createBillFromExtracted({ extracted: aiPayload.extracted, contactId })}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-dark-700 overflow-x-auto">
@@ -369,6 +528,177 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// VendorChoiceModal — prompts the user when AI extraction found no vendor match
+// Three outcomes: create a new contact, match an existing one, or leave blank.
+// ============================================================================
+function VendorChoiceModal({ extracted, orgSlug, onCancel, onDone }) {
+  const { showToast } = useToast();
+  const [mode, setMode] = useState('create'); // create | match | blank
+  const [creating, setCreating] = useState(false);
+  const [matchQuery, setMatchQuery] = useState('');
+  const [matchResults, setMatchResults] = useState([]);
+  const [matchLoading, setMatchLoading] = useState(false);
+
+  const extractedName = extracted?.vendor?.name || '';
+  const extractedGstin = extracted?.vendor?.gstin || '';
+  const extractedAddress = extracted?.vendor?.address || '';
+
+  useEffect(() => {
+    if (mode !== 'match') return;
+    let cancelled = false;
+    const q = matchQuery.trim() || extractedName.trim();
+    if (!q) { setMatchResults([]); return; }
+    setMatchLoading(true);
+    const t = setTimeout(() => {
+      contactsApi.list(orgSlug, { search: q, limit: 10 })
+        .then((res) => { if (!cancelled) setMatchResults(res?.contacts || res?.data || []); })
+        .catch(() => { if (!cancelled) setMatchResults([]); })
+        .finally(() => { if (!cancelled) setMatchLoading(false); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [mode, matchQuery, extractedName, orgSlug]);
+
+  async function handleCreate() {
+    if (!extractedName.trim()) return showToast('No vendor name extracted', 'error');
+    setCreating(true);
+    try {
+      const res = await contactsApi.create(orgSlug, {
+        name: extractedName,
+        companyName: extractedName,
+        gstin: extractedGstin || undefined,
+        address: extractedAddress || undefined,
+        contactType: 'vendor',
+      });
+      const newId = res?.contact?._id || res?._id;
+      if (!newId) throw new Error('Contact creation returned no id');
+      onDone(newId);
+    } catch (err) {
+      showToast(err.message || 'Failed to create vendor', 'error');
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <div>
+            <h3 className="text-base font-semibold text-white">No matching vendor found</h3>
+            <p className="text-xs text-dark-400 mt-0.5">
+              AI extracted "<span className="text-white">{extractedName || '(no name)'}</span>"
+              {extractedGstin && <> — GSTIN <span className="text-white">{extractedGstin}</span></>}
+            </p>
+          </div>
+          <button onClick={onCancel} className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setMode('create')}
+              className={`flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs transition-colors ${
+                mode === 'create' ? 'border-rivvra-500 bg-rivvra-500/10 text-white' : 'border-dark-700 text-dark-300 hover:border-dark-600'
+              }`}
+            >
+              <UserPlus size={16} />
+              <span className="font-medium">Create vendor</span>
+            </button>
+            <button
+              onClick={() => setMode('match')}
+              className={`flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs transition-colors ${
+                mode === 'match' ? 'border-rivvra-500 bg-rivvra-500/10 text-white' : 'border-dark-700 text-dark-300 hover:border-dark-600'
+              }`}
+            >
+              <UserCheck size={16} />
+              <span className="font-medium">Match existing</span>
+            </button>
+            <button
+              onClick={() => setMode('blank')}
+              className={`flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs transition-colors ${
+                mode === 'blank' ? 'border-rivvra-500 bg-rivvra-500/10 text-white' : 'border-dark-700 text-dark-300 hover:border-dark-600'
+              }`}
+            >
+              <FileText size={16} />
+              <span className="font-medium">Leave blank</span>
+            </button>
+          </div>
+
+          {mode === 'create' && (
+            <div className="text-xs text-dark-400 bg-dark-900/50 rounded-lg p-3 space-y-0.5">
+              <div><span className="text-dark-500">Name:</span> <span className="text-white">{extractedName || '—'}</span></div>
+              {extractedGstin && <div><span className="text-dark-500">GSTIN:</span> <span className="text-white">{extractedGstin}</span></div>}
+              {extractedAddress && <div><span className="text-dark-500">Address:</span> <span className="text-white">{extractedAddress}</span></div>}
+            </div>
+          )}
+
+          {mode === 'match' && (
+            <div className="space-y-2">
+              <input
+                value={matchQuery}
+                onChange={(e) => setMatchQuery(e.target.value)}
+                placeholder={extractedName || 'Search vendors…'}
+                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+              />
+              <div className="max-h-52 overflow-y-auto space-y-1">
+                {matchLoading ? (
+                  <div className="text-xs text-dark-500 p-3">Searching…</div>
+                ) : matchResults.length === 0 ? (
+                  <div className="text-xs text-dark-500 p-3">No matches</div>
+                ) : (
+                  matchResults.map((c) => (
+                    <button
+                      key={c._id}
+                      onClick={() => onDone(c._id)}
+                      className="w-full text-left rounded-lg px-3 py-2 hover:bg-dark-800 transition-colors"
+                    >
+                      <div className="text-sm text-white">{c.name || c.companyName || '(no name)'}</div>
+                      <div className="text-xs text-dark-500">
+                        {c.gstin ? `GSTIN ${c.gstin}` : c.email || '—'}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode === 'blank' && (
+            <div className="text-xs text-dark-400 bg-dark-900/50 rounded-lg p-3">
+              Create the bill without a vendor. You can assign one later on the bill detail page.
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-dark-700">
+          <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-dark-300 hover:bg-dark-800">
+            Cancel
+          </button>
+          {mode === 'create' && (
+            <button
+              onClick={handleCreate}
+              disabled={creating || !extractedName.trim()}
+              className="px-3 py-1.5 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 disabled:opacity-50 text-sm font-medium text-white"
+            >
+              {creating ? 'Creating…' : 'Create vendor & bill'}
+            </button>
+          )}
+          {mode === 'blank' && (
+            <button
+              onClick={() => onDone(null)}
+              className="px-3 py-1.5 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-sm font-medium text-white"
+            >
+              Create bill
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
