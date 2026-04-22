@@ -2620,7 +2620,7 @@ export default function InvoiceDetail() {
         <DocumentPreviewModal
           filename={previewDoc.filename}
           mimeType={previewDoc.mimeType}
-          directUrl={previewDoc.url}
+          fetchUrl={previewDoc.url}
           onClose={() => setPreviewDoc(null)}
         />
       )}
