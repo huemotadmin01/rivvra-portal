@@ -2838,6 +2838,7 @@ export default function InvoiceDetail() {
           subtotal={invoice.subtotal || 0}
           amountDue={amountDue}
           invoiceType={invoice.type}
+          isVendorBill={isVendorBill}
           isIndia={isIndia}
           onClose={() => setShowPaymentModal(false)}
           onSuccess={() => {
@@ -3246,7 +3247,7 @@ function ActionBtn({ icon: Icon, label, onClick, loading, primary, danger }) {
 // RecordPaymentModal
 // ============================================================================
 
-function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isIndia, onClose, onSuccess, showToast }) {
+function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isVendorBill, isIndia, onClose, onSuccess, showToast }) {
   const [journals, setJournals] = useState([]);
   const [tdsConfigs, setTdsConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3271,7 +3272,11 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
   const tdsRate = selectedTds ? (Number(selectedTds.rateIndividual) || 0) : 0;
 
   const isCustomerInvoice = invoiceType === 'customer_invoice';
-  const showTdsWarning = isIndia && isCustomerInvoice && !tdsEnabled && Number(total) >= 30000;
+  // TDS applies to both directions in India:
+  //  - Customer invoice: customer deducts TDS before paying us
+  //  - Vendor bill: we deduct TDS before paying the vendor (we are the deductor)
+  const tdsApplicable = isIndia && (isCustomerInvoice || isVendorBill);
+  const showTdsWarning = tdsApplicable && !tdsEnabled && Number(total) >= 30000;
 
   // Fetch journals + tds configs in parallel
   useEffect(() => {
@@ -3406,8 +3411,12 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                 <AlertTriangle size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-amber-200">
-                  <p className="font-medium">TDS may apply on this invoice</p>
-                  <p className="text-amber-300/80 mt-0.5">Invoice total ≥ ₹30,000. If the customer deducted TDS under section 194C/194J, toggle "TDS Deducted" below.</p>
+                  <p className="font-medium">TDS may apply on this {isVendorBill ? 'bill' : 'invoice'}</p>
+                  <p className="text-amber-300/80 mt-0.5">
+                    {isVendorBill
+                      ? 'Bill total ≥ ₹30,000. If TDS is deductible under section 194C/194J, toggle "TDS Deducted" below — you are the deductor.'
+                      : 'Invoice total ≥ ₹30,000. If the customer deducted TDS under section 194C/194J, toggle "TDS Deducted" below.'}
+                  </p>
                 </div>
               </div>
             )}
@@ -3468,7 +3477,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             </div>
 
             {/* TDS Toggle */}
-            {isIndia && isCustomerInvoice && (
+            {tdsApplicable && (
               <div className="border border-dark-700 rounded-lg overflow-hidden">
                 <label className="flex items-center justify-between gap-3 px-3 py-2.5 bg-dark-800/50 cursor-pointer">
                   <div className="flex items-center gap-2">
@@ -3478,7 +3487,9 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
                       onChange={(e) => setTdsEnabled(e.target.checked)}
                       className="w-4 h-4 accent-rivvra-500"
                     />
-                    <span className="text-sm font-medium text-white">Customer deducted TDS</span>
+                    <span className="text-sm font-medium text-white">
+                      {isVendorBill ? 'TDS deducted on this payment' : 'Customer deducted TDS'}
+                    </span>
                   </div>
                   {tdsEnabled && tdsAmount > 0 && (
                     <span className="text-xs text-rivvra-400 font-medium">
@@ -3543,7 +3554,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
 
             {/* Amount */}
             <div>
-              <label className={labelCls}>Amount Received</label>
+              <label className={labelCls}>{isVendorBill ? 'Amount Paid' : 'Amount Received'}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -3572,17 +3583,17 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             {/* Summary */}
             <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-3 space-y-1.5 text-sm">
               <div className="flex justify-between text-dark-300">
-                <span>Invoice Due</span>
+                <span>{isVendorBill ? 'Bill Due' : 'Invoice Due'}</span>
                 <span>{formatCurrency(amountDue, currency)}</span>
               </div>
               {tdsEnabled && (
                 <div className="flex justify-between text-dark-300">
-                  <span>TDS Credit</span>
+                  <span>{isVendorBill ? 'TDS Deducted' : 'TDS Credit'}</span>
                   <span>−{formatCurrency(tdsAmount, currency)}</span>
                 </div>
               )}
               <div className="flex justify-between text-dark-300">
-                <span>Payment Received</span>
+                <span>{isVendorBill ? 'Payment Made' : 'Payment Received'}</span>
                 <span>−{formatCurrency(Number(form.amount) || 0, currency)}</span>
               </div>
               <div className="flex justify-between font-semibold pt-1.5 border-t border-dark-700">
