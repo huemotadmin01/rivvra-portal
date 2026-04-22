@@ -4,6 +4,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Search, Loader2, CreditCard, ChevronLeft, ChevronRight,
   X, ArrowUpDown, CheckCircle2, ArrowDownLeft, ArrowUpRight,
@@ -23,11 +24,6 @@ const PAYMENT_METHODS = [
 function formatDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function formatCurrency(amount) {
-  if (amount == null) return '-';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount);
 }
 
 function TypeBadge({ type }) {
@@ -302,7 +298,7 @@ export default function PaymentsList() {
                       <TypeBadge type={pmt.type || pmt.paymentType || 'inbound'} />
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-white">
-                      {formatCurrency(pmt.amount)}
+                      {formatCurrency(pmt.amount, pmt.currency)}
                     </td>
                     <td className="px-4 py-3">
                       <MethodLabel method={pmt.method || pmt.paymentMethod} />

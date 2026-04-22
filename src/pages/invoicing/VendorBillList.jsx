@@ -5,6 +5,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Search, Plus, Loader2, FileText, ChevronLeft, ChevronRight,
   Calendar, X, ArrowUpDown, Building2, Upload, Sparkles, UserPlus, UserCheck,
@@ -77,11 +78,6 @@ function StatusChips({ bill }) {
 function formatDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function formatCurrency(amount) {
-  if (amount == null) return '-';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount);
 }
 
 const EMPLOYEE_JOURNAL_CODE = 'EMPBI';
@@ -536,7 +532,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
                     <td className="px-4 py-3 text-dark-400">{formatDate(bill.date)}</td>
                     <td className="px-4 py-3 text-dark-400">{formatDate(bill.dueDate)}</td>
                     <td className="px-4 py-3 text-right font-medium text-white">
-                      {formatCurrency(bill.total)}
+                      {formatCurrency(bill.total, bill.currency)}
                     </td>
                     <td className="px-4 py-3">
                       <StatusChips bill={bill} />

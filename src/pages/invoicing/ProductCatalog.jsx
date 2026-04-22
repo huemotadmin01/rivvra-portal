@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Search, Plus, Loader2, Package, Trash2, Pencil, X,
   Check, ToggleLeft, ToggleRight, Layers, Wrench,
@@ -24,11 +26,6 @@ function TypeBadge({ type }) {
   );
 }
 
-function formatCurrency(amount) {
-  if (amount == null || amount === '') return '-';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount);
-}
-
 const EMPTY_PRODUCT = {
   name: '',
   type: 'service',
@@ -43,6 +40,7 @@ const EMPTY_PRODUCT = {
 
 export default function ProductCatalog() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
@@ -447,7 +445,7 @@ export default function ProductCatalog() {
                           {product.unit || <span className="text-dark-600">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-white">
-                          {formatCurrency(product.defaultPrice ?? product.price)}
+                          {formatCurrency(product.defaultPrice ?? product.price, product.currency || currentCompany?.currency)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
