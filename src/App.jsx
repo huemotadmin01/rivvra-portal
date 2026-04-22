@@ -178,6 +178,7 @@ const JournalsConfig = lazy(() => import('./pages/invoicing/JournalsConfig'));
 const TaxesConfig = lazy(() => import('./pages/invoicing/TaxesConfig'));
 const TdsConfig = lazy(() => import('./pages/invoicing/TdsConfig'));
 const PaymentTermsConfig = lazy(() => import('./pages/invoicing/PaymentTermsConfig'));
+const ExpenseCategoriesConfig = lazy(() => import('./pages/invoicing/ExpenseCategoriesConfig'));
 const InvoicingSettingsPage = lazy(() => import('./components/settings/SettingsInvoicing'));
 
 // Lazy-loaded: Incentive app pages
@@ -505,6 +506,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/config/taxes" element={<ErrorBoundary><TaxesConfig /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/tds" element={<ErrorBoundary><TdsConfig /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/payment-terms" element={<ErrorBoundary><PaymentTermsConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/expense-categories" element={<ErrorBoundary><ExpenseCategoriesConfig /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/journals" element={<ErrorBoundary><JournalsConfig /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/settings" element={<ErrorBoundary><InvoicingSettingsPage /></ErrorBoundary>} />
                 </Route>
