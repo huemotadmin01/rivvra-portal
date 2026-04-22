@@ -30,7 +30,6 @@ const EMPTY_JOURNAL = {
   name: '',
   code: '',
   type: 'sale',
-  defaultAccount: '',
   currency: 'INR',
   active: true,
   isDefault: false,
@@ -90,7 +89,6 @@ export default function JournalsConfig() {
       name: journal.name || '',
       code: journal.code || '',
       type: journal.type || 'sale',
-      defaultAccount: journal.defaultAccount || '',
       currency: journal.currency || 'INR',
       active: journal.active !== false,
       isDefault: !!journal.isDefault,
@@ -117,7 +115,6 @@ export default function JournalsConfig() {
         name: form.name.trim(),
         code: form.code.trim().toUpperCase(),
         type: form.type,
-        defaultAccount: form.defaultAccount.trim() || undefined,
         currency: form.currency,
         active: form.active,
         isDefault: !!form.isDefault,
@@ -223,14 +220,6 @@ export default function JournalsConfig() {
             <option value="cash">Cash</option>
             <option value="miscellaneous">Miscellaneous</option>
           </select>
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={form.defaultAccount}
-            onChange={e => setForm(prev => ({ ...prev, defaultAccount: e.target.value }))}
-            placeholder="Account name"
-            className={inputCls}
-          />
         </td>
         <td className="px-4 py-3">
           <select
@@ -361,9 +350,6 @@ export default function JournalsConfig() {
                     <span className="text-xs font-medium text-dark-400">Type</span>
                   </th>
                   <th className="text-left px-4 py-3">
-                    <span className="text-xs font-medium text-dark-400">Default Account</span>
-                  </th>
-                  <th className="text-left px-4 py-3">
                     <span className="text-xs font-medium text-dark-400">Currency</span>
                   </th>
                   <th className="text-center px-4 py-3">
@@ -379,7 +365,7 @@ export default function JournalsConfig() {
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-16">
+                    <td colSpan={6} className="text-center py-16">
                       <FileText size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
                       <p className="text-sm text-dark-500">
                         {journals.length === 0 ? 'No journals yet' : 'No journals match your filters'}
@@ -424,9 +410,6 @@ export default function JournalsConfig() {
                         </td>
                         <td className="px-4 py-3">
                           <TypeBadge type={journal.type} />
-                        </td>
-                        <td className="px-4 py-3 text-dark-300">
-                          {journal.defaultAccount || <span className="text-dark-600">-</span>}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-dark-300">{journal.currency || 'INR'}</span>
