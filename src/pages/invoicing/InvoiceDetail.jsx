@@ -1358,6 +1358,29 @@ export default function InvoiceDetail() {
     }
   };
 
+  // E-Invoice: cancel IRN at IRP (within 24 hours)
+  const handleCancelEInvoice = async () => {
+    const reason = window.prompt(
+      'Cancel E-Invoice?\n\nChoose a reason:\n1 = Duplicate\n2 = Data Entry Mistake\n3 = Order Cancelled\n4 = Other\n\nEnter 1/2/3/4:',
+      '2'
+    );
+    if (!reason) return;
+    const reasonMap = { 1: 'Duplicate', 2: 'Data Entry Mistake', 3: 'Order Cancelled', 4: 'Other' };
+    const cancelReason = reasonMap[reason.trim()] || 'Data Entry Mistake';
+    const cancelRemarks = window.prompt('Optional remarks (max 100 chars):', '') || '';
+    try {
+      setActionLoading('cancelEInvoice');
+      const res = await invoicingApi.cancelEInvoice(orgSlug, invoiceId, { cancelReason, cancelRemarks });
+      if (!res?.success) throw new Error(res?.error || 'E-invoice cancellation failed');
+      showToast('E-Invoice cancelled');
+      fetchInvoice();
+    } catch (err) {
+      showToast(err.message || 'Failed to cancel e-invoice', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const [voidPaymentId, setVoidPaymentId] = useState(null);
   const handleVoidPayment = async (paymentId) => {
     const pid = paymentId || voidPaymentId;
@@ -1747,6 +1770,29 @@ export default function InvoiceDetail() {
                     <p className="text-xs text-dark-300 font-mono break-all">IRN: {invoice.irn}</p>
                     {invoice.ackNo && (
                       <p className="text-xs text-dark-400">Ack No: {invoice.ackNo} &nbsp;·&nbsp; {invoice.ackDt || ''}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelEInvoice}
+                    disabled={actionLoading === 'cancelEInvoice'}
+                    className="shrink-0 text-[11px] px-2 py-1 rounded border border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition disabled:opacity-50"
+                    title="Cancel IRN at IRP (within 24h)"
+                  >
+                    {actionLoading === 'cancelEInvoice' ? 'Cancelling…' : 'Cancel E-Invoice'}
+                  </button>
+                </div>
+              )}
+
+              {/* E-Invoice cancelled banner */}
+              {invoice.eInvoiceStatus === 'cancelled' && invoice.irn && (
+                <div className="mb-6 p-3 rounded-lg flex items-start gap-2 border bg-dark-800/60 border-dark-700">
+                  <XCircle size={16} className="shrink-0 mt-0.5 text-red-400" />
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-400">E-Invoice Cancelled</p>
+                    <p className="text-xs text-dark-400 font-mono break-all">IRN: {invoice.irn}</p>
+                    {invoice.irnCancelReason && (
+                      <p className="text-xs text-dark-500">Reason: {invoice.irnCancelReason}</p>
                     )}
                   </div>
                 </div>
