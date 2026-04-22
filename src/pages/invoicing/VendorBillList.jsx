@@ -118,8 +118,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [aiStep, setAiStep] = useState('idle'); // idle | extracting | choose | creating
-  const [aiPayload, setAiPayload] = useState(null); // { extracted, vendorMatch }
-  const [aiFile, setAiFile] = useState(null); // PDF blob — re-uploaded as attachment on bill creation
+  const [aiPayload, setAiPayload] = useState(null); // { extracted, vendorMatch, file }
 
   const loadBills = useCallback(async () => {
     setLoading(true);
@@ -170,7 +169,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   //    Else → open VendorChoiceModal for Create / Match / Blank.
   // 3. Create draft bill pre-filled from `extracted` + chosen contactId,
   //    then navigate to detail with ?ai=1 to show the yellow verify banner.
-  const createBillFromExtracted = useCallback(async ({ extracted, contactId }) => {
+  const createBillFromExtracted = useCallback(async ({ extracted, contactId, file }) => {
     try {
       setAiStep('creating');
       const today = new Date().toISOString().split('T')[0];
@@ -205,6 +204,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               unitPrice: Number(l.unitPrice) || 0,
               hsnSacCode: l.hsnSac || undefined,
               taxIds: taxId ? [taxId] : [],
+              expenseCategory: l.expenseCategory || undefined,
             };
           })
         : [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }];
@@ -231,25 +231,26 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       const newId = res?.invoice?._id;
       if (!newId) throw new Error('Bill creation returned no id');
 
-      // Attach the original PDF to the bill (non-blocking — don't fail the flow)
-      if (aiFile) {
+      // Attach the original PDF to the bill (non-blocking — don't fail the flow).
+      // `file` is passed through the call chain instead of read from state to avoid
+      // a stale-closure bug where the aiFile state update hasn't flushed by the
+      // time this callback reads it.
+      if (file) {
         try {
-          await invoicingApi.uploadAttachment(orgSlug, newId, aiFile, 'Vendor PDF');
+          await invoicingApi.uploadAttachment(orgSlug, newId, file, 'Vendor PDF');
         } catch (e) {
           console.warn('Failed to attach PDF to bill:', e);
         }
       }
 
       showToast('Bill drafted from PDF — please verify');
-      setAiFile(null);
       navigate(orgPath(`/invoicing/invoices/${newId}?ai=1`));
     } catch (err) {
       showToast(err.message || 'Failed to create bill', 'error');
       setAiStep('idle');
       setAiPayload(null);
-      setAiFile(null);
     }
-  }, [orgSlug, orgPath, navigate, showToast, aiFile]);
+  }, [orgSlug, orgPath, navigate, showToast]);
 
   const handlePdfDropped = useCallback(async (file) => {
     if (!file) return;
@@ -261,7 +262,6 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     }
     try {
       setAiStep('extracting');
-      setAiFile(file);
       const fd = new FormData();
       fd.append('file', file);
       const res = await invoicingApi.extractVendorBill(orgSlug, fd);
@@ -269,16 +269,15 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       const vendorMatch = res?.vendorMatch || null;
       if (!extracted) throw new Error('Extraction returned no data');
       if (vendorMatch?.contactId) {
-        await createBillFromExtracted({ extracted, contactId: vendorMatch.contactId });
+        await createBillFromExtracted({ extracted, contactId: vendorMatch.contactId, file });
       } else {
-        setAiPayload({ extracted, vendorMatch });
+        setAiPayload({ extracted, vendorMatch, file });
         setAiStep('choose');
       }
     } catch (err) {
       showToast(err.message || 'AI extraction failed', 'error');
       setAiStep('idle');
       setAiPayload(null);
-      setAiFile(null);
     }
   }, [orgSlug, showToast, createBillFromExtracted]);
 
@@ -298,7 +297,6 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const closeChoiceModal = () => {
     setAiStep('idle');
     setAiPayload(null);
-    setAiFile(null);
   };
 
   function handleSort(field) {
@@ -414,7 +412,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           extracted={aiPayload.extracted}
           orgSlug={orgSlug}
           onCancel={closeChoiceModal}
-          onDone={(contactId) => createBillFromExtracted({ extracted: aiPayload.extracted, contactId })}
+          onDone={(contactId) => createBillFromExtracted({ extracted: aiPayload.extracted, contactId, file: aiPayload.file })}
         />
       )}
 
