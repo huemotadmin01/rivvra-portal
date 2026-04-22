@@ -719,6 +719,10 @@ export default function InvoiceDetail() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
+  // AI re-extract (vendor bill draft only)
+  const aiFileInputRef = useRef(null);
+  const [aiExtracting, setAiExtracting] = useState(false);
+
   // ── Inline editing state ──
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -1584,6 +1588,109 @@ export default function InvoiceDetail() {
     }
   };
 
+  // Auth-fetch the attachment as a blob and trigger a save dialog. The bare
+  // anchor `href` 401s because the GET route requires Bearer auth, and the
+  // browser doesn't send headers from a plain link click.
+  const handleDownloadAttachment = async (docId, filename) => {
+    try {
+      const token = localStorage.getItem('rivvra_token');
+      const url = invoicingApi.getAttachmentUrl(orgSlug, invoiceId, docId);
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename || 'attachment';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (err) {
+      showToast(err.message || 'Download failed', 'error');
+    }
+  };
+
+  // ── AI re-extract: drop a PDF onto an existing draft vendor bill ──
+  // Reuses the same /vendor-bills/extract endpoint used on the list page,
+  // then PATCHes the extracted fields onto THIS bill (no new bill is created)
+  // and uploads the PDF as an attachment.
+  const handleAiReExtract = async (file) => {
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      return showToast('Only PDF files are supported', 'error');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return showToast('PDF must be under 10 MB', 'error');
+    }
+    try {
+      setAiExtracting(true);
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await invoicingApi.extractVendorBill(orgSlug, fd);
+      const extracted = res?.extracted;
+      if (!extracted) throw new Error('Extraction returned no data');
+
+      // Resolve tax IDs from extracted line rates (prefer IGST when PDF reports it)
+      const taxList = (allTaxes || []).filter(t => t.active !== false);
+      const preferIgst = Number(extracted?.totals?.igstAmount || 0) > 0;
+      const resolveTaxId = (rate) => {
+        if (rate == null || rate === '' || isNaN(Number(rate))) return null;
+        const r = Number(rate);
+        const candidates = taxList.filter(t => Number(t.rate) === r);
+        if (!candidates.length) return null;
+        const match = candidates.find(t => preferIgst ? /igst/i.test(t.name) : !/igst/i.test(t.name));
+        return (match || candidates[0])._id;
+      };
+      const newLines = (extracted?.lines || []).map((l) => {
+        const taxId = resolveTaxId(l.taxRate);
+        return {
+          description: l.description || '',
+          quantity: Number(l.quantity) || 1,
+          unitPrice: Number(l.unitPrice) || 0,
+          hsnSacCode: l.hsnSac || undefined,
+          taxIds: taxId ? [taxId] : [],
+          expenseCategory: l.expenseCategory || undefined,
+          lineCurrency: extracted?.vendor?.gstin ? 'INR' : undefined,
+        };
+      });
+
+      const updates = {
+        date: extracted?.invoice?.date || undefined,
+        dueDate: extracted?.invoice?.dueDate || extracted?.invoice?.date || undefined,
+        currency: extracted?.vendor?.gstin ? 'INR' : undefined,
+        vendorInvoiceNumber: extracted?.invoice?.number || undefined,
+        placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
+        gstTreatment: extracted?.invoice?.gstTreatment || undefined,
+        customerGstin: extracted?.vendor?.gstin || undefined,
+        tdsRate: Number(extracted?.tds?.rate) > 0 ? Number(extracted.tds.rate) : undefined,
+        tdsSection: extracted?.tds?.section || undefined,
+      };
+      // Strip undefineds so they don't overwrite existing values with null
+      Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
+      if (newLines.length) updates.lines = newLines;
+
+      const saveRes = await invoicingApi.updateInvoice(orgSlug, invoiceId, updates);
+      if (saveRes?.invoice) {
+        setInvoice(prev => ({ ...prev, ...saveRes.invoice, payments: prev?.payments || [] }));
+      }
+
+      // Attach the PDF (non-blocking)
+      try {
+        await invoicingApi.uploadAttachment(orgSlug, invoiceId, file, 'Vendor PDF');
+        fetchAttachments();
+      } catch (e) {
+        console.warn('Failed to attach PDF:', e);
+      }
+
+      showToast('Bill updated from PDF — please verify');
+    } catch (err) {
+      showToast(err.message || 'AI extraction failed', 'error');
+    } finally {
+      setAiExtracting(false);
+    }
+  };
+
   const [deleteAttachId, setDeleteAttachId] = useState(null);
   const handleDeleteAttachment = async (docId) => {
     const did = docId || deleteAttachId;
@@ -1720,6 +1827,23 @@ export default function InvoiceDetail() {
                 <ActionBtn icon={Check} label="Confirm" onClick={handleSend} loading={actionLoading === 'send'} primary />
                 {!isVendorBill && (
                   <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                )}
+                {isVendorBill && (
+                  <>
+                    <input
+                      ref={aiFileInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAiReExtract(f); e.target.value = ''; }}
+                    />
+                    <ActionBtn
+                      icon={Sparkles}
+                      label={aiExtracting ? 'Reading PDF…' : 'Extract from PDF'}
+                      onClick={() => aiFileInputRef.current?.click()}
+                      loading={aiExtracting}
+                    />
+                  </>
                 )}
                 <ActionBtn icon={Trash2} label="Delete" onClick={() => setShowDeleteConfirm(true)} danger />
               </>
@@ -2671,16 +2795,13 @@ export default function InvoiceDetail() {
                             <Eye size={14} />
                           </button>
                         )}
-                        <a
-                          href={url}
-                          download={filename}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => handleDownloadAttachment(docId, filename)}
                           className="p-1 rounded hover:bg-dark-700 text-dark-400 hover:text-white transition-colors"
                           title="Download"
                         >
                           <Download size={14} />
-                        </a>
+                        </button>
                         <button
                           onClick={() => setDeleteAttachId(docId)}
                           className="p-1 rounded hover:bg-red-500/10 text-dark-400 hover:text-red-400 transition-colors"
