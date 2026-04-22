@@ -150,13 +150,14 @@ export default function ProductCatalog() {
     }
   }
 
-  async function handleDelete(productId) {
-    setDeletingId(productId);
+  async function handleDelete(product) {
+    if (!window.confirm(`Delete "${product.name}"? This cannot be undone. If any invoice references this product, deletion will be refused — deactivate it instead.`)) return;
+    setDeletingId(product._id);
     try {
-      await invoicingApi.deleteProduct(orgSlug, productId);
+      await invoicingApi.deleteProduct(orgSlug, product._id);
       showToast('Product deleted');
-      setProducts(prev => prev.filter(p => p._id !== productId));
-      if (editingId === productId) cancelEdit();
+      setProducts(prev => prev.filter(p => p._id !== product._id));
+      if (editingId === product._id) cancelEdit();
     } catch (err) {
       showToast(err.message || 'Failed to delete product', 'error');
     } finally {
@@ -181,124 +182,141 @@ export default function ProductCatalog() {
     return tax ? `${tax.name} (${tax.rate}%)` : taxId;
   }
 
-  // Inline form row
+  // Inline edit panel — spans full row to avoid cramped 9-col layout
   function FormRow() {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/80">
-        <td className="px-4 py-3">
-          <input
-            value={form.name}
-            onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="Product name *"
-            autoFocus
-            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <select
-            value={form.type}
-            onChange={e => setForm(prev => ({ ...prev, type: e.target.value }))}
-            className="px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500"
-          >
-            <option value="service">Service</option>
-            <option value="consumable">Consumable</option>
-            <option value="product">Product</option>
-          </select>
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={form.internalRef}
-            onChange={e => setForm(prev => ({ ...prev, internalRef: e.target.value }))}
-            placeholder="e.g. CONS-DAY"
-            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[100px]"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={form.hsnSacCode}
-            onChange={e => setForm(prev => ({ ...prev, hsnSacCode: e.target.value }))}
-            placeholder="e.g. 998513"
-            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[90px]"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={form.unit}
-            onChange={e => setForm(prev => ({ ...prev, unit: e.target.value }))}
-            placeholder="e.g. Days"
-            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[80px]"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={form.defaultPrice}
-            onChange={e => setForm(prev => ({ ...prev, defaultPrice: e.target.value }))}
-            placeholder="0.00"
-            className="w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white text-right placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 max-w-[120px]"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex flex-wrap gap-1">
-            {taxes.map(tax => {
-              const selected = form.taxIds.includes(tax._id);
-              return (
-                <button
-                  key={tax._id}
-                  type="button"
-                  onClick={() => {
-                    setForm(prev => ({
-                      ...prev,
-                      taxIds: selected
-                        ? prev.taxIds.filter(t => t !== tax._id)
-                        : [...prev.taxIds, tax._id],
-                    }));
-                  }}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
-                    selected
-                      ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
-                      : 'bg-dark-900 border-dark-700 text-dark-500 hover:border-dark-600'
-                  }`}
+      <tr className="border-b border-dark-700/50 bg-dark-800/60">
+        <td colSpan={9} className="px-4 py-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="lg:col-span-2">
+                <label className="block text-[11px] font-medium text-dark-400 mb-1">Name <span className="text-red-400">*</span></label>
+                <input
+                  value={form.name}
+                  onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Consulting Service"
+                  autoFocus
+                  className="w-full px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-dark-400 mb-1">Type</label>
+                <select
+                  value={form.type}
+                  onChange={e => setForm(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500"
                 >
-                  {tax.name} ({tax.rate}%)
+                  <option value="service">Service</option>
+                  <option value="consumable">Consumable</option>
+                  <option value="product">Product</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-dark-400 mb-1">Default Price</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.defaultPrice}
+                  onChange={e => setForm(prev => ({ ...prev, defaultPrice: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white text-right placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-dark-400 mb-1">Internal Ref</label>
+                <input
+                  value={form.internalRef}
+                  onChange={e => setForm(prev => ({ ...prev, internalRef: e.target.value }))}
+                  placeholder="e.g. CONS-DAY"
+                  className="w-full px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-dark-400 mb-1">HSN/SAC</label>
+                <input
+                  value={form.hsnSacCode}
+                  onChange={e => setForm(prev => ({ ...prev, hsnSacCode: e.target.value }))}
+                  placeholder="e.g. 998513"
+                  className="w-full px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-dark-400 mb-1">Unit</label>
+                <input
+                  value={form.unit}
+                  onChange={e => setForm(prev => ({ ...prev, unit: e.target.value }))}
+                  placeholder="e.g. Days / Hours"
+                  className="w-full px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-dark-400 mb-1.5">
+                Default Taxes <span className="text-dark-500 font-normal">(auto-applied on invoice lines)</span>
+              </label>
+              {taxes.length === 0 ? (
+                <span className="text-xs text-dark-600">No taxes configured</span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {taxes.map(tax => {
+                    const selected = form.taxIds.includes(tax._id);
+                    return (
+                      <button
+                        key={tax._id}
+                        type="button"
+                        onClick={() => {
+                          setForm(prev => ({
+                            ...prev,
+                            taxIds: selected
+                              ? prev.taxIds.filter(t => t !== tax._id)
+                              : [...prev.taxIds, tax._id],
+                          }));
+                        }}
+                        className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                          selected
+                            ? 'bg-rivvra-500/10 border-rivvra-500/40 text-rivvra-300'
+                            : 'bg-dark-900 border-dark-700 text-dark-400 hover:border-dark-600 hover:text-dark-300'
+                        }`}
+                      >
+                        {tax.name} ({tax.rate}%)
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-dark-700/50">
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, active: !prev.active }))}
+                className="flex items-center gap-2 text-sm text-dark-300 hover:text-white transition-colors"
+              >
+                {form.active ? (
+                  <><ToggleRight size={20} className="text-emerald-400" /> Active</>
+                ) : (
+                  <><ToggleLeft size={20} className="text-dark-600" /> Inactive</>
+                )}
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={cancelEdit}
+                  className="px-3 py-1.5 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
+                >
+                  Cancel
                 </button>
-              );
-            })}
-            {taxes.length === 0 && <span className="text-xs text-dark-600">No taxes</span>}
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <button
-            type="button"
-            onClick={() => setForm(prev => ({ ...prev, active: !prev.active }))}
-            className="text-dark-400 hover:text-white transition-colors"
-          >
-            {form.active ? (
-              <ToggleRight size={20} className="text-emerald-400" />
-            ) : (
-              <ToggleLeft size={20} className="text-dark-600" />
-            )}
-          </button>
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="p-1.5 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white transition-colors disabled:opacity-50"
-              title="Save"
-            >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            </button>
-            <button
-              onClick={cancelEdit}
-              className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
-              title="Cancel"
-            >
-              <X size={14} />
-            </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
           </div>
         </td>
       </tr>
@@ -492,7 +510,7 @@ export default function ProductCatalog() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(product._id)}
+                              onClick={() => handleDelete(product)}
                               disabled={deletingId === product._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"
