@@ -1236,37 +1236,53 @@ export default function InvoiceDetail() {
     return m;
   }, [allTaxes]);
 
+  // Prefer line.taxes (rich objects, populated by Odoo migration with name/rate/amount),
+  // fall back to taxIds + taxMap for natively-created invoices.
   const buildTaxBreakdown = useCallback((lines) => {
     const totals = {};
     for (const line of lines || []) {
-      const taxIds = line.taxIds || [];
-      if (!taxIds.length) continue;
-      const taxes = taxIds.map(id => taxMapById[String(id)]).filter(Boolean);
-      if (!taxes.length) continue;
+      let entries = [];
+      if (Array.isArray(line.taxes) && line.taxes.length > 0 && typeof line.taxes[0] === 'object') {
+        entries = line.taxes.map(t => ({
+          name: t.name || '',
+          rate: Number(t.rate) || 0,
+          amount: t.amount != null ? Number(t.amount) : null,
+        }));
+      } else {
+        const taxIds = line.taxIds || [];
+        entries = taxIds
+          .map(id => taxMapById[String(id)])
+          .filter(Boolean)
+          .map(t => ({ name: t.name || '', rate: Number(t.rate) || 0, amount: null, inclusive: !!t.inclusive }));
+      }
+      if (entries.length === 0) continue;
+
+      if (entries.every(e => e.amount != null)) {
+        for (const e of entries) {
+          const key = e.name || '(Tax)';
+          totals[key] = (totals[key] || 0) + e.amount;
+        }
+        continue;
+      }
 
       const qty = Number(line.quantity) || 0;
       const price = Number(line.unitPrice) || 0;
       const discPct = Number(line.discount) || 0;
       const taxable = qty * price * (1 - discPct / 100);
 
-      let lineTaxAmount;
-      if (line.taxAmount != null) {
-        lineTaxAmount = Number(line.taxAmount) || 0;
-      } else {
-        lineTaxAmount = taxes.reduce((s, t) => {
-          const rate = Number(t.rate) || 0;
-          if (t.inclusive) return s + (taxable - taxable / (1 + rate / 100));
-          return s + taxable * (rate / 100);
-        }, 0);
-      }
+      const lineTaxAmount = line.taxAmount != null
+        ? Number(line.taxAmount) || 0
+        : entries.reduce((s, e) => {
+            if (e.inclusive) return s + (taxable - taxable / (1 + e.rate / 100));
+            return s + taxable * (e.rate / 100);
+          }, 0);
 
-      const totalRate = taxes.reduce((s, t) => s + (Number(t.rate) || 0), 0);
+      const totalRate = entries.reduce((s, e) => s + e.rate, 0);
       if (totalRate === 0) continue;
 
-      for (const tax of taxes) {
-        const key = tax.name || String(tax._id || tax.id);
-        const share = ((Number(tax.rate) || 0) / totalRate) * lineTaxAmount;
-        totals[key] = (totals[key] || 0) + share;
+      for (const e of entries) {
+        const key = e.name || '(Tax)';
+        totals[key] = (totals[key] || 0) + ((e.rate / totalRate) * lineTaxAmount);
       }
     }
     return Object.entries(totals).map(([name, amount]) => ({
