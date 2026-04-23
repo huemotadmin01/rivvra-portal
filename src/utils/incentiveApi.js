@@ -121,6 +121,12 @@ const incentiveApi = {
   getWaitingOnPayroll(slug) {
     return api.request(`${base(slug)}/waiting-on-payroll`);
   },
+  backfillFromImportedPayslips(slug, { dryRun = false } = {}) {
+    return api.request(`${base(slug)}/backfill-from-imported-payslips`, {
+      method: 'POST',
+      body: JSON.stringify({ dryRun }),
+    });
+  },
 
   // ---------- EXPORT ----------
   async exportRecordsCsv(slug, params = {}) {
