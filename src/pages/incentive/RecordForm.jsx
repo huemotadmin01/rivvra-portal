@@ -227,7 +227,7 @@ export default function RecordForm() {
               type="month"
               value={form.serviceMonth}
               onChange={(e) => setField('serviceMonth', e.target.value)}
-              className={inputCls}
+              className={`${inputCls} [color-scheme:dark]`}
             />
           </Field>
           <Field label="Payment received date">
@@ -235,7 +235,7 @@ export default function RecordForm() {
               type="date"
               value={form.paymentReceivedDate}
               onChange={(e) => setField('paymentReceivedDate', e.target.value)}
-              className={inputCls}
+              className={`${inputCls} [color-scheme:dark]`}
             />
           </Field>
           <Field label="Payout month (override)">
@@ -243,7 +243,7 @@ export default function RecordForm() {
               type="month"
               value={form.payoutMonth}
               onChange={(e) => setField('payoutMonth', e.target.value)}
-              className={inputCls}
+              className={`${inputCls} [color-scheme:dark]`}
               placeholder="Auto-derived if blank"
             />
           </Field>

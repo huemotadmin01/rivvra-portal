@@ -152,7 +152,8 @@ export default function RecordsList() {
           onChange={(e) =>
             setFilters((f) => ({ ...f, payoutMonth: e.target.value }))
           }
-          className="bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+          style={{ colorScheme: 'dark' }}
+          className="bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white min-w-[160px]"
           placeholder="Payout month"
         />
       </div>

@@ -118,7 +118,7 @@ export default function RatesTable() {
             onChange={(e) =>
               setNewRate({ ...newRate, effectiveFrom: e.target.value })
             }
-            className={inputCls}
+            className={`${inputCls} [color-scheme:dark]`}
           />
           <input
             type="text"

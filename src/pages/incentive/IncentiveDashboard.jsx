@@ -102,7 +102,8 @@ export default function IncentiveDashboard() {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            style={{ colorScheme: 'dark' }}
+            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white min-w-[160px]"
           />
           <button
             onClick={() => navigate(orgPath('/incentive/records/new'))}
