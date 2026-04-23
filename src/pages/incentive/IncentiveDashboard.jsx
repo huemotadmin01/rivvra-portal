@@ -11,7 +11,6 @@ import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNo
 import MonthPicker from '../../components/incentive/MonthPicker';
 import {
   Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Plus, Hourglass,
-  RefreshCw,
 } from 'lucide-react';
 
 function formatINR(amount) {
@@ -152,8 +151,6 @@ export default function IncentiveDashboard() {
         groups={waiting.groups}
         open={waitingOpen}
         onToggle={() => setWaitingOpen((v) => !v)}
-        orgSlug={orgSlug}
-        onBackfilled={load}
       />
 
 
@@ -249,26 +246,8 @@ export default function IncentiveDashboard() {
   );
 }
 
-function WaitingOnPayrollCard({ count, groups, open, onToggle, orgSlug, onBackfilled }) {
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
+function WaitingOnPayrollCard({ count, groups, open, onToggle }) {
   if (!count) return null;
-
-  async function runBackfill(dryRun) {
-    if (!orgSlug) return;
-    setBusy(true);
-    setResult(null);
-    try {
-      const res = await incentiveApi.backfillFromImportedPayslips(orgSlug, { dryRun });
-      setResult(res);
-      if (!dryRun && (res?.drafted || 0) > 0 && onBackfilled) onBackfilled();
-    } catch (e) {
-      setResult({ error: e?.message || 'Backfill failed' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="bg-amber-950/30 border border-amber-900/40 rounded-xl p-5">
       <button
@@ -293,55 +272,6 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, orgSlug, onBackfi
         </div>
         <span className="text-xs text-amber-300">{open ? 'Hide' : 'Show details'}</span>
       </button>
-
-      {open && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-amber-950/40 border border-amber-900/30 p-3">
-          <span className="text-xs text-dark-300 mr-2">
-            Some rows may be covered by <code className="text-amber-300">sp_imported_payslips</code>
-            {' '}(pre-Rivvra payroll). Try the backfill:
-          </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runBackfill(true)}
-            className="text-xs px-3 py-1.5 rounded-md bg-dark-800 hover:bg-dark-700 text-white border border-dark-700 disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            Preview
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runBackfill(false)}
-            className="text-xs px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            Run backfill
-          </button>
-          {result && (
-            <div className="w-full text-xs mt-2 text-dark-300">
-              {result.error ? (
-                <span className="text-red-400">Error: {result.error}</span>
-              ) : (
-                <>
-                  {result.dryRun ? 'Preview: ' : 'Applied: '}
-                  <span className="text-white font-medium">
-                    {result.resolvable} resolvable
-                  </span>
-                  {' · '}
-                  <span className="text-amber-300">{result.unresolvable} unresolvable</span>
-                  {!result.dryRun && (
-                    <>
-                      {' · '}
-                      <span className="text-emerald-300">{result.drafted} drafts created</span>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
       {open && groups.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-lg border border-amber-900/40">
           <table className="w-full text-sm">
