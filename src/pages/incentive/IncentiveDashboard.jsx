@@ -8,6 +8,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
+import MonthPicker from '../../components/incentive/MonthPicker';
 import {
   Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Plus, Hourglass,
 } from 'lucide-react';
@@ -98,12 +99,10 @@ export default function IncentiveDashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <input
-            type="month"
+          <MonthPicker
             value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            style={{ colorScheme: 'dark' }}
-            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white min-w-[160px]"
+            onChange={setMonth}
+            placeholder="Current month"
           />
           <button
             onClick={() => navigate(orgPath('/incentive/records/new'))}

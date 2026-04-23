@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import incentiveApi from '../../utils/incentiveApi';
+import MonthPicker from '../../components/incentive/MonthPicker';
 import { Loader2, Plus, Search, Download } from 'lucide-react';
 
 function formatINR(amount) {
@@ -146,15 +147,10 @@ export default function RecordsList() {
           <option value="paid">Paid</option>
           <option value="cancelled">Cancelled</option>
         </select>
-        <input
-          type="month"
+        <MonthPicker
           value={filters.payoutMonth}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, payoutMonth: e.target.value }))
-          }
-          style={{ colorScheme: 'dark' }}
-          className="bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white min-w-[160px]"
-          placeholder="Payout month"
+          onChange={(v) => setFilters((f) => ({ ...f, payoutMonth: v }))}
+          placeholder="Any payout month"
         />
       </div>
 
