@@ -1103,10 +1103,6 @@ export default function InvoiceDetail() {
   const addLine = useCallback(() => {
     setEditForm(prev => {
       const defaultTaxIds = customerDefaultProduct?.defaultTaxIds || customerDefaultProduct?.taxIds || [];
-      const defaultTaxNames = defaultTaxIds.map(tid => {
-        const t = taxes.find(x => String(x._id) === String(tid));
-        return t ? `${t.name} (${t.rate}%)` : '';
-      });
       const newLines = [...prev.lines, {
         productId: customerDefaultProduct?._id || '',
         productName: customerDefaultProduct?.name || '',
@@ -1122,12 +1118,12 @@ export default function InvoiceDetail() {
         unitPrice: 0,
         lineCurrency: prev.currency || invoice?.currency || 'INR',
         taxIds: defaultTaxIds,
-        taxNames: defaultTaxNames,
+        taxNames: [],
         discount: 0,
       }];
       return { ...prev, lines: newLines };
     });
-  }, [invoice, customerDefaultProduct, taxes]);
+  }, [invoice, customerDefaultProduct]);
 
   const removeLine = useCallback((index) => {
     setEditForm(prev => {
