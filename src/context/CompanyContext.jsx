@@ -1,0 +1,189 @@
+// ============================================================================
+// CompanyContext.jsx — Multi-company state provider (like Odoo)
+// ============================================================================
+//
+// Provides:
+//   - companies: all companies the user has access to
+//   - currentCompany: the currently active company
+//   - switchCompany(id): change active company
+//   - loading: boolean
+//
+// Usage:
+//   const { currentCompany, switchCompany, companies } = useCompany();
+//
+// ============================================================================
+
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useOrg } from './OrgContext';
+import { usePlatform } from './PlatformContext';
+import api from '../utils/api';
+
+const CompanyContext = createContext(null);
+
+// Parent paths that don't have a route at the bare segment and need a
+// canonical list path instead. e.g. `/org/x/contacts` isn't a route; the
+// list lives at `/org/x/contacts/list`.
+const DETAIL_PARENT_FALLBACKS = {
+  '/contacts': '/contacts/list',
+  '/employee': '/employee/directory',
+  '/employee/edit': '/employee/directory',
+  '/outreach/engage/edit-sequence': '/outreach/engage',
+};
+
+// Given a pathname, if it ends in an ObjectId-looking detail segment (with an
+// optional trailing `/edit`), return the parent list path. Otherwise null.
+// Used when switching companies so users don't land on a 404'd detail page
+// that belongs to the previous company scope.
+export function stripDetailIdFromPath(pathname) {
+  const cleaned = pathname.replace(/\/[a-f0-9]{24}(?:\/edit)?\/?$/i, '');
+  if (cleaned === pathname) return null;
+  const orgMatch = cleaned.match(/^(\/org\/[^/]+)(\/.*)?$/);
+  if (!orgMatch) return cleaned;
+  const suffix = orgMatch[2] || '';
+  const fallback = DETAIL_PARENT_FALLBACKS[suffix];
+  return fallback ? orgMatch[1] + fallback : cleaned;
+}
+
+export function CompanyProvider({ children }) {
+  const { currentOrg, membership } = useOrg();
+  const { orgSlug: platformOrgSlug } = usePlatform();
+
+  // Use org slug from OrgContext (authoritative) with PlatformContext as fallback
+  const orgSlug = currentOrg?.slug || platformOrgSlug;
+
+  const [companies, setCompanies] = useState([]);
+  const [currentCompanyId, setCurrentCompanyId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
+
+  // Derive current company from ID — use string comparison to handle ObjectId serialization
+  const currentCompany = useMemo(() => {
+    if (!currentCompanyId || companies.length === 0) {
+      // Default to first company (the default one)
+      return companies[0] || null;
+    }
+    return companies.find(c => String(c._id) === String(currentCompanyId)) || companies[0] || null;
+  }, [currentCompanyId, companies]);
+
+  // Persist currentCompanyId to localStorage for the api.js header
+  useEffect(() => {
+    const effectiveId = currentCompany?._id || null;
+    if (effectiveId) {
+      localStorage.setItem('rivvra_current_company', String(effectiveId));
+    } else {
+      localStorage.removeItem('rivvra_current_company');
+    }
+  }, [currentCompany]);
+
+  // Fetch companies when org loads
+  useEffect(() => {
+    if (!orgSlug) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    api.request(`/api/org/${orgSlug}/companies`)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setCompanies(res.companies || []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [orgSlug]);
+
+  // Initialize currentCompanyId from membership
+  useEffect(() => {
+    if (membership?.currentCompanyId) {
+      setCurrentCompanyId(String(membership.currentCompanyId));
+    }
+  }, [membership]);
+
+  // Switch company
+  const switchCompany = useCallback(async (companyId) => {
+    if (!orgSlug || !companyId) {
+      console.warn('switchCompany: missing orgSlug or companyId', { orgSlug, companyId });
+      return;
+    }
+
+    setSwitching(true);
+    try {
+      const res = await api.request(`/api/org/${orgSlug}/my-company`, {
+        method: 'PUT',
+        body: JSON.stringify({ companyId: String(companyId) }),
+      });
+
+      if (res.success) {
+        setCurrentCompanyId(String(companyId));
+        // Force navigation to refetch all data with new company context.
+        // If we're on a company-scoped detail page (/.../:id or /.../:id/edit),
+        // the new company doesn't own that record, so a plain reload would
+        // 404. Strip the ID segment and land on the parent list instead.
+        const safePath = stripDetailIdFromPath(window.location.pathname);
+        if (safePath) {
+          window.location.href = safePath;
+        } else {
+          window.location.reload();
+        }
+      } else {
+        console.error('switchCompany: API returned failure', res);
+        setSwitching(false);
+      }
+    } catch (err) {
+      console.error('Failed to switch company:', err);
+      setSwitching(false);
+    }
+  }, [orgSlug]);
+
+  // Refresh companies list (e.g., after CRUD in settings)
+  const refreshCompanies = useCallback(async () => {
+    if (!orgSlug) return;
+    try {
+      const res = await api.request(`/api/org/${orgSlug}/companies`);
+      if (res.success) setCompanies(res.companies || []);
+    } catch {}
+  }, [orgSlug]);
+
+  // Derive company country for country-aware forms (India/US/Canada/etc.)
+  const companyCountry = useMemo(() => {
+    const country = (currentCompany?.address?.country || '').toLowerCase();
+    const code = (currentCompany?.address?.countryCode || '').toUpperCase();
+    if (country.includes('india') || code === 'IN') return 'IN';
+    if (country.includes('united states') || country.includes('usa') || code === 'US') return 'US';
+    if (country.includes('canada') || code === 'CA') return 'CA';
+    if (country.includes('united kingdom') || code === 'UK' || code === 'GB') return 'GB';
+    return code || 'IN'; // default to India
+  }, [currentCompany]);
+
+  const value = useMemo(() => ({
+    companies,
+    currentCompany,
+    currentCompanyId: currentCompany?._id || null,
+    companyCountry, // 'IN', 'US', 'CA', 'GB', etc.
+    switchCompany,
+    refreshCompanies,
+    loading,
+    switching,
+    hasMultipleCompanies: companies.length > 1,
+  }), [companies, currentCompany, companyCountry, switchCompany, refreshCompanies, loading, switching]);
+
+  return (
+    <CompanyContext.Provider value={value}>
+      {children}
+    </CompanyContext.Provider>
+  );
+}
+
+export function useCompany() {
+  const ctx = useContext(CompanyContext);
+  if (!ctx) throw new Error('useCompany must be inside CompanyProvider');
+  return ctx;
+}
