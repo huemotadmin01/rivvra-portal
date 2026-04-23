@@ -1,14 +1,22 @@
 // ============================================================================
-// RecordsList.jsx — Admin-facing list of all incentive records with filters
+// RecordsList.jsx — Admin-facing list of all incentive records.
+// Layout/UX mirrors invoicing/InvoiceList.jsx: status tabs (with counts),
+// debounced search, backend-driven pagination, compact table, status pills.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import incentiveApi from '../../utils/incentiveApi';
 import MonthPicker from '../../components/incentive/MonthPicker';
-import { Loader2, Plus, Search, Download } from 'lucide-react';
+import {
+  Loader2, Plus, Search, Download, ChevronLeft, ChevronRight, Inbox,
+} from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function formatINR(amount) {
   if (amount == null) return '\u20B90';
@@ -19,12 +27,40 @@ function formatINR(amount) {
   }).format(amount);
 }
 
-const STATUS_STYLE = {
-  draft: 'bg-dark-800 text-dark-300',
-  approved: 'bg-blue-950 text-blue-300',
-  paid: 'bg-emerald-950 text-emerald-300',
-  cancelled: 'bg-red-950 text-red-300',
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+// Matches the invoice lifecycle → payment-status split, adapted for the
+// incentive record FSM (draft → approved → paid, plus cancelled).
+const STATUS_TABS = [
+  { key: '', label: 'All' },
+  { key: 'draft', label: 'Draft' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
+
+const STATUS_PILL = {
+  draft: 'bg-dark-700 text-dark-300',
+  approved: 'bg-blue-500/10 text-blue-400',
+  paid: 'bg-emerald-500/10 text-emerald-400',
+  cancelled: 'bg-dark-800 text-dark-500 line-through',
 };
+
+function StatusPill({ status }) {
+  const cls = STATUS_PILL[status] || 'bg-dark-700 text-dark-300';
+  const label = status ? status[0].toUpperCase() + status.slice(1) : '—';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export default function RecordsList() {
   const { currentOrg } = useOrg();
@@ -32,23 +68,64 @@ export default function RecordsList() {
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
 
+  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [records, setRecords] = useState([]);
-  const [filters, setFilters] = useState({
-    status: '',
-    payoutMonth: '',
-    search: '',
-  });
+  const [statusFilter, setStatusFilter] = useState('');
+  const [payoutMonth, setPayoutMonth] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({});
+
+  // Debounce search input so we don't blast the server on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const fetchRecords = useCallback(async () => {
+    if (!orgSlug) return;
+    setLoading(true);
+    try {
+      const res = await incentiveApi.listRecords(orgSlug, {
+        scope: 'admin',
+        status: statusFilter || undefined,
+        payoutMonth: payoutMonth || undefined,
+        search: search || undefined,
+        page,
+      });
+      setRecords(res?.records || []);
+      const pageLimit = res?.limit || 50;
+      setTotalPages(
+        res?.totalPages || Math.max(1, Math.ceil((res?.total || 0) / pageLimit))
+      );
+      setTotal(res?.total || 0);
+      if (res?.statusCounts) setStatusCounts(res.statusCounts);
+    } catch (e) {
+      console.error('Failed to load records', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug, statusFilter, payoutMonth, search, page]);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
 
   async function onExport() {
     setExporting(true);
     try {
       await incentiveApi.exportRecordsCsv(orgSlug, {
         scope: 'admin',
-        status: filters.status || undefined,
-        payoutMonth: filters.payoutMonth || undefined,
-        search: filters.search || undefined,
+        status: statusFilter || undefined,
+        payoutMonth: payoutMonth || undefined,
+        search: search || undefined,
       });
     } catch (e) {
       console.error('Export failed', e);
@@ -58,174 +135,218 @@ export default function RecordsList() {
     }
   }
 
-  useEffect(() => {
-    if (orgSlug) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, filters.status, filters.payoutMonth]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await incentiveApi.listRecords(orgSlug, {
-        scope: 'admin',
-        status: filters.status || undefined,
-        payoutMonth: filters.payoutMonth || undefined,
-      });
-      setRecords(res?.records || res || []);
-    } catch (e) {
-      console.error('Failed to load records', e);
-    } finally {
-      setLoading(false);
-    }
+  function handleTabChange(key) {
+    setStatusFilter(key);
+    setPage(1);
   }
 
-  const filtered = records.filter((r) => {
-    if (!filters.search) return true;
-    const q = filters.search.toLowerCase();
-    return (
-      r.clientName?.toLowerCase().includes(q) ||
-      r.consultantName?.toLowerCase().includes(q) ||
-      r.recruiterName?.toLowerCase().includes(q) ||
-      r.accountManagerName?.toLowerCase().includes(q) ||
-      r.invoiceNumber?.toLowerCase().includes(q)
-    );
-  });
+  function getTabCount(key) {
+    if (!key) {
+      const sum = Object.values(statusCounts || {}).reduce(
+        (s, c) => s + (Number(c) || 0),
+        0
+      );
+      // When the "All" tab is active the server-side total equals the filtered
+      // total; when any other tab is active we fall back to the sum across
+      // status buckets (which ignores the status filter by design).
+      return sum > 0 ? sum : (statusFilter ? null : total);
+    }
+    return statusCounts[key] ?? null;
+  }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Incentive Records</h1>
-          <p className="text-sm text-dark-400 mt-1">
-            All Recruiter / AM commission entries
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onExport}
-            disabled={exporting}
-            className="bg-dark-800 hover:bg-dark-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {exporting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Download size={16} />
-            )}
-            Export CSV
-          </button>
-          <button
-            onClick={() => navigate(orgPath('/incentive/records/new'))}
-            className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
-          >
-            <Plus size={16} /> New Record
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-dark-900 border border-dark-800 rounded-xl p-4 flex flex-wrap gap-3">
-        <div className="flex-1 min-w-[220px] relative">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500"
-          />
-          <input
-            type="text"
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            placeholder="Search client, consultant, recruiter, invoice #…"
-            className="w-full bg-dark-850 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white"
-          />
-        </div>
-        <select
-          value={filters.status}
-          onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-          className="bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
-        >
-          <option value="">All statuses</option>
-          <option value="draft">Draft</option>
-          <option value="approved">Approved</option>
-          <option value="paid">Paid</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <MonthPicker
-          value={filters.payoutMonth}
-          onChange={(v) => setFilters((f) => ({ ...f, payoutMonth: v }))}
-          placeholder="Any payout month"
-        />
-      </div>
-
-      <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="animate-spin text-dark-500" size={28} />
+    <div className="bg-dark-900 min-h-screen">
+      <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-white">Incentive Records</h1>
+            <p className="text-xs text-dark-400 mt-0.5">
+              All Recruiter / AM commission entries
+            </p>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-10 text-center text-dark-400 text-sm">
-            No records match the current filters.
+          <div className="flex gap-2 self-start sm:self-auto">
+            <button
+              onClick={onExport}
+              disabled={exporting}
+              className="bg-dark-800 hover:bg-dark-700 text-white rounded-lg px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {exporting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              Export CSV
+            </button>
+            <button
+              onClick={() => navigate(orgPath('/incentive/records/new'))}
+              className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <Plus size={14} />
+              New Record
+            </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-dark-850 text-dark-400 text-xs uppercase">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">Invoice</th>
-                  <th className="text-left px-4 py-2 font-medium">Client</th>
-                  <th className="text-left px-4 py-2 font-medium">Consultant</th>
-                  <th className="text-left px-4 py-2 font-medium">Recruiter</th>
-                  <th className="text-left px-4 py-2 font-medium">AM</th>
-                  <th className="text-right px-4 py-2 font-medium">Net Profit</th>
-                  <th className="text-right px-4 py-2 font-medium">Incentive</th>
-                  <th className="text-left px-4 py-2 font-medium">Payout</th>
-                  <th className="text-left px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr
-                    key={r._id}
-                    className="border-t border-dark-800 hover:bg-dark-850 cursor-pointer transition-colors"
-                    onClick={() => navigate(orgPath(`/incentive/records/${r._id}`))}
-                  >
-                    <td className="px-4 py-2 text-white">
-                      {r.invoiceNumber || '—'}
-                    </td>
-                    <td className="px-4 py-2 text-dark-300">{r.clientName || '—'}</td>
-                    <td className="px-4 py-2 text-dark-300">
-                      {r.consultantName || '—'}
-                    </td>
-                    <td className="px-4 py-2 text-dark-300">
-                      {r.recruiterName || '—'}
-                    </td>
-                    <td className="px-4 py-2 text-dark-300">
-                      {r.accountManagerName || '—'}
-                    </td>
-                    <td className="px-4 py-2 text-right text-dark-300">
-                      {formatINR(r.netProfit)}
-                    </td>
-                    <td className="px-4 py-2 text-right font-semibold text-white">
-                      {formatINR(
-                        (r.recruiterIncentive || 0) +
-                          (r.accountManagerIncentive || 0)
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-dark-300">
-                      {r.payoutMonth || '—'}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          STATUS_STYLE[r.status] || 'bg-dark-800 text-dark-300'
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
+        </div>
+
+        {/* Tab Bar */}
+        <div className="flex items-center gap-1 border-b border-dark-700 overflow-x-auto">
+          {STATUS_TABS.map((tab) => {
+            const isActive = statusFilter === tab.key;
+            const count = getTabCount(tab.key);
+            return (
+              <button
+                key={tab.key}
+                onClick={() => handleTabChange(tab.key)}
+                className={`relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                  isActive ? 'text-amber-400' : 'text-dark-400 hover:text-dark-200'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  {tab.label}
+                  {count != null && (
+                    <span
+                      className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
+                        isActive
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'bg-dark-800 text-dark-500'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </span>
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400 rounded-t" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search + MonthPicker */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500"
+            />
+            <input
+              type="text"
+              placeholder="Search client, consultant, recruiter, invoice #…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full bg-dark-850 border border-dark-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500 focus:ring-1 focus:ring-rivvra-500/30 transition-colors"
+            />
+          </div>
+          <MonthPicker
+            value={payoutMonth}
+            onChange={(v) => {
+              setPayoutMonth(v);
+              setPage(1);
+            }}
+            placeholder="Any payout month"
+          />
+        </div>
+
+        {/* Table */}
+        <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-7 h-7 text-dark-400 animate-spin" />
+            </div>
+          ) : records.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-dark-500">
+              <Inbox size={36} className="mb-3 opacity-40" />
+              <p className="text-sm font-medium">No records found</p>
+              <p className="text-xs mt-1 opacity-60">
+                {search || statusFilter || payoutMonth
+                  ? 'Try adjusting your filters or search term'
+                  : 'Create your first incentive record to get started'}
+              </p>
+              {!search && !statusFilter && !payoutMonth && (
+                <button
+                  onClick={() => navigate(orgPath('/incentive/records/new'))}
+                  className="mt-4 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <Plus size={14} />
+                  New Record
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-dark-700">
+                    <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Invoice</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Client</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Consultant</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Recruiter</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">AM</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Net Profit</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Incentive</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Payout</th>
+                    <th className="text-center py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {records.map((r) => (
+                    <tr
+                      key={r._id}
+                      onClick={() => navigate(orgPath(`/incentive/records/${r._id}`))}
+                      className="border-b border-dark-700/50 last:border-0 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                    >
+                      <td className="py-3 px-4">
+                        <span className={`font-medium ${r.invoiceNumber ? 'text-white' : 'text-dark-500 italic'}`}>
+                          {r.invoiceNumber || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-dark-300">{r.clientName || '—'}</td>
+                      <td className="py-3 px-4 text-dark-300">{r.consultantName || '—'}</td>
+                      <td className="py-3 px-4 text-dark-300">{r.recruiterName || '—'}</td>
+                      <td className="py-3 px-4 text-dark-300">{r.accountManagerName || '—'}</td>
+                      <td className="py-3 px-4 text-right text-dark-300">{formatINR(r.netProfit)}</td>
+                      <td className="py-3 px-4 text-right font-medium text-white">
+                        {formatINR((r.recruiterIncentive || 0) + (r.accountManagerIncentive || 0))}
+                      </td>
+                      <td className="py-3 px-4 text-dark-400">{r.payoutMonth || '—'}</td>
+                      <td className="py-3 px-4 text-center">
+                        <StatusPill status={r.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && records.length > 0 && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700 bg-dark-800/50">
+              <span className="text-xs text-dark-400">
+                Page {page} of {totalPages} ({total} record{total !== 1 ? 's' : ''})
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                  Prev
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
