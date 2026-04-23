@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import incentiveApi from '../../utils/incentiveApi';
 import {
   ArrowLeft, Loader2, CheckCircle2, XCircle, RotateCcw, RefreshCw,
-  Edit, Trash2, Undo2,
+  Edit, Trash2, Undo2, AlertTriangle,
 } from 'lucide-react';
 
 function formatINR(amount) {
@@ -42,6 +42,9 @@ export default function RecordDetail() {
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState('');
+  const [hardDeleteReason, setHardDeleteReason] = useState('');
 
   const isAdmin = isOrgAdmin || getAppRole('incentive') === 'admin';
 
@@ -119,6 +122,30 @@ export default function RecordDetail() {
   const canCancel = isAdmin && (status === 'draft' || status === 'approved');
   const canRefreshRate = isAdmin && status === 'draft';
   const canReverse = isAdmin && status === 'paid';
+  const canHardDelete = isAdmin; // any status — admin cleanup / test data removal
+
+  // Phrase the admin must type to confirm hard delete. Prefer invoice number
+  // for recognition; fall back to the last 6 chars of the record id.
+  const hardDeletePhrase =
+    (record.invoiceNumber && String(record.invoiceNumber).trim()) ||
+    (recordId ? `DELETE-${String(recordId).slice(-6)}` : 'DELETE');
+
+  async function runHardDelete() {
+    const reason = hardDeleteReason.trim();
+    if (!reason) return;
+    if (hardDeleteConfirm.trim() !== hardDeletePhrase) return;
+    setBusy(true);
+    try {
+      await incentiveApi.forceDeleteRecord(orgSlug, recordId, { reason });
+      showToast('Record hard-deleted', 'success');
+      setHardDeleteOpen(false);
+      navigate(orgPath('/incentive/records'));
+    } catch (e) {
+      showToast(e?.message || 'Hard delete failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="p-6 max-w-5xl space-y-5">
@@ -256,7 +283,37 @@ export default function RecordDetail() {
               Delete
             </ActionBtn>
           )}
+          {canHardDelete && (
+            <ActionBtn
+              danger
+              onClick={() => {
+                setHardDeleteReason('');
+                setHardDeleteConfirm('');
+                setHardDeleteOpen(true);
+              }}
+              icon={AlertTriangle}
+              disabled={busy}
+              title="Permanently delete this record regardless of status. Audit-logged."
+            >
+              Hard Delete
+            </ActionBtn>
+          )}
         </div>
+      )}
+
+      {hardDeleteOpen && (
+        <HardDeleteModal
+          phrase={hardDeletePhrase}
+          reason={hardDeleteReason}
+          setReason={setHardDeleteReason}
+          confirmText={hardDeleteConfirm}
+          setConfirmText={setHardDeleteConfirm}
+          status={status}
+          invoiceNumber={record.invoiceNumber}
+          busy={busy}
+          onCancel={() => setHardDeleteOpen(false)}
+          onConfirm={runHardDelete}
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -402,7 +459,7 @@ function Row({ k, v, strong, note }) {
   );
 }
 
-function ActionBtn({ onClick, icon: Icon, children, primary, danger, disabled }) {
+function ActionBtn({ onClick, icon: Icon, children, primary, danger, disabled, title }) {
   const base =
     'px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50';
   const cls = primary
@@ -411,9 +468,88 @@ function ActionBtn({ onClick, icon: Icon, children, primary, danger, disabled })
     ? 'bg-red-950 hover:bg-red-900 text-red-300'
     : 'bg-dark-800 hover:bg-dark-700 text-dark-100';
   return (
-    <button onClick={onClick} disabled={disabled} className={`${base} ${cls}`}>
+    <button onClick={onClick} disabled={disabled} title={title} className={`${base} ${cls}`}>
       <Icon size={14} />
       {children}
     </button>
+  );
+}
+
+function HardDeleteModal({
+  phrase, reason, setReason, confirmText, setConfirmText,
+  status, invoiceNumber, busy, onCancel, onConfirm,
+}) {
+  const canConfirm =
+    reason.trim().length > 0 &&
+    confirmText.trim() === phrase &&
+    !busy;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-lg bg-dark-900 border border-red-900/60 rounded-xl shadow-2xl">
+        <div className="p-5 border-b border-dark-800 flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-red-950 text-red-400">
+            <AlertTriangle size={20} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-white">Hard delete record</h3>
+            <p className="text-xs text-dark-400 mt-1">
+              This removes the record from the database. There is no soft-undo —
+              only the audit log keeps a snapshot.
+            </p>
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-amber-950/30 border border-amber-900/40 rounded-lg p-3 text-xs text-amber-200">
+            You are deleting a record in <strong className="uppercase">{status}</strong> status
+            {invoiceNumber ? <> for invoice <strong>{invoiceNumber}</strong></> : null}.
+            Use <strong>Cancel</strong> (for approved) or <strong>Reverse</strong> (for paid) for normal lifecycle changes.
+            Use this only for test data, duplicates, or GDPR erasure.
+          </div>
+
+          <label className="block text-xs font-medium text-dark-300">
+            Reason (audit trail, required)
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. Test record created during April QA"
+              className="mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-fuchsia-600"
+            />
+          </label>
+
+          <label className="block text-xs font-medium text-dark-300">
+            Type <code className="px-1.5 py-0.5 bg-dark-800 rounded text-fuchsia-300">{phrase}</code> to confirm
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={phrase}
+              autoComplete="off"
+              className="mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-fuchsia-600"
+            />
+          </label>
+        </div>
+        <div className="p-5 border-t border-dark-800 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-dark-800 hover:bg-dark-700 text-dark-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <Trash2 size={14} />
+            {busy ? 'Deleting…' : 'Hard Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

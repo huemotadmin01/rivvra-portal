@@ -79,6 +79,12 @@ const incentiveApi = {
   deleteRecord(slug, id) {
     return api.request(`${base(slug)}/records/${id}`, { method: 'DELETE' });
   },
+  forceDeleteRecord(slug, id, data = {}) {
+    return api.request(`${base(slug)}/records/${id}/force`, {
+      method: 'DELETE',
+      body: JSON.stringify(data),
+    });
+  },
 
   // ---------- LIFECYCLE ----------
   approve(slug, id) {
