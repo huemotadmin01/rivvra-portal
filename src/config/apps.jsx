@@ -512,7 +512,6 @@ export const APP_REGISTRY = {
         ...(isAdmin ? [
           { type: 'item', path: '/incentive/dashboard', label: 'Dashboard', icon: LayoutDashboard },
           { type: 'item', path: '/incentive/records', label: 'All Records', icon: FileText },
-          { type: 'item', path: '/incentive/records/new', label: 'New Record', icon: PlusCircle },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [

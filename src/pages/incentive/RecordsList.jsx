@@ -11,7 +11,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import incentiveApi from '../../utils/incentiveApi';
 import MonthPicker from '../../components/incentive/MonthPicker';
 import {
-  Loader2, Plus, Search, Download, ChevronLeft, ChevronRight, Inbox,
+  Loader2, Search, Download, ChevronLeft, ChevronRight, Inbox,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -178,13 +178,6 @@ export default function RecordsList() {
               )}
               Export CSV
             </button>
-            <button
-              onClick={() => navigate(orgPath('/incentive/records/new'))}
-              className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <Plus size={14} />
-              New Record
-            </button>
           </div>
         </div>
 
@@ -261,17 +254,8 @@ export default function RecordsList() {
               <p className="text-xs mt-1 opacity-60">
                 {search || statusFilter || payoutMonth
                   ? 'Try adjusting your filters or search term'
-                  : 'Create your first incentive record to get started'}
+                  : 'Records are auto-created when invoices are marked paid.'}
               </p>
-              {!search && !statusFilter && !payoutMonth && (
-                <button
-                  onClick={() => navigate(orgPath('/incentive/records/new'))}
-                  className="mt-4 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
-                >
-                  <Plus size={14} />
-                  New Record
-                </button>
-              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

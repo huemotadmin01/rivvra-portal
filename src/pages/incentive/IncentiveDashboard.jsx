@@ -10,7 +10,7 @@ import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
 import MonthPicker from '../../components/incentive/MonthPicker';
 import {
-  Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Plus, Hourglass,
+  Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Hourglass,
 } from 'lucide-react';
 
 function formatINR(amount) {
@@ -104,12 +104,6 @@ export default function IncentiveDashboard() {
             onChange={setMonth}
             placeholder="Current month"
           />
-          <button
-            onClick={() => navigate(orgPath('/incentive/records/new'))}
-            className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
-          >
-            <Plus size={16} /> New Record
-          </button>
         </div>
       </div>
 

@@ -521,7 +521,8 @@ function App() {
                 <Route element={<AppRoleGate appId="incentive" requiredRole="admin" />}>
                   <Route path="/org/:slug/incentive/dashboard" element={<ErrorBoundary><IncentiveDashboard /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/records" element={<ErrorBoundary><IncentiveRecordsList /></ErrorBoundary>} />
-                  <Route path="/org/:slug/incentive/records/new" element={<ErrorBoundary><IncentiveRecordForm /></ErrorBoundary>} />
+                  {/* /records/new removed — drafts are auto-created from paid invoices only.
+                      /records/:recordId/edit kept so admins can tweak existing drafts before approval. */}
                   <Route path="/org/:slug/incentive/records/:recordId/edit" element={<ErrorBoundary><IncentiveRecordForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/rates" element={<ErrorBoundary><IncentiveRatesTable /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/settings" element={<ErrorBoundary><IncentiveSettings /></ErrorBoundary>} />
