@@ -25,8 +25,23 @@ const DEFAULTS = {
   fxRates: [],
 };
 
-// Typed mostly by hand in the editor — we'll normalize on save.
 const BLANK_FX_ROW = { from: '', to: '', rate: '' };
+
+// Currencies supported by the FX rates editor. Narrow list — covers the
+// countries Huemot actually invoices from / commissions in. Easy to extend.
+// Keeping to ISO 4217 3-letter codes; the server validates this too.
+const CURRENCY_OPTIONS = [
+  { code: 'USD', label: 'USD — US Dollar' },
+  { code: 'INR', label: 'INR — Indian Rupee' },
+  { code: 'CAD', label: 'CAD — Canadian Dollar' },
+  { code: 'GBP', label: 'GBP — British Pound' },
+  { code: 'EUR', label: 'EUR — Euro' },
+  { code: 'AUD', label: 'AUD — Australian Dollar' },
+  { code: 'SGD', label: 'SGD — Singapore Dollar' },
+  { code: 'AED', label: 'AED — UAE Dirham' },
+  { code: 'CHF', label: 'CHF — Swiss Franc' },
+  { code: 'JPY', label: 'JPY — Japanese Yen' },
+];
 
 export default function IncentiveSettings() {
   const { currentOrg } = useOrg();
@@ -46,10 +61,14 @@ export default function IncentiveSettings() {
     setLoading(true);
     try {
       const res = await incentiveApi.getSettings(orgSlug);
+      // Server returns `{ success: true, settings: {...} }`. Unwrap here.
+      // Fall back to `res` itself for defensive compatibility with any
+      // caller that might already return a flat settings object.
+      const s = res?.settings || res || {};
       setForm({
         ...DEFAULTS,
-        ...(res || {}),
-        fxRates: Array.isArray(res?.fxRates) ? res.fxRates : [],
+        ...s,
+        fxRates: Array.isArray(s.fxRates) ? s.fxRates : [],
       });
     } catch (e) {
       console.error(e);
@@ -59,16 +78,31 @@ export default function IncentiveSettings() {
   }
 
   async function onSave() {
-    // Normalize fxRates before sending: uppercase codes, coerce rate to
-    // number, drop fully-empty rows. The server validates shape; we only
-    // guard the common typo paths here.
-    const cleanedFx = (form.fxRates || [])
-      .map((r) => ({
-        from: String(r.from || '').toUpperCase().trim(),
-        to: String(r.to || '').toUpperCase().trim(),
-        rate: Number(r.rate),
-      }))
-      .filter((r) => r.from || r.to || Number.isFinite(r.rate));
+    // Normalize fxRates before sending. Uppercase codes, coerce rate to a
+    // finite positive number, and drop any row that isn't fully filled in
+    // — keeps the admin out of the server's "invalid ISO code" error when
+    // they click Save on a freshly-added blank row.
+    const rawRows = (form.fxRates || []).map((r) => ({
+      ...r,
+      from: String(r.from || '').toUpperCase().trim(),
+      to: String(r.to || '').toUpperCase().trim(),
+      rate: Number(r.rate),
+    }));
+    const partial = rawRows.filter(
+      (r) =>
+        (r.from || r.to || r.rate) &&
+        (!r.from || !r.to || !Number.isFinite(r.rate) || r.rate <= 0),
+    );
+    if (partial.length) {
+      showToast(
+        'Please complete all FX rate rows (From, To, and a positive Rate) before saving.',
+        'error',
+      );
+      return;
+    }
+    const cleanedFx = rawRows.filter(
+      (r) => r.from && r.to && r.from !== r.to && Number.isFinite(r.rate) && r.rate > 0,
+    );
 
     setSaving(true);
     try {
@@ -218,26 +252,16 @@ export default function IncentiveSettings() {
               key={idx}
               className="grid grid-cols-[1fr_auto_1fr_1fr_auto] gap-2 items-center"
             >
-              <input
-                type="text"
-                placeholder="USD"
-                maxLength={3}
+              <CurrencySelect
                 value={row.from || ''}
-                onChange={(e) =>
-                  updateFxRow(idx, { from: e.target.value.toUpperCase() })
-                }
-                className={`${inputCls} uppercase tracking-wider`}
+                onChange={(code) => updateFxRow(idx, { from: code })}
+                placeholder="From"
               />
               <ArrowRight size={14} className="text-dark-500" />
-              <input
-                type="text"
-                placeholder="INR"
-                maxLength={3}
+              <CurrencySelect
                 value={row.to || ''}
-                onChange={(e) =>
-                  updateFxRow(idx, { to: e.target.value.toUpperCase() })
-                }
-                className={`${inputCls} uppercase tracking-wider`}
+                onChange={(code) => updateFxRow(idx, { to: code })}
+                placeholder="To"
               />
               <input
                 type="number"
@@ -302,6 +326,35 @@ export default function IncentiveSettings() {
 
 const inputCls =
   'w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-600';
+
+// Currency picker used inside an FX rate row. Native <select> keeps
+// keyboard + a11y behaviour for free; we just theme it to match the rest
+// of the settings panel. Also tolerates a legacy value (e.g. from a row
+// whose code isn't in CURRENCY_OPTIONS) by rendering it as a disabled
+// sentinel option so edits don't silently drop the row's existing code.
+function CurrencySelect({ value, onChange, placeholder }) {
+  const val = String(value || '').toUpperCase();
+  const isKnown = CURRENCY_OPTIONS.some((o) => o.code === val);
+  return (
+    <select
+      value={val}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${inputCls} appearance-none cursor-pointer`}
+    >
+      <option value="" disabled>
+        {placeholder || 'Select currency'}
+      </option>
+      {!isKnown && val && (
+        <option value={val}>{val} (legacy)</option>
+      )}
+      {CURRENCY_OPTIONS.map((o) => (
+        <option key={o.code} value={o.code}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 function Field({ label, hint, children }) {
   return (
