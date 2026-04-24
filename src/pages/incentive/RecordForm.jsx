@@ -1,5 +1,10 @@
 // ============================================================================
-// RecordForm.jsx — Create / edit an incentive record (admin only)
+// RecordForm.jsx — Edit an existing incentive draft (admin only)
+// ============================================================================
+// This form is edit-only. The "create draft" path is intentionally gone —
+// drafts now originate from the server (invoice auto-create hook, the
+// `from-invoice` admin endpoint, or migration scripts). See incentiveApi.js.
+// The /records/:recordId/edit route is the only way into this component.
 // ============================================================================
 
 import { useEffect, useState } from 'react';
@@ -35,20 +40,19 @@ export default function RecordForm() {
   const navigate = useNavigate();
   const { recordId } = useParams();
   const orgSlug = currentOrg?.slug;
-  const isEdit = !!recordId;
 
   const [form, setForm] = useState(INITIAL);
   const [employees, setEmployees] = useState([]);
   const [consultants, setConsultants] = useState([]);
   const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(isEdit);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [salaryMeta, setSalaryMeta] = useState({ source: null, original: null });
 
   useEffect(() => {
-    if (!orgSlug) return;
+    if (!orgSlug || !recordId) return;
     loadLookups();
-    if (isEdit) loadRecord();
+    loadRecord();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, recordId]);
 
@@ -148,11 +152,9 @@ export default function RecordForm() {
 
     setSaving(true);
     try {
-      const res = isEdit
-        ? await incentiveApi.updateRecord(orgSlug, recordId, payload)
-        : await incentiveApi.createRecord(orgSlug, payload);
+      const res = await incentiveApi.updateRecord(orgSlug, recordId, payload);
       const id = res?.record?._id || res?._id || recordId;
-      showToast(isEdit ? 'Record updated' : 'Record created', 'success');
+      showToast('Record updated', 'success');
       navigate(orgPath(`/incentive/records/${id}`));
     } catch (e) {
       showToast(e?.message || 'Save failed', 'error');
@@ -178,9 +180,7 @@ export default function RecordForm() {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-bold text-white">
-          {isEdit ? 'Edit Record' : 'New Incentive Record'}
-        </h1>
+        <h1 className="text-2xl font-bold text-white">Edit Record</h1>
       </div>
 
       <div className="bg-dark-900 border border-dark-800 rounded-xl p-6 space-y-5">
@@ -271,7 +271,7 @@ export default function RecordForm() {
           </Field>
           <Field
             label="Consultant salary snapshot (₹)"
-            hint={salaryHint(salaryMeta.source, isEdit)}
+            hint={salaryHint(salaryMeta.source)}
           >
             <input
               type="number"
@@ -367,7 +367,7 @@ export default function RecordForm() {
           className="px-4 py-2 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-700 text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {isEdit ? 'Save' : 'Create Draft'}
+          Save
         </button>
       </div>
     </div>
@@ -400,8 +400,7 @@ function Field({ label, required, hint, children }) {
   );
 }
 
-function salaryHint(source, isEdit) {
-  if (!isEdit) return 'Leave blank to auto-pull from the paid payroll run.';
+function salaryHint(source) {
   if (source === 'admin_override') return 'Manually overridden by an admin.';
   if (source === 'payroll_run') return 'Pulled from the paid payroll run. Editing here overrides it.';
   if (source === 'pending_payroll' || source === 'salary_hold' || !source) {

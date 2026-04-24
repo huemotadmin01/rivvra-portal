@@ -64,12 +64,10 @@ const incentiveApi = {
   getRecord(slug, id) {
     return api.request(`${base(slug)}/records/${id}`);
   },
-  createRecord(slug, data) {
-    return api.request(`${base(slug)}/records`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
+  // NOTE: `createRecord` was removed alongside the `POST /records` endpoint.
+  // Drafts are now created exclusively by server-side flows — `from-invoice`,
+  // the `onInvoicePaid` hook, the payslip-release retry pass, and migration
+  // scripts. Portal-only users cannot create free-form drafts.
   updateRecord(slug, id, data) {
     return api.request(`${base(slug)}/records/${id}`, {
       method: 'PUT',
