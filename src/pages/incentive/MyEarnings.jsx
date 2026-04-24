@@ -166,6 +166,7 @@ export default function MyEarnings() {
             <table className="w-full text-sm">
               <thead className="bg-dark-850 text-dark-400 text-xs uppercase">
                 <tr>
+                  <th className="text-left px-4 py-2 font-medium">Invoice</th>
                   <th className="text-left px-4 py-2 font-medium">Client</th>
                   <th className="text-left px-4 py-2 font-medium">Consultant</th>
                   <th className="text-left px-4 py-2 font-medium">Service Month</th>
@@ -182,6 +183,11 @@ export default function MyEarnings() {
                     className="border-t border-dark-800 hover:bg-dark-850 cursor-pointer transition-colors"
                     onClick={() => navigate(orgPath(`/incentive/records/${r._id}`))}
                   >
+                    <td className="px-4 py-3">
+                      <span className={r.invoiceNumber ? 'text-white font-medium' : 'text-dark-500 italic'}>
+                        {r.invoiceNumber || '—'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-white">{r.clientName || '—'}</td>
                     <td className="px-4 py-3 text-dark-300">{r.consultantName || '—'}</td>
                     <td className="px-4 py-3 text-dark-300">{r.serviceMonth || '—'}</td>

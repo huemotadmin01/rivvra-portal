@@ -161,10 +161,14 @@ export default function RecordDetail() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-white">
-              {record.invoiceNumber || 'Incentive Record'}
+              {record.invoiceNumber
+                ? `${record.invoiceNumber} · ${record.consultantName || 'Consultant'}`
+                : [record.clientName, record.serviceMonth, record.consultantName]
+                    .filter(Boolean)
+                    .join(' · ') || 'Incentive Record'}
             </h1>
             <p className="text-sm text-dark-400">
-              {record.clientName} · {record.consultantName || 'Consultant'}
+              {record.clientName} · {record.serviceMonth || '—'}
             </p>
           </div>
         </div>
