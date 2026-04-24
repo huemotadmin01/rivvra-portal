@@ -208,6 +208,12 @@ export default function MyPayslipsPage() {
                                 <td className="py-1.5 text-right text-white">₹{fmt(p.grossSalary)}</td>
                               </tr>
                             )}
+                            {p.incentiveAmount > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300">Placement Incentive</td>
+                                <td className="py-1.5 text-right text-white">₹{fmt(p.incentiveAmount)}</td>
+                              </tr>
+                            )}
                             <tr className="border-t border-dark-600">
                               <td className="py-1.5 text-white font-semibold">Gross</td>
                               <td className="py-1.5 text-right text-white font-bold">₹{fmt(p.grossSalary)}</td>
@@ -291,6 +297,23 @@ export default function MyPayslipsPage() {
                         </div>
                       </div>
                     </div>
+                    {(p.incentivePayouts || []).length > 0 && (
+                      <div className="mt-4 border-t border-dark-700 pt-3">
+                        <div className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-2">Placement Incentive Breakdown</div>
+                        <ul className="space-y-1">
+                          {p.incentivePayouts.map((pay, pi) => (
+                            <li key={pay.recordId || pi} className="flex justify-between text-xs text-dark-300">
+                              <span>
+                                {pay.role === 'recruiter' ? 'Recruiter' : 'Account Manager'}
+                                {pay.clientName ? ` · ${pay.clientName}` : ''}
+                                {pay.serviceMonth ? ` · ${pay.serviceMonth}` : ''}
+                              </span>
+                              <span className="text-white">₹{fmt(pay.amount)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
