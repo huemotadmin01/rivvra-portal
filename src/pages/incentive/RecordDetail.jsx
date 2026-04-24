@@ -23,6 +23,23 @@ function formatINR(amount) {
   }).format(amount);
 }
 
+// Format an amount in an arbitrary ISO currency (for the native-amount
+// display on cross-border incentive records). Falls back to a plain number
+// with the currency code when `Intl` doesn't recognise the code.
+function formatCurrency(amount, ccy) {
+  if (amount == null) return '—';
+  const code = String(ccy || 'INR').toUpperCase();
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${code} ${Number(amount).toFixed(2)}`;
+  }
+}
+
 const STATUS_STYLE = {
   draft: 'bg-dark-800 text-dark-300',
   approved: 'bg-blue-950 text-blue-300',
@@ -180,6 +197,24 @@ export default function RecordDetail() {
           {status}
         </span>
       </div>
+
+      {record.fxMissing && (
+        <div className="flex items-start gap-3 bg-amber-950/40 border border-amber-900/60 rounded-xl p-4">
+          <AlertTriangle size={18} className="text-amber-400 mt-0.5 shrink-0" />
+          <div className="text-sm text-amber-200 space-y-1">
+            <div className="font-semibold">
+              FX rate not configured for {record.nativeCurrency} → {record.currency || 'INR'}
+            </div>
+            <div className="text-xs text-amber-300/80">
+              This invoice is in {record.nativeCurrency} but no conversion rate
+              is set. The untaxed invoice value shows as 0 and the record
+              cannot be approved. Add a rate under{' '}
+              <strong>Incentive Settings → FX conversion rates</strong> —
+              drafts will refresh automatically.
+            </div>
+          </div>
+        </div>
+      )}
 
       {isAdmin && (
         <div className="flex flex-wrap gap-2">
@@ -345,7 +380,33 @@ export default function RecordDetail() {
 
         {!isSelfView && (
           <Panel title="Financials">
-            <Row k="Untaxed invoice" v={formatINR(record.untaxedInvoicedValue)} />
+            {/* Native (invoice) currency row — only shown on cross-currency
+                records. `nativeCurrency` is null when the invoice was already
+                in the company's functional currency. */}
+            {record.nativeCurrency && (
+              <>
+                <Row
+                  k={`Invoice amount (${record.nativeCurrency})`}
+                  v={formatCurrency(
+                    record.untaxedInvoicedValueNative,
+                    record.nativeCurrency,
+                  )}
+                />
+                <Row
+                  k="FX rate"
+                  v={
+                    record.fxRate
+                      ? `1 ${record.nativeCurrency} = ${Number(record.fxRate).toFixed(4)} ${record.currency || 'INR'}`
+                      : 'not configured'
+                  }
+                  note={record.fxMissing ? 'missing' : null}
+                />
+              </>
+            )}
+            <Row
+              k={`Untaxed invoice${record.nativeCurrency ? ` (${record.currency || 'INR'})` : ''}`}
+              v={formatINR(record.untaxedInvoicedValue)}
+            />
             <Row
               k="Consultant salary (snapshot)"
               v={formatINR(record.consultantSalarySnapshot)}
