@@ -6,11 +6,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
 import MonthPicker from '../../components/incentive/MonthPicker';
 import {
   Loader2, TrendingUp, CheckCircle2, Clock, FileText, Users, Hourglass,
+  AlertTriangle,
 } from 'lucide-react';
 
 function formatINR(amount) {
@@ -40,6 +42,7 @@ function StatCard({ label, value, icon: Icon, color, sub }) {
 export default function IncentiveDashboard() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
 
@@ -48,6 +51,7 @@ export default function IncentiveDashboard() {
   const [data, setData] = useState(null);
   const [waiting, setWaiting] = useState({ count: 0, groups: [] });
   const [waitingOpen, setWaitingOpen] = useState(false);
+  const [waitingError, setWaitingError] = useState(false);
 
   useEffect(() => {
     if (orgSlug) load();
@@ -57,19 +61,39 @@ export default function IncentiveDashboard() {
   async function load() {
     setLoading(true);
     try {
-      const [summary, waitingRes] = await Promise.all([
+      // The "waiting on payroll" widget is non-critical — its failure shouldn't
+      // blank the whole dashboard. We swallow the rejection here, surface a
+      // toast + a stale-data badge, and let the rest of the page render.
+      const waitingPromise = incentiveApi
+        .getWaitingOnPayroll(orgSlug)
+        .then((res) => ({ ok: true, res }))
+        .catch((err) => ({ ok: false, err }));
+
+      const [summary, waitingOutcome] = await Promise.all([
         incentiveApi.getSummary(orgSlug, {
           scope: 'admin',
           month: month || undefined,
         }),
-        incentiveApi.getWaitingOnPayroll(orgSlug).catch(() => null),
+        waitingPromise,
       ]);
       setData(summary || null);
-      if (waitingRes?.success) {
-        setWaiting({ count: waitingRes.count || 0, groups: waitingRes.groups || [] });
+      if (waitingOutcome.ok && waitingOutcome.res?.success) {
+        setWaiting({
+          count: waitingOutcome.res.count || 0,
+          groups: waitingOutcome.res.groups || [],
+        });
+        setWaitingError(false);
+      } else if (!waitingOutcome.ok) {
+        console.error('Waiting-on-payroll widget failed', waitingOutcome.err);
+        setWaitingError(true);
+        showToast(
+          'Couldn’t load the “waiting on payroll” widget. Other dashboard data is fresh.',
+          'warning',
+        );
       }
     } catch (e) {
       console.error('Failed to load dashboard', e);
+      showToast(e?.message || 'Failed to load dashboard', 'error');
     } finally {
       setLoading(false);
     }
@@ -145,6 +169,8 @@ export default function IncentiveDashboard() {
         groups={waiting.groups}
         open={waitingOpen}
         onToggle={() => setWaitingOpen((v) => !v)}
+        error={waitingError}
+        onRetry={load}
       />
 
 
@@ -240,7 +266,34 @@ export default function IncentiveDashboard() {
   );
 }
 
-function WaitingOnPayrollCard({ count, groups, open, onToggle }) {
+function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry }) {
+  if (error) {
+    return (
+      <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-red-900/40 text-red-300">
+            <AlertTriangle size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">
+              Waiting-on-payroll widget unavailable
+            </p>
+            <p className="text-xs text-dark-400 mt-0.5">
+              We couldn&apos;t fetch the payroll-wait queue. The rest of the
+              dashboard is current.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-xs text-dark-200"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
   if (!count) return null;
   return (
     <div className="bg-amber-950/30 border border-amber-900/40 rounded-xl p-5">

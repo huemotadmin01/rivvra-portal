@@ -13,6 +13,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
+import { validateRecordForm } from '../../utils/incentiveValidate';
 import { ArrowLeft, Loader2, Save } from 'lucide-react';
 
 const INITIAL = {
@@ -115,24 +116,10 @@ export default function RecordForm() {
   }
 
   async function onSave() {
-    if (!form.clientContactId && !form.clientName) {
-      showToast('Client is required', 'error');
-      return;
-    }
-    if (!form.consultantEmployeeId) {
-      showToast('Consultant is required', 'error');
-      return;
-    }
-    if (!form.serviceMonth) {
-      showToast('Service month is required', 'error');
-      return;
-    }
-    if (!form.untaxedInvoicedValue) {
-      showToast('Untaxed invoice value is required', 'error');
-      return;
-    }
-    if (!form.recruiterEmployeeId && !form.accountManagerEmployeeId) {
-      showToast('At least one of Recruiter / AM is required', 'error');
+    try {
+      validateRecordForm(form);
+    } catch (e) {
+      showToast(e.message, 'error');
       return;
     }
 

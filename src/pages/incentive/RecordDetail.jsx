@@ -15,6 +15,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
+import { validateRecordField } from '../../utils/incentiveValidate';
 import InlineField from '../../components/shared/InlineField';
 import InlineComboField from '../../components/shared/InlineComboField';
 import {
@@ -57,24 +58,14 @@ const STATUS_STYLE = {
   cancelled: 'bg-red-950 text-red-300',
 };
 
-// Fields whose value is a non-negative number. We validate these client-side
-// so the user sees the error before the round-trip.
-const NUMERIC_FIELDS = new Set([
-  'untaxedInvoicedValue',
-  'consultantSalarySnapshot',
-  'recruiterAmountOverride',
-  'accountManagerAmountOverride',
-]);
+// Tiny adapter: lookup arrays → InlineComboField options. Used for the
+// client picker and the employee picker (Recruiter / AM / Consultant all
+// share the same employee pool).
+const toOptions = (arr) =>
+  (arr || []).map((x) => ({ value: x._id, label: x.name }));
 
-// Fields that nullify on empty (vs. clamping to 0). Override fields are the
-// canonical "leave blank to use rate engine" knob — clearing them must send
-// `null`, not `0`.
-const NULLABLE_NUMERIC_FIELDS = new Set([
-  'recruiterAmountOverride',
-  'accountManagerAmountOverride',
-]);
-
-const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+// (Validation rules + numeric/nullable field sets + YM_RE live in
+// utils/incentiveValidate.js so RecordDetail and RecordForm stay in sync.)
 
 // ---------------------------------------------------------------------------
 // Component
@@ -155,50 +146,7 @@ export default function RecordDetail() {
   // recruiterIncentive, etc.) refresh in one go.
   const handleFieldSave = useCallback(async (field, rawVal) => {
     if (!orgSlug || !recordId) throw new Error('Missing context');
-
-    let val = rawVal;
-
-    // YYYY-MM month fields
-    if (field === 'serviceMonth' || field === 'payoutMonth') {
-      if (val && !YM_RE.test(val)) {
-        throw new Error('Use YYYY-MM (e.g. 2026-04)');
-      }
-      // serviceMonth is required server-side; payoutMonth empty re-derives.
-      if (field === 'serviceMonth' && !val) {
-        throw new Error('Service month is required');
-      }
-    }
-
-    // Numeric fields
-    if (NUMERIC_FIELDS.has(field)) {
-      if (val === '' || val == null) {
-        val = NULLABLE_NUMERIC_FIELDS.has(field) ? null : 0;
-      } else {
-        const n = Number(val);
-        if (!Number.isFinite(n)) throw new Error('Must be a number');
-        if (n < 0) throw new Error('Must be ≥ 0');
-        val = n;
-      }
-    }
-
-    // Required FK selects: client must stay set; consultant must stay set.
-    if (field === 'clientContactId' && !val) {
-      throw new Error('Client is required');
-    }
-    if (field === 'consultantEmployeeId' && !val) {
-      throw new Error('Consultant is required');
-    }
-
-    // Recruiter / AM: at least one must remain.
-    if (field === 'recruiterEmployeeId' && !val
-        && !(record?.accountManagerEmployeeId)) {
-      throw new Error('At least one of Recruiter / AM is required');
-    }
-    if (field === 'accountManagerEmployeeId' && !val
-        && !(record?.recruiterEmployeeId)) {
-      throw new Error('At least one of Recruiter / AM is required');
-    }
-
+    const val = validateRecordField(field, rawVal, record);
     const payload = { [field]: val };
     const res = await incentiveApi.updateRecord(orgSlug, recordId, payload);
     if (res && res.success === false) {
@@ -259,16 +207,10 @@ export default function RecordDetail() {
   }
 
   // ---------- Lookup-derived option arrays ----------
-  const clientOptions = useMemo(
-    () => clients.map((c) => ({ value: c._id, label: c.name })),
-    [clients]
-  );
+  const clientOptions = useMemo(() => toOptions(clients), [clients]);
   // Single employee pool for Recruiter / AM / Consultant — keeps the search
   // experience identical across all three fields.
-  const employeeOptions = useMemo(
-    () => employees.map((e) => ({ value: e._id, label: e.name })),
-    [employees]
-  );
+  const employeeOptions = useMemo(() => toOptions(employees), [employees]);
 
   // ---------- Loading state ----------
   if (loading) {

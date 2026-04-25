@@ -1515,18 +1515,20 @@ export default function InvoiceDetail() {
   };
 
   // E-Invoice: cancel IRN at IRP (within 24 hours)
-  const handleCancelEInvoice = async () => {
-    const reason = window.prompt(
-      'Cancel E-Invoice?\n\nChoose a reason:\n1 = Duplicate\n2 = Data Entry Mistake\n3 = Order Cancelled\n4 = Other\n\nEnter 1/2/3/4:',
-      '2'
-    );
-    if (!reason) return;
-    const reasonMap = { 1: 'Duplicate', 2: 'Data Entry Mistake', 3: 'Order Cancelled', 4: 'Other' };
-    const cancelReason = reasonMap[reason.trim()] || 'Data Entry Mistake';
-    const cancelRemarks = window.prompt('Optional remarks (max 100 chars):', '') || '';
+  const [cancelEInvoiceModal, setCancelEInvoiceModal] = useState(null);
+  const handleCancelEInvoice = () => {
+    setCancelEInvoiceModal({ reason: 'Data Entry Mistake', remarks: '' });
+  };
+  const submitCancelEInvoice = async () => {
+    if (!cancelEInvoiceModal) return;
+    const { reason, remarks } = cancelEInvoiceModal;
+    setCancelEInvoiceModal(null);
     try {
       setActionLoading('cancelEInvoice');
-      const res = await invoicingApi.cancelEInvoice(orgSlug, invoiceId, { cancelReason, cancelRemarks });
+      const res = await invoicingApi.cancelEInvoice(orgSlug, invoiceId, {
+        cancelReason: reason,
+        cancelRemarks: (remarks || '').slice(0, 100),
+      });
       if (!res?.success) throw new Error(res?.error || 'E-invoice cancellation failed');
       showToast('E-Invoice cancelled');
       fetchInvoice();
@@ -2979,6 +2981,19 @@ export default function InvoiceDetail() {
         />
       )}
 
+      {cancelEInvoiceModal && (
+        <CancelEInvoiceModal
+          reason={cancelEInvoiceModal.reason}
+          remarks={cancelEInvoiceModal.remarks}
+          loading={actionLoading === 'cancelEInvoice'}
+          onChange={(patch) =>
+            setCancelEInvoiceModal((m) => (m ? { ...m, ...patch } : m))
+          }
+          onConfirm={submitCancelEInvoice}
+          onCancel={() => setCancelEInvoiceModal(null)}
+        />
+      )}
+
       {previewDoc && (
         <DocumentPreviewModal
           filename={previewDoc.filename}
@@ -3886,6 +3901,94 @@ function ConfirmModal({ title, message, confirmLabel, danger, loading, onConfirm
             >
               {loading && <Loader2 size={14} className="animate-spin" />}
               {confirmLabel || 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ============================================================================
+// CancelEInvoiceModal — IRP-required reason + remarks form
+// ============================================================================
+
+const E_INVOICE_CANCEL_REASONS = [
+  'Duplicate',
+  'Data Entry Mistake',
+  'Order Cancelled',
+  'Other',
+];
+
+function CancelEInvoiceModal({ reason, remarks, loading, onChange, onConfirm, onCancel }) {
+  return (
+    <ModalOverlay onClose={onCancel}>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
+        <div className="p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-red-500/15">
+              <AlertTriangle size={20} className="text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Cancel E-Invoice?</h2>
+              <p className="text-sm text-dark-400 mt-1">
+                The IRN will be cancelled at the IRP. This is only allowed within
+                24 hours of generation and cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-dark-300 mb-1.5">
+                Reason <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={reason}
+                onChange={(e) => onChange({ reason: e.target.value })}
+                className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500"
+              >
+                {E_INVOICE_CANCEL_REASONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-dark-300 mb-1.5">
+                Remarks <span className="text-dark-500">(optional, max 100 chars)</span>
+              </label>
+              <textarea
+                value={remarks}
+                onChange={(e) => onChange({ remarks: e.target.value.slice(0, 100) })}
+                maxLength={100}
+                rows={3}
+                placeholder="Optional context for audit trail"
+                className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 resize-none"
+              />
+              <p className="text-[11px] text-dark-500 mt-1 text-right">
+                {(remarks || '').length}/100
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-dark-700">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white hover:border-dark-500 text-sm transition-colors disabled:opacity-50"
+            >
+              Keep E-Invoice
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+            >
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              Cancel E-Invoice
             </button>
           </div>
         </div>
