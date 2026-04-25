@@ -116,6 +116,14 @@ const incentiveApi = {
       body: JSON.stringify({ payoutMonth }),
     });
   },
+  // ONE-SHOT migration cleanup; remove once legacy Huemot rows are corrected.
+  // Pass null to clear the recruiter field.
+  patchRecruiter(slug, id, recruiterEmployeeId) {
+    return api.request(`${base(slug)}/records/${id}/patch-recruiter`, {
+      method: 'POST',
+      body: JSON.stringify({ recruiterEmployeeId }),
+    });
+  },
 
   // ---------- SUMMARY ----------
   getSummary(slug, params = {}) {
