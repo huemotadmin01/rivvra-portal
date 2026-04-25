@@ -21,7 +21,7 @@ import MonthPicker from '../../components/incentive/MonthPicker';
 import {
   Loader2, Award, IndianRupee, Clock, CheckCircle2, XCircle,
   TrendingUp, FileText, Search, ArrowUp, ArrowDown, ArrowUpDown,
-  HelpCircle, Hourglass,
+  HelpCircle, Hourglass, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ function SortableTh({ children, align = 'left', sortKey, sortState, onSort }) {
   const Icon = !isActive ? ArrowUpDown : dir === 'asc' ? ArrowUp : ArrowDown;
   return (
     <th
-      className={`px-4 py-2 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}
+      className={`px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)] ${align === 'right' ? 'text-right' : 'text-left'}`}
     >
       <button
         type="button"
@@ -160,19 +160,27 @@ export default function MyEarnings() {
 
   // Filters (server-side) ---------------------------------------------------
   const [monthFilter, setMonthFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Filters (client-side) ---------------------------------------------------
   // Status filter is applied client-side so the chip strip can flip without
-  // a network round-trip; we still send it to the server when narrowing
-  // wouldn't change item counts (kept simple — chip is a view-mask).
+  // a network round-trip; the chip is effectively a view-mask over the
+  // currently-loaded page (status counts in the chip strip come from server).
   const [statusFilter, setStatusFilter] = useState(''); // '', 'draft', 'paid', etc.
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ key: 'createdAt', dir: 'desc' });
 
+  // Reset to page 1 whenever the month filter changes — staying on a now-
+  // out-of-range page would just render an empty table.
+  useEffect(() => {
+    setPage(1);
+  }, [monthFilter]);
+
   useEffect(() => {
     if (orgSlug) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, monthFilter]);
+  }, [orgSlug, monthFilter, page]);
 
   async function load() {
     setLoading(true);
@@ -181,6 +189,8 @@ export default function MyEarnings() {
         incentiveApi.listRecords(orgSlug, {
           scope: 'self',
           payoutMonth: monthFilter || undefined,
+          page,
+          limit: PAGE_SIZE,
         }),
         incentiveApi.getSummary(orgSlug, {
           scope: 'self',
@@ -199,6 +209,11 @@ export default function MyEarnings() {
       setLoading(false);
     }
   }
+
+  // Pagination math --------------------------------------------------------
+  const totalPages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE));
+  const goPrev = () => setPage((p) => Math.max(1, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
   // Stats from server-side summary -----------------------------------------
   const stats = useMemo(() => {
@@ -283,11 +298,11 @@ export default function MyEarnings() {
     return 'Your Recruiter & Account Manager incentives';
   })();
 
-  // Cap-aware item label: the list endpoint caps at 50 by default, so when
-  // total > records.length we tell the user some rows are off-screen rather
-  // than silently truncating to "50 items".
+  // Page-aware item label: with server pagination, "X items" reflects only
+  // the current page; the chip strip + footer carry the cross-page totals.
   const visibleCount = visibleRecords.length;
-  const isCapped = total > records.length;
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(total, (page - 1) * PAGE_SIZE + records.length);
 
   return (
     <div className="p-6 space-y-6">
@@ -383,18 +398,19 @@ export default function MyEarnings() {
                 className="bg-dark-850 border border-dark-700 rounded-lg pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-dark-600 focus:outline-none focus:border-fuchsia-600 w-64"
               />
             </div>
-            <span className="text-xs text-dark-400 whitespace-nowrap" title={isCapped ? `Showing the most recent ${records.length} of ${total} records` : ''}>
+            <span className="text-xs text-dark-400 whitespace-nowrap">
               {statusFilter || search
-                ? `${visibleCount} of ${records.length} shown`
-                : isCapped
-                  ? `${records.length} of ${total} shown`
-                  : `${visibleCount} item${visibleCount === 1 ? '' : 's'}`}
+                ? `${visibleCount} of ${records.length} on this page`
+                : total > 0
+                  ? `${pageStart}–${pageEnd} of ${total}`
+                  : '0 records'}
             </span>
           </div>
         </div>
 
-        {/* Status filter chips */}
-        {records.length > 0 && (
+        {/* Status filter chips — always render all five so members see the
+            full lifecycle (Approved/Partially-paid don't disappear at zero) */}
+        {total > 0 && (
           <div className="px-5 py-2.5 border-b border-dark-800 flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
@@ -405,22 +421,26 @@ export default function MyEarnings() {
                   : 'bg-dark-850 text-dark-300 border-dark-700 hover:border-dark-600'
               }`}
             >
-              All <span className="text-dark-500">· {records.length}</span>
+              All <span className="text-dark-500">· {total}</span>
             </button>
             {STATUS_ORDER.map((s) => {
               const meta = STATUS_META[s];
               const count = statusCounts[s] || 0;
-              if (!count) return null;
               const active = statusFilter === s;
+              const empty = count === 0;
               return (
                 <button
                   key={s}
                   type="button"
-                  onClick={() => toggleStatus(s)}
+                  onClick={() => !empty && toggleStatus(s)}
+                  disabled={empty}
+                  title={empty ? `No ${meta.label.toLowerCase()} records` : `Filter by ${meta.label.toLowerCase()}`}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    active
-                      ? `${meta.chip} border-fuchsia-500 ring-1 ring-fuchsia-500/30`
-                      : `${meta.chip} hover:border-dark-600`
+                    empty
+                      ? 'bg-dark-900 text-dark-500 border-dark-800 cursor-not-allowed'
+                      : active
+                        ? `${meta.chip} border-fuchsia-500 ring-1 ring-fuchsia-500/30`
+                        : `${meta.chip} hover:border-dark-600`
                   }`}
                 >
                   {meta.label} <span className="opacity-70">· {count}</span>
@@ -455,13 +475,13 @@ export default function MyEarnings() {
         ) : (
           <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-dark-850 text-dark-400 text-xs uppercase sticky top-0 z-10">
+              <thead className="text-dark-400 text-xs uppercase">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium">Invoice</th>
-                  <th className="text-left px-4 py-2 font-medium">Client</th>
-                  <th className="text-left px-4 py-2 font-medium">Consultant</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Invoice</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Client</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Consultant</th>
                   <SortableTh sortKey="serviceMonth" sortState={sort} onSort={toggleSort}>Service Month</SortableTh>
-                  <th className="text-left px-4 py-2 font-medium">Your Role</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Your Role</th>
                   <SortableTh sortKey="yourIncentive" align="right" sortState={sort} onSort={toggleSort}>Your Incentive</SortableTh>
                   <SortableTh sortKey="payoutMonth" sortState={sort} onSort={toggleSort}>Payout Month</SortableTh>
                   <SortableTh sortKey="status" sortState={sort} onSort={toggleSort}>Status</SortableTh>
@@ -530,15 +550,40 @@ export default function MyEarnings() {
             </table>
           </div>
         )}
-      </div>
 
-      {/* Footer hint when the list is server-capped ---------------------- */}
-      {isCapped && (
-        <p className="text-[11px] text-dark-500 italic">
-          Showing the {records.length} most recent records of {total} total. Use
-          the month filter above to narrow further.
-        </p>
-      )}
+        {/* Pagination footer — only shown when more than one page exists */}
+        {totalPages > 1 && (
+          <div className="px-5 py-3 border-t border-dark-800 flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-xs text-dark-400">
+              Showing <span className="text-white font-medium">{pageStart}</span>
+              –<span className="text-white font-medium">{pageEnd}</span>
+              {' of '}<span className="text-white font-medium">{total}</span>
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-dark-700 bg-dark-850 text-dark-200 hover:border-dark-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+              <span className="px-3 py-1.5 text-xs text-dark-400">
+                Page <span className="text-white font-medium">{page}</span> of{' '}
+                <span className="text-white font-medium">{totalPages}</span>
+              </span>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-dark-700 bg-dark-850 text-dark-200 hover:border-dark-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
