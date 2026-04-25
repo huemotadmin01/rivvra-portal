@@ -111,10 +111,11 @@ export default function RecordsList() {
       if (res?.statusCounts) setStatusCounts(res.statusCounts);
     } catch (e) {
       console.error('Failed to load records', e);
+      showToast(e?.message || 'Failed to load records', 'error');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, statusFilter, payoutMonth, search, page]);
+  }, [orgSlug, statusFilter, payoutMonth, search, page, showToast]);
 
   useEffect(() => {
     fetchRecords();

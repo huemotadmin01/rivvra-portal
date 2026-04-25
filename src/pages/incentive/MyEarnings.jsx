@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
 import MonthPicker from '../../components/incentive/MonthPicker';
@@ -51,6 +52,7 @@ const STATUS_STYLE = {
 export default function MyEarnings() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
 
@@ -81,6 +83,7 @@ export default function MyEarnings() {
       setSummary(sumRes || null);
     } catch (e) {
       console.error('Failed to load earnings', e);
+      showToast(e?.message || 'Failed to load your earnings', 'error');
     } finally {
       setLoading(false);
     }

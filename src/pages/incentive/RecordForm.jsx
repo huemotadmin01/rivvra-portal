@@ -42,12 +42,15 @@ export default function RecordForm() {
   const orgSlug = currentOrg?.slug;
 
   const [form, setForm] = useState(INITIAL);
+  // Single employee pool — Recruiter / AM / Consultant all pick from the same
+  // list so the search experience is consistent.
   const [employees, setEmployees] = useState([]);
-  const [consultants, setConsultants] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [salaryMeta, setSalaryMeta] = useState({ source: null, original: null });
+  // Record-level currency (display only — backend owns the value).
+  const [currency, setCurrency] = useState('INR');
 
   useEffect(() => {
     if (!orgSlug || !recordId) return;
@@ -58,16 +61,15 @@ export default function RecordForm() {
 
   async function loadLookups() {
     try {
-      const [emps, cons, cl] = await Promise.all([
+      const [emps, cl] = await Promise.all([
         incentiveApi.lookupEmployees(orgSlug),
-        incentiveApi.lookupEmployees(orgSlug, { consultant: true }),
         incentiveApi.lookupClients(orgSlug),
       ]);
       setEmployees(emps?.employees || emps || []);
-      setConsultants(cons?.employees || cons || []);
       setClients(cl?.clients || cl || []);
     } catch (e) {
       console.error(e);
+      showToast('Failed to load employees / clients', 'error');
     }
   }
 
@@ -99,6 +101,7 @@ export default function RecordForm() {
         source: r.consultantSalarySource || null,
         original: r.consultantSalarySnapshot ?? null,
       });
+      setCurrency(r.currency || 'INR');
     } catch (e) {
       showToast('Failed to load record', 'error');
       console.error(e);
@@ -213,7 +216,7 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
-          <Field label="Untaxed invoice value (₹)" required>
+          <Field label={`Untaxed invoice value (${currency})`} required>
             <input
               type="number"
               step="0.01"
@@ -255,14 +258,14 @@ export default function RecordForm() {
               value={form.consultantEmployeeId}
               onChange={(e) => {
                 const id = e.target.value;
-                const emp = consultants.find((x) => x._id === id);
+                const emp = employees.find((x) => x._id === id);
                 setField('consultantEmployeeId', id);
                 setField('consultantName', emp?.name || '');
               }}
               className={inputCls}
             >
               <option value="">— Select —</option>
-              {consultants.map((e) => (
+              {employees.map((e) => (
                 <option key={e._id} value={e._id}>
                   {e.name}
                 </option>
@@ -299,7 +302,7 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
-          <Field label="Recruiter amount override (₹)">
+          <Field label={`Recruiter amount override (${currency})`}>
             <input
               type="number"
               step="0.01"
@@ -327,7 +330,7 @@ export default function RecordForm() {
               ))}
             </select>
           </Field>
-          <Field label="AM amount override (₹)">
+          <Field label={`AM amount override (${currency})`}>
             <input
               type="number"
               step="0.01"

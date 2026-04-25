@@ -92,9 +92,10 @@ export default function RecordDetail() {
   const [record, setRecord] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // Lookups for entity pickers (loaded lazily once we know the user is admin)
+  // Lookups for entity pickers (loaded lazily once we know the user is admin).
+  // Recruiter / AM / Consultant all pick from the same `employees` pool so
+  // the search experience is identical across the three fields.
   const [employees, setEmployees] = useState([]);
-  const [consultants, setConsultants] = useState([]);
   const [clients, setClients] = useState([]);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
 
@@ -132,22 +133,21 @@ export default function RecordDetail() {
     let cancelled = false;
     (async () => {
       try {
-        const [emps, cons, cl] = await Promise.all([
+        const [emps, cl] = await Promise.all([
           incentiveApi.lookupEmployees(orgSlug),
-          incentiveApi.lookupEmployees(orgSlug, { consultant: true }),
           incentiveApi.lookupClients(orgSlug),
         ]);
         if (cancelled) return;
         setEmployees(emps?.employees || emps || []);
-        setConsultants(cons?.employees || cons || []);
         setClients(cl?.clients || cl || []);
         setLookupsLoaded(true);
       } catch (e) {
         console.error('Failed to load lookups', e);
+        if (!cancelled) showToast('Failed to load employees / clients', 'error');
       }
     })();
     return () => { cancelled = true; };
-  }, [orgSlug, isAdmin, lookupsLoaded]);
+  }, [orgSlug, isAdmin, lookupsLoaded, showToast]);
 
   // ---------- Inline-edit save handler ----------
   // Validates client-side, normalises empties, fires PUT, and replaces local
@@ -263,10 +263,8 @@ export default function RecordDetail() {
     () => clients.map((c) => ({ value: c._id, label: c.name })),
     [clients]
   );
-  const consultantOptions = useMemo(
-    () => consultants.map((e) => ({ value: e._id, label: e.name })),
-    [consultants]
-  );
+  // Single employee pool for Recruiter / AM / Consultant — keeps the search
+  // experience identical across all three fields.
   const employeeOptions = useMemo(
     () => employees.map((e) => ({ value: e._id, label: e.name })),
     [employees]
@@ -663,9 +661,9 @@ export default function RecordDetail() {
                 value={record.consultantEmployeeId}
                 required
                 editable
-                options={consultantOptions}
+                options={employeeOptions}
                 displayValue={record.consultantName}
-                placeholder="Search consultant…"
+                placeholder="Search employee…"
                 onSave={handleFieldSave}
               />
             ) : (

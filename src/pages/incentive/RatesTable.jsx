@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { Loader2, Plus, Trash2, Percent } from 'lucide-react';
 
 const ROLE_LABEL = {
@@ -27,6 +28,7 @@ export default function RatesTable() {
     effectiveFrom: '',
     note: '',
   });
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   useEffect(() => {
     if (orgSlug) load();
@@ -40,6 +42,7 @@ export default function RatesTable() {
       setRates(res?.rates || res || []);
     } catch (e) {
       console.error(e);
+      showToast(e?.message || 'Failed to load rates', 'error');
     } finally {
       setLoading(false);
     }
@@ -68,19 +71,41 @@ export default function RatesTable() {
     }
   }
 
-  async function onDelete(id) {
-    if (!window.confirm('Delete this rate entry?')) return;
+  function requestDelete(rate) {
+    setConfirmDelete({ rate, busy: false });
+  }
+
+  async function runDelete() {
+    if (!confirmDelete?.rate) return;
+    const r = confirmDelete.rate;
+    setConfirmDelete((c) => (c ? { ...c, busy: true } : null));
     try {
-      await incentiveApi.deleteRate(orgSlug, id);
+      await incentiveApi.deleteRate(orgSlug, r._id);
       showToast('Deleted', 'success');
+      setConfirmDelete(null);
       await load();
     } catch (e) {
       showToast(e?.message || 'Delete failed', 'error');
+      setConfirmDelete((c) => (c ? { ...c, busy: false } : null));
     }
   }
 
   return (
     <div className="p-6 max-w-4xl space-y-5">
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete rate entry?"
+        message={
+          confirmDelete?.rate
+            ? `Delete the ${ROLE_LABEL[confirmDelete.rate.role] || confirmDelete.rate.role} rate of ${(confirmDelete.rate.rate * 100).toFixed(2)}% effective ${confirmDelete.rate.effectiveFrom ? new Date(confirmDelete.rate.effectiveFrom).toLocaleDateString() : '—'}? Records already approved keep their snapshotted rate; only future drafts are affected.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={runDelete}
+      />
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Percent className="text-fuchsia-400" /> Incentive Rate Table
@@ -185,7 +210,7 @@ export default function RatesTable() {
                   <td className="px-4 py-2 text-dark-400">{r.note || '—'}</td>
                   <td className="px-4 py-2 text-right">
                     <button
-                      onClick={() => onDelete(r._id)}
+                      onClick={() => requestDelete(r)}
                       className="text-red-400 hover:text-red-300 p-1"
                       title="Delete"
                     >
