@@ -109,21 +109,6 @@ const incentiveApi = {
       body: JSON.stringify(data),
     });
   },
-  // ONE-SHOT migration cleanup; remove once legacy Huemot rows are corrected.
-  patchPayoutMonth(slug, id, payoutMonth) {
-    return api.request(`${base(slug)}/records/${id}/patch-payout-month`, {
-      method: 'POST',
-      body: JSON.stringify({ payoutMonth }),
-    });
-  },
-  // ONE-SHOT migration cleanup; remove once legacy Huemot rows are corrected.
-  // Pass null to clear the recruiter field.
-  patchRecruiter(slug, id, recruiterEmployeeId) {
-    return api.request(`${base(slug)}/records/${id}/patch-recruiter`, {
-      method: 'POST',
-      body: JSON.stringify({ recruiterEmployeeId }),
-    });
-  },
 
   // ---------- SUMMARY ----------
   getSummary(slug, params = {}) {
