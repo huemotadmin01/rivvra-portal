@@ -13,6 +13,7 @@ import {
   Plus,
   Trash2,
   ArrowRight,
+  AlertTriangle,
 } from 'lucide-react';
 
 const DEFAULTS = {
@@ -51,6 +52,10 @@ export default function IncentiveSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(DEFAULTS);
+  // We only allow Save when the most-recent load actually returned data.
+  // Otherwise a fetch failure would render the form with built-in DEFAULTS
+  // and a Save click would silently overwrite the org's real settings.
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (orgSlug) load();
@@ -70,18 +75,49 @@ export default function IncentiveSettings() {
         ...s,
         fxRates: Array.isArray(s.fxRates) ? s.fxRates : [],
       });
+      setLoadError(false);
     } catch (e) {
       console.error(e);
+      setLoadError(true);
+      showToast(
+        e?.message ||
+          'Failed to load incentive settings. Save is disabled until reload succeeds — your existing settings are safe.',
+        'error',
+      );
     } finally {
       setLoading(false);
     }
   }
 
   async function onSave() {
-    // Normalize fxRates before sending. Uppercase codes, coerce rate to a
-    // finite positive number, and drop any row that isn't fully filled in
-    // — keeps the admin out of the server's "invalid ISO code" error when
-    // they click Save on a freshly-added blank row.
+    if (loadError) {
+      showToast(
+        'Settings failed to load. Reload the page before saving so we don’t overwrite your real settings with built-in defaults.',
+        'error',
+      );
+      return;
+    }
+
+    // ---- Range validation on the role-default rates -----------------------
+    // Server caps at 0..1 fraction; we surface the friendlier 0..100 in the
+    // UI. Anything that wouldn't round-trip cleanly stays here.
+    const recPct = Number(form.defaultRecruiterRate) * 100;
+    if (!Number.isFinite(recPct) || recPct < 0 || recPct > 100) {
+      showToast('Default Recruiter rate must be between 0 and 100%', 'error');
+      return;
+    }
+    const amPct = Number(form.defaultAccountManagerRate) * 100;
+    if (!Number.isFinite(amPct) || amPct < 0 || amPct > 100) {
+      showToast('Default Account Manager rate must be between 0 and 100%', 'error');
+      return;
+    }
+    const cutoff = Number(form.paymentCutoffDay);
+    if (!Number.isInteger(cutoff) || cutoff < 1 || cutoff > 31) {
+      showToast('Payout cut-off day must be a whole number 1..31', 'error');
+      return;
+    }
+
+    // ---- Normalise + validate FX rate rows --------------------------------
     const rawRows = (form.fxRates || []).map((r) => ({
       ...r,
       from: String(r.from || '').toUpperCase().trim(),
@@ -100,9 +136,34 @@ export default function IncentiveSettings() {
       );
       return;
     }
+
+    // Same-currency rows have no semantic meaning — warn before silently
+    // dropping them so admins don't think they "saved" but get no row back.
+    const sameCcy = rawRows.filter((r) => r.from && r.to && r.from === r.to);
+    if (sameCcy.length) {
+      showToast(
+        `Removed ${sameCcy.length} same-currency row${sameCcy.length === 1 ? '' : 's'} (FX rates only apply across currencies).`,
+        'warning',
+      );
+    }
+
+    // Reject duplicate (from, to) pairs — Mongo would happily store both and
+    // the resolver picks whichever comes back first. Better to fail loud.
     const cleanedFx = rawRows.filter(
       (r) => r.from && r.to && r.from !== r.to && Number.isFinite(r.rate) && r.rate > 0,
     );
+    const seen = new Set();
+    for (const r of cleanedFx) {
+      const key = `${r.from}->${r.to}`;
+      if (seen.has(key)) {
+        showToast(
+          `Duplicate FX pair ${r.from} → ${r.to}. Keep one row per pair.`,
+          'error',
+        );
+        return;
+      }
+      seen.add(key);
+    }
 
     setSaving(true);
     try {
@@ -155,6 +216,32 @@ export default function IncentiveSettings() {
         </p>
       </div>
 
+      {loadError && (
+        <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-red-900/40 text-red-300 shrink-0">
+              <AlertTriangle size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">
+                Settings failed to load
+              </p>
+              <p className="text-xs text-dark-400 mt-0.5">
+                Save is disabled until reload succeeds — we won’t overwrite
+                your real settings with the form’s built-in defaults.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={load}
+            className="px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-xs text-dark-200 shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div className="bg-dark-900 border border-dark-800 rounded-xl p-6 space-y-5">
         <Field
           label="Payout cut-off day"
@@ -165,17 +252,29 @@ export default function IncentiveSettings() {
             min={1}
             max={31}
             value={form.paymentCutoffDay}
-            onChange={(e) =>
-              setForm({ ...form, paymentCutoffDay: Number(e.target.value) || 25 })
-            }
+            onChange={(e) => {
+              // Keep the raw text in state until blur — coercing on every
+              // keystroke ate "0" (the `|| 25` fallback) and made the field
+              // un-typable. Range validation runs at submit.
+              const raw = e.target.value;
+              setForm({
+                ...form,
+                paymentCutoffDay: raw === '' ? '' : Number(raw),
+              });
+            }}
             className={inputCls}
           />
         </Field>
 
-        <Field label="Default Recruiter rate (%)">
+        <Field
+          label="Default Recruiter rate (%)"
+          hint="Used only when no Rate Table row matches (per-employee → per-tier → org-wide → here)."
+        >
           <input
             type="number"
             step="0.01"
+            min="0"
+            max="100"
             value={(form.defaultRecruiterRate * 100).toFixed(2)}
             onChange={(e) =>
               setForm({
@@ -187,10 +286,15 @@ export default function IncentiveSettings() {
           />
         </Field>
 
-        <Field label="Default Account Manager rate (%)">
+        <Field
+          label="Default Account Manager rate (%)"
+          hint="Same fallback chain as Recruiter rate."
+        >
           <input
             type="number"
             step="0.01"
+            min="0"
+            max="100"
             value={(form.defaultAccountManagerRate * 100).toFixed(2)}
             onChange={(e) =>
               setForm({
@@ -309,8 +413,9 @@ export default function IncentiveSettings() {
       <div className="flex justify-end">
         <button
           onClick={onSave}
-          disabled={saving}
-          className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+          disabled={saving || loadError}
+          title={loadError ? 'Reload settings before saving' : ''}
+          className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? (
             <Loader2 size={14} className="animate-spin" />
