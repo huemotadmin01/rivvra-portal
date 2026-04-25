@@ -12,13 +12,13 @@
 // employeeId continue to work as personal overrides.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
-  Loader2, Plus, Trash2, Percent, Pencil, X, Check, Globe2, Users, User,
+  Loader2, Plus, Trash2, Percent, Pencil, X, Check, Globe2, Users, User, Search,
 } from 'lucide-react';
 
 const ROLE_LABEL = {
@@ -295,19 +295,13 @@ export default function RatesTable() {
           </select>
 
           {newRate.scope === SCOPE.EMPLOYEE && (
-            <select
-              value={newRate.employeeId}
-              onChange={(e) => setNewRate({ ...newRate, employeeId: e.target.value })}
-              className={`${inputCls} md:col-span-2`}
-              aria-label="Employee"
-            >
-              <option value="">— Select employee —</option>
-              {employees.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.name}{emp.designation ? ` · ${emp.designation}` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="md:col-span-2">
+              <EmployeePicker
+                employees={employees}
+                value={newRate.employeeId}
+                onChange={(id) => setNewRate({ ...newRate, employeeId: id })}
+              />
+            </div>
           )}
           {newRate.scope === SCOPE.TIER && (
             <input
@@ -587,6 +581,124 @@ function EditingRow({ row, state, setState, onSave, onCancel }) {
         </button>
       </td>
     </tr>
+  );
+}
+
+// Searchable employee lookup for the Per-employee scope. Matches the
+// type-to-filter pattern used elsewhere in the app (RecordDetail combo,
+// asset Assign/Reassign modals). Pure form-mode — no async save cycle, just
+// `value` + `onChange`. Click the X chip to clear the selection.
+function EmployeePicker({ employees, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+
+  const selected = useMemo(
+    () => (value ? employees.find((e) => e._id === value) : null),
+    [employees, value],
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return employees.slice(0, 50);
+    return employees
+      .filter((e) =>
+        (e.name || '').toLowerCase().includes(q)
+        || (e.email || '').toLowerCase().includes(q)
+        || (e.designation || '').toLowerCase().includes(q)
+        || (e.employeeId || '').toLowerCase().includes(q),
+      )
+      .slice(0, 50);
+  }, [employees, search]);
+
+  // Click-outside closes the dropdown.
+  useEffect(() => {
+    if (!open) return undefined;
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (selected) {
+    return (
+      <div className="flex items-center justify-between bg-dark-850 border border-dark-700 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <User size={14} className="text-fuchsia-400 flex-shrink-0" />
+          <span className="text-sm text-white truncate">{selected.name}</span>
+          {selected.designation && (
+            <span className="text-xs text-dark-500 truncate">· {selected.designation}</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => { onChange(''); setSearch(''); }}
+          className="text-dark-400 hover:text-white flex-shrink-0 ml-2"
+          title="Clear selection"
+          aria-label="Clear selected employee"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none"
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setOpen(false);
+            if (e.key === 'Enter' && filtered.length === 1) {
+              onChange(filtered[0]._id);
+              setOpen(false);
+              setSearch('');
+            }
+          }}
+          placeholder="Search employee by name, email, designation…"
+          className={`${inputCls} pl-9`}
+          aria-label="Employee"
+        />
+      </div>
+      {open && (
+        <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-dark-900 border border-dark-700 rounded-lg shadow-xl">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-dark-500 italic">
+              No employees match.
+            </div>
+          ) : (
+            filtered.map((emp) => (
+              <button
+                key={emp._id}
+                type="button"
+                onClick={() => {
+                  onChange(emp._id);
+                  setOpen(false);
+                  setSearch('');
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-dark-800 transition-colors"
+              >
+                <div className="text-sm text-white">{emp.name}</div>
+                {emp.designation && (
+                  <div className="text-[11px] text-dark-500">{emp.designation}</div>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
