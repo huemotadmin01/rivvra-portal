@@ -109,6 +109,13 @@ const incentiveApi = {
       body: JSON.stringify(data),
     });
   },
+  // ONE-SHOT migration cleanup; remove once legacy Huemot rows are corrected.
+  patchPayoutMonth(slug, id, payoutMonth) {
+    return api.request(`${base(slug)}/records/${id}/patch-payout-month`, {
+      method: 'POST',
+      body: JSON.stringify({ payoutMonth }),
+    });
+  },
 
   // ---------- SUMMARY ----------
   getSummary(slug, params = {}) {
