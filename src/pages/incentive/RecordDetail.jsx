@@ -16,6 +16,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import InlineField from '../../components/shared/InlineField';
+import InlineComboField from '../../components/shared/InlineComboField';
 import {
   ArrowLeft, Loader2, CheckCircle2, XCircle, RotateCcw, RefreshCw,
   Trash2, Undo2, AlertTriangle,
@@ -578,15 +579,15 @@ export default function RecordDetail() {
         <Panel title="Invoice">
           <ReadRow k="Invoice #" v={record.invoiceNumber} />
           {canEdit ? (
-            <InlineField
+            <InlineComboField
               label="Client"
               field="clientContactId"
               value={record.clientContactId}
-              type="select"
               required
               editable
               options={clientOptions}
-              displayValue={record.clientName || '—'}
+              displayValue={record.clientName}
+              placeholder="Search client…"
               onSave={handleFieldSave}
             />
           ) : (
@@ -656,15 +657,15 @@ export default function RecordDetail() {
         {!isSelfView && (
           <Panel title="Consultant">
             {canEdit ? (
-              <InlineField
+              <InlineComboField
                 label="Name"
                 field="consultantEmployeeId"
                 value={record.consultantEmployeeId}
-                type="select"
                 required
                 editable
                 options={consultantOptions}
-                displayValue={record.consultantName || '—'}
+                displayValue={record.consultantName}
+                placeholder="Search consultant…"
                 onSave={handleFieldSave}
               />
             ) : (
@@ -784,14 +785,14 @@ export default function RecordDetail() {
           ) : (
             <>
               {canEdit ? (
-                <InlineField
+                <InlineComboField
                   label="Name"
                   field="recruiterEmployeeId"
                   value={record.recruiterEmployeeId}
-                  type="select"
                   editable
                   options={employeeOptions}
-                  displayValue={record.recruiterName || '— None —'}
+                  displayValue={record.recruiterName}
+                  placeholder="Search recruiter…"
                   onSave={handleFieldSave}
                 />
               ) : (
@@ -828,14 +829,14 @@ export default function RecordDetail() {
         {!isSelfView && (
           <Panel title="Account Manager">
             {canEdit ? (
-              <InlineField
+              <InlineComboField
                 label="Name"
                 field="accountManagerEmployeeId"
                 value={record.accountManagerEmployeeId}
-                type="select"
                 editable
                 options={employeeOptions}
-                displayValue={record.accountManagerName || '— None —'}
+                displayValue={record.accountManagerName}
+                placeholder="Search account manager…"
                 onSave={handleFieldSave}
               />
             ) : (
