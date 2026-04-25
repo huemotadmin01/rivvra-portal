@@ -512,10 +512,19 @@ export const APP_REGISTRY = {
         ...(isAdmin ? [
           { type: 'item', path: '/incentive/dashboard', label: 'Dashboard', icon: LayoutDashboard },
           { type: 'item', path: '/incentive/records', label: 'All Records', icon: FileText },
-          { type: 'item', path: '/incentive/rates', label: 'Rate Table', icon: Percent },
-          // App-wide settings live in the global Settings hub
-          // (/settings/incentive). The redirect from the old /incentive/settings
-          // path keeps any stale links working.
+          {
+            // Configuration group keeps the Rate Table + Settings shortcut
+            // grouped visually inside the incentive app. The Settings child
+            // points at /incentive/settings, which is wired in App.jsx as a
+            // redirect to /settings/incentive — so clicking it lands the
+            // admin in the global Settings hub on the Incentive section,
+            // and the sidebar swaps over to the Settings app context.
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/incentive/rates', label: 'Rate Table', icon: Percent },
+              { path: '/incentive/settings', label: 'Settings', icon: Settings },
+            ],
+          },
         ] : []),
       ];
     },
