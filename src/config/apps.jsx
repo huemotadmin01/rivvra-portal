@@ -512,13 +512,10 @@ export const APP_REGISTRY = {
         ...(isAdmin ? [
           { type: 'item', path: '/incentive/dashboard', label: 'Dashboard', icon: LayoutDashboard },
           { type: 'item', path: '/incentive/records', label: 'All Records', icon: FileText },
-          {
-            type: 'group', label: 'Configuration', icon: Settings,
-            children: [
-              { path: '/incentive/rates', label: 'Rate Table', icon: Percent },
-              { path: '/incentive/settings', label: 'Settings', icon: Settings },
-            ],
-          },
+          { type: 'item', path: '/incentive/rates', label: 'Rate Table', icon: Percent },
+          // App-wide settings live in the global Settings hub
+          // (/settings/incentive). The redirect from the old /incentive/settings
+          // path keeps any stale links working.
         ] : []),
       ];
     },
@@ -571,6 +568,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/sign', label: 'Sign', icon: PenTool },
         { type: 'item', path: '/settings/todo', label: 'To-Do', icon: CheckSquare },
         ...(isAdmin ? [{ type: 'item', path: '/settings/invoicing', label: 'Invoicing', icon: Receipt }] : []),
+        ...(isAdmin ? [{ type: 'item', path: '/settings/incentive', label: 'Incentive', icon: Award }] : []),
       ];
     },
   },

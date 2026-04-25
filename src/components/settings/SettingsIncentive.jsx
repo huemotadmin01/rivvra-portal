@@ -1,5 +1,16 @@
 // ============================================================================
-// IncentiveSettings.jsx — Admin settings for the Incentive app
+// SettingsIncentive.jsx — Incentive app settings, hosted in the global
+// Settings hub (/org/:slug/settings/incentive).
+//
+// Migrated out of pages/incentive/IncentiveSettings.jsx so all app settings
+// live in one place, matching the pattern used by SettingsInvoicing,
+// SettingsEmployee, etc.
+//
+// Removed in this migration: the standalone "Default Recruiter rate" and
+// "Default Account Manager rate" fields. They duplicated the Rate Table's
+// org-wide scope (which is now the canonical place to set role-wide
+// defaults). The persisted values stay in the DB as a hidden Layer-4
+// fallback for the resolver — admins just don't see/edit them here.
 // ============================================================================
 
 import { useEffect, useState } from 'react';
@@ -9,7 +20,7 @@ import incentiveApi from '../../utils/incentiveApi';
 import {
   Loader2,
   Save,
-  Settings as SettingsIcon,
+  Award,
   Plus,
   Trash2,
   ArrowRight,
@@ -21,6 +32,8 @@ const DEFAULTS = {
   forfeitOnSeparation: true,
   rollForwardOnMissedPayslip: true,
   autoCreateOnPaid: true,
+  // Kept in shape so the server round-trips them; not exposed in the UI any
+  // longer (the Rate Table's org-wide scope is the canonical default).
   defaultRecruiterRate: 0.06,
   defaultAccountManagerRate: 0.06,
   fxRates: [],
@@ -28,9 +41,6 @@ const DEFAULTS = {
 
 const BLANK_FX_ROW = { from: '', to: '', rate: '' };
 
-// Currencies supported by the FX rates editor. Narrow list — covers the
-// countries Huemot actually invoices from / commissions in. Easy to extend.
-// Keeping to ISO 4217 3-letter codes; the server validates this too.
 const CURRENCY_OPTIONS = [
   { code: 'USD', label: 'USD — US Dollar' },
   { code: 'INR', label: 'INR — Indian Rupee' },
@@ -44,7 +54,7 @@ const CURRENCY_OPTIONS = [
   { code: 'JPY', label: 'JPY — Japanese Yen' },
 ];
 
-export default function IncentiveSettings() {
+export default function SettingsIncentive() {
   const { currentOrg } = useOrg();
   const { showToast } = useToast();
   const orgSlug = currentOrg?.slug;
@@ -66,9 +76,6 @@ export default function IncentiveSettings() {
     setLoading(true);
     try {
       const res = await incentiveApi.getSettings(orgSlug);
-      // Server returns `{ success: true, settings: {...} }`. Unwrap here.
-      // Fall back to `res` itself for defensive compatibility with any
-      // caller that might already return a flat settings object.
       const s = res?.settings || res || {};
       setForm({
         ...DEFAULTS,
@@ -98,19 +105,6 @@ export default function IncentiveSettings() {
       return;
     }
 
-    // ---- Range validation on the role-default rates -----------------------
-    // Server caps at 0..1 fraction; we surface the friendlier 0..100 in the
-    // UI. Anything that wouldn't round-trip cleanly stays here.
-    const recPct = Number(form.defaultRecruiterRate) * 100;
-    if (!Number.isFinite(recPct) || recPct < 0 || recPct > 100) {
-      showToast('Default Recruiter rate must be between 0 and 100%', 'error');
-      return;
-    }
-    const amPct = Number(form.defaultAccountManagerRate) * 100;
-    if (!Number.isFinite(amPct) || amPct < 0 || amPct > 100) {
-      showToast('Default Account Manager rate must be between 0 and 100%', 'error');
-      return;
-    }
     const cutoff = Number(form.paymentCutoffDay);
     if (!Number.isInteger(cutoff) || cutoff < 1 || cutoff > 31) {
       showToast('Payout cut-off day must be a whole number 1..31', 'error');
@@ -137,8 +131,6 @@ export default function IncentiveSettings() {
       return;
     }
 
-    // Same-currency rows have no semantic meaning — warn before silently
-    // dropping them so admins don't think they "saved" but get no row back.
     const sameCcy = rawRows.filter((r) => r.from && r.to && r.from === r.to);
     if (sameCcy.length) {
       showToast(
@@ -147,8 +139,6 @@ export default function IncentiveSettings() {
       );
     }
 
-    // Reject duplicate (from, to) pairs — Mongo would happily store both and
-    // the resolver picks whichever comes back first. Better to fail loud.
     const cleanedFx = rawRows.filter(
       (r) => r.from && r.to && r.from !== r.to && Number.isFinite(r.rate) && r.rate > 0,
     );
@@ -199,21 +189,18 @@ export default function IncentiveSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <Loader2 className="animate-spin text-dark-500" size={32} />
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-2xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <SettingsIcon className="text-fuchsia-400" /> Incentive Settings
-        </h1>
-        <p className="text-sm text-dark-400 mt-1">
-          Org-wide defaults and lifecycle behavior
-        </p>
+    <div className="space-y-5">
+      <div className="flex items-center gap-2">
+        <Award className="text-fuchsia-400" size={20} />
+        <h2 className="text-lg font-semibold text-white">Incentive</h2>
+        <span className="text-xs text-dark-500">— org-wide defaults & lifecycle behavior</span>
       </div>
 
       {loadError && (
@@ -253,9 +240,6 @@ export default function IncentiveSettings() {
             max={31}
             value={form.paymentCutoffDay}
             onChange={(e) => {
-              // Keep the raw text in state until blur — coercing on every
-              // keystroke ate "0" (the `|| 25` fallback) and made the field
-              // un-typable. Range validation runs at submit.
               const raw = e.target.value;
               setForm({
                 ...form,
@@ -266,45 +250,12 @@ export default function IncentiveSettings() {
           />
         </Field>
 
-        <Field
-          label="Default Recruiter rate (%)"
-          hint="Used only when no Rate Table row matches (per-employee → per-tier → org-wide → here)."
-        >
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            value={(form.defaultRecruiterRate * 100).toFixed(2)}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                defaultRecruiterRate: (Number(e.target.value) || 0) / 100,
-              })
-            }
-            className={inputCls}
-          />
-        </Field>
-
-        <Field
-          label="Default Account Manager rate (%)"
-          hint="Same fallback chain as Recruiter rate."
-        >
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            value={(form.defaultAccountManagerRate * 100).toFixed(2)}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                defaultAccountManagerRate: (Number(e.target.value) || 0) / 100,
-              })
-            }
-            className={inputCls}
-          />
-        </Field>
+        <div className="text-xs text-dark-500 italic border-l-2 border-dark-800 pl-3">
+          Looking for default Recruiter / AM rates? They moved to the{' '}
+          <span className="text-dark-300">Rate Table → Org-wide</span> scope so
+          you can version them with effective dates and override per tier or
+          person from one place.
+        </div>
 
         <Toggle
           label="Auto-create on invoice paid"
@@ -329,11 +280,9 @@ export default function IncentiveSettings() {
         />
       </div>
 
-      {/* FX rates — convert invoice currency to company functional currency
-          for cross-border deals (e.g. USD invoice paying INR commissions). */}
       <div className="bg-dark-900 border border-dark-800 rounded-xl p-6 space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-white">FX conversion rates</h2>
+          <h3 className="text-base font-semibold text-white">FX conversion rates</h3>
           <p className="text-xs text-dark-400 mt-1">
             Used when an invoice is in a different currency than the company's
             functional currency. Recruiter / Account Manager commissions are
@@ -432,11 +381,6 @@ export default function IncentiveSettings() {
 const inputCls =
   'w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-600';
 
-// Currency picker used inside an FX rate row. Native <select> keeps
-// keyboard + a11y behaviour for free; we just theme it to match the rest
-// of the settings panel. Also tolerates a legacy value (e.g. from a row
-// whose code isn't in CURRENCY_OPTIONS) by rendering it as a disabled
-// sentinel option so edits don't silently drop the row's existing code.
 function CurrencySelect({ value, onChange, placeholder }) {
   const val = String(value || '').toUpperCase();
   const isKnown = CURRENCY_OPTIONS.some((o) => o.code === val);
@@ -449,9 +393,7 @@ function CurrencySelect({ value, onChange, placeholder }) {
       <option value="" disabled>
         {placeholder || 'Select currency'}
       </option>
-      {!isKnown && val && (
-        <option value={val}>{val} (legacy)</option>
-      )}
+      {!isKnown && val && <option value={val}>{val} (legacy)</option>}
       {CURRENCY_OPTIONS.map((o) => (
         <option key={o.code} value={o.code}>
           {o.label}

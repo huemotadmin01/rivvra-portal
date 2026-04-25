@@ -188,7 +188,9 @@ const IncentiveRecordsList = lazy(() => import('./pages/incentive/RecordsList'))
 const IncentiveRecordForm = lazy(() => import('./pages/incentive/RecordForm'));
 const IncentiveRecordDetail = lazy(() => import('./pages/incentive/RecordDetail'));
 const IncentiveRatesTable = lazy(() => import('./pages/incentive/RatesTable'));
-const IncentiveSettings = lazy(() => import('./pages/incentive/IncentiveSettings'));
+// IncentiveSettings was moved into the global Settings hub at
+// /org/:slug/settings/incentive — see components/settings/SettingsIncentive.
+const SettingsIncentive = lazy(() => import('./components/settings/SettingsIncentive'));
 
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
@@ -257,6 +259,13 @@ function OrgOutreachSettingsRedirect() {
 function CrmConfigRedirect() {
   const { slug } = useParams();
   return <Navigate to={`/org/${slug}/crm/config/stages`} replace />;
+}
+
+// Helper: redirect old /incentive/settings (relocated into the global
+// Settings hub on 2026-04-25) so existing bookmarks/links don't 404.
+function IncentiveSettingsRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/settings/incentive`} replace />;
 }
 
 function App() {
@@ -332,6 +341,7 @@ function App() {
                 <Route path="/org/:slug/settings/companies/:companyId" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/todo" element={<SettingsPageWrapper><SettingsTodo /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/invoicing" element={<SettingsPageWrapper><SettingsInvoicing /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/incentive" element={<SettingsPageWrapper><SettingsIncentive /></SettingsPageWrapper>} />
               </Route>
 
               {/* Timesheet (ESS) app routes — gated by timesheet access + country (IN-only for now) + company match */}
@@ -525,7 +535,7 @@ function App() {
                       /records/:recordId/edit kept so admins can tweak existing drafts before approval. */}
                   <Route path="/org/:slug/incentive/records/:recordId/edit" element={<ErrorBoundary><IncentiveRecordForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/rates" element={<ErrorBoundary><IncentiveRatesTable /></ErrorBoundary>} />
-                  <Route path="/org/:slug/incentive/settings" element={<ErrorBoundary><IncentiveSettings /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/settings" element={<IncentiveSettingsRedirect />} />
                 </Route>
               </Route>
             </Route>
