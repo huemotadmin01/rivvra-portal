@@ -3,6 +3,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   Loader2, Plus, Pencil, Trash2, Percent, X, Check, Sparkles, Search,
 } from 'lucide-react';
@@ -49,6 +50,7 @@ export default function TdsConfig() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [seeding, setSeeding] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const companyId = currentCompany?._id;
 
@@ -140,16 +142,24 @@ export default function TdsConfig() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this TDS section? Existing payments already tagged with it are unaffected.')) return;
-    setDeletingId(id);
+  function requestDelete(row) {
+    setConfirmDelete({ row, busy: false });
+  }
+
+  async function runDelete() {
+    if (!confirmDelete?.row) return;
+    const row = confirmDelete.row;
+    setConfirmDelete((c) => (c ? { ...c, busy: true } : null));
+    setDeletingId(row._id);
     try {
-      await invoicingApi.deleteTdsConfig(orgSlug, id);
-      setRows(prev => prev.filter(r => r._id !== id));
-      if (editingId === id) cancelEdit();
+      await invoicingApi.deleteTdsConfig(orgSlug, row._id);
+      setRows(prev => prev.filter(r => r._id !== row._id));
+      if (editingId === row._id) cancelEdit();
       showToast('TDS section deleted');
+      setConfirmDelete(null);
     } catch (err) {
       showToast(err.message || 'Failed to delete TDS section', 'error');
+      setConfirmDelete((c) => (c ? { ...c, busy: false } : null));
     } finally {
       setDeletingId(null);
     }
@@ -292,6 +302,20 @@ export default function TdsConfig() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete TDS section?"
+        message={
+          confirmDelete?.row
+            ? `Delete TDS section "${confirmDelete.row.sectionCode}"? Existing payments already tagged with it are unaffected, but new entries can no longer use it.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={runDelete}
+      />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -441,7 +465,7 @@ export default function TdsConfig() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(row._id)}
+                              onClick={() => requestDelete(row)}
                               disabled={deletingId === row._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"

@@ -1437,9 +1437,7 @@ export default function InvoiceDetail() {
     } catch (err) {
       // Vendor bill: soft-warn on duplicate vendor invoice number
       if (err.message === 'duplicate_vendor_bill' || /duplicate/i.test(err.message || '')) {
-        if (window.confirm('A bill with this invoice number already exists for this vendor. Continue anyway?')) {
-          return handleSend({ confirmDuplicate: true });
-        }
+        setShowDuplicateBillConfirm(true);
       } else {
         showToast(err.message || 'Failed to confirm invoice', 'error');
       }
@@ -1448,7 +1446,13 @@ export default function InvoiceDetail() {
     }
   };
 
+  const confirmDuplicateBill = () => {
+    setShowDuplicateBillConfirm(false);
+    handleSend({ confirmDuplicate: true });
+  };
+
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showDuplicateBillConfirm, setShowDuplicateBillConfirm] = useState(false);
   const handleCancel = async () => {
     try {
       setActionLoading('cancel');
@@ -2961,6 +2965,17 @@ export default function InvoiceDetail() {
           loading={actionLoading === 'cancel'}
           onConfirm={handleCancel}
           onCancel={() => setShowCancelConfirm(false)}
+        />
+      )}
+
+      {showDuplicateBillConfirm && (
+        <ConfirmModal
+          title="Duplicate Vendor Bill?"
+          message="A bill with this invoice number already exists for this vendor. Continue anyway?"
+          confirmLabel="Continue"
+          loading={actionLoading === 'send'}
+          onConfirm={confirmDuplicateBill}
+          onCancel={() => setShowDuplicateBillConfirm(false)}
         />
       )}
 

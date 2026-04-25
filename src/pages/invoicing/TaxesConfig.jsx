@@ -102,6 +102,15 @@ export default function TaxesConfig() {
       showToast('A valid rate is required', 'error');
       return;
     }
+    const rateNum = Number(form.rate);
+    if (rateNum < 0) {
+      showToast('Rate cannot be negative', 'error');
+      return;
+    }
+    if (rateNum > 100) {
+      showToast('Rate cannot exceed 100%', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {

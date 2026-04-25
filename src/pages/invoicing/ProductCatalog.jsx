@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   Search, Plus, Loader2, Package, Trash2, Pencil, X,
   Check, ToggleLeft, ToggleRight, Layers, Wrench,
@@ -54,6 +54,7 @@ export default function ProductCatalog() {
   const [form, setForm] = useState({ ...EMPTY_PRODUCT });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { product, busy }
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -150,16 +151,24 @@ export default function ProductCatalog() {
     }
   }
 
-  async function handleDelete(product) {
-    if (!window.confirm(`Delete "${product.name}"? This cannot be undone. If any invoice references this product, deletion will be refused — deactivate it instead.`)) return;
+  function requestDelete(product) {
+    setConfirmDelete({ product, busy: false });
+  }
+
+  async function runDelete() {
+    if (!confirmDelete?.product) return;
+    const product = confirmDelete.product;
+    setConfirmDelete((c) => ({ ...c, busy: true }));
     setDeletingId(product._id);
     try {
       await invoicingApi.deleteProduct(orgSlug, product._id);
       showToast('Product deleted');
       setProducts(prev => prev.filter(p => p._id !== product._id));
       if (editingId === product._id) cancelEdit();
+      setConfirmDelete(null);
     } catch (err) {
       showToast(err.message || 'Failed to delete product', 'error');
+      setConfirmDelete((c) => (c ? { ...c, busy: false } : null));
     } finally {
       setDeletingId(null);
     }
@@ -325,6 +334,20 @@ export default function ProductCatalog() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete product?"
+        message={
+          confirmDelete?.product
+            ? `Delete "${confirmDelete.product.name}"? This cannot be undone. If any invoice references this product, deletion will be refused — deactivate it instead.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={runDelete}
+      />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -510,7 +533,7 @@ export default function ProductCatalog() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(product)}
+                              onClick={() => requestDelete(product)}
                               disabled={deletingId === product._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"

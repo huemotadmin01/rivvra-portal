@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   Loader2, Plus, Pencil, Trash2, FileText, X, Check,
   ToggleLeft, ToggleRight, Search, Star,
@@ -48,6 +49,7 @@ export default function JournalsConfig() {
   const [form, setForm] = useState({ ...EMPTY_JOURNAL });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -137,20 +139,24 @@ export default function JournalsConfig() {
     }
   }
 
-  async function handleDelete(journal) {
-    const ok = window.confirm(
-      `Delete "${journal.name}" (${journal.code})? This permanently removes the journal. ` +
-      `If invoices reference it, deletion is refused — deactivate the journal instead to hide it.`
-    );
-    if (!ok) return;
+  function requestDelete(journal) {
+    setConfirmDelete({ journal, busy: false });
+  }
+
+  async function runDelete() {
+    if (!confirmDelete?.journal) return;
+    const journal = confirmDelete.journal;
+    setConfirmDelete((c) => (c ? { ...c, busy: true } : null));
     setDeletingId(journal._id);
     try {
       await invoicingApi.deleteJournal(orgSlug, journal._id);
       showToast('Journal deleted');
       setJournals(prev => prev.filter(j => j._id !== journal._id));
       if (editingId === journal._id) cancelEdit();
+      setConfirmDelete(null);
     } catch (err) {
       showToast(err.message || 'Failed to delete journal', 'error');
+      setConfirmDelete((c) => (c ? { ...c, busy: false } : null));
     } finally {
       setDeletingId(null);
     }
@@ -281,6 +287,20 @@ export default function JournalsConfig() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete journal?"
+        message={
+          confirmDelete?.journal
+            ? `Delete "${confirmDelete.journal.name}" (${confirmDelete.journal.code})? This permanently removes the journal. If invoices reference it, deletion will be refused — deactivate the journal instead to hide it.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={runDelete}
+      />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -454,7 +474,7 @@ export default function JournalsConfig() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(journal)}
+                              onClick={() => requestDelete(journal)}
                               disabled={deletingId === journal._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"
