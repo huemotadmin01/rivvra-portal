@@ -1,18 +1,29 @@
 // ============================================================================
-// RecordDetail.jsx — Single record view with lifecycle actions
+// RecordDetail.jsx — Single-record view with inline editing & lifecycle actions
+// ----------------------------------------------------------------------------
+// Inline editing mirrors EmployeeDetail/ContactDetail: each main field is
+// rendered through <InlineField>, save-on-blur, server response replaces local
+// state so derived metrics (netProfit, incentives) refresh automatically.
+//
+// Confirmations & reason prompts use styled modals (no window.confirm/prompt)
+// so the audit trail is auditable across automated/headless tests too.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
-import { useAuth } from '../../context/AuthContext';
 import incentiveApi from '../../utils/incentiveApi';
+import InlineField from '../../components/shared/InlineField';
 import {
   ArrowLeft, Loader2, CheckCircle2, XCircle, RotateCcw, RefreshCw,
-  Edit, Trash2, Undo2, AlertTriangle,
+  Trash2, Undo2, AlertTriangle,
 } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Formatters
+// ---------------------------------------------------------------------------
 
 function formatINR(amount) {
   if (amount == null) return '\u20B90';
@@ -23,9 +34,6 @@ function formatINR(amount) {
   }).format(amount);
 }
 
-// Format an amount in an arbitrary ISO currency (for the native-amount
-// display on cross-border incentive records). Falls back to a plain number
-// with the currency code when `Intl` doesn't recognise the code.
 function formatCurrency(amount, ccy) {
   if (amount == null) return '—';
   const code = String(ccy || 'INR').toUpperCase();
@@ -44,14 +52,37 @@ const STATUS_STYLE = {
   draft: 'bg-dark-800 text-dark-300',
   approved: 'bg-blue-950 text-blue-300',
   paid: 'bg-emerald-950 text-emerald-300',
+  partially_paid: 'bg-emerald-950/60 text-emerald-300',
   cancelled: 'bg-red-950 text-red-300',
 };
+
+// Fields whose value is a non-negative number. We validate these client-side
+// so the user sees the error before the round-trip.
+const NUMERIC_FIELDS = new Set([
+  'untaxedInvoicedValue',
+  'consultantSalarySnapshot',
+  'recruiterAmountOverride',
+  'accountManagerAmountOverride',
+]);
+
+// Fields that nullify on empty (vs. clamping to 0). Override fields are the
+// canonical "leave blank to use rate engine" knob — clearing them must send
+// `null`, not `0`.
+const NULLABLE_NUMERIC_FIELDS = new Set([
+  'recruiterAmountOverride',
+  'accountManagerAmountOverride',
+]);
+
+const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function RecordDetail() {
   const { currentOrg, isOrgAdmin, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { recordId } = useParams();
   const orgSlug = currentOrg?.slug;
@@ -59,18 +90,24 @@ export default function RecordDetail() {
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  // Lookups for entity pickers (loaded lazily once we know the user is admin)
+  const [employees, setEmployees] = useState([]);
+  const [consultants, setConsultants] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [lookupsLoaded, setLookupsLoaded] = useState(false);
+
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [reasonModal, setReasonModal] = useState(null);
   const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
   const [hardDeleteConfirm, setHardDeleteConfirm] = useState('');
   const [hardDeleteReason, setHardDeleteReason] = useState('');
 
   const isAdmin = isOrgAdmin || getAppRole('incentive') === 'admin';
 
-  useEffect(() => {
-    if (orgSlug && recordId) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, recordId]);
-
-  async function load() {
+  // ---------- Load record ----------
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const resp = await incentiveApi.getRecord(orgSlug, recordId);
@@ -81,42 +118,160 @@ export default function RecordDetail() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, recordId]);
+
+  useEffect(() => {
+    if (orgSlug && recordId) load();
+  }, [orgSlug, recordId, load]);
+
+  // ---------- Load lookups (admin only) ----------
+  useEffect(() => {
+    if (!orgSlug || !isAdmin || lookupsLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [emps, cons, cl] = await Promise.all([
+          incentiveApi.lookupEmployees(orgSlug),
+          incentiveApi.lookupEmployees(orgSlug, { consultant: true }),
+          incentiveApi.lookupClients(orgSlug),
+        ]);
+        if (cancelled) return;
+        setEmployees(emps?.employees || emps || []);
+        setConsultants(cons?.employees || cons || []);
+        setClients(cl?.clients || cl || []);
+        setLookupsLoaded(true);
+      } catch (e) {
+        console.error('Failed to load lookups', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, isAdmin, lookupsLoaded]);
+
+  // ---------- Inline-edit save handler ----------
+  // Validates client-side, normalises empties, fires PUT, and replaces local
+  // state with the server response so all derived fields (netProfit,
+  // recruiterIncentive, etc.) refresh in one go.
+  const handleFieldSave = useCallback(async (field, rawVal) => {
+    if (!orgSlug || !recordId) throw new Error('Missing context');
+
+    let val = rawVal;
+
+    // YYYY-MM month fields
+    if (field === 'serviceMonth' || field === 'payoutMonth') {
+      if (val && !YM_RE.test(val)) {
+        throw new Error('Use YYYY-MM (e.g. 2026-04)');
+      }
+      // serviceMonth is required server-side; payoutMonth empty re-derives.
+      if (field === 'serviceMonth' && !val) {
+        throw new Error('Service month is required');
+      }
+    }
+
+    // Numeric fields
+    if (NUMERIC_FIELDS.has(field)) {
+      if (val === '' || val == null) {
+        val = NULLABLE_NUMERIC_FIELDS.has(field) ? null : 0;
+      } else {
+        const n = Number(val);
+        if (!Number.isFinite(n)) throw new Error('Must be a number');
+        if (n < 0) throw new Error('Must be ≥ 0');
+        val = n;
+      }
+    }
+
+    // Required FK selects: client must stay set; consultant must stay set.
+    if (field === 'clientContactId' && !val) {
+      throw new Error('Client is required');
+    }
+    if (field === 'consultantEmployeeId' && !val) {
+      throw new Error('Consultant is required');
+    }
+
+    // Recruiter / AM: at least one must remain.
+    if (field === 'recruiterEmployeeId' && !val
+        && !(record?.accountManagerEmployeeId)) {
+      throw new Error('At least one of Recruiter / AM is required');
+    }
+    if (field === 'accountManagerEmployeeId' && !val
+        && !(record?.recruiterEmployeeId)) {
+      throw new Error('At least one of Recruiter / AM is required');
+    }
+
+    const payload = { [field]: val };
+    const res = await incentiveApi.updateRecord(orgSlug, recordId, payload);
+    if (res && res.success === false) {
+      throw new Error(res.error || 'Update failed');
+    }
+    if (res?.record) setRecord(res.record);
+  }, [orgSlug, recordId, record]);
+
+  // ---------- Confirm/reason modal helpers ----------
+  function openConfirm(opts) {
+    setConfirmModal({ ...opts, busy: false });
+  }
+  function openReason(opts) {
+    setReasonModal({ ...opts, busy: false, reason: '' });
   }
 
-  async function act(fn, confirmMsg, successMsg) {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+  async function runConfirmAction() {
+    if (!confirmModal) return;
+    setConfirmModal((c) => ({ ...c, busy: true }));
     setBusy(true);
     try {
-      await fn();
-      showToast(successMsg, 'success');
-      await load();
+      await confirmModal.action();
+      showToast(confirmModal.successMsg || 'Done', 'success');
+      setConfirmModal(null);
+      if (confirmModal.afterAction) {
+        await confirmModal.afterAction();
+      } else {
+        await load();
+      }
     } catch (e) {
       showToast(e?.message || 'Action failed', 'error');
+      setConfirmModal((c) => (c ? { ...c, busy: false } : null));
     } finally {
       setBusy(false);
     }
   }
 
-  async function actWithReason(promptMsg, apiFn, successMsg) {
-    const reason = window.prompt(promptMsg);
-    if (reason == null) return;
-    const trimmed = String(reason).trim();
-    if (!trimmed) {
+  async function runReasonAction() {
+    if (!reasonModal) return;
+    const reason = String(reasonModal.reason || '').trim();
+    if (!reason) {
       showToast('A reason is required', 'error');
       return;
     }
+    setReasonModal((r) => ({ ...r, busy: true }));
     setBusy(true);
     try {
-      await apiFn(trimmed);
-      showToast(successMsg, 'success');
+      await reasonModal.action(reason);
+      showToast(reasonModal.successMsg || 'Done', 'success');
+      setReasonModal(null);
       await load();
     } catch (e) {
       showToast(e?.message || 'Action failed', 'error');
+      setReasonModal((r) => (r ? { ...r, busy: false } : null));
     } finally {
       setBusy(false);
     }
   }
 
+  // ---------- Lookup-derived option arrays ----------
+  const clientOptions = useMemo(
+    () => clients.map((c) => ({ value: c._id, label: c.name })),
+    [clients]
+  );
+  const consultantOptions = useMemo(
+    () => consultants.map((e) => ({ value: e._id, label: e.name })),
+    [consultants]
+  );
+  const employeeOptions = useMemo(
+    () => employees.map((e) => ({ value: e._id, label: e.name })),
+    [employees]
+  );
+
+  // ---------- Loading state ----------
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -130,7 +285,7 @@ export default function RecordDetail() {
     );
   }
 
-  const isSelfView = !isAdmin; // backend already projected
+  const isSelfView = !isAdmin;
   const status = record.status;
   const canEdit = isAdmin && status === 'draft';
   const canDelete = isAdmin && status === 'draft';
@@ -139,10 +294,16 @@ export default function RecordDetail() {
   const canCancel = isAdmin && (status === 'draft' || status === 'approved');
   const canRefreshRate = isAdmin && status === 'draft';
   const canReverse = isAdmin && status === 'paid';
-  const canHardDelete = isAdmin; // any status — admin cleanup / test data removal
+  const canHardDelete = isAdmin;
 
-  // Phrase the admin must type to confirm hard delete. Prefer invoice number
-  // for recognition; fall back to the last 6 chars of the record id.
+  // ---------- Computed soft warnings ----------
+  const negativeProfit = Number(record.netProfit) < 0;
+  const salaryExceedsInvoice =
+    Number(record.consultantSalarySnapshot) > Number(record.untaxedInvoicedValue) &&
+    Number(record.untaxedInvoicedValue) > 0;
+  const noRecruiterOrAm =
+    !record.recruiterEmployeeId && !record.accountManagerEmployeeId;
+
   const hardDeletePhrase =
     (record.invoiceNumber && String(record.invoiceNumber).trim()) ||
     (recordId ? `DELETE-${String(recordId).slice(-6)}` : 'DELETE');
@@ -164,8 +325,88 @@ export default function RecordDetail() {
     }
   }
 
+  // ---------- Action wiring ----------
+  function onApproveClick() {
+    if (negativeProfit || salaryExceedsInvoice) {
+      openConfirm({
+        title: 'Approve with negative profit?',
+        message:
+          'This record has a negative net profit (consultant salary exceeds invoice value). Approving locks the FX rate and incentive amounts. Are you sure?',
+        confirmLabel: 'Approve anyway',
+        primary: true,
+        action: () => incentiveApi.approve(orgSlug, recordId),
+        successMsg: 'Record approved',
+      });
+      return;
+    }
+    openConfirm({
+      title: 'Approve this record?',
+      message:
+        'The FX rate and incentive amounts will be snapshotted and locked. The record will be folded into the next payroll re-process for its payout month.',
+      confirmLabel: 'Approve',
+      primary: true,
+      action: () => incentiveApi.approve(orgSlug, recordId),
+      successMsg: 'Record approved',
+    });
+  }
+
+  function onUnapproveClick() {
+    openReason({
+      title: 'Unapprove record',
+      message: 'Returning to draft so you can edit it. The next payroll re-process for the payout month will fold the change in.',
+      placeholder: 'Reason for unapproving (audit trail) — required',
+      action: (reason) => incentiveApi.unapprove(orgSlug, recordId, { reason }),
+      successMsg: 'Returned to draft',
+    });
+  }
+
+  function onCancelClick() {
+    openReason({
+      title: 'Cancel record',
+      message: 'Cancellation is final — the record will not produce any incentive payout. Use Reverse instead if it has already been paid.',
+      placeholder: 'Reason for cancelling (audit trail) — required',
+      action: (reason) => incentiveApi.cancel(orgSlug, recordId, { reason }),
+      successMsg: 'Record cancelled',
+    });
+  }
+
+  function onReverseClick() {
+    openReason({
+      title: 'Reverse paid record',
+      message: 'This creates a negative-amount adjustment record so the next payroll claws back the original payout. The original record is preserved for the audit trail.',
+      placeholder: 'Reason for reversal (audit trail) — required',
+      action: (reason) => incentiveApi.reverse(orgSlug, recordId, { reason }),
+      successMsg: 'Adjustment created',
+    });
+  }
+
+  function onRefreshRateClick() {
+    openConfirm({
+      title: 'Refresh rate snapshot?',
+      message:
+        'Re-pulls the live FX rate, recruiter %, AM %, and consultant salary. Only allowed on drafts. Approved records stay locked to their original snapshot (FX-1).',
+      confirmLabel: 'Refresh',
+      primary: true,
+      action: () => incentiveApi.refreshRate(orgSlug, recordId),
+      successMsg: 'Rate refreshed',
+    });
+  }
+
+  function onDeleteClick() {
+    openConfirm({
+      title: 'Delete this draft?',
+      message: 'The record will be removed permanently. There is no soft-undo.',
+      confirmLabel: 'Delete',
+      danger: true,
+      action: () => incentiveApi.deleteRecord(orgSlug, recordId),
+      successMsg: 'Deleted',
+      afterAction: async () => navigate(orgPath('/incentive/records')),
+    });
+  }
+
   return (
     <div className="p-6 max-w-5xl space-y-5">
+      {/* ----- Header ----- */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
@@ -173,6 +414,7 @@ export default function RecordDetail() {
               navigate(orgPath(isAdmin ? '/incentive/records' : '/incentive/my-earnings'))
             }
             className="text-dark-400 hover:text-white p-1"
+            title="Back"
           >
             <ArrowLeft size={20} />
           </button>
@@ -198,6 +440,7 @@ export default function RecordDetail() {
         </span>
       </div>
 
+      {/* ----- FX missing banner ----- */}
       {record.fxMissing && (
         <div className="flex items-start gap-3 bg-amber-950/40 border border-amber-900/60 rounded-xl p-4">
           <AlertTriangle size={18} className="text-amber-400 mt-0.5 shrink-0" />
@@ -216,109 +459,61 @@ export default function RecordDetail() {
         </div>
       )}
 
+      {/* ----- Soft warning banners (draft only) ----- */}
+      {canEdit && (negativeProfit || salaryExceedsInvoice || noRecruiterOrAm) && (
+        <div className="flex items-start gap-3 bg-amber-950/30 border border-amber-900/50 rounded-xl p-4">
+          <AlertTriangle size={18} className="text-amber-400 mt-0.5 shrink-0" />
+          <div className="text-sm text-amber-200 space-y-1.5">
+            <div className="font-semibold">Heads up</div>
+            <ul className="text-xs text-amber-300/90 space-y-1 list-disc list-inside">
+              {salaryExceedsInvoice && (
+                <li>
+                  Consultant salary ({formatINR(record.consultantSalarySnapshot)})
+                  exceeds invoice value ({formatINR(record.untaxedInvoicedValue)})
+                  — net profit is negative.
+                </li>
+              )}
+              {negativeProfit && !salaryExceedsInvoice && (
+                <li>Net profit is negative ({formatINR(record.netProfit)}).</li>
+              )}
+              {noRecruiterOrAm && (
+                <li>No Recruiter or AM assigned — record cannot be approved.</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* ----- Action buttons ----- */}
       {isAdmin && (
         <div className="flex flex-wrap gap-2">
-          {canEdit && (
-            <ActionBtn
-              onClick={() =>
-                navigate(orgPath(`/incentive/records/${recordId}/edit`))
-              }
-              icon={Edit}
-            >
-              Edit
-            </ActionBtn>
-          )}
           {canApprove && (
-            <ActionBtn
-              primary
-              onClick={() =>
-                act(
-                  () => incentiveApi.approve(orgSlug, recordId),
-                  'Approve this record? The rate snapshot becomes final.',
-                  'Record approved'
-                )
-              }
-              icon={CheckCircle2}
-              disabled={busy}
-            >
+            <ActionBtn primary onClick={onApproveClick} icon={CheckCircle2} disabled={busy}>
               Approve
             </ActionBtn>
           )}
           {canUnapprove && (
-            <ActionBtn
-              onClick={() =>
-                actWithReason(
-                  'Reason for unapproving? (required — audit trail)',
-                  (reason) => incentiveApi.unapprove(orgSlug, recordId, { reason }),
-                  'Returned to draft'
-                )
-              }
-              icon={Undo2}
-              disabled={busy}
-            >
+            <ActionBtn onClick={onUnapproveClick} icon={Undo2} disabled={busy}>
               Unapprove
             </ActionBtn>
           )}
           {canRefreshRate && (
-            <ActionBtn
-              onClick={() =>
-                act(
-                  () => incentiveApi.refreshRate(orgSlug, recordId),
-                  null,
-                  'Rate refreshed'
-                )
-              }
-              icon={RefreshCw}
-              disabled={busy}
-            >
+            <ActionBtn onClick={onRefreshRateClick} icon={RefreshCw} disabled={busy}>
               Refresh Rate
             </ActionBtn>
           )}
           {canCancel && (
-            <ActionBtn
-              danger
-              onClick={() =>
-                actWithReason(
-                  'Reason for cancelling? (required — audit trail)',
-                  (reason) => incentiveApi.cancel(orgSlug, recordId, { reason }),
-                  'Record cancelled'
-                )
-              }
-              icon={XCircle}
-              disabled={busy}
-            >
+            <ActionBtn danger onClick={onCancelClick} icon={XCircle} disabled={busy}>
               Cancel
             </ActionBtn>
           )}
           {canReverse && (
-            <ActionBtn
-              danger
-              onClick={() =>
-                actWithReason(
-                  'Reason for reversal? (required — creates a negative adjustment record)',
-                  (reason) => incentiveApi.reverse(orgSlug, recordId, { reason }),
-                  'Adjustment created'
-                )
-              }
-              icon={RotateCcw}
-              disabled={busy}
-            >
+            <ActionBtn danger onClick={onReverseClick} icon={RotateCcw} disabled={busy}>
               Reverse (Adjustment)
             </ActionBtn>
           )}
           {canDelete && (
-            <ActionBtn
-              danger
-              onClick={() =>
-                act(
-                  () => incentiveApi.deleteRecord(orgSlug, recordId),
-                  'Permanently delete this draft?',
-                  'Deleted'
-                ).then(() => navigate(orgPath('/incentive/records')))
-              }
-              icon={Trash2}
-              disabled={busy}
-            >
+            <ActionBtn danger onClick={onDeleteClick} icon={Trash2} disabled={busy}>
               Delete
             </ActionBtn>
           )}
@@ -340,6 +535,14 @@ export default function RecordDetail() {
         </div>
       )}
 
+      {/* ----- Inline-edit hint (draft only) ----- */}
+      {canEdit && (
+        <div className="text-xs text-dark-400 italic">
+          Tip: click any field below to edit inline. Changes save on blur.
+        </div>
+      )}
+
+      {/* ----- Modals ----- */}
       {hardDeleteOpen && (
         <HardDeleteModal
           phrase={hardDeletePhrase}
@@ -354,45 +557,168 @@ export default function RecordDetail() {
           onConfirm={runHardDelete}
         />
       )}
+      {confirmModal && (
+        <ConfirmModal
+          modal={confirmModal}
+          onCancel={() => setConfirmModal(null)}
+          onConfirm={runConfirmAction}
+        />
+      )}
+      {reasonModal && (
+        <ReasonModal
+          modal={reasonModal}
+          setReason={(v) => setReasonModal((r) => (r ? { ...r, reason: v } : r))}
+          onCancel={() => setReasonModal(null)}
+          onConfirm={runReasonAction}
+        />
+      )}
 
+      {/* ----- Field panels ----- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Panel title="Invoice">
-          <Row k="Invoice #" v={record.invoiceNumber} />
-          <Row k="Client" v={record.clientName} />
-          <Row k="Service month" v={record.serviceMonth} />
-          <Row
-            k="Payment received"
-            v={
-              record.paymentReceivedDate
-                ? new Date(record.paymentReceivedDate).toLocaleDateString()
-                : '—'
-            }
-          />
-          <Row k="Payout month" v={record.payoutMonth} />
-          {record.originalPayoutMonth &&
-            record.originalPayoutMonth !== record.payoutMonth && (
-              <Row
-                k="Original payout"
-                v={`${record.originalPayoutMonth} (rolled forward)`}
-              />
-            )}
+          <ReadRow k="Invoice #" v={record.invoiceNumber} />
+          {canEdit ? (
+            <InlineField
+              label="Client"
+              field="clientContactId"
+              value={record.clientContactId}
+              type="select"
+              required
+              editable
+              options={clientOptions}
+              displayValue={record.clientName || '—'}
+              onSave={handleFieldSave}
+            />
+          ) : (
+            <ReadRow k="Client" v={record.clientName} />
+          )}
+          {canEdit ? (
+            <InlineField
+              label="Service month"
+              field="serviceMonth"
+              value={record.serviceMonth}
+              required
+              editable
+              placeholder="2026-04"
+              onSave={handleFieldSave}
+            />
+          ) : (
+            <ReadRow k="Service month" v={record.serviceMonth} />
+          )}
+          {canEdit ? (
+            <InlineField
+              label="Payment received"
+              field="paymentReceivedDate"
+              value={record.paymentReceivedDate}
+              type="date"
+              editable
+              onSave={handleFieldSave}
+            />
+          ) : (
+            <ReadRow
+              k="Payment received"
+              v={
+                record.paymentReceivedDate
+                  ? new Date(record.paymentReceivedDate).toLocaleDateString()
+                  : '—'
+              }
+            />
+          )}
+          {canEdit ? (
+            <InlineField
+              label="Payout month"
+              field="payoutMonth"
+              value={record.payoutMonth}
+              editable
+              placeholder="2026-04 (auto if blank)"
+              warn={
+                record.originalPayoutMonth &&
+                record.originalPayoutMonth !== record.payoutMonth
+                  ? `Rolled forward from ${record.originalPayoutMonth}`
+                  : ''
+              }
+              onSave={handleFieldSave}
+            />
+          ) : (
+            <>
+              <ReadRow k="Payout month" v={record.payoutMonth} />
+              {record.originalPayoutMonth &&
+                record.originalPayoutMonth !== record.payoutMonth && (
+                  <ReadRow
+                    k="Original payout"
+                    v={`${record.originalPayoutMonth} (rolled forward)`}
+                  />
+                )}
+            </>
+          )}
         </Panel>
 
         {!isSelfView && (
+          <Panel title="Consultant">
+            {canEdit ? (
+              <InlineField
+                label="Name"
+                field="consultantEmployeeId"
+                value={record.consultantEmployeeId}
+                type="select"
+                required
+                editable
+                options={consultantOptions}
+                displayValue={record.consultantName || '—'}
+                onSave={handleFieldSave}
+              />
+            ) : (
+              <ReadRow k="Name" v={record.consultantName} />
+            )}
+            {canEdit ? (
+              <InlineField
+                label="Salary (₹)"
+                field="consultantSalarySnapshot"
+                value={record.consultantSalarySnapshot}
+                editable
+                placeholder="Leave blank to pull from payroll"
+                displayValue={
+                  record.consultantSalarySnapshot != null ? (
+                    <span>
+                      {formatINR(record.consultantSalarySnapshot)}
+                      {record.salaryProvisional && (
+                        <span className="ml-1 text-xs text-amber-400">(provisional)</span>
+                      )}
+                    </span>
+                  ) : null
+                }
+                warn={
+                  salaryExceedsInvoice
+                    ? 'Salary > invoice — net profit will be negative'
+                    : record.consultantSalarySource === 'pending_payroll' ||
+                      record.consultantSalarySource === 'salary_hold'
+                      ? 'Payroll not yet released for this month'
+                      : ''
+                }
+                onSave={handleFieldSave}
+              />
+            ) : (
+              <ReadRow
+                k="Salary (snapshot)"
+                v={formatINR(record.consultantSalarySnapshot)}
+                note={record.salaryProvisional ? 'provisional' : null}
+              />
+            )}
+          </Panel>
+        )}
+
+        {!isSelfView && (
           <Panel title="Financials">
-            {/* Native (invoice) currency row — only shown on cross-currency
-                records. `nativeCurrency` is null when the invoice was already
-                in the company's functional currency. */}
             {record.nativeCurrency && (
               <>
-                <Row
-                  k={`Invoice amount (${record.nativeCurrency})`}
+                <ReadRow
+                  k={`Invoice (${record.nativeCurrency})`}
                   v={formatCurrency(
                     record.untaxedInvoicedValueNative,
                     record.nativeCurrency,
                   )}
                 />
-                <Row
+                <ReadRow
                   k="FX rate"
                   v={
                     record.fxRate
@@ -403,18 +729,30 @@ export default function RecordDetail() {
                 />
               </>
             )}
-            <Row
-              k={`Untaxed invoice${record.nativeCurrency ? ` (${record.currency || 'INR'})` : ''}`}
-              v={formatINR(record.untaxedInvoicedValue)}
-            />
-            <Row
-              k="Consultant salary (snapshot)"
-              v={formatINR(record.consultantSalarySnapshot)}
-              note={record.salaryProvisional ? 'provisional' : null}
-            />
-            <Row
+            {canEdit ? (
+              <InlineField
+                label={`Untaxed invoice${record.nativeCurrency ? ` (${record.currency || 'INR'})` : ' (₹)'}`}
+                field="untaxedInvoicedValue"
+                value={record.untaxedInvoicedValue}
+                required
+                editable
+                displayValue={formatINR(record.untaxedInvoicedValue)}
+                placeholder="0"
+                onSave={handleFieldSave}
+              />
+            ) : (
+              <ReadRow
+                k={`Untaxed invoice${record.nativeCurrency ? ` (${record.currency || 'INR'})` : ''}`}
+                v={formatINR(record.untaxedInvoicedValue)}
+              />
+            )}
+            <ReadRow
               k="Net profit"
-              v={formatINR(record.netProfit)}
+              v={
+                <span className={negativeProfit ? 'text-red-400' : ''}>
+                  {formatINR(record.netProfit)}
+                </span>
+              }
               strong
             />
           </Panel>
@@ -423,7 +761,7 @@ export default function RecordDetail() {
         <Panel title={isSelfView ? 'Your role' : 'Recruiter'}>
           {isSelfView ? (
             <>
-              <Row
+              <ReadRow
                 k="Role"
                 v={
                   record.yourRole === 'recruiter'
@@ -433,9 +771,9 @@ export default function RecordDetail() {
                     : '—'
                 }
               />
-              <Row k="Your incentive" v={formatINR(record.yourIncentive)} strong />
+              <ReadRow k="Your incentive" v={formatINR(record.yourIncentive)} strong />
               {record.alsoRole && (
-                <Row
+                <ReadRow
                   k="Note"
                   v={`You are also the ${
                     record.alsoRole === 'recruiter' ? 'Recruiter' : 'AM'
@@ -445,8 +783,21 @@ export default function RecordDetail() {
             </>
           ) : (
             <>
-              <Row k="Name" v={record.recruiterName || '—'} />
-              <Row
+              {canEdit ? (
+                <InlineField
+                  label="Name"
+                  field="recruiterEmployeeId"
+                  value={record.recruiterEmployeeId}
+                  type="select"
+                  editable
+                  options={employeeOptions}
+                  displayValue={record.recruiterName || '— None —'}
+                  onSave={handleFieldSave}
+                />
+              ) : (
+                <ReadRow k="Name" v={record.recruiterName || '—'} />
+              )}
+              <ReadRow
                 k="Rate"
                 v={
                   record.recruiterRateSnapshot != null
@@ -454,19 +805,43 @@ export default function RecordDetail() {
                     : '—'
                 }
               />
-              <Row
-                k="Incentive"
-                v={formatINR(record.recruiterIncentive)}
-                strong
-              />
+              {canEdit ? (
+                <InlineField
+                  label="Override (₹)"
+                  field="recruiterAmountOverride"
+                  value={record.recruiterAmountOverride}
+                  editable
+                  placeholder="Blank = use rate"
+                  displayValue={
+                    record.recruiterAmountOverride != null
+                      ? formatINR(record.recruiterAmountOverride)
+                      : null
+                  }
+                  onSave={handleFieldSave}
+                />
+              ) : null}
+              <ReadRow k="Incentive" v={formatINR(record.recruiterIncentive)} strong />
             </>
           )}
         </Panel>
 
         {!isSelfView && (
           <Panel title="Account Manager">
-            <Row k="Name" v={record.accountManagerName || '—'} />
-            <Row
+            {canEdit ? (
+              <InlineField
+                label="Name"
+                field="accountManagerEmployeeId"
+                value={record.accountManagerEmployeeId}
+                type="select"
+                editable
+                options={employeeOptions}
+                displayValue={record.accountManagerName || '— None —'}
+                onSave={handleFieldSave}
+              />
+            ) : (
+              <ReadRow k="Name" v={record.accountManagerName || '—'} />
+            )}
+            <ReadRow
               k="Rate"
               v={
                 record.accountManagerRateSnapshot != null
@@ -474,28 +849,65 @@ export default function RecordDetail() {
                   : '—'
               }
             />
-            <Row
-              k="Incentive"
-              v={formatINR(record.accountManagerIncentive)}
-              strong
-            />
+            {canEdit && (
+              <InlineField
+                label="Override (₹)"
+                field="accountManagerAmountOverride"
+                value={record.accountManagerAmountOverride}
+                editable
+                placeholder="Blank = use rate"
+                displayValue={
+                  record.accountManagerAmountOverride != null
+                    ? formatINR(record.accountManagerAmountOverride)
+                    : null
+                }
+                onSave={handleFieldSave}
+              />
+            )}
+            <ReadRow k="Incentive" v={formatINR(record.accountManagerIncentive)} strong />
           </Panel>
         )}
       </div>
 
-      {record.remarks && (
+      {/* ----- Notes ----- */}
+      {(canEdit || record.remarks) && (
         <div className="bg-dark-900 border border-dark-800 rounded-xl p-5">
-          <h3 className="text-xs font-semibold text-dark-400 uppercase mb-2">
+          <h3 className="text-xs font-semibold text-dark-400 uppercase mb-3">
             Notes
           </h3>
-          <p className="text-sm text-dark-200 whitespace-pre-wrap">
-            {record.remarks}
-          </p>
+          {canEdit ? (
+            <InlineField
+              label="Remarks"
+              field="remarks"
+              value={record.remarks}
+              type="textarea"
+              editable
+              placeholder="Internal notes…"
+              onSave={handleFieldSave}
+            />
+          ) : (
+            <p className="text-sm text-dark-200 whitespace-pre-wrap">
+              {record.remarks}
+            </p>
+          )}
         </div>
       )}
+
+      {/* ----- Audit-trail footer ----- */}
+      <div className="text-[11px] text-dark-500 pt-2">
+        Last updated{' '}
+        {record.updatedAt
+          ? new Date(record.updatedAt).toLocaleString()
+          : '—'}
+        {record.updatedByName ? ` by ${record.updatedByName}` : ''}
+      </div>
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function Panel({ title, children }) {
   return (
@@ -503,22 +915,24 @@ function Panel({ title, children }) {
       <h3 className="text-xs font-semibold text-dark-400 uppercase mb-3">
         {title}
       </h3>
-      <div className="space-y-2">{children}</div>
+      <div className="space-y-1">{children}</div>
     </div>
   );
 }
 
-function Row({ k, v, strong, note }) {
+// Read-only row used for fields the current viewer can't edit (or shouldn't —
+// derived numbers, audit-trail values, etc.). Kept visually compatible with
+// InlineField's idle layout (label column 140px, value right-aligned but
+// flexible) so a panel mixing both stays aligned.
+function ReadRow({ k, v, strong, note }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-dark-400">{k}</span>
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+      <span className="text-dark-400 text-sm">{k}</span>
       <span
-        className={`${strong ? 'font-semibold text-white' : 'text-dark-200'} text-right`}
+        className={`text-sm ${strong ? 'font-semibold text-white' : 'text-dark-200'}`}
       >
-        {v || '—'}
-        {note && (
-          <span className="ml-1 text-xs text-amber-400">({note})</span>
-        )}
+        {(v ?? '') === '' ? <span className="text-dark-600">—</span> : v}
+        {note && <span className="ml-1 text-xs text-amber-400">({note})</span>}
       </span>
     </div>
   );
@@ -540,6 +954,95 @@ function ActionBtn({ onClick, icon: Icon, children, primary, danger, disabled, t
   );
 }
 
+// ---------- Confirm modal (replaces window.confirm) ----------
+function ConfirmModal({ modal, onCancel, onConfirm }) {
+  const { title, message, confirmLabel, primary, danger, busy } = modal;
+  const cls = danger
+    ? 'bg-red-600 hover:bg-red-700 text-white'
+    : primary
+    ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'
+    : 'bg-dark-700 hover:bg-dark-600 text-white';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md bg-dark-900 border border-dark-800 rounded-xl shadow-2xl">
+        <div className="p-5 border-b border-dark-800">
+          <h3 className="text-base font-semibold text-white">{title}</h3>
+        </div>
+        <div className="p-5">
+          <p className="text-sm text-dark-300">{message}</p>
+        </div>
+        <div className="p-5 border-t border-dark-800 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-dark-800 hover:bg-dark-700 text-dark-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 ${cls}`}
+          >
+            {busy && <Loader2 size={14} className="animate-spin" />}
+            {confirmLabel || 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Reason modal (replaces window.prompt for audit-trail prompts) ----------
+function ReasonModal({ modal, setReason, onCancel, onConfirm }) {
+  const { title, message, placeholder, busy, reason } = modal;
+  const trimmed = String(reason || '').trim();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md bg-dark-900 border border-dark-800 rounded-xl shadow-2xl">
+        <div className="p-5 border-b border-dark-800">
+          <h3 className="text-base font-semibold text-white">{title}</h3>
+          {message && (
+            <p className="text-xs text-dark-400 mt-1.5">{message}</p>
+          )}
+        </div>
+        <div className="p-5">
+          <textarea
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            placeholder={placeholder || 'Reason (audit trail) — required'}
+            className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-fuchsia-600"
+          />
+        </div>
+        <div className="p-5 border-t border-dark-800 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-dark-800 hover:bg-dark-700 text-dark-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!trimmed || busy}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-fuchsia-600 hover:bg-fuchsia-700 text-white disabled:opacity-40 flex items-center gap-1.5"
+          >
+            {busy && <Loader2 size={14} className="animate-spin" />}
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Hard delete modal (kept from previous version) ----------
 function HardDeleteModal({
   phrase, reason, setReason, confirmText, setConfirmText,
   status, invoiceNumber, busy, onCancel, onConfirm,

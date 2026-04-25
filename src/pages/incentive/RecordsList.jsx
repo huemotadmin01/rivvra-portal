@@ -8,6 +8,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import MonthPicker from '../../components/incentive/MonthPicker';
 import {
@@ -65,6 +66,7 @@ function StatusPill({ status }) {
 export default function RecordsList() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
 
@@ -127,9 +129,10 @@ export default function RecordsList() {
         payoutMonth: payoutMonth || undefined,
         search: search || undefined,
       });
+      showToast('Export downloaded', 'success');
     } catch (e) {
       console.error('Export failed', e);
-      alert('Export failed. Please try again.');
+      showToast(e?.message || 'Export failed. Please try again.', 'error');
     } finally {
       setExporting(false);
     }
@@ -268,7 +271,12 @@ export default function RecordsList() {
                     <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Recruiter</th>
                     <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">AM</th>
                     <th className="text-right py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Net Profit</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Incentive</th>
+                    <th
+                      className="text-right py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800"
+                      title="Combined Recruiter + Account Manager incentive"
+                    >
+                      Incentive (R+AM)
+                    </th>
                     <th className="text-left py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Payout</th>
                     <th className="text-center py-3 px-4 text-xs font-medium text-dark-400 uppercase tracking-wider bg-dark-800">Status</th>
                   </tr>
