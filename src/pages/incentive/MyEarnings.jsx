@@ -123,7 +123,7 @@ function SortableTh({ children, align = 'left', sortKey, sortState, onSort }) {
   const Icon = !isActive ? ArrowUpDown : dir === 'asc' ? ArrowUp : ArrowDown;
   return (
     <th
-      className={`px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)] ${align === 'right' ? 'text-right' : 'text-left'}`}
+      className={`px-4 py-2 font-medium bg-dark-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#334155] ${align === 'right' ? 'text-right' : 'text-left'}`}
     >
       <button
         type="button"
@@ -477,11 +477,11 @@ export default function MyEarnings() {
             <table className="w-full text-sm">
               <thead className="text-dark-400 text-xs uppercase">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Invoice</th>
-                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Client</th>
-                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Consultant</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#334155]">Invoice</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#334155]">Client</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#334155]">Consultant</th>
                   <SortableTh sortKey="serviceMonth" sortState={sort} onSort={toggleSort}>Service Month</SortableTh>
-                  <th className="text-left px-4 py-2 font-medium bg-dark-850 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(38_38_43)]">Your Role</th>
+                  <th className="text-left px-4 py-2 font-medium bg-dark-800 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#334155]">Your Role</th>
                   <SortableTh sortKey="yourIncentive" align="right" sortState={sort} onSort={toggleSort}>Your Incentive</SortableTh>
                   <SortableTh sortKey="payoutMonth" sortState={sort} onSort={toggleSort}>Payout Month</SortableTh>
                   <SortableTh sortKey="status" sortState={sort} onSort={toggleSort}>Status</SortableTh>
