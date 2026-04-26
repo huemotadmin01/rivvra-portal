@@ -4,6 +4,14 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    'lg:grid-cols-2',
+    'lg:grid-cols-3',
+    'lg:grid-cols-4',
+    'lg:col-span-1',
+    'lg:col-span-2',
+    'lg:col-span-3',
+  ],
   theme: {
     extend: {
       colors: {

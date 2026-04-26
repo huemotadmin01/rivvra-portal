@@ -5,6 +5,16 @@ import { useOrg } from '../../context/OrgContext';
 import { useExtensionDetector } from '../../hooks/useExtensionDetector';
 import AppBentoCard from './AppBentoCard';
 
+const gridStyles = `
+  @media (max-width: 1023px) {
+    .bento-row-1 { grid-template-columns: 1fr !important; }
+    .bento-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  }
+  @media (max-width: 639px) {
+    .bento-tiles { grid-template-columns: 1fr !important; }
+  }
+`;
+
 function AppBentoGrid({ query = '' }) {
   const { user } = useAuth();
   const { hasAppAccess, currentOrg, loading, membership } = useOrg();
@@ -83,23 +93,36 @@ function AppBentoGrid({ query = '' }) {
   const [featured, secondary, ...rest] = visibleApps;
 
   return (
-    <div className="space-y-4">
-      {/* Row 1: 3-col grid; featured spans 2 cols, secondary spans 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
+    <>
+      <style>{gridStyles}</style>
+      <div className="space-y-4">
+        {/* Row 1: 2/3 + 1/3 split via inline grid */}
+        <div
+          className="bento-row-1"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+            gap: '1rem',
+          }}
+        >
           <AppBentoCard app={featured} index={0} variant="featured" badge={badgeFor(featured)} />
-        </div>
-        <div className="lg:col-span-1">
           <AppBentoCard app={secondary} index={1} variant="secondary" badge={badgeFor(secondary)} />
         </div>
+        {/* Row 2+: 4 equal columns */}
+        <div
+          className="bento-tiles"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: '1rem',
+          }}
+        >
+          {rest.map((app, i) => (
+            <AppBentoCard key={app.id} app={app} index={i + 2} variant="tile" badge={badgeFor(app)} />
+          ))}
+        </div>
       </div>
-      {/* Row 2+: 4-col tile grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {rest.map((app, i) => (
-          <AppBentoCard key={app.id} app={app} index={i + 2} variant="tile" badge={badgeFor(app)} />
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
 
