@@ -422,37 +422,68 @@ export default function EmployeeDetail() {
   // Save assignment changes
   const handleSaveAssignment = useCallback(async () => {
     if (!editAssignment || !currentOrg?.slug || !employee) return;
+
+    // Validate: backend silently drops assignments missing client/project, so
+    // catch it here and tell the user instead of letting the row vanish.
+    const clientName = (editAssignment.clientName || '').trim();
+    const projectName = (editAssignment.projectName || '').trim();
+    if (!clientName && !editAssignment.clientId) {
+      showToast('Client is required', 'error');
+      return;
+    }
+    if (!projectName && !editAssignment.projectId) {
+      showToast('Project is required', 'error');
+      return;
+    }
+    if (editAssignment.endDate && editAssignment.startDate && editAssignment.endDate < editAssignment.startDate) {
+      showToast('End date cannot be before start date', 'error');
+      return;
+    }
+
     setAssignmentSaving(true);
     try {
-      const { index, ...data } = editAssignment;
-      // Build cleaned assignments array — only send editable fields
-      const assignments = (employee.assignments || []).map((a, i) => {
-        const base = {
-          clientId: a.clientId || '', clientName: a.clientName || '',
-          projectId: a.projectId || '', projectName: a.projectName || '',
-          billingRate: a.billingRate || {}, clientBillingRate: a.clientBillingRate || {},
-          startDate: a.startDate || '', endDate: a.endDate || '',
-          status: a.status || 'active', paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
-        };
-        return i === index ? { ...base, ...data } : base;
+      const { index, isNew, ...data } = editAssignment;
+      const existing = employee.assignments || [];
+      // Build cleaned assignments array — preserve server-managed fields
+      // (rateHistory in particular) on rows we're not editing so we don't
+      // wipe rate-revision history when saving an unrelated assignment.
+      const baseFields = (a) => ({
+        clientId: a.clientId || '', clientName: a.clientName || '',
+        projectId: a.projectId || '', projectName: a.projectName || '',
+        billingRate: a.billingRate || {}, clientBillingRate: a.clientBillingRate || {},
+        startDate: a.startDate || '', endDate: a.endDate || '',
+        status: a.status || 'active', paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
+        rateHistory: Array.isArray(a.rateHistory) ? a.rateHistory : [],
       });
+      const editedRow = { ...baseFields(existing[index] || {}), ...data };
+      let assignments;
+      if (isNew) {
+        assignments = [...existing.map(baseFields), editedRow];
+      } else {
+        assignments = existing.map((a, i) => i === index ? editedRow : baseFields(a));
+      }
       const res = await employeeApi.update(currentOrg.slug, employee._id, { assignments });
       if (!res.success) throw new Error(res.error || 'Update failed');
       // Refresh employee to get server-resolved data
       const refreshed = await employeeApi.get(currentOrg.slug, employee._id);
       if (refreshed.success && refreshed.employee) setEmployee(refreshed.employee);
       setEditAssignment(null);
+      showToast(isNew ? 'Assignment added' : 'Assignment updated', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to save assignment');
+      showToast(err.message || 'Failed to save assignment', 'error');
     } finally {
       setAssignmentSaving(false);
     }
-  }, [editAssignment, currentOrg?.slug, employee]);
+  }, [editAssignment, currentOrg?.slug, employee, showToast]);
 
-  // Add new assignment
+  // Add new assignment — open modal in "new" mode without mutating
+  // employee.assignments. The row is only persisted when the user saves;
+  // cancelling drops it cleanly without leaving a phantom row in the UI.
   const handleAddAssignment = useCallback(() => {
     if (!employee) return;
-    const newAssignment = {
+    setEditAssignment({
+      index: (employee.assignments || []).length,
+      isNew: true,
       clientId: '', clientName: '', projectId: '', projectName: '',
       billingRate: { daily: '', hourly: '', monthly: '' },
       clientBillingRate: { daily: '', hourly: '', monthly: '' },
@@ -460,11 +491,7 @@ export default function EmployeeDetail() {
       startDate: todayStr(),
       endDate: '',
       status: 'active',
-    };
-    // Open modal for new assignment — it will be saved on "Save Assignment"
-    const idx = (employee.assignments || []).length;
-    setEmployee(prev => prev ? { ...prev, assignments: [...(prev.assignments || []), newAssignment] } : prev);
-    setEditAssignment({ index: idx, ...newAssignment });
+    });
   }, [employee]);
 
   // Delete assignment
@@ -502,6 +529,15 @@ export default function EmployeeDetail() {
       setDeletingAssignment(null);
     }
   }, [currentOrg?.slug, employee]);
+
+  // Close the Edit Assignment modal on Escape — matches the X / Cancel button
+  // behavior so keyboard users aren't stuck once the modal is open.
+  useEffect(() => {
+    if (!editAssignment) return;
+    const onKey = (e) => { if (e.key === 'Escape') setEditAssignment(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editAssignment]);
 
   useEffect(() => {
     if (!currentOrg?.slug || !employeeId) return;
@@ -2037,18 +2073,37 @@ export default function EmployeeDetail() {
       )}
 
       {/* ── Edit Assignment Modal ──────────────────────────────────────── */}
-      {editAssignment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      {editAssignment && (() => {
+        const isNewAssignment = !!editAssignment.isNew;
+        const hasClient = !!(editAssignment.clientId || (editAssignment.clientName || '').trim());
+        const hasProject = !!(editAssignment.projectId || (editAssignment.projectName || '').trim());
+        const dateRangeInvalid = !!(editAssignment.endDate && editAssignment.startDate && editAssignment.endDate < editAssignment.startDate);
+        const canSave = hasClient && hasProject && !dateRangeInvalid && !assignmentSaving;
+        return (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setEditAssignment(null)}
+        >
+          <div
+            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-assignment-title"
+          >
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white font-semibold text-lg">Edit Assignment</h3>
-              <button onClick={() => setEditAssignment(null)} className="text-dark-400 hover:text-white"><X size={18} /></button>
+              <h3 id="edit-assignment-title" className="text-white font-semibold text-lg">
+                {isNewAssignment ? 'Add Assignment' : 'Edit Assignment'}
+              </h3>
+              <button onClick={() => setEditAssignment(null)} className="text-dark-400 hover:text-white" aria-label="Close"><X size={18} /></button>
             </div>
 
             <div className="space-y-4">
               {/* Client */}
               <div>
-                <label className="block text-sm text-dark-400 mb-1">Client</label>
+                <label className="block text-sm text-dark-400 mb-1">
+                  Client <span className="text-red-400">*</span>
+                </label>
                 <ComboSelect
                   value={editAssignment.clientId}
                   displayValue={editAssignment.clientName}
@@ -2060,7 +2115,9 @@ export default function EmployeeDetail() {
 
               {/* Project */}
               <div>
-                <label className="block text-sm text-dark-400 mb-1">Project</label>
+                <label className="block text-sm text-dark-400 mb-1">
+                  Project <span className="text-red-400">*</span>
+                </label>
                 <ComboSelect
                   value={editAssignment.projectId}
                   displayValue={editAssignment.projectName}
@@ -2076,26 +2133,27 @@ export default function EmployeeDetail() {
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
-                    <input type="number" value={editAssignment.billingRate.daily}
+                    <input type="number" min="0" step="0.01" value={editAssignment.billingRate.daily}
                       onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
                       className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                       placeholder="0" />
                   </div>
                   <div>
                     <span className="text-xs text-dark-500 mb-0.5 block">Hourly ($)</span>
-                    <input type="number" value={editAssignment.billingRate.hourly}
+                    <input type="number" min="0" step="0.01" value={editAssignment.billingRate.hourly}
                       onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
                       className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                       placeholder="0" />
                   </div>
                   <div>
                     <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
-                    <input type="number" value={editAssignment.billingRate.monthly}
+                    <input type="number" min="0" step="0.01" value={editAssignment.billingRate.monthly}
                       onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
                       className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                       placeholder="0" />
                   </div>
                 </div>
+                <p className="text-xs text-dark-500 mt-1">Pick one cadence — the others clear automatically.</p>
               </div>
 
               {/* Client Billing Rate */}
@@ -2104,21 +2162,21 @@ export default function EmployeeDetail() {
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
-                    <input type="number" value={editAssignment.clientBillingRate.daily}
+                    <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.daily}
                       onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
                       className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                       placeholder="0" />
                   </div>
                   <div>
                     <span className="text-xs text-dark-500 mb-0.5 block">Hourly ($)</span>
-                    <input type="number" value={editAssignment.clientBillingRate.hourly}
+                    <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.hourly}
                       onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
                       className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                       placeholder="0" />
                   </div>
                   <div>
                     <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
-                    <input type="number" value={editAssignment.clientBillingRate.monthly}
+                    <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.monthly}
                       onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
                       className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                       placeholder="0" />
@@ -2137,8 +2195,9 @@ export default function EmployeeDetail() {
                 <div>
                   <label className="block text-sm text-dark-400 mb-1">End Date</label>
                   <input type="date" value={editAssignment.endDate}
+                    min={editAssignment.startDate || undefined}
                     onChange={e => setEditAssignment(prev => ({ ...prev, endDate: e.target.value }))}
-                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none" />
+                    className={`w-full bg-dark-900 border rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${dateRangeInvalid ? 'border-red-500 focus:border-red-400' : 'border-dark-600 focus:border-rivvra-500'}`} />
                 </div>
                 <div>
                   <label className="block text-sm text-dark-400 mb-1">Status</label>
@@ -2150,19 +2209,27 @@ export default function EmployeeDetail() {
                   </select>
                 </div>
               </div>
+              {dateRangeInvalid && (
+                <p className="text-xs text-red-400 -mt-2">End date cannot be before start date.</p>
+              )}
 
               {/* Paid Leave */}
               <div>
                 <label className="block text-sm text-dark-400 mb-1">Paid Leave / Month</label>
                 <input type="number" min="0" max="3" step="0.5" value={editAssignment.paidLeavePerMonth}
-                  onChange={e => setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: Number(e.target.value) }))}
+                  onChange={e => {
+                    const v = e.target.value;
+                    const n = v === '' ? 0 : Math.min(3, Math.max(0, Number(v)));
+                    setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: Number.isFinite(n) ? n : 0 }));
+                  }}
                   className="w-32 bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                   placeholder="0" />
+                <span className="ml-2 text-xs text-dark-500">Up to 3 days</span>
               </div>
             </div>
 
-            {/* Documents section in modal — only for saved assignments */}
-            {editAssignment?.index != null && editAssignment.index < (employee?.assignments?.length || 0) && employee?.assignments?.[editAssignment.index]?.clientId && (
+            {/* Documents section — only for already-saved assignments with a client */}
+            {!isNewAssignment && employee?.assignments?.[editAssignment.index]?.clientId && (
               <div className="mt-4 pt-4 border-t border-dark-700">
                 <AssignmentDocs orgSlug={currentOrg?.slug} employeeId={employee._id} assignmentIdx={editAssignment.index} />
               </div>
@@ -2172,16 +2239,18 @@ export default function EmployeeDetail() {
               <button onClick={() => setEditAssignment(null)} className="px-4 py-2 text-sm text-dark-400 hover:text-white transition-colors">Cancel</button>
               <button
                 onClick={handleSaveAssignment}
-                disabled={assignmentSaving}
+                disabled={!canSave}
+                title={!hasClient ? 'Client is required' : !hasProject ? 'Project is required' : dateRangeInvalid ? 'Fix the date range' : ''}
                 className="px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {assignmentSaving && <Loader2 size={14} className="animate-spin" />}
-                Save Assignment
+                {isNewAssignment ? 'Add Assignment' : 'Save Assignment'}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Delete Confirmation Dialog ────────────────────────────────── */}
       {showDeleteConfirm && (
