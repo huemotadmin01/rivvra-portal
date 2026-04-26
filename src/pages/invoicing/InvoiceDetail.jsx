@@ -186,10 +186,14 @@ function EditableField({ label, value, displayValue, field, type = 'text', optio
             className={inputCls}
           >
             <option value="">-- Select --</option>
-            {(options || []).map((opt) => {
-              const val = typeof opt === 'object' ? opt.value : opt;
-              const lbl = typeof opt === 'object' ? opt.label : opt;
-              return <option key={val} value={val}>{lbl}</option>;
+            {(options || []).filter(opt => opt != null).map((opt, i) => {
+              // typeof null === 'object' is the classic JS gotcha that crashes
+              // this map with "Cannot read properties of null (reading 'value')"
+              // when an upstream API returns a sparse list — null-check first.
+              const isObj = typeof opt === 'object';
+              const val = isObj ? (opt.value ?? '') : opt;
+              const lbl = isObj ? (opt.label ?? String(val)) : opt;
+              return <option key={val || `opt-${i}`} value={val}>{lbl}</option>;
             })}
           </select>
         ) : type === 'textarea' ? (
