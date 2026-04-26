@@ -343,8 +343,8 @@ function EditableField({ label, value, field, type = 'text', options, editable, 
             onBlur={save}
             className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
           >
-            {options?.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+            {(options || []).filter(o => o != null).map((o, i) => (
+              <option key={o.value ?? `opt-${i}`} value={o.value ?? ''}>{o.label ?? ''}</option>
             ))}
           </select>
         ) : type === 'textarea' ? (
