@@ -79,10 +79,10 @@ function AppBentoGrid({ query = '' }) {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:auto-rows-[168px]">
-      <div className="sm:col-span-2 lg:col-span-2 lg:row-span-2">
+      <div className="sm:col-span-2 lg:col-span-2 lg:row-span-2 lg:h-[352px]">
         <AppBentoCard app={featured} index={0} variant="featured" badge={badgeFor(featured)} />
       </div>
-      <div className="sm:col-span-2 lg:col-span-2">
+      <div className="sm:col-span-2 lg:col-span-2 lg:h-[168px]">
         <AppBentoCard app={secondary} index={1} variant="secondary" badge={badgeFor(secondary)} />
       </div>
       {sideA && <AppBentoCard app={sideA} index={2} variant="tile" badge={badgeFor(sideA)} />}
