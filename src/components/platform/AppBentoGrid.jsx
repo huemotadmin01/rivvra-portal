@@ -31,11 +31,16 @@ function AppBentoGrid({ query = '' }) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:auto-rows-[168px]">
-        <div className="lg:col-span-2 lg:row-span-2 rounded-2xl bg-dark-800/50 animate-pulse" />
-        <div className="lg:col-span-2 rounded-2xl bg-dark-800/50 animate-pulse" />
-        <div className="rounded-2xl bg-dark-800/50 animate-pulse" />
-        <div className="rounded-2xl bg-dark-800/50 animate-pulse" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="h-[240px] rounded-2xl bg-dark-800/50 animate-pulse" />
+          <div className="h-[240px] rounded-2xl bg-dark-800/50 animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-[160px] rounded-2xl bg-dark-800/50 animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -74,22 +79,22 @@ function AppBentoGrid({ query = '' }) {
     );
   }
 
-  // ── Bento: featured (2col × 2row, ~352px) + secondary (2col × 1row, 168px) + 2 tiles (168px each) on row 2; rest flow ──
-  const [featured, secondary, sideA, sideB, ...rest] = visibleApps;
+  // ── Bento: row 1 = featured + secondary (2 cols each), row 2+ = 4-col tile grid ──
+  const [featured, secondary, ...rest] = visibleApps;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:auto-rows-[168px]">
-      <div className="sm:col-span-2 lg:col-span-2 lg:row-span-2 lg:h-[352px]">
+    <div className="space-y-4">
+      {/* Row 1: featured (2 cols) + secondary (2 cols), equal height via grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
         <AppBentoCard app={featured} index={0} variant="featured" badge={badgeFor(featured)} />
-      </div>
-      <div className="sm:col-span-2 lg:col-span-2 lg:h-[168px]">
         <AppBentoCard app={secondary} index={1} variant="secondary" badge={badgeFor(secondary)} />
       </div>
-      {sideA && <AppBentoCard app={sideA} index={2} variant="tile" badge={badgeFor(sideA)} />}
-      {sideB && <AppBentoCard app={sideB} index={3} variant="tile" badge={badgeFor(sideB)} />}
-      {rest.map((app, i) => (
-        <AppBentoCard key={app.id} app={app} index={i + 4} variant="tile" badge={badgeFor(app)} />
-      ))}
+      {/* Row 2+: 4-col tile grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {rest.map((app, i) => (
+          <AppBentoCard key={app.id} app={app} index={i + 2} variant="tile" badge={badgeFor(app)} />
+        ))}
+      </div>
     </div>
   );
 }
