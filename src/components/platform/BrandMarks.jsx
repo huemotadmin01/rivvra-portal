@@ -22,9 +22,7 @@ const MarkTimesheet = ({ size }) => (
 );
 const MarkCRM = ({ size }) => (
   <Wrap size={size}>
-    {[0,1,2,3].map((i) => (
-      <rect key={i} x={10 + i*4} y={14 + i*4} width={44 - i*8} height="6" rx="3" fill="#34d399" opacity={1 - i*0.18} />
-    ))}
+    {[0,1,2,3].map((i) => (<rect key={i} x={10 + i*4} y={14 + i*4} width={44 - i*8} height="6" rx="3" fill="#34d399" opacity={1 - i*0.18} />))}
     <circle cx="32" cy="50" r="4" fill="#34d399" />
   </Wrap>
 );
@@ -46,9 +44,7 @@ const MarkPayroll = ({ size }) => (
 );
 const MarkEmployee = ({ size }) => (
   <Wrap size={size}>
-    {[[14,14],[34,14],[54,14],[14,34],[34,34],[14,54],[34,54]].map(([x,y],i) => (
-      <circle key={i} cx={x} cy={y} r="6" fill="#fb923c" opacity={i===2?0.3:0.7} />
-    ))}
+    {[[14,14],[34,14],[54,14],[14,34],[34,34],[14,54],[34,54]].map(([x,y],i) => (<circle key={i} cx={x} cy={y} r="6" fill="#fb923c" opacity={i===2?0.3:0.7} />))}
     <rect x="46" y="42" width="14" height="14" rx="4" fill="#fb923c" />
     <path d="M50 49 l3 3 5 -6" stroke="#020617" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
   </Wrap>
@@ -81,19 +77,85 @@ const MarkTodo = ({ size }) => (
     <rect x="28" y="42" width="14" height="4" rx="2" fill="#2dd4bf" opacity="0.55" />
   </Wrap>
 );
+
+// ── NEW MARKS ──────────────────────────────────────────────────────────────
+// Invoicing — invoice document with line items + accent strip
+const MarkInvoicing = ({ size }) => (
+  <Wrap size={size}>
+    <rect x="14" y="10" width="36" height="44" rx="3" fill="#f472b6" opacity="0.18" stroke="#f472b6" strokeWidth="1.5" />
+    <rect x="14" y="10" width="36" height="6" fill="#f472b6" />
+    <rect x="20" y="22" width="20" height="3" rx="1.5" fill="#f472b6" opacity="0.7" />
+    <rect x="20" y="29" width="24" height="3" rx="1.5" fill="#f472b6" opacity="0.45" />
+    <rect x="20" y="36" width="16" height="3" rx="1.5" fill="#f472b6" opacity="0.45" />
+    <rect x="20" y="46" width="14" height="4" rx="1.5" fill="#f472b6" />
+    <text x="42" y="50" fontSize="6" fontWeight="800" fill="#f472b6">$</text>
+  </Wrap>
+);
+// Expenses — receipt with zigzag bottom + circle stamp
+const MarkExpenses = ({ size }) => (
+  <Wrap size={size}>
+    <path d="M14 8 h36 v40 l-4 4 -4 -4 -4 4 -4 -4 -4 4 -4 -4 -4 4 -4 -4 -4 4 z" fill="#f87171" opacity="0.25" stroke="#f87171" strokeWidth="1.5" />
+    <rect x="20" y="18" width="22" height="3" rx="1.5" fill="#f87171" opacity="0.8" />
+    <rect x="20" y="25" width="16" height="3" rx="1.5" fill="#f87171" opacity="0.5" />
+    <rect x="20" y="32" width="20" height="3" rx="1.5" fill="#f87171" opacity="0.5" />
+    <circle cx="44" cy="38" r="6" fill="#f87171" />
+    <text x="44" y="41" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0a0f0d">✓</text>
+  </Wrap>
+);
+// Incentive — trophy / award medal with rays
+const MarkIncentive = ({ size }) => (
+  <Wrap size={size}>
+    {[0,1,2,3,4,5].map((i) => {
+      const a = (i * 60 - 90) * Math.PI / 180;
+      const x1 = 32 + Math.cos(a) * 16, y1 = 32 + Math.sin(a) * 16;
+      const x2 = 32 + Math.cos(a) * 26, y2 = 32 + Math.sin(a) * 26;
+      return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#facc15" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />;
+    })}
+    <circle cx="32" cy="32" r="14" fill="#facc15" />
+    <path d="M28 30 l4 4 6 -8" stroke="#0a0f0d" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+  </Wrap>
+);
+// Knowledge Base — open book with bookmark
+const MarkKnowledgeBase = ({ size }) => (
+  <Wrap size={size}>
+    <path d="M10 16 h20 v36 h-20 a4 4 0 0 1 -4 -4 v-28 a4 4 0 0 1 4 -4 z" fill="#a78bfa" opacity="0.35" />
+    <path d="M54 16 h-20 v36 h20 a4 4 0 0 0 4 -4 v-28 a4 4 0 0 0 -4 -4 z" fill="#a78bfa" opacity="0.7" />
+    <rect x="14" y="22" width="14" height="2.5" rx="1" fill="#a78bfa" />
+    <rect x="14" y="28" width="11" height="2.5" rx="1" fill="#a78bfa" opacity="0.7" />
+    <rect x="14" y="34" width="13" height="2.5" rx="1" fill="#a78bfa" opacity="0.7" />
+    <rect x="36" y="22" width="14" height="2.5" rx="1" fill="#0a0f0d" opacity="0.4" />
+    <rect x="36" y="28" width="11" height="2.5" rx="1" fill="#0a0f0d" opacity="0.3" />
+    <path d="M40 8 v18 l4 -3 4 3 v-18 z" fill="#7c3aed" />
+  </Wrap>
+);
+// Settings — concentric gear-like rings with center dot
+const MarkSettings = ({ size }) => (
+  <Wrap size={size}>
+    {[0,1,2,3,4,5,6,7].map((i) => {
+      const a = (i * 45) * Math.PI / 180;
+      const x = 32 + Math.cos(a) * 22, y = 32 + Math.sin(a) * 22;
+      return <rect key={i} x={x - 3} y={y - 3} width="6" height="6" rx="1.5" fill="#94a3b8" opacity="0.55" transform={`rotate(${i * 45} ${x} ${y})`} />;
+    })}
+    <circle cx="32" cy="32" r="14" fill="none" stroke="#94a3b8" strokeWidth="2.5" />
+    <circle cx="32" cy="32" r="5" fill="#94a3b8" />
+  </Wrap>
+);
+
 const MarkFallback = ({ size }) => (
   <Wrap size={size}>
-    {[14,26,38,50].map((y) =>
-      [14,26,38,50].map((x) => (
-        <circle key={`${x}-${y}`} cx={x} cy={y} r="3" fill="currentColor" opacity={(x+y)%12===0?1:0.4} />
-      )),
-    )}
+    {[14,26,38,50].map((y) => [14,26,38,50].map((x) => (
+      <circle key={`${x}-${y}`} cx={x} cy={y} r="3" fill="currentColor" opacity={(x+y)%12===0?1:0.4} />
+    )))}
   </Wrap>
 );
 
 const REGISTRY = {
   outreach: MarkOutreach, timesheet: MarkTimesheet, crm: MarkCRM, ats: MarkATS,
-  payroll: MarkPayroll, employee: MarkEmployee, contacts: MarkContacts, sign: MarkSign, todo: MarkTodo,
+  payroll: MarkPayroll, employee: MarkEmployee, contacts: MarkContacts,
+  sign: MarkSign, todo: MarkTodo,
+  invoicing: MarkInvoicing, expenses: MarkExpenses, incentive: MarkIncentive,
+  kb: MarkKnowledgeBase, knowledge_base: MarkKnowledgeBase, knowledgebase: MarkKnowledgeBase,
+  settings: MarkSettings,
 };
 
 export default function BrandMark({ appId, size = 56, color }) {

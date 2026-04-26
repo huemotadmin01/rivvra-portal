@@ -74,18 +74,25 @@ function AppBentoGrid({ query = '' }) {
     );
   }
 
-  const [featured, secondary, ...rest] = visibleApps;
+  // ── 2x2x2 layout: featured (2col×2row) + 1 secondary (2col×1row) + 2 tiles (1col×1row each) on row 2; rest flow into row 3+ ──
+  const [featured, secondary, sideA, sideB, ...rest] = visibleApps;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Row 1–2 left: featured */}
       <div className="sm:col-span-2 lg:col-span-2 lg:row-span-2">
         <AppBentoCard app={featured} index={0} variant="featured" badge={badgeFor(featured)} />
       </div>
+      {/* Row 1 right: secondary (2 cols wide) */}
       <div className="sm:col-span-2 lg:col-span-2">
         <AppBentoCard app={secondary} index={1} variant="secondary" badge={badgeFor(secondary)} />
       </div>
+      {/* Row 2 right: two tiles fill the gap under secondary */}
+      {sideA && <AppBentoCard app={sideA} index={2} variant="tile" badge={badgeFor(sideA)} />}
+      {sideB && <AppBentoCard app={sideB} index={3} variant="tile" badge={badgeFor(sideB)} />}
+      {/* Row 3+: remaining tiles */}
       {rest.map((app, i) => (
-        <AppBentoCard key={app.id} app={app} index={i + 2} variant="tile" badge={badgeFor(app)} />
+        <AppBentoCard key={app.id} app={app} index={i + 4} variant="tile" badge={badgeFor(app)} />
       ))}
     </div>
   );
