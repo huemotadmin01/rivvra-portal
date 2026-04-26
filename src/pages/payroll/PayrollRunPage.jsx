@@ -831,16 +831,14 @@ export default function PayrollRunPage() {
                                   <p className="text-xs font-medium text-orange-400">Salary On Hold</p>
                                   <p className="text-xs text-dark-400 mt-0.5">{item.salaryHold.reason}</p>
                                 </div>
-                                {run.status !== 'paid' && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleReleaseHold(item.salaryHold._id); }}
-                                    disabled={releasingHoldId === item.salaryHold._id}
-                                    className="px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                                  >
-                                    {releasingHoldId === item.salaryHold._id && <Loader2 size={12} className="animate-spin" />}
-                                    {releasingHoldId === item.salaryHold._id ? 'Releasing...' : 'Release Hold'}
-                                  </button>
-                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleReleaseHold(item.salaryHold._id); }}
+                                  disabled={releasingHoldId === item.salaryHold._id}
+                                  className="px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                  {releasingHoldId === item.salaryHold._id && <Loader2 size={12} className="animate-spin" />}
+                                  {releasingHoldId === item.salaryHold._id ? 'Releasing...' : 'Release Hold'}
+                                </button>
                               </div>
                             )}
 
