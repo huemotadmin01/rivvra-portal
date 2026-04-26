@@ -61,6 +61,11 @@ const SettingsContacts = lazy(() => import('./components/settings/SettingsContac
 const SettingsCompanies = lazy(() => import('./components/settings/SettingsCompanies'));
 const SettingsTodo = lazy(() => import('./components/settings/SettingsTodo'));
 const SettingsPayroll = lazy(() => import('./components/settings/SettingsPayroll'));
+const SettingsExpenses = lazy(() => import('./components/settings/SettingsExpenses'));
+
+// Lazy-loaded: Expenses app pages
+const ExpenseList = lazy(() => import('./pages/expenses/ExpenseList'));
+const ExpenseDetail = lazy(() => import('./pages/expenses/ExpenseDetail'));
 
 // Lazy-loaded: To-Do app pages
 const TodoDashboard = lazy(() => import('./pages/todo/TodoDashboard'));
@@ -340,6 +345,7 @@ function App() {
                 <Route path="/org/:slug/settings/companies/new" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/companies/:companyId" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/todo" element={<SettingsPageWrapper><SettingsTodo /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/expenses" element={<SettingsPageWrapper><SettingsExpenses /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/invoicing" element={<SettingsPageWrapper><SettingsInvoicing /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/incentive" element={<SettingsPageWrapper><SettingsIncentive /></SettingsPageWrapper>} />
               </Route>
@@ -538,6 +544,13 @@ function App() {
                   <Route path="/org/:slug/incentive/settings" element={<IncentiveSettingsRedirect />} />
                 </Route>
               </Route>
+
+              {/* Expenses app routes — default-enabled for all org members */}
+              <Route element={<AppAccessGate appId="expenses" />}>
+                <Route path="/org/:slug/expenses" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/new" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/:id" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
+              </Route>
             </Route>
 
             {/* ============================================================ */}
@@ -565,6 +578,7 @@ function App() {
             <Route path="/sign/*" element={<OrgRedirect />} />
             <Route path="/invoicing/*" element={<OrgRedirect />} />
             <Route path="/incentive/*" element={<OrgRedirect />} />
+            <Route path="/expenses/*" element={<OrgRedirect />} />
             <Route path="/todo/*" element={<OrgRedirect />} />
             <Route path="/settings" element={<OrgRedirect to="/settings" />} />
             <Route path="/settings/*" element={<OrgRedirect />} />

@@ -491,6 +491,39 @@ export const APP_REGISTRY = {
     ],
   },
 
+  expenses: {
+    id: 'expenses',
+    name: 'Expenses',
+    description: 'Submit & approve employee expense claims',
+    icon: Wallet,
+    color: 'emerald',
+    basePath: '/expenses',
+    status: 'active',
+    defaultRoute: '/expenses',
+    derivedRoles: true,
+    roles: [
+      { value: 'admin', label: 'Admin', color: 'emerald' },
+      { value: 'team_lead', label: 'Approver', color: 'amber' },
+      { value: 'member', label: 'Submitter', color: 'dark' },
+    ],
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isManager = orgAppRole === 'admin' || orgAppRole === 'team_lead';
+      return [
+        { type: 'item', path: '/expenses', label: 'My Expenses', icon: LayoutDashboard },
+        { type: 'item', path: '/expenses/new', label: 'New Expense', icon: PlusCircle },
+        ...(isManager ? [
+          {
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/settings/expenses', label: 'Settings', icon: Settings },
+              { path: '/invoicing/config/expense-categories', label: 'Categories', icon: Tag },
+            ],
+          },
+        ] : []),
+      ];
+    },
+  },
+
   incentive: {
     id: 'incentive',
     name: 'Incentive',
@@ -576,6 +609,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/ats', label: 'ATS', icon: UserSearch },
         { type: 'item', path: '/settings/sign', label: 'Sign', icon: PenTool },
         { type: 'item', path: '/settings/todo', label: 'To-Do', icon: CheckSquare },
+        ...(isAdmin ? [{ type: 'item', path: '/settings/expenses', label: 'Expenses', icon: Wallet }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/invoicing', label: 'Invoicing', icon: Receipt }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/incentive', label: 'Incentive', icon: Award }] : []),
       ];
