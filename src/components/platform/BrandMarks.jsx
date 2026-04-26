@@ -154,7 +154,7 @@ const REGISTRY = {
   payroll: MarkPayroll, employee: MarkEmployee, contacts: MarkContacts,
   sign: MarkSign, todo: MarkTodo,
   invoicing: MarkInvoicing, expenses: MarkExpenses, incentive: MarkIncentive,
-  kb: MarkKnowledgeBase, knowledge_base: MarkKnowledgeBase, knowledgebase: MarkKnowledgeBase,
+  knowledgeBase: MarkKnowledgeBase, kb: MarkKnowledgeBase, knowledge_base: MarkKnowledgeBase, knowledgebase: MarkKnowledgeBase,
   settings: MarkSettings,
 };
 
