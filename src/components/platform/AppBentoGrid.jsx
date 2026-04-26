@@ -32,9 +32,9 @@ function AppBentoGrid({ query = '' }) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="h-[240px] rounded-2xl bg-dark-800/50 animate-pulse" />
-          <div className="h-[240px] rounded-2xl bg-dark-800/50 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-[260px] rounded-2xl bg-dark-800/50 animate-pulse" />
+          <div className="lg:col-span-1 h-[260px] rounded-2xl bg-dark-800/50 animate-pulse" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -79,15 +79,19 @@ function AppBentoGrid({ query = '' }) {
     );
   }
 
-  // ── Bento: row 1 = featured + secondary (2 cols each), row 2+ = 4-col tile grid ──
+  // ── Bento: row 1 = featured (2/3) + secondary (1/3), row 2+ = 4-col tile grid ──
   const [featured, secondary, ...rest] = visibleApps;
 
   return (
     <div className="space-y-4">
-      {/* Row 1: featured (2 cols) + secondary (2 cols), equal height via grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-        <AppBentoCard app={featured} index={0} variant="featured" badge={badgeFor(featured)} />
-        <AppBentoCard app={secondary} index={1} variant="secondary" badge={badgeFor(secondary)} />
+      {/* Row 1: 3-col grid; featured spans 2 cols, secondary spans 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <AppBentoCard app={featured} index={0} variant="featured" badge={badgeFor(featured)} />
+        </div>
+        <div className="lg:col-span-1">
+          <AppBentoCard app={secondary} index={1} variant="secondary" badge={badgeFor(secondary)} />
+        </div>
       </div>
       {/* Row 2+: 4-col tile grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -46,7 +46,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
 
   if (variant === 'featured') {
     return (
-      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-8 min-h-[240px]`} style={baseStyle}>
+      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-8 min-h-[260px]`} style={baseStyle}>
         <div aria-hidden className="absolute inset-0 pointer-events-none transition-opacity duration-500" style={{ background: `radial-gradient(circle at 25% 15%, ${colors.glow}, transparent 60%)`, opacity: isActive ? (hovered ? 1 : 0.7) : 0.3 }} />
         <Badges app={app} locked={locked} badge={badge} />
         <div className="relative">
@@ -72,17 +72,17 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
 
   if (variant === 'secondary') {
     return (
-      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-6 min-h-[240px]`} style={baseStyle}>
+      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-6 min-h-[260px]`} style={baseStyle}>
         <Badges app={app} locked={locked} badge={badge} />
         <span className="text-[10px] font-semibold tracking-[0.14em]" style={{ color: colors.iconColor }}>{eyebrow}</span>
-        <div className="flex-1 flex items-end gap-4 mt-4">
-          <div className="rounded-xl flex items-center justify-center shrink-0" style={{ width: 64, height: 64, backgroundColor: `rgba(${colors.rgb}, 0.10)`, transform: isActive && hovered ? 'scale(1.06)' : 'scale(1)', transition: 'transform 0.3s' }}>
-            {renderMark(44)}
+        <div className="flex-1 flex items-center justify-start mt-4">
+          <div className="rounded-xl flex items-center justify-center transition-transform duration-300" style={{ width: 72, height: 72, backgroundColor: `rgba(${colors.rgb}, 0.10)`, transform: isActive && hovered ? 'scale(1.06)' : 'scale(1)' }}>
+            {renderMark(48)}
           </div>
-          <div className="min-w-0 pb-1">
-            <h3 className="text-xl font-bold text-white leading-tight mb-0.5">{app.name}</h3>
-            <p className="text-dark-400 text-sm leading-snug truncate">{app.description}</p>
-          </div>
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-white leading-tight mb-1">{app.name}</h3>
+          <p className="text-sm text-dark-400 leading-snug line-clamp-2">{app.description}</p>
         </div>
       </button>
     );
