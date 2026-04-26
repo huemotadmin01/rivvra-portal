@@ -46,7 +46,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
 
   if (variant === 'featured') {
     return (
-      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-8 min-h-[340px] h-full`} style={baseStyle}>
+      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-8 min-h-[340px] lg:h-[352px]`} style={baseStyle}>
         <div aria-hidden className="absolute inset-0 pointer-events-none transition-opacity duration-500" style={{ background: `radial-gradient(circle at 25% 15%, ${colors.glow}, transparent 60%)`, opacity: isActive ? (hovered ? 1 : 0.7) : 0.3 }} />
         <Badges app={app} locked={locked} badge={badge} />
         <div className="relative">
@@ -72,7 +72,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
 
   if (variant === 'secondary') {
     return (
-      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-6 min-h-[160px] h-full justify-between`} style={baseStyle}>
+      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-6 min-h-[160px] lg:h-[168px] justify-between`} style={baseStyle}>
         <Badges app={app} locked={locked} badge={badge} />
         <span className="text-[10px] font-semibold tracking-[0.14em]" style={{ color: colors.iconColor }}>{eyebrow}</span>
         <div className="flex items-end gap-4 mt-4">
@@ -89,7 +89,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
   }
 
   return (
-    <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-5 min-h-[160px] h-full`} style={baseStyle}>
+    <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-5 min-h-[160px] lg:h-[168px]`} style={baseStyle}>
       <Badges app={app} locked={locked} badge={badge} />
       <span className="text-[10px] font-semibold tracking-[0.14em] mb-3" style={{ color: colors.iconColor }}>{eyebrow}</span>
       <div className="rounded-xl flex items-center justify-center mb-3 transition-transform duration-300" style={{ width: 52, height: 52, backgroundColor: `rgba(${colors.rgb}, 0.10)`, transform: isActive && hovered ? 'scale(1.08)' : 'scale(1)' }}>
