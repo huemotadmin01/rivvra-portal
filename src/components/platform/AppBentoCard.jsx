@@ -72,7 +72,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
 
   if (variant === 'secondary') {
     return (
-      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-6 min-h-[160px] justify-between`} style={baseStyle}>
+      <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-6 min-h-[160px] h-full justify-between`} style={baseStyle}>
         <Badges app={app} locked={locked} badge={badge} />
         <span className="text-[10px] font-semibold tracking-[0.14em]" style={{ color: colors.iconColor }}>{eyebrow}</span>
         <div className="flex items-end gap-4 mt-4">
@@ -89,7 +89,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
   }
 
   return (
-    <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-5 min-h-[160px]`} style={baseStyle}>
+    <button onClick={handleClick} onMouseEnter={() => { setHovered(true); if (app.id === 'timesheet' && isActive) warmTimesheetBackend(); }} onMouseLeave={() => { setHovered(false); setClicked(false); }} disabled={!isActive} className={`${baseClasses} flex-col p-5 min-h-[160px] h-full`} style={baseStyle}>
       <Badges app={app} locked={locked} badge={badge} />
       <span className="text-[10px] font-semibold tracking-[0.14em] mb-3" style={{ color: colors.iconColor }}>{eyebrow}</span>
       <div className="rounded-xl flex items-center justify-center mb-3 transition-transform duration-300" style={{ width: 52, height: 52, backgroundColor: `rgba(${colors.rgb}, 0.10)`, transform: isActive && hovered ? 'scale(1.08)' : 'scale(1)' }}>
