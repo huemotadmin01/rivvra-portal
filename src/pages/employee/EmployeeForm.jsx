@@ -528,6 +528,13 @@ export default function EmployeeForm() {
       setError('Email is required.');
       return false;
     }
+    // Sourced By is mandatory at creation time so we always know who referred
+    // a hire (drives the incentive flow). Existing records can still be saved
+    // without it on edit.
+    if (!isEdit && !form.sourcedByEmployeeId) {
+      setError('Sourced By is required — pick the employee who referred this hire.');
+      return false;
+    }
     if ((form.status === 'resigned' || form.status === 'terminated') && !form.lastWorkingDate) {
       setError('Last Working Date is required when status is Resigned or Terminated.');
       return false;
@@ -1100,13 +1107,16 @@ export default function EmployeeForm() {
 
             {/* Sourced By (referring employee) */}
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Sourced By</label>
+              <label className="block text-sm font-medium text-dark-300 mb-1">
+                Sourced By {!isEdit && <span className="text-red-400">*</span>}
+              </label>
               <select
                 value={form.sourcedByEmployeeId}
                 onChange={(e) => setField('sourcedByEmployeeId', e.target.value)}
                 className="input-field w-full"
+                required={!isEdit}
               >
-                <option value="">— None —</option>
+                <option value="">{isEdit ? '— None —' : '— Select sourcing employee —'}</option>
                 {managerOptions
                   .filter(m => m._id !== employeeId)
                   .map(m => (
