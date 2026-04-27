@@ -166,7 +166,7 @@ export default function ExpenseList() {
               <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             </button>
             <button
-              onClick={() => navigate(`${orgPath}/expenses/new`)}
+              onClick={() => navigate(orgPath('/expenses/new'))}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <Plus size={14} />
@@ -197,8 +197,8 @@ export default function ExpenseList() {
             <SummaryCard
               icon={CheckCircle2}
               label="Approved / Synced"
-              value={(summary.approved || 0) + (summary.synced || 0)}
-              sub={`${summary.synced || 0} synced to bills`}
+              value={(summary.approved || 0) + (summary.synced || 0) + (summary.reimbursed || 0)}
+              sub={`${(summary.synced || 0) + (summary.reimbursed || 0)} synced to bills`}
               accent="emerald"
             />
             <SummaryCard
@@ -247,7 +247,7 @@ export default function ExpenseList() {
               <FileText size={32} className="text-dark-600 mx-auto mb-3" />
               <p className="text-dark-400 text-sm">No expenses found</p>
               <button
-                onClick={() => navigate(`${orgPath}/expenses/new`)}
+                onClick={() => navigate(orgPath('/expenses/new'))}
                 className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-xs font-medium"
               >
                 <Plus size={12} />
@@ -277,7 +277,7 @@ export default function ExpenseList() {
                       <tr
                         key={r._id}
                         className="hover:bg-dark-800/40 cursor-pointer transition-colors"
-                        onClick={() => navigate(`${orgPath}/expenses/${r._id}`)}
+                        onClick={() => navigate(orgPath(`/expenses/${r._id}`))}
                       >
                         <td className="px-4 py-3 text-dark-200 whitespace-nowrap">
                           {formatDate(r.submittedAt || r.createdAt)}
@@ -327,7 +327,7 @@ export default function ExpenseList() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
-                            onClick={(e) => { e.stopPropagation(); navigate(`${orgPath}/expenses/${r._id}`); }}
+                            onClick={(e) => { e.stopPropagation(); navigate(orgPath(`/expenses/${r._id}`)); }}
                             className="inline-flex items-center gap-1 px-2 py-1 text-dark-400 hover:text-white text-xs"
                             title="View"
                           >

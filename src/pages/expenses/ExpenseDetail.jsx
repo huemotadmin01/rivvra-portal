@@ -112,6 +112,8 @@ const EVENT_LABEL = {
   withdrawn: { icon: Undo2,        color: 'text-dark-300',    label: 'Withdrawn back to draft' },
   approved:  { icon: CheckCircle2, color: 'text-blue-400',    label: 'Approved' },
   synced:    { icon: CheckCircle2, color: 'text-emerald-400', label: 'Synced to Employee Bill' },
+  reimbursed:{ icon: CheckCircle2, color: 'text-violet-400',  label: 'Reimbursed' },
+  reimbursement_reversed: { icon: Undo2, color: 'text-amber-400', label: 'Reimbursement reversed' },
   rejected:  { icon: XCircle,      color: 'text-red-400',     label: 'Rejected' },
   commented: { icon: MessageSquare,color: 'text-dark-300',    label: 'Comment' },
 };
@@ -365,7 +367,7 @@ export default function ExpenseDetail() {
       });
     } catch (err) {
       showToast(err.message || 'Failed to load expense', 'error');
-      navigate(`${orgPath}/expenses`);
+      navigate(orgPath('/expenses'));
     } finally {
       setLoading(false);
     }
@@ -380,10 +382,14 @@ export default function ExpenseDetail() {
       .catch(() => {});
   }, [orgSlug]);
 
-  // Approver preview — show "Will be sent to X"
+  // Approver preview — show "Will be sent to X" (only for new/draft expenses)
   useEffect(() => {
     if (!orgSlug) return;
-    if (!isNew && status !== 'draft') return;
+    if (!isNew && status !== 'draft') {
+      setPreviewApprover(null);
+      setPreviewWarning(null);
+      return;
+    }
     expensesApi.previewApprover(orgSlug)
       .then((r) => {
         setPreviewApprover(r?.approver || null);
@@ -482,7 +488,7 @@ export default function ExpenseDetail() {
           setForm((f) => ({ ...f, lines: res.expense.lines.map(lineFromServer) }));
         }
         showToast('Draft saved');
-        navigate(`${orgPath}/expenses/${res.expense._id}`, { replace: true });
+        navigate(orgPath(`/expenses/${res.expense._id}`), { replace: true });
       } else {
         const res = await expensesApi.update(orgSlug, expense._id, payload);
         setExpense(res.expense);
@@ -516,7 +522,7 @@ export default function ExpenseDetail() {
       setExpense(res.expense);
       showToast('Submitted for approval');
       if (isNew || !expense?._id) {
-        navigate(`${orgPath}/expenses/${expenseId}`, { replace: true });
+        navigate(orgPath(`/expenses/${expenseId}`), { replace: true });
       }
     } catch (e) {
       showToast(e.message || 'Failed to submit', 'error');
@@ -547,7 +553,7 @@ export default function ExpenseDetail() {
       setDeleting(true);
       await expensesApi.remove(orgSlug, expense._id);
       showToast('Expense deleted');
-      navigate(`${orgPath}/expenses`);
+      navigate(orgPath('/expenses'));
     } catch (e) {
       showToast(e.message || 'Failed to delete', 'error');
       setDeleting(false);
@@ -614,7 +620,7 @@ export default function ExpenseDetail() {
       <div className="bg-dark-850 border-b border-dark-700 px-4 sm:px-6 lg:px-8 py-4">
         <div className="max-w-[1200px] mx-auto">
           <button
-            onClick={() => navigate(`${orgPath}/expenses`)}
+            onClick={() => navigate(orgPath('/expenses'))}
             className="inline-flex items-center gap-1.5 text-xs text-dark-400 hover:text-white mb-2"
           >
             <ArrowLeft size={12} />
@@ -777,7 +783,7 @@ export default function ExpenseDetail() {
                   <div className="text-[11px] text-dark-500 uppercase tracking-wide">Employee Bill</div>
                   {expense?.billId ? (
                     <button
-                      onClick={() => navigate(`${orgPath}/invoicing/employee-bills/${expense.billId}`)}
+                      onClick={() => navigate(orgPath(`/invoicing/employee-bills/${expense.billId}`))}
                       className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm mt-0.5"
                     >
                       <CheckCircle2 size={14} />
