@@ -2876,24 +2876,40 @@ export default function InvoiceDetail() {
          ══════════════════════════════════════════════════════════════════ */}
 
       {showPaymentModal && (
-        <RecordPaymentModal
-          orgSlug={orgSlug}
-          invoiceId={invoiceId}
-          invoiceNumber={invoice.number || ''}
-          currency={currency}
-          total={invoice.total || 0}
-          subtotal={invoice.subtotal || 0}
-          amountDue={amountDue}
-          invoiceType={invoice.type}
-          isVendorBill={isVendorBill}
-          isIndia={isIndia}
-          onClose={() => setShowPaymentModal(false)}
-          onSuccess={() => {
-            setShowPaymentModal(false);
-            fetchInvoice();
-          }}
-          showToast={showToast}
-        />
+        invoice.journalCode === 'EMPBI' ? (
+          <EmployeeBillRecordPaymentModal
+            orgSlug={orgSlug}
+            invoiceId={invoiceId}
+            invoiceNumber={invoice.number || ''}
+            currency={currency}
+            amountDue={amountDue}
+            onClose={() => setShowPaymentModal(false)}
+            onSuccess={() => {
+              setShowPaymentModal(false);
+              fetchInvoice();
+            }}
+            showToast={showToast}
+          />
+        ) : (
+          <RecordPaymentModal
+            orgSlug={orgSlug}
+            invoiceId={invoiceId}
+            invoiceNumber={invoice.number || ''}
+            currency={currency}
+            total={invoice.total || 0}
+            subtotal={invoice.subtotal || 0}
+            amountDue={amountDue}
+            invoiceType={invoice.type}
+            isVendorBill={isVendorBill}
+            isIndia={isIndia}
+            onClose={() => setShowPaymentModal(false)}
+            onSuccess={() => {
+              setShowPaymentModal(false);
+              fetchInvoice();
+            }}
+            showToast={showToast}
+          />
+        )
       )}
 
       {showEmailModal && (
@@ -3683,6 +3699,349 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {tdsEnabled ? 'Record Payment + TDS' : 'Record Payment'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ============================================================================
+// EmployeeBillRecordPaymentModal
+//   Specialized payment modal for EMPBI bills auto-created from approved
+//   expense claims. No TDS pieces, surfaces employee bank details, supports
+//   cheque-specific fields, and lets the accountant attach a payment proof.
+// ============================================================================
+
+function EmployeeBillRecordPaymentModal({
+  orgSlug, invoiceId, invoiceNumber, currency, amountDue, onClose, onSuccess, showToast,
+}) {
+  const [journals, setJournals] = useState([]);
+  const [employee, setEmployee] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [proofFile, setProofFile] = useState(null);
+
+  const [form, setForm] = useState({
+    journalId: '',
+    amount: amountDue || 0,
+    method: 'bank_transfer',
+    date: new Date().toISOString().slice(0, 10),
+    reference: '',
+    memo: '',
+    chequeNumber: '',
+    chequeDate: new Date().toISOString().slice(0, 10),
+    bankName: '',
+  });
+
+  const inputCls = 'w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-rivvra-500 focus:border-transparent text-sm';
+  const labelCls = 'block text-xs font-medium text-dark-400 mb-1';
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [jRes, empRes] = await Promise.all([
+          invoicingApi.listJournals(orgSlug, { active: 'true' }).catch(() => ({ journals: [] })),
+          invoicingApi.getEmployeeSnapshot(orgSlug, invoiceId).catch(() => ({ employee: null })),
+        ]);
+        const payableJournals = (jRes?.journals || []).filter((j) => j.type === 'bank' || j.type === 'cash');
+        setJournals(payableJournals);
+        setEmployee(empRes?.employee || null);
+        if (payableJournals.length > 0) {
+          const defaultJournal = payableJournals.find((j) => j.type === 'bank') || payableJournals[0];
+          setForm((f) => ({ ...f, journalId: defaultJournal._id }));
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [orgSlug, invoiceId]);
+
+  const selectedJournal = journals.find((j) => j._id === form.journalId);
+  const remaining = Math.max(0, Math.round(((Number(amountDue) || 0) - (Number(form.amount) || 0)) * 100) / 100);
+  const isCheque = form.method === 'cheque';
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.journalId) return showToast('Select a journal', 'error');
+    if (!form.amount || Number(form.amount) <= 0) return showToast('Enter a valid payment amount', 'error');
+    if (isCheque && !form.chequeNumber.trim()) return showToast('Cheque number is required', 'error');
+
+    try {
+      setSaving(true);
+      const paymentRes = await invoicingApi.recordPayment(orgSlug, {
+        invoiceId,
+        amount: Number(form.amount),
+        method: form.method,
+        journal: selectedJournal?.name || '',
+        date: form.date,
+        reference: form.reference || invoiceNumber || '',
+        notes: form.memo || '',
+        chequeNumber: isCheque ? form.chequeNumber.trim() : null,
+        chequeDate: isCheque ? form.chequeDate : null,
+        bankName: isCheque ? form.bankName.trim() : null,
+      });
+
+      if (proofFile) {
+        try {
+          const paymentNumber = paymentRes?.payment?.number || '';
+          const label = paymentNumber ? `Payment proof — ${paymentNumber}` : 'Payment proof';
+          await invoicingApi.uploadAttachment(orgSlug, invoiceId, proofFile, label);
+        } catch (uploadErr) {
+          showToast(`Payment recorded, but proof upload failed: ${uploadErr.message}`, 'error');
+          onSuccess();
+          return;
+        }
+      }
+
+      showToast('Payment recorded');
+      onSuccess();
+    } catch (err) {
+      showToast(err.message || 'Failed to record payment', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 bg-dark-850 z-10">
+          <div>
+            <h2 className="text-lg font-bold text-white">Pay Employee</h2>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {invoiceNumber} • Due {formatCurrency(amountDue, currency)}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={24} className="animate-spin text-rivvra-500" />
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {/* Employee bank details preview */}
+            {employee ? (
+              <div className="rounded-lg border border-dark-700 bg-dark-800/50 p-3 space-y-1.5 text-xs">
+                <div className="flex items-center gap-2 text-dark-300 font-medium">
+                  <User size={14} className="text-rivvra-400" />
+                  <span>{employee.fullName || '—'}</span>
+                  {employee.designation && <span className="text-dark-500">· {employee.designation}</span>}
+                </div>
+                {employee.bankName || employee.accountNumber ? (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-dark-400">
+                    {employee.bankName && (
+                      <div><span className="text-dark-500">Bank:</span> <span className="text-dark-200">{employee.bankName}</span></div>
+                    )}
+                    {employee.accountNumber && (
+                      <div><span className="text-dark-500">A/c:</span> <span className="text-dark-200 font-mono">{employee.accountNumber}</span></div>
+                    )}
+                    {employee.ifsc && (
+                      <div><span className="text-dark-500">IFSC:</span> <span className="text-dark-200 font-mono">{employee.ifsc}</span></div>
+                    )}
+                    {employee.accountHolderName && (
+                      <div><span className="text-dark-500">Holder:</span> <span className="text-dark-200">{employee.accountHolderName}</span></div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-dark-500 italic">No bank details on file. Update the employee profile to show them here.</p>
+                )}
+              </div>
+            ) : null}
+
+            {journals.length === 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                <AlertTriangle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-red-200">
+                  <p className="font-medium">No bank or cash journal found</p>
+                  <p className="text-red-300/80 mt-0.5">Add one under Invoicing → Configuration → Journals before recording a payment.</p>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className={labelCls}>Journal</label>
+              <select
+                value={form.journalId}
+                onChange={(e) => setForm((f) => ({ ...f, journalId: e.target.value }))}
+                className={inputCls}
+                disabled={journals.length === 0}
+              >
+                <option value="">Select journal…</option>
+                {journals.map((j) => (
+                  <option key={j._id} value={j._id}>{j.name} ({j.type === 'bank' ? 'Bank' : 'Cash'})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelCls}>Payment Method</label>
+              <select
+                value={form.method}
+                onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
+                className={inputCls}
+              >
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="upi">UPI</option>
+                <option value="cheque">Cheque</option>
+                <option value="cash">Cash</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            {isCheque && (
+              <div className="border border-dark-700 rounded-lg p-3 space-y-3 bg-dark-800/30">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Cheque Number</label>
+                    <input
+                      type="text"
+                      value={form.chequeNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, chequeNumber: e.target.value }))}
+                      placeholder="e.g. 123456"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Cheque Date</label>
+                    <input
+                      type="date"
+                      value={form.chequeDate}
+                      onChange={(e) => setForm((f) => ({ ...f, chequeDate: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Drawee Bank</label>
+                  <input
+                    type="text"
+                    value={form.bankName}
+                    onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
+                    placeholder="e.g. HDFC Bank"
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className={labelCls}>Payment Date</label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Amount Paid</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  className={inputCls + ' flex-1'}
+                />
+                <span className="text-dark-400 text-sm w-12 text-right">{currency}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Reference</label>
+              <input
+                type="text"
+                value={form.reference}
+                onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
+                placeholder="UTR / transaction id / cheque no."
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Internal Memo</label>
+              <input
+                type="text"
+                value={form.memo}
+                onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
+                placeholder="Optional notes"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Payment Proof (optional)</label>
+              <div className="flex items-center gap-2">
+                <label className="flex-1 cursor-pointer">
+                  <input
+                    type="file"
+                    onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    accept="image/*,.pdf"
+                  />
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-dark-600 hover:border-rivvra-500 text-sm text-dark-400 hover:text-white transition-colors">
+                    <Upload size={14} />
+                    {proofFile ? (
+                      <span className="truncate">{proofFile.name}</span>
+                    ) : (
+                      <span>Choose receipt / screenshot</span>
+                    )}
+                  </div>
+                </label>
+                {proofFile && (
+                  <button
+                    type="button"
+                    onClick={() => setProofFile(null)}
+                    className="text-dark-400 hover:text-red-400"
+                    title="Remove file"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-3 space-y-1.5 text-sm">
+              <div className="flex justify-between text-dark-300">
+                <span>Bill Due</span>
+                <span>{formatCurrency(amountDue, currency)}</span>
+              </div>
+              <div className="flex justify-between text-dark-300">
+                <span>Payment</span>
+                <span>−{formatCurrency(Number(form.amount) || 0, currency)}</span>
+              </div>
+              <div className="flex justify-between font-semibold pt-1.5 border-t border-dark-700">
+                <span className={remaining > 0 ? 'text-amber-400' : 'text-emerald-400'}>Remaining</span>
+                <span className={remaining > 0 ? 'text-amber-400' : 'text-emerald-400'}>
+                  {formatCurrency(remaining, currency)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-dark-700">
+              <button
+                type="submit"
+                disabled={saving || journals.length === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                Record Payment
               </button>
               <button
                 type="button"

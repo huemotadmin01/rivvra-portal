@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import expensesApi from '../../utils/expensesApi';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -64,9 +65,12 @@ function SummaryCard({ icon: Icon, label, value, sub, accent = 'rivvra' }) {
 export default function ExpenseList() {
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
-  const { getAppRole } = useOrg();
+  const { getAppRole, orgRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
-  const isManager = getAppRole('expenses') === 'admin' || getAppRole('expenses') === 'team_lead';
+  const isOrgAdmin = orgRole === 'owner' || orgRole === 'admin';
+  const isManager = isOrgAdmin || ['admin', 'team_lead'].includes(getAppRole('expenses'));
+  const companyCurrency = (currentCompany?.currency || 'INR').toUpperCase();
 
   const [scope, setScope] = useState(() =>
     isManager ? (localStorage.getItem('rivvra_expenses_scope') || 'mine') : 'mine',
@@ -126,7 +130,8 @@ export default function ExpenseList() {
               Expenses
             </h1>
             <p className="text-sm text-dark-400 mt-0.5">
-              {scope === 'all' ? 'All employee expenses' : 'Your expense submissions'}
+              {scope === 'all' ? 'All employee expense claims' : 'Your expense claims'}
+              {currentCompany && <span> · {currentCompany.name}</span>}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -176,8 +181,8 @@ export default function ExpenseList() {
             <SummaryCard
               icon={Receipt}
               label="This Month"
-              value={formatCurrency(summary.monthTotal || 0, 'INR')}
-              sub={`${summary.monthCount || 0} ${summary.monthCount === 1 ? 'entry' : 'entries'}`}
+              value={formatCurrency(summary.monthTotal || 0, companyCurrency)}
+              sub={`${summary.monthCount || 0} ${summary.monthCount === 1 ? 'claim' : 'claims'}`}
               accent="rivvra"
             />
             <SummaryCard
@@ -227,7 +232,7 @@ export default function ExpenseList() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search description or merchant..."
+              placeholder="Search title, description, or merchant..."
               className="w-full pl-9 pr-3 py-2 bg-dark-850 border border-dark-700 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
             />
           </div>
@@ -244,7 +249,7 @@ export default function ExpenseList() {
                 className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-xs font-medium"
               >
                 <Plus size={12} />
-                Submit your first expense
+                Submit your first claim
               </button>
             </div>
           ) : (
@@ -252,70 +257,84 @@ export default function ExpenseList() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-dark-800 text-dark-400 text-xs uppercase tracking-wide">
-                    <th className="text-left px-4 py-3 font-medium">Date</th>
+                    <th className="text-left px-4 py-3 font-medium">Submitted</th>
                     {scope === 'all' && <th className="text-left px-4 py-3 font-medium">Employee</th>}
-                    <th className="text-left px-4 py-3 font-medium">Category</th>
-                    <th className="text-left px-4 py-3 font-medium">Description</th>
-                    <th className="text-right px-4 py-3 font-medium">Amount</th>
+                    <th className="text-left px-4 py-3 font-medium">Title</th>
+                    <th className="text-right px-4 py-3 font-medium">Lines</th>
+                    <th className="text-right px-4 py-3 font-medium">Total</th>
+                    {scope === 'all' && <th className="text-left px-4 py-3 font-medium">Approver</th>}
                     <th className="text-left px-4 py-3 font-medium">Status</th>
                     <th className="text-left px-4 py-3 font-medium">Bill</th>
                     <th className="text-right px-4 py-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-800">
-                  {filteredRows.map((r) => (
-                    <tr
-                      key={r._id}
-                      className="hover:bg-dark-800/40 cursor-pointer transition-colors"
-                      onClick={() => navigate(`${orgPath}/expenses/${r._id}`)}
-                    >
-                      <td className="px-4 py-3 text-dark-200 whitespace-nowrap">{formatDate(r.expenseDate)}</td>
-                      {scope === 'all' && (
-                        <td className="px-4 py-3 text-dark-200">
-                          <div className="text-white">{r.submittedByName || '-'}</div>
-                          {r.submittedByEmail && <div className="text-[11px] text-dark-500">{r.submittedByEmail}</div>}
+                  {filteredRows.map((r) => {
+                    const lineCount = (r.lines || []).length;
+                    return (
+                      <tr
+                        key={r._id}
+                        className="hover:bg-dark-800/40 cursor-pointer transition-colors"
+                        onClick={() => navigate(`${orgPath}/expenses/${r._id}`)}
+                      >
+                        <td className="px-4 py-3 text-dark-200 whitespace-nowrap">
+                          {formatDate(r.submittedAt || r.createdAt)}
                         </td>
-                      )}
-                      <td className="px-4 py-3 text-dark-200">
-                        {r.categoryName ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-dark-700 text-dark-200">
-                            {r.categoryName}
-                          </span>
-                        ) : (
-                          <span className="text-dark-500 italic text-xs">Uncategorized</span>
+                        {scope === 'all' && (
+                          <td className="px-4 py-3 text-dark-200">
+                            <div className="text-white">{r.submittedByName || '-'}</div>
+                            {r.submittedByEmail && <div className="text-[11px] text-dark-500">{r.submittedByEmail}</div>}
+                          </td>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-dark-200 max-w-md truncate">{r.description || '-'}</td>
-                      <td className="px-4 py-3 text-right text-white font-medium whitespace-nowrap">
-                        {formatCurrency(r.amount || 0, r.currency || 'INR')}
-                      </td>
-                      <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-                      <td className="px-4 py-3">
-                        {r.billId ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
-                            <CheckCircle2 size={12} />
-                            {r.billNumber || 'Created'}
-                          </span>
-                        ) : r.status === 'rejected' ? (
-                          <span className="text-[11px] text-dark-500">—</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-dark-500">
-                            <AlertCircle size={12} />
-                            Not yet
-                          </span>
+                        <td className="px-4 py-3 text-dark-200 max-w-md">
+                          <div className="text-white truncate">{r.title || <span className="text-dark-500 italic">Untitled</span>}</div>
+                          {lineCount > 0 && r.lines?.[0]?.description && (
+                            <div className="text-[11px] text-dark-500 truncate">{r.lines[0].description}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-dark-200 whitespace-nowrap">
+                          {lineCount}
+                        </td>
+                        <td className="px-4 py-3 text-right text-white font-medium whitespace-nowrap">
+                          {formatCurrency(r.totalAmount || 0, r.claimCurrency || 'INR')}
+                        </td>
+                        {scope === 'all' && (
+                          <td className="px-4 py-3 text-dark-200">
+                            {r.approverName ? (
+                              <div className="text-xs">{r.approverName}</div>
+                            ) : (
+                              <span className="text-[11px] text-dark-500 italic">—</span>
+                            )}
+                          </td>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); navigate(`${orgPath}/expenses/${r._id}`); }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-dark-400 hover:text-white text-xs"
-                          title="View"
-                        >
-                          <Eye size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                        <td className="px-4 py-3">
+                          {r.billId ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+                              <CheckCircle2 size={12} />
+                              {r.billNumber || 'Created'}
+                            </span>
+                          ) : r.status === 'rejected' ? (
+                            <span className="text-[11px] text-dark-500">—</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-dark-500">
+                              <AlertCircle size={12} />
+                              Not yet
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate(`${orgPath}/expenses/${r._id}`); }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-dark-400 hover:text-white text-xs"
+                            title="View"
+                          >
+                            <Eye size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

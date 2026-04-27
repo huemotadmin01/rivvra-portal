@@ -302,6 +302,11 @@ const invoicingApi = {
   deleteAttachment(orgSlug, invoiceId, docId) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${invoiceId}/attachments/${docId}`, { method: 'DELETE' });
   },
+
+  // ---------- EMPLOYEE SNAPSHOT (EMPBI bills only) ----------
+  getEmployeeSnapshot(orgSlug, billId) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${billId}/employee-snapshot`);
+  },
 };
 
 export default invoicingApi;

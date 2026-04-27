@@ -45,6 +45,9 @@ const expensesApi = {
   submit(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/expenses/${id}/submit`, { method: 'POST' });
   },
+  withdraw(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/expenses/${id}/withdraw`, { method: 'POST' });
+  },
   approve(orgSlug, id, note = '') {
     return api.request(`/api/org/${orgSlug}/expenses/${id}/approve`, {
       method: 'POST',
@@ -64,36 +67,29 @@ const expensesApi = {
     });
   },
 
+  // ---------- APPROVER PREVIEW ----------
+  previewApprover(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/expenses/preview-approver`);
+  },
+
   // ---------- CATEGORIES (read-only proxy) ----------
   listCategories(orgSlug) {
     return api.request(`/api/org/${orgSlug}/expenses/categories`);
   },
 
-  // ---------- SETTINGS ----------
-  getSettings(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/expenses/settings`);
-  },
-  updateSettings(orgSlug, data) {
-    return api.request(`/api/org/${orgSlug}/expenses/settings`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-  listApprovers(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/expenses/approvers`);
-  },
-
-  // ---------- RECEIPT ----------
+  // ---------- RECEIPTS (per-line, decoupled by receiptId) ----------
   uploadReceipt(orgSlug, id, file) {
     const fd = new FormData();
     fd.append('file', file);
-    return api.uploadFile(`/api/org/${orgSlug}/expenses/${id}/receipt`, fd);
+    return api.uploadFile(`/api/org/${orgSlug}/expenses/${id}/receipts`, fd);
   },
-  receiptUrl(orgSlug, id) {
-    return `${api.baseUrl}/api/org/${orgSlug}/expenses/${id}/receipt`;
+  receiptUrl(orgSlug, id, receiptId) {
+    return `${api.baseUrl}/api/org/${orgSlug}/expenses/${id}/receipts/${receiptId}`;
   },
-  removeReceipt(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/expenses/${id}/receipt`, { method: 'DELETE' });
+  removeReceipt(orgSlug, id, receiptId) {
+    return api.request(`/api/org/${orgSlug}/expenses/${id}/receipts/${receiptId}`, {
+      method: 'DELETE',
+    });
   },
 };
 

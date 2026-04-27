@@ -515,7 +515,6 @@ export const APP_REGISTRY = {
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
-              { path: '/settings/expenses', label: 'Settings', icon: Settings },
               { path: '/invoicing/config/expense-categories', label: 'Categories', icon: Tag },
             ],
           },
@@ -609,7 +608,6 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/ats', label: 'ATS', icon: UserSearch },
         { type: 'item', path: '/settings/sign', label: 'Sign', icon: PenTool },
         { type: 'item', path: '/settings/todo', label: 'To-Do', icon: CheckSquare },
-        ...(isAdmin ? [{ type: 'item', path: '/settings/expenses', label: 'Expenses', icon: Wallet }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/invoicing', label: 'Invoicing', icon: Receipt }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/incentive', label: 'Incentive', icon: Award }] : []),
       ];
