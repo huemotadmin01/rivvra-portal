@@ -547,6 +547,8 @@ function App() {
               <Route element={<AppAccessGate appId="expenses" />}>
                 <Route path="/org/:slug/expenses" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
                 <Route path="/org/:slug/expenses/new" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/team" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/all" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
                 <Route path="/org/:slug/expenses/:id" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
               </Route>
             </Route>

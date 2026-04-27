@@ -507,11 +507,18 @@ export const APP_REGISTRY = {
       { value: 'member', label: 'Submitter', color: 'dark' },
     ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
-      const isManager = orgAppRole === 'admin' || orgAppRole === 'team_lead';
+      const isAdmin = orgAppRole === 'admin';
+      const isTeamLead = orgAppRole === 'team_lead';
       return [
         { type: 'item', path: '/expenses', label: 'My Expenses', icon: LayoutDashboard },
+        ...(isTeamLead ? [
+          { type: 'item', path: '/expenses/team', label: 'Team Expenses', icon: UsersRound },
+        ] : []),
+        ...(isAdmin ? [
+          { type: 'item', path: '/expenses/all', label: 'All Expenses', icon: Layers },
+        ] : []),
         { type: 'item', path: '/expenses/new', label: 'New Expense', icon: PlusCircle },
-        ...(isManager ? [
+        ...(isAdmin || isTeamLead ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [

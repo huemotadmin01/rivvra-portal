@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -66,27 +66,41 @@ function SummaryCard({ icon: Icon, label, value, sub, accent = 'rivvra' }) {
 
 export default function ExpenseList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orgSlug, orgPath } = usePlatform();
   const { getAppRole, orgRole } = useOrg();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const isOrgAdmin = orgRole === 'owner' || orgRole === 'admin';
-  const isManager = isOrgAdmin || ['admin', 'team_lead'].includes(getAppRole('expenses'));
+  const expensesAppRole = getAppRole('expenses');
+  const isTeamLead = expensesAppRole === 'team_lead';
+  const isManager = isOrgAdmin || expensesAppRole === 'admin' || isTeamLead;
   const companyCurrency = (currentCompany?.currency || 'INR').toUpperCase();
 
-  const [scope, setScope] = useState(() =>
-    isManager ? (localStorage.getItem('rivvra_expenses_scope') || 'mine') : 'mine',
-  );
+  // Scope is derived from the URL path. The sidebar exposes one entry per scope,
+  // so the URL is the source of truth — never localStorage.
+  const requestedScope = useMemo(() => {
+    if (location.pathname.endsWith('/expenses/all')) return 'all';
+    if (location.pathname.endsWith('/expenses/team')) return 'team';
+    return 'mine';
+  }, [location.pathname]);
+
+  // Guard: redirect users who hit a route their role can't use.
+  useEffect(() => {
+    if (requestedScope === 'all' && !isOrgAdmin && expensesAppRole !== 'admin') {
+      navigate(orgPath('/expenses'), { replace: true });
+    } else if (requestedScope === 'team' && !isManager) {
+      navigate(orgPath('/expenses'), { replace: true });
+    }
+  }, [requestedScope, isOrgAdmin, expensesAppRole, isManager, navigate, orgPath]);
+
+  const scope = requestedScope;
   const [statusTab, setStatusTab] = useState('');
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    if (isManager) localStorage.setItem('rivvra_expenses_scope', scope);
-  }, [scope, isManager]);
 
   const load = useCallback(async () => {
     if (!orgSlug) return;
@@ -129,34 +143,18 @@ export default function ExpenseList() {
           <div>
             <h1 className="text-xl font-semibold text-white flex items-center gap-2">
               <Wallet size={20} className="text-rivvra-400" />
-              Expenses
+              {scope === 'all' ? 'All Expenses' : scope === 'team' ? 'Team Expenses' : 'My Expenses'}
             </h1>
             <p className="text-sm text-dark-400 mt-0.5">
-              {scope === 'all' ? 'All employee expense claims' : 'Your expense claims'}
+              {scope === 'all'
+                ? 'Every expense claim in this company'
+                : scope === 'team'
+                ? 'Claims submitted by your direct reports'
+                : 'Your expense claims'}
               {currentCompany && <span> · {currentCompany.name}</span>}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isManager && (
-              <div className="bg-dark-800 border border-dark-700 rounded-lg p-0.5 flex">
-                <button
-                  onClick={() => setScope('mine')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    scope === 'mine' ? 'bg-rivvra-500 text-white' : 'text-dark-300 hover:text-white'
-                  }`}
-                >
-                  Mine
-                </button>
-                <button
-                  onClick={() => setScope('all')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    scope === 'all' ? 'bg-rivvra-500 text-white' : 'text-dark-300 hover:text-white'
-                  }`}
-                >
-                  Team
-                </button>
-              </div>
-            )}
             <button
               onClick={load}
               disabled={refreshing}
