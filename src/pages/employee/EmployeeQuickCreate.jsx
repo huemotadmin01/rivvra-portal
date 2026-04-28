@@ -48,8 +48,11 @@ export default function EmployeeQuickCreate() {
   const [sourcedByEmployeeId, setSourcedByEmployeeId] = useState('');
   const [employmentTypes, setEmploymentTypes] = useState(DEFAULT_EMPLOYMENT_TYPES);
   const [managerOptions, setManagerOptions] = useState([]);
+  const [companyEmployeeCount, setCompanyEmployeeCount] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const isFirstHire = companyEmployeeCount === 0;
 
   useEffect(() => {
     getPublicPlatformSetting('employment_types')
@@ -59,15 +62,24 @@ export default function EmployeeQuickCreate() {
 
   useEffect(() => {
     if (!orgSlug) return;
+    // companyEmployeeCount tells us whether the bootstrap exception applies —
+    // if this is the first hire of the company, Sourced By is not required.
     employeeApi.getManagerOptions(orgSlug)
-      .then(res => { if (res?.success) setManagerOptions(res.managers || []); })
+      .then(res => {
+        if (res?.success) {
+          setManagerOptions(res.managers || []);
+          if (typeof res.companyEmployeeCount === 'number') {
+            setCompanyEmployeeCount(res.companyEmployeeCount);
+          }
+        }
+      })
       .catch(() => {});
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   const canSave =
     fullName.trim().length > 0 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
-    !!sourcedByEmployeeId;
+    (isFirstHire || !!sourcedByEmployeeId);
 
   async function handleSave() {
     if (saving) return;
@@ -78,7 +90,7 @@ export default function EmployeeQuickCreate() {
       setError('Please enter a valid email');
       return;
     }
-    if (!sourcedByEmployeeId) {
+    if (!isFirstHire && !sourcedByEmployeeId) {
       setError('Sourced By is required — pick the employee who referred this hire.');
       return;
     }
@@ -91,7 +103,7 @@ export default function EmployeeQuickCreate() {
         fullName: fullName.trim(),
         email: normEmail,
         employmentType,
-        sourcedByEmployeeId,
+        ...(sourcedByEmployeeId ? { sourcedByEmployeeId } : {}),
       });
       if (res?.success && res.employee?._id) {
         showToast('Employee created', 'success');
@@ -205,19 +217,32 @@ export default function EmployeeQuickCreate() {
             </select>
           </Field>
 
-          <Field label="Sourced By" icon={UserCheck} required>
-            <select
-              value={sourcedByEmployeeId}
-              onChange={(e) => setSourcedByEmployeeId(e.target.value)}
-              className="w-full bg-dark-800 border border-dark-600 focus:border-rivvra-500 rounded px-3 py-2 text-sm text-white focus:outline-none"
-            >
-              <option value="">— Select sourcing employee —</option>
-              {managerOptions.map(m => (
-                <option key={m._id} value={m._id}>{m.fullName}</option>
-              ))}
-            </select>
-            <p className="text-[11px] text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
-          </Field>
+          {isFirstHire ? (
+            <Field label="Sourced By" icon={UserCheck}>
+              <div className="w-full bg-dark-900 border border-dark-700 rounded px-3 py-2 text-sm text-dark-400 italic">
+                First hire — no sourcing employee available yet
+              </div>
+              <p className="text-[11px] text-dark-500 mt-1">
+                {currentCompany?.name || 'This company'} has no employees yet, so the
+                first hire cannot be attributed to a sourcing employee. Subsequent
+                hires will require this field.
+              </p>
+            </Field>
+          ) : (
+            <Field label="Sourced By" icon={UserCheck} required>
+              <select
+                value={sourcedByEmployeeId}
+                onChange={(e) => setSourcedByEmployeeId(e.target.value)}
+                className="w-full bg-dark-800 border border-dark-600 focus:border-rivvra-500 rounded px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">— Select sourcing employee —</option>
+                {managerOptions.map(m => (
+                  <option key={m._id} value={m._id}>{m.fullName}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
+            </Field>
+          )}
         </div>
 
         <p className="text-[11px] text-dark-500 mt-5 pt-4 border-t border-dark-800">
