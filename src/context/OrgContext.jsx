@@ -25,6 +25,40 @@ import api from '../utils/api';
 
 const OrgContext = createContext(null);
 
+// Stale-while-revalidate cache: hydrate from localStorage so the app launcher
+// renders instantly on revisit while the network refresh runs in the background.
+const CACHE_KEY = 'rivvra_org_cache_v1';
+
+function readCache(userIdentity) {
+  if (!userIdentity || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.userIdentity !== userIdentity) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(userIdentity, org, membership) {
+  if (!userIdentity || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ userIdentity, org, membership, savedAt: Date.now() })
+    );
+  } catch {
+    // localStorage full / disabled — silently skip
+  }
+}
+
+function clearCache() {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
+}
+
 export function OrgProvider({ children }) {
   const { user } = useAuth();
   const params = useParams();
@@ -43,33 +77,36 @@ export function OrgProvider({ children }) {
   // Determine effective slug: URL takes precedence, then user's default
   const effectiveSlug = urlSlug || userSlug || null;
 
-  // Fetch org data
-  const fetchOrg = useCallback(async () => {
+  // Fetch org data. `silent` skips the loading flag so a background refresh
+  // doesn't blank out cached UI.
+  const fetchOrg = useCallback(async (silent = false) => {
     if (!user) {
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
 
       const response = await api.request('/api/org/by-user/me');
 
+      const userIdentity = user?.email || user?.id || null;
       if (response.success && response.org) {
         setCurrentOrg(response.org);
         setMembership(response.membership);
+        writeCache(userIdentity, response.org, response.membership);
       } else {
         // User has no org — standalone user
         setCurrentOrg(null);
         setMembership(null);
+        writeCache(userIdentity, null, null);
       }
     } catch (err) {
       console.error('Failed to fetch org context:', err);
       setError(err.message);
-      // Don't block the app — just continue without org context
-      setCurrentOrg(null);
-      setMembership(null);
+      // Keep whatever we have (cached or null) — don't blank out the UI on
+      // transient network errors.
     } finally {
       setLoading(false);
     }
@@ -83,7 +120,18 @@ export function OrgProvider({ children }) {
     if (user && (!fetchedRef.current || lastUserIdRef.current !== userIdentity)) {
       fetchedRef.current = true;
       lastUserIdRef.current = userIdentity;
-      fetchOrg();
+
+      // Hydrate from cache first so the launcher renders immediately.
+      const cached = readCache(userIdentity);
+      if (cached) {
+        setCurrentOrg(cached.org);
+        setMembership(cached.membership);
+        setLoading(false);
+        // Background revalidation — silent so we don't flicker the cached UI.
+        fetchOrg(true);
+      } else {
+        fetchOrg(false);
+      }
     }
 
     // Reset if user logs out
@@ -93,6 +141,7 @@ export function OrgProvider({ children }) {
       setCurrentOrg(null);
       setMembership(null);
       setLoading(false);
+      clearCache();
     }
   }, [user, userIdentity, fetchOrg]);
 
@@ -159,7 +208,7 @@ export function OrgProvider({ children }) {
     alumniDaysRemaining,
     refetchOrg: () => {
       fetchedRef.current = false;
-      fetchOrg();
+      fetchOrg(false);
     },
   }), [currentOrg, membership, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, trial, isTrialActive, isGracePeriod, isTrialArchived, isReadOnly, trialDaysRemaining, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
 
