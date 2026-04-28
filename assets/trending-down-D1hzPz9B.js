@@ -1,0 +1,1 @@
+import{n as t}from"./index-Bv58hsOc.js";const e=[["path",{d:"m16 3 4 4-4 4",key:"1x1c3m"}],["path",{d:"M20 7H4",key:"zbl0bi"}],["path",{d:"m8 21-4-4 4-4",key:"h9nckh"}],["path",{d:"M4 17h16",key:"g4d7ey"}]],d=t("arrow-right-left",e);const n=[["path",{d:"M16 17h6v-6",key:"t6n2it"}],["path",{d:"m22 17-8.5-8.5-5 5L2 7",key:"x473p"}]],h=t("trending-down",n);export{d as A,h as T};

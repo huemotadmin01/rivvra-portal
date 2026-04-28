@@ -1,0 +1,1 @@
+import{r as o}from"./vendor-charts-DX8H-JEp.js";import{x as s,P as c,a as n}from"./index-Bv58hsOc.js";function u(){const t=s(),[r]=c(),a=r.get("type")||"company",{orgPath:e}=n();return o.useEffect(()=>{t(e(`/contacts/new-record?type=${a}`),{replace:!0})},[t,e,a]),null}export{u as default};

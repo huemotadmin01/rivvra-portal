@@ -1,0 +1,1 @@
+function u(n,c="INR"){const r=c||"INR",e=n==null?0:Number(n)||0,t=r==="INR"?"en-IN":"en-US";return new Intl.NumberFormat(t,{style:"currency",currency:r,minimumFractionDigits:2}).format(e)}export{u as f};
