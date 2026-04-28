@@ -23,7 +23,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import SectionCard from '../../components/platform/detail/SectionCard';
-import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase } from 'lucide-react';
+import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase, UserCheck } from 'lucide-react';
 
 const DEFAULT_EMPLOYMENT_TYPES = [
   { key: 'confirmed', label: 'Confirmed Employee' },
@@ -45,7 +45,9 @@ export default function EmployeeQuickCreate() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [employmentType, setEmploymentType] = useState('confirmed');
+  const [sourcedByEmployeeId, setSourcedByEmployeeId] = useState('');
   const [employmentTypes, setEmploymentTypes] = useState(DEFAULT_EMPLOYMENT_TYPES);
+  const [managerOptions, setManagerOptions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -55,7 +57,17 @@ export default function EmployeeQuickCreate() {
       .catch(() => {});
   }, []);
 
-  const canSave = fullName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  useEffect(() => {
+    if (!orgSlug) return;
+    employeeApi.getManagerOptions(orgSlug)
+      .then(res => { if (res?.success) setManagerOptions(res.managers || []); })
+      .catch(() => {});
+  }, [orgSlug]);
+
+  const canSave =
+    fullName.trim().length > 0 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+    !!sourcedByEmployeeId;
 
   async function handleSave() {
     if (saving) return;
@@ -64,6 +76,10 @@ export default function EmployeeQuickCreate() {
     const normEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail)) {
       setError('Please enter a valid email');
+      return;
+    }
+    if (!sourcedByEmployeeId) {
+      setError('Sourced By is required — pick the employee who referred this hire.');
       return;
     }
 
@@ -75,6 +91,7 @@ export default function EmployeeQuickCreate() {
         fullName: fullName.trim(),
         email: normEmail,
         employmentType,
+        sourcedByEmployeeId,
       });
       if (res?.success && res.employee?._id) {
         showToast('Employee created', 'success');
@@ -186,6 +203,20 @@ export default function EmployeeQuickCreate() {
                 <option key={t.key} value={t.key}>{t.label}</option>
               ))}
             </select>
+          </Field>
+
+          <Field label="Sourced By" icon={UserCheck} required>
+            <select
+              value={sourcedByEmployeeId}
+              onChange={(e) => setSourcedByEmployeeId(e.target.value)}
+              className="w-full bg-dark-800 border border-dark-600 focus:border-rivvra-500 rounded px-3 py-2 text-sm text-white focus:outline-none"
+            >
+              <option value="">— Select sourcing employee —</option>
+              {managerOptions.map(m => (
+                <option key={m._id} value={m._id}>{m.fullName}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
           </Field>
         </div>
 
