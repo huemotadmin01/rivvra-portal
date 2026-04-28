@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
@@ -176,7 +176,7 @@ function ConfirmModalBody({ title, body, confirmLabel, confirmTone = 'rivvra', o
 // Per-line receipt cell — handles upload / preview / remove for a single line.
 // ============================================================================
 function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved, onOpenPreview, busy, setBusy }) {
-  const inputRef = useRef(null);
+  const inputId = `receipt-upload-${line._id}`;
 
   async function handleUpload(file) {
     if (!file) return;
@@ -216,13 +216,17 @@ function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved
 
   if (!line.receiptId) {
     if (!editable) return <p className="text-xs text-dark-500 italic">No receipt</p>;
+    const disabled = busy || !expenseId;
     return (
       <>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={busy || !expenseId}
-          className="w-full border-2 border-dashed border-dark-700 hover:border-rivvra-500/60 rounded-lg p-3 flex flex-col items-center justify-center gap-1 text-dark-400 hover:text-rivvra-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        <label
+          htmlFor={inputId}
+          aria-disabled={disabled}
+          className={`w-full border-2 border-dashed border-dark-700 rounded-lg p-3 flex flex-col items-center justify-center gap-1 text-dark-400 transition-colors ${
+            disabled
+              ? 'opacity-60 cursor-not-allowed'
+              : 'hover:border-rivvra-500/60 hover:text-rivvra-400 cursor-pointer'
+          }`}
         >
           {busy ? (
             <Loader2 size={16} className="animate-spin" />
@@ -233,11 +237,12 @@ function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved
               <div className="text-[10px] text-dark-500">PDF, PNG, JPG · up to 10 MB</div>
             </>
           )}
-        </button>
+        </label>
         <input
-          ref={inputRef}
+          id={inputId}
           type="file"
-          accept="image/*,application/pdf"
+          accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp"
+          disabled={disabled}
           onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = ''; }}
           className="hidden"
         />
