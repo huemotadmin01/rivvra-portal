@@ -8,7 +8,7 @@ import { API_BASE_URL } from '../../utils/config';
 import api from '../../utils/api';
 import {
   Building2, Plus, Loader2, Trash2, Save, Star,
-  ChevronLeft, ChevronRight, Camera, Image,
+  ChevronLeft, ChevronRight, Camera, Image, PenTool, Upload, X,
 } from 'lucide-react';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -58,6 +58,11 @@ function getLogoUrl(company) {
   return `${API_BASE_URL}/api/org-company/${company._id}/logo?t=${company.updatedAt || ''}`;
 }
 
+function getSignatureUrl(company) {
+  if (!company?._id) return null;
+  return `${API_BASE_URL}/api/org-company/${company._id}/signature?t=${company.updatedAt || ''}`;
+}
+
 // ─── Reusable Field Row (Odoo label:value style) ────────────────────────────
 
 function FieldRow({ label, children, className = '' }) {
@@ -91,9 +96,12 @@ export default function SettingsCompanies() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
   const [logoError, setLogoError] = useState({});
+  const [signatureError, setSignatureError] = useState({});
   const [activeTab, setActiveTab] = useState('general');
   const fileInputRef = useRef(null);
+  const signatureInputRef = useRef(null);
 
   // ─── Data Fetching ─────────────────────────────────────────────────────────
 
@@ -350,6 +358,74 @@ export default function SettingsCompanies() {
     } finally {
       setUploadingLogo(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // ─── Signatory Upload (per-company; replaces the old org-wide one) ─────────
+
+  const handleSignatureUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedCompany) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select an image file', 'error');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Signature must be under 2 MB', 'error');
+      return;
+    }
+
+    try {
+      setUploadingSignature(true);
+      const formData = new FormData();
+      formData.append('signature', file);
+
+      const token = localStorage.getItem('rivvra_token');
+      const companyId = localStorage.getItem('rivvra_current_company');
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (companyId) headers['X-Company-Id'] = companyId;
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/org/${orgSlug}/companies/${selectedCompany._id}/signature`,
+        { method: 'POST', body: formData, headers }
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('Signature uploaded');
+        setSignatureError((prev) => ({ ...prev, [selectedCompany._id]: false }));
+        fetchCompanies();
+        refreshCompanies();
+      } else {
+        showToast(data.error || 'Failed to upload signature', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Upload failed', 'error');
+    } finally {
+      setUploadingSignature(false);
+      if (signatureInputRef.current) signatureInputRef.current.value = '';
+    }
+  };
+
+  const handleSignatureRemove = async () => {
+    if (!selectedCompany) return;
+    if (!window.confirm('Remove the authorized signatory image?')) return;
+    try {
+      const res = await api.request(
+        `/api/org/${orgSlug}/companies/${selectedCompany._id}/signature`,
+        { method: 'DELETE' }
+      );
+      if (res.success) {
+        showToast('Signature removed');
+        fetchCompanies();
+        refreshCompanies();
+      } else {
+        showToast(res.error || 'Failed to remove signature', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to remove signature', 'error');
     }
   };
 
@@ -754,6 +830,69 @@ export default function SettingsCompanies() {
                 </div>
               </div>
             </div>
+
+            {/* ─── SIGNATORY Section ─── */}
+            {isEdit && (
+              <div className="mt-8 pt-5 border-t border-dark-700">
+                <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <PenTool size={12} /> Authorized Signatory
+                </h3>
+                <p className="text-xs text-dark-500 mb-3">
+                  Image printed on customer-invoice PDFs above the "Authorized signatory"
+                  line. Each company has its own signatory.
+                </p>
+                <div className="flex items-start gap-4">
+                  <div className="relative w-[220px] h-[100px] rounded-lg border border-dark-700 bg-dark-900 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {uploadingSignature ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-dark-400" />
+                    ) : company.hasSignature && !signatureError[company._id] ? (
+                      <img
+                        src={getSignatureUrl(company)}
+                        alt="Signature"
+                        className="max-w-full max-h-full object-contain p-2"
+                        onError={() => setSignatureError((prev) => ({ ...prev, [company._id]: true }))}
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <PenTool className="w-6 h-6 text-dark-600 mx-auto" />
+                        <p className="text-[10px] text-dark-500 mt-1">No signature</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => signatureInputRef.current?.click()}
+                      disabled={uploadingSignature}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-dark-600 hover:border-rivvra-500/50 text-sm text-dark-300 hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      <Upload size={12} />
+                      {company.hasSignature ? 'Replace' : 'Upload'} signature
+                    </button>
+                    {company.hasSignature && (
+                      <button
+                        type="button"
+                        onClick={handleSignatureRemove}
+                        disabled={uploadingSignature}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-dark-600 hover:border-red-500/50 text-sm text-dark-400 hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        <X size={12} />
+                        Remove
+                      </button>
+                    )}
+                    <p className="text-[10px] text-dark-500">PNG/JPG, transparent bg, &lt; 2 MB.</p>
+                  </div>
+                </div>
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSignatureUpload}
+                />
+              </div>
+            )}
 
             {/* ─── BANK DETAILS Section ─── */}
             <div className="mt-8 pt-5 border-t border-dark-700">

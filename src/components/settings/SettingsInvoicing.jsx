@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
-import { API_BASE_URL } from '../../utils/config';
 import {
   Loader2, Save, Settings2, ToggleLeft, ToggleRight,
-  Hash, Sparkles, AlertCircle, Upload, PenTool,
+  Hash, Sparkles, AlertCircle,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -135,76 +134,6 @@ const CURRENCIES = [
   { value: 'CAD', label: 'CAD - Canadian Dollar' },
   { value: 'JPY', label: 'JPY - Japanese Yen' },
 ];
-
-// ---------------------------------------------------------------------------
-// Signature Upload
-// ---------------------------------------------------------------------------
-
-function SignatureUpload({ orgSlug }) {
-  const { showToast } = useToast();
-  const fileRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [sigUrl, setSigUrl] = useState(null);
-
-  useEffect(() => {
-    if (orgSlug) {
-      // Check if signature exists by trying to load it
-      const token = localStorage.getItem('rivvra_token');
-      fetch(`${API_BASE_URL}/api/org/${orgSlug}/invoicing/settings/signature`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(res => {
-        if (res.ok) setSigUrl(`${API_BASE_URL}/api/org/${orgSlug}/invoicing/settings/signature?t=${Date.now()}`);
-      }).catch(() => {});
-    }
-  }, [orgSlug]);
-
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setUploading(true);
-      const token = localStorage.getItem('rivvra_token');
-      const formData = new FormData();
-      formData.append('signature', file);
-      const res = await fetch(`${API_BASE_URL}/api/org/${orgSlug}/invoicing/settings/signature`, {
-        method: 'POST', body: formData,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      setSigUrl(`${API_BASE_URL}/api/org/${orgSlug}/invoicing/settings/signature?t=${Date.now()}`);
-      showToast('Signature uploaded');
-    } catch (err) {
-      showToast(err.message || 'Failed to upload', 'error');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-
-  return (
-    <SectionCard icon={PenTool} title="Authorized Signatory">
-      <div className="flex items-center gap-6">
-        <div className="flex-1">
-          <p className="text-sm text-dark-400 mb-3">Upload a signature image that will appear on generated invoice PDFs.</p>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white rounded-lg text-sm transition-colors"
-          >
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? 'Uploading...' : 'Upload Signature'}
-          </button>
-        </div>
-        {sigUrl && (
-          <div className="bg-white rounded-lg p-3">
-            <img src={sigUrl} alt="Signature" className="h-16 object-contain" />
-          </div>
-        )}
-      </div>
-    </SectionCard>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -424,9 +353,6 @@ export default function SettingsInvoicing() {
           />
         </div>
       </SectionCard>
-
-      {/* ──── Section 3b: Authorized Signatory ──── */}
-      <SignatureUpload orgSlug={orgSlug} />
 
       {/* ──── Section 4: Sequences ──── */}
       <SectionCard icon={Hash} title="Sequences">
