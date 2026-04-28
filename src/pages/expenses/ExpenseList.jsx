@@ -106,8 +106,6 @@ export default function ExpenseList() {
     if (!orgSlug) return;
     try {
       setRefreshing(true);
-      setRows([]);
-      setSummary(null);
       const params = { scope };
       if (statusTab) params.status = statusTab;
       if (search.trim()) params.q = search.trim();
