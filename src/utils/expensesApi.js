@@ -13,6 +13,14 @@ function qs(params = {}) {
 }
 
 const expensesApi = {
+  // ---------- OVERVIEW (list + dashboard in one round-trip) ----------
+  // Returns { expenses, summary, scope } — preferred over calling list() + getDashboard() separately.
+  getOverview(orgSlug, params = {}) {
+    return api.request(`/api/org/${orgSlug}/expenses/overview${qs(params)}`, {
+      _requestKey: `expenses-overview-${orgSlug}`,
+    });
+  },
+
   // ---------- DASHBOARD ----------
   getDashboard(orgSlug, params = {}) {
     return api.request(`/api/org/${orgSlug}/expenses/dashboard${qs(params)}`);

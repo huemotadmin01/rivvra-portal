@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
@@ -10,6 +10,14 @@ import {
   Plus, Search, Loader2, FileText, Receipt, CheckCircle2, XCircle,
   Clock, RefreshCw, Eye, Wallet, AlertCircle,
 } from 'lucide-react';
+
+// ─── Module-level stale-while-revalidate cache ───────────────────────────────
+// Survives re-mounts (tab navigation) so returning to the list is instant.
+// Keyed by "orgSlug:scope:statusTab:search". TTL is soft — we always refresh
+// in the background, but we display stale data immediately so there is no
+// blank/spinner flash on repeated visits.
+const _cache = new Map(); // key → { expenses, summary, ts }
+const CACHE_TTL_MS = 90_000; // 90 s — background-refresh after this
 
 const STATUS_TABS = [
   { key: '', label: 'All' },
@@ -64,6 +72,32 @@ function SummaryCard({ icon: Icon, label, value, sub, accent = 'rivvra' }) {
   );
 }
 
+// Skeleton cards + rows shown on initial uncached load (avoids layout shift)
+function SkeletonCard() {
+  return (
+    <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 animate-pulse">
+      <div className="flex items-center justify-between mb-3">
+        <div className="h-2.5 bg-dark-700 rounded w-20" />
+        <div className="h-4 w-4 bg-dark-700 rounded" />
+      </div>
+      <div className="h-7 bg-dark-700 rounded w-24 mb-2" />
+      <div className="h-2 bg-dark-700 rounded w-32" />
+    </div>
+  );
+}
+
+function SkeletonRow({ cols }) {
+  return (
+    <tr className="border-b border-dark-800">
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="px-4 py-3">
+          <div className="h-3 bg-dark-700 rounded animate-pulse" style={{ width: `${50 + (i * 17) % 40}%` }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
 export default function ExpenseList() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -77,8 +111,7 @@ export default function ExpenseList() {
   const isManager = isOrgAdmin || expensesAppRole === 'admin' || isTeamLead;
   const companyCurrency = (currentCompany?.currency || 'INR').toUpperCase();
 
-  // Scope is derived from the URL path. The sidebar exposes one entry per scope,
-  // so the URL is the source of truth — never localStorage.
+  // Scope is derived from the URL path — the sidebar exposes one entry per scope.
   const requestedScope = useMemo(() => {
     if (location.pathname.endsWith('/expenses/all')) return 'all';
     if (location.pathname.endsWith('/expenses/team')) return 'team';
@@ -97,41 +130,117 @@ export default function ExpenseList() {
   const scope = requestedScope;
   const [statusTab, setStatusTab] = useState('');
   const [search, setSearch] = useState('');
-  const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
+
+  // ── Cache-seeded initial state ──────────────────────────────────────────
+  // Build the cache key immediately so useState initializers can use it.
+  // Note: we include orgSlug + scope in the key; statusTab/search start empty.
+  const initKey = `${orgSlug}:${scope}::`;
+  const initHit = _cache.get(initKey);
+  const [rows, setRows] = useState(initHit?.expenses || []);
+  const [summary, setSummary] = useState(initHit?.summary || null);
+  // Show spinner only when there is no cached data at all.
+  const [loading, setLoading] = useState(!initHit);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  // Abort controller ref so we can cancel in-flight requests on unmount / re-call.
+  const abortRef = useRef(null);
+
+  // ── Main data loader ────────────────────────────────────────────────────
+  // KEY FIX: `currentCompany?._id` is intentionally NOT in the dependency array.
+  //   - It was never used inside the function body.
+  //   - Its presence caused a second API call whenever CompanyContext finished
+  //     loading (~2 s after mount), resulting in the visible "data → blank → data"
+  //     flash that the user reported.
+  //   - Company switches always trigger window.location.reload(), so reactive
+  //     re-loading on company change is unnecessary.
+  //   The X-Company-Id request header is sourced from localStorage (set by
+  //   CompanyContext on previous sessions), so the FIRST API call already
+  //   carries the correct company scope without waiting for context.
+  const load = useCallback(async (force = false) => {
     if (!orgSlug) return;
+
+    const cacheKey = `${orgSlug}:${scope}:${statusTab}:${search.trim()}`;
+    const hit = _cache.get(cacheKey);
+
+    // Serve stale data instantly (stale-while-revalidate).
+    if (hit && !force) {
+      setRows(hit.expenses);
+      setSummary(hit.summary);
+      setLoading(false);
+      // Skip network if still fresh
+      if (Date.now() - hit.ts < CACHE_TTL_MS) return;
+    }
+
+    // Cancel any previous in-flight fetch before starting a new one.
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
     try {
       setRefreshing(true);
       const params = { scope };
       if (statusTab) params.status = statusTab;
       if (search.trim()) params.q = search.trim();
-      const [listRes, dashRes] = await Promise.all([
-        expensesApi.list(orgSlug, params),
-        expensesApi.getDashboard(orgSlug, { scope }),
-      ]);
-      setRows(listRes?.expenses || []);
-      setSummary(dashRes?.summary || null);
+
+      // Single combined round-trip: list + summary in one HTTP request.
+      const res = await expensesApi.getOverview(orgSlug, params);
+
+      if (ctrl.signal.aborted) return;
+
+      const freshExpenses = res?.expenses || [];
+      const freshSummary = res?.summary || null;
+
+      _cache.set(cacheKey, { expenses: freshExpenses, summary: freshSummary, ts: Date.now() });
+      setRows(freshExpenses);
+      setSummary(freshSummary);
     } catch (err) {
+      if (err.name === 'AbortError') return; // navigation cancelled the fetch — not an error
       showToast(err.message || 'Failed to load expenses', 'error');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!ctrl.signal.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, scope, statusTab, search, showToast, currentCompany?._id]);
+  }, [orgSlug, scope, statusTab, search, showToast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, [load]);
 
-  const filteredRows = useMemo(() => rows, [rows]);
+  // ── Render ──────────────────────────────────────────────────────────────
+  const skeletonCols = scope === 'all' ? 9 : 7;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 text-rivvra-500 animate-spin" />
+      <div className="min-h-screen bg-dark-900">
+        <div className="bg-dark-850 border-b border-dark-700 px-4 sm:px-6 lg:px-8 py-4">
+          <div className="max-w-[1400px] mx-auto">
+            <div className="h-7 bg-dark-700 rounded w-40 animate-pulse mb-1" />
+            <div className="h-3 bg-dark-700 rounded w-64 animate-pulse" />
+          </div>
+        </div>
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+          </div>
+          <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-dark-800">
+                  {Array.from({ length: skeletonCols }).map((_, i) => (
+                    <th key={i} className="px-4 py-3"><div className="h-2.5 bg-dark-700 rounded animate-pulse" /></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((i) => <SkeletonRow key={i} cols={skeletonCols} />)}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     );
   }
@@ -157,7 +266,7 @@ export default function ExpenseList() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={load}
+              onClick={() => load(true)}
               disabled={refreshing}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-dark-800 hover:bg-dark-700 border border-dark-700 rounded-lg text-sm text-dark-200 transition-colors disabled:opacity-60"
               title="Refresh"
@@ -241,7 +350,7 @@ export default function ExpenseList() {
 
         {/* Table */}
         <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
-          {filteredRows.length === 0 ? (
+          {rows.length === 0 ? (
             <div className="text-center py-16">
               <FileText size={32} className="text-dark-600 mx-auto mb-3" />
               <p className="text-dark-400 text-sm">No expenses found</p>
@@ -270,7 +379,7 @@ export default function ExpenseList() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-800">
-                  {filteredRows.map((r) => {
+                  {rows.map((r) => {
                     const lineCount = (r.lines || []).length;
                     return (
                       <tr
@@ -341,6 +450,14 @@ export default function ExpenseList() {
             </div>
           )}
         </div>
+
+        {/* Subtle background-refresh indicator */}
+        {refreshing && (
+          <div className="flex items-center justify-center gap-2 text-xs text-dark-500">
+            <Loader2 size={12} className="animate-spin" />
+            Refreshing…
+          </div>
+        )}
       </div>
     </div>
   );
