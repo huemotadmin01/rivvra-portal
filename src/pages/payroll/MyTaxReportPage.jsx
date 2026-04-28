@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getMyTaxReport, getMyTaxAvailableFYs, updateMyTaxRegime } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { BarChart3, ChevronDown, ChevronUp, TrendingDown, TrendingUp, IndianRupee, Calendar, ArrowRightLeft } from 'lucide-react';
@@ -16,6 +17,7 @@ function getCurrentFY() {
 
 export default function MyTaxReportPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
@@ -26,17 +28,21 @@ export default function MyTaxReportPage() {
 
   useEffect(() => {
     (async () => {
+      setFys([]);
       try {
         const res = await getMyTaxAvailableFYs(orgSlug);
         setFys(res.financialYears || []);
       } catch (err) { /* ignore */ }
     })();
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
-  useEffect(() => { loadReport(); }, [orgSlug, selectedFY]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadReport(); }, [orgSlug, currentCompany?._id, selectedFY]);
 
   async function loadReport() {
     setLoading(true);
+    setReport(null);
     try {
       const res = await getMyTaxReport(orgSlug, selectedFY);
       setReport(res.report);

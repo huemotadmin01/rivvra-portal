@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
@@ -147,6 +148,7 @@ function SortableTh({ children, align = 'left', sortKey, sortState, onSort }) {
 export default function MyEarnings() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
@@ -180,10 +182,14 @@ export default function MyEarnings() {
   useEffect(() => {
     if (orgSlug) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, monthFilter, page]);
+  }, [orgSlug, currentCompany?._id, monthFilter, page]);
 
   async function load() {
     setLoading(true);
+    setRecords([]);
+    setSummary(null);
+    setTotal(0);
+    setStatusCounts({});
     try {
       const [recRes, sumRes] = await Promise.all([
         incentiveApi.listRecords(orgSlug, {

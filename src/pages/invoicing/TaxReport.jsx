@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, ArrowLeft, Receipt, Search } from 'lucide-react';
@@ -28,6 +29,7 @@ export default function TaxReport() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const { isMobile } = usePlatform();
+  const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
 
   const defaults = getDefaultDateRange();
@@ -41,6 +43,9 @@ export default function TaxReport() {
     if (!orgSlug) return;
     setLoading(true);
     setError(null);
+    // Reset on company switch so the previous company's tax totals don't
+    // linger if the new fetch returns nothing.
+    setData(null);
     invoicingApi
       .getTaxReport(orgSlug, { from: fromDate, to: toDate })
       .then((res) => setData(res))
@@ -51,7 +56,7 @@ export default function TaxReport() {
   useEffect(() => {
     fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   const summary = data?.summary || {};
   const breakdown = data?.breakdown || [];

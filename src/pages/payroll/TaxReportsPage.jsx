@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { getStatutoryConfigs, getEmployeeTaxReport } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
@@ -26,6 +27,7 @@ function TaxRow({ label, value, bold, negative, sub, highlight, color }) {
 
 export default function TaxReportsPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const { fyApi: fy } = usePeriod();
   const [employees, setEmployees] = useState([]);
@@ -39,13 +41,17 @@ export default function TaxReportsPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setEmployees([]);
+      setExpandedEmp(null);
+      setTaxReport(null);
       try {
         const res = await getStatutoryConfigs(orgSlug);
         setEmployees((res.data || []).map(d => d.employee));
       } catch { showToast('Failed to load employees', 'error'); }
       finally { setLoading(false); }
     })();
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   const toggleReport = async (empId) => {
     if (expandedEmp === empId) { setExpandedEmp(null); setTaxReport(null); return; }

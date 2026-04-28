@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CheckCircle2, XCircle, Loader2, Calendar, Clock, User, AlertTriangle, RotateCcw } from 'lucide-react';
@@ -31,6 +32,7 @@ function formatDate(dateStr) {
 
 export default function LeaveApprovals() {
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
@@ -40,6 +42,7 @@ export default function LeaveApprovals() {
 
   const load = async () => {
     setLoading(true);
+    setRequests([]);
     try {
       const data = await getAllLeaveRequests();
       setRequests(Array.isArray(data) ? data : data.requests || data.leaveRequests || data.data || []);
@@ -51,7 +54,8 @@ export default function LeaveApprovals() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [currentCompany?._id]);
 
   const handleApprove = async (id) => {
     if (!window.confirm('Are you sure you want to approve this leave request?')) return;

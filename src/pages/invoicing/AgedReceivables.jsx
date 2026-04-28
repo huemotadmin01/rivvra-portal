@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, ArrowLeft, Users } from 'lucide-react';
@@ -35,6 +36,7 @@ export default function AgedReceivables() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const { isMobile } = usePlatform();
+  const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
 
   const [data, setData] = useState(null);
@@ -44,12 +46,16 @@ export default function AgedReceivables() {
   useEffect(() => {
     if (!orgSlug) return;
     setLoading(true);
+    setError(null);
+    // Reset on company switch so the previous company's aging totals don't
+    // linger if the new fetch returns nothing.
+    setData(null);
     invoicingApi
       .getAgedReceivables(orgSlug)
       .then((res) => setData(res))
       .catch((err) => setError(err.message || 'Failed to load aged receivables'))
       .finally(() => setLoading(false));
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   // Loading state
   if (loading) {

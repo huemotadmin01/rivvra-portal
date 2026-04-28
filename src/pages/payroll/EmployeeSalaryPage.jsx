@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import {
   getEmployeeSalaries, getSalaryStructures, createEmployeeSalary, reviseEmployeeSalary,
   getEmployeeSalaryHistory, getUnconfiguredEmployees,
@@ -12,6 +13,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
 export default function EmployeeSalaryPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [salaries, setSalaries] = useState([]);
   const [structures, setStructures] = useState([]);
@@ -25,6 +27,9 @@ export default function EmployeeSalaryPage() {
 
   const load = async () => {
     setLoading(true);
+    setSalaries([]);
+    setStructures([]);
+    setUnconfigured([]);
     try {
       const [salRes, structRes, unRes] = await Promise.all([
         getEmployeeSalaries(orgSlug),
@@ -38,7 +43,8 @@ export default function EmployeeSalaryPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [orgSlug, currentCompany?._id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -552,7 +552,7 @@ export default function ContactDetail() {
   const [searchParams] = useSearchParams();
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
-  const { companyCountry } = useCompany();
+  const { companyCountry, currentCompany } = useCompany();
   const { showToast } = useToast();
   const fromInvoice = searchParams.get('from') === 'invoice';
   const fromInvoiceId = searchParams.get('invoiceId');
@@ -620,6 +620,9 @@ export default function ContactDetail() {
     if (!orgSlug || !contactId) return;
     setLoading(true);
     setNotFound(false);
+    // Reset on company switch so the previous company's contact data doesn't
+    // linger if the new fetch returns 404 (contact belongs to other company).
+    setChildContacts([]);
 
     try {
       const res = await contactsApi.get(orgSlug, contactId);
@@ -635,7 +638,7 @@ export default function ContactDetail() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, contactId, showToast]);
+  }, [orgSlug, contactId, currentCompany?._id, showToast]);
 
   useEffect(() => {
     fetchContact();
@@ -645,6 +648,11 @@ export default function ContactDetail() {
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
+    // Reset on company switch so the previous company's dropdown options
+    // don't linger if the new fetch returns nothing.
+    setSalespersons([]);
+    setPaymentTerms([]);
+    setProducts([]);
 
     contactsApi.listSalespersons(orgSlug).catch(() => ({ success: false }))
       .then((spRes) => {
@@ -660,7 +668,7 @@ export default function ContactDetail() {
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   // Fetch attachments
   const loadAttachments = useCallback(async () => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
@@ -399,6 +400,7 @@ function StatementRow({ statement, orgSlug, showToast, onRefresh }) {
 
 export default function BankReconciliation() {
   const { orgSlug } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [statements, setStatements] = useState([]);
@@ -409,6 +411,7 @@ export default function BankReconciliation() {
   const fetchStatements = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    setStatements([]);
     try {
       const res = await invoicingApi.listBankStatements(orgSlug);
       setStatements(res.statements || res.data || []);
@@ -417,7 +420,8 @@ export default function BankReconciliation() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, showToast, currentCompany?._id]);
 
   useEffect(() => {
     fetchStatements();

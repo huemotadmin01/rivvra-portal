@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -180,6 +181,7 @@ function NewCandidateModal({ show, onClose, onSaved, orgSlug }) {
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsCandidates() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -202,6 +204,9 @@ export default function AtsCandidates() {
   const fetchCandidates = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    setCandidates([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const res = await atsApi.listCandidates(orgSlug, {
         page: params.page || page,
@@ -219,7 +224,8 @@ export default function AtsCandidates() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, search, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, page, search, showToast]);
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 

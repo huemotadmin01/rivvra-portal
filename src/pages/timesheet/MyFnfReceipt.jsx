@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import fnfApi from '../../utils/fnfApi';
 import { FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: 'num
 export default function MyFnfReceipt() {
   const { orgSlug } = usePlatform();
   const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [settlement, setSettlement] = useState(null);
@@ -28,6 +30,7 @@ export default function MyFnfReceipt() {
     (async () => {
       setLoading(true);
       setError(null);
+      setSettlement(null);
       try {
         const res = await fnfApi.getMySettlement(orgSlug);
         if (!cancelled) setSettlement(res?.data || null);
@@ -38,7 +41,7 @@ export default function MyFnfReceipt() {
       }
     })();
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   if (loading) {
     return (

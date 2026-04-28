@@ -4,6 +4,7 @@ import { useTimesheetContext } from '../../context/TimesheetContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi, { getMyLeaveBalances, getPendingLeaveRequests } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TwoCardSkeleton, PendingListSkeleton, CardListSkeleton } from '../../components/Skeletons';
@@ -87,6 +88,14 @@ function ContractorDashboard() {
     && !(empType === 'internal_consultant' && timesheetUser?.billable);
 
   useEffect(() => {
+    setLoading(true);
+    setCurrent(null);
+    setPrevious(null);
+    setDisbursement(null);
+    setTimesheets([]);
+    setLeaveBalances(null);
+    setCelebrations([]);
+    setPosts([]);
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     const fetches = [
@@ -626,6 +635,7 @@ function AdminDashboard() {
   const { timesheetUser } = useTimesheetContext();
   const { showToast } = useToast();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const [timesheets, setTimesheets] = useState([]);
   const [attendances, setAttendances] = useState([]);
   const [pendingLeaves, setPendingLeaves] = useState(0);
@@ -641,6 +651,14 @@ function AdminDashboard() {
   const [commentInputs, setCommentInputs] = useState({});
 
   useEffect(() => {
+    setLoading(true);
+    setTimesheets([]);
+    setAttendances([]);
+    setPendingLeaves(0);
+    setCelebrations([]);
+    setPosts([]);
+    setTsDataReady(false);
+    setAttDataReady(false);
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     // Fetch only current month + submitted timesheets (not ALL history)
@@ -669,7 +687,7 @@ function AdminDashboard() {
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
     ]).finally(() => setLoading(false));
     return () => controller.abort();
-  }, []);
+  }, [currentCompany?._id]);
 
   // Social feed handlers
   const handleCreatePost = async () => {

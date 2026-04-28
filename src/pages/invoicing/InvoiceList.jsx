@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -87,6 +88,7 @@ function StatusChips({ invoice }) {
 export default function InvoiceList() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -135,6 +137,14 @@ export default function InvoiceList() {
   const fetchInvoices = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    // Reset state on every company switch so stale numbers from the previous
+    // company never linger if the new fetch returns nothing.
+    setInvoices([]);
+    setTotal(0);
+    setTotalPages(1);
+    setStatusCounts({});
+    setPaymentStatusCounts({});
+    setOverdueCount(0);
     try {
       const params = { page };
       const tab = STATUS_TABS.find(t => t.key === statusFilter);
@@ -161,7 +171,7 @@ export default function InvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, statusFilter, search, page, journalCode]);
+  }, [orgSlug, currentCompany?._id, statusFilter, search, page, journalCode]);
 
   useEffect(() => {
     fetchInvoices();

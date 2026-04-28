@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -537,6 +538,7 @@ function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, re
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsPipeline() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -574,6 +576,7 @@ export default function AtsPipeline() {
   const fetchKanban = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    setColumns([]);
     try {
       const res = await atsApi.getKanban(orgSlug, {
         search: params.search !== undefined ? params.search : search,
@@ -590,11 +593,15 @@ export default function AtsPipeline() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, search, jobFilter, recruiterFilter, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, search, jobFilter, recruiterFilter, showToast]);
 
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
     if (!orgSlug) return;
+    setJobs([]);
+    setStages([]);
+    setRecruiters([]);
     try {
       const [jobsRes, stagesRes, recruitersRes] = await Promise.all([
         atsApi.listJobs(orgSlug, { limit: 200 }),
@@ -607,7 +614,8 @@ export default function AtsPipeline() {
     } catch (err) {
       console.error('Failed to load dropdowns:', err);
     }
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => { fetchKanban(); }, [fetchKanban]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);

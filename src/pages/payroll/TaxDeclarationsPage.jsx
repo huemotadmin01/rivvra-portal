@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
@@ -9,6 +10,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
 export default function TaxDeclarationsPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const { fyApi: fy } = usePeriod();
   const [declarations, setDeclarations] = useState([]);
@@ -20,6 +22,8 @@ export default function TaxDeclarationsPage() {
 
   const load = async () => {
     setLoading(true);
+    setDeclarations([]);
+    setEmployees([]);
     try {
       const [declRes, empRes] = await Promise.all([
         getTaxDeclarations(orgSlug, fy),
@@ -31,7 +35,8 @@ export default function TaxDeclarationsPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [orgSlug, fy]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [orgSlug, currentCompany?._id, fy]);
 
   const openEmployee = (emp) => {
     const decl = declarations.find(d => d.employeeId === emp._id.toString());

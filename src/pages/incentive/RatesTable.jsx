@@ -14,6 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -75,6 +76,7 @@ function toDateInputValue(d) {
 
 export default function RatesTable() {
   const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const orgSlug = currentOrg?.slug;
 
@@ -92,10 +94,11 @@ export default function RatesTable() {
       loadEmployees();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   async function load() {
     setLoading(true);
+    setRates([]);
     try {
       const res = await incentiveApi.listRates(orgSlug);
       setRates(res?.rates || res || []);
@@ -108,6 +111,7 @@ export default function RatesTable() {
   }
 
   async function loadEmployees() {
+    setEmployees([]);
     try {
       const res = await incentiveApi.lookupEmployees(orgSlug);
       setEmployees(res?.employees || res || []);

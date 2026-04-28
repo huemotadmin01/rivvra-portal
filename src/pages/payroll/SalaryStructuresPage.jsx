@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getSalaryStructures, createSalaryStructure, updateSalaryStructure, deleteSalaryStructure, setDefaultStructure, getPublicPlatformSetting } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { Plus, Edit2, Trash2, Star, X } from 'lucide-react';
@@ -14,6 +15,7 @@ const FALLBACK_COMPONENTS = [
 
 export default function SalaryStructuresPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [structures, setStructures] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
 
   const load = async () => {
     setLoading(true);
+    setStructures([]);
     try {
       const res = await getSalaryStructures(orgSlug);
       setStructures(res.structures || []);
@@ -31,7 +34,8 @@ export default function SalaryStructuresPage({ embedded = false }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [orgSlug, currentCompany?._id]);
 
   // Fetch default structure template from platform settings
   useEffect(() => {

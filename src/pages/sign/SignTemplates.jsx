@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import {
@@ -275,6 +276,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
 export default function SignTemplates() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -292,6 +294,7 @@ export default function SignTemplates() {
   const fetchTemplates = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    setTemplates([]);
     try {
       const res = await signApi.listTemplates(orgSlug);
       if (res.success !== false) {
@@ -304,7 +307,8 @@ export default function SignTemplates() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, showToast, currentCompany?._id]);
 
   useEffect(() => {
     fetchTemplates();

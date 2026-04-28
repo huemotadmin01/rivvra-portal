@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getMySalary, getMyTax } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { IndianRupee, Briefcase, Shield, TrendingUp, FileText } from 'lucide-react';
@@ -8,6 +9,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
 export default function MySalaryPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [salary, setSalary] = useState(null);
   const [statutory, setStatutory] = useState(null);
@@ -18,6 +20,10 @@ export default function MySalaryPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setSalary(null);
+      setStatutory(null);
+      setEmployee(null);
+      setTax(null);
       try {
         const [salRes, taxRes] = await Promise.all([
           getMySalary(orgSlug),
@@ -33,7 +39,8 @@ export default function MySalaryPage() {
         setLoading(false);
       }
     })();
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 

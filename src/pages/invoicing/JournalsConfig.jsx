@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -38,6 +39,7 @@ const EMPTY_JOURNAL = {
 
 export default function JournalsConfig() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [journals, setJournals] = useState([]);
@@ -53,6 +55,9 @@ export default function JournalsConfig() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    // Reset on company switch so the previous company's journals don't linger
+    // if the new fetch returns nothing.
+    setJournals([]);
     try {
       const res = await invoicingApi.listJournals(orgSlug);
       setJournals(res.journals || res.data || []);
@@ -61,7 +66,7 @@ export default function JournalsConfig() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => {
     if (orgSlug) loadData();

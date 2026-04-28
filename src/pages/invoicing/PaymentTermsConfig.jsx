@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import {
@@ -16,6 +17,7 @@ const EMPTY_TERM = {
 
 export default function PaymentTermsConfig() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [terms, setTerms] = useState([]);
@@ -29,6 +31,7 @@ export default function PaymentTermsConfig() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setTerms([]);
     try {
       const res = await invoicingApi.listPaymentTerms(orgSlug);
       setTerms(res.paymentTerms || res.data || []);
@@ -37,7 +40,8 @@ export default function PaymentTermsConfig() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => {
     if (orgSlug) loadData();

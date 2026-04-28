@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getPTMaster, seedPTMaster, updatePTMasterConfig, getPayrollSettings, updatePayrollSettings } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { MapPin, Plus, Save, X, ChevronDown, ChevronRight, Settings2, Loader2 } from 'lucide-react';
@@ -13,6 +14,7 @@ const CURRENT_FY = (() => {
 
 export default function PTMasterPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,8 @@ export default function PTMasterPage({ embedded = false }) {
 
   const load = async () => {
     setLoading(true);
+    setConfigs([]);
+    setDefaultPtState('');
     try {
       const [res, settingsRes] = await Promise.all([
         getPTMaster(orgSlug, fy),
@@ -38,7 +42,8 @@ export default function PTMasterPage({ embedded = false }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [orgSlug, fy]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [orgSlug, currentCompany?._id, fy]);
 
   const handleSeed = async () => {
     setSeeding(true);

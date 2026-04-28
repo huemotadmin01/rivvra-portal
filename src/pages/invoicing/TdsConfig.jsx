@@ -57,6 +57,9 @@ export default function TdsConfig() {
   const loadData = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    // Reset on company switch so the previous company's TDS sections don't
+    // linger if the new fetch returns nothing.
+    setRows([]);
     try {
       const res = await invoicingApi.listTdsConfig(orgSlug);
       setRows(res.rows || []);

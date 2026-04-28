@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getMyPayslips, downloadMyPayslipPdf, downloadImportedPayslipPdf, bulkDownloadMyPayslips } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { FileText, ChevronDown, ChevronUp, Download, CheckSquare, Square, Package } from 'lucide-react';
@@ -19,6 +20,7 @@ function triggerDownload(blob, filename) {
 
 export default function MyPayslipsPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [payslips, setPayslips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,7 @@ export default function MyPayslipsPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setPayslips([]);
       try {
         const res = await getMyPayslips(orgSlug);
         setPayslips(res.payslips || []);
@@ -38,7 +41,8 @@ export default function MyPayslipsPage() {
         setLoading(false);
       }
     })();
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   const payslipKey = (p) => `${p.year}-${p.month}`;
 

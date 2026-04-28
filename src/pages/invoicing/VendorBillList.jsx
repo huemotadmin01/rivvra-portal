@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
@@ -86,6 +87,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { orgSlug, orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const isEmployeeMode = mode === 'employee';
   const headerTitle = isEmployeeMode ? 'Employee Bills' : 'Vendor Bills';
@@ -118,6 +120,14 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
 
   const loadBills = useCallback(async () => {
     setLoading(true);
+    // Reset on company switch so the previous company's bills don't linger
+    // if the new fetch returns nothing.
+    setBills([]);
+    setTotal(0);
+    setTotalPages(1);
+    setStatusCounts({});
+    setPaymentStatusCounts({});
+    setOverdueCount(0);
     try {
       const params = {
         page,
@@ -148,7 +158,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, activeTab, search, sortField, sortOrder, isEmployeeMode]);
+  }, [orgSlug, currentCompany?._id, page, activeTab, search, sortField, sortOrder, isEmployeeMode]);
 
   useEffect(() => {
     if (orgSlug) loadBills();

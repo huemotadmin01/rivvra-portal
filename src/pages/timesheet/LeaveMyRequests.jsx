@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useTimesheetContext } from '../../context/TimesheetContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getMyLeaveRequests, getMyLeaveBalances, cancelLeaveRequest } from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CalendarDays, X, Loader2, Inbox } from 'lucide-react';
@@ -44,6 +45,7 @@ function isFutureDate(dateStr) {
 export default function LeaveMyRequests() {
   const { showToast } = useToast();
   const { timesheetUser } = useTimesheetContext();
+  const { currentCompany } = useCompany();
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,9 @@ export default function LeaveMyRequests() {
   const [cancelModalId, setCancelModalId] = useState(null);
 
   const loadData = async () => {
+    setLoading(true);
+    setRequests([]);
+    setBalances([]);
     try {
       const [reqData, balData] = await Promise.all([
         getMyLeaveRequests(),
@@ -68,9 +73,10 @@ export default function LeaveMyRequests() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentCompany?._id]);
 
   const handleCancel = async () => {
     if (!cancelModalId) return;

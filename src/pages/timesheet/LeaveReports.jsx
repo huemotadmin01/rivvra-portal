@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getLeaveReportSummary, getLeaveReportUtilization, exportLeaveReport } from '../../utils/timesheetApi';
 import { PageSkeleton } from '../../components/Skeletons';
 import { Download, Loader2, Users, TrendingUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -24,6 +25,7 @@ const ITEMS_PER_PAGE = 15;
 
 export default function LeaveReports() {
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [tab, setTab] = useState('summary');
   const [loading, setLoading] = useState(true);
   const [summaryData, setSummaryData] = useState(null);
@@ -38,6 +40,7 @@ export default function LeaveReports() {
 
   const loadSummary = async () => {
     setLoading(true);
+    setSummaryData(null);
     try {
       const res = await getLeaveReportSummary({ financialYear: fy });
       setSummaryData(res);
@@ -50,6 +53,7 @@ export default function LeaveReports() {
 
   const loadUtilization = async () => {
     setLoading(true);
+    setUtilizationData(null);
     try {
       const res = await getLeaveReportUtilization({ year: utilYear });
       setUtilizationData(res);
@@ -60,10 +64,11 @@ export default function LeaveReports() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tab === 'summary') loadSummary();
     else loadUtilization();
-  }, [tab, fy, utilYear]);
+  }, [tab, fy, utilYear, currentCompany?._id]);
 
   const handleExport = async () => {
     setExporting(true);

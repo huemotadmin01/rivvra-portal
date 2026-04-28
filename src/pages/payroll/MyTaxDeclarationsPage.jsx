@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs, uploadTaxProof, deleteTaxProof, downloadTaxProof, getTaxProofUrl, getPublicPlatformSetting } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
@@ -39,6 +40,7 @@ const STATUS_STYLES = {
 
 export default function MyTaxDeclarationsPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,10 +79,24 @@ export default function MyTaxDeclarationsPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { loadData(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadData(); }, [orgSlug, currentCompany?._id]);
 
   async function loadData() {
     setLoading(true);
+    setTaxInfo(null);
+    setRegime('new');
+    setProofs([]);
+    setComparison(null);
+    setStatus(null);
+    setDeclarations({
+      section80C: 0,
+      section80D: { self: 0, parents: 0 },
+      section80E: 0,
+      section80G: 0,
+      section24b: 0,
+      hra: { rentPaidMonthly: 0, landlordName: '', landlordPan: '', cityType: 'non-metro' },
+    });
     try {
       const [taxRes, reportRes, proofsRes] = await Promise.all([
         getMyTax(orgSlug),

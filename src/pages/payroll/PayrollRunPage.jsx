@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
 import {
   getPayrollRuns, getPayrollRun, createPayrollRun, processPayrollRun,
@@ -33,6 +34,7 @@ export default function PayrollRunPage() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
   const { month: periodMonth, year: periodYear } = usePeriod();
+  const { currentCompany } = useCompany();
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,8 @@ export default function PayrollRunPage() {
 
   const loadRuns = async () => {
     setLoading(true);
+    setRuns([]);
+    setSelectedRun(null);
     try {
       const res = await getPayrollRuns(orgSlug);
       setRuns(res.runs || []);
@@ -70,7 +74,8 @@ export default function PayrollRunPage() {
     } catch (err) { showToast(err.response?.data?.message || 'Failed to load run', 'error'); }
   };
 
-  useEffect(() => { loadRuns(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadRuns(); }, [orgSlug, currentCompany?._id]);
 
   const handleCreate = async () => {
     try {

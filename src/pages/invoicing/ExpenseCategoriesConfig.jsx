@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import {
@@ -15,6 +16,7 @@ const EMPTY_CATEGORY = {
 
 export default function ExpenseCategoriesConfig() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [categories, setCategories] = useState([]);
@@ -29,6 +31,7 @@ export default function ExpenseCategoriesConfig() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setCategories([]);
     try {
       const res = await invoicingApi.listExpenseCategories(orgSlug, {
         includeInactive: showInactive ? 1 : '',
@@ -39,7 +42,8 @@ export default function ExpenseCategoriesConfig() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showInactive]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, showInactive, currentCompany?._id]);
 
   useEffect(() => {
     if (orgSlug) loadData();

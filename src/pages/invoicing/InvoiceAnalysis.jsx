@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import {
   Loader2, ArrowLeft, Search, TrendingUp, Users, Package,
@@ -78,6 +79,7 @@ export default function InvoiceAnalysis() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const { isMobile } = usePlatform();
+  const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
 
   const defaults = getDefaultDateRange();
@@ -91,6 +93,9 @@ export default function InvoiceAnalysis() {
     if (!orgSlug) return;
     setLoading(true);
     setError(null);
+    // Reset on company switch so the previous company's chart data doesn't
+    // linger if the new fetch returns nothing.
+    setData(null);
     invoicingApi
       .getInvoiceAnalysis(orgSlug, { dateFrom: fromDate, dateTo: toDate })
       .then((res) => setData(res))
@@ -101,7 +106,7 @@ export default function InvoiceAnalysis() {
   useEffect(() => {
     fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   const revenueByPeriod = data?.byPeriod || data?.revenueByPeriod || [];
   const topCustomers = data?.byCustomer || data?.topCustomers || [];

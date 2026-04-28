@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import {
   getInternPayrollRuns, getInternPayrollRun, createInternPayrollRun, processInternPayrollRun,
   finalizeInternPayrollRun, markInternPayrollRunPaid, deleteInternPayrollRun,
@@ -22,6 +23,7 @@ const STATUS_COLORS = {
 
 export default function InternPayrollPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
@@ -35,6 +37,8 @@ export default function InternPayrollPage() {
 
   const loadRuns = async () => {
     setLoading(true);
+    setRuns([]);
+    setSelectedRun(null);
     try {
       const res = await getInternPayrollRuns(orgSlug);
       setRuns(res.runs || []);
@@ -49,7 +53,8 @@ export default function InternPayrollPage() {
     } catch (err) { showToast('Failed to load run', 'error'); }
   };
 
-  useEffect(() => { loadRuns(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadRuns(); }, [orgSlug, currentCompany?._id]);
 
   const handleCreate = async () => {
     try {

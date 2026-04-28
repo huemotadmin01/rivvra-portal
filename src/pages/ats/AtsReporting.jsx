@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import {
@@ -103,6 +104,7 @@ function RecruiterTable({ data, totalApplications }) {
 /* ── Main AtsReporting Component ──────────────────────────────────────── */
 export default function AtsReporting() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const isAdmin = getAppRole('ats') === 'admin';
@@ -114,6 +116,7 @@ export default function AtsReporting() {
   const fetchDashboard = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    setData(null);
     try {
       const res = await atsApi.getDashboard(orgSlug);
       if (res.success) {
@@ -126,7 +129,8 @@ export default function AtsReporting() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => {
     if (isAdmin) fetchDashboard();

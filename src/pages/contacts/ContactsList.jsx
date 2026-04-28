@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import {
@@ -64,6 +65,7 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
 export default function ContactsList({ filterType }) {
   const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -95,6 +97,10 @@ export default function ContactsList({ filterType }) {
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
+    // Reset on company switch so the previous company's tag/salesperson
+    // dropdowns don't linger if the new fetch returns nothing.
+    setTags([]);
+    setSalespersons([]);
 
     Promise.all([
       contactsApi.listTags(orgSlug).catch(() => ({ success: false })),
@@ -106,12 +112,17 @@ export default function ContactsList({ filterType }) {
     });
 
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   // ── Fetch contacts ──────────────────────────────────────────────────
   const fetchContacts = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    // Reset on company switch so the previous company's rows don't linger
+    // if the new fetch returns nothing.
+    setContacts([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const res = await contactsApi.list(orgSlug, {
         page: params.page || page,
@@ -133,7 +144,7 @@ export default function ContactsList({ filterType }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, search, typeFilter, tagFilter, salespersonFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, search, typeFilter, tagFilter, salespersonFilter, showToast]);
 
   useEffect(() => {
     fetchContacts();

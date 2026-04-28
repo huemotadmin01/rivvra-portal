@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, SearchBarSkeleton, TableSkeleton } from '../../components/Skeletons';
 import employeeApi from '../../utils/employeeApi';
@@ -15,6 +16,7 @@ const RATE_TYPE_LABELS = {
 export default function TimesheetUsers() {
   const { showToast } = useToast();
   const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -41,6 +43,9 @@ export default function TimesheetUsers() {
 
   const load = () => {
     setLoading(true);
+    setUsers([]);
+    setProjects([]);
+    setClients([]);
     Promise.all([
       timesheetApi.get('/auth/users').then(r => setUsers(
         (r.data || []).map(u => ({
@@ -58,10 +63,11 @@ export default function TimesheetUsers() {
   // Fetch all employees for the dropdown
   useEffect(() => {
     if (!orgSlug) return;
+    setAllEmployees([]);
     employeeApi.list(orgSlug, { status: 'active', limit: 100 }).then(data => {
       setAllEmployees(data?.employees || []);
     }).catch(() => {});
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   // Close employee dropdown on outside click
   useEffect(() => {
@@ -74,7 +80,8 @@ export default function TimesheetUsers() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [currentCompany?._id]);
 
   const resetForm = () => {
     setForm({ fullName: '', email: '', password: '', role: 'contractor', employeeId: '', phone: '', payType: 'daily', dailyRate: '', monthlyRate: '', paidLeavePerMonth: 0, clientBillingRate: '', clientBillingRateType: 'daily', assignedClient: '', assignedProjects: [] });

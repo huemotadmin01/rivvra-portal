@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -464,6 +465,7 @@ function NewJobModal({ show, onClose, onSaved, orgSlug }) {
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsJobPositions() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -496,6 +498,9 @@ export default function AtsJobPositions() {
   const fetchJobs = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    setJobs([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const res = await atsApi.listJobs(orgSlug, {
         page: params.page || page,
@@ -511,11 +516,8 @@ export default function AtsJobPositions() {
         // Build departments list from job data
         const deptSet = new Set();
         (res.jobs || []).forEach((j) => { if (j.department) deptSet.add(j.department); });
-        // Also merge with any pre-existing departments
-        setDepartments((prev) => {
-          const all = new Set([...prev, ...deptSet]);
-          return [...all].sort();
-        });
+        // Reset & rebuild on each fetch (so per-company switches don't leak depts)
+        setDepartments([...deptSet].sort());
       }
     } catch (err) {
       console.error('Failed to load jobs:', err);
@@ -524,7 +526,8 @@ export default function AtsJobPositions() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, search, statusFilter, departmentFilter, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, page, search, statusFilter, departmentFilter, showToast]);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 

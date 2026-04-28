@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getStatutoryConfigs, updateStatutoryConfig, getPTStates } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { Shield, X, Search, CheckCircle, XCircle } from 'lucide-react';
 
 export default function StatutoryConfigPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [data, setData] = useState([]);
   const [ptStates, setPtStates] = useState([]);
@@ -16,6 +18,8 @@ export default function StatutoryConfigPage({ embedded = false }) {
 
   const load = async () => {
     setLoading(true);
+    setData([]);
+    setPtStates([]);
     try {
       const [res, stRes] = await Promise.all([
         getStatutoryConfigs(orgSlug),
@@ -27,7 +31,8 @@ export default function StatutoryConfigPage({ embedded = false }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [orgSlug, currentCompany?._id]);
 
   const openEdit = (item) => {
     const s = item.statutory || {};

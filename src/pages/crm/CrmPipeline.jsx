@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import contactsApi from '../../utils/contactsApi';
@@ -382,6 +383,7 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
 // ═══════════════════════════════════════════════════════════════════════════
 export default function CrmPipeline() {
   const { orgSlug: slug } = useOrg();
+  const { currentCompany } = useCompany();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -397,6 +399,8 @@ export default function CrmPipeline() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const fetchKanban = useCallback(async () => {
+    setLoading(true);
+    setKanban([]);
     try {
       const params = {};
       if (search) params.search = search;
@@ -408,15 +412,17 @@ export default function CrmPipeline() {
     } finally {
       setLoading(false);
     }
-  }, [slug, search, salespersonId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, currentCompany?._id, search, salespersonId]);
 
   useEffect(() => { fetchKanban(); }, [fetchKanban]);
 
   useEffect(() => {
+    setSalespersons([]);
     crmApi.listSalespersons(slug).then(res => {
       if (res.success) setSalespersons(res.salespersons || []);
     }).catch(() => {});
-  }, [slug]);
+  }, [slug, currentCompany?._id]);
 
   // ── DnD handlers ──
   const handleDragStart = (event) => {

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
@@ -42,6 +43,7 @@ function StatCard({ label, value, icon: Icon, color, sub }) {
 export default function IncentiveDashboard() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
@@ -56,10 +58,13 @@ export default function IncentiveDashboard() {
   useEffect(() => {
     if (orgSlug) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, month]);
+  }, [orgSlug, currentCompany?._id, month]);
 
   async function load() {
     setLoading(true);
+    setData(null);
+    setWaiting({ count: 0, groups: [] });
+    setWaitingError(false);
     try {
       // The "waiting on payroll" widget is non-critical — its failure shouldn't
       // blank the whole dashboard. We swallow the rejection here, surface a

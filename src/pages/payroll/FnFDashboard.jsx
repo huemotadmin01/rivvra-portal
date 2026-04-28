@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import fnfApi from '../../utils/fnfApi';
 import {
   Loader2, Calculator, CheckCircle2, Clock, FileText, AlertTriangle,
@@ -32,16 +33,20 @@ function fmtINR(n) {
 export default function FnFDashboard() {
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const [pending, setPending] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all'); // all | scheduled | pending | settled
 
-  useEffect(() => { loadAll(); }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAll(); }, [orgSlug, currentCompany?._id]);
 
   async function loadAll() {
     setLoading(true);
+    setPending([]);
+    setSettlements([]);
     try {
       const [pendingRes, settRes] = await Promise.all([
         fnfApi.getPending(orgSlug),

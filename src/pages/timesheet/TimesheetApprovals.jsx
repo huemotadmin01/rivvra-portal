@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { usePeriod } from '../../context/PeriodContext';
+import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, RotateCcw, Loader2, Lock, Mail } from 'lucide-react';
@@ -15,6 +16,7 @@ const statusColors = {
 
 export default function TimesheetApprovals() {
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
@@ -33,13 +35,15 @@ export default function TimesheetApprovals() {
     controllerRef.current?.abort();
     controllerRef.current = new AbortController();
     setLoading(true);
+    setTimesheets([]);
     timesheetApi.get(`/timesheets?month=${selectedMonth}&year=${selectedYear}`, { signal: controllerRef.current.signal })
       .then(r => setTimesheets((r.data || []).filter(t => !t.isAttendance)))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); return () => controllerRef.current?.abort(); }, [selectedMonth, selectedYear]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); return () => controllerRef.current?.abort(); }, [selectedMonth, selectedYear, currentCompany?._id]);
 
   const handleApprove = async (id) => {
     if (!window.confirm('Are you sure you want to approve this entry?')) return;

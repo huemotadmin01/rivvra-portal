@@ -106,6 +106,8 @@ export default function ExpenseList() {
     if (!orgSlug) return;
     try {
       setRefreshing(true);
+      setRows([]);
+      setSummary(null);
       const params = { scope };
       if (statusTab) params.status = statusTab;
       if (search.trim()) params.q = search.trim();
@@ -121,7 +123,8 @@ export default function ExpenseList() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [orgSlug, scope, statusTab, search, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, scope, statusTab, search, showToast, currentCompany?._id]);
 
   useEffect(() => { load(); }, [load]);
 

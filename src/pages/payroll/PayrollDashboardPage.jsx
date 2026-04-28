@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { getPayrollRuns } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
@@ -22,6 +23,7 @@ const STATUS_COLORS = {
 
 export default function PayrollDashboardPage() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [runs, setRuns] = useState([]);
@@ -30,13 +32,15 @@ export default function PayrollDashboardPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setRuns([]);
       try {
         const res = await getPayrollRuns(orgSlug);
         setRuns(res.runs || []);
       } catch (err) { showToast('Failed to load', 'error'); }
       finally { setLoading(false); }
     })();
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 

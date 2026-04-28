@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import {
@@ -1054,6 +1055,7 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
 export default function SignRequests() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1113,6 +1115,9 @@ export default function SignRequests() {
   const fetchRequests = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    setRequests([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const res = await signApi.listRequests(orgSlug, {
         page: params.page || page,
@@ -1133,17 +1138,20 @@ export default function SignRequests() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, search, statusFilter, templateFilter, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, page, search, statusFilter, templateFilter, showToast, currentCompany?._id]);
 
   const fetchTemplates = useCallback(async () => {
     if (!orgSlug) return;
+    setTemplates([]);
     try {
       const res = await signApi.listTemplates(orgSlug);
       if (res.success !== false) setTemplates(res.templates || []);
     } catch {
       /* ignore */
     }
-  }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);

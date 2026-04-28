@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useTimesheetContext } from '../../context/TimesheetContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getHolidays, updateHolidays, copyHolidaysToYear } from '../../utils/timesheetApi';
 import { PageSkeleton } from '../../components/Skeletons';
 import { Plus, Trash2, Copy, Loader2, Star, ChevronLeft, ChevronRight, Save } from 'lucide-react';
@@ -27,6 +28,7 @@ function toDateStr(d) {
 export default function HolidayCalendar() {
   const { showToast } = useToast();
   const { timesheetUser } = useTimesheetContext();
+  const { currentCompany } = useCompany();
   const isAdmin = timesheetUser?.role === 'admin';
   const [year, setYear] = useState(new Date().getFullYear());
   const [holidays, setHolidays] = useState([]);
@@ -39,6 +41,8 @@ export default function HolidayCalendar() {
 
   const load = async () => {
     setLoading(true);
+    setHolidays([]);
+    setIsDefault(false);
     try {
       const res = await getHolidays({ year });
       setHolidays(res.holidays || []);
@@ -50,7 +54,8 @@ export default function HolidayCalendar() {
     }
   };
 
-  useEffect(() => { load(); }, [year]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [year, currentCompany?._id]);
 
   const handleSave = async () => {
     setSaving(true);

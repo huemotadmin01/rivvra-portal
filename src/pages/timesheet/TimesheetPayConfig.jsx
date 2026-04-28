@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import {
   Search, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   IndianRupee, CalendarDays,
@@ -66,6 +67,7 @@ export default function TimesheetPayConfig() {
   const { timesheetUser } = useTimesheetContext();
   const { getAppRole, currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const orgRole = currentOrg ? getAppRole('timesheet') : null;
   const effectiveRole = orgRole || timesheetUser?.role || 'contractor';
   const isAdmin = effectiveRole === 'admin';
@@ -105,6 +107,10 @@ export default function TimesheetPayConfig() {
   // Data fetching — selected month for summary cards/stepper, current month for disbursements
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
+    setPayrollData(null);
+    setPayConfigData(null);
+    setNotApprovedData(null);
+    setCurrentMonthPayroll(null);
     try {
       const isCurrentMonth = month === currentMonth && year === currentYear;
       const fetches = [
@@ -123,7 +129,8 @@ export default function TimesheetPayConfig() {
     } catch (err) {
       console.error('Dashboard fetch failed:', err);
     } finally { setLoading(false); }
-  }, [month, year, currentMonth, currentYear]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year, currentMonth, currentYear, currentCompany?._id]);
 
   useEffect(() => { if (isAdmin) fetchDashboardData(); else setLoading(false); }, [isAdmin, fetchDashboardData]);
 

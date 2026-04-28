@@ -1,17 +1,20 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { useCompany } from './CompanyContext';
 import timesheetApi, { warmTimesheetBackend } from '../utils/timesheetApi';
 
 const TimesheetContext = createContext(null);
 
 export function TimesheetProvider({ children }) {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [timesheetUser, setTimesheetUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const fetchedRef = useRef(false);
   const lastUserEmailRef = useRef(null);
+  const lastCompanyIdRef = useRef(null);
   const location = useLocation();
   const isInTimesheet = location.pathname.includes('/timesheet');
 
@@ -48,6 +51,18 @@ export function TimesheetProvider({ children }) {
     }
     lastUserEmailRef.current = userEmail;
   }, [userEmail]);
+
+  // Re-fetch when active company changes — same user can resolve to a
+  // different employee record in another company within the same org.
+  const companyId = currentCompany?._id || null;
+  useEffect(() => {
+    if (lastCompanyIdRef.current !== null && companyId !== lastCompanyIdRef.current) {
+      fetchedRef.current = false;
+      setTimesheetUser(null);
+      setError(null);
+    }
+    lastCompanyIdRef.current = companyId;
+  }, [companyId]);
 
   // Pre-warm backend + fetch profile when entering timesheet app
   // Don't auto-retry when there's a permanent error (e.g. 403 no employee record)

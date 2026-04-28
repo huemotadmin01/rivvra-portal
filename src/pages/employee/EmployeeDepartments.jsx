@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
 import { Plus, Edit2, X, Loader2, Users, Building2 } from 'lucide-react';
@@ -8,6 +9,7 @@ const EMPTY_FORM = { name: '', description: '' };
 
 export default function EmployeeDepartments() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const modalRef = useRef(null);
 
@@ -29,6 +31,7 @@ export default function EmployeeDepartments() {
     if (!orgSlug) return;
     try {
       setLoading(true);
+      setDepartments([]);
       const res = await employeeApi.listDepartments(orgSlug);
       if (res.success) {
         setDepartments(res.departments);
@@ -38,7 +41,8 @@ export default function EmployeeDepartments() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => {
     fetchDepartments();

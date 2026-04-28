@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import assetApi from '../../utils/assetApi';
 import { Loader2, Package, Monitor, Headphones, Briefcase, Box, Calendar } from 'lucide-react';
 
@@ -26,18 +27,21 @@ function formatDate(d) {
 
 export default function MyAssets() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
+      setAssets([]);
       try {
         const res = await assetApi.myAssets(orgSlug);
         setAssets(res.data || []);
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     })();
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   if (loading) return (
     <div className="p-6 flex items-center justify-center min-h-[300px]">

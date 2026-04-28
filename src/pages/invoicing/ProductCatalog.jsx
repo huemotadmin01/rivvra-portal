@@ -58,6 +58,10 @@ export default function ProductCatalog() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    // Reset on company switch so the previous company's products don't linger
+    // if the new fetch returns nothing.
+    setProducts([]);
+    setTaxes([]);
     try {
       const [prodRes, taxRes] = await Promise.all([
         invoicingApi.listProducts(orgSlug, { limit: 500 }),
@@ -70,7 +74,7 @@ export default function ProductCatalog() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => {
     if (orgSlug) loadData();

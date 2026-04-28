@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
@@ -290,6 +291,7 @@ function FollowUpLogs({ orgSlug, showToast }) {
 
 export default function FollowUps() {
   const { orgSlug } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [invoices, setInvoices] = useState([]);
@@ -299,6 +301,7 @@ export default function FollowUps() {
   const fetchOverdue = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    setInvoices([]);
     try {
       const res = await invoicingApi.listOverdueInvoices(orgSlug);
       setInvoices(res.invoices || res.data || []);
@@ -307,7 +310,8 @@ export default function FollowUps() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, showToast, currentCompany?._id]);
 
   useEffect(() => {
     fetchOverdue();

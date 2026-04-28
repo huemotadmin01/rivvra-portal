@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import {
@@ -49,6 +50,7 @@ function StatCard({ label, value, icon: Icon, iconColor }) {
 export default function SignDashboard() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -62,6 +64,9 @@ export default function SignDashboard() {
   const fetchDashboard = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    setStats({ total: 0, sent: 0, signed: 0, cancelled: 0 });
+    setTemplateCount(0);
+    setRecentRequests([]);
     try {
       const res = await signApi.getDashboard(orgSlug);
       if (res.success !== false) {
@@ -76,7 +81,8 @@ export default function SignDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, showToast, currentCompany?._id]);
 
   useEffect(() => {
     fetchDashboard();

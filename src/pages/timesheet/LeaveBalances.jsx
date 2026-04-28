@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { usePeriod } from '../../context/PeriodContext';
+import { useCompany } from '../../context/CompanyContext';
 import { getAllLeaveBalances } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
 import { CalendarDays, Search, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -15,6 +16,7 @@ const EMP_TYPE_LABELS = {
 
 export default function LeaveBalances() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
@@ -26,10 +28,14 @@ export default function LeaveBalances() {
   // Employment-status filter: 'active' (default), 'resigned', 'terminated', 'all'
   const [statusFilter, setStatusFilter] = useState('active');
 
-  useEffect(() => { loadData(); }, [orgSlug, fy, statusFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadData(); }, [orgSlug, currentCompany?._id, fy, statusFilter]);
 
   async function loadData() {
     setLoading(true);
+    setData([]);
+    setLeaveTypes([]);
+    setExpandedEmp(null);
     try {
       const res = await getAllLeaveBalances({ financialYear: fy, status: statusFilter });
       setData(res.balances || []);

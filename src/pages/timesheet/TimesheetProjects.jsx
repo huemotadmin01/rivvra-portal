@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { PageSkeleton, HeaderSkeleton, TabsSkeleton, TableSkeleton } from '../../components/Skeletons';
 import { Plus, Edit2, Trash2, X, Building2, FolderKanban, Loader2 } from 'lucide-react';
 
 export default function TimesheetProjects() {
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [clients, setClients] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,13 +21,16 @@ export default function TimesheetProjects() {
 
   const load = () => {
     setLoading(true);
+    setClients([]);
+    setProjects([]);
     Promise.all([
       timesheetApi.get('/clients').then(r => setClients(r.data)),
       timesheetApi.get('/projects').then(r => setProjects(r.data)),
     ]).catch(() => showToast('Failed to load', 'error')).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [currentCompany?._id]);
 
   const saveClient = async (e) => {
     e.preventDefault();

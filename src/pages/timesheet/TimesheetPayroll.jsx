@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
+import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import ExcelJS from 'exceljs';
@@ -55,6 +56,7 @@ const fmtDecimal = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFracti
 export default function TimesheetPayroll() {
   const { timesheetUser } = useTimesheetContext();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
 
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -108,7 +110,12 @@ export default function TimesheetPayroll() {
   const [adjDeleting, setAdjDeleting] = useState(null);
 
   const loadPayroll = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent) {
+      setLoading(true);
+      setData(null);
+      setPayrollRun({ status: 'open' });
+      setNotApprovedData(null);
+    }
     try {
       const [payrollRes, notApprovedRes] = await Promise.all([
         timesheetApi.get('/payroll/summary', { params: { month, year } }),
@@ -125,7 +132,8 @@ export default function TimesheetPayroll() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [month, year]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year, currentCompany?._id]);
 
   useEffect(() => { loadPayroll(); setCurrentPage(1); setShowNotApprovedPopup(false); setShowApprovedPopup(false); }, [loadPayroll]);
   // Reset page on filter/search change

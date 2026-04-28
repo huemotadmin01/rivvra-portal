@@ -8,6 +8,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import MonthPicker from '../../components/incentive/MonthPicker';
@@ -66,6 +67,7 @@ function StatusPill({ status }) {
 export default function RecordsList() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
@@ -94,6 +96,10 @@ export default function RecordsList() {
   const fetchRecords = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
+    setRecords([]);
+    setTotal(0);
+    setTotalPages(1);
+    setStatusCounts({});
     try {
       const res = await incentiveApi.listRecords(orgSlug, {
         scope: 'admin',
@@ -115,7 +121,8 @@ export default function RecordsList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, statusFilter, payoutMonth, search, page, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, statusFilter, payoutMonth, search, page, showToast, currentCompany?._id]);
 
   useEffect(() => {
     fetchRecords();

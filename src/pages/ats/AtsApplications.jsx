@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -355,6 +356,7 @@ function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, re
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsApplications() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -390,6 +392,9 @@ export default function AtsApplications() {
   const fetchApplications = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    setApplications([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const res = await atsApi.listApplications(orgSlug, {
         page: params.page || page,
@@ -413,11 +418,15 @@ export default function AtsApplications() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, search, stageFilter, jobFilter, recruiterFilter, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, page, search, stageFilter, jobFilter, recruiterFilter, showToast]);
 
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
     if (!orgSlug) return;
+    setJobs([]);
+    setStages([]);
+    setRecruiters([]);
     try {
       const [jobsRes, stagesRes, recruitersRes] = await Promise.all([
         atsApi.listJobs(orgSlug, { limit: 200 }),
@@ -430,7 +439,8 @@ export default function AtsApplications() {
     } catch (err) {
       console.error('Failed to load dropdowns:', err);
     }
-  }, [orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);

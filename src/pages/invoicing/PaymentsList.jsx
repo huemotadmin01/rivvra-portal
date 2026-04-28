@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -49,6 +50,7 @@ function MethodLabel({ method }) {
 export default function PaymentsList() {
   const navigate = useNavigate();
   const { orgSlug, orgPath } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [payments, setPayments] = useState([]);
@@ -68,6 +70,9 @@ export default function PaymentsList() {
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
+    setPayments([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const params = {
         page,
@@ -92,7 +97,8 @@ export default function PaymentsList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, typeFilter, methodFilter, search, dateFrom, dateTo, sortField, sortOrder]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, page, typeFilter, methodFilter, search, dateFrom, dateTo, sortField, sortOrder, currentCompany?._id]);
 
   useEffect(() => {
     if (orgSlug) loadPayments();

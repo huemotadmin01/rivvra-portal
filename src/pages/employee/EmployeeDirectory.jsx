@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
@@ -60,6 +61,7 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function EmployeeDirectory() {
   const { currentOrg, getAppRole } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const navigate = useNavigate();
 
@@ -101,6 +103,7 @@ export default function EmployeeDirectory() {
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
+    setDepartments([]);
     employeeApi.listDepartments(orgSlug)
       .then((res) => {
         if (!cancelled && res.success) {
@@ -114,12 +117,15 @@ export default function EmployeeDirectory() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   // Fetch employees
   const fetchEmployees = useCallback(async (params = {}) => {
     if (!orgSlug) return;
     setLoading(true);
+    setEmployees([]);
+    setTotal(0);
+    setTotalPages(1);
     try {
       const res = await employeeApi.list(orgSlug, {
         page: params.page || page,
@@ -140,7 +146,8 @@ export default function EmployeeDirectory() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, page, search, departmentFilter, employmentTypeFilter, statusFilter, billableFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, page, search, departmentFilter, employmentTypeFilter, statusFilter, billableFilter]);
 
   // Initial load + re-fetch on filter / page change (include fetchEmployees to fix stale closure)
   useEffect(() => {

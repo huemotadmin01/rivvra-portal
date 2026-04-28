@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import timesheetApi from '../../utils/timesheetApi';
 import { downloadMyPayslipByMonth } from '../../utils/payrollApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
@@ -149,6 +150,7 @@ function EarningsCard({ data, title, onDownload, downloading }) {
 export default function TimesheetEarnings() {
   const { showToast } = useToast();
   const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
 
   const [current, setCurrent] = useState(null);
@@ -161,6 +163,12 @@ export default function TimesheetEarnings() {
   const [showRateHistory, setShowRateHistory] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
+    setCurrent(null);
+    setPrevious(null);
+    setHistory([]);
+    setDisbursement(null);
+    setRateHistory([]);
     const controller = new AbortController();
     const sig = { signal: controller.signal };
     Promise.all([
@@ -171,7 +179,7 @@ export default function TimesheetEarnings() {
       timesheetApi.get('/earnings/rate-history', sig).then(r => setRateHistory(r.data?.revisions || [])).catch(() => {}),
     ]).finally(() => setLoading(false));
     return () => controller.abort();
-  }, []);
+  }, [currentCompany?._id]);
 
   const handleDownloadPayslip = async (month, year) => {
     setDownloading(`${month}-${year}`);
