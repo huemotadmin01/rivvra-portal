@@ -1,1 +1,0 @@
-import{r as s}from"./vendor-charts-DX8H-JEp.js";import{J as n,aH as i,aI as c}from"./index-Bv58hsOc.js";function f(t){const a=n(),{setDetailLabel:e,clearDetailLabel:r}=i();s.useEffect(()=>{if(!t)return;const o=c(a.pathname);return e(o,t),()=>r(o)},[t,a.pathname,e,r])}export{f as u};
