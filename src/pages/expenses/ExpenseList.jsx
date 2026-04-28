@@ -211,7 +211,12 @@ export default function ExpenseList() {
   }, [load]);
 
   // ── Render ──────────────────────────────────────────────────────────────
-  const skeletonCols = scope === 'all' ? 9 : 7;
+  // Show the "Employee" submitter column for any non-mine scope (team / all).
+  // The "Approver" column is only meaningful in the all-company view since in
+  // the team view the approver is always the current viewer.
+  const showEmployeeCol = scope !== 'mine';
+  const showApproverCol = scope === 'all';
+  const skeletonCols = 7 + (showEmployeeCol ? 1 : 0) + (showApproverCol ? 1 : 0);
 
   if (loading) {
     return (
@@ -368,11 +373,11 @@ export default function ExpenseList() {
                 <thead>
                   <tr className="bg-dark-800 text-dark-400 text-xs uppercase tracking-wide">
                     <th className="text-left px-4 py-3 font-medium">Submitted</th>
-                    {scope === 'all' && <th className="text-left px-4 py-3 font-medium">Employee</th>}
+                    {showEmployeeCol && <th className="text-left px-4 py-3 font-medium">Submitted By</th>}
                     <th className="text-left px-4 py-3 font-medium">Title</th>
                     <th className="text-right px-4 py-3 font-medium">Lines</th>
                     <th className="text-right px-4 py-3 font-medium">Total</th>
-                    {scope === 'all' && <th className="text-left px-4 py-3 font-medium">Approver</th>}
+                    {showApproverCol && <th className="text-left px-4 py-3 font-medium">Approver</th>}
                     <th className="text-left px-4 py-3 font-medium">Status</th>
                     <th className="text-left px-4 py-3 font-medium">Bill</th>
                     <th className="text-right px-4 py-3 font-medium"></th>
@@ -390,7 +395,7 @@ export default function ExpenseList() {
                         <td className="px-4 py-3 text-dark-200 whitespace-nowrap">
                           {formatDate(r.submittedAt || r.createdAt)}
                         </td>
-                        {scope === 'all' && (
+                        {showEmployeeCol && (
                           <td className="px-4 py-3 text-dark-200">
                             <div className="text-white">{r.submittedByName || '-'}</div>
                             {r.submittedByEmail && <div className="text-[11px] text-dark-500">{r.submittedByEmail}</div>}
@@ -408,7 +413,7 @@ export default function ExpenseList() {
                         <td className="px-4 py-3 text-right text-white font-medium whitespace-nowrap">
                           {formatCurrency(r.totalAmount || 0, r.claimCurrency || 'INR')}
                         </td>
-                        {scope === 'all' && (
+                        {showApproverCol && (
                           <td className="px-4 py-3 text-dark-200">
                             {r.approverName ? (
                               <div className="text-xs">{r.approverName}</div>
