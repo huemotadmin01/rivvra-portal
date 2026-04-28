@@ -7,6 +7,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import expensesApi from '../../utils/expensesApi';
 import { formatCurrency } from '../../utils/formatCurrency';
+import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import {
   ArrowLeft, Save, Send, Trash2, CheckCircle2, XCircle, MessageSquare,
   Paperclip, Upload, Loader2, FileText, Eye, Wallet, AlertCircle, Clock,
@@ -174,27 +175,8 @@ function ConfirmModalBody({ title, body, confirmLabel, confirmTone = 'rivvra', o
 // ============================================================================
 // Per-line receipt cell — handles upload / preview / remove for a single line.
 // ============================================================================
-function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved, busy, setBusy }) {
+function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved, onOpenPreview, busy, setBusy }) {
   const inputRef = useRef(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-
-  useEffect(() => {
-    let revoke = null;
-    setPreviewUrl(null);
-    if (!line.receiptId || !expenseId) return;
-    const token = localStorage.getItem('rivvra_token');
-    const url = expensesApi.receiptUrl(orgSlug, expenseId, line.receiptId);
-    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((blob) => {
-        if (!blob) return;
-        const obj = URL.createObjectURL(blob);
-        setPreviewUrl(obj);
-        revoke = obj;
-      })
-      .catch(() => {});
-    return () => { if (revoke) URL.revokeObjectURL(revoke); };
-  }, [line.receiptId, expenseId, orgSlug]);
 
   async function handleUpload(file) {
     if (!file) return;
@@ -263,34 +245,47 @@ function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved
     );
   }
 
+  const canPreview =
+    !!expenseId &&
+    !!line.receiptId &&
+    (line.receiptMimeType?.startsWith('image/') || line.receiptMimeType === 'application/pdf');
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-dark-200 min-w-0">
-          <FileText size={12} className="text-dark-400 shrink-0" />
-          <span className="truncate">{line.receiptFilename || 'Receipt'}</span>
-          {line.receiptSize ? (
-            <span className="text-[10px] text-dark-500 shrink-0">({Math.round(line.receiptSize / 1024)} KB)</span>
-          ) : null}
-        </div>
+    <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-dark-800/50 border border-dark-700/50 group">
+      <FileText size={14} className="text-dark-400 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-dark-100 truncate">{line.receiptFilename || 'Receipt'}</p>
+        {line.receiptSize ? (
+          <p className="text-[10px] text-dark-500">{Math.round(line.receiptSize / 1024)} KB</p>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-1">
+        {canPreview && (
+          <button
+            type="button"
+            onClick={() => onOpenPreview({
+              filename: line.receiptFilename || 'Receipt',
+              mimeType: line.receiptMimeType,
+              fetchUrl: expensesApi.receiptUrl(orgSlug, expenseId, line.receiptId),
+            })}
+            className="p-1 rounded hover:bg-dark-700 text-dark-400 hover:text-white transition-colors"
+            title="Preview"
+          >
+            <Eye size={14} />
+          </button>
+        )}
         {editable && (
           <button
             type="button"
             onClick={handleRemove}
             disabled={busy}
-            className="text-red-400 hover:text-red-300 disabled:opacity-50"
+            className="p-1 rounded hover:bg-dark-700 text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
             title="Remove"
           >
-            <Trash2 size={12} />
+            <Trash2 size={14} />
           </button>
         )}
       </div>
-      {previewUrl && line.receiptMimeType?.startsWith('image/') && (
-        <img src={previewUrl} alt="Receipt" className="max-h-40 rounded border border-dark-700" />
-      )}
-      {previewUrl && line.receiptMimeType === 'application/pdf' && (
-        <iframe src={previewUrl} title="Receipt PDF" className="w-full h-40 rounded border border-dark-700 bg-white" />
-      )}
     </div>
   );
 }
@@ -329,6 +324,7 @@ export default function ExpenseDetail() {
   const [showDelete, setShowDelete] = useState(false);
   const [previewApprover, setPreviewApprover] = useState(null);
   const [previewWarning, setPreviewWarning] = useState(null);
+  const [previewReceipt, setPreviewReceipt] = useState(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -986,6 +982,7 @@ export default function ExpenseDetail() {
                       setBusy={setReceiptBusy}
                       onUploaded={(patch) => updateLine(line._id, patch)}
                       onRemoved={() => updateLine(line._id, { receiptId: null, receiptFilename: null, receiptMimeType: null, receiptSize: null })}
+                      onOpenPreview={setPreviewReceipt}
                     />
                   </div>
                 </div>
@@ -1117,6 +1114,15 @@ export default function ExpenseDetail() {
         onConfirm={handleDelete}
         onCancel={() => setShowDelete(false)}
       />
+
+      {previewReceipt && (
+        <DocumentPreviewModal
+          filename={previewReceipt.filename}
+          mimeType={previewReceipt.mimeType}
+          fetchUrl={previewReceipt.fetchUrl}
+          onClose={() => setPreviewReceipt(null)}
+        />
+      )}
     </div>
   );
 }
