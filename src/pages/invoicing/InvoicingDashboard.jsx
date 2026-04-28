@@ -280,19 +280,17 @@ export default function InvoicingDashboard() {
       invoicingApi.getDashboard(orgSlug).catch(() => null),
     ])
       .then(([statsRes, dashRes]) => {
-        if (statsRes?.success && statsRes.journalStats) {
-          setJournals(statsRes.journalStats);
-        }
-        if (dashRes?.success && dashRes.kpis) {
-          setKpis(dashRes.kpis);
-        }
+        // Reset state on every company switch so stale numbers from the
+        // previous company never linger if the new fetches return nothing.
+        setJournals(statsRes?.success && statsRes.journalStats ? statsRes.journalStats : []);
+        setKpis(dashRes?.success && dashRes.kpis ? dashRes.kpis : null);
         if (!statsRes?.success && !dashRes?.success) {
           setError(true);
         }
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   // ---------- Loading ----------
   if (loading) {
