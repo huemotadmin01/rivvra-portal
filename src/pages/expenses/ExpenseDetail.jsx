@@ -117,6 +117,7 @@ const EVENT_LABEL = {
   reimbursed:{ icon: CheckCircle2, color: 'text-violet-400',  label: 'Reimbursed' },
   reimbursement_reversed: { icon: Undo2, color: 'text-amber-400', label: 'Reimbursement reversed' },
   rejected:  { icon: XCircle,      color: 'text-red-400',     label: 'Rejected' },
+  resubmitted:{ icon: Send,        color: 'text-amber-400',   label: 'Resubmitted for approval' },
   commented: { icon: MessageSquare,color: 'text-dark-300',    label: 'Comment' },
 };
 
@@ -368,11 +369,15 @@ export default function ExpenseDetail() {
   const status = expense?.status || 'draft';
   const isOwner = !!expense && currentUserId && expense.submittedBy === currentUserId;
   const isApprover = !!expense && currentUserId && expense.approverUserId === currentUserId;
-  const editable = isNew || (isOwner && status === 'draft');
+  // Editable = creating a new claim, working on a draft, or revising a
+  // rejected claim before resubmitting (rejected → submitted goes through
+  // POST /resubmit, not the standard /submit endpoint).
+  const editable = isNew || (isOwner && (status === 'draft' || status === 'rejected'));
   // Q19: snapshotted approver OR any org admin/owner can approve
   const canApprove = !isNew && status === 'submitted' && (isApprover || isOrgAdmin);
   const canDelete = !isNew && isOwner && status === 'draft';
   const canWithdraw = !isNew && isOwner && status === 'submitted';
+  const canResubmit = !isNew && isOwner && status === 'rejected';
 
   const totalAmount = useMemo(
     () => form.lines.reduce((s, l) => s + lineConverted(l, form.claimCurrency), 0),
@@ -581,6 +586,26 @@ export default function ExpenseDetail() {
     }
   };
 
+  const handleResubmit = async () => {
+    const err = validate(true);
+    if (err) return showToast(err, 'error');
+    try {
+      setSubmitting(true);
+      // Save any edits first (rejection reason was on the live record; PATCH
+      // here just persists the user's revisions before flipping to submitted).
+      const payload = buildPayload();
+      await expensesApi.update(orgSlug, expense._id, payload);
+      const res = await expensesApi.resubmit(orgSlug, expense._id);
+      setExpense(res.expense);
+      showToast('Resubmitted for approval');
+      invalidateExpensesList(orgSlug);
+    } catch (e) {
+      showToast(e.message || 'Failed to resubmit', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleWithdraw = async () => {
     try {
       setWithdrawing(true);
@@ -703,16 +728,16 @@ export default function ExpenseDetail() {
                     className="inline-flex items-center gap-1.5 px-3 py-2 bg-dark-800 hover:bg-dark-700 border border-dark-700 rounded-lg text-sm text-dark-200 disabled:opacity-60"
                   >
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Save as Draft
+                    {canResubmit ? 'Save Changes' : 'Save as Draft'}
                   </button>
                   <button
-                    onClick={handleSubmitForApproval}
+                    onClick={canResubmit ? handleResubmit : handleSubmitForApproval}
                     disabled={saving || submitting || receiptBusy || !!previewWarning}
                     title={previewWarning || ''}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-sm font-medium disabled:opacity-60"
                   >
                     {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                    Submit for Approval
+                    {canResubmit ? 'Resubmit for Approval' : 'Submit for Approval'}
                   </button>
                 </>
               )}

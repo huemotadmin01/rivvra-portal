@@ -56,6 +56,9 @@ const expensesApi = {
   withdraw(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/expenses/${id}/withdraw`, { method: 'POST' });
   },
+  resubmit(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/expenses/${id}/resubmit`, { method: 'POST' });
+  },
   approve(orgSlug, id, note = '') {
     return api.request(`/api/org/${orgSlug}/expenses/${id}/approve`, {
       method: 'POST',
