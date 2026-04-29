@@ -653,6 +653,36 @@ export default function PayrollRunPage() {
                                     </div>
                                   )}
 
+                                  {/* Placement Incentive (Recruiter / AM share folded in for this payout month).
+                                      Already counted in item.grossSalary; this just surfaces the line. */}
+                                  {(item.incentiveAmount || 0) > 0 && (
+                                    <>
+                                      <div className="flex justify-between">
+                                        <span className="text-dark-400 text-xs">
+                                          Placement Incentive
+                                          {(item.incentivePayouts || []).length > 0 && (
+                                            <span className="text-dark-500"> ({item.incentivePayouts.length})</span>
+                                          )}
+                                        </span>
+                                        <span className="text-rivvra-400 text-xs">+₹{fmt(item.incentiveAmount)}</span>
+                                      </div>
+                                      {(item.incentivePayouts || []).length > 0 && (
+                                        <div className="ml-3 space-y-0.5">
+                                          {item.incentivePayouts.map((pay, pi) => (
+                                            <div key={pay.recordId || pi} className="flex justify-between text-[10px] text-dark-500">
+                                              <span>
+                                                · {pay.role === 'recruiter' ? 'Recruiter' : 'Account Manager'}
+                                                {pay.clientName ? ` · ${pay.clientName}` : ''}
+                                                {pay.serviceMonth ? ` · ${pay.serviceMonth}` : ''}
+                                              </span>
+                                              <span>₹{fmt(pay.amount)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+
                                   {/* F&F earnings (leave encashment + other additions) */}
                                   {item.fnfAdjustments && item.fnfAdjustments.leaveEncashment > 0 && (
                                     <div className="flex justify-between">
