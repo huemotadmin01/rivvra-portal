@@ -131,8 +131,17 @@ export default function InlineField({
     setStatus('saving');
     try {
       await onSave(field, newVal);
-      setStatus('saved');
-      savedTimerRef.current = setTimeout(() => setStatus('idle'), 1500);
+      // For employee-picker, skip the 1500ms 'saved' indicator hold and go
+      // straight to idle. The user feedback they want is the new name
+      // appearing in the read-mode chip — not a separate checkmark — and
+      // holding 'saved' status delays that transition by 1.5s, which feels
+      // like the field is "stuck refreshing" after the pick.
+      if (type === 'employee-picker') {
+        setStatus('idle');
+      } else {
+        setStatus('saved');
+        savedTimerRef.current = setTimeout(() => setStatus('idle'), 1500);
+      }
     } catch (err) {
       setErrMsg(err?.message || 'Failed to save');
       setStatus('error');

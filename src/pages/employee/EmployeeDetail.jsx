@@ -107,6 +107,31 @@ function InfoRow({ label, value }) {
   );
 }
 
+/**
+ * Resolve an employee FK (manager / sourcedByEmployeeId) to the same chip
+ * shape the EmployeePicker trigger renders \u2014 "Name  #empId". Keeps the
+ * read-mode display visually identical to the editing-mode trigger so
+ * the InlineField transition between them feels seamless instead of
+ * snapping between two layouts. Falls through to a pre-resolved server
+ * name (e.g. emp.managerName) if the employee isn't in the live options
+ * yet, then to null so InlineField renders the em-dash placeholder.
+ */
+function renderEmployeeChip(options, idValue, fallbackName) {
+  const idStr = idValue == null ? '' : String(idValue);
+  const match = options.find(o => String(o._id) === idStr);
+  if (match) {
+    return (
+      <span className="inline-flex items-baseline gap-1.5">
+        <span>{match.fullName}</span>
+        {match.employeeId && (
+          <span className="text-dark-500 text-xs">#{match.employeeId}</span>
+        )}
+      </span>
+    );
+  }
+  return fallbackName || null;
+}
+
 function SectionCard({ title, icon: Icon, children }) {
   return (
     <div className="card p-5">
@@ -925,28 +950,20 @@ export default function EmployeeDetail() {
             onSave={handleFieldSave} displayValue={emp.departmentName || null} />
           <InlineField label="Designation" field="designation" value={emp.designation}
             editable={fp('designation').editable} onSave={handleFieldSave} />
+          {/* Render an EmployeePicker-shaped read display so the visual
+              transition from edit → read is seamless (no jump in font/format
+              when the InlineField flips state). renderEmployeeChip() shows
+              "Name  #10000003" — same as the picker trigger. */}
           <InlineField label="Manager" field="manager" value={emp.manager} type="employee-picker"
             options={managerOptions} excludeIds={[emp._id].filter(Boolean).map(String)}
             editable={fp('manager').editable} required={fp('manager').required}
             onSave={handleFieldSave}
-            displayValue={
-              // Render the resolved name: prefer the live managerOptions
-              // lookup (works for both ObjectId and string IDs after the
-              // sourcedBy normalization migration), fall back to the
-              // pre-resolved name from the API.
-              managerOptions.find(m => String(m._id) === String(emp.manager ?? ''))?.fullName
-              || emp.managerName
-              || null
-            } />
+            displayValue={renderEmployeeChip(managerOptions, emp.manager, emp.managerName)} />
           <InlineField label="Sourced By" field="sourcedByEmployeeId" value={emp.sourcedByEmployeeId} type="employee-picker"
             options={managerOptions} excludeIds={[emp._id].filter(Boolean).map(String)}
             editable={fp('sourcedByEmployeeId').editable}
             onSave={handleFieldSave}
-            displayValue={
-              managerOptions.find(m => String(m._id) === String(emp.sourcedByEmployeeId ?? ''))?.fullName
-              || emp.sourcedByName
-              || null
-            } />
+            displayValue={renderEmployeeChip(managerOptions, emp.sourcedByEmployeeId, emp.sourcedByName)} />
           <InlineField label="Employment Type" field="employmentType" value={emp.employmentType} type="select"
             options={Object.entries(empTypeMap).map(([key, cfg]) => ({ value: key, label: cfg.label }))}
             editable={fp('employmentType').editable} onSave={handleFieldSave}
