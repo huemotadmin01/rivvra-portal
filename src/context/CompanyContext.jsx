@@ -137,8 +137,23 @@ export function CompanyProvider({ children }) {
     if (String(companyId) === String(currentCompanyId)) return;
 
     const prevCompanyId = currentCompanyId;
-    // (1) Instant UI update — dropdown, header, and X-Company-Id on next fetch.
-    setCurrentCompanyId(String(companyId));
+    const newId = String(companyId);
+
+    // (0) IMPORTANT: write to localStorage synchronously, BEFORE any state
+    //     update or fetch. api.js reads `rivvra_current_company` at the
+    //     moment the request goes out, and the localStorage useEffect at
+    //     line 78 only commits AFTER React processes the state update.
+    //     If we set state first and then immediately fire a fetch from a
+    //     re-running useEffect (e.g. a page that depends on currentCompanyId),
+    //     the fetch sees the OLD localStorage and the backend resolves the
+    //     request under the previous company — that's the "switch shows
+    //     stale data" bug. Writing here removes the race.
+    try {
+      localStorage.setItem('rivvra_current_company', newId);
+    } catch (_) { /* private mode etc. — ignore */ }
+
+    // (1) Instant UI update — dropdown reflects the new company immediately.
+    setCurrentCompanyId(newId);
 
     // (2) If we were on a record-detail page that belongs to the previous
     // company, navigate to the parent list using react-router (no reload).
@@ -152,11 +167,16 @@ export function CompanyProvider({ children }) {
     try {
       const res = await api.request(`/api/org/${orgSlug}/my-company`, {
         method: 'PUT',
-        body: JSON.stringify({ companyId: String(companyId) }),
+        body: JSON.stringify({ companyId: newId }),
       });
       if (!res.success) throw new Error(res.error || 'Switch failed');
     } catch (err) {
       console.error('Failed to switch company:', err);
+      // Roll back both the optimistic state AND the localStorage write.
+      try {
+        if (prevCompanyId) localStorage.setItem('rivvra_current_company', String(prevCompanyId));
+        else localStorage.removeItem('rivvra_current_company');
+      } catch (_) {}
       setCurrentCompanyId(prevCompanyId);
     } finally {
       setSwitching(false);
