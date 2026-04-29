@@ -11,7 +11,7 @@ import AppSidebar from './AppSidebar';
 import TrialBanner from './TrialBanner';
 import AlumniBanner from './AlumniBanner';
 import Breadcrumbs from './Breadcrumbs';
-import { ArrowLeftRight, X } from 'lucide-react';
+import { ArrowLeftRight, X, Loader2 } from 'lucide-react';
 
 function ImpersonationBanner() {
   const { isImpersonating, user, originalAdmin, stopImpersonating } = useAuth();
@@ -41,7 +41,7 @@ function ImpersonationBanner() {
 function PlatformLayout() {
   const { isImpersonating } = useAuth();
   const { currentApp } = usePlatform();
-  const { currentCompanyId } = useCompany();
+  const { currentCompanyId, hydrated } = useCompany();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -67,14 +67,29 @@ function PlatformLayout() {
               <TrialBanner />
               <AlumniBanner />
               {!isFullScreenPage && <Breadcrumbs />}
-              {/* Key the Outlet on the active company so any company switch
+              {/* Hold rendering of company-scoped pages until CompanyContext
+                  has hydrated — i.e. OrgContext has settled and the
+                  authoritative membership.currentCompanyId has been written
+                  to localStorage. Without this gate, page-level useEffects
+                  fire on first render reading whatever stale value is in
+                  localStorage from a prior session, causing a brief flash of
+                  wrong-company data and a wasted refetch when hydration
+                  catches up. The spinner is sub-second on cache hits.
+
+                  Key the Outlet on the active company so any company switch
                   triggers a clean remount of the routed page. This re-fires
                   every page-level useEffect (including those that only depend
                   on [orgSlug] and would otherwise see stale data after a
                   switch), without paying the cost of a full page reload. */}
-              <div key={`co-${currentCompanyId || 'none'}`}>
-                <Outlet />
-              </div>
+              {hydrated ? (
+                <div key={`co-${currentCompanyId || 'none'}`}>
+                  <Outlet />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-32" aria-label="Loading workspace">
+                  <Loader2 className="w-6 h-6 animate-spin text-rivvra-500" />
+                </div>
+              )}
             </main>
           </div>
         </div>

@@ -1,5 +1,27 @@
 import { API_BASE_URL } from './config';
 
+/**
+ * Read the active company id from localStorage, but ONLY after CompanyContext
+ * has hydrated. The flag is set in src/context/CompanyContext.jsx once the
+ * OrgContext has settled and localStorage has been reconciled with the
+ * authoritative server-side preference (membership.currentCompanyId).
+ *
+ * Pre-hydration we deliberately omit the X-Company-Id header — the backend's
+ * orgMiddleware then falls back to membership.currentCompanyId, which is the
+ * correct authoritative value. This prevents an early page-load fetch from
+ * resolving under a stale localStorage value left over from a different
+ * company in a previous session/tab.
+ *
+ * Exported so utility files (contactsApi, employeeApi, payrollApi, etc.)
+ * that build their own fetch headers use the same gating logic.
+ */
+export function getActiveCompanyId() {
+  if (typeof window === 'undefined') return null;
+  if (!window.__rivvra_company_hydrated) return null;
+  try { return localStorage.getItem('rivvra_current_company') || null; }
+  catch { return null; }
+}
+
 class ApiClient {
   constructor() {
     this.baseUrl = API_BASE_URL;
@@ -56,8 +78,9 @@ class ApiClient {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Add active company header (multi-company support)
-    const companyId = localStorage.getItem('rivvra_current_company');
+    // Add active company header (multi-company support). Gated on
+    // hydration — see getActiveCompanyId() for rationale.
+    const companyId = getActiveCompanyId();
     if (companyId) {
       config.headers['X-Company-Id'] = companyId;
     }
@@ -185,7 +208,7 @@ class ApiClient {
     const formData = new FormData();
     formData.append('photo', file);
     const token = localStorage.getItem('rivvra_token');
-    const companyId = localStorage.getItem('rivvra_current_company');
+    const companyId = getActiveCompanyId();
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (companyId) headers['X-Company-Id'] = companyId;

@@ -2,7 +2,7 @@
  * Contacts App API utility
  * Uses the main ApiClient for org-scoped contacts endpoints.
  */
-import api from './api';
+import api, { getActiveCompanyId } from './api';
 
 const contactsApi = {
   // ── Contacts ──────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ const contactsApi = {
     const headers = { 'Content-Type': 'application/json' };
     const token = localStorage.getItem('rivvra_token');
     if (token) headers.Authorization = `Bearer ${token}`;
-    const companyId = localStorage.getItem('rivvra_current_company');
+    const companyId = getActiveCompanyId();
     if (companyId) headers['X-Company-Id'] = companyId;
 
     const response = await fetch(url, { method: 'DELETE', headers });

@@ -2,7 +2,7 @@
  * Employee App API utility
  * Uses the main ApiClient for org-scoped employee endpoints.
  */
-import api from './api';
+import api, { getActiveCompanyId } from './api';
 import { API_BASE_URL } from './config';
 
 const employeeApi = {
@@ -184,7 +184,7 @@ const employeeApi = {
     if (educationIndex !== null && educationIndex !== undefined) formData.append('educationIndex', educationIndex);
     const url = `${API_BASE_URL}/api/org/${orgSlug}/employee/employees/${employeeId}/documents`;
     const token = localStorage.getItem('rivvra_token');
-    const companyId = localStorage.getItem('rivvra_current_company');
+    const companyId = getActiveCompanyId();
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (companyId) headers['X-Company-Id'] = companyId;

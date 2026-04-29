@@ -46,7 +46,7 @@ export function stripDetailIdFromPath(pathname) {
 }
 
 export function CompanyProvider({ children }) {
-  const { currentOrg, membership } = useOrg();
+  const { currentOrg, membership, loading: orgLoading } = useOrg();
   const { orgSlug: platformOrgSlug } = usePlatform();
   const navigate = useNavigate();
 
@@ -57,6 +57,14 @@ export function CompanyProvider({ children }) {
   const [currentCompanyId, setCurrentCompanyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  // hydrated = OrgContext has settled and we've reconciled localStorage with
+  // membership.currentCompanyId (the server-side preference). Until this is
+  // true, api.js suppresses the X-Company-Id header so any early page fetch
+  // resolves under the authoritative membership preference instead of a
+  // possibly-stale localStorage value left over from a prior session in
+  // another tab. PlatformLayout also gates render on this so page-level
+  // useEffects don't fire twice (once with stale state, once after sync).
+  const [hydrated, setHydrated] = useState(false);
 
   // Derive current company from ID — use string comparison to handle ObjectId serialization
   const currentCompany = useMemo(() => {
@@ -102,12 +110,35 @@ export function CompanyProvider({ children }) {
     return () => { cancelled = true; };
   }, [orgSlug]);
 
-  // Initialize currentCompanyId from membership
+  // Initialize currentCompanyId from membership AND mark hydration complete.
+  //
+  // This effect handles two related responsibilities together so the
+  // localStorage write is atomic with the hydrated flag:
+  //
+  //   1. Wait for OrgContext to settle (orgLoading=false). After that we
+  //      know membership has been read from cache or fetched.
+  //   2. Synchronously write the authoritative membership.currentCompanyId
+  //      to localStorage BEFORE flipping the hydrated flag — so the very
+  //      first fetch that goes out post-hydration sees the right header.
+  //   3. Flip both the React state and the window.__rivvra_company_hydrated
+  //      flag (read by api.js getActiveCompanyId() to decide whether to
+  //      send the header).
+  //
+  // If the user has no membership (e.g. not in any org), we still hydrate
+  // so PlatformLayout can render — currentCompanyId stays null and api.js
+  // skips the header entirely, which is the correct behaviour.
   useEffect(() => {
+    if (orgLoading) return;
     if (membership?.currentCompanyId) {
-      setCurrentCompanyId(String(membership.currentCompanyId));
+      const newId = String(membership.currentCompanyId);
+      try { localStorage.setItem('rivvra_current_company', newId); } catch (_) { /* ignore */ }
+      setCurrentCompanyId(newId);
+    } else {
+      try { localStorage.removeItem('rivvra_current_company'); } catch (_) { /* ignore */ }
     }
-  }, [membership]);
+    if (typeof window !== 'undefined') window.__rivvra_company_hydrated = true;
+    setHydrated(true);
+  }, [orgLoading, membership]);
 
   // Switch company — optimistic SPA-style.
   //
@@ -212,8 +243,9 @@ export function CompanyProvider({ children }) {
     refreshCompanies,
     loading,
     switching,
+    hydrated, // true once OrgContext has settled and localStorage is in sync
     hasMultipleCompanies: companies.length > 1,
-  }), [companies, currentCompany, companyCountry, switchCompany, refreshCompanies, loading, switching]);
+  }), [companies, currentCompany, companyCountry, switchCompany, refreshCompanies, loading, switching, hydrated]);
 
   return (
     <CompanyContext.Provider value={value}>

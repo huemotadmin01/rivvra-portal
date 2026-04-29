@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { getActiveCompanyId } from './api';
 
 class ApiError extends Error {
   constructor(message, status, data) {
@@ -23,7 +24,7 @@ async function request(method, url, { body, params, signal, responseType } = {})
   const token = localStorage.getItem('rivvra_token');
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const companyId = localStorage.getItem('rivvra_current_company');
+  const companyId = getActiveCompanyId();
   if (companyId) headers['X-Company-Id'] = companyId;
 
   if (body && !(body instanceof FormData)) {
