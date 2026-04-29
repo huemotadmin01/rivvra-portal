@@ -109,6 +109,10 @@ export default function MyAttendancePage() {
   const handleDayClick = (dateStr) => {
     if (!canEdit) return;
     if (isAfterLwd(dateStr)) return;
+    // Future-date guard: attendance is a factual record — you can't truthfully
+    // claim Present/Absent/Half for a day that hasn't happened yet. The cell
+    // is also visually disabled (see render path), this is belt-and-suspenders.
+    if (dateStr > todayStr) return;
 
     setEntries(prev => prev.map(e => {
       const eDate = toISTDateStr(e.date);
@@ -436,21 +440,28 @@ export default function MyAttendancePage() {
                 const config = statusConfig[displayStatus] || statusConfig.working;
                 const isLocked = ['leave', 'weekend', 'not_joined'].includes(entry.status);
                 const isPostLwd = isAfterLwd(dateStr);
-                const isClickable = canEdit && !isLocked && !isPostLwd;
+                // Future dates can't be filled — attendance is a factual record,
+                // you don't yet know whether you'll be Present/Absent tomorrow.
+                const isFuture = dateStr > todayStr;
+                const isClickable = canEdit && !isLocked && !isPostLwd && !isFuture;
                 const isToday = dateStr === todayStr;
                 const isWeekend = entry.status === 'weekend';
-                const lwdTooltip = isPostLwd ? `Beyond last working date (${lastWorkingDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})` : '';
+                const cellTooltip = isPostLwd
+                  ? `Beyond last working date (${lastWorkingDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})`
+                  : isFuture
+                    ? "Can't mark attendance for a future date"
+                    : '';
 
                 return (
                   <div
                     key={ci}
-                    title={lwdTooltip}
+                    title={cellTooltip}
                     onClick={() => isClickable && handleDayClick(dateStr)}
                     className={`
                       min-h-[68px] sm:min-h-[80px] md:min-h-[88px] p-1.5 sm:p-2
                       border-b border-r border-dark-700/20
                       transition-all duration-150 relative group
-                      ${isPostLwd ? 'bg-dark-900/60 opacity-40 cursor-not-allowed' : isWeekend ? 'bg-dark-900/40' : `bg-gradient-to-br ${config.gradient}`}
+                      ${isPostLwd ? 'bg-dark-900/60 opacity-40 cursor-not-allowed' : isFuture ? 'bg-dark-900/40 opacity-50 cursor-not-allowed' : isWeekend ? 'bg-dark-900/40' : `bg-gradient-to-br ${config.gradient}`}
                       ${isClickable ? 'cursor-pointer hover:brightness-125 active:scale-[0.97]' : ''}
                       ${isToday ? 'ring-2 ring-inset ring-rivvra-500/60' : ''}
                     `}
