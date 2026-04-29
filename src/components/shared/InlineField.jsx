@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Loader2, Check, X, Pencil } from 'lucide-react';
+import EmployeePicker from '../employee/EmployeePicker';
 
 /**
  * InlineField — inline-editable field with save-on-blur.
@@ -8,10 +9,15 @@ import { Loader2, Check, X, Pencil } from 'lucide-react';
  *  label       — field label
  *  field       — key used in onSave (e.g. "email", "bankDetails.pan")
  *  value       — current value
- *  type        — text | email | phone | date | select | toggle | masked | textarea
+ *  type        — text | email | phone | date | select | toggle | masked |
+ *                textarea | employee-picker
  *  editable    — whether the field is editable for the current viewer
  *  required    — if true, empty value shows validation error on blur
- *  options     — [{ value, label }] for select type
+ *  options     — for type='select': [{ value, label }]
+ *                for type='employee-picker': [{ _id, fullName, employeeId,
+ *                designation }] (extra fields for select interop ignored)
+ *  excludeIds  — for type='employee-picker': string[] of _ids to hide
+ *                (e.g. self when picking a manager)
  *  displayValue — custom ReactNode for read mode (overrides default rendering)
  *  maskFn      — function to mask value in read mode (e.g. bank account)
  *  onSave      — async (field, newValue) => void — throws on error
@@ -28,6 +34,7 @@ export default function InlineField({
   editable = false,
   required = false,
   options = [],
+  excludeIds = [],
   displayValue,
   maskFn,
   onSave,
@@ -41,9 +48,11 @@ export default function InlineField({
   const savedTimerRef = useRef(null);
   const skipBlurRef = useRef(false);
 
-  // Focus input when entering edit mode
+  // Focus input when entering edit mode. employee-picker manages its own
+  // internal focus (it auto-focuses the search input on open), so skip.
   useEffect(() => {
     if (status === 'editing' && inputRef.current) {
+      if (type === 'employee-picker') return;
       inputRef.current.focus();
       if (type !== 'date' && type !== 'select' && inputRef.current.select) {
         inputRef.current.select();
@@ -210,7 +219,23 @@ export default function InlineField({
     <div className="grid grid-cols-[140px_1fr] gap-2 py-1.5">
       <span className="text-dark-400 text-sm pt-1.5">{label}</span>
       <div className="flex items-center gap-1.5">
-        {type === 'select' ? (
+        {type === 'employee-picker' ? (
+          // Searchable employee lookup. Save happens immediately on selection
+          // — there's no blur/Enter affordance because the dropdown closes on
+          // pick. This is consistent with how `select` saves on change too,
+          // but routes through the picker UI for typeahead.
+          <div className="flex-1">
+            <EmployeePicker
+              value={editVal}
+              employees={options}
+              excludeIds={excludeIds}
+              onChange={(id) => {
+                setEditVal(id);
+                save(id);
+              }}
+            />
+          </div>
+        ) : type === 'select' ? (
           <select
             ref={inputRef}
             value={editVal}

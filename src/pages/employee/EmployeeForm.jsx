@@ -12,6 +12,7 @@ import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Save, Loader2, AlertTriangle, Plus, Trash2, Briefcase, Upload, FileText, X, Link2, Unlink, Search, TrendingUp, ChevronDown, ChevronUp, Clock, GraduationCap, Users, Building2 } from 'lucide-react';
 import ComboSelect from '../../components/ComboSelect';
+import EmployeePicker from '../../components/employee/EmployeePicker';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
 
 const DEFAULT_SEPARATION_REASONS = [
@@ -1105,24 +1106,18 @@ export default function EmployeeForm() {
               </select>
             </div>
 
-            {/* Sourced By (referring employee) */}
+            {/* Sourced By (referring employee) — searchable employee lookup */}
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">
                 Sourced By {!isEdit && <span className="text-red-400">*</span>}
               </label>
-              <select
+              <EmployeePicker
                 value={form.sourcedByEmployeeId}
-                onChange={(e) => setField('sourcedByEmployeeId', e.target.value)}
-                className="input-field w-full"
-                required={!isEdit}
-              >
-                <option value="">{isEdit ? '— None —' : '— Select sourcing employee —'}</option>
-                {managerOptions
-                  .filter(m => m._id !== employeeId)
-                  .map(m => (
-                    <option key={m._id} value={m._id}>{m.fullName}</option>
-                  ))}
-              </select>
+                employees={managerOptions}
+                onChange={(id) => setField('sourcedByEmployeeId', id)}
+                excludeIds={employeeId ? [employeeId] : []}
+                placeholder="Search by name or ID…"
+              />
               <p className="text-xs text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
             </div>
           </div>
@@ -1149,23 +1144,16 @@ export default function EmployeeForm() {
               </select>
             </div>
 
-            {/* Manager (only licensed portal users) */}
+            {/* Manager (only licensed portal users) — searchable employee lookup */}
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Manager{!form.billable && <span className="text-red-400"> *</span>}</label>
-              <select
+              <EmployeePicker
                 value={form.manager}
-                onChange={(e) => setField('manager', e.target.value)}
-                className="input-field w-full"
-              >
-                <option value="">No Manager</option>
-                {managerOptions
-                  .filter(m => m._id !== employeeId) // Exclude self
-                  .map((m) => (
-                    <option key={m._id} value={m._id}>
-                      {m.fullName}
-                    </option>
-                  ))}
-              </select>
+                employees={managerOptions}
+                onChange={(id) => setField('manager', id)}
+                excludeIds={employeeId ? [employeeId] : []}
+                placeholder="Search by name or ID…"
+              />
             </div>
 
             {/* Related User (edit mode only) */}

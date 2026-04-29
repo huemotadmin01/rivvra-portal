@@ -336,7 +336,17 @@ export default function EmployeeDetail() {
         .then(res => { if (res.success) setDepartments((res.departments || []).map(d => ({ value: d._id, label: d.name }))); })
         .catch(() => {});
       employeeApi.getManagerOptions(currentOrg.slug)
-        .then(res => { if (res.success) setManagerOptions((res.managers || []).map(m => ({ value: m._id, label: m.fullName }))); })
+        .then(res => { if (res.success) setManagerOptions((res.managers || []).map(m => ({
+          // Dual-shape: legacy {value,label} for type='select', plus full
+          // record fields for type='employee-picker' (which renders the
+          // EmployeePicker typeahead and shows fullName + #employeeId chip).
+          _id: m._id,
+          fullName: m.fullName,
+          employeeId: m.employeeId || null,
+          designation: m.designation || null,
+          value: m._id,
+          label: m.fullName,
+        }))); })
         .catch(() => {});
     }
     // Fetch client/project options for assignment editing (admin only)
@@ -915,14 +925,25 @@ export default function EmployeeDetail() {
             onSave={handleFieldSave} displayValue={emp.departmentName || null} />
           <InlineField label="Designation" field="designation" value={emp.designation}
             editable={fp('designation').editable} onSave={handleFieldSave} />
-          <InlineField label="Manager" field="manager" value={emp.manager} type="select"
-            options={managerOptions} editable={fp('manager').editable} required={fp('manager').required}
-            onSave={handleFieldSave} displayValue={emp.managerName || null} />
-          <InlineField label="Sourced By" field="sourcedByEmployeeId" value={emp.sourcedByEmployeeId} type="select"
-            options={managerOptions} editable={fp('sourcedByEmployeeId').editable}
+          <InlineField label="Manager" field="manager" value={emp.manager} type="employee-picker"
+            options={managerOptions} excludeIds={[emp._id].filter(Boolean).map(String)}
+            editable={fp('manager').editable} required={fp('manager').required}
             onSave={handleFieldSave}
             displayValue={
-              managerOptions.find(m => m.value === (emp.sourcedByEmployeeId?.toString?.() || emp.sourcedByEmployeeId))?.label
+              // Render the resolved name: prefer the live managerOptions
+              // lookup (works for both ObjectId and string IDs after the
+              // sourcedBy normalization migration), fall back to the
+              // pre-resolved name from the API.
+              managerOptions.find(m => String(m._id) === String(emp.manager ?? ''))?.fullName
+              || emp.managerName
+              || null
+            } />
+          <InlineField label="Sourced By" field="sourcedByEmployeeId" value={emp.sourcedByEmployeeId} type="employee-picker"
+            options={managerOptions} excludeIds={[emp._id].filter(Boolean).map(String)}
+            editable={fp('sourcedByEmployeeId').editable}
+            onSave={handleFieldSave}
+            displayValue={
+              managerOptions.find(m => String(m._id) === String(emp.sourcedByEmployeeId ?? ''))?.fullName
               || emp.sourcedByName
               || null
             } />

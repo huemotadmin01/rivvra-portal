@@ -23,6 +23,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import SectionCard from '../../components/platform/detail/SectionCard';
+import EmployeePicker from '../../components/employee/EmployeePicker';
 import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase, UserCheck } from 'lucide-react';
 
 const DEFAULT_EMPLOYMENT_TYPES = [
@@ -230,16 +231,12 @@ export default function EmployeeQuickCreate() {
             </Field>
           ) : (
             <Field label="Sourced By" icon={UserCheck} required>
-              <select
+              <EmployeePicker
                 value={sourcedByEmployeeId}
-                onChange={(e) => setSourcedByEmployeeId(e.target.value)}
-                className="w-full bg-dark-800 border border-dark-600 focus:border-rivvra-500 rounded px-3 py-2 text-sm text-white focus:outline-none"
-              >
-                <option value="">— Select sourcing employee —</option>
-                {managerOptions.map(m => (
-                  <option key={m._id} value={m._id}>{m.fullName}</option>
-                ))}
-              </select>
+                employees={managerOptions}
+                onChange={(id) => setSourcedByEmployeeId(id)}
+                placeholder="Search by name or ID…"
+              />
               <p className="text-[11px] text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
             </Field>
           )}
