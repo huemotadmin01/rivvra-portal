@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { TimesheetProvider } from '../../context/TimesheetContext';
 import { BreadcrumbProvider } from '../../context/BreadcrumbContext';
 import { PeriodProvider } from '../../context/PeriodContext';
@@ -40,6 +41,7 @@ function ImpersonationBanner() {
 function PlatformLayout() {
   const { isImpersonating } = useAuth();
   const { currentApp } = usePlatform();
+  const { currentCompanyId } = useCompany();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -65,7 +67,14 @@ function PlatformLayout() {
               <TrialBanner />
               <AlumniBanner />
               {!isFullScreenPage && <Breadcrumbs />}
-              <Outlet />
+              {/* Key the Outlet on the active company so any company switch
+                  triggers a clean remount of the routed page. This re-fires
+                  every page-level useEffect (including those that only depend
+                  on [orgSlug] and would otherwise see stale data after a
+                  switch), without paying the cost of a full page reload. */}
+              <div key={`co-${currentCompanyId || 'none'}`}>
+                <Outlet />
+              </div>
             </main>
           </div>
         </div>

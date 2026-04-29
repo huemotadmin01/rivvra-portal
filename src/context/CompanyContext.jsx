@@ -14,6 +14,7 @@
 // ============================================================================
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrg } from './OrgContext';
 import { usePlatform } from './PlatformContext';
 import api from '../utils/api';
@@ -47,6 +48,7 @@ export function stripDetailIdFromPath(pathname) {
 export function CompanyProvider({ children }) {
   const { currentOrg, membership } = useOrg();
   const { orgSlug: platformOrgSlug } = usePlatform();
+  const navigate = useNavigate();
 
   // Use org slug from OrgContext (authoritative) with PlatformContext as fallback
   const orgSlug = currentOrg?.slug || platformOrgSlug;
@@ -107,41 +109,59 @@ export function CompanyProvider({ children }) {
     }
   }, [membership]);
 
-  // Switch company
+  // Switch company — optimistic SPA-style.
+  //
+  // Old flow: PUT /my-company → wait for ACK → window.location.reload().
+  // The full page reload re-ran the JS bundle, all contexts, and every page
+  // fetch, costing 1–3s of dead time after the click.
+  //
+  // New flow:
+  //   1. setCurrentCompanyId() runs immediately. The localStorage useEffect
+  //      below this function picks it up in the same tick, so the X-Company-Id
+  //      header on the very next fetch already reflects the new company.
+  //   2. The orgMiddleware on the API was extended to accept that header as
+  //      an override of membership.currentCompanyId (gated by allowedCompanyIds
+  //      / admin), so requests fired before the membership PUT lands resolve
+  //      under the new company anyway.
+  //   3. PlatformLayout's <Outlet> is keyed on currentCompanyId — when the id
+  //      changes React unmounts and remounts the routed page, which re-fires
+  //      every page-level useEffect and re-fetches data with the new header.
+  //   4. The PUT /my-company call still happens, but in the background, just
+  //      to persist the user's "preferred current company" for next session.
+  //      A failure rolls back the optimistic state.
+  //
+  // For company-scoped detail pages (/.../<24-hex-id>[/edit]), we navigate to
+  // the parent list before remount so the user doesn't sit on a 404.
   const switchCompany = useCallback(async (companyId) => {
-    if (!orgSlug || !companyId) {
-      console.warn('switchCompany: missing orgSlug or companyId', { orgSlug, companyId });
-      return;
+    if (!orgSlug || !companyId) return;
+    if (String(companyId) === String(currentCompanyId)) return;
+
+    const prevCompanyId = currentCompanyId;
+    // (1) Instant UI update — dropdown, header, and X-Company-Id on next fetch.
+    setCurrentCompanyId(String(companyId));
+
+    // (2) If we were on a record-detail page that belongs to the previous
+    // company, navigate to the parent list using react-router (no reload).
+    const safePath = stripDetailIdFromPath(window.location.pathname);
+    if (safePath) {
+      navigate(safePath, { replace: true });
     }
 
+    // (3) Persist the switch on the server, with rollback on failure.
     setSwitching(true);
     try {
       const res = await api.request(`/api/org/${orgSlug}/my-company`, {
         method: 'PUT',
         body: JSON.stringify({ companyId: String(companyId) }),
       });
-
-      if (res.success) {
-        setCurrentCompanyId(String(companyId));
-        // Force navigation to refetch all data with new company context.
-        // If we're on a company-scoped detail page (/.../:id or /.../:id/edit),
-        // the new company doesn't own that record, so a plain reload would
-        // 404. Strip the ID segment and land on the parent list instead.
-        const safePath = stripDetailIdFromPath(window.location.pathname);
-        if (safePath) {
-          window.location.href = safePath;
-        } else {
-          window.location.reload();
-        }
-      } else {
-        console.error('switchCompany: API returned failure', res);
-        setSwitching(false);
-      }
+      if (!res.success) throw new Error(res.error || 'Switch failed');
     } catch (err) {
       console.error('Failed to switch company:', err);
+      setCurrentCompanyId(prevCompanyId);
+    } finally {
       setSwitching(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, currentCompanyId, navigate]);
 
   // Refresh companies list (e.g., after CRUD in settings)
   const refreshCompanies = useCallback(async () => {
