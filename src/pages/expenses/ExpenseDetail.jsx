@@ -8,6 +8,7 @@ import { useToast } from '../../context/ToastContext';
 import expensesApi from '../../utils/expensesApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import { invalidateExpensesList } from './_listCache';
 import {
   ArrowLeft, Save, Send, Trash2, CheckCircle2, XCircle, MessageSquare,
   Paperclip, Upload, Loader2, FileText, Eye, Wallet, AlertCircle, Clock,
@@ -378,13 +379,22 @@ export default function ExpenseDetail() {
     [form.lines, form.claimCurrency],
   );
 
+  // Tracks the last id we've already populated `expense` for. After
+  // handleSaveDraft creates a new record and calls navigate(replace), the
+  // URL changes from /expenses/new to /expenses/:id and this effect would
+  // otherwise re-fetch data we already have in state. We skip the fetch
+  // when the ref already matches the URL id.
+  const loadedIdRef = useRef(null);
+
   const loadExpense = useCallback(async () => {
     if (!orgSlug || isNew) return;
+    if (loadedIdRef.current === id) return;
     try {
       setLoading(true);
       const res = await expensesApi.get(orgSlug, id);
       const exp = res?.expense;
       if (!exp) throw new Error('Expense not found');
+      loadedIdRef.current = exp._id;
       setExpense(exp);
       setForm({
         title: exp.title || '',
@@ -518,7 +528,11 @@ export default function ExpenseDetail() {
         if (res.expense?.lines) {
           setForm((f) => ({ ...f, lines: res.expense.lines.map(lineFromServer) }));
         }
+        // Mark this id as already loaded so the navigate(replace) below
+        // doesn't trigger a redundant GET — we already have the response.
+        loadedIdRef.current = res.expense._id;
         showToast('Draft saved');
+        invalidateExpensesList(orgSlug);
         navigate(orgPath(`/expenses/${res.expense._id}`), { replace: true });
       } else {
         const res = await expensesApi.update(orgSlug, expense._id, payload);
@@ -527,6 +541,7 @@ export default function ExpenseDetail() {
           setForm((f) => ({ ...f, lines: res.expense.lines.map(lineFromServer) }));
         }
         showToast('Draft saved');
+        invalidateExpensesList(orgSlug);
       }
       return true;
     } catch (e) {
@@ -553,7 +568,9 @@ export default function ExpenseDetail() {
       }
       const res = await expensesApi.submit(orgSlug, expenseId);
       setExpense(res.expense);
+      loadedIdRef.current = expenseId;
       showToast('Submitted for approval');
+      invalidateExpensesList(orgSlug);
       if (isNew || !expense?._id) {
         navigate(orgPath(`/expenses/${expenseId}`), { replace: true });
       }
@@ -574,6 +591,7 @@ export default function ExpenseDetail() {
       }
       setShowWithdraw(false);
       showToast('Withdrawn back to draft');
+      invalidateExpensesList(orgSlug);
     } catch (e) {
       showToast(e.message || 'Failed to withdraw', 'error');
     } finally {
@@ -586,6 +604,7 @@ export default function ExpenseDetail() {
       setDeleting(true);
       await expensesApi.remove(orgSlug, expense._id);
       showToast('Expense deleted');
+      invalidateExpensesList(orgSlug);
       navigate(orgPath('/expenses'));
     } catch (e) {
       showToast(e.message || 'Failed to delete', 'error');
@@ -600,6 +619,7 @@ export default function ExpenseDetail() {
       setExpense(res.expense);
       setShowApprove(false);
       showToast(res.alreadySynced ? 'Already approved' : 'Approved — bill created');
+      invalidateExpensesList(orgSlug);
     } catch (e) {
       showToast(e.message || 'Failed to approve', 'error');
     } finally {
@@ -615,6 +635,7 @@ export default function ExpenseDetail() {
       setExpense(res.expense);
       setShowReject(false);
       showToast('Expense rejected');
+      invalidateExpensesList(orgSlug);
     } catch (e) {
       showToast(e.message || 'Failed to reject', 'error');
     } finally {
@@ -707,9 +728,12 @@ export default function ExpenseDetail() {
               {canDelete && (
                 <button
                   onClick={() => setShowDelete(true)}
+                  aria-label="Delete draft"
+                  title="Delete draft"
                   className="inline-flex items-center gap-1.5 px-3 py-2 bg-dark-800 hover:bg-red-500/10 border border-dark-700 hover:border-red-500/40 hover:text-red-400 rounded-lg text-sm text-dark-200"
                 >
                   <Trash2 size={14} />
+                  <span className="hidden sm:inline">Delete</span>
                 </button>
               )}
               {canApprove && (

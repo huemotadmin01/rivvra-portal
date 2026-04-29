@@ -8,16 +8,9 @@ import expensesApi from '../../utils/expensesApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Plus, Search, Loader2, FileText, Receipt, CheckCircle2, XCircle,
-  Clock, RefreshCw, Eye, Wallet, AlertCircle,
+  Clock, RefreshCw, Eye, Wallet, AlertCircle, X,
 } from 'lucide-react';
-
-// ─── Module-level stale-while-revalidate cache ───────────────────────────────
-// Survives re-mounts (tab navigation) so returning to the list is instant.
-// Keyed by "orgSlug:scope:statusTab:search". TTL is soft — we always refresh
-// in the background, but we display stale data immediately so there is no
-// blank/spinner flash on repeated visits.
-const _cache = new Map(); // key → { expenses, summary, ts }
-const CACHE_TTL_MS = 90_000; // 90 s — background-refresh after this
+import { cacheGet, cacheSet, cacheTTL } from './_listCache';
 
 const STATUS_TABS = [
   { key: '', label: 'All' },
@@ -130,12 +123,21 @@ export default function ExpenseList() {
   const scope = requestedScope;
   const [statusTab, setStatusTab] = useState('');
   const [search, setSearch] = useState('');
+  // Debounced copy of `search` — only this drives the network call so a fast
+  // typist doesn't fire one request per keystroke. 300 ms feels responsive
+  // without spamming the server.
+  const [searchDebounced, setSearchDebounced] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // ── Cache-seeded initial state ──────────────────────────────────────────
   // Build the cache key immediately so useState initializers can use it.
   // Note: we include orgSlug + scope in the key; statusTab/search start empty.
   const initKey = `${orgSlug}:${scope}::`;
-  const initHit = _cache.get(initKey);
+  const initHit = cacheGet(initKey);
   const [rows, setRows] = useState(initHit?.expenses || []);
   const [summary, setSummary] = useState(initHit?.summary || null);
   // Show spinner only when there is no cached data at all.
@@ -159,8 +161,8 @@ export default function ExpenseList() {
   const load = useCallback(async (force = false) => {
     if (!orgSlug) return;
 
-    const cacheKey = `${orgSlug}:${scope}:${statusTab}:${search.trim()}`;
-    const hit = _cache.get(cacheKey);
+    const cacheKey = `${orgSlug}:${scope}:${statusTab}:${searchDebounced}`;
+    const hit = cacheGet(cacheKey);
 
     // Serve stale data instantly (stale-while-revalidate).
     if (hit && !force) {
@@ -168,7 +170,7 @@ export default function ExpenseList() {
       setSummary(hit.summary);
       setLoading(false);
       // Skip network if still fresh
-      if (Date.now() - hit.ts < CACHE_TTL_MS) return;
+      if (Date.now() - hit.ts < cacheTTL()) return;
     }
 
     // Cancel any previous in-flight fetch before starting a new one.
@@ -180,7 +182,7 @@ export default function ExpenseList() {
       setRefreshing(true);
       const params = { scope };
       if (statusTab) params.status = statusTab;
-      if (search.trim()) params.q = search.trim();
+      if (searchDebounced) params.q = searchDebounced;
 
       // Single combined round-trip: list + summary in one HTTP request.
       const res = await expensesApi.getOverview(orgSlug, params);
@@ -190,7 +192,7 @@ export default function ExpenseList() {
       const freshExpenses = res?.expenses || [];
       const freshSummary = res?.summary || null;
 
-      _cache.set(cacheKey, { expenses: freshExpenses, summary: freshSummary, ts: Date.now() });
+      cacheSet(cacheKey, { expenses: freshExpenses, summary: freshSummary });
       setRows(freshExpenses);
       setSummary(freshSummary);
     } catch (err) {
@@ -203,7 +205,7 @@ export default function ExpenseList() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, scope, statusTab, search, showToast]);
+  }, [orgSlug, scope, statusTab, searchDebounced, showToast]);
 
   useEffect(() => {
     load();
@@ -348,8 +350,19 @@ export default function ExpenseList() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title, description, or merchant..."
-              className="w-full pl-9 pr-3 py-2 bg-dark-850 border border-dark-700 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
+              className="w-full pl-9 pr-9 py-2 bg-dark-850 border border-dark-700 rounded-lg text-sm text-white placeholder-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                title="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-dark-400 hover:text-white hover:bg-dark-700"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         </div>
 
