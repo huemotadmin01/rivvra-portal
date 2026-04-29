@@ -8,7 +8,7 @@ import expensesApi from '../../utils/expensesApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Plus, Search, Loader2, FileText, Receipt, CheckCircle2, XCircle,
-  Clock, RefreshCw, Eye, Wallet, AlertCircle, X,
+  Clock, RefreshCw, Wallet, X,
 } from 'lucide-react';
 import { cacheGet, cacheSet, cacheTTL } from './_listCache';
 
@@ -135,8 +135,10 @@ export default function ExpenseList() {
 
   // ── Cache-seeded initial state ──────────────────────────────────────────
   // Build the cache key immediately so useState initializers can use it.
-  // Note: we include orgSlug + scope in the key; statusTab/search start empty.
-  const initKey = `${orgSlug}:${scope}::`;
+  // Status tab is NOT part of the key — the server returns the full list
+  // for the scope and we filter by status client-side, so switching tabs
+  // (Draft / Pending / Approved / …) is instant with no network call.
+  const initKey = `${orgSlug}:${scope}:`;
   const initHit = cacheGet(initKey);
   const [rows, setRows] = useState(initHit?.expenses || []);
   const [summary, setSummary] = useState(initHit?.summary || null);
@@ -161,7 +163,10 @@ export default function ExpenseList() {
   const load = useCallback(async (force = false) => {
     if (!orgSlug) return;
 
-    const cacheKey = `${orgSlug}:${scope}:${statusTab}:${searchDebounced}`;
+    // Cache key intentionally omits statusTab — see comment above. The full
+    // unfiltered list is fetched once per (scope, search) and filtered by
+    // status client-side via `visibleRows`.
+    const cacheKey = `${orgSlug}:${scope}:${searchDebounced}`;
     const hit = cacheGet(cacheKey);
 
     // Serve stale data instantly (stale-while-revalidate).
@@ -181,7 +186,6 @@ export default function ExpenseList() {
     try {
       setRefreshing(true);
       const params = { scope };
-      if (statusTab) params.status = statusTab;
       if (searchDebounced) params.q = searchDebounced;
 
       // Single combined round-trip: list + summary in one HTTP request.
@@ -205,12 +209,26 @@ export default function ExpenseList() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, scope, statusTab, searchDebounced, showToast]);
+  }, [orgSlug, scope, searchDebounced, showToast]);
 
   useEffect(() => {
     load();
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [load]);
+
+  // Status counts derived from the full row set so each tab shows a count
+  // alongside its label ("Pending (14)") before the user clicks.
+  const tabCounts = useMemo(() => {
+    const c = { '': rows.length };
+    for (const r of rows) c[r.status] = (c[r.status] || 0) + 1;
+    return c;
+  }, [rows]);
+
+  // Client-side status filter — switching tabs is now instant, no network.
+  const visibleRows = useMemo(() => {
+    if (!statusTab) return rows;
+    return rows.filter((r) => r.status === statusTab);
+  }, [rows, statusTab]);
 
   // ── Render ──────────────────────────────────────────────────────────────
   // Show the "Employee" submitter column for any non-mine scope (team / all).
@@ -218,7 +236,8 @@ export default function ExpenseList() {
   // the team view the approver is always the current viewer.
   const showEmployeeCol = scope !== 'mine';
   const showApproverCol = scope === 'all';
-  const skeletonCols = 7 + (showEmployeeCol ? 1 : 0) + (showApproverCol ? 1 : 0);
+  // Columns: STATUS, TITLE, [SUBMITTED BY], [APPROVER], DATE, TOTAL, BILL
+  const skeletonCols = 5 + (showEmployeeCol ? 1 : 0) + (showApproverCol ? 1 : 0);
 
   if (loading) {
     return (
@@ -329,19 +348,30 @@ export default function ExpenseList() {
         {/* Filter tabs */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex flex-wrap gap-1 bg-dark-850 border border-dark-700 rounded-lg p-1">
-            {STATUS_TABS.map((t) => (
-              <button
-                key={t.key || 'all'}
-                onClick={() => setStatusTab(t.key)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  statusTab === t.key
-                    ? 'bg-rivvra-500 text-white'
-                    : 'text-dark-300 hover:text-white hover:bg-dark-800'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {STATUS_TABS.map((t) => {
+              const count = tabCounts[t.key] || 0;
+              const active = statusTab === t.key;
+              return (
+                <button
+                  key={t.key || 'all'}
+                  onClick={() => setStatusTab(t.key)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    active
+                      ? 'bg-rivvra-500 text-white'
+                      : 'text-dark-300 hover:text-white hover:bg-dark-800'
+                  }`}
+                >
+                  {t.label}
+                  <span
+                    className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-full ${
+                      active ? 'bg-white/20 text-white' : 'bg-dark-800 text-dark-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <div className="relative flex-1 max-w-sm">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
@@ -368,36 +398,47 @@ export default function ExpenseList() {
 
         {/* Table */}
         <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
-          {rows.length === 0 ? (
+          {visibleRows.length === 0 ? (
             <div className="text-center py-16">
               <FileText size={32} className="text-dark-600 mx-auto mb-3" />
-              <p className="text-dark-400 text-sm">No expenses found</p>
-              <button
-                onClick={() => navigate(orgPath('/expenses/new'))}
-                className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-xs font-medium"
-              >
-                <Plus size={12} />
-                Submit your first claim
-              </button>
+              <p className="text-dark-400 text-sm">
+                {rows.length === 0
+                  ? 'No expenses found'
+                  : `No ${STATUS_TABS.find((t) => t.key === statusTab)?.label.toLowerCase() || ''} claims`}
+              </p>
+              {rows.length === 0 ? (
+                <button
+                  onClick={() => navigate(orgPath('/expenses/new'))}
+                  className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500 hover:bg-rivvra-600 text-white rounded-lg text-xs font-medium"
+                >
+                  <Plus size={12} />
+                  Submit your first claim
+                </button>
+              ) : (
+                <button
+                  onClick={() => setStatusTab('')}
+                  className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-dark-700 text-dark-200 rounded-lg text-xs font-medium"
+                >
+                  Show all
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-dark-800 text-dark-400 text-xs uppercase tracking-wide">
-                    <th className="text-left px-4 py-3 font-medium">Submitted</th>
-                    {showEmployeeCol && <th className="text-left px-4 py-3 font-medium">Submitted By</th>}
-                    <th className="text-left px-4 py-3 font-medium">Title</th>
-                    <th className="text-right px-4 py-3 font-medium">Lines</th>
-                    <th className="text-right px-4 py-3 font-medium">Total</th>
-                    {showApproverCol && <th className="text-left px-4 py-3 font-medium">Approver</th>}
                     <th className="text-left px-4 py-3 font-medium">Status</th>
+                    <th className="text-left px-4 py-3 font-medium">Claim</th>
+                    {showEmployeeCol && <th className="text-left px-4 py-3 font-medium">Submitted By</th>}
+                    {showApproverCol && <th className="text-left px-4 py-3 font-medium">Approver</th>}
+                    <th className="text-left px-4 py-3 font-medium whitespace-nowrap">Date</th>
+                    <th className="text-right px-4 py-3 font-medium">Total</th>
                     <th className="text-left px-4 py-3 font-medium">Bill</th>
-                    <th className="text-right px-4 py-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-800">
-                  {rows.map((r) => {
+                  {visibleRows.map((r) => {
                     const lineCount = (r.lines || []).length;
                     return (
                       <tr
@@ -405,60 +446,43 @@ export default function ExpenseList() {
                         className="hover:bg-dark-800/40 cursor-pointer transition-colors"
                         onClick={() => navigate(orgPath(`/expenses/${r._id}`))}
                       >
-                        <td className="px-4 py-3 text-dark-200 whitespace-nowrap">
-                          {formatDate(r.submittedAt || r.createdAt)}
+                        <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={r.status} /></td>
+                        <td className="px-4 py-3 text-dark-200 max-w-md">
+                          <div className="text-white truncate font-medium">
+                            {r.title || <span className="text-dark-500 italic font-normal">Untitled</span>}
+                          </div>
+                          <div className="text-[11px] text-dark-500">
+                            {lineCount} {lineCount === 1 ? 'line' : 'lines'}
+                          </div>
                         </td>
                         {showEmployeeCol && (
-                          <td className="px-4 py-3 text-dark-200">
-                            <div className="text-white">{r.submittedByName || '-'}</div>
-                            {r.submittedByEmail && <div className="text-[11px] text-dark-500">{r.submittedByEmail}</div>}
+                          <td
+                            className="px-4 py-3 text-dark-200 whitespace-nowrap"
+                            title={r.submittedByEmail || ''}
+                          >
+                            {r.submittedByName || '-'}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-dark-200 max-w-md">
-                          <div className="text-white truncate">{r.title || <span className="text-dark-500 italic">Untitled</span>}</div>
-                          {lineCount > 0 && r.lines?.[0]?.description && (
-                            <div className="text-[11px] text-dark-500 truncate">{r.lines[0].description}</div>
-                          )}
+                        {showApproverCol && (
+                          <td className="px-4 py-3 text-dark-200 whitespace-nowrap">
+                            {r.approverName || <span className="text-dark-500 italic">—</span>}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-dark-300 whitespace-nowrap">
+                          {formatDate(r.submittedAt || r.createdAt)}
                         </td>
-                        <td className="px-4 py-3 text-right text-dark-200 whitespace-nowrap">
-                          {lineCount}
-                        </td>
-                        <td className="px-4 py-3 text-right text-white font-medium whitespace-nowrap">
+                        <td className="px-4 py-3 text-right text-white font-semibold tabular-nums whitespace-nowrap">
                           {formatCurrency(r.totalAmount || 0, r.claimCurrency || 'INR')}
                         </td>
-                        {showApproverCol && (
-                          <td className="px-4 py-3 text-dark-200">
-                            {r.approverName ? (
-                              <div className="text-xs">{r.approverName}</div>
-                            ) : (
-                              <span className="text-[11px] text-dark-500 italic">—</span>
-                            )}
-                          </td>
-                        )}
-                        <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {r.billId ? (
                             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
                               <CheckCircle2 size={12} />
                               {r.billNumber || 'Created'}
                             </span>
-                          ) : r.status === 'rejected' ? (
-                            <span className="text-[11px] text-dark-500">—</span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-dark-500">
-                              <AlertCircle size={12} />
-                              Not yet
-                            </span>
+                            <span className="text-[11px] text-dark-500">—</span>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); navigate(orgPath(`/expenses/${r._id}`)); }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-dark-400 hover:text-white text-xs"
-                            title="View"
-                          >
-                            <Eye size={12} />
-                          </button>
                         </td>
                       </tr>
                     );
