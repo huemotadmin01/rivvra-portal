@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { stripOrgPrefix } from '../../config/apps';
 import {
   ChevronRight, ChevronDown, LogOut, Building2
@@ -17,6 +18,7 @@ function AppSidebar({ isOpen, onClose }) {
   const { currentApp, orgPath, orgSlug } = usePlatform();
   const { timesheetUser } = useTimesheetContext();
   const { hasAppAccess, getAppRole, currentOrg, isOrgAdmin } = useOrg();
+  const { currentCompany } = useCompany();
   const [showWipModal, setShowWipModal] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
 
@@ -34,7 +36,9 @@ function AppSidebar({ isOpen, onClose }) {
   const orgAppRole = currentApp.adminOnly && isOrgAdmin
     ? 'admin'
     : (currentApp?.id && currentOrg ? getAppRole(currentApp.id) : null);
-  const sidebarItems = currentApp.getSidebarItems(user, timesheetUser, orgAppRole);
+  // Pass active company so apps can hide entries that don't apply to the
+  // current legal entity (e.g. payroll's India-only items for non-INR cos).
+  const sidebarItems = currentApp.getSidebarItems(user, timesheetUser, orgAppRole, currentCompany);
 
   // Use stripOrgPrefix for active matching so /org/slug/outreach/dashboard matches /outreach/dashboard
   const currentPath = stripOrgPrefix(location.pathname);

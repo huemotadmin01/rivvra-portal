@@ -216,20 +216,34 @@ export const APP_REGISTRY = {
     roles: [
       { value: 'admin', label: 'Admin', color: 'amber' },
     ],
-    getSidebarItems: () => [
-      { type: 'item', path: '/payroll/pay-overview', label: 'Dashboard', icon: LayoutDashboard },
-
-      { type: 'item', path: '/payroll/statutory-run', label: 'Run Payroll', icon: Banknote },
-      { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
-      { type: 'item', path: '/payroll/tax-reports', label: 'Tax Reports', icon: BarChart3 },
-      { type: 'item', path: '/payroll/fnf', label: 'Full & Final', icon: Calculator },
-      {
-        type: 'group', label: 'Configuration', icon: Settings,
-        children: [
-          { path: '/settings/payroll', label: 'Settings', icon: Settings },
-        ],
-      },
-    ],
+    getSidebarItems: (_user, _timesheetUser, _orgAppRole, currentCompany) => {
+      // Payroll module is currently India-specific (PF/ESI/PT/TDS, Form 16,
+      // tax declarations under the IT Act). Hide every navigation entry for
+      // non-INR active companies so an Inc/Canada admin sees an empty
+      // payroll sidebar (and the page-level IndiaOnlyGate explains why).
+      // When per-country payroll apps ship later (Payroll USA, Payroll
+      // Canada), they'll be separate entries in this config; this guard
+      // does not need to change.
+      const isIndia = currentCompany?.currency === 'INR';
+      if (!isIndia) {
+        return [
+          { type: 'item', path: '/payroll/pay-overview', label: 'Dashboard', icon: LayoutDashboard },
+        ];
+      }
+      return [
+        { type: 'item', path: '/payroll/pay-overview', label: 'Dashboard', icon: LayoutDashboard },
+        { type: 'item', path: '/payroll/statutory-run', label: 'Run Payroll', icon: Banknote },
+        { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
+        { type: 'item', path: '/payroll/tax-reports', label: 'Tax Reports', icon: BarChart3 },
+        { type: 'item', path: '/payroll/fnf', label: 'Full & Final', icon: Calculator },
+        {
+          type: 'group', label: 'Configuration', icon: Settings,
+          children: [
+            { path: '/settings/payroll', label: 'Settings', icon: Settings },
+          ],
+        },
+      ];
+    },
   },
 
   employee: {
