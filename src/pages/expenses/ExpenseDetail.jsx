@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
@@ -175,8 +175,9 @@ function ConfirmModalBody({ title, body, confirmLabel, confirmTone = 'rivvra', o
 // ============================================================================
 // Per-line receipt cell — handles upload / preview / remove for a single line.
 // ============================================================================
-function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved, onOpenPreview, busy, setBusy }) {
-  const inputId = `receipt-upload-${line._id}`;
+function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved, onOpenPreview, busy, setBusy, onRequestSaveDraft }) {
+  const inputRef = useRef(null);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   async function handleUpload(file) {
     if (!file) return;
@@ -214,35 +215,61 @@ function ReceiptCell({ line, expenseId, orgSlug, editable, onUploaded, onRemoved
     }
   }
 
+  // Chain: save draft (if needed), then open the file picker.
+  async function handlePickerClick() {
+    if (busy || savingDraft) return;
+    if (expenseId) {
+      inputRef.current?.click();
+      return;
+    }
+    if (!onRequestSaveDraft) return;
+    setSavingDraft(true);
+    try {
+      const ok = await onRequestSaveDraft();
+      if (!ok) return; // toast already shown by parent
+      // Defer to next tick so parent re-renders with the new expenseId.
+      setTimeout(() => inputRef.current?.click(), 0);
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   if (!line.receiptId) {
     if (!editable) return <p className="text-xs text-dark-500 italic">No receipt</p>;
-    const disabled = busy || !expenseId;
+    const disabled = busy || savingDraft;
+    const needsSave = !expenseId;
     return (
       <>
-        <label
-          htmlFor={inputId}
-          aria-disabled={disabled}
-          className={`w-full border-2 border-dashed border-dark-700 rounded-lg p-3 flex flex-col items-center justify-center gap-1 text-dark-400 transition-colors ${
+        <button
+          type="button"
+          onClick={handlePickerClick}
+          disabled={disabled}
+          aria-label={needsSave ? 'Save draft and upload receipt' : 'Upload receipt'}
+          className={`w-full border-2 border-dashed rounded-lg p-3 flex flex-col items-center justify-center gap-1 transition-colors ${
             disabled
-              ? 'opacity-60 cursor-not-allowed'
-              : 'hover:border-rivvra-500/60 hover:text-rivvra-400 cursor-pointer'
+              ? 'border-dark-700 text-dark-400 opacity-60 cursor-not-allowed'
+              : needsSave
+                ? 'border-amber-500/40 text-amber-300 hover:border-amber-400 hover:bg-amber-500/5 cursor-pointer'
+                : 'border-dark-700 text-dark-400 hover:border-rivvra-500/60 hover:text-rivvra-400 cursor-pointer'
           }`}
         >
-          {busy ? (
-            <Loader2 size={16} className="animate-spin" />
+          {busy || savingDraft ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <div className="text-[10px] text-dark-500">{savingDraft ? 'Saving draft…' : 'Uploading…'}</div>
+            </>
           ) : (
             <>
               <Upload size={16} />
-              <div className="text-xs">{expenseId ? 'Click to upload receipt' : 'Save draft first'}</div>
+              <div className="text-xs">{needsSave ? 'Click to save & upload receipt' : 'Click to upload receipt'}</div>
               <div className="text-[10px] text-dark-500">PDF, PNG, JPG · up to 10 MB</div>
             </>
           )}
-        </label>
+        </button>
         <input
-          id={inputId}
+          ref={inputRef}
           type="file"
           accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp"
-          disabled={disabled}
           onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = ''; }}
           className="hidden"
         />
@@ -478,7 +505,10 @@ export default function ExpenseDetail() {
 
   const handleSaveDraft = async () => {
     const err = validate(false);
-    if (err) return showToast(err, 'error');
+    if (err) {
+      showToast(err, 'error');
+      return false;
+    }
     try {
       setSaving(true);
       const payload = buildPayload();
@@ -498,8 +528,10 @@ export default function ExpenseDetail() {
         }
         showToast('Draft saved');
       }
+      return true;
     } catch (e) {
       showToast(e.message || 'Failed to save', 'error');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -988,6 +1020,7 @@ export default function ExpenseDetail() {
                       onUploaded={(patch) => updateLine(line._id, patch)}
                       onRemoved={() => updateLine(line._id, { receiptId: null, receiptFilename: null, receiptMimeType: null, receiptSize: null })}
                       onOpenPreview={setPreviewReceipt}
+                      onRequestSaveDraft={handleSaveDraft}
                     />
                   </div>
                 </div>
@@ -1006,7 +1039,7 @@ export default function ExpenseDetail() {
                 </button>
                 {!expense?._id && (
                   <p className="text-[11px] text-dark-500 self-center">
-                    Save the draft to enable per-line receipt uploads.
+                    Tip: clicking a receipt area auto-saves the draft, then opens the file picker.
                   </p>
                 )}
               </div>
