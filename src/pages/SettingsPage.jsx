@@ -735,7 +735,11 @@ function TeamManagement({ user, canChangeRoles = false }) {
   async function handleImpersonate(memberId) {
     const result = await impersonateUser(memberId);
     if (result.success) {
-      navigate('/outreach/dashboard');
+      // Hard nav (not SPA navigate) so in-memory caches keyed only on
+      // orgSlug+scope are dropped. Otherwise the admin's cached data leaks
+      // into the impersonated session — see _listCache.js, where keys omit
+      // the user identity. Mirrors stopImpersonating's window.location.reload.
+      window.location.assign('/outreach/dashboard');
     } else {
       setError(result.error || 'Failed to impersonate user');
       setTimeout(() => setError(''), 3000);

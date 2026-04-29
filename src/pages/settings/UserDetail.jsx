@@ -298,8 +298,15 @@ export default function UserDetail() {
 
   async function handleImpersonate() {
     const result = await impersonateUser(member.userId);
-    if (result.success) navigate(orgPath('/home'));
-    else showToast(result.error || 'Failed to impersonate', 'error');
+    if (result.success) {
+      // Hard nav (not SPA navigate) so in-memory caches keyed only on
+      // orgSlug+scope are dropped. Otherwise the admin's cached data leaks
+      // into the impersonated session — see _listCache.js, where keys omit
+      // the user identity. Mirrors stopImpersonating's window.location.reload.
+      window.location.assign(orgPath('/home'));
+    } else {
+      showToast(result.error || 'Failed to impersonate', 'error');
+    }
   }
 
   // ─── Employee Linking ───────────────────────────────────────────────────
