@@ -112,12 +112,22 @@ function InfoRow({ label, value }) {
  * shape the EmployeePicker trigger renders \u2014 "Name  #empId". Keeps the
  * read-mode display visually identical to the editing-mode trigger so
  * the InlineField transition between them feels seamless instead of
- * snapping between two layouts. Falls through to a pre-resolved server
- * name (e.g. emp.managerName) if the employee isn't in the live options
- * yet, then to null so InlineField renders the em-dash placeholder.
+ * snapping between two layouts.
+ *
+ * If `idValue` is null/empty, return null \u2014 the field is cleared and the
+ * InlineField renders its em-dash placeholder. Critically, do NOT fall
+ * through to `fallbackName` in that case: a stale pre-resolved name
+ * (e.g. emp.managerName left over from before the clear) would otherwise
+ * make a freshly-cleared field still display the old name until the page
+ * reloads or the user re-enters edit mode.
+ *
+ * Fallback is only used when there IS an id but the live options haven't
+ * resolved it yet (e.g. managerOptions is still loading on first render),
+ * so the API-provided pre-resolved name fills in until the lookup works.
  */
 function renderEmployeeChip(options, idValue, fallbackName) {
   const idStr = idValue == null ? '' : String(idValue);
+  if (!idStr) return null;
   const match = options.find(o => String(o._id) === idStr);
   if (match) {
     return (
@@ -412,15 +422,23 @@ export default function EmployeeDetail() {
         const [parent, child] = field.split('.');
         return { ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } };
       }
-      // For department/manager selects, also update display names
+      // For department/manager/sourcedBy lookups, keep the pre-resolved
+      // display names in sync with the FK so the rest of the UI doesn't
+      // read stale data after a save. When the FK is cleared (value falsy)
+      // we explicitly null the name — otherwise the stale prev.* leaks
+      // through and any consumer falling back to it shows the old name.
       const updated = { ...prev, [field]: value };
       if (field === 'department') {
         const dept = departments.find(d => d.value === value);
-        updated.departmentName = dept?.label || prev.departmentName;
+        updated.departmentName = value ? (dept?.label || prev.departmentName) : null;
       }
       if (field === 'manager') {
-        const mgr = managerOptions.find(m => m.value === value);
-        updated.managerName = mgr?.label || prev.managerName;
+        const mgr = managerOptions.find(m => String(m._id) === String(value ?? ''));
+        updated.managerName = value ? (mgr?.fullName || prev.managerName) : null;
+      }
+      if (field === 'sourcedByEmployeeId') {
+        const src = managerOptions.find(m => String(m._id) === String(value ?? ''));
+        updated.sourcedByName = value ? (src?.fullName || prev.sourcedByName) : null;
       }
       return updated;
     });
