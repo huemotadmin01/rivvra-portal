@@ -231,12 +231,22 @@ export default function MyEarnings() {
     return { paid, approved, draft, partially_paid, ytd };
   }, [summary]);
 
+  // Helper: the status that matters for *this user* on this record.
+  // Falls back to record-level for legacy rows that haven't been backfilled
+  // with per-party fields yet.
+  const userStatusOf = (r) => r.yourStatus || r.status;
+
   // ------------------------------------------------------------------------
   // Client-side derived list — filter (status + search) + sort
   // ------------------------------------------------------------------------
+  // Filter on `yourStatus` so clicking a chip matches the pill the user
+  // actually sees.  E.g. when the user's recruiter share is cancelled but
+  // the record-level is still "approved" (other party still active),
+  // clicking "Cancelled" must show that row — filtering on r.status would
+  // hide it.
   const visibleRecords = useMemo(() => {
     let list = records;
-    if (statusFilter) list = list.filter((r) => r.status === statusFilter);
+    if (statusFilter) list = list.filter((r) => userStatusOf(r) === statusFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((r) =>
@@ -254,8 +264,17 @@ export default function MyEarnings() {
       if (k === 'yourIncentive') {
         return (Number(a.yourIncentive || 0) - Number(b.yourIncentive || 0)) * dir;
       }
-      // String compare for the rest (status + month strings sort
-      // chronologically as strings since they're YYYY-MM)
+      // Status sort — use the user's perspective so the column header
+      // sorts what the column actually shows.
+      if (k === 'status') {
+        const av = userStatusOf(a);
+        const bv = userStatusOf(b);
+        if (av < bv) return -1 * dir;
+        if (av > bv) return 1 * dir;
+        return 0;
+      }
+      // String compare for the rest (month strings sort chronologically
+      // as strings since they're YYYY-MM)
       const av = String(a[k] ?? '');
       const bv = String(b[k] ?? '');
       if (av < bv) return -1 * dir;
@@ -264,6 +283,21 @@ export default function MyEarnings() {
     });
     return sorted;
   }, [records, statusFilter, search, sort]);
+
+  // Per-party chip counts.  The server only knows record-level counts, but
+  // for *MyEarnings* the user wants to see "how many of MY shares are
+  // cancelled".  Compute these from the currently-loaded page so the count
+  // matches exactly what clicking the chip will show.  When pagination is
+  // in play this is "counts on this page", which we surface in the toolbar
+  // text below.
+  const userStatusCounts = useMemo(() => {
+    const c = { draft: 0, approved: 0, partially_paid: 0, paid: 0, cancelled: 0 };
+    for (const r of records) {
+      const s = userStatusOf(r);
+      if (s in c) c[s] += 1;
+    }
+    return c;
+  }, [records]);
 
   function toggleSort(key) {
     setSort((s) => {
@@ -406,7 +440,7 @@ export default function MyEarnings() {
             </div>
             <span className="text-xs text-dark-400 whitespace-nowrap">
               {statusFilter || search
-                ? `${visibleCount} of ${records.length} on this page`
+                ? `${visibleCount} match${visibleCount === 1 ? '' : 'es'} on this page`
                 : total > 0
                   ? `${pageStart}–${pageEnd} of ${total}`
                   : '0 records'}
@@ -431,7 +465,12 @@ export default function MyEarnings() {
             </button>
             {STATUS_ORDER.map((s) => {
               const meta = STATUS_META[s];
-              const count = statusCounts[s] || 0;
+              // Per-party count (computed client-side from `yourStatus`) so
+              // the chip's number matches what filtering on it will show.
+              // Server-side `statusCounts` is by record-level rollup and is
+              // wrong for the user's perspective whenever a record is split
+              // (one party cancelled, the other still live).
+              const count = userStatusCounts[s] || 0;
               const active = statusFilter === s;
               const empty = count === 0;
               return (
@@ -583,8 +622,16 @@ export default function MyEarnings() {
           </div>
         )}
 
-        {/* Pagination footer — only shown when more than one page exists */}
-        {totalPages > 1 && (
+        {/* Pagination footer — only shown when more than one server page
+            exists AND no client-side filter (status / search) is active.
+            With a client-side filter on a single page's worth of records, the
+            "Next" button would jump to a different server page where the
+            filter would re-apply to a different subset, leaving the user with
+            no way to reason about what page-N-of-the-filter would even mean.
+            Cleaner: hide pagination while the filter is on so the user
+            understands the current view is "filter applied to this page".
+            They clear the filter to navigate.  */}
+        {totalPages > 1 && !statusFilter && !search && (
           <div className="px-5 py-3 border-t border-dark-800 flex items-center justify-between gap-3 flex-wrap">
             <span className="text-xs text-dark-400">
               Showing <span className="text-white font-medium">{pageStart}</span>
