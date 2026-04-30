@@ -46,17 +46,65 @@ const STATUS_TABS = [
 const STATUS_PILL = {
   draft: 'bg-dark-700 text-dark-300',
   approved: 'bg-blue-500/10 text-blue-400',
+  partially_paid: 'bg-amber-500/10 text-amber-400',
   paid: 'bg-emerald-500/10 text-emerald-400',
   cancelled: 'bg-dark-800 text-dark-500 line-through',
 };
 
+const SHORT_STATUS = {
+  draft: 'Draft',
+  approved: 'Approved',
+  partially_paid: 'Partial',
+  paid: 'Paid',
+  cancelled: 'Cancelled',
+};
+
 function StatusPill({ status }) {
   const cls = STATUS_PILL[status] || 'bg-dark-700 text-dark-300';
-  const label = status ? status[0].toUpperCase() + status.slice(1) : '—';
+  const label = SHORT_STATUS[status] || (status ? status[0].toUpperCase() + status.slice(1) : '—');
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
       {label}
     </span>
+  );
+}
+
+// When recruiterStatus and accountManagerStatus diverge (e.g. one cancelled,
+// one approved), the record-level rollup hides the split. Render two compact
+// per-party pills so admins can see at a glance which side is off-track.
+// Falls back to the single record-level pill when (a) only one party is
+// assigned, or (b) both parties share the same status (the common case).
+function StatusCell({ record }) {
+  const r = record.recruiterStatus;
+  const a = record.accountManagerStatus;
+  const hasR = r && r !== 'n/a';
+  const hasA = a && a !== 'n/a';
+  // No per-party fields yet (legacy) → just the record-level pill.
+  if (!hasR && !hasA) return <StatusPill status={record.status} />;
+  // Both present and matching → record-level pill is sufficient.
+  if (hasR && hasA && r === a) return <StatusPill status={record.status} />;
+  // Only one party present → record-level rollup already mirrors it.
+  if (hasR !== hasA) return <StatusPill status={record.status} />;
+  // True split — show both pills inline so the divergence is visible.
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+          STATUS_PILL[r] || 'bg-dark-700 text-dark-300'
+        }`}
+        title={`Recruiter: ${r}`}
+      >
+        R: {SHORT_STATUS[r] || r}
+      </span>
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+          STATUS_PILL[a] || 'bg-dark-700 text-dark-300'
+        }`}
+        title={`Account Manager: ${a}`}
+      >
+        AM: {SHORT_STATUS[a] || a}
+      </span>
+    </div>
   );
 }
 
@@ -311,7 +359,7 @@ export default function RecordsList() {
                       </td>
                       <td className="py-3 px-4 text-dark-400">{r.payoutMonth || '—'}</td>
                       <td className="py-3 px-4 text-center">
-                        <StatusPill status={r.status} />
+                        <StatusCell record={r} />
                       </td>
                     </tr>
                   ))}

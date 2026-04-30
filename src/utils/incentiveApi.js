@@ -109,6 +109,15 @@ const incentiveApi = {
       body: JSON.stringify({ party, reason }),
     });
   },
+  // Inverse of cancelParty — bring a single cancelled party back. Target
+  // (approved vs draft) is decided by the server based on the other party's
+  // current state. Reason is optional but recorded for the audit trail.
+  restoreParty(slug, id, party, reason) {
+    return api.request(`${base(slug)}/records/${id}/restore-party`, {
+      method: 'POST',
+      body: JSON.stringify({ party, reason }),
+    });
+  },
   refreshRate(slug, id) {
     return api.request(`${base(slug)}/records/${id}/refresh-rate`, { method: 'POST' });
   },

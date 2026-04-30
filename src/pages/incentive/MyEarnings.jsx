@@ -495,8 +495,17 @@ export default function MyEarnings() {
               </thead>
               <tbody>
                 {visibleRecords.map((r) => {
-                  const meta = STATUS_META[r.status] || STATUS_META.draft;
-                  const isCancelled = r.status === 'cancelled';
+                  // Show the user's *own* per-party status, not the record-
+                  // level rollup. When `yourStatus` isn't set (legacy records
+                  // before Phase 2 backfill), fall back to record-level so
+                  // pre-existing rows still render a sensible badge.
+                  const yourStatus = r.yourStatus || r.status;
+                  const meta = STATUS_META[yourStatus] || STATUS_META.draft;
+                  // "Cancelled" striping is driven by the user's share, since
+                  // a record where I'm cancelled but the AM is approved is,
+                  // from my perspective, dead — even though the row carries
+                  // record-level status='approved' for the admin's view.
+                  const isCancelled = yourStatus === 'cancelled';
                   const isForeignCcy = r.currency && r.currency !== 'INR';
                   return (
                     <tr
@@ -544,10 +553,27 @@ export default function MyEarnings() {
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${meta.pill}`}
-                          title={r.status}
+                          title={
+                            yourStatus !== r.status
+                              ? `Your share: ${yourStatus} · Record: ${r.status}`
+                              : yourStatus
+                          }
                         >
                           {meta.label}
                         </span>
+                        {/* Dual-role rows (user is both recruiter AND AM)
+                            need a second pill so they can see if one of their
+                            two shares diverged. */}
+                        {r.alsoStatus && r.alsoStatus !== yourStatus && (
+                          <span
+                            className={`ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              (STATUS_META[r.alsoStatus] || STATUS_META.draft).pill
+                            }`}
+                            title={`Your ${r.alsoRole === 'recruiter' ? 'Recruiter' : 'AM'} share: ${r.alsoStatus}`}
+                          >
+                            {(STATUS_META[r.alsoStatus] || STATUS_META.draft).label}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

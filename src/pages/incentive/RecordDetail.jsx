@@ -379,6 +379,22 @@ export default function RecordDetail() {
     });
   }
 
+  // Inverse of cancel-party — restore a previously cancelled share. The
+  // server picks the target state (approved vs draft) based on the OTHER
+  // party's lifecycle stage, so the admin doesn't have to reason about it.
+  function onRestorePartyClick(party) {
+    const label = party === 'recruiter' ? 'Recruiter' : 'Account Manager';
+    openConfirm({
+      title: `Restore ${label} share?`,
+      message:
+        `Brings the ${label.toLowerCase()}'s share back to a live state. If the other party is already approved or paid, this share will be restored to "approved" so it flows into the next payroll re-process. Otherwise it goes back to "draft" so you can review before re-approving.`,
+      confirmLabel: 'Restore',
+      primary: true,
+      action: () => incentiveApi.restoreParty(orgSlug, recordId, party),
+      successMsg: `${label} share restored`,
+    });
+  }
+
   return (
     <div className="p-6 max-w-5xl space-y-5">
       {/* ----- Header ----- */}
@@ -821,6 +837,20 @@ export default function RecordDetail() {
                     </ActionBtn>
                   </div>
                 )}
+              {isAdmin &&
+                record.recruiterEmployeeId &&
+                record.recruiterStatus === 'cancelled' && (
+                  <div className="pt-2">
+                    <ActionBtn
+                      icon={RotateCcw}
+                      onClick={() => onRestorePartyClick('recruiter')}
+                      disabled={busy}
+                      title="Bring the recruiter's share back. Target state (approved vs draft) is decided based on the other party's status."
+                    >
+                      Restore Recruiter share
+                    </ActionBtn>
+                  </div>
+                )}
             </>
           )}
         </Panel>
@@ -884,6 +914,20 @@ export default function RecordDetail() {
                     title="Cancel only the AM's share. The recruiter (if any) is unaffected."
                   >
                     Cancel AM share
+                  </ActionBtn>
+                </div>
+              )}
+            {isAdmin &&
+              record.accountManagerEmployeeId &&
+              record.accountManagerStatus === 'cancelled' && (
+                <div className="pt-2">
+                  <ActionBtn
+                    icon={RotateCcw}
+                    onClick={() => onRestorePartyClick('accountManager')}
+                    disabled={busy}
+                    title="Bring the AM's share back. Target state (approved vs draft) is decided based on the other party's status."
+                  >
+                    Restore AM share
                   </ActionBtn>
                 </div>
               )}
