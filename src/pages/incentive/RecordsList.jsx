@@ -13,7 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import MonthPicker from '../../components/incentive/MonthPicker';
 import {
-  Loader2, Search, Download, ChevronLeft, ChevronRight, Inbox,
+  Loader2, Search, Download, ChevronLeft, ChevronRight, Inbox, X,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -39,6 +39,11 @@ const STATUS_TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
   { key: 'approved', label: 'Approved' },
+  // Phase 2: a record is `partially_paid` when one party has been paid and
+  // the other is still live (e.g. recruiter=paid + AM=approved).  Without
+  // this tab those records were only visible under "All" — admins had no way
+  // to triage them.
+  { key: 'partially_paid', label: 'Partially paid' },
   { key: 'paid', label: 'Paid' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
@@ -287,8 +292,21 @@ export default function RecordsList() {
               placeholder="Search client, consultant, recruiter, invoice #…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full bg-dark-850 border border-dark-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500 focus:ring-1 focus:ring-rivvra-500/30 transition-colors"
+              className="w-full bg-dark-850 border border-dark-700 rounded-lg pl-9 pr-9 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500 focus:ring-1 focus:ring-rivvra-500/30 transition-colors"
             />
+            {/* Clear button mirrors MonthPicker's clear affordance so the two
+                filter inputs feel consistent. */}
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-500 hover:text-white p-0.5 rounded transition-colors"
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
           <MonthPicker
             value={payoutMonth}

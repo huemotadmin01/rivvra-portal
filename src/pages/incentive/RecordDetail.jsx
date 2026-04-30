@@ -59,6 +59,19 @@ const STATUS_STYLE = {
   'n/a': 'bg-dark-800 text-dark-500',
 };
 
+// Pretty label per status — keeps the header badge consistent with the
+// list view (which uses Title Case via SHORT_STATUS).  Without this the
+// detail page renders raw "draft"/"approved" while the list shows
+// "Draft"/"Approved" — minor but jarring inconsistency.
+const STATUS_LABEL = {
+  draft: 'Draft',
+  approved: 'Approved',
+  paid: 'Paid',
+  partially_paid: 'Partially paid',
+  cancelled: 'Cancelled',
+  'n/a': 'N/A',
+};
+
 // Small inline status pill for the per-party (recruiter / AM) status shown
 // inside each role panel.  Falls back gracefully when older records don't
 // have a per-party status field yet.
@@ -427,7 +440,7 @@ export default function RecordDetail() {
             STATUS_STYLE[status] || 'bg-dark-800 text-dark-300'
           }`}
         >
-          {status}
+          {STATUS_LABEL[status] || status}
         </span>
       </div>
 
@@ -494,7 +507,13 @@ export default function RecordDetail() {
             </ActionBtn>
           )}
           {canCancel && (
-            <ActionBtn danger onClick={onCancelClick} icon={XCircle} disabled={busy}>
+            <ActionBtn
+              danger
+              onClick={onCancelClick}
+              icon={XCircle}
+              disabled={busy}
+              title="Mark the record as cancelled (preserves it in history). Requires a reason."
+            >
               Cancel
             </ActionBtn>
           )}
@@ -504,7 +523,13 @@ export default function RecordDetail() {
             </ActionBtn>
           )}
           {canDelete && (
-            <ActionBtn danger onClick={onDeleteClick} icon={Trash2} disabled={busy}>
+            <ActionBtn
+              danger
+              onClick={onDeleteClick}
+              icon={Trash2}
+              disabled={busy}
+              title="Permanently remove this draft record. Available on drafts only — use Cancel for approved records."
+            >
               Delete
             </ActionBtn>
           )}
@@ -810,6 +835,16 @@ export default function RecordDetail() {
                   }
                   onSave={handleFieldSave}
                 />
+              ) : record.recruiterAmountOverride != null ? (
+                // Read-only view: only render the row when an override is
+                // actually present.  Surfacing it on approved/paid records is
+                // important — the override changes the incentive amount and
+                // the audit reader needs to know it was applied.
+                <ReadRow
+                  k="Override (₹)"
+                  v={formatINR(record.recruiterAmountOverride)}
+                  note="manual override"
+                />
               ) : null}
               <ReadRow k="Incentive" v={formatINR(record.recruiterIncentive)} strong />
               {/* Per-party status: visible whenever a per-party status is
@@ -879,7 +914,7 @@ export default function RecordDetail() {
                   : '—'
               }
             />
-            {canEdit && (
+            {canEdit ? (
               <InlineField
                 label="Override (₹)"
                 field="accountManagerAmountOverride"
@@ -893,7 +928,16 @@ export default function RecordDetail() {
                 }
                 onSave={handleFieldSave}
               />
-            )}
+            ) : record.accountManagerAmountOverride != null ? (
+              // Read-only view: only show when override exists. (Same
+              // rationale as the Recruiter panel — preserves the audit-
+              // visible signal that an override was applied at approval.)
+              <ReadRow
+                k="Override (₹)"
+                v={formatINR(record.accountManagerAmountOverride)}
+                note="manual override"
+              />
+            ) : null}
             <ReadRow k="Incentive" v={formatINR(record.accountManagerIncentive)} strong />
             {record.accountManagerEmployeeId && record.accountManagerStatus &&
               record.accountManagerStatus !== 'n/a' && (
