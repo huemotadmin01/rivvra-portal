@@ -584,7 +584,7 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
   const doSearch = useCallback(async (q) => {
     try {
       setLoading(true);
-      let url = `/api/org/${orgSlug}/employee/employees?search=${encodeURIComponent(q)}&limit=20&status=active`;
+      let url = `/api/org/${orgSlug}/employee/employees?search=${encodeURIComponent(q)}&limit=20`;
       if (customerContactId) url += `&customerContactId=${customerContactId}`;
       const res = await api.request(url);
       const emps = res?.employees || res?.data || [];
@@ -663,6 +663,11 @@ function EmployeeSearch({ orgSlug, customerContactId, onSelect, onClose, trigger
             <div className="flex items-center gap-2">
               <User size={12} className="text-dark-400 shrink-0" />
               <span className="text-sm text-white">{emp.fullName}</span>
+              {emp.status && emp.status !== 'active' && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 capitalize">
+                  {emp.status}
+                </span>
+              )}
               {emp._assignmentStatus && (
                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
                   emp._assignmentStatus === 'active'
