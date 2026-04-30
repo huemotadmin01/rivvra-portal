@@ -50,7 +50,7 @@ const appColorMap = {
 
 function TopBar({ onToggleSidebar, sidebarOpen }) {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isImpersonating } = useAuth();
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
   const { currentOrg, isOrgAdmin } = useOrg();
@@ -141,7 +141,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   };
 
   return (
-    <header className="h-14 border-b border-dark-800/50 bg-dark-950/80 backdrop-blur-xl sticky top-0 z-40">
+    <header className={`h-14 border-b border-dark-800/50 bg-dark-950/80 backdrop-blur-xl fixed left-0 right-0 z-40 ${isImpersonating ? 'top-10' : 'top-0'}`}>
       <div className="h-full px-4 flex items-center justify-between">
         {/* Left: Hamburger + Rivvra Brand + Grid + Company Switcher + App Badge */}
         <div className="flex items-center gap-2 md:gap-4">

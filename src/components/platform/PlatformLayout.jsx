@@ -58,7 +58,11 @@ function PlatformLayout() {
     <TimesheetProvider>
       <BreadcrumbProvider>
         <PeriodProvider>
-        <div className={`min-h-screen bg-dark-950 ${isImpersonating ? 'pt-10' : ''}`}>
+        {/* TopBar is fixed (top-0 normally, top-10 when impersonating) so it never scrolls
+            away — the modern SaaS pattern (Linear, Stripe, GitHub, Vercel all use fixed).
+            Push everything below it down by the TopBar's 56px (h-14), plus the
+            ImpersonationBanner's 40px when shown. */}
+        <div className={`min-h-screen bg-dark-950 ${isImpersonating ? 'pt-24' : 'pt-14'}`}>
           <ImpersonationBanner />
           <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
           <div className="flex">
