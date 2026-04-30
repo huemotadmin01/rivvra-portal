@@ -56,7 +56,24 @@ const STATUS_STYLE = {
   paid: 'bg-emerald-950 text-emerald-300',
   partially_paid: 'bg-emerald-950/60 text-emerald-300',
   cancelled: 'bg-red-950 text-red-300',
+  'n/a': 'bg-dark-800 text-dark-500',
 };
+
+// Small inline status pill for the per-party (recruiter / AM) status shown
+// inside each role panel.  Falls back gracefully when older records don't
+// have a per-party status field yet.
+function PartyStatusBadge({ status }) {
+  if (!status) return null;
+  return (
+    <span
+      className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
+        STATUS_STYLE[status] || 'bg-dark-800 text-dark-300'
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
 
 // Tiny adapter: lookup arrays → InlineComboField options. Used for the
 // client picker and the employee picker (Recruiter / AM / Consultant all
@@ -342,6 +359,23 @@ export default function RecordDetail() {
       action: () => incentiveApi.deleteRecord(orgSlug, recordId),
       successMsg: 'Deleted',
       afterAction: async () => navigate(orgPath('/incentive/records')),
+    });
+  }
+
+  // Cancel one party only (recruiter OR accountManager).  The other party
+  // continues through the lifecycle untouched — useful when a single side was
+  // accidentally approved or assigned.  Server enforces all guards (already
+  // paid, already cancelled, share folded into a processed run, etc.) and
+  // returns a clear error message that we surface via toast.
+  function onCancelPartyClick(party) {
+    const label = party === 'recruiter' ? 'Recruiter' : 'Account Manager';
+    openReason({
+      title: `Cancel ${label} share`,
+      message:
+        `Voids only the ${label.toLowerCase()}'s share on this record. The other party stays approved and will still be paid normally.  This is final — use Reverse if the share has already been paid.`,
+      placeholder: `Reason for cancelling the ${label.toLowerCase()} share — required`,
+      action: (reason) => incentiveApi.cancelParty(orgSlug, recordId, party, reason),
+      successMsg: `${label} share cancelled`,
     });
   }
 
@@ -762,6 +796,31 @@ export default function RecordDetail() {
                 />
               ) : null}
               <ReadRow k="Incentive" v={formatINR(record.recruiterIncentive)} strong />
+              {/* Per-party status: visible whenever a per-party status is
+                  present (skipped on legacy pre-Phase-2 records that only have
+                  the record-level status). */}
+              {record.recruiterEmployeeId && record.recruiterStatus &&
+                record.recruiterStatus !== 'n/a' && (
+                  <ReadRow
+                    k="Status"
+                    v={<PartyStatusBadge status={record.recruiterStatus} />}
+                  />
+                )}
+              {isAdmin &&
+                record.recruiterEmployeeId &&
+                ['draft', 'approved'].includes(record.recruiterStatus) && (
+                  <div className="pt-2">
+                    <ActionBtn
+                      danger
+                      icon={XCircle}
+                      onClick={() => onCancelPartyClick('recruiter')}
+                      disabled={busy}
+                      title="Cancel only the recruiter's share. The AM (if any) is unaffected."
+                    >
+                      Cancel Recruiter share
+                    </ActionBtn>
+                  </div>
+                )}
             </>
           )}
         </Panel>
@@ -806,6 +865,28 @@ export default function RecordDetail() {
               />
             )}
             <ReadRow k="Incentive" v={formatINR(record.accountManagerIncentive)} strong />
+            {record.accountManagerEmployeeId && record.accountManagerStatus &&
+              record.accountManagerStatus !== 'n/a' && (
+                <ReadRow
+                  k="Status"
+                  v={<PartyStatusBadge status={record.accountManagerStatus} />}
+                />
+              )}
+            {isAdmin &&
+              record.accountManagerEmployeeId &&
+              ['draft', 'approved'].includes(record.accountManagerStatus) && (
+                <div className="pt-2">
+                  <ActionBtn
+                    danger
+                    icon={XCircle}
+                    onClick={() => onCancelPartyClick('accountManager')}
+                    disabled={busy}
+                    title="Cancel only the AM's share. The recruiter (if any) is unaffected."
+                  >
+                    Cancel AM share
+                  </ActionBtn>
+                </div>
+              )}
           </Panel>
         )}
       </div>

@@ -100,6 +100,15 @@ const incentiveApi = {
       body: JSON.stringify(data),
     });
   },
+  // Cancel a single party (recruiter or accountManager) on a record. Use when
+  // only one side should be voided — e.g. an AM was accidentally assigned but
+  // the recruiter still earns. Body: { party, reason }.
+  cancelParty(slug, id, party, reason) {
+    return api.request(`${base(slug)}/records/${id}/cancel-party`, {
+      method: 'POST',
+      body: JSON.stringify({ party, reason }),
+    });
+  },
   refreshRate(slug, id) {
     return api.request(`${base(slug)}/records/${id}/refresh-rate`, { method: 'POST' });
   },
