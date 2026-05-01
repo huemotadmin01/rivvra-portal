@@ -6,6 +6,8 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
+import employeeApi from '../../utils/employeeApi';
+import EmployeePicker from '../../components/employee/EmployeePicker';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Search, Plus, Loader2, FileText, ChevronLeft, ChevronRight,
@@ -110,6 +112,15 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const [overdueCount, setOverdueCount] = useState(0);
   const [sortField, setSortField] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
+  // Employee Bill list filters (Phase 5).  Both stored as employee _id
+  // strings; null/empty means "no filter".  No-ops on the vendor-bill list.
+  const [submitterEmployeeId, setSubmitterEmployeeId] = useState('');
+  const [approverEmployeeId, setApproverEmployeeId] = useState('');
+  // Employee pool for the two pickers — fetched once on mount in employee
+  // mode and scoped to the current company by the backend.  Kept light
+  // (project: name + employeeId + designation) so the page stays snappy
+  // even on tenants with thousands of employees.
+  const [employeeOptions, setEmployeeOptions] = useState([]);
   const limit = 20;
 
   // AI extraction state — only used on vendor-bill list (not employee bills)
@@ -143,6 +154,14 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
       else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
       if (search.trim()) params.search = search.trim();
+      // Employee Bill picker filters — only meaningful in employee mode but
+      // sending them in vendor mode is harmless (backend filters on the
+      // sourceEmployeeId / approverEmployeeId fields which are null on
+      // vendor bills, so the result naturally collapses to zero rows).
+      if (isEmployeeMode) {
+        if (submitterEmployeeId) params.submitterEmployeeId = submitterEmployeeId;
+        if (approverEmployeeId) params.approverEmployeeId = approverEmployeeId;
+      }
 
       const res = await invoicingApi.listBills(orgSlug, params);
       setBills(res.bills || res.data || []);
@@ -158,7 +177,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, currentCompany?._id, page, activeTab, search, sortField, sortOrder, isEmployeeMode]);
+  }, [orgSlug, currentCompany?._id, page, activeTab, search, sortField, sortOrder, isEmployeeMode, submitterEmployeeId, approverEmployeeId]);
 
   useEffect(() => {
     if (orgSlug) loadBills();
@@ -167,7 +186,37 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [activeTab, search]);
+  }, [activeTab, search, submitterEmployeeId, approverEmployeeId]);
+
+  // Load employee pool for the picker filters once per company in employee
+  // mode.  Skip in vendor mode — the pickers don't render there, so paying
+  // for the fetch would be wasted.  Backend scopes by req.companyId via
+  // orgMiddleware, matching the bill list's own scope.
+  useEffect(() => {
+    if (!orgSlug || !isEmployeeMode) {
+      setEmployeeOptions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await employeeApi.list(orgSlug, { limit: 1000 });
+        if (cancelled) return;
+        const list = res?.employees || res?.data || [];
+        setEmployeeOptions(
+          list.map((e) => ({
+            _id: String(e._id),
+            fullName: e.fullName || e.name || '',
+            employeeId: e.employeeId || '',
+            designation: e.designation || '',
+          })).filter(e => e.fullName)
+        );
+      } catch {
+        /* fail-quiet — pickers just stay empty rather than blocking the page */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, currentCompany?._id, isEmployeeMode]);
 
   // ── AI extraction flow ─────────────────────────────────────────────────
   // 1. User drops a PDF → extractVendorBill → get { extracted, vendorMatch }
@@ -450,7 +499,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         })}
       </div>
 
-      {/* Search */}
+      {/* Search + Employee Bill picker filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
@@ -461,9 +510,36 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
             className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
           />
         </div>
-        {search && (
+        {/* Submitter / Approver filters — only on /employee-bills.  Vendor
+            bills don't have these fields, so the pickers would be no-ops
+            and the controls would just clutter the toolbar. */}
+        {isEmployeeMode && (
+          <>
+            <div className="min-w-[200px] max-w-[260px] flex-1">
+              <EmployeePicker
+                value={submitterEmployeeId}
+                employees={employeeOptions}
+                onChange={setSubmitterEmployeeId}
+                placeholder="Submitted by…"
+              />
+            </div>
+            <div className="min-w-[200px] max-w-[260px] flex-1">
+              <EmployeePicker
+                value={approverEmployeeId}
+                employees={employeeOptions}
+                onChange={setApproverEmployeeId}
+                placeholder="Approved by…"
+              />
+            </div>
+          </>
+        )}
+        {(search || (isEmployeeMode && (submitterEmployeeId || approverEmployeeId))) && (
           <button
-            onClick={() => setSearch('')}
+            onClick={() => {
+              setSearch('');
+              setSubmitterEmployeeId('');
+              setApproverEmployeeId('');
+            }}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
           >
             <X size={12} /> Clear
