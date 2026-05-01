@@ -869,8 +869,9 @@ export default function ExpenseDetail() {
                   <div className="text-[11px] text-dark-500 uppercase tracking-wide">Employee Bill</div>
                   {expense?.billId ? (
                     <button
-                      onClick={() => navigate(orgPath(`/invoicing/employee-bills/${expense.billId}`))}
+                      onClick={() => navigate(orgPath(`/invoicing/invoices/${expense.billId}`))}
                       className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm mt-0.5"
+                      title="Open the synced employee bill"
                     >
                       <CheckCircle2 size={14} />
                       {expense.billNumber || 'View bill'}
