@@ -2498,6 +2498,28 @@ export default function InvoiceDetail() {
                               <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Tax</th>
                               <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
                             </>
+                          ) : !isDraft ? (
+                            <>
+                              {/* Customer Invoice / Credit Note read-only —
+                                  staff-aug consultant invoicing keeps Consultant
+                                  + Start/End/Qty/Rate (those are essential for
+                                  the bill-this-period workflow).  Adds HSN/SAC
+                                  for GSTR-1 compliance and drops the redundant
+                                  per-line Currency column (always = invoice
+                                  currency on these invoices).  Tax cell reads
+                                  line.taxNames so the canonical "IGST 18%"
+                                  shows instead of "1 tax(es)". */}
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">HSN/SAC</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Consultant</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Start Date</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">End Date</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3 w-20">Qty</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Unit</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Billing Rate</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Tax</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
+                            </>
                           ) : (
                             <>
                               {!isVendorBill && (
@@ -2684,6 +2706,65 @@ export default function InvoiceDetail() {
                               <tr>
                                 <td colSpan={8} className="text-center py-10 text-dark-500">
                                   No bill lines
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        ) : !isDraft ? (
+                          <>
+                            {/* Customer Invoice / Credit Note read-only.  Same
+                                column shape as the staff-aug consultant
+                                invoicing layout that already works, with two
+                                differences from the legacy block: HSN/SAC
+                                shown after Product (compliance), Currency
+                                column dropped (always = invoice currency).
+                                Tax cell renders names from line.taxNames
+                                (post-cleanup migration always populated). */}
+                            {(invoice.lines || invoice.lineItems || []).map((li, i) => {
+                              const lineTotal = li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              const taxLabel = (Array.isArray(li.taxNames) && li.taxNames.filter(Boolean).length > 0)
+                                ? li.taxNames.filter(Boolean).join(' + ')
+                                : (li.taxIds?.length ? `${li.taxIds.length} tax(es)` : '');
+                              return (
+                                <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
+                                  <td className="px-6 py-3 text-white">
+                                    {li.product?.name || li.productName || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 font-mono text-xs">
+                                    {li.hsnSacCode || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.consultantName || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 max-w-xs">
+                                    {li.description || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.startDate ? formatDate(li.startDate, countryCode) : <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.endDate ? formatDate(li.endDate, countryCode) : <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
+                                  <td className="px-4 py-3 text-dark-300 text-xs">
+                                    {li.unit || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-white">
+                                    {formatCurrency(li.unitPrice, currency)}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 text-xs">
+                                    {taxLabel || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-6 py-3 text-right text-white font-medium">
+                                    {formatCurrency(lineTotal, currency)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {(invoice.lines || invoice.lineItems || []).length === 0 && (
+                              <tr>
+                                <td colSpan={11} className="text-center py-10 text-dark-500">
+                                  No invoice lines
                                 </td>
                               </tr>
                             )}
