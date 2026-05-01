@@ -13,6 +13,7 @@ import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { API_BASE_URL } from '../../utils/config';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -749,6 +750,11 @@ export default function InvoiceDetail() {
   // Real Vendor Bills run on the BILL journal. Employee Bills (EMPBI) and
   // customer invoices share the same detail page but must not see these fields.
   const isVendorBill = invoice?.journalCode === 'BILL';
+  // Employee Bills are reimbursement vouchers, not vendor invoices.  The
+  // line-item table renders a different column set (Date / Merchant / Payment
+  // Mode / Receipt) instead of the staff-aug-style Consultant / Start / End
+  // / Rate columns — see Phase 4 in the plan.
+  const isEmployeeBill = invoice?.journalCode === 'EMPBI';
 
   // Vendor bills and employee bills share the /invoicing/invoices/:id route
   // with customer invoices; override the parent crumb so it reads the right
@@ -2414,25 +2420,43 @@ export default function InvoiceDetail() {
                 <div>
                   {/* Invoice Lines table */}
                   <div className="overflow-x-auto">
-                    <table className="min-w-[1100px] w-full text-sm">
+                    <table className={`${isEmployeeBill && !isDraft ? 'min-w-[900px]' : 'min-w-[1100px]'} w-full text-sm`}>
                       <thead>
                         <tr className="bg-dark-800">
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-6 py-3">Product</th>
-                          {!isVendorBill && (
-                            <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Consultant</th>
+                          {/* EMPBI (read-only) uses Date / Category / Description /
+                              Merchant / Payment / Amount / Receipt — drop the
+                              staff-aug Consultant + Start/End/Qty/Rate columns
+                              that are irrelevant for reimbursement vouchers. */}
+                          {isEmployeeBill && !isDraft ? (
+                            <>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Date</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3 min-w-[140px]">Category</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Merchant</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Payment</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
+                              <th className="text-center text-xs font-medium text-dark-400 uppercase px-4 py-3 w-16">Receipt</th>
+                            </>
+                          ) : (
+                            <>
+                              {!isVendorBill && (
+                                <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Consultant</th>
+                              )}
+                              {isVendorBill && (
+                                <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3 min-w-[180px]">Expense Category</th>
+                              )}
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Start Date</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">End Date</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3 w-20">Qty</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Billing Rate</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Currency</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Taxes</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
+                              {isDraft && <th className="w-10 px-2 py-3" />}
+                            </>
                           )}
-                          {isVendorBill && (
-                            <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3 min-w-[180px]">Expense Category</th>
-                          )}
-                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
-                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Start Date</th>
-                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">End Date</th>
-                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3 w-20">Qty</th>
-                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Billing Rate</th>
-                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Currency</th>
-                          <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Taxes</th>
-                          <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
-                          {isDraft && <th className="w-10 px-2 py-3" />}
                         </tr>
                       </thead>
                       <tbody>
@@ -2475,6 +2499,85 @@ export default function InvoiceDetail() {
                                 </button>
                               </td>
                             </tr>
+                          </>
+                        ) : isEmployeeBill ? (
+                          <>
+                            {/* Employee Bill (EMPBI) — reimbursement voucher
+                                view.  Each line maps 1:1 to a source expense
+                                line and surfaces date / merchant / payment
+                                mode / receipt — the fields a finance reviewer
+                                actually cares about when checking a claim. */}
+                            {(invoice.lines || invoice.lineItems || []).map((li, i) => {
+                              const lineTotal = li.amount ?? li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              const hasFx = li.originalCurrency && li.originalAmount != null && li.originalCurrency !== (invoice.currency || 'INR');
+                              const paymentLabel = li.paymentMode
+                                ? li.paymentMode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+                                : null;
+                              const receiptHref = li.receiptId
+                                ? `${API_BASE_URL}/api/org/${orgSlug}/invoicing/invoices/${invoice._id}/attachments/${li.receiptId}`
+                                : null;
+                              return (
+                                <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
+                                  <td className="px-6 py-3 text-white">
+                                    {li.product?.name || li.productName || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.expenseDate
+                                      ? formatDate(li.expenseDate, countryCode)
+                                      : invoice.date
+                                        ? formatDate(invoice.date, countryCode)
+                                        : <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.expenseCategoryName || li.expenseCategory || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 max-w-xs">
+                                    {li.description || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {li.merchant || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-white">
+                                    {paymentLabel || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-6 py-3 text-right">
+                                    <div className="text-white font-medium">
+                                      {formatCurrency(lineTotal, currency)}
+                                    </div>
+                                    {hasFx && (
+                                      <div
+                                        className="text-[10px] text-dark-500 mt-0.5"
+                                        title={`Original receipt: ${li.originalCurrency} ${li.originalAmount} converted at FX rate ${li.conversionRate}`}
+                                      >
+                                        {li.originalCurrency} {Number(li.originalAmount).toLocaleString()} @ {Number(li.conversionRate).toFixed(2)}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    {receiptHref ? (
+                                      <a
+                                        href={receiptHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={li.receiptFilename || 'View receipt'}
+                                        className="inline-flex items-center justify-center text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                                      >
+                                        <Paperclip size={14} />
+                                      </a>
+                                    ) : (
+                                      <span className="text-dark-700 italic text-xs">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {(invoice.lines || invoice.lineItems || []).length === 0 && (
+                              <tr>
+                                <td colSpan={8} className="text-center py-10 text-dark-500">
+                                  No reimbursement lines
+                                </td>
+                              </tr>
+                            )}
                           </>
                         ) : (
                           <>
