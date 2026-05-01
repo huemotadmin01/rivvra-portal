@@ -425,15 +425,19 @@ export default function ExpenseDetail() {
       .catch(() => {});
   }, [orgSlug]);
 
-  // Approver preview — show "Will be sent to X" (only for new/draft expenses)
+  // Approver preview — show "Will be sent to X" (only for new expenses, or
+  // for an existing draft when the viewer is the submitter; third-party
+  // viewers would otherwise see the resolver computed against their own
+  // manager chain, which is misleading).
   useEffect(() => {
     if (!orgSlug) return;
-    if (!isNew && status !== 'draft') {
+    const showForExistingDraft = !isNew && status === 'draft' && isOwner;
+    if (!isNew && !showForExistingDraft) {
       setPreviewApprover(null);
       setPreviewWarning(null);
       return;
     }
-    expensesApi.previewApprover(orgSlug)
+    expensesApi.previewApprover(orgSlug, isNew ? null : expense?._id)
       .then((r) => {
         setPreviewApprover(r?.approver || null);
         setPreviewWarning(r?.warning || null);
@@ -442,7 +446,7 @@ export default function ExpenseDetail() {
         setPreviewApprover(null);
         setPreviewWarning(null);
       });
-  }, [orgSlug, isNew, status]);
+  }, [orgSlug, isNew, status, isOwner, expense?._id]);
 
   const updateForm = (patch) => setForm((f) => ({ ...f, ...patch }));
 

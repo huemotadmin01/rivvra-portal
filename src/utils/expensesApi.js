@@ -79,8 +79,9 @@ const expensesApi = {
   },
 
   // ---------- APPROVER PREVIEW ----------
-  previewApprover(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/expenses/preview-approver`);
+  previewApprover(orgSlug, expenseId) {
+    const qs = expenseId ? `?expenseId=${encodeURIComponent(expenseId)}` : '';
+    return api.request(`/api/org/${orgSlug}/expenses/preview-approver${qs}`);
   },
 
   // ---------- CATEGORIES (read-only proxy) ----------
