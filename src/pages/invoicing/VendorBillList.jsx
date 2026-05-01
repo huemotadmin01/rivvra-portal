@@ -258,8 +258,12 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               quantity: Number(l.quantity) || 1,
               unitPrice: Number(l.unitPrice) || 0,
               hsnSacCode: l.hsnSac || undefined,
+              // Phase Q6/C: prompt now extracts `unit` ("Days" / "Months" /
+              // "GB" / etc.) per line.  Surfaces in the new vendor-bill
+              // Unit column.  expenseCategory was dropped from the prompt
+              // schema in the same change.
+              unit: l.unit || undefined,
               taxIds: taxId ? [taxId] : [],
-              expenseCategory: l.expenseCategory || undefined,
             };
           })
         : [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }];

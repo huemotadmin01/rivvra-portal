@@ -741,6 +741,12 @@ export default function InvoiceDetail() {
   const [allTaxes, setAllTaxes] = useState([]);
   const [previewNumber, setPreviewNumber] = useState(null);
   const [customerDefaultProduct, setCustomerDefaultProduct] = useState(null); // { _id, name }
+  // VP_GEN system product cached on mount when the invoice is a vendor
+  // bill — used as the new-line default so admins clicking "Add a line"
+  // get Product=Vendor Payouts + Qty=1 pre-filled (per the Q3/B decision
+  // for the vendor-bill rework).  HSN and Tax stay blank to force an
+  // explicit choice.
+  const [vendorBillDefaultProduct, setVendorBillDefaultProduct] = useState(null);
   const [consultantRates, setConsultantRates] = useState({}); // { consultantId: clientBillingRate }
   const [expenseCategories, setExpenseCategories] = useState([]); // vendor bill line categorization
   const [tdsConfigs, setTdsConfigs] = useState([]); // vendor bill TDS sections
@@ -886,6 +892,31 @@ export default function InvoiceDetail() {
       } catch { setCustomerDefaultProduct(null); }
     })();
   }, [orgSlug, invoice?.contactId]);
+
+  // Fetch VP_GEN once for vendor bills so "Add a line" can pre-fill
+  // Product + Qty without making admins pick from the dropdown every
+  // time.  Skipped on customer invoices and EMPBI bills.  HSN + Tax
+  // are deliberately not inherited from the product (per Q3/B) so admins
+  // make those choices explicitly.
+  useEffect(() => {
+    if (!orgSlug || !isVendorBill) { setVendorBillDefaultProduct(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const pRes = await invoicingApi.listProducts(orgSlug, { search: 'VP_GEN' });
+        const product = (pRes?.products || []).find(
+          (p) => p.internalRef === 'VP_GEN' || p.sku === 'VP_GEN'
+        );
+        if (cancelled) return;
+        if (product) {
+          setVendorBillDefaultProduct({ _id: product._id, name: product.name });
+        } else {
+          setVendorBillDefaultProduct(null);
+        }
+      } catch { if (!cancelled) setVendorBillDefaultProduct(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, isVendorBill]);
 
   // ── Auto-save with debounce ──
   const saveToApi = useCallback(async (data) => {
@@ -1121,10 +1152,22 @@ export default function InvoiceDetail() {
 
   const addLine = useCallback(() => {
     setEditForm(prev => {
+      // Default-product resolution order:
+      //   1. Customer's `defaultProductId` (set on the contact) — full
+      //      inheritance: product, HSN, unit, default taxes.  Customer-side
+      //      preferences take priority because they're explicitly chosen
+      //      per-relationship.
+      //   2. VP_GEN system product (vendor bills only) — bare-bones fill:
+      //      product + name only.  HSN and taxes stay blank per Q3/B so
+      //      the admin makes an explicit choice (avoids accidentally
+      //      booking a non-services bill at SAC 998513 / 18% IGST).
+      //   3. Empty — for customer invoices without a contact-default,
+      //      keeps the current "blank line" behaviour.
+      const useVendorDefault = isVendorBill && !customerDefaultProduct && vendorBillDefaultProduct;
       const defaultTaxIds = customerDefaultProduct?.defaultTaxIds || customerDefaultProduct?.taxIds || [];
       const newLines = [...prev.lines, {
-        productId: customerDefaultProduct?._id || '',
-        productName: customerDefaultProduct?.name || '',
+        productId: customerDefaultProduct?._id || (useVendorDefault ? vendorBillDefaultProduct._id : ''),
+        productName: customerDefaultProduct?.name || (useVendorDefault ? vendorBillDefaultProduct.name : ''),
         internalRef: customerDefaultProduct?.internalRef || '',
         hsnSacCode: customerDefaultProduct?.hsnSacCode || '',
         unit: customerDefaultProduct?.unit || '',
@@ -1142,7 +1185,7 @@ export default function InvoiceDetail() {
       }];
       return { ...prev, lines: newLines };
     });
-  }, [invoice, customerDefaultProduct]);
+  }, [invoice, customerDefaultProduct, isVendorBill, vendorBillDefaultProduct]);
 
   const removeLine = useCallback((index) => {
     setEditForm(prev => {
@@ -2420,7 +2463,7 @@ export default function InvoiceDetail() {
                 <div>
                   {/* Invoice Lines table */}
                   <div className="overflow-x-auto">
-                    <table className={`${isEmployeeBill && !isDraft ? 'min-w-[900px]' : 'min-w-[1100px]'} w-full text-sm`}>
+                    <table className={`${(isEmployeeBill || isVendorBill) && !isDraft ? 'min-w-[900px]' : 'min-w-[1100px]'} w-full text-sm`}>
                       <thead>
                         <tr className="bg-dark-800">
                           <th className="text-left text-xs font-medium text-dark-400 uppercase px-6 py-3">Product</th>
@@ -2437,6 +2480,23 @@ export default function InvoiceDetail() {
                               <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Payment</th>
                               <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
                               <th className="text-center text-xs font-medium text-dark-400 uppercase px-4 py-3 w-16">Receipt</th>
+                            </>
+                          ) : isVendorBill && !isDraft ? (
+                            <>
+                              {/* Vendor Bill (BILL journal) read-only — purchase
+                                  invoice column set.  Drops Start/End (rarely
+                                  used), Currency (always = bill currency),
+                                  and Expense Category (was generic "Other"
+                                  for almost everyone).  Surfaces HSN/SAC
+                                  for GST compliance + reads tax NAMES from
+                                  line.taxNames instead of the count. */}
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">HSN/SAC</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Description</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3 w-20">Qty</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Unit</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-4 py-3">Rate</th>
+                              <th className="text-left text-xs font-medium text-dark-400 uppercase px-4 py-3">Tax</th>
+                              <th className="text-right text-xs font-medium text-dark-400 uppercase px-6 py-3">Amount</th>
                             </>
                           ) : (
                             <>
@@ -2575,6 +2635,55 @@ export default function InvoiceDetail() {
                               <tr>
                                 <td colSpan={8} className="text-center py-10 text-dark-500">
                                   No reimbursement lines
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        ) : isVendorBill ? (
+                          <>
+                            {/* Vendor Bill (BILL journal) — purchase invoice
+                                view.  Drops Start/End/Currency/Expense
+                                Category that the staff-aug consultant layout
+                                assumed; surfaces HSN/SAC for compliance and
+                                renders tax NAMES from the line.taxNames
+                                array stamped by computeLineTotals (or the
+                                Phase-D backfill on legacy bills). */}
+                            {(invoice.lines || invoice.lineItems || []).map((li, i) => {
+                              const lineTotal = li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              const taxLabel = (Array.isArray(li.taxNames) && li.taxNames.filter(Boolean).length > 0)
+                                ? li.taxNames.filter(Boolean).join(' + ')
+                                : (li.taxIds?.length ? `${li.taxIds.length} tax(es)` : '');
+                              return (
+                                <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
+                                  <td className="px-6 py-3 text-white">
+                                    {li.product?.name || li.productName || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 font-mono text-xs">
+                                    {li.hsnSacCode || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 max-w-md">
+                                    {li.description || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-white">{li.quantity ?? 0}</td>
+                                  <td className="px-4 py-3 text-dark-300 text-xs">
+                                    {li.unit || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-white">
+                                    {formatCurrency(li.unitPrice, currency)}
+                                  </td>
+                                  <td className="px-4 py-3 text-dark-300 text-xs">
+                                    {taxLabel || <span className="text-dark-600 italic">—</span>}
+                                  </td>
+                                  <td className="px-6 py-3 text-right text-white font-medium">
+                                    {formatCurrency(lineTotal, currency)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {(invoice.lines || invoice.lineItems || []).length === 0 && (
+                              <tr>
+                                <td colSpan={8} className="text-center py-10 text-dark-500">
+                                  No bill lines
                                 </td>
                               </tr>
                             )}
