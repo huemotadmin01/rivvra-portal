@@ -6,7 +6,7 @@ import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
-  Search, Plus, Loader2, Package, Trash2, Pencil, X,
+  Search, Plus, Loader2, Package, Trash2, Pencil, X, Lock,
   Check, ToggleLeft, ToggleRight, Layers, Wrench,
 } from 'lucide-react';
 
@@ -192,7 +192,14 @@ export default function ProductCatalog() {
 
   function taxName(taxId) {
     const tax = taxes.find(t => t._id === taxId);
-    return tax ? `${tax.name} (${tax.rate}%)` : taxId;
+    if (!tax) return taxId;
+    // Q5/B — show the rate badge ONLY when the tax name doesn't already
+    // contain the rate.  Standard Rivvra taxes ("IGST 18%", "GST 12%",
+    // "GST 5%") already have the rate inline → showing "(18%)" again is
+    // redundant.  Custom taxes named just "Service Tax" or "Cess" with
+    // rate 14 still get the "(14%)" badge so the rate stays visible.
+    const ratePat = new RegExp(`\\b${tax.rate}\\s*%`);
+    return ratePat.test(tax.name) ? tax.name : `${tax.name} (${tax.rate}%)`;
   }
 
   // Inline edit panel — spans full row to avoid cramped 9-col layout
@@ -471,7 +478,22 @@ export default function ProductCatalog() {
                       >
                         <td className="px-4 py-3">
                           <div>
-                            <p className="font-medium text-white">{product.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-white">{product.name}</p>
+                              {/* Q4/A — system products (EXP_GEN / VP_GEN) get
+                                  a small "system" pill so admins know
+                                  they're platform-managed.  Pairs with the
+                                  hidden trash icon below. */}
+                              {product.system === true && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30"
+                                  title="Platform-managed product. Code is locked; description, HSN, and tax remain editable."
+                                >
+                                  <Lock size={9} />
+                                  system
+                                </span>
+                              )}
+                            </div>
                             {product.description && (
                               <p className="text-xs text-dark-500 mt-0.5 truncate max-w-[250px]">{product.description}</p>
                             )}
@@ -536,18 +558,34 @@ export default function ProductCatalog() {
                             >
                               <Pencil size={14} />
                             </button>
-                            <button
-                              onClick={() => requestDelete(product)}
-                              disabled={deletingId === product._id}
-                              className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
-                              title="Delete"
-                            >
-                              {deletingId === product._id ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <Trash2 size={14} />
-                              )}
-                            </button>
+                            {/* Q4/A — system products can't be deleted (the
+                                API returns 409 with a clear error).  Hide the
+                                trash icon entirely instead of showing a
+                                button that always errors out — pairs with
+                                the "system" pill in the name column to
+                                signal "platform-managed" without making
+                                admins click to find out. */}
+                            {product.system === true ? (
+                              <span
+                                className="p-1.5 inline-flex items-center text-dark-700"
+                                title="Platform-managed — can't be deleted"
+                              >
+                                <Lock size={14} />
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => requestDelete(product)}
+                                disabled={deletingId === product._id}
+                                className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
+                                title="Delete"
+                              >
+                                {deletingId === product._id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
