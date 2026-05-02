@@ -530,7 +530,7 @@ function PdfPageWithFields({
         return (
           <div
             key={`prev-${fieldId}`}
-            className="absolute pointer-events-none bg-white"
+            className="absolute pointer-events-none"
             style={{ left, top, width, height }}
           >
             {isSignature ? (
@@ -538,8 +538,14 @@ function PdfPageWithFields({
                 <span className="text-[10px] text-gray-400 italic">Signed</span>
               </div>
             ) : (
-              <div className="w-full h-full flex items-center text-gray-800 px-1 truncate font-medium" style={{ fontSize: Math.min(Math.max(height * 0.6, 13), 18) }}>
-                {displayDate}
+              // Inline-block + bg-white so the white pad is only as wide as
+              // the actual text glyphs (plus a tiny horizontal padding),
+              // not the whole field box. Avoids erasing surrounding
+              // document text like "Date:" or "between".
+              <div className="w-full h-full flex items-center font-medium" style={{ fontSize: Math.min(Math.max(height * 0.6, 13), 18) }}>
+                <span className="bg-white text-gray-800 px-1 truncate max-w-full leading-none">
+                  {displayDate}
+                </span>
               </div>
             )}
           </div>

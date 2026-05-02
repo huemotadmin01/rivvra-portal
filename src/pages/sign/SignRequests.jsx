@@ -259,6 +259,21 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
     setSigners((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
   };
 
+  // Roles to expose in the per-signer dropdown.
+  //
+  // When a template has fields scoped to specific roles, only those roles
+  // are useful as signer assignments — picking a role the template doesn't
+  // reference would silently leave that signer with nothing to fill out.
+  // Fall back to the full org roles list when the template has no role
+  // assignments yet (e.g. quick-send / brand-new template) so the dropdown
+  // still has options to choose from.
+  const templateRoleIds = selectedTemplate
+    ? [...new Set((selectedTemplate.signItems || []).map((it) => it.roleId).filter(Boolean))]
+    : [];
+  const selectableRoles = templateRoleIds.length > 0
+    ? roles.filter((r) => templateRoleIds.includes(r._id || r.id))
+    : roles;
+
   const addSigner = () => {
     setSigners((prev) => [...prev, EMPTY_SIGNER()]);
   };
@@ -509,7 +524,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
                       totalSigners={signers.length}
                       updateSigner={updateSigner}
                       removeSigner={removeSigner}
-                      roles={roles}
+                      roles={selectableRoles}
                     />
                   ))}
                 </div>
