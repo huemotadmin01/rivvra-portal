@@ -8,7 +8,7 @@ import signApi from '../../utils/signApi';
 import {
   Loader2, Plus, Upload, FileText, LayoutTemplate,
   X, Copy, Trash2, Edit2, Tag, Search,
-  CloudUpload, File, Send,
+  CloudUpload, File, Send, Check,
 } from 'lucide-react';
 
 /* ── Upload Template Modal ────────────────────────────────────────────── */
@@ -24,6 +24,29 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
   const [loadingTags, setLoadingTags] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [creatingTag, setCreatingTag] = useState(false);
+
+  const createTagInline = async () => {
+    const name = newTagName.trim();
+    if (!name || creatingTag) return;
+    setCreatingTag(true);
+    try {
+      const res = await signApi.createTag(orgSlug, { name });
+      const created = res.data || res.tag || res.item;
+      if (res.success && created?._id) {
+        setAvailableTags((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedTags((prev) => [...prev, created._id]);
+        setNewTagName('');
+      } else {
+        showToast(res.error || 'Failed to create tag', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to create tag', 'error');
+    } finally {
+      setCreatingTag(false);
+    }
+  };
 
   useEffect(() => {
     if (show && orgSlug) {
@@ -47,7 +70,15 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
     if (selectedFile && selectedFile.type === 'application/pdf') {
       setFile(selectedFile);
       if (!name.trim()) {
-        const fileName = selectedFile.name.replace(/\.pdf$/i, '');
+        // Tidy the filename into a presentable template name: drop the
+        // extension, strip trailing "(N)" duplicate suffix, replace
+        // underscores with spaces, and collapse runs of whitespace.
+        const fileName = selectedFile.name
+          .replace(/\.pdf$/i, '')
+          .replace(/\s*\(\d+\)\s*$/, '')
+          .replace(/_+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
         setName(fileName);
       }
     } else if (selectedFile) {
@@ -211,7 +242,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
             />
           </div>
 
-          {/* Tags Multi-select */}
+          {/* Tags Multi-select with inline create */}
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">
               Tags
@@ -221,30 +252,55 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
                 <Loader2 size={14} className="animate-spin text-dark-400" />
                 <span className="text-dark-500 text-xs">Loading tags...</span>
               </div>
-            ) : availableTags.length === 0 ? (
-              <p className="text-dark-500 text-xs py-2">
-                No tags available. Create tags in the Sign Configuration.
-              </p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {availableTags.map((tag) => {
-                  const isSelected = selectedTags.includes(tag._id);
-                  return (
-                    <button
-                      key={tag._id}
-                      type="button"
-                      onClick={() => toggleTag(tag._id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                        isSelected
-                          ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
-                          : 'bg-dark-900 border-dark-700 text-dark-400 hover:border-dark-600 hover:text-dark-300'
-                      }`}
-                    >
-                      {tag.name}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                {availableTags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {availableTags.map((tag) => {
+                      const isSelected = selectedTags.includes(tag._id);
+                      return (
+                        <button
+                          key={tag._id}
+                          type="button"
+                          onClick={() => toggleTag(tag._id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                              : 'bg-dark-900 border-dark-700 text-dark-400 hover:border-dark-600 hover:text-dark-300'
+                          }`}
+                        >
+                          {isSelected && <Check size={12} />}
+                          {tag.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        createTagInline();
+                      }
+                    }}
+                    placeholder={availableTags.length === 0 ? 'Create your first tag…' : 'Add a new tag'}
+                    className="input-field text-xs flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={createTagInline}
+                    disabled={!newTagName.trim() || creatingTag}
+                    className="px-3 py-1.5 text-xs font-medium text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    {creatingTag ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                    Add
+                  </button>
+                </div>
+              </>
             )}
           </div>
 

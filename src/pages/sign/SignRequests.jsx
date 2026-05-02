@@ -623,13 +623,15 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
                 </div>
               )}
 
-              {/* Validity */}
+              {/* Validity — format consistently as "9 May 2026" (matches the
+                  detail-page format) instead of leaking the ISO yyyy-mm-dd
+                  the input control stores. */}
               {validityDate && (
                 <div className="flex items-center gap-3">
                   <Calendar size={16} className="text-dark-400 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-dark-500 uppercase tracking-wide">Valid Until</p>
-                    <p className="text-dark-300 text-sm">{validityDate}</p>
+                    <p className="text-dark-300 text-sm">{formatDateUTC(validityDate) || validityDate}</p>
                   </div>
                 </div>
               )}
