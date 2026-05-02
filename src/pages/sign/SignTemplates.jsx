@@ -67,22 +67,37 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
   }, [show, orgSlug]);
 
   const handleFileSelect = (selectedFile) => {
-    if (selectedFile && selectedFile.type === 'application/pdf') {
-      setFile(selectedFile);
-      if (!name.trim()) {
-        // Tidy the filename into a presentable template name: drop the
-        // extension, strip trailing "(N)" duplicate suffix, replace
-        // underscores with spaces, and collapse runs of whitespace.
-        const fileName = selectedFile.name
-          .replace(/\.pdf$/i, '')
-          .replace(/\s*\(\d+\)\s*$/, '')
-          .replace(/_+/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        setName(fileName);
-      }
-    } else if (selectedFile) {
-      showToast('Only PDF files are accepted', 'error');
+    if (!selectedFile) return;
+    const type = (selectedFile.type || '').toLowerCase();
+    const lname = (selectedFile.name || '').toLowerCase();
+    const isPdf = type === 'application/pdf' || lname.endsWith('.pdf');
+    const isImg = type === 'image/png' || type === 'image/jpeg' ||
+      lname.endsWith('.png') || lname.endsWith('.jpg') || lname.endsWith('.jpeg');
+    const isDoc = type === 'application/msword' ||
+      type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      lname.endsWith('.doc') || lname.endsWith('.docx');
+
+    if (isDoc) {
+      showToast('Word docs aren\'t supported yet — save as PDF first.', 'error');
+      return;
+    }
+    if (!isPdf && !isImg) {
+      showToast('Upload a PDF, PNG, or JPG.', 'error');
+      return;
+    }
+
+    setFile(selectedFile);
+    if (!name.trim()) {
+      // Tidy the filename into a presentable template name: drop the
+      // extension, strip trailing "(N)" duplicate suffix, replace
+      // underscores with spaces, and collapse runs of whitespace.
+      const fileName = selectedFile.name
+        .replace(/\.(pdf|png|jpe?g)$/i, '')
+        .replace(/\s*\(\d+\)\s*$/, '')
+        .replace(/_+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      setName(fileName);
     }
   };
 
@@ -193,7 +208,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
                 className="hidden"
                 onChange={(e) => handleFileSelect(e.target.files[0])}
               />
@@ -219,9 +234,9 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
                 <div className="flex flex-col items-center gap-2">
                   <CloudUpload size={32} className="text-dark-500" />
                   <p className="text-dark-300 text-sm font-medium">
-                    Drop your PDF here or click to browse
+                    Drop your file here or click to browse
                   </p>
-                  <p className="text-dark-500 text-xs">Only PDF files accepted</p>
+                  <p className="text-dark-500 text-xs">PDF, PNG, or JPG (Word docs &mdash; save as PDF first)</p>
                 </div>
               )}
             </div>

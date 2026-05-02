@@ -432,9 +432,13 @@ export default function SignTemplateEditor() {
   // ────────────────────────────────────────────────────────────────────
   // Save
   // ────────────────────────────────────────────────────────────────────
-  const handleSave = useCallback(async () => {
+  // ── Save state for autosave indicator ───────────────────────────────
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+
+  const doSave = useCallback(async ({ silent = false } = {}) => {
     if (saving) return;
-    setSaving(true);
+    if (silent) setAutoSaving(true); else setSaving(true);
     try {
       const res = await signApi.updateTemplate(orgSlug, templateId, {
         name: templateName,
@@ -443,17 +447,33 @@ export default function SignTemplateEditor() {
       });
       if (res.success) {
         savedSignItemsRef.current = JSON.stringify(signItems);
-        showToast('Template saved');
-      } else {
+        setLastSavedAt(new Date());
+        if (!silent) showToast('Template saved');
+      } else if (!silent) {
         showToast(res.message || 'Failed to save', 'error');
       }
     } catch (err) {
       console.error('Save error:', err);
-      showToast('Failed to save template', 'error');
+      if (!silent) showToast('Failed to save template', 'error');
     } finally {
-      setSaving(false);
+      if (silent) setAutoSaving(false); else setSaving(false);
     }
   }, [orgSlug, templateId, templateName, signItems, numPages, saving, showToast]);
+
+  const handleSave = useCallback(() => doSave({ silent: false }), [doSave]);
+
+  // Autosave: debounced 2.5s after the last edit. Skips during the initial
+  // load (savedSignItemsRef empty), during an undo/redo replay, and when
+  // there are no changes to save. Render-only — the manual Save button
+  // stays as the explicit "save now + toast confirmation" control.
+  useEffect(() => {
+    if (!savedSignItemsRef.current) return; // not yet loaded
+    if (saving || autoSaving) return;
+    const json = JSON.stringify(signItems);
+    if (json === savedSignItemsRef.current) return;
+    const t = setTimeout(() => { doSave({ silent: true }); }, 2500);
+    return () => clearTimeout(t);
+  }, [signItems, doSave, saving, autoSaving]);
 
   // ────────────────────────────────────────────────────────────────────
   // Quick Send: Send dialog + Save as Template
@@ -1095,6 +1115,12 @@ export default function SignTemplateEditor() {
           )}
           {!isQuickSend && (
             <>
+              {/* Autosave status — quietly tells the user their work is being persisted. */}
+              {(autoSaving || lastSavedAt) && (
+                <span className="text-[11px] text-dark-500 mr-1" title={lastSavedAt ? lastSavedAt.toLocaleTimeString() : ''}>
+                  {autoSaving ? 'Saving…' : `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                </span>
+              )}
               <button
                 onClick={() => {
                   const dirty = JSON.stringify(signItems) !== savedSignItemsRef.current;
