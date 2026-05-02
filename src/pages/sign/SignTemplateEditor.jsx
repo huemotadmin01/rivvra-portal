@@ -408,6 +408,14 @@ export default function SignTemplateEditor() {
   const [sendSubject, setSendSubject] = useState('');
   const [sendMessage, setSendMessage] = useState('');
   const [sendValidity, setSendValidity] = useState('');
+  // CC recipients — comma-separated emails. Only get the completion
+  // notification (signed/refused/cancelled), not the signing link itself.
+  // Backend ccEmails field accepts an array of strings.
+  const [sendCcEmails, setSendCcEmails] = useState('');
+  // Reminder cadence — days between auto-reminders to pending signers.
+  // Backend reminderDays field; 0 = disabled. Default 7 matches the
+  // pre-existing data-model default in src/sign.js create handlers.
+  const [sendReminderDays, setSendReminderDays] = useState(7);
   const [sendingRequest, setSendingRequest] = useState(false);
   const [promoting, setPromoting] = useState(false);
 
@@ -423,6 +431,11 @@ export default function SignTemplateEditor() {
       }
 
       // Then create the sign request
+      const ccEmailsArray = sendCcEmails
+        .split(/[,;\n]/)
+        .map((e) => e.trim())
+        .filter((e) => e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+
       const requestData = {
         templateId,
         signers: quickSendSigners.map(s => ({
@@ -434,6 +447,8 @@ export default function SignTemplateEditor() {
         subject: sendSubject || `Signature Request - ${templateName}`,
         message: sendMessage || undefined,
         validity: sendValidity || undefined,
+        ccEmails: ccEmailsArray.length > 0 ? ccEmailsArray : undefined,
+        reminderDays: Number(sendReminderDays) || 0,
       };
 
       const res = await signApi.createRequest(orgSlug, requestData);
@@ -448,7 +463,7 @@ export default function SignTemplateEditor() {
     } finally {
       setSendingRequest(false);
     }
-  }, [orgSlug, templateId, signItems, numPages, quickSendSigners, sendSubject, sendMessage, sendValidity, templateName, sendingRequest]);
+  }, [orgSlug, templateId, signItems, numPages, quickSendSigners, sendSubject, sendMessage, sendValidity, sendCcEmails, sendReminderDays, templateName, sendingRequest]);
 
   const handleSaveAsTemplate = useCallback(async () => {
     if (promoting) return;
@@ -1200,11 +1215,63 @@ export default function SignTemplateEditor() {
               <div>
                 <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
                 <input type="date" value={sendValidity} onChange={e => setSendValidity(e.target.value)} className="w-full px-3 py-2 text-sm text-white bg-dark-900 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50" />
+                {/* Quick presets — most signing flows want one of these
+                    rather than typing a date. Sets validity = today + N days. */}
+                <div className="flex gap-1.5 mt-1.5">
+                  {[
+                    { label: '7 days', days: 7 },
+                    { label: '14 days', days: 14 },
+                    { label: '30 days', days: 30 },
+                    { label: '90 days', days: 90 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.days}
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + preset.days);
+                        setSendValidity(d.toISOString().slice(0, 10));
+                      }}
+                      className="px-2 py-1 text-[11px] text-dark-400 hover:text-white bg-dark-800 hover:bg-dark-700 border border-dark-700 rounded transition-colors"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">
+                  CC recipients (optional)
+                </label>
+                <input
+                  type="text"
+                  value={sendCcEmails}
+                  onChange={e => setSendCcEmails(e.target.value)}
+                  placeholder="comma-separated emails for completion notifications"
+                  className="w-full px-3 py-2 text-sm text-white bg-dark-900 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50 placeholder:text-dark-500"
+                />
+                <p className="text-[11px] text-dark-500 mt-1">CCs receive the completion / refused / cancelled notice. They do not get the signing link.</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-dark-400 mb-1 block">
+                  Send reminder every
+                </label>
+                <select
+                  value={sendReminderDays}
+                  onChange={e => setSendReminderDays(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm text-white bg-dark-900 border border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rivvra-500/50"
+                >
+                  <option value={0}>Don't send reminders</option>
+                  <option value={1}>1 day</option>
+                  <option value={3}>3 days</option>
+                  <option value={7}>7 days (recommended)</option>
+                  <option value={14}>14 days</option>
+                </select>
               </div>
               <div className="bg-dark-900 rounded-lg p-3 border border-dark-700">
                 <p className="text-xs text-dark-400 mb-2">Summary</p>
                 <p className="text-sm text-white">{templateName}</p>
-                <p className="text-xs text-dark-500 mt-1">{quickSendSigners.length} signer(s) &middot; {signItems.length} field(s) placed &middot; Sequential signing</p>
+                <p className="text-xs text-dark-500 mt-1">{quickSendSigners.length} signer(s) &middot; {signItems.length} field(s) placed &middot; Sequential signing{sendReminderDays > 0 ? ` · Reminders every ${sendReminderDays}d` : ''}</p>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowSendDialog(false)} className="flex-1 px-4 py-2.5 text-sm font-medium text-dark-300 bg-dark-700 hover:bg-dark-600 rounded-lg transition-colors">
