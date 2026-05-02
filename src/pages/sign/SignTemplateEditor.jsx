@@ -177,6 +177,12 @@ export default function SignTemplateEditor() {
   // coords for absolute positioning.
   const [contextMenu, setContextMenu] = useState(null);
 
+  // ── Mobile sidebar overlay (md: and below) ──────────────────────────
+  // null = both hidden behind hamburger toggles. 'fields' / 'props'
+  // shows the corresponding sidebar as a fixed overlay. Desktop renders
+  // both sidebars inline as flex children (md:flex) regardless.
+  const [mobileSidebar, setMobileSidebar] = useState(null);
+
   // ── Current page (for the jump bar). Updated by an IntersectionObserver
   // attached after PDF render so scrolling keeps the bar in sync.
   const [currentPage, setCurrentPage] = useState(0);
@@ -1147,10 +1153,36 @@ export default function SignTemplateEditor() {
         </div>
       </header>
 
+      {/* ── Mobile sidebar toggles + dim overlay ────────────────────── */}
+      <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-dark-700 bg-dark-900 shrink-0">
+        <button
+          onClick={() => setMobileSidebar(mobileSidebar === 'fields' ? null : 'fields')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-dark-200 bg-dark-800 hover:bg-dark-700 rounded-lg"
+        >
+          <Plus className="w-4 h-4" /> Add Field
+        </button>
+        <button
+          onClick={() => setMobileSidebar(mobileSidebar === 'props' ? null : 'props')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-dark-200 bg-dark-800 hover:bg-dark-700 rounded-lg"
+        >
+          <MousePointer className="w-4 h-4" /> {selectedItem ? 'Properties' : 'Fields List'}
+        </button>
+      </div>
+      {mobileSidebar && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/60"
+          onClick={() => setMobileSidebar(null)}
+        />
+      )}
+
       {/* ── Main body: left sidebar + PDF center + right sidebar ─── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ─── Left Sidebar ─────────────────────────────────────── */}
-        <aside className="w-64 shrink-0 border-r border-dark-700 bg-dark-900 overflow-y-auto">
+        <aside className={`w-64 shrink-0 border-r border-dark-700 bg-dark-900 overflow-y-auto ${
+          mobileSidebar === 'fields'
+            ? 'fixed inset-y-0 left-0 z-40 w-72 md:static md:w-64'
+            : 'hidden md:block'
+        }`}>
           {/* Field Types */}
           <div className="p-4">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -1341,7 +1373,11 @@ export default function SignTemplateEditor() {
         </main>
 
         {/* ─── Right Sidebar (Properties) ───────────────────────── */}
-        <aside className="w-64 shrink-0 border-l border-dark-700 bg-dark-900 overflow-y-auto">
+        <aside className={`w-64 shrink-0 border-l border-dark-700 bg-dark-900 overflow-y-auto ${
+          mobileSidebar === 'props'
+            ? 'fixed inset-y-0 right-0 z-40 w-72 md:static md:w-64'
+            : 'hidden md:block'
+        }`}>
           {selectedItem ? (
             <div className="p-4 space-y-5">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">

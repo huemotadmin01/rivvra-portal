@@ -750,9 +750,36 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
 
   const handleFile = (e) => {
     const f = e.target.files?.[0] || e.dataTransfer?.files?.[0];
-    if (f && f.type === 'application/pdf') {
-      setFile(f);
-      if (!reference) setReference(f.name.replace('.pdf', ''));
+    if (!f) return;
+    const type = (f.type || '').toLowerCase();
+    const lname = (f.name || '').toLowerCase();
+    const isPdf = type === 'application/pdf' || lname.endsWith('.pdf');
+    const isImg = type === 'image/png' || type === 'image/jpeg' ||
+      lname.endsWith('.png') || lname.endsWith('.jpg') || lname.endsWith('.jpeg');
+    const isDoc = type === 'application/msword' ||
+      type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      lname.endsWith('.doc') || lname.endsWith('.docx');
+    if (isDoc) {
+      showToast('Word docs aren\'t supported yet — save as PDF first.', 'error');
+      return;
+    }
+    if (!isPdf && !isImg) {
+      showToast('Upload a PDF, PNG, or JPG.', 'error');
+      return;
+    }
+    if (f.size > 10 * 1024 * 1024) {
+      showToast('File is over 10 MB. Please compress and try again.', 'error');
+      return;
+    }
+    setFile(f);
+    if (!reference) {
+      const cleaned = f.name
+        .replace(/\.(pdf|png|jpe?g)$/i, '')
+        .replace(/\s*\(\d+\)\s*$/, '')
+        .replace(/_+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      setReference(cleaned);
     }
   };
 
@@ -761,7 +788,26 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
   const updateSigner = (idx, field, val) => setSigners(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
 
   const handlePrepare = async () => {
-    if (!file || signers.some(s => !s.email)) return;
+    if (!file) return;
+    // Per-signer validation: name + email required, email must look valid.
+    // Server only checks for presence and Resend rejects malformed addresses
+    // with a cryptic 422; doing it here gives the user a clear inline error.
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (let i = 0; i < signers.length; i++) {
+      const s = signers[i];
+      if (!s.name || !s.name.trim()) {
+        showToast(`Signer ${i + 1}: name is required.`, 'error');
+        return;
+      }
+      if (!s.email || !s.email.trim()) {
+        showToast(`Signer ${i + 1}: email is required.`, 'error');
+        return;
+      }
+      if (!emailRegex.test(s.email.trim())) {
+        showToast(`Signer ${i + 1}: "${s.email}" doesn't look like a valid email.`, 'error');
+        return;
+      }
+    }
     setPreparing(true);
     try {
       const fd = new FormData();
@@ -824,17 +870,22 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
                 ) : (
                   <>
                     <Upload size={32} className="mx-auto text-dark-500 mb-3" />
-                    <p className="text-dark-300 text-sm font-medium">Drop a PDF here or click to upload</p>
-                    <p className="text-dark-500 text-xs mt-1">Maximum 10 MB</p>
+                    <p className="text-dark-300 text-sm font-medium">Drop a file here or click to upload</p>
+                    <p className="text-dark-500 text-xs mt-1">PDF, PNG, or JPG &middot; up to 10 MB</p>
                   </>
                 )}
-                <input id="qs-pdf-input" type="file" accept=".pdf" onChange={handleFile} className="hidden" />
+                <input id="qs-pdf-input" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={handleFile} className="hidden" />
               </div>
               <div>
                 <label className="text-xs font-medium text-dark-400 mb-1 block">Document Name</label>
                 <input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. NDA Agreement" className="input-field w-full" />
               </div>
-              <button onClick={() => setStep(2)} disabled={!file} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
+              <button
+                onClick={() => setStep(2)}
+                disabled={!file}
+                title={!file ? 'Upload a file first.' : ''}
+                className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40"
+              >
                 Next <ArrowRight size={14} />
               </button>
             </>
@@ -863,7 +914,12 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
               <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button onClick={handlePrepare} disabled={preparing || signers.some(s => !s.email)} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
+                <button
+                  onClick={handlePrepare}
+                  disabled={preparing || signers.some(s => !s.email?.trim() || !s.name?.trim())}
+                  title={signers.some(s => !s.email?.trim() || !s.name?.trim()) ? 'Each signer needs a name and email.' : ''}
+                  className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40"
+                >
                   {preparing ? <><Loader2 size={14} className="animate-spin" /> Preparing...</> : <>Place Fields <ArrowRight size={14} /></>}
                 </button>
               </div>
@@ -887,9 +943,12 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [validity, setValidity] = useState('');
+  const [bulkReminderDays, setBulkReminderDays] = useState(7);
+  const [bulkCcEmails, setBulkCcEmails] = useState('');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState('');
 
   useEffect(() => {
     if (show && orgSlug) {
@@ -897,7 +956,27 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
     }
   }, [show, orgSlug]);
 
-  const reset = () => { setStep(1); setSelectedTemplate(null); setCsvFile(null); setPreviewRows([]); setPreviewErrors([]); setSubject(''); setMessage(''); setValidity(''); setSendResult(null); };
+  const reset = () => {
+    setStep(1); setSelectedTemplate(null); setCsvFile(null); setPreviewRows([]);
+    setPreviewErrors([]); setSubject(''); setMessage(''); setValidity('');
+    setBulkReminderDays(7); setBulkCcEmails(''); setSendResult(null);
+    setTemplateSearch('');
+  };
+
+  // Tiny built-in CSV so users have a known-good starting point. Held as a
+  // data: URL so the download button works without a server round-trip.
+  const sampleCsvHref = (() => {
+    const csv = [
+      'name,email,phone,company',
+      'Alice Example,alice@example.com,+1 555 0100,Acme Inc',
+      'Bob Sample,bob@example.com,,',
+    ].join('\n');
+    return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+  })();
+
+  const filteredTemplates = templates.filter((t) =>
+    !templateSearch.trim() || (t.name || '').toLowerCase().includes(templateSearch.trim().toLowerCase())
+  );
 
   const handlePreview = async () => {
     if (!csvFile) return;
@@ -930,6 +1009,9 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
       fd.append('subject', subject || `Signature Request - ${selectedTemplate.name}`);
       if (message) fd.append('message', message);
       if (validity) fd.append('validity', validity);
+      if (Number(bulkReminderDays) >= 0) fd.append('reminderDays', String(bulkReminderDays));
+      const ccList = bulkCcEmails.split(',').map((e) => e.trim()).filter(Boolean);
+      if (ccList.length > 0) fd.append('ccEmails', JSON.stringify(ccList));
       const res = await signApi.bulkSend(orgSlug, fd);
       if (res.success !== false) {
         setSendResult(res);
@@ -962,19 +1044,35 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
           {step === 1 && (
             <>
               <p className="text-dark-400 text-sm">Choose a template to send to multiple recipients.</p>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
+                <input
+                  type="text"
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  placeholder="Search templates…"
+                  className="input-field w-full pl-9 text-sm"
+                />
+              </div>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {templates.map(t => (
-                  <button key={t._id} onClick={() => setSelectedTemplate(t)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${selectedTemplate?._id === t._id ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-dark-900 border-dark-700 hover:border-dark-600'}`}>
-                    <div className="flex items-center gap-3">
-                      <FileText size={16} className="text-indigo-400 flex-shrink-0" />
-                      <div>
-                        <p className="text-white text-sm font-medium">{t.name}</p>
-                        <p className="text-dark-500 text-xs">{t.numPages || 1} page(s) &middot; {(t.signItems || []).length} field(s)</p>
+                {filteredTemplates.length === 0 ? (
+                  <p className="text-dark-500 text-xs text-center py-4">
+                    {templateSearch ? 'No templates match that search.' : 'No templates yet.'}
+                  </p>
+                ) : (
+                  filteredTemplates.map(t => (
+                    <button key={t._id} onClick={() => setSelectedTemplate(t)}
+                      className={`w-full text-left p-3 rounded-lg border transition-all ${selectedTemplate?._id === t._id ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-dark-900 border-dark-700 hover:border-dark-600'}`}>
+                      <div className="flex items-center gap-3">
+                        <FileText size={16} className="text-indigo-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-white text-sm font-medium">{t.name}</p>
+                          <p className="text-dark-500 text-xs">{t.numPages || 1} page(s) &middot; {(t.signItems || []).length} field(s)</p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
               </div>
               <button onClick={() => setStep(2)} disabled={!selectedTemplate} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
                 Next <ArrowRight size={14} />
@@ -985,7 +1083,17 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
           {/* Step 2: Upload CSV */}
           {step === 2 && (
             <>
-              <p className="text-dark-400 text-sm">Upload a CSV with columns: <span className="text-dark-200 font-medium">name, email</span> (required), phone, company (optional).</p>
+              <p className="text-dark-400 text-sm">
+                Upload a CSV with columns: <span className="text-dark-200 font-medium">name, email</span> (required), phone, company (optional).
+                {' '}
+                <a
+                  href={sampleCsvHref}
+                  download="rivvra-bulk-send-sample.csv"
+                  className="text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  Download sample
+                </a>
+              </p>
               <div className="border-2 border-dashed border-dark-600 hover:border-indigo-500/50 rounded-xl p-6 text-center transition-colors cursor-pointer"
                 onClick={() => document.getElementById('bs-csv-input').click()}>
                 {csvFile ? (
@@ -1000,7 +1108,22 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
                     <p className="text-dark-300 text-sm">Drop CSV here or click to upload</p>
                   </>
                 )}
-                <input id="bs-csv-input" type="file" accept=".csv" onChange={e => setCsvFile(e.target.files?.[0])} className="hidden" />
+                <input
+                  id="bs-csv-input"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const lname = (f.name || '').toLowerCase();
+                    if (!lname.endsWith('.csv') && f.type !== 'text/csv') {
+                      showToast('Bulk send needs a .csv file (you uploaded ' + (f.type || 'an unknown type') + ').', 'error');
+                      return;
+                    }
+                    setCsvFile(f);
+                  }}
+                  className="hidden"
+                />
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
@@ -1023,10 +1146,22 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
               )}
               <div className="overflow-x-auto max-h-48">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b border-dark-700"><th className="text-left px-3 py-2 text-dark-400">Name</th><th className="text-left px-3 py-2 text-dark-400">Email</th></tr></thead>
+                  <thead>
+                    <tr className="border-b border-dark-700">
+                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Name</th>
+                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Email</th>
+                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Phone</th>
+                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Company</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {previewRows.slice(0, 20).map((r, i) => (
-                      <tr key={i} className="border-b border-dark-700/50"><td className="px-3 py-1.5 text-dark-200">{r.name}</td><td className="px-3 py-1.5 text-dark-300">{r.email}</td></tr>
+                      <tr key={i} className="border-b border-dark-700/50">
+                        <td className="px-3 py-1.5 text-dark-200">{r.name}</td>
+                        <td className="px-3 py-1.5 text-dark-300">{r.email}</td>
+                        <td className="px-3 py-1.5 text-dark-400 text-xs">{r.phone || '—'}</td>
+                        <td className="px-3 py-1.5 text-dark-400 text-xs">{r.company || '—'}</td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
@@ -1050,9 +1185,36 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
                 <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
                 <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Add a message..." className="input-field w-full resize-none" />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
+                  <input type="date" value={validity} onChange={e => setValidity(e.target.value)} className="input-field w-full" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-dark-400 mb-1 block">Remind every</label>
+                  <select
+                    value={bulkReminderDays}
+                    onChange={(e) => setBulkReminderDays(Number(e.target.value))}
+                    className="input-field w-full"
+                  >
+                    <option value={1}>Daily</option>
+                    <option value={2}>Every 2 days</option>
+                    <option value={3}>Every 3 days</option>
+                    <option value={7}>Weekly (default)</option>
+                    <option value={14}>Every 2 weeks</option>
+                    <option value={0}>No reminders</option>
+                  </select>
+                </div>
+              </div>
               <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
-                <input type="date" value={validity} onChange={e => setValidity(e.target.value)} className="input-field w-full" />
+                <label className="text-xs font-medium text-dark-400 mb-1 block">CC Emails (optional)</label>
+                <input
+                  type="text"
+                  value={bulkCcEmails}
+                  onChange={(e) => setBulkCcEmails(e.target.value)}
+                  placeholder="comma separated emails — applied to every request"
+                  className="input-field w-full"
+                />
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setStep(3)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
