@@ -5,12 +5,13 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
+import { downloadFile } from '../../utils/download';
 import {
   Loader2, Plus, FileText, Search, X,
   ChevronLeft, ChevronRight, ChevronDown,
   Bell, XCircle, Send, User, Calendar,
   ArrowRight, ArrowLeft, Check, Mail,
-  MessageSquare, GripVertical, Upload, Zap, Users,
+  MessageSquare, GripVertical, Upload, Zap, Users, Download,
 } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -1186,6 +1187,30 @@ export default function SignRequests() {
     setOpenFilter((prev) => (prev === name ? null : name));
   };
 
+  // CSV export — mirrors fetchRequests' filter chain so export rows match
+  // what's on screen. Companion to API endpoint /sign/requests/export.csv.
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (!orgSlug) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('state', statusFilter);
+      if (templateFilter) params.set('templateId', templateFilter);
+      const qs = params.toString();
+      const today = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/api/org/${orgSlug}/sign/requests/export.csv${qs ? '?' + qs : ''}`,
+        `sign_requests_${today}.csv`,
+      );
+    } catch (err) {
+      showToast(err?.message || 'Export failed', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Actions
   const handleCancel = async (e, requestId) => {
     e.stopPropagation();
@@ -1318,6 +1343,16 @@ export default function SignRequests() {
             Clear{activeFilterCount > 1 ? ` (${activeFilterCount})` : ''}
           </button>
         )}
+
+        <button
+          onClick={handleExport}
+          disabled={exporting || total === 0}
+          title="Download the current filtered list as a CSV file"
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Export CSV
+        </button>
       </div>
 
       {/* Content */}
