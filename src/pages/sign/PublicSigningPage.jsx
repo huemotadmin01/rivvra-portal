@@ -81,10 +81,16 @@ function formatDisplayDate(dateStr) {
 // ── Signature Pad Modal ─────────────────────────────────────────────────────
 function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signerName = '' }) {
   const sigCanvasRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('draw'); // 'draw' | 'type'
+  const fileInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('draw'); // 'draw' | 'type' | 'upload'
   const [typedText, setTypedText] = useState(signerName || '');
   const [selectedFont, setSelectedFont] = useState(CURSIVE_FONTS[0]);
   const [isEmpty, setIsEmpty] = useState(true);
+  // Upload-tab state — preview shown inline, dataUrl carried straight to
+  // onAdopt. We don't compress / resize here; the recipient page expects
+  // raw data: URLs (same as what the canvas + typed paths produce).
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -92,6 +98,8 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
       setTypedText(signerName || '');
       setSelectedFont(CURSIVE_FONTS[0]);
       setIsEmpty(true);
+      setUploadedImageUrl(null);
+      setUploadError('');
     }
   }, [isOpen, signerName]);
 
@@ -102,18 +110,40 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
     }
   };
 
+  const handleFileChange = (e) => {
+    setUploadError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
+      setUploadError('Please upload a PNG or JPG image.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError('Image must be under 2 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUploadedImageUrl(reader.result);
+    };
+    reader.onerror = () => setUploadError('Failed to read the file. Try again.');
+    reader.readAsDataURL(file);
+  };
+
   const handleAdopt = () => {
     let dataUrl = null;
     if (activeTab === 'draw') {
       if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
         dataUrl = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
       }
-    } else {
+    } else if (activeTab === 'type') {
       if (typedText.trim()) {
         const w = type === 'initials' ? 200 : 400;
         const h = type === 'initials' ? 100 : 150;
         dataUrl = generateTypedSignature(typedText.trim(), selectedFont.css, w, h);
       }
+    } else if (activeTab === 'upload') {
+      dataUrl = uploadedImageUrl;
     }
     if (dataUrl) {
       onAdopt(dataUrl);
@@ -121,8 +151,11 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
     }
   };
 
-  const canAdopt = activeTab === 'draw' ? !isEmpty : typedText.trim().length > 0;
-  const title = type === 'initials' ? 'Draw your initials' : 'Draw your signature';
+  const canAdopt =
+    activeTab === 'draw' ? !isEmpty
+    : activeTab === 'type' ? typedText.trim().length > 0
+    : !!uploadedImageUrl;
+  const title = type === 'initials' ? 'Add your initials' : 'Add your signature';
 
   if (!isOpen) return null;
 
@@ -161,11 +194,70 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
           >
             Type
           </button>
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'upload'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Upload
+          </button>
         </div>
 
         {/* Content */}
         <div className="p-5 sm:p-5 p-3">
-          {activeTab === 'draw' ? (
+          {activeTab === 'upload' ? (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              {uploadedImageUrl ? (
+                <div>
+                  <div className="border border-gray-200 rounded-lg bg-white p-4 flex items-center justify-center" style={{ minHeight: '180px' }}>
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <img
+                      src={uploadedImageUrl}
+                      alt="Uploaded signature preview"
+                      style={{ maxHeight: '160px', maxWidth: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-xs text-gray-500">PNG or JPG, max 2 MB. Use a transparent-background PNG for best results.</p>
+                    <button
+                      onClick={() => { setUploadedImageUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      Replace
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 hover:border-gray-400 transition-colors flex flex-col items-center justify-center text-center p-6"
+                    style={{ minHeight: '180px' }}
+                  >
+                    <Download className="w-8 h-8 text-gray-400 mb-2 rotate-180" />
+                    <p className="text-sm font-medium text-gray-700">Click to upload an image of your signature</p>
+                    <p className="text-xs text-gray-500 mt-1">PNG or JPG &middot; up to 2 MB</p>
+                  </button>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Tip: a clean PNG with a transparent background looks best on the signed document.
+                  </p>
+                </div>
+              )}
+              {uploadError && (
+                <p className="mt-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{uploadError}</p>
+              )}
+            </div>
+          ) : activeTab === 'draw' ? (
             <div>
               <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50 relative">
                 <SignatureCanvas
