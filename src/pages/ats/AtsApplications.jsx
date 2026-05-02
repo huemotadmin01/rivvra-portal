@@ -9,7 +9,7 @@ import { downloadFile } from '../../utils/download';
 import {
   Search, Plus, Loader2, Users,
   ChevronLeft, ChevronRight, ChevronDown, X,
-  Star, Mail, Calendar, Download,
+  Star, Mail, Calendar, Download, ArrowRight, XCircle,
 } from 'lucide-react';
 
 /* ── Inline FilterChip component ─────────────────────────────────────── */
@@ -386,6 +386,12 @@ export default function AtsApplications() {
   // CSV export
   const [exporting, setExporting] = useState(false);
 
+  // Bulk actions — selection + action-bar dropdowns
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkAction, setBulkAction] = useState(null); // null | 'stage' | 'refuse'
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [refuseReasons, setRefuseReasons] = useState([]);
+
   const debounceRef = useRef(null);
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -449,6 +455,26 @@ export default function AtsApplications() {
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
+  // Fetch refuse reasons once per (org, company) — used by the bulk-refuse
+  // action bar's reason picker. Cheap; small set per org.
+  useEffect(() => {
+    if (!orgSlug) return;
+    let cancelled = false;
+    atsApi.listRefuseReasons(orgSlug)
+      .then((res) => { if (!cancelled && res?.success) setRefuseReasons(res.items || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [orgSlug, currentCompany?._id]);
+
+  // Clear selection whenever the visible set might have shifted under the
+  // user (filter/search/page change). Avoids the trap of "you selected
+  // these 5 then changed filter, now your selection points at rows you
+  // can't see and a bulk action would still hit them".
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkAction(null);
+  }, [search, stageFilter, jobFilter, recruiterFilter, page]);
+
   // Debounced search
   const handleSearchChange = (value) => {
     setSearch(value);
@@ -467,6 +493,81 @@ export default function AtsApplications() {
     setter(val);
     setPage(1);
     setOpenFilter(null);
+  };
+
+  // ── Bulk selection helpers ────────────────────────────────────────────
+  const allVisibleIds = applications.map(a => a._id);
+  const allOnPageSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
+  const someOnPageSelected = allVisibleIds.some(id => selectedIds.has(id));
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        // Deselect every visible row but keep selections from other pages.
+        for (const id of allVisibleIds) next.delete(id);
+      } else {
+        for (const id of allVisibleIds) next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setBulkAction(null);
+  };
+
+  const handleBulkMove = async (targetStageId) => {
+    if (!orgSlug || selectedIds.size === 0 || !targetStageId) return;
+    setBulkSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await atsApi.bulkMoveStage(orgSlug, ids, targetStageId);
+      if (res?.success) {
+        const stageName = stages.find(s => s._id === targetStageId)?.name || 'stage';
+        showToast(`Moved ${res.modified} application${res.modified === 1 ? '' : 's'} to ${stageName}`);
+        clearSelection();
+        await fetchApplications();
+      } else {
+        showToast(res?.error || 'Bulk move failed', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Bulk move failed', 'error');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
+  const handleBulkRefuse = async (refuseReasonId) => {
+    if (!orgSlug || selectedIds.size === 0) return;
+    if (!window.confirm(`Refuse ${selectedIds.size} application${selectedIds.size === 1 ? '' : 's'}? This won't email the candidates.`)) {
+      return;
+    }
+    setBulkSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await atsApi.bulkRefuse(orgSlug, ids, refuseReasonId);
+      if (res?.success) {
+        showToast(`Refused ${res.modified} application${res.modified === 1 ? '' : 's'}`);
+        clearSelection();
+        await fetchApplications();
+      } else {
+        showToast(res?.error || 'Bulk refuse failed', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Bulk refuse failed', 'error');
+    } finally {
+      setBulkSubmitting(false);
+    }
   };
 
   // Mirrors fetchApplications' filter chain so the export matches the
@@ -637,12 +738,104 @@ export default function AtsApplications() {
         </div>
       ) : (
         <>
+          {/* Bulk action bar — appears when one or more rows are selected.
+              Sits above the table so it's clearly tied to the list. */}
+          {selectedIds.size > 0 && (
+            <div className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30">
+              <span className="text-sm text-white font-medium">
+                {selectedIds.size} selected
+              </span>
+              <button
+                onClick={clearSelection}
+                disabled={bulkSubmitting}
+                className="text-xs text-dark-400 hover:text-white transition-colors disabled:opacity-40"
+              >
+                Clear
+              </button>
+
+              <div className="ml-auto flex items-center gap-2 flex-wrap">
+                {/* Move to Stage */}
+                <div className="relative">
+                  <button
+                    onClick={() => setBulkAction(bulkAction === 'stage' ? null : 'stage')}
+                    disabled={bulkSubmitting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-dark-700 hover:text-white disabled:opacity-40"
+                  >
+                    {bulkSubmitting ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
+                    Move to Stage
+                    <ChevronDown size={12} />
+                  </button>
+                  {bulkAction === 'stage' && (
+                    <div className="absolute right-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
+                      {stages.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-dark-500">No stages configured</div>
+                      ) : stages.map((s) => (
+                        <button
+                          key={s._id}
+                          onClick={() => { setBulkAction(null); handleBulkMove(s._id); }}
+                          className="w-full text-left px-3 py-2 text-xs text-dark-200 hover:bg-dark-700 hover:text-white transition-colors"
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Refuse */}
+                <div className="relative">
+                  <button
+                    onClick={() => setBulkAction(bulkAction === 'refuse' ? null : 'refuse')}
+                    disabled={bulkSubmitting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-red-500/15 hover:text-red-300 hover:border-red-500/30 disabled:opacity-40"
+                  >
+                    {bulkSubmitting ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
+                    Refuse
+                    <ChevronDown size={12} />
+                  </button>
+                  {bulkAction === 'refuse' && (
+                    <div className="absolute right-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
+                      <button
+                        onClick={() => { setBulkAction(null); handleBulkRefuse(null); }}
+                        className="w-full text-left px-3 py-2 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors italic"
+                      >
+                        No reason specified
+                      </button>
+                      {refuseReasons.length > 0 && (
+                        <div className="border-t border-dark-700" />
+                      )}
+                      {refuseReasons.map((r) => (
+                        <button
+                          key={r._id}
+                          onClick={() => { setBulkAction(null); handleBulkRefuse(r._id); }}
+                          className="w-full text-left px-3 py-2 text-xs text-dark-200 hover:bg-dark-700 hover:text-white transition-colors"
+                        >
+                          {r.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Table */}
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-700">
+                    <th className="px-3 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allOnPageSelected}
+                        ref={(el) => { if (el) el.indeterminate = !allOnPageSelected && someOnPageSelected; }}
+                        onChange={toggleSelectAllOnPage}
+                        aria-label="Select all on this page"
+                        className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 cursor-pointer"
+                      />
+                    </th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Job Position</th>
@@ -659,8 +852,19 @@ export default function AtsApplications() {
                     <tr
                       key={app._id}
                       onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
-                      className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''}`}
                     >
+                      {/* Bulk-select checkbox — stop click bubbling so the
+                          row's onClick navigation doesn't fire. */}
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(app._id)}
+                          onChange={() => toggleSelectOne(app._id)}
+                          aria-label={`Select ${app.candidateName || 'application'}`}
+                          className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 cursor-pointer"
+                        />
+                      </td>
                       {/* Candidate */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">

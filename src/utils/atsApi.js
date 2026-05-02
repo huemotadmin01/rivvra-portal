@@ -141,6 +141,31 @@ const atsApi = {
     });
   },
 
+  // ── Bulk actions ──────────────────────────────────────────────────────
+  // Recruiters use these from the applications list when moving/refusing
+  // many candidates at once. Backend caps at 200 per request, suppresses
+  // candidate-facing emails (status hygiene rather than communication),
+  // and writes per-doc stageHistory entries with `bulk: true` so the
+  // audit trail distinguishes bulk moves from individual ones.
+  bulkMoveStage(orgSlug, applicationIds, stageId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/bulk/stage`, {
+      method: 'POST',
+      body: JSON.stringify({ applicationIds, stageId }),
+    });
+  },
+
+  bulkRefuse(orgSlug, applicationIds, refuseReasonId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/bulk/refuse`, {
+      method: 'POST',
+      body: JSON.stringify({ applicationIds, refuseReasonId: refuseReasonId || null }),
+    });
+  },
+
+  // ── Refuse reasons ────────────────────────────────────────────────────
+  listRefuseReasons(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/ats/config/refuse-reasons`);
+  },
+
   // ── Candidates ────────────────────────────────────────────────────────
   listCandidates(orgSlug, params = {}) {
     const qs = new URLSearchParams(
