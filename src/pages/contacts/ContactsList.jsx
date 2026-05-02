@@ -5,9 +5,10 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
+import { downloadFile } from '../../utils/download';
 import {
   Search, Plus, Users, Building2, User,
-  ChevronLeft, ChevronRight, ChevronDown, X,
+  ChevronLeft, ChevronRight, ChevronDown, X, Download, Loader2,
 } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeletons';
 
@@ -198,6 +199,31 @@ export default function ContactsList({ filterType }) {
     return (first + last).toUpperCase() || '?';
   };
 
+  // CSV export — mirrors fetchContacts' filter chain so the export rows
+  // match what the user sees on screen.
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (!orgSlug) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (typeFilter) params.set('type', typeFilter);
+      if (tagFilter) params.set('tag', tagFilter);
+      if (salespersonFilter) params.set('salesperson', salespersonFilter);
+      const qs = params.toString();
+      const today = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/api/org/${orgSlug}/contacts/export.csv${qs ? '?' + qs : ''}`,
+        `contacts_${today}.csv`,
+      );
+    } catch (err) {
+      showToast(err?.message || 'Export failed', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Filter options
   const typeOptions = [
     { value: '', label: 'All Types' },
@@ -289,6 +315,16 @@ export default function ContactsList({ filterType }) {
             Clear{activeFilterCount > 1 ? ` (${activeFilterCount})` : ''}
           </button>
         )}
+
+        <button
+          onClick={handleExport}
+          disabled={exporting || total === 0}
+          title="Download the current filtered list as a CSV file"
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Export CSV
+        </button>
       </div>
 
       {/* Content */}
