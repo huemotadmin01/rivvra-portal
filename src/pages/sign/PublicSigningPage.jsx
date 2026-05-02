@@ -591,7 +591,9 @@ function PdfPageWithFields({
                       : 'border-gray-300 bg-gray-50/50 hover:bg-gray-100/60'
                 }`}>
                   <Icon className={`w-4 h-4 ${showValidation && isRequired && !isFilled ? 'text-red-500' : 'text-indigo-500'}`} />
-                  <span className={`text-[10px] font-medium ${showValidation && isRequired && !isFilled ? 'text-red-600' : 'text-indigo-600'}`}>{meta.placeholder}</span>
+                  <span className={`text-[10px] font-medium ${showValidation && isRequired && !isFilled ? 'text-red-600' : 'text-indigo-600'}`}>
+                    {item.label && item.label !== meta.label ? item.label : meta.placeholder}
+                  </span>
                 </div>
               )}
             </div>
@@ -667,7 +669,9 @@ function PdfPageWithFields({
                 ) : (
                   <>
                     <Icon className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-                    <span className="text-[10px] text-indigo-600 truncate">{meta.placeholder}</span>
+                    <span className="text-[10px] text-indigo-600 truncate">
+                      {item.label && item.label !== meta.label ? item.label : meta.placeholder}
+                    </span>
                   </>
                 )}
               </div>
@@ -985,6 +989,29 @@ export default function PublicSigningPage() {
       scrollToNextField(null); // scroll to first unfilled
       showToast('Please complete all required fields before submitting', 'warning');
       return;
+    }
+
+    // Format validation for Email and Phone fields. Server only validates
+    // presence today, so a malformed email would otherwise reach the
+    // sealed PDF and be useless for follow-up. Keep regexes intentionally
+    // loose — better to over-accept than reject e.g. international phone
+    // formats with spaces, dashes, parentheses.
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[+]?[0-9 ()\-.]{6,}$/;
+    for (const item of signItems) {
+      const id = item._id || item.id;
+      const v = values[id];
+      if (!v || typeof v !== 'string') continue;
+      if (item.type === 'email' && !emailRegex.test(v.trim())) {
+        setShowValidation(true);
+        showToast(`"${item.label || 'Email'}" doesn't look like a valid email address.`, 'warning');
+        return;
+      }
+      if (item.type === 'phone' && !phoneRegex.test(v.trim())) {
+        setShowValidation(true);
+        showToast(`"${item.label || 'Phone'}" doesn't look like a valid phone number.`, 'warning');
+        return;
+      }
     }
     setSubmitting(true);
     try {
