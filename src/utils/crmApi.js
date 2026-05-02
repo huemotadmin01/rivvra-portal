@@ -69,25 +69,11 @@ const crmApi = {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'DELETE' });
   },
 
-  // ---------- ACTIVITIES ----------
-  listActivities(orgSlug, params = {}) {
-    const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
-    ).toString();
-    return api.request(`/api/org/${orgSlug}/crm/activities${qs ? '?' + qs : ''}`);
-  },
-  createActivity(orgSlug, data) {
-    return api.request(`/api/org/${orgSlug}/crm/activities`, { method: 'POST', body: JSON.stringify(data) });
-  },
-  updateActivity(orgSlug, id, data) {
-    return api.request(`/api/org/${orgSlug}/crm/activities/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-  },
-  markActivityDone(orgSlug, id, isDone = true) {
-    return api.request(`/api/org/${orgSlug}/crm/activities/${id}/done`, { method: 'PATCH', body: JSON.stringify({ isDone }) });
-  },
-  deleteActivity(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/crm/activities/${id}`, { method: 'DELETE' });
-  },
+  // ACTIVITIES — use activityApi.js (unified across employee / crm /
+  // ats / invoice). Legacy crmApi.{list,create,update,markActivityDone,
+  // delete}Activity removed 2026-05-02; the corresponding /crm/activities
+  // backend endpoints are gone. ActivityPanel was already wired through
+  // activityApi.js via the unified /api/org/:slug/activities surface.
 
   // ---------- TAGS ----------
   listTags(orgSlug) {
