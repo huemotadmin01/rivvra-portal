@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import { downloadFile } from '../../utils/download';
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, Plus, Star,
-  Building2, Trophy, XCircle, Briefcase, Loader2, ArrowUpDown,
+  Building2, Trophy, XCircle, Briefcase, Loader2, ArrowUpDown, Download,
 } from 'lucide-react';
 
 function StageBadge({ name, isWon, isLost }) {
@@ -40,6 +41,7 @@ export default function CrmOpportunities() {
   const [sortBy, setSortBy] = useState('updatedAt');
   const [sortDir, setSortDir] = useState('desc');
   const [stages, setStages] = useState([]);
+  const [exporting, setExporting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -68,6 +70,28 @@ export default function CrmOpportunities() {
   }, [slug]);
 
   const totalPages = Math.ceil(total / limit);
+
+  // Mirrors fetchData's filter chain — keeps export and on-screen list aligned.
+  const handleExport = async () => {
+    if (!slug) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (stageId) params.set('stageId', stageId);
+      if (isLost) params.set('isLost', isLost);
+      const qs = params.toString();
+      const today = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/api/org/${slug}/crm/opportunities/export.csv${qs ? '?' + qs : ''}`,
+        `opportunities_${today}.csv`,
+      );
+    } catch (err) {
+      addToast(err?.message || 'Export failed', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -135,6 +159,15 @@ export default function CrmOpportunities() {
           <option value="false">Active</option>
           <option value="true">Lost</option>
         </select>
+        <button
+          onClick={handleExport}
+          disabled={exporting || total === 0}
+          title="Download the current filtered list as a CSV file"
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-dark-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+          Export CSV
+        </button>
       </div>
 
       {/* Table */}
