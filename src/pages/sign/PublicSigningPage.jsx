@@ -29,23 +29,36 @@ const FIELD_META = {
   multiline:  { icon: AlignLeft, label: 'Text',        placeholder: 'Enter text' },
 };
 
-// ── Cursive fonts for "Type" tab in signature modal ─────────────────────────
+// ── Signature fonts for "Type" tab in signature modal ──────────────────────
+// Handwriting/signature fonts loaded from Google Fonts in index.css. The
+// fallback chain ends at `cursive` only as a last resort — the named fonts
+// should always render once the page's @font-face rules resolve.
 const CURSIVE_FONTS = [
-  { name: 'Dancing Script', css: "'Dancing Script', cursive" },
-  { name: 'Great Vibes', css: "'Great Vibes', cursive" },
-  { name: 'Sacramento', css: "'Sacramento', cursive" },
-  { name: 'Pacifico', css: "'Pacifico', cursive" },
+  { name: 'Caveat', css: "'Caveat', cursive", weight: '600' },
+  { name: 'Homemade Apple', css: "'Homemade Apple', cursive", weight: '400' },
+  { name: 'Allura', css: "'Allura', cursive", weight: '400' },
+  { name: 'Alex Brush', css: "'Alex Brush', cursive", weight: '400' },
 ];
 
-// Generate a typed signature as data URL
-function generateTypedSignature(text, fontFamily, width = 400, height = 150) {
+// Generate a typed signature as data URL. Awaits font load before rasterizing
+// — otherwise the canvas can render with the system fallback if the webfont
+// hasn't finished downloading by the time the user clicks Adopt.
+async function generateTypedSignature(text, font, width = 400, height = 150) {
+  const fontSpec = `${font.weight || '400'} 48px ${font.css}`;
+  try {
+    if (document.fonts && document.fonts.load) {
+      await document.fonts.load(fontSpec, text);
+    }
+  } catch {
+    /* font load failures fall through to canvas render */
+  }
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = '#1e293b';
-  ctx.font = `48px ${fontFamily}`;
+  ctx.font = fontSpec;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, width / 2, height / 2);
@@ -130,7 +143,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
     reader.readAsDataURL(file);
   };
 
-  const handleAdopt = () => {
+  const handleAdopt = async () => {
     let dataUrl = null;
     if (activeTab === 'draw') {
       if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
@@ -140,7 +153,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
       if (typedText.trim()) {
         const w = type === 'initials' ? 200 : 400;
         const h = type === 'initials' ? 100 : 150;
-        dataUrl = generateTypedSignature(typedText.trim(), selectedFont.css, w, h);
+        dataUrl = await generateTypedSignature(typedText.trim(), selectedFont, w, h);
       }
     } else if (activeTab === 'upload') {
       dataUrl = uploadedImageUrl;
@@ -312,7 +325,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                       }`}
                     >
                       <span
-                        style={{ fontFamily: font.css, fontSize: '20px', color: '#1e293b' }}
+                        style={{ fontFamily: font.css, fontWeight: font.weight || 400, fontSize: '24px', color: '#1e293b' }}
                         className="block truncate"
                       >
                         {typedText || (type === 'initials' ? 'AB' : 'John Doe')}
