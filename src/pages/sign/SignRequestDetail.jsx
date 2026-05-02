@@ -122,6 +122,11 @@ function SignTimeline({ orgSlug, requestId }) {
                   {log.details?.signerEmail && (
                     <p className="text-dark-500 text-xs mt-0.5">{log.details.signerEmail}</p>
                   )}
+                  {log.action === 'refused' && log.details?.reason && (
+                    <p className="text-red-400/80 text-xs mt-1 italic">
+                      Reason: &ldquo;{log.details.reason}&rdquo;
+                    </p>
+                  )}
                   {log.details?.geo && (
                     <p className="text-dark-500 text-xs mt-0.5 flex items-center gap-1">
                       <MapPin size={10} /> {log.details.geo.city}, {log.details.geo.country}
@@ -499,6 +504,40 @@ export default function SignRequestDetail() {
           )}
         </div>
       </div>
+
+      {/* Refusal banner — surfaces the reason when a signer declined to
+          sign. The backend captures req.body.reason on /api/sign/refuse
+          and persists it to request.refuseReason + the refused signer's
+          row, so creators can act (re-send, edit, archive) with context. */}
+      {request.state === 'refused' && (
+        <div className="card p-4 bg-red-500/5 border-red-500/30">
+          <div className="flex items-start gap-3">
+            <XCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-red-300 font-medium text-sm">
+                {(() => {
+                  const refusedSigner = (request.signers || []).find((s) => s.state === 'refused');
+                  return refusedSigner
+                    ? `${refusedSigner.name || refusedSigner.email} declined to sign`
+                    : 'A signer declined this request';
+                })()}
+              </p>
+              {request.refuseReason ? (
+                <p className="text-dark-300 text-sm mt-1.5 italic">
+                  &ldquo;{request.refuseReason}&rdquo;
+                </p>
+              ) : (
+                <p className="text-dark-500 text-xs mt-1.5 italic">No reason provided</p>
+              )}
+              {request.refusedAt && (
+                <p className="text-dark-500 text-[11px] mt-1.5">
+                  {formatDate(request.refusedAt)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
