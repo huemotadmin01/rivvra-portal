@@ -9,7 +9,7 @@ import { downloadFile } from '../../utils/download';
 import {
   Loader2, Plus, FileText, Search, X,
   ChevronLeft, ChevronRight, ChevronDown,
-  Bell, XCircle, Send, User, Calendar,
+  Bell, XCircle, Send, User, Calendar, Clock,
   ArrowRight, ArrowLeft, Check, Mail,
   MessageSquare, GripVertical, Upload, Zap, Users, Download,
 } from 'lucide-react';
@@ -160,29 +160,22 @@ function SortableSignerCard({ signer, idx, totalSigners, updateSigner, removeSig
       </div>
       <div>
         <label className="block text-xs font-medium text-dark-400 mb-1">Role</label>
-        {signer.roleId ? (
-          <div className="px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-sm text-dark-300 flex items-center gap-2">
-            <User size={14} className="text-indigo-400" />
-            {signer.roleName || 'Assigned Role'}
-          </div>
-        ) : (
-          <select
-            value={signer.roleId || ''}
-            onChange={(e) => {
-              const role = roles.find((r) => (r._id || r.id) === e.target.value);
-              updateSigner(idx, 'roleId', e.target.value);
-              updateSigner(idx, 'roleName', role?.name || '');
-            }}
-            className="input-field text-sm"
-          >
-            <option value="">Select role (optional)</option>
-            {roles.map((r) => (
-              <option key={r._id || r.id} value={r._id || r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          value={signer.roleId || ''}
+          onChange={(e) => {
+            const role = roles.find((r) => (r._id || r.id) === e.target.value);
+            updateSigner(idx, 'roleId', e.target.value || '');
+            updateSigner(idx, 'roleName', role?.name || '');
+          }}
+          className="input-field text-sm"
+        >
+          <option value="">Select role (optional)</option>
+          {roles.map((r) => (
+            <option key={r._id || r.id} value={r._id || r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );
@@ -207,6 +200,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [validityDate, setValidityDate] = useState('');
+  const [reminderDays, setReminderDays] = useState(7);
   const [ccEmails, setCcEmails] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -221,6 +215,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
       setSubject('');
       setMessage('');
       setValidityDate('');
+      setReminderDays(7);
       setCcEmails('');
       setLoadingTemplates(true);
       Promise.all([
@@ -321,6 +316,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
         subject: subject.trim() || undefined,
         message: message.trim() || undefined,
         validity: validityDate || undefined,
+        reminderDays: Number(reminderDays) > 0 ? Number(reminderDays) : undefined,
         ccEmails: ccEmails.split(',').map((e) => e.trim()).filter(Boolean),
       };
 
@@ -564,15 +560,30 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">CC Emails</label>
-                <input
-                  type="text"
-                  value={ccEmails}
-                  onChange={(e) => setCcEmails(e.target.value)}
-                  placeholder="comma separated emails"
+                <label className="block text-sm font-medium text-dark-300 mb-1">Remind every</label>
+                <select
+                  value={reminderDays}
+                  onChange={(e) => setReminderDays(Number(e.target.value))}
                   className="input-field"
-                />
+                >
+                  <option value={1}>Daily</option>
+                  <option value={2}>Every 2 days</option>
+                  <option value={3}>Every 3 days</option>
+                  <option value={7}>Weekly (default)</option>
+                  <option value={14}>Every 2 weeks</option>
+                  <option value={0}>No reminders</option>
+                </select>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">CC Emails</label>
+              <input
+                type="text"
+                value={ccEmails}
+                onChange={(e) => setCcEmails(e.target.value)}
+                placeholder="comma separated emails"
+                className="input-field"
+              />
             </div>
           </div>
         )}
@@ -622,6 +633,21 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
                   </div>
                 </div>
               )}
+
+              {/* Reminder cadence */}
+              <div className="flex items-center gap-3">
+                <Clock size={16} className="text-dark-400 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-dark-500 uppercase tracking-wide">Reminders</p>
+                  <p className="text-dark-300 text-sm">
+                    {reminderDays === 0
+                      ? 'No reminders'
+                      : reminderDays === 1
+                        ? 'Every day until signed'
+                        : `Every ${reminderDays} days until signed`}
+                  </p>
+                </div>
+              </div>
 
               {/* Signers (with signing order) */}
               <div>
@@ -1073,10 +1099,12 @@ export default function SignRequests() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [templateFilter, setTemplateFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
   const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
   const [templates, setTemplates] = useState([]);
+  const [tags, setTags] = useState([]);
 
   // Modals
   const [showModal, setShowModal] = useState(false);
@@ -1110,7 +1138,7 @@ export default function SignRequests() {
     }
   }, [searchParams, setSearchParams]);
 
-  const activeFilterCount = [statusFilter, templateFilter].filter(Boolean).length;
+  const activeFilterCount = [statusFilter, templateFilter, tagFilter].filter(Boolean).length;
 
   // ── Fetch requests ─────────────────────────────────────────────────────
   const fetchRequests = useCallback(async (params = {}) => {
@@ -1126,6 +1154,7 @@ export default function SignRequests() {
         search: params.search !== undefined ? params.search : search,
         state: params.status !== undefined ? params.status : statusFilter,
         templateId: params.templateId !== undefined ? params.templateId : templateFilter,
+        tagId: params.tagId !== undefined ? params.tagId : tagFilter,
       });
       if (res.success !== false) {
         setRequests(res.requests || []);
@@ -1140,7 +1169,7 @@ export default function SignRequests() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, page, search, statusFilter, templateFilter, showToast, currentCompany?._id]);
+  }, [orgSlug, page, search, statusFilter, templateFilter, tagFilter, showToast, currentCompany?._id]);
 
   const fetchTemplates = useCallback(async () => {
     if (!orgSlug) return;
@@ -1154,8 +1183,19 @@ export default function SignRequests() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id]);
 
+  const fetchTags = useCallback(async () => {
+    if (!orgSlug) return;
+    try {
+      const res = await signApi.listTags(orgSlug);
+      if (res.success !== false) setTags(res.tags || []);
+    } catch {
+      /* ignore */
+    }
+  }, [orgSlug]);
+
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
+  useEffect(() => { fetchTags(); }, [fetchTags]);
 
   // Debounced search
   const handleSearchChange = (value) => {
@@ -1180,6 +1220,7 @@ export default function SignRequests() {
   const clearAllFilters = () => {
     setStatusFilter('');
     setTemplateFilter('');
+    setTagFilter('');
     setPage(1);
   };
 
@@ -1198,6 +1239,7 @@ export default function SignRequests() {
       if (search) params.set('search', search);
       if (statusFilter) params.set('state', statusFilter);
       if (templateFilter) params.set('templateId', templateFilter);
+      if (tagFilter) params.set('tagId', tagFilter);
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(
@@ -1261,6 +1303,11 @@ export default function SignRequests() {
   const templateOptions = [
     { value: '', label: 'All Templates' },
     ...templates.map((t) => ({ value: t._id, label: t.name })),
+  ];
+
+  const tagOptions = [
+    { value: '', label: 'All Tags' },
+    ...tags.map((t) => ({ value: t._id, label: t.name })),
   ];
 
   const formatDate = (dateStr) => formatDateUTC(dateStr) || '\u2014';
@@ -1334,6 +1381,14 @@ export default function SignRequests() {
           onToggle={() => toggleFilter('template')}
           onSelect={handleFilterSelect(setTemplateFilter)}
         />
+        <FilterChip
+          label="Tag"
+          value={tagFilter}
+          options={tagOptions}
+          isOpen={openFilter === 'tag'}
+          onToggle={() => toggleFilter('tag')}
+          onSelect={handleFilterSelect(setTagFilter)}
+        />
         {activeFilterCount > 0 && (
           <button
             onClick={clearAllFilters}
@@ -1367,7 +1422,7 @@ export default function SignRequests() {
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No requests found</h3>
           <p className="text-dark-400 text-sm text-center max-w-sm">
-            {search || statusFilter || templateFilter
+            {search || statusFilter || templateFilter || tagFilter
               ? 'Try adjusting your search or filters.'
               : 'Create your first signature request to get started.'}
           </p>

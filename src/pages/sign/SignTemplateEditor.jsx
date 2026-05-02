@@ -105,6 +105,30 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Snap a Y coordinate to align with an existing field on the same page if one
+ * is within the threshold. Lets the user drop fields in roughly the right row
+ * and have them lock onto the same baseline as adjacent fields, fixing the
+ * "two fields on the same line look misaligned by 3px" problem without
+ * requiring full PDF underline detection.
+ *
+ * Returns the snapped Y, or the original Y if nothing close enough.
+ */
+function snapYToSiblings(posY, pageIndex, items, ignoreId = null, threshold = 0.012) {
+  let bestY = posY;
+  let bestDist = threshold;
+  for (const it of items) {
+    if (it.page !== pageIndex) continue;
+    if (ignoreId && it.id === ignoreId) continue;
+    const dist = Math.abs((it.posY ?? 0) - posY);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestY = it.posY;
+    }
+  }
+  return bestY;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -150,6 +174,12 @@ export default function SignTemplateEditor() {
   // ── Drag / resize state (mouse-based) ───────────────────────────────
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
+
+  // ── Undo / redo history (signItems snapshots) ───────────────────────
+  // We keep two stacks of cloned signItems arrays. A snapshot is captured
+  // automatically by an effect whenever signItems changes, except when we
+  // are in the middle of applying an undo/redo (suppress the next push).
+  const historyRef = useRef({ past: [], future: [], suppress: false, lastJSON: '' });
 
   // ── Editing name ────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -505,7 +535,8 @@ export default function SignTemplateEditor() {
 
       // Center the field on the cursor
       const posX = clamp((dropX / dims.width) - defaults.w / 2, 0, 1 - defaults.w);
-      const posY = clamp((dropY / dims.height) - defaults.h / 2, 0, 1 - defaults.h);
+      const rawY = clamp((dropY / dims.height) - defaults.h / 2, 0, 1 - defaults.h);
+      const posY = snapYToSiblings(rawY, pageIndex, signItems);
 
       const newItem = {
         id: crypto.randomUUID(),
@@ -524,7 +555,7 @@ export default function SignTemplateEditor() {
       setSignItems((prev) => [...prev, newItem]);
       setSelectedItemId(newItem.id);
     },
-    [getPageDims, activeRoleId, roles]
+    [getPageDims, activeRoleId, roles, signItems]
   );
 
   const handlePageDragOver = useCallback((e) => {
@@ -601,7 +632,8 @@ export default function SignTemplateEditor() {
       const defaults = DEFAULT_SIZES[placingFieldType] || DEFAULT_SIZES.text;
 
       const posX = clamp((clickX / dims.width) - defaults.w / 2, 0, 1 - defaults.w);
-      const posY = clamp((clickY / dims.height) - defaults.h / 2, 0, 1 - defaults.h);
+      const rawClickY = clamp((clickY / dims.height) - defaults.h / 2, 0, 1 - defaults.h);
+      const posY = snapYToSiblings(rawClickY, pageIndex, signItems);
 
       const newItem = {
         id: crypto.randomUUID(),
@@ -661,10 +693,11 @@ export default function SignTemplateEditor() {
       setSignItems((prev) =>
         prev.map((si) => {
           if (si.id !== d.itemId) return si;
+          const newY = clamp(d.startPosY + dy, 0, 1 - si.height);
           return {
             ...si,
             posX: clamp(d.startPosX + dx, 0, 1 - si.width),
-            posY: clamp(d.startPosY + dy, 0, 1 - si.height),
+            posY: snapYToSiblings(newY, si.page, prev, si.id),
           };
         })
       );
@@ -755,11 +788,67 @@ export default function SignTemplateEditor() {
   // ────────────────────────────────────────────────────────────────────
   // Keyboard: Delete/Backspace removes selected field (when not editing)
   // ────────────────────────────────────────────────────────────────────
+  // History snapshotting: every signItems change pushes the previous value to
+  // the past stack. Drags and arrow-key nudges all flow through setSignItems
+  // so each one becomes an undo step. We compare a JSON serialization to
+  // collapse no-op updates and prevent every render from creating a snapshot.
+  useEffect(() => {
+    const json = JSON.stringify(signItems);
+    if (historyRef.current.suppress) {
+      historyRef.current.suppress = false;
+      historyRef.current.lastJSON = json;
+      return;
+    }
+    if (historyRef.current.lastJSON === '') {
+      historyRef.current.lastJSON = json;
+      return;
+    }
+    if (historyRef.current.lastJSON === json) return;
+    historyRef.current.past.push(historyRef.current.lastJSON);
+    if (historyRef.current.past.length > 100) historyRef.current.past.shift();
+    historyRef.current.future = [];
+    historyRef.current.lastJSON = json;
+  }, [signItems]);
+
+  const undo = useCallback(() => {
+    const h = historyRef.current;
+    if (h.past.length === 0) return;
+    const prev = h.past.pop();
+    h.future.push(h.lastJSON);
+    h.suppress = true;
+    setSignItems(JSON.parse(prev));
+  }, []);
+
+  const redo = useCallback(() => {
+    const h = historyRef.current;
+    if (h.future.length === 0) return;
+    const next = h.future.pop();
+    h.past.push(h.lastJSON);
+    h.suppress = true;
+    setSignItems(JSON.parse(next));
+  }, []);
+
   useEffect(() => {
     function onKeyDown(e) {
       // Escape cancels field placement mode
       if (e.key === 'Escape' && placingFieldType) {
         setPlacingFieldType(null);
+        return;
+      }
+
+      // Undo / redo work regardless of selection.
+      const isMod = e.metaKey || e.ctrlKey;
+      const tagName = e.target.tagName.toLowerCase();
+      const inEditable = tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+      if (isMod && (e.key === 'z' || e.key === 'Z') && !inEditable) {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (isMod && (e.key === 'y' || e.key === 'Y') && !inEditable) {
+        e.preventDefault();
+        redo();
         return;
       }
 
@@ -771,11 +860,31 @@ export default function SignTemplateEditor() {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         deleteField(selectedItemId);
+        return;
+      }
+
+      // Arrow keys nudge the selected field. Shift = larger step (1%), default
+      // = fine step (0.1%). Lets you fine-tune placement without re-dragging.
+      const isArrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
+      if (isArrow) {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.01 : 0.001;
+        setSignItems((prev) =>
+          prev.map((si) => {
+            if (si.id !== selectedItemId) return si;
+            let { posX, posY } = si;
+            if (e.key === 'ArrowUp')    posY = clamp(posY - step, 0, 1 - si.height);
+            if (e.key === 'ArrowDown')  posY = clamp(posY + step, 0, 1 - si.height);
+            if (e.key === 'ArrowLeft')  posX = clamp(posX - step, 0, 1 - si.width);
+            if (e.key === 'ArrowRight') posX = clamp(posX + step, 0, 1 - si.width);
+            return { ...si, posX, posY };
+          })
+        );
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedItemId, deleteField]);
+  }, [selectedItemId, deleteField, placingFieldType, undo, redo]);
 
   // ────────────────────────────────────────────────────────────────────
   // Currently selected item (derived)

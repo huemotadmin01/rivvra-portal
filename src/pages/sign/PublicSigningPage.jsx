@@ -528,7 +528,7 @@ function PdfPageWithFields({
         return (
           <div
             key={`prev-${fieldId}`}
-            className="absolute pointer-events-none"
+            className="absolute pointer-events-none bg-white"
             style={{ left, top, width, height }}
           >
             {isSignature ? (
@@ -570,7 +570,7 @@ function PdfPageWithFields({
               style={{
                 left, top, width, height: isFilled ? height + 20 : height,
                 border: isFilled ? '2px dashed #d4a0a0' : undefined,
-                backgroundColor: isFilled ? 'rgba(255, 230, 230, 0.5)' : undefined,
+                backgroundColor: isFilled ? '#ffffff' : undefined,
               }}
               onClick={() => onOpenSignaturePad(fieldId, item.type)}
             >
@@ -631,7 +631,7 @@ function PdfPageWithFields({
               isActive
                 ? ''
                 : isFilled
-                  ? 'border-2 border-green-400 bg-green-50/30 cursor-pointer'
+                  ? 'border-2 border-green-400 bg-white cursor-pointer'
                   : showValidation && isRequired
                     ? 'border-2 border-dashed border-red-500 bg-red-50/60 cursor-pointer animate-pulse'
                     : isRequired

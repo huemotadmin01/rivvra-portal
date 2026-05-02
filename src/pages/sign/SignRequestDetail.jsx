@@ -557,7 +557,7 @@ export default function SignRequestDetail() {
                   label="Completed"
                   value={request.state === 'signed' ? formatDate(request.completedAt || request.updatedAt) : '\u2014'}
                 />
-                <InfoRow icon={Clock} label="Valid Until" value={request.validityDate ? formatDateShort(request.validityDate) : 'No expiry'} />
+                <InfoRow icon={Clock} label="Valid Until" value={request.validity ? formatDateShort(request.validity) : 'No expiry'} />
               </div>
             </div>
             <RecordMeta
