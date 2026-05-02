@@ -5,10 +5,11 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { downloadFile } from '../../utils/download';
 import {
   Search, Plus, Loader2, Users,
   ChevronLeft, ChevronRight, ChevronDown, X,
-  Star, Mail, Calendar,
+  Star, Mail, Calendar, Download,
 } from 'lucide-react';
 
 /* ── Inline FilterChip component ─────────────────────────────────────── */
@@ -382,6 +383,9 @@ export default function AtsApplications() {
   // Modal
   const [showModal, setShowModal] = useState(false);
 
+  // CSV export
+  const [exporting, setExporting] = useState(false);
+
   const debounceRef = useRef(null);
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -463,6 +467,32 @@ export default function AtsApplications() {
     setter(val);
     setPage(1);
     setOpenFilter(null);
+  };
+
+  // Mirrors fetchApplications' filter chain so the export matches the
+  // on-screen filter state. Uses the same `recruiter` / `jobId` query-param
+  // names that fetchApplications uses (the backend export endpoint accepts
+  // both spellings — see ats.js).
+  const handleExport = async () => {
+    if (!orgSlug) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (stageFilter) params.set('stageId', stageFilter);
+      if (jobFilter) params.set('jobId', jobFilter);
+      if (recruiterFilter) params.set('recruiter', recruiterFilter);
+      const qs = params.toString();
+      const today = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/api/org/${orgSlug}/ats/applications/export.csv${qs ? '?' + qs : ''}`,
+        `applications_${today}.csv`,
+      );
+    } catch (err) {
+      showToast(err?.message || 'Export failed', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const clearAllFilters = () => {
@@ -576,6 +606,16 @@ export default function AtsApplications() {
             Clear{activeFilterCount > 1 ? ` (${activeFilterCount})` : ''}
           </button>
         )}
+
+        <button
+          onClick={handleExport}
+          disabled={exporting || total === 0}
+          title="Download the current filtered list as a CSV file"
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Export CSV
+        </button>
       </div>
 
       {/* Content */}
