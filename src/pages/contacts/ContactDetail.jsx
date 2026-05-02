@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
+import crmApi from '../../utils/crmApi';
 import invoicingApi from '../../utils/invoicingApi';
 import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import ActivityPanel from '../../components/shared/ActivityPanel';
@@ -601,6 +602,10 @@ export default function ContactDetail() {
   const [attachUploading, setAttachUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
 
+  // Pipeline (CRM opportunities linked to this contact)
+  const [opportunities, setOpportunities] = useState([]);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+
   // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -682,6 +687,29 @@ export default function ContactDetail() {
   }, [orgSlug, contactId]);
 
   useEffect(() => { loadAttachments(); }, [loadAttachments]);
+
+  // -- Pipeline (lazy-load on tab activation) ---------------------------------
+  // Individual contacts → filter by contactId; company contacts → filter by
+  // contactCompanyId. Backend supports both query params on /crm/opportunities.
+  const loadPipeline = useCallback(async () => {
+    if (!orgSlug || !contact?._id) return;
+    setPipelineLoading(true);
+    try {
+      const params = contact.type === 'company'
+        ? { contactCompanyId: contact._id, limit: 100 }
+        : { contactId: contact._id, limit: 100 };
+      const res = await crmApi.listOpportunities(orgSlug, params);
+      if (res.success) setOpportunities(res.opportunities || []);
+    } catch {
+      showToast('Failed to load pipeline', 'error');
+    } finally {
+      setPipelineLoading(false);
+    }
+  }, [orgSlug, contact?._id, contact?.type, showToast]);
+
+  useEffect(() => {
+    if (activeTab === 'pipeline') loadPipeline();
+  }, [activeTab, loadPipeline]);
 
   // -- Inline save handlers ---------------------------------------------------
   const saveField = async (field, value) => {
@@ -771,6 +799,7 @@ export default function ContactDetail() {
   const tabs = [
     { id: 'details', label: 'Details' },
     { id: 'activities', label: 'Activities' },
+    { id: 'pipeline', label: 'Pipeline' },
     { id: 'attachments', label: 'Attachments' },
   ];
 
@@ -1395,6 +1424,60 @@ export default function ContactDetail() {
             />
           </div>
         </>
+      )}
+
+      {/* Pipeline Tab — CRM opportunities linked to this contact */}
+      {activeTab === 'pipeline' && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Briefcase size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Pipeline</h3>
+            <span className="ml-auto text-xs bg-dark-700 text-dark-300 px-2 py-0.5 rounded-full font-medium">
+              {pipelineLoading ? '…' : `${opportunities.length} deal${opportunities.length !== 1 ? 's' : ''}`}
+            </span>
+          </div>
+
+          {pipelineLoading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-dark-500" /></div>
+          ) : opportunities.length === 0 ? (
+            <p className="text-sm text-dark-500 text-center py-4">No deals with this contact yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {opportunities.map((opp) => {
+                const stagePill = opp.isLost
+                  ? <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/15 text-red-400 border border-red-500/20">Lost</span>
+                  : opp.wonAt
+                    ? <span className="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">Won</span>
+                    : <span className="px-2 py-0.5 text-[10px] rounded-full bg-dark-700 text-dark-300 border border-dark-600">{opp.stageName || 'Unknown'}</span>;
+                return (
+                  <div
+                    key={opp._id}
+                    onClick={() => navigate(`/org/${orgSlug}/crm/opportunities/${opp._id}`)}
+                    className="flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer bg-dark-800/60 border border-dark-700/50 hover:bg-dark-800"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-sm text-white font-medium truncate">{opp.name}</span>
+                        {stagePill}
+                        {opp.isConverted && (
+                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Converted</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-dark-400 flex-wrap">
+                        {opp.expectedRevenue ? <span>₹{Number(opp.expectedRevenue).toLocaleString('en-IN')}</span> : null}
+                        {opp.expectedRole ? <span>· {opp.expectedRole}</span> : null}
+                        {opp.salespersonName ? <span>· {opp.salespersonName}</span> : null}
+                        {opp.updatedAt && (
+                          <span className="text-dark-500">· {new Date(opp.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Attachments Tab */}
