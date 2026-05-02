@@ -9,7 +9,7 @@ import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
   CheckSquare, AlignLeft, Loader2, Check, X, AlertTriangle,
   ChevronDown, ChevronUp, FileText, Clock, Shield,
-  ArrowRight, ArrowDown,
+  ArrowRight, ArrowDown, Download,
 } from 'lucide-react';
 
 // Configure PDF.js worker
@@ -582,6 +582,11 @@ export default function PublicSigningPage() {
   const [status, setStatus] = useState('loading'); // loading | signing | success | refused | error | waiting
   const [error, setError] = useState('');
   const [request, setRequest] = useState(null);
+  // Tracks whether the request reached the fully-signed state on this
+  // signer's submit. Drives the "Download signed copy" CTA on the success
+  // screen — without this we'd never show the button (the local `request`
+  // state isn't re-fetched post-submit).
+  const [allPartiesSigned, setAllPartiesSigned] = useState(false);
   const [signer, setSigner] = useState(null);
   const [template, setTemplate] = useState(null);
   const [orgName, setOrgName] = useState('');
@@ -910,6 +915,10 @@ export default function PublicSigningPage() {
           setNumPages(0);
         }
       } else {
+        // Backend returns { success, completed } where completed=true means
+        // ALL signers (including this one) are now done — used to gate the
+        // download CTA on the success screen.
+        setAllPartiesSigned(!!res?.completed);
         setStatus('success');
       }
     } catch (err) {
@@ -1035,9 +1044,29 @@ export default function PublicSigningPage() {
             )}
           </div>
 
-          <p className="mt-4 text-sm text-gray-500 text-center">
-            You will receive a copy via email once all parties have signed.
-          </p>
+          {/* Download CTA — shown only when the request is fully signed
+              (i.e. you were the last/only signer). For mid-flow signers
+              we keep the email-fallback message so they don't try to
+              download a doc that isn't sealed yet. */}
+          {allPartiesSigned ? (
+            <>
+              <a
+                href={`${API_BASE_URL}/api/sign/public/${requestId}/${signerId}/${token}/signed-pdf`}
+                download
+                className="mt-5 w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium text-sm py-2.5 px-4 rounded-lg transition-colors"
+              >
+                <Download size={16} />
+                Download signed copy
+              </a>
+              <p className="mt-3 text-xs text-gray-500 text-center">
+                Your signed PDF and the audit certificate were also emailed to you.
+              </p>
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500 text-center">
+              You'll receive the signed copy via email once all parties have signed.
+            </p>
+          )}
 
           <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-center gap-1.5">
             <Shield size={12} className="text-gray-400" />
