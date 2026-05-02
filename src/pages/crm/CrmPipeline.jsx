@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
+import { formatMoney } from '../../utils/currency';
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors,
@@ -134,7 +135,7 @@ function KanbanCardOverlay({ opp }) {
 }
 
 // ── Kanban Column ────────────────────────────────────────────────────────
-function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, onCardClick }) {
+function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency, onCardClick }) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage._id });
   const items = opportunities.map(o => o._id);
   return (
@@ -148,8 +149,8 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, onCardCl
           {stage.isWonStage && <Trophy size={12} className="text-amber-400" />}
         </div>
         {totalRevenue > 0 && (
-          <p className="text-[10px] text-emerald-400 mt-0.5 flex items-center gap-0.5">
-            <IndianRupee size={9} /> {totalRevenue.toLocaleString('en-IN')}
+          <p className="text-[10px] text-emerald-400 mt-0.5">
+            {formatMoney(totalRevenue, currency)}
           </p>
         )}
       </div>
@@ -560,6 +561,7 @@ export default function CrmPipeline() {
                   opportunities={col.opportunities}
                   totalCount={col.totalCount}
                   totalRevenue={col.totalRevenue}
+                  currency={currentCompany?.currency || 'INR'}
                   onCardClick={handleCardClick}
                 />
               </SortableContext>

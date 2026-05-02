@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { downloadFile } from '../../utils/download';
+import { formatMoney } from '../../utils/currency';
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, Plus, Star,
   Building2, Trophy, XCircle, Briefcase, Loader2, ArrowUpDown, Download,
@@ -204,7 +205,7 @@ export default function CrmOpportunities() {
                     <StageBadge name={opp.stageName} isWon={!!opp.wonAt && !opp.isLost} isLost={opp.isLost} />
                   </td>
                   <td className="px-3 py-2.5 text-xs text-emerald-400">{opp.expectedRole || '—'}</td>
-                  <td className="px-3 py-2.5 text-xs text-dark-300">{opp.expectedRevenue ? `₹${Number(opp.expectedRevenue).toLocaleString('en-IN')}` : '—'}</td>
+                  <td className="px-3 py-2.5 text-xs text-dark-300">{formatMoney(opp.expectedRevenue, opp.currency)}</td>
                   <td className="px-3 py-2.5"><EvalStars value={opp.evaluation} /></td>
                   <td className="px-3 py-2.5 text-xs text-dark-300">{opp.salespersonName || '—'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{new Date(opp.updatedAt).toLocaleDateString()}</td>

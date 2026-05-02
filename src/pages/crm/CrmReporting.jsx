@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import { formatMoney } from '../../utils/currency';
 import {
   BarChart3, Trophy, XCircle, Briefcase, IndianRupee,
   Loader2, TrendingUp, Users, ArrowRight,
@@ -9,9 +11,11 @@ import {
 
 export default function CrmReporting() {
   const { orgSlug: slug } = useOrg();
+  const { currentCompany } = useCompany();
   const { addToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const currency = currentCompany?.currency || 'INR';
 
   useEffect(() => {
     crmApi.getDashboard(slug).then(res => {
@@ -60,7 +64,7 @@ export default function CrmReporting() {
         </div>
         <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
           <p className="text-[10px] text-dark-500 uppercase">Pipeline Value</p>
-          <p className="text-xl font-bold text-dark-100">₹{totalRevenue.toLocaleString('en-IN')}</p>
+          <p className="text-xl font-bold text-dark-100">{formatMoney(totalRevenue, currency)}</p>
         </div>
       </div>
 
@@ -84,7 +88,7 @@ export default function CrmReporting() {
                   <tr key={s.stageId} className="border-b border-dark-700/50">
                     <td className="px-3 py-2.5 text-xs text-dark-200">{s.stageName}</td>
                     <td className="px-3 py-2.5 text-xs text-dark-300 text-right">{s.count}</td>
-                    <td className="px-3 py-2.5 text-xs text-emerald-400 text-right">₹{(s.revenue || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-emerald-400 text-right">{formatMoney(s.revenue || 0, currency)}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-dark-800 rounded-full h-2 overflow-hidden">

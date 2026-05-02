@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import { formatMoney } from '../../utils/currency';
 import {
   Briefcase, Trophy, XCircle, ArrowRight, IndianRupee,
   Clock, Users, BarChart3, Loader2, Calendar, User,
@@ -29,7 +31,7 @@ function KPICard({ label, value, icon: Icon, color = 'dark', subtitle }) {
   );
 }
 
-function PipelineBar({ data }) {
+function PipelineBar({ data, currency }) {
   const maxCount = Math.max(...data.map(d => d.count), 1);
   return (
     <div className="space-y-2">
@@ -44,7 +46,7 @@ function PipelineBar({ data }) {
               {d.count > 0 && <span className="text-[10px] text-white font-medium">{d.count}</span>}
             </div>
           </div>
-          <span className="text-[10px] text-dark-500 w-16">₹{(d.revenue || 0).toLocaleString('en-IN')}</span>
+          <span className="text-[10px] text-dark-500 w-16">{formatMoney(d.revenue || 0, currency)}</span>
         </div>
       ))}
     </div>
@@ -53,7 +55,9 @@ function PipelineBar({ data }) {
 
 export default function CrmDashboard() {
   const { orgSlug: slug } = useOrg();
+  const { currentCompany } = useCompany();
   const { addToast } = useToast();
+  const currency = currentCompany?.currency || 'INR';
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -92,7 +96,7 @@ export default function CrmDashboard() {
               View Pipeline <ArrowRight size={12} />
             </button>
           </div>
-          <PipelineBar data={data.byStage || []} />
+          <PipelineBar data={data.byStage || []} currency={currency} />
         </div>
 
         {/* By Salesperson */}
@@ -133,7 +137,7 @@ export default function CrmDashboard() {
                   <p className="text-[10px] text-dark-500">{opp.companyName || 'No company'} · {opp.stageName}</p>
                 </div>
                 {opp.expectedRevenue && (
-                  <span className="text-[10px] text-emerald-400 flex-shrink-0">₹{Number(opp.expectedRevenue).toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] text-emerald-400 flex-shrink-0">{formatMoney(opp.expectedRevenue, opp.currency || currency)}</span>
                 )}
               </div>
             ))}
