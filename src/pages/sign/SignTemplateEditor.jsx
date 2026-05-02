@@ -39,6 +39,7 @@ import {
   Bookmark,
   X,
   ArrowLeft,
+  ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { EditorSkeleton } from '../../components/Skeletons';
@@ -171,6 +172,23 @@ export default function SignTemplateEditor() {
   // ── Selection ───────────────────────────────────────────────────────
   const [selectedItemId, setSelectedItemId] = useState(null);
 
+  // ── Right-click context menu ────────────────────────────────────────
+  // null when closed, otherwise { x, y, itemId } where x/y are viewport
+  // coords for absolute positioning.
+  const [contextMenu, setContextMenu] = useState(null);
+
+  // ── Current page (for the jump bar). Updated by an IntersectionObserver
+  // attached after PDF render so scrolling keeps the bar in sync.
+  const [currentPage, setCurrentPage] = useState(0);
+
+  const jumpToPage = useCallback((idx) => {
+    const container = pdfContainerRef.current;
+    if (!container) return;
+    const target = container.querySelector(`[data-page-index="${idx}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   // ── Drag / resize state (mouse-based) ───────────────────────────────
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
@@ -180,6 +198,11 @@ export default function SignTemplateEditor() {
   // automatically by an effect whenever signItems changes, except when we
   // are in the middle of applying an undo/redo (suppress the next push).
   const historyRef = useRef({ past: [], future: [], suppress: false, lastJSON: '' });
+
+  // Snapshot of signItems as of the last successful load/save. Used to detect
+  // unsaved changes when the user clicks Cancel so we can prompt before
+  // throwing away their work.
+  const savedSignItemsRef = useRef('');
 
   // ── Editing name ────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -208,12 +231,12 @@ export default function SignTemplateEditor() {
           const t = tmplRes.template;
           setTemplateName(t.name || 'Untitled Template');
           setPdfUrl(t.pdfUrl || null);
-          setSignItems(
-            (t.signItems || []).map((item) => ({
-              ...item,
-              id: item.id || item._id || crypto.randomUUID(),
-            }))
-          );
+          const loadedItems = (t.signItems || []).map((item) => ({
+            ...item,
+            id: item.id || item._id || crypto.randomUUID(),
+          }));
+          setSignItems(loadedItems);
+          savedSignItemsRef.current = JSON.stringify(loadedItems);
           setNumPages(t.numPages || 0);
         } else {
           showToast('Failed to load template', 'error');
@@ -419,6 +442,7 @@ export default function SignTemplateEditor() {
         numPages,
       });
       if (res.success) {
+        savedSignItemsRef.current = JSON.stringify(signItems);
         showToast('Template saved');
       } else {
         showToast(res.message || 'Failed to save', 'error');
@@ -776,6 +800,25 @@ export default function SignTemplateEditor() {
     [selectedItemId]
   );
 
+  const duplicateField = useCallback(
+    (itemId) => {
+      setSignItems((prev) => {
+        const src = prev.find((i) => i.id === itemId);
+        if (!src) return prev;
+        const newId = crypto.randomUUID();
+        // Offset the duplicate so the user can see it's a separate field.
+        const dup = {
+          ...src,
+          id: newId,
+          posX: clamp((src.posX ?? 0) + 0.02, 0, 1 - (src.width ?? 0.1)),
+          posY: clamp((src.posY ?? 0) + 0.02, 0, 1 - (src.height ?? 0.05)),
+        };
+        return [...prev, dup];
+      });
+    },
+    []
+  );
+
   // ────────────────────────────────────────────────────────────────────
   // Update a single sign item property
   // ────────────────────────────────────────────────────────────────────
@@ -852,6 +895,13 @@ export default function SignTemplateEditor() {
         return;
       }
 
+      // Cmd/Ctrl+D duplicates the selected field.
+      if (isMod && (e.key === 'd' || e.key === 'D') && !inEditable && selectedItemId) {
+        e.preventDefault();
+        duplicateField(selectedItemId);
+        return;
+      }
+
       if (!selectedItemId) return;
       // Don't intercept if user is typing in an input
       const tag = e.target.tagName.toLowerCase();
@@ -884,7 +934,41 @@ export default function SignTemplateEditor() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedItemId, deleteField, placingFieldType, undo, redo]);
+  }, [selectedItemId, deleteField, duplicateField, placingFieldType, undo, redo]);
+
+  // Track which page is most-visible in the viewport so the jump bar can
+  // highlight it. Re-attach when pdfDoc changes (page count changes).
+  useEffect(() => {
+    if (!pdfDoc || !pdfContainerRef.current) return;
+    const pages = pdfContainerRef.current.querySelectorAll('[data-page-index]');
+    if (pages.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            const idx = Number(entry.target.getAttribute('data-page-index'));
+            if (!Number.isNaN(idx)) setCurrentPage(idx);
+          }
+        }
+      },
+      { root: pdfContainerRef.current, threshold: [0.5] },
+    );
+    pages.forEach((p) => observer.observe(p));
+    return () => observer.disconnect();
+  }, [pdfDoc, pagesRenderedKey]);
+
+  // Dismiss context menu on outside click / Escape.
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu]);
 
   // ────────────────────────────────────────────────────────────────────
   // Currently selected item (derived)
@@ -913,6 +997,33 @@ export default function SignTemplateEditor() {
   // ====================================================================
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden bg-dark-950">
+      {/* ── Right-click context menu ───────────────────────────────── */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[180px] bg-dark-900 border border-dark-700 rounded-lg shadow-xl py-1"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            className="w-full text-left px-3 py-1.5 text-sm text-dark-200 hover:bg-dark-800 hover:text-white transition-colors flex items-center gap-2"
+            onClick={() => { duplicateField(contextMenu.itemId); setContextMenu(null); }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Duplicate
+            <span className="ml-auto text-[10px] text-dark-500">⌘D</span>
+          </button>
+          <button
+            className="w-full text-left px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+            onClick={() => { deleteField(contextMenu.itemId); setContextMenu(null); }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
+            <span className="ml-auto text-[10px] text-dark-500">⌫</span>
+          </button>
+        </div>
+      )}
+
       {/* ── Header Bar ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-dark-900 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -985,7 +1096,13 @@ export default function SignTemplateEditor() {
           {!isQuickSend && (
             <>
               <button
-                onClick={() => navigate(orgPath('/sign/templates'))}
+                onClick={() => {
+                  const dirty = JSON.stringify(signItems) !== savedSignItemsRef.current;
+                  if (dirty && !window.confirm('You have unsaved changes. Discard them and leave the editor?')) {
+                    return;
+                  }
+                  navigate(orgPath('/sign/templates'));
+                }}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-dark-300 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded-lg transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -1130,6 +1247,43 @@ export default function SignTemplateEditor() {
             </div>
           )}
 
+          {/* Sticky page jumper — prev / current / next + direct numeric input */}
+          {pdfDoc && pdfDoc.numPages > 1 && (
+            <div className="sticky top-2 z-30 mx-auto mb-3 w-fit flex items-center gap-2 bg-dark-900/90 backdrop-blur border border-dark-700 rounded-full px-3 py-1.5 shadow-lg">
+              <button
+                onClick={() => jumpToPage(Math.max(0, currentPage - 1))}
+                disabled={currentPage <= 0}
+                className="text-dark-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Previous page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-1 text-xs text-dark-200">
+                Page
+                <input
+                  type="number"
+                  min={1}
+                  max={pdfDoc.numPages}
+                  value={currentPage + 1}
+                  onChange={(e) => {
+                    const n = Math.max(1, Math.min(pdfDoc.numPages, Number(e.target.value) || 1));
+                    jumpToPage(n - 1);
+                  }}
+                  className="w-10 bg-dark-800 border border-dark-600 rounded text-center text-white text-xs py-0.5 focus:outline-none focus:border-rivvra-500"
+                />
+                of {pdfDoc.numPages}
+              </div>
+              <button
+                onClick={() => jumpToPage(Math.min(pdfDoc.numPages - 1, currentPage + 1))}
+                disabled={currentPage >= pdfDoc.numPages - 1}
+                className="text-dark-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Next page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {pdfDoc && (
             <div className="max-w-[900px] mx-auto space-y-4">
               {Array.from({ length: pdfDoc.numPages }, (_, pageIndex) => {
@@ -1233,6 +1387,38 @@ export default function SignTemplateEditor() {
                 </button>
               </div>
 
+              {/* Auto-fill toggle for Date / Name fields. The renderer was
+                  already auto-filling these from signer profile, but it was
+                  invisible to template builders — now they can see (and turn
+                  off) the behavior per field. */}
+              {(selectedItem.type === 'date' || selectedItem.type === 'name') && (
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-gray-500">
+                    {selectedItem.type === 'date'
+                      ? 'Auto-fill with signing date'
+                      : 'Auto-fill with signer name'}
+                  </label>
+                  <button
+                    onClick={() =>
+                      updateItemProp(
+                        selectedItem.id,
+                        'autoFill',
+                        selectedItem.autoFill === false ? true : false,
+                      )
+                    }
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      selectedItem.autoFill !== false ? 'bg-rivvra-600' : 'bg-dark-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                        selectedItem.autoFill !== false ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
+
               {/* Alignment */}
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Alignment</label>
@@ -1277,7 +1463,11 @@ export default function SignTemplateEditor() {
 
               {/* Delete */}
               <button
-                onClick={() => deleteField(selectedItem.id)}
+                onClick={() => {
+                  if (window.confirm('Delete this field? You can restore it with Cmd+Z.')) {
+                    deleteField(selectedItem.id);
+                  }
+                }}
                 className="flex items-center justify-center gap-2 w-full px-3 py-2.5 text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -1285,15 +1475,59 @@ export default function SignTemplateEditor() {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
-              <div className="w-12 h-12 rounded-xl bg-dark-800 border border-dark-700 flex items-center justify-center mb-3">
-                <MousePointer className="w-5 h-5 text-gray-600" />
+            <div className="flex flex-col h-full">
+              <div className="px-4 pt-4 pb-2 border-b border-dark-800">
+                <p className="text-xs font-semibold text-dark-400 uppercase tracking-wide">All Fields</p>
+                <p className="text-[11px] text-dark-500 mt-0.5">
+                  {signItems.length === 0
+                    ? 'Drag a field from the left to begin.'
+                    : `${signItems.length} field${signItems.length === 1 ? '' : 's'} placed. Click to select & jump.`}
+                </p>
               </div>
-              <p className="text-sm text-gray-400 font-medium mb-1">No field selected</p>
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Click a field on the document to view and edit its properties, or drag a field type
-                from the left sidebar onto a page.
-              </p>
+              <div className="flex-1 overflow-y-auto py-2">
+                {signItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center px-6 py-8">
+                    <div className="w-10 h-10 rounded-xl bg-dark-800 border border-dark-700 flex items-center justify-center mb-2">
+                      <MousePointer className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      Drag a field type from the left sidebar onto a page, or click a field type then click on the page.
+                    </p>
+                  </div>
+                ) : (
+                  Array.from(new Set(signItems.map((i) => i.page))).sort((a, b) => a - b).map((pIdx) => (
+                    <div key={pIdx} className="mb-2">
+                      <button
+                        onClick={() => jumpToPage(pIdx)}
+                        className="w-full text-left px-4 py-1 text-[10px] uppercase tracking-wider font-semibold text-dark-500 hover:text-dark-300"
+                      >
+                        Page {pIdx + 1}
+                      </button>
+                      {signItems.filter((i) => i.page === pIdx).map((item) => {
+                        const im = fieldMeta(item.type);
+                        const ItemIcon = im.icon;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              setSelectedItemId(item.id);
+                              jumpToPage(item.page);
+                            }}
+                            className="w-full px-4 py-1.5 flex items-center gap-2 text-left text-xs text-dark-300 hover:bg-dark-800/60 transition-colors"
+                          >
+                            <span
+                              className="inline-block w-1.5 h-3 rounded"
+                              style={{ backgroundColor: getRoleColor(item.roleId) }}
+                            />
+                            <ItemIcon className="w-3 h-3" style={{ color: getRoleColor(item.roleId) }} />
+                            <span className="truncate flex-1">{item.label || im.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </aside>
@@ -1427,6 +1661,7 @@ function PageContainer({
 
   return (
     <div
+      data-page-index={pageIndex}
       className={`relative bg-white rounded-lg shadow-lg ${placingFieldType ? 'cursor-crosshair' : ''}`}
       onDragOver={handlePageDragOver}
       onDrop={(e) => handlePageDrop(e, pageIndex)}
@@ -1465,6 +1700,12 @@ function PageContainer({
             setSelectedItemId={setSelectedItemId}
             startFieldDrag={startFieldDrag}
             startFieldResize={startFieldResize}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedItemId(item.id);
+              setContextMenu({ x: e.clientX, y: e.clientY, itemId: item.id });
+            }}
           />
         ))}
       </div>
@@ -1485,6 +1726,7 @@ function FieldOverlay({
   setSelectedItemId,
   startFieldDrag,
   startFieldResize,
+  onContextMenu,
 }) {
   const meta = fieldMeta(item.type);
   const Icon = meta.icon;
@@ -1515,6 +1757,7 @@ function FieldOverlay({
         e.stopPropagation();
         setSelectedItemId(item.id);
       }}
+      onContextMenu={onContextMenu}
     >
       {/* Field content */}
       <div

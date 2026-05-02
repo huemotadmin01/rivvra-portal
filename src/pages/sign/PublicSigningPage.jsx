@@ -785,6 +785,10 @@ export default function PublicSigningPage() {
         const initialValues = {};
         items.forEach((item) => {
           const id = item._id || item.id;
+          // Template builders can opt a Date/Name field out of auto-fill via
+          // `autoFill: false` set in the editor. Other field types ignore
+          // this flag (email auto-fill is unconditional today).
+          if (item.autoFill === false) return;
           if (item.type === 'name' && data.signer?.name) {
             initialValues[id] = data.signer.name;
           } else if (item.type === 'email' && data.signer?.email) {
@@ -1011,6 +1015,7 @@ export default function PublicSigningPage() {
           const nextValues = {};
           (nextDoc.signItems || []).forEach(item => {
             const id = item._id || item.id;
+            if (item.autoFill === false) return;
             if (item.type === 'name' && signer?.name) nextValues[id] = signer.name;
             else if (item.type === 'email' && signer?.email) nextValues[id] = signer.email;
             else if (item.type === 'date') nextValues[id] = todayStr();
