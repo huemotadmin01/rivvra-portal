@@ -1460,6 +1460,85 @@ export default function SignTemplateEditor() {
                 </select>
               </div>
 
+              {/* Validation rules — text-ish field types only. Stored on
+                  the signItem and enforced by the public signing page at
+                  submit time. */}
+              {['text', 'multiline', 'name', 'email', 'phone', 'company'].includes(selectedItem.type) && (
+                <div className="pt-3 border-t border-dark-700 space-y-2">
+                  <h4 className="text-xs text-gray-500">Validation</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-gray-600 mb-1">Min length</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={selectedItem.minLength ?? ''}
+                        onChange={(e) =>
+                          updateItemProp(
+                            selectedItem.id,
+                            'minLength',
+                            e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                          )
+                        }
+                        placeholder="—"
+                        className="w-full px-2 py-1 text-xs text-white bg-dark-800 border border-dark-700 rounded focus:outline-none focus:ring-1 focus:ring-rivvra-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-600 mb-1">Max length</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={selectedItem.maxLength ?? ''}
+                        onChange={(e) =>
+                          updateItemProp(
+                            selectedItem.id,
+                            'maxLength',
+                            e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                          )
+                        }
+                        placeholder="—"
+                        className="w-full px-2 py-1 text-xs text-white bg-dark-800 border border-dark-700 rounded focus:outline-none focus:ring-1 focus:ring-rivvra-500/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-600 mb-1">Pattern (regex)</label>
+                    <input
+                      type="text"
+                      value={selectedItem.pattern ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        // Validate compile so a bad regex doesn't break the signing page.
+                        if (raw) {
+                          try { new RegExp(raw); } catch { /* keep raw — show feedback below */ }
+                        }
+                        updateItemProp(selectedItem.id, 'pattern', raw || null);
+                      }}
+                      placeholder="e.g. ^[A-Z]{2}\\d{6}$"
+                      className="w-full px-2 py-1 text-xs text-white bg-dark-800 border border-dark-700 rounded font-mono focus:outline-none focus:ring-1 focus:ring-rivvra-500/50"
+                    />
+                    {selectedItem.pattern && (() => {
+                      try { new RegExp(selectedItem.pattern); return null; } catch (e) {
+                        return <p className="text-[10px] text-red-400 mt-1">Invalid regex: {e.message}</p>;
+                      }
+                    })()}
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-600 mb-1">Custom error message</label>
+                    <input
+                      type="text"
+                      value={selectedItem.patternMessage ?? ''}
+                      onChange={(e) =>
+                        updateItemProp(selectedItem.id, 'patternMessage', e.target.value || null)
+                      }
+                      placeholder="Shown if pattern doesn't match"
+                      className="w-full px-2 py-1 text-xs text-white bg-dark-800 border border-dark-700 rounded focus:outline-none focus:ring-1 focus:ring-rivvra-500/50"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Position info */}
               <div className="pt-3 border-t border-dark-700">
                 <h4 className="text-xs text-gray-500 mb-2">Position</h4>

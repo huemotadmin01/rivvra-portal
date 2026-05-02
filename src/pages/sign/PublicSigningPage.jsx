@@ -431,6 +431,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder={FIELD_META[fieldType]?.placeholder || 'Enter text'}
+        maxLength={item.maxLength ?? undefined}
         style={style}
         className={`${inputCls} resize-none`}
       />
@@ -448,6 +449,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
       onFocus={onFocus}
       onBlur={onBlur}
       placeholder={FIELD_META[fieldType]?.placeholder || 'Enter text'}
+      maxLength={item.maxLength ?? undefined}
       style={style}
       className={inputCls}
     />
@@ -991,26 +993,48 @@ export default function PublicSigningPage() {
       return;
     }
 
-    // Format validation for Email and Phone fields. Server only validates
-    // presence today, so a malformed email would otherwise reach the
-    // sealed PDF and be useless for follow-up. Keep regexes intentionally
-    // loose — better to over-accept than reject e.g. international phone
-    // formats with spaces, dashes, parentheses.
+    // Format / length / pattern validation. Type defaults catch malformed
+    // emails and phones before they reach the sealed PDF; min/max length
+    // and the optional pattern field come from the editor's per-field
+    // Validation properties and let template builders enforce things like
+    // "PAN: 5 letters + 4 digits + 1 letter" without writing code.
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[+]?[0-9 ()\-.]{6,}$/;
     for (const item of signItems) {
       const id = item._id || item.id;
       const v = values[id];
       if (!v || typeof v !== 'string') continue;
-      if (item.type === 'email' && !emailRegex.test(v.trim())) {
+      const trimmed = v.trim();
+      const fieldName = item.label || (item.type[0].toUpperCase() + item.type.slice(1));
+
+      if (item.type === 'email' && !emailRegex.test(trimmed)) {
         setShowValidation(true);
-        showToast(`"${item.label || 'Email'}" doesn't look like a valid email address.`, 'warning');
+        showToast(`"${fieldName}" doesn't look like a valid email address.`, 'warning');
         return;
       }
-      if (item.type === 'phone' && !phoneRegex.test(v.trim())) {
+      if (item.type === 'phone' && !phoneRegex.test(trimmed)) {
         setShowValidation(true);
-        showToast(`"${item.label || 'Phone'}" doesn't look like a valid phone number.`, 'warning');
+        showToast(`"${fieldName}" doesn't look like a valid phone number.`, 'warning');
         return;
+      }
+      if (item.minLength != null && trimmed.length < item.minLength) {
+        setShowValidation(true);
+        showToast(`"${fieldName}" needs at least ${item.minLength} characters.`, 'warning');
+        return;
+      }
+      if (item.maxLength != null && trimmed.length > item.maxLength) {
+        setShowValidation(true);
+        showToast(`"${fieldName}" can't exceed ${item.maxLength} characters.`, 'warning');
+        return;
+      }
+      if (item.pattern) {
+        let re;
+        try { re = new RegExp(item.pattern); } catch { re = null; }
+        if (re && !re.test(trimmed)) {
+          setShowValidation(true);
+          showToast(item.patternMessage || `"${fieldName}" doesn't match the required format.`, 'warning');
+          return;
+        }
       }
     }
     setSubmitting(true);
