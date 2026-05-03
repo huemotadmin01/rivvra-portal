@@ -57,7 +57,9 @@ async function generateTypedSignature(text, font, width = 400, height = 150) {
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = '#1e293b';
+  // Navy ink — matches Odoo/DocuSign convention; reads as "real ink" on
+  // most printed contracts more than slate gray did.
+  ctx.fillStyle = '#0f3a8a';
   ctx.font = fontSpec;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -282,7 +284,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                     className: 'w-full cursor-crosshair touch-none',
                     style: { width: '100%', height: isMobile ? '250px' : (type === 'initials' ? '150px' : '200px') },
                   }}
-                  penColor="#1e293b"
+                  penColor="#0f3a8a"
                   minWidth={isMobile ? 3 : 2}
                   maxWidth={isMobile ? 6 : 4}
                   onBegin={() => setIsEmpty(false)}
@@ -584,6 +586,7 @@ function PdfPageWithFields({
           return (
             <div
               key={fieldId}
+              data-field-id={fieldId}
               className="absolute cursor-pointer rounded transition-all overflow-hidden"
               style={{
                 left, top, width, height: isFilled ? height + 20 : height,
@@ -623,6 +626,7 @@ function PdfPageWithFields({
           return (
             <div
               key={item._id || item.id}
+              data-field-id={item._id || item.id}
               className={`absolute rounded transition-all flex items-center justify-center ${
                 isFilled ? '' : isRequired ? '' : ''
               }`}
@@ -647,6 +651,7 @@ function PdfPageWithFields({
         return (
           <div
             key={item._id || item.id}
+            data-field-id={item._id || item.id}
             className={`absolute rounded transition-all ${
               isActive
                 ? ''
@@ -963,26 +968,30 @@ export default function PublicSigningPage() {
       const v = values[id];
       const isEmpty = v === undefined || v === '' || v === false || v === null;
       if (isEmpty) {
-        // Scroll to the actual field position within its page (not just to
-        // the page itself — that did nothing when the next unfilled field
-        // was already on the visible page). We compute the scroll target
-        // as page.offsetTop + posY * pageHeight - 1/3 viewport so the
-        // field lands roughly a third of the way down the screen, leaving
-        // room above for context.
+        // Target the actual field DOM element via data-field-id and use
+        // scrollIntoView, which walks up to the correct scroll ancestor
+        // automatically. The previous "compute targetY and call
+        // container.scrollTo()" path silently froze when the inner
+        // overflow-auto wasn't actually the scroll context for the
+        // visible viewport. scrollIntoView is browser-safe and works
+        // regardless of which ancestor scrolls.
+        const fieldEl = containerRef.current?.querySelector(`[data-field-id="${id}"]`);
+        if (fieldEl) {
+          fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            if (item.type === 'signature' || item.type === 'initials') {
+              handleOpenSignaturePad(id, item.type);
+            } else {
+              setActiveFieldId(id);
+            }
+          }, 350);
+          return true;
+        }
+        // Fallback — field DOM not yet rendered (page rendering lazily).
         const pageIndex = item.page || 0;
         const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[pageIndex];
         if (pageEl) {
-          const pageRect = pageEl.getBoundingClientRect();
-          const containerRect = containerRef.current?.getBoundingClientRect();
-          const viewportH = containerRect?.height || window.innerHeight;
-          const fieldYWithinPage = (item.posY || 0) * pageEl.clientHeight;
-          const targetY =
-            (containerRef.current?.scrollTop || 0) +
-            (pageRect.top - (containerRect?.top || 0)) +
-            fieldYWithinPage -
-            viewportH / 3;
-          containerRef.current?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-          // For signature fields, open the pad; for others, activate the field
+          pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           setTimeout(() => {
             if (item.type === 'signature' || item.type === 'initials') {
               handleOpenSignaturePad(id, item.type);
