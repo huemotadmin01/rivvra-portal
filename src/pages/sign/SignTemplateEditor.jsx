@@ -786,7 +786,8 @@ export default function SignTemplateEditor() {
   // ────────────────────────────────────────────────────────────────────
   // Resize field (mouse-based)
   // ────────────────────────────────────────────────────────────────────
-  const startFieldResize = useCallback((e, itemId) => {
+  // axis: 'both' (corner), 'x' (right edge — width only), 'y' (bottom edge — height only)
+  const startFieldResize = useCallback((e, itemId, axis = 'both') => {
     e.stopPropagation();
     e.preventDefault();
 
@@ -797,6 +798,7 @@ export default function SignTemplateEditor() {
 
     resizeRef.current = {
       itemId,
+      axis,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
       startW: item.width,
@@ -816,11 +818,14 @@ export default function SignTemplateEditor() {
       setSignItems((prev) =>
         prev.map((si) => {
           if (si.id !== r.itemId) return si;
-          return {
-            ...si,
-            width: clamp(r.startW + dw, 0.02, 1 - si.posX),
-            height: clamp(r.startH + dh, 0.01, 1 - si.posY),
-          };
+          const next = { ...si };
+          if (r.axis === 'both' || r.axis === 'x') {
+            next.width = clamp(r.startW + dw, 0.02, 1 - si.posX);
+          }
+          if (r.axis === 'both' || r.axis === 'y') {
+            next.height = clamp(r.startH + dh, 0.01, 1 - si.posY);
+          }
+          return next;
         })
       );
     }
@@ -2190,35 +2195,49 @@ function FieldOverlay({
         </span>
       </div>
 
-      {/* Resize handle (bottom-right corner) */}
-      <div
-        data-resize="true"
-        className={`absolute bottom-0 right-0 w-3 h-3 cursor-se-resize ${
-          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        } transition-opacity`}
-        onMouseDown={(e) => startFieldResize(e, item.id)}
-      >
-        <svg
-          viewBox="0 0 12 12"
-          className="w-3 h-3"
-          style={{ color: roleColor }}
-        >
-          <path
-            d="M11 1v10H1"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          <path
-            d="M11 5v6H5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
+      {/* Resize handles — visible whenever the field is selected or hovered.
+          Three handles cover the common cases:
+            * Right edge (E)  — width only
+            * Bottom edge (S) — height only
+            * SE corner       — both at once
+          Each is a small filled square in the role color, large enough
+          to grab without precise aim. */}
+      {(() => {
+        const handleVisible = isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100';
+        const handleStyle = {
+          backgroundColor: roleColor,
+          border: '1px solid white',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+        };
+        return (
+          <>
+            {/* Right-edge handle — width only */}
+            <div
+              data-resize="true"
+              title="Drag to resize width"
+              className={`absolute right-[-4px] top-1/2 -translate-y-1/2 w-2 h-5 rounded cursor-ew-resize ${handleVisible} transition-opacity z-20`}
+              style={handleStyle}
+              onMouseDown={(e) => startFieldResize(e, item.id, 'x')}
+            />
+            {/* Bottom-edge handle — height only */}
+            <div
+              data-resize="true"
+              title="Drag to resize height"
+              className={`absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-5 h-2 rounded cursor-ns-resize ${handleVisible} transition-opacity z-20`}
+              style={handleStyle}
+              onMouseDown={(e) => startFieldResize(e, item.id, 'y')}
+            />
+            {/* SE corner handle — both axes */}
+            <div
+              data-resize="true"
+              title="Drag to resize"
+              className={`absolute right-[-5px] bottom-[-5px] w-3 h-3 rounded cursor-se-resize ${handleVisible} transition-opacity z-20`}
+              style={handleStyle}
+              onMouseDown={(e) => startFieldResize(e, item.id, 'both')}
+            />
+          </>
+        );
+      })()}
     </div>
   );
 }
