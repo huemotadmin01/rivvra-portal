@@ -536,18 +536,25 @@ function PdfPageWithFields({
         const top = (item.posY ?? item.y ?? 0) * pageDims.height;
         const width = (item.width ?? 0.22) * pageDims.width;
         const height = (item.height ?? 0.03) * pageDims.height;
-        const isSignature = val === '__signed__';
+        // Signature fields arrive as data: URLs; text fields as plain strings.
+        const isSignatureDataUrl = val && typeof val === 'string' && val.startsWith('data:');
         const displayDate = item.type === 'date' ? formatDisplayDate(val) : val;
 
         return (
           <div
             key={`prev-${fieldId}`}
             className="absolute pointer-events-none"
-            style={{ left, top, width, height }}
+            style={{ left, top, width, height: isSignatureDataUrl ? height + 20 : height }}
           >
-            {isSignature ? (
-              <div className="w-full h-full flex items-center justify-center bg-gray-50/50 border border-gray-200 rounded">
-                <span className="text-[10px] text-gray-400 italic">Signed</span>
+            {isSignatureDataUrl ? (
+              // Show the actual signature image so subsequent signers can see
+              // what the previous party signed — consistent with DocuSign /
+              // Adobe Sign behaviour and legally expected in sequential flows.
+              <div className="flex flex-col items-center w-full h-full">
+                <span className="text-[9px] text-green-700 font-medium mt-0.5">Signed with Rivvra Sign</span>
+                <div className="flex-1 flex items-center justify-center w-full px-1">
+                  <img src={val} alt="Signature" className="max-w-full max-h-full object-contain" />
+                </div>
               </div>
             ) : (
               // Inline-block + bg-white so the white pad is only as wide as
