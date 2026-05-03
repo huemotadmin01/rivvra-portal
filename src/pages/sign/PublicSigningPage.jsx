@@ -95,7 +95,7 @@ function formatDisplayDate(dateStr) {
 function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signerName = '' }) {
   const sigCanvasRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('draw'); // 'draw' | 'type' | 'upload'
+  const [activeTab, setActiveTab] = useState('type'); // 'type' | 'draw' | 'upload' — Type first since most users prefer typing.
   const [typedText, setTypedText] = useState(signerName || '');
   const [selectedFont, setSelectedFont] = useState(CURSIVE_FONTS[0]);
   const [isEmpty, setIsEmpty] = useState(true);
@@ -107,7 +107,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
 
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('draw');
+      setActiveTab('type');
       setTypedText(signerName || '');
       setSelectedFont(CURSIVE_FONTS[0]);
       setIsEmpty(true);
@@ -185,18 +185,9 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — Type first since most signers prefer typing their name
+            over drawing a signature on a desktop trackpad. */}
         <div className="flex border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('draw')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'draw'
-                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Draw
-          </button>
           <button
             onClick={() => setActiveTab('type')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
@@ -206,6 +197,16 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
             }`}
           >
             Type
+          </button>
+          <button
+            onClick={() => setActiveTab('draw')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'draw'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Draw
           </button>
           <button
             onClick={() => setActiveTab('upload')}
@@ -406,8 +407,17 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
     );
   }
 
-  // Shared mobile-friendly input class: min touch target 44px on mobile
-  const inputCls = 'absolute bg-white/90 border border-indigo-300 rounded px-2 py-1 text-sm sm:text-xs sm:px-1.5 sm:py-0.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
+  // Shared mobile-friendly input class: min touch target 44px on mobile.
+  // Font size matches the read-only render's sizing (height-driven) so the
+  // typing experience visually mirrors the surrounding document text rather
+  // than always rendering at tiny text-xs.
+  const inputCls = 'absolute bg-white/90 border border-indigo-300 rounded px-2 py-1 sm:px-1.5 sm:py-0.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
+  // height comes from style.height set by the caller (in pixels).
+  const styleHeight = parseFloat(style?.height) || 0;
+  const dynamicFontSize = styleHeight > 0
+    ? Math.min(Math.max(styleHeight * 0.55, 13), 20)
+    : 14;
+  const sizedStyle = { ...style, fontSize: dynamicFontSize };
 
   if (fieldType === 'date') {
     return (
@@ -417,7 +427,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
-        style={style}
+        style={sizedStyle}
         className={inputCls}
       />
     );
@@ -432,7 +442,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
         onBlur={onBlur}
         placeholder={FIELD_META[fieldType]?.placeholder || 'Enter text'}
         maxLength={item.maxLength ?? undefined}
-        style={style}
+        style={sizedStyle}
         className={`${inputCls} resize-none`}
       />
     );
@@ -450,7 +460,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
       onBlur={onBlur}
       placeholder={FIELD_META[fieldType]?.placeholder || 'Enter text'}
       maxLength={item.maxLength ?? undefined}
-      style={style}
+      style={sizedStyle}
       className={inputCls}
     />
   );
