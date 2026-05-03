@@ -781,8 +781,14 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
   const [reference, setReference] = useState('');
   const [signers, setSigners] = useState([{ name: '', email: '' }]);
   const [preparing, setPreparing] = useState(false);
+  const [qsParallel, setQsParallel] = useState(false);
 
-  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '' }]); };
+  const reset = () => { setStep(1); setFile(null); setReference(''); setSigners([{ name: '', email: '' }]); setQsParallel(false); };
+
+  // Soft close — preserve the draft (file, reference, signers) so re-opening
+  // the modal lands the user back where they were. Reset only happens after
+  // a successful prepare or when the user explicitly clicks Discard.
+  const hasDraft = !!file || reference.trim().length > 0 || signers.some(s => s.name?.trim() || s.email?.trim());
 
   const handleFile = (e) => {
     const f = e.target.files?.[0] || e.dataTransfer?.files?.[0];
@@ -859,7 +865,8 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
         const signerData = encodeURIComponent(JSON.stringify(res.signers || []));
         reset();
         onClose();
-        navigate(orgPath(`/sign/templates/${templateId}/edit?quickSend=true&signers=${signerData}`));
+        const parallelParam = qsParallel ? '&parallel=true' : '';
+        navigate(orgPath(`/sign/templates/${templateId}/edit?quickSend=true&signers=${signerData}${parallelParam}`));
       } else {
         showToast(res.error || 'Failed to prepare document', 'error');
       }
@@ -881,7 +888,24 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
             <Zap size={18} className="text-amber-400" />
             <h2 className="text-lg font-semibold text-white">Quick Send</h2>
           </div>
-          <button onClick={() => { reset(); onClose(); }} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"><X size={18} /></button>
+          <div className="flex items-center gap-1">
+            {hasDraft && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Discard the file and signer details you entered?')) reset();
+                }}
+                className="text-[11px] text-dark-400 hover:text-red-300 px-2 py-1 rounded"
+                title="Throw away the current draft and start over"
+              >
+                Discard
+              </button>
+            )}
+            <button
+              onClick={() => onClose()}
+              className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"
+              title={hasDraft ? 'Hide for now — your draft is preserved' : 'Close'}
+            ><X size={18} /></button>
+          </div>
         </div>
 
         <div className="p-6 space-y-5">
@@ -948,6 +972,29 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
                 ))}
               </div>
               <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
+
+              {/* Sequential vs parallel — only meaningful with 2+ signers.
+                  Off = sequential (default). Carries through to the
+                  editor and from there to POST /sign/requests via URL
+                  query param. */}
+              {signers.length > 1 && (
+                <label className="flex items-start gap-2 text-xs text-dark-300 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={qsParallel}
+                    onChange={(e) => setQsParallel(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium text-dark-200">Send to everyone at once</span>
+                    <span className="block text-dark-500 mt-0.5">
+                      {qsParallel
+                        ? 'All signers get the email immediately and can sign in any order.'
+                        : 'Sequential — each signer is emailed only after the previous one finishes.'}
+                    </span>
+                  </span>
+                </label>
+              )}
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>

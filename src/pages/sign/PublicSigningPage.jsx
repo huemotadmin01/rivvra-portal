@@ -717,6 +717,10 @@ export default function PublicSigningPage() {
   const [sigPadModal, setSigPadModal] = useState({ open: false, fieldId: null, type: 'signature' });
   const [sigDataUrls, setSigDataUrls] = useState({ signature: null, initials: null });
   const [scale, setScale] = useState(1.5);
+  // userZoom multiplies the auto-fit scale. Stays separate from scale so
+  // resize events don't blow away the user's zoom preference.
+  const [userZoom, setUserZoom] = useState(1);
+  const [showFieldsList, setShowFieldsList] = useState(false);
 
   // Envelope state
   const [envelope, setEnvelope] = useState(null); // null = single doc
@@ -949,11 +953,25 @@ export default function PublicSigningPage() {
       const v = values[id];
       const isEmpty = v === undefined || v === '' || v === false || v === null;
       if (isEmpty) {
-        // Scroll to this field's page
+        // Scroll to the actual field position within its page (not just to
+        // the page itself — that did nothing when the next unfilled field
+        // was already on the visible page). We compute the scroll target
+        // as page.offsetTop + posY * pageHeight - 1/3 viewport so the
+        // field lands roughly a third of the way down the screen, leaving
+        // room above for context.
         const pageIndex = item.page || 0;
         const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[pageIndex];
         if (pageEl) {
-          pageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const pageRect = pageEl.getBoundingClientRect();
+          const containerRect = containerRef.current?.getBoundingClientRect();
+          const viewportH = containerRect?.height || window.innerHeight;
+          const fieldYWithinPage = (item.posY || 0) * pageEl.clientHeight;
+          const targetY =
+            (containerRef.current?.scrollTop || 0) +
+            (pageRect.top - (containerRect?.top || 0)) +
+            fieldYWithinPage -
+            viewportH / 3;
+          containerRef.current?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
           // For signature fields, open the pad; for others, activate the field
           setTimeout(() => {
             if (item.type === 'signature' || item.type === 'initials') {
@@ -976,10 +994,23 @@ export default function PublicSigningPage() {
 
   // ── Progress calculation ─────────────────────────────────────────────
   const signItems = template?.signItems || [];
-  const requiredItems = signItems.filter((item) => item.required !== false);
+  // A field is required only if (a) item.required isn't explicitly false
+  // AND (b) any item.requiredIf dependency is currently filled. This lets
+  // template builders gate fields behind a checkbox ("require sig only if
+  // 'I agree' is ticked").
+  const isFilledValue = (v) =>
+    v !== undefined && v !== '' && v !== false && v !== null;
+  const isItemRequired = (item) => {
+    if (item.required === false) return false;
+    if (!item.requiredIf) return true;
+    const dep = signItems.find((it) => (it._id || it.id) === item.requiredIf);
+    if (!dep) return true; // dangling reference — treat as always required
+    return isFilledValue(values[dep._id || dep.id]);
+  };
+  const requiredItems = signItems.filter(isItemRequired);
   const filledRequiredCount = requiredItems.filter((item) => {
     const v = values[item._id || item.id];
-    return v !== undefined && v !== '' && v !== false && v !== null;
+    return isFilledValue(v);
   }).length;
   const totalFieldCount = signItems.length;
   const filledTotalCount = signItems.filter((item) => {
@@ -1383,7 +1414,7 @@ export default function PublicSigningPage() {
                 onOpenSignaturePad={handleOpenSignaturePad}
                 activeFieldId={activeFieldId}
                 setActiveFieldId={setActiveFieldId}
-                scale={scale}
+                scale={scale * userZoom}
                 signatureHashes={signatureHashes}
                 showValidation={showValidation}
                 previousValues={previousValues}
@@ -1398,6 +1429,76 @@ export default function PublicSigningPage() {
           )}
         </div>
       </div>
+
+      {/* Fields list popover — opens above the bottom bar when the user
+          clicks the progress indicator. Lets them see every field's fill
+          state and jump straight to it. */}
+      {showFieldsList && (
+        <div className="hidden sm:block fixed bottom-16 left-1/2 -translate-x-1/2 z-40 w-80 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">All fields</span>
+            <button onClick={() => setShowFieldsList(false)} className="text-gray-400 hover:text-gray-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="py-1">
+            {signItems
+              .slice()
+              .sort((a, b) => ((a.page || 0) - (b.page || 0)) || ((a.posY || 0) - (b.posY || 0)))
+              .map((item) => {
+                const id = item._id || item.id;
+                const v = values[id];
+                const filled = v !== undefined && v !== '' && v !== false && v !== null;
+                const meta = FIELD_META[item.type] || FIELD_META.text;
+                const ItemIcon = meta.icon;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setShowFieldsList(false);
+                      // Reuse existing scroll-to-next logic: temporarily
+                      // walk from this item's id by scrolling its page
+                      // and activating it.
+                      const pageIndex = item.page || 0;
+                      const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[pageIndex];
+                      if (pageEl) {
+                        const pageRect = pageEl.getBoundingClientRect();
+                        const containerRect = containerRef.current?.getBoundingClientRect();
+                        const fieldYWithinPage = (item.posY || 0) * pageEl.clientHeight;
+                        const targetY =
+                          (containerRef.current?.scrollTop || 0) +
+                          (pageRect.top - (containerRect?.top || 0)) +
+                          fieldYWithinPage -
+                          (containerRect?.height || window.innerHeight) / 3;
+                        containerRef.current?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+                        setTimeout(() => {
+                          if (item.type === 'signature' || item.type === 'initials') {
+                            handleOpenSignaturePad(id, item.type);
+                          } else {
+                            setActiveFieldId(id);
+                          }
+                        }, 350);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-1.5 hover:bg-gray-50 text-left transition-colors"
+                  >
+                    <div className={`w-1.5 h-3 rounded ${filled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <ItemIcon className="w-3.5 h-3.5 text-gray-500" />
+                    <span className="flex-1 text-xs text-gray-700 truncate">
+                      {item.label || meta.label}
+                      <span className="text-gray-400"> · p{(item.page || 0) + 1}</span>
+                    </span>
+                    {filled ? (
+                      <Check className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <span className="text-[10px] text-gray-400">empty</span>
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* ── Bottom Bar ──────────────────────────────────────────────────── */}
       <div className="sticky bottom-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
@@ -1418,6 +1519,33 @@ export default function PublicSigningPage() {
             )}
           </button>
 
+          {/* Zoom controls — desktop only; mobile pinches the screen instead */}
+          <div className="hidden md:flex items-center gap-1 mr-2 text-gray-600">
+            <button
+              onClick={() => setUserZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
+              disabled={userZoom <= 0.5}
+              className="hover:text-gray-900 disabled:opacity-30 px-1.5 text-base font-semibold"
+              title="Zoom out"
+            >
+              −
+            </button>
+            <button
+              onClick={() => setUserZoom(1)}
+              className="text-xs hover:text-gray-900 tabular-nums w-10 text-center"
+              title="Reset zoom"
+            >
+              {Math.round(userZoom * 100)}%
+            </button>
+            <button
+              onClick={() => setUserZoom((z) => Math.min(2, Math.round((z + 0.1) * 10) / 10))}
+              disabled={userZoom >= 2}
+              className="hover:text-gray-900 disabled:opacity-30 px-1.5 text-base font-semibold"
+              title="Zoom in"
+            >
+              +
+            </button>
+          </div>
+
           {/* Center: Progress + Next Field */}
           <div className="flex items-center gap-3">
             {!allRequiredFilled && (
@@ -1429,11 +1557,15 @@ export default function PublicSigningPage() {
                 <span className="hidden sm:inline">Next Field</span>
               </button>
             )}
-            <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
+            <button
+              onClick={() => setShowFieldsList((v) => !v)}
+              className="hidden sm:flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              title="See all fields and jump"
+            >
               <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <div className={`w-2 h-2 rounded-full ${allRequiredFilled ? 'bg-green-500' : 'bg-amber-400'}`} />
                 <span>
-                  {filledTotalCount} of {totalFieldCount} field{totalFieldCount !== 1 ? 's' : ''} completed
+                  {filledTotalCount} of {totalFieldCount} field{totalFieldCount !== 1 ? 's' : ''}
                 </span>
               </div>
               <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
@@ -1442,7 +1574,7 @@ export default function PublicSigningPage() {
                   style={{ width: totalFieldCount > 0 ? `${(filledTotalCount / totalFieldCount) * 100}%` : '0%' }}
                 />
               </div>
-            </div>
+            </button>
             <div className="sm:hidden text-xs text-gray-500">
               {filledTotalCount}/{totalFieldCount}
             </div>

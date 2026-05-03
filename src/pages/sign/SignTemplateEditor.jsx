@@ -22,6 +22,7 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Check,
   GripVertical,
   PenTool,
   Type,
@@ -144,6 +145,9 @@ export default function SignTemplateEditor() {
 
   // ── Quick Send mode ─────────────────────────────────────────────────
   const isQuickSend = searchParams.get('quickSend') === 'true';
+  // Quick Send carries the parallel preference set in the modal across
+  // to the editor via URL query param. Defaulted to false (sequential).
+  const isQuickSendParallel = searchParams.get('parallel') === 'true';
   const quickSendSigners = useMemo(() => {
     try { return JSON.parse(decodeURIComponent(searchParams.get('signers') || '[]')); }
     catch { return []; }
@@ -170,7 +174,16 @@ export default function SignTemplateEditor() {
   const renderTasksRef = useRef({}); // track in-flight render tasks
 
   // ── Selection ───────────────────────────────────────────────────────
+  // selectedItemId is the primary (properties-panel) selection.
+  // multiSelectIds are additional fields highlighted via shift+click;
+  // bulk Delete operates on the union of both.
   const [selectedItemId, setSelectedItemId] = useState(null);
+  const [multiSelectIds, setMultiSelectIds] = useState([]);
+
+  const allSelectedIds = useMemo(
+    () => (selectedItemId ? [selectedItemId, ...multiSelectIds] : multiSelectIds),
+    [selectedItemId, multiSelectIds]
+  );
 
   // ── Right-click context menu ────────────────────────────────────────
   // null when closed, otherwise { x, y, itemId } where x/y are viewport
@@ -182,6 +195,12 @@ export default function SignTemplateEditor() {
   // shows the corresponding sidebar as a fixed overlay. Desktop renders
   // both sidebars inline as flex children (md:flex) regardless.
   const [mobileSidebar, setMobileSidebar] = useState(null);
+
+  // ── Zoom level (1.0 = fit-to-container) ─────────────────────────────
+  // Multiplies the base scale so users can zoom in/out without losing
+  // the responsive fit-to-container behavior. Clamped at the call site
+  // to [0.5, 2.5].
+  const [zoom, setZoom] = useState(1);
 
   // ── Current page (for the jump bar). Updated by an IntersectionObserver
   // attached after PDF render so scrolling keeps the bar in sync.
@@ -336,7 +355,7 @@ export default function SignTemplateEditor() {
       const vp = pageViewports[i];
       if (!vp) continue;
 
-      const scale = containerWidth / vp.origWidth;
+      const scale = (containerWidth * zoom) / vp.origWidth;
       const page = await pdfDoc.getPage(i + 1);
       const viewport = page.getViewport({ scale });
 
@@ -368,7 +387,7 @@ export default function SignTemplateEditor() {
     }
     // Signal that all canvases have been sized — overlay dims will re-compute
     setPagesRenderedKey((k) => k + 1);
-  }, [pdfDoc, pageViewports]);
+  }, [pdfDoc, pageViewports, zoom]);
 
   useEffect(() => {
     renderPages();
@@ -407,13 +426,13 @@ export default function SignTemplateEditor() {
       const containerWidth = pdfContainerRef.current?.clientWidth
         ? Math.min(pdfContainerRef.current.clientWidth - 48, 900)
         : 700;
-      const scale = containerWidth / vp.origWidth;
+      const scale = (containerWidth * zoom) / vp.origWidth;
       return {
         width: vp.origWidth * scale,
         height: vp.origHeight * scale,
       };
     },
-    [pageViewports]
+    [pageViewports, zoom]
   );
 
   // ────────────────────────────────────────────────────────────────────
@@ -529,6 +548,7 @@ export default function SignTemplateEditor() {
         validity: sendValidity || undefined,
         ccEmails: ccEmailsArray.length > 0 ? ccEmailsArray : undefined,
         reminderDays: Number(sendReminderDays) || 0,
+        parallel: isQuickSendParallel,
       };
 
       const res = await signApi.createRequest(orgSlug, requestData);
@@ -944,7 +964,15 @@ export default function SignTemplateEditor() {
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        deleteField(selectedItemId);
+        if (multiSelectIds.length > 0) {
+          // Bulk delete — primary + all multi-selected.
+          const ids = new Set(allSelectedIds);
+          setSignItems((prev) => prev.filter((i) => !ids.has(i.id)));
+          setSelectedItemId(null);
+          setMultiSelectIds([]);
+        } else {
+          deleteField(selectedItemId);
+        }
         return;
       }
 
@@ -969,7 +997,7 @@ export default function SignTemplateEditor() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedItemId, deleteField, duplicateField, placingFieldType, undo, redo, handleSave]);
+  }, [selectedItemId, deleteField, duplicateField, placingFieldType, undo, redo, handleSave, multiSelectIds, allSelectedIds]);
 
   // Track which page is most-visible in the viewport so the jump bar can
   // highlight it. Re-attach when pdfDoc changes (page count changes).
@@ -1132,7 +1160,17 @@ export default function SignTemplateEditor() {
             <>
               {/* Autosave status — quietly tells the user their work is being persisted. */}
               {(autoSaving || lastSavedAt) && (
-                <span className="text-[11px] text-dark-500 mr-1" title={lastSavedAt ? lastSavedAt.toLocaleTimeString() : ''}>
+                <span
+                  className={`flex items-center gap-1 text-[11px] mr-1 ${
+                    autoSaving ? 'text-amber-300' : 'text-emerald-400'
+                  }`}
+                  title={lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString()}` : ''}
+                >
+                  {autoSaving ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Check className="w-3 h-3" />
+                  )}
                   {autoSaving ? 'Saving…' : `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                 </span>
               )}
@@ -1281,6 +1319,35 @@ export default function SignTemplateEditor() {
                 })}
               </div>
             )}
+
+            {/* Inline "Add Role" — for non-Quick-Send templates only.
+                Prompts for a name, calls POST /sign/roles, prepends to
+                the local roles list, and selects it as the active role. */}
+            {!isQuickSend && (
+              <button
+                onClick={async () => {
+                  const name = window.prompt('Role name (e.g. "Director")');
+                  if (!name || !name.trim()) return;
+                  try {
+                    const color = ROLE_COLORS[roles.length % ROLE_COLORS.length];
+                    const res = await signApi.createRole(orgSlug, { name: name.trim(), color });
+                    const created = res.data || res.role || res.item;
+                    if (res.success && created?._id) {
+                      setRoles((prev) => [...prev, created]);
+                      setActiveRoleId(created._id);
+                    } else {
+                      showToast(res.error || 'Failed to create role', 'error');
+                    }
+                  } catch (err) {
+                    showToast(err?.message || 'Failed to create role', 'error');
+                  }
+                }}
+                className="mt-2 flex items-center gap-1.5 w-full px-3 py-1.5 text-xs text-rivvra-400 hover:text-rivvra-300 hover:bg-dark-800/60 rounded-lg transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Add role
+              </button>
+            )}
           </div>
 
           {/* Quick stats */}
@@ -1295,7 +1362,7 @@ export default function SignTemplateEditor() {
         {/* ─── PDF Viewer (center) ──────────────────────────────── */}
         <main
           ref={pdfContainerRef}
-          className={`flex-1 overflow-y-auto bg-dark-950 p-6 ${placingFieldType ? 'cursor-crosshair' : ''}`}
+          className={`flex-1 overflow-auto bg-dark-950 p-6 ${placingFieldType ? 'cursor-crosshair' : ''}`}
           onClick={() => { setSelectedItemId(null); if (placingFieldType) setPlacingFieldType(null); }}
           onDragOver={handleContainerDragOver}
           onDragLeave={handleContainerDragLeave}
@@ -1314,45 +1381,83 @@ export default function SignTemplateEditor() {
             </div>
           )}
 
-          {/* Sticky page jumper — prev / current / next + direct numeric input */}
-          {pdfDoc && pdfDoc.numPages > 1 && (
+          {/* Sticky toolbar — page jumper + zoom controls */}
+          {pdfDoc && (
             <div className="sticky top-2 z-30 mx-auto mb-3 w-fit flex items-center gap-2 bg-dark-900/90 backdrop-blur border border-dark-700 rounded-full px-3 py-1.5 shadow-lg">
+              {pdfDoc.numPages > 1 && (
+                <>
+                  <button
+                    onClick={() => jumpToPage(Math.max(0, currentPage - 1))}
+                    disabled={currentPage <= 0}
+                    className="text-dark-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="flex items-center gap-1 text-xs text-dark-200">
+                    Page
+                    <input
+                      type="number"
+                      min={1}
+                      max={pdfDoc.numPages}
+                      value={currentPage + 1}
+                      onChange={(e) => {
+                        const n = Math.max(1, Math.min(pdfDoc.numPages, Number(e.target.value) || 1));
+                        jumpToPage(n - 1);
+                      }}
+                      className="w-10 bg-dark-800 border border-dark-600 rounded text-center text-white text-xs py-0.5 focus:outline-none focus:border-rivvra-500"
+                    />
+                    of {pdfDoc.numPages}
+                  </div>
+                  <button
+                    onClick={() => jumpToPage(Math.min(pdfDoc.numPages - 1, currentPage + 1))}
+                    disabled={currentPage >= pdfDoc.numPages - 1}
+                    className="text-dark-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <span className="w-px h-4 bg-dark-700 mx-1" />
+                </>
+              )}
+              {/* Zoom controls — clamp [0.5, 2.5]. Click the % to reset. */}
               <button
-                onClick={() => jumpToPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage <= 0}
-                className="text-dark-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Previous page"
+                onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
+                disabled={zoom <= 0.5}
+                className="text-dark-300 hover:text-white disabled:opacity-30 text-base font-semibold leading-none w-5"
+                title="Zoom out"
               >
-                <ChevronLeft className="w-4 h-4" />
+                −
               </button>
-              <div className="flex items-center gap-1 text-xs text-dark-200">
-                Page
-                <input
-                  type="number"
-                  min={1}
-                  max={pdfDoc.numPages}
-                  value={currentPage + 1}
-                  onChange={(e) => {
-                    const n = Math.max(1, Math.min(pdfDoc.numPages, Number(e.target.value) || 1));
-                    jumpToPage(n - 1);
-                  }}
-                  className="w-10 bg-dark-800 border border-dark-600 rounded text-center text-white text-xs py-0.5 focus:outline-none focus:border-rivvra-500"
-                />
-                of {pdfDoc.numPages}
-              </div>
               <button
-                onClick={() => jumpToPage(Math.min(pdfDoc.numPages - 1, currentPage + 1))}
-                disabled={currentPage >= pdfDoc.numPages - 1}
-                className="text-dark-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Next page"
+                onClick={() => setZoom(1)}
+                className="text-xs text-dark-200 hover:text-white tabular-nums w-10"
+                title="Reset zoom"
               >
-                <ChevronRight className="w-4 h-4" />
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                onClick={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.1) * 10) / 10))}
+                disabled={zoom >= 2.5}
+                className="text-dark-300 hover:text-white disabled:opacity-30 text-base font-semibold leading-none w-5"
+                title="Zoom in"
+              >
+                +
               </button>
             </div>
           )}
 
+          {/* PDF page thumbnail strip — quick visual nav for multi-page docs */}
+          {pdfDoc && pdfDoc.numPages > 1 && (
+            <PdfThumbnailStrip
+              pdfDoc={pdfDoc}
+              currentPage={currentPage}
+              onJump={(idx) => jumpToPage(idx)}
+            />
+          )}
+
           {pdfDoc && (
-            <div className="max-w-[900px] mx-auto space-y-4">
+            <div className="max-w-[1200px] mx-auto space-y-4">
               {Array.from({ length: pdfDoc.numPages }, (_, pageIndex) => {
                 const pageItems = signItems.filter((si) => si.page === pageIndex);
 
@@ -1365,8 +1470,12 @@ export default function SignTemplateEditor() {
                     canvasRefs={canvasRefs}
                     getPageDims={getPageDims}
                     getRoleColor={getRoleColor}
+                    getRoleName={getRoleName}
                     selectedItemId={selectedItemId}
                     setSelectedItemId={setSelectedItemId}
+                    multiSelectIds={multiSelectIds}
+                    setMultiSelectIds={setMultiSelectIds}
+                    setContextMenu={setContextMenu}
                     handlePageDragOver={handlePageDragOver}
                     handlePageDrop={handlePageDrop}
                     handlePageClick={handlePageClick}
@@ -1458,6 +1567,41 @@ export default function SignTemplateEditor() {
                 </button>
               </div>
 
+              {/* Conditional required — only required if some other (usually
+                  checkbox) field on the document is filled. Useful for
+                  branches like "If 'I agree to terms' is checked, then a
+                  signature is required". When selected, the regular
+                  Required toggle is implicitly active but its enforcement
+                  is gated on the dependent field. */}
+              {selectedItem.required && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Required only if
+                    <span className="text-gray-600 font-normal"> (optional)</span>
+                  </label>
+                  <select
+                    value={selectedItem.requiredIf || ''}
+                    onChange={(e) =>
+                      updateItemProp(selectedItem.id, 'requiredIf', e.target.value || null)
+                    }
+                    className="w-full px-3 py-2 text-xs text-white bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-rivvra-500/50"
+                  >
+                    <option value="">Always required</option>
+                    {signItems
+                      .filter((it) => it.id !== selectedItem.id)
+                      .map((it) => {
+                        const m = fieldMeta(it.type);
+                        const lbl = it.label || `${m.label} (page ${(it.page || 0) + 1})`;
+                        return (
+                          <option key={it.id} value={it.id}>
+                            {lbl}{it.type === 'checkbox' ? ' — when checked' : ' — when filled'}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+              )}
+
               {/* Auto-fill toggle for Date / Name fields. The renderer was
                   already auto-filling these from signer profile, but it was
                   invisible to template builders — now they can see (and turn
@@ -1502,6 +1646,8 @@ export default function SignTemplateEditor() {
                 >
                   <option value="left">Left</option>
                   <option value="center">Center</option>
+                  <option value="right">Right</option>
+                  <option value="justify">Justify</option>
                 </select>
               </div>
 
@@ -1803,6 +1949,76 @@ export default function SignTemplateEditor() {
 // ===========================================================================
 // Extracted to its own component so we can isolate re-renders per page.
 
+// ===========================================================================
+// PdfThumbnailStrip — horizontally scrollable mini-canvases for each page.
+// Click a thumbnail to jump the main viewport to that page. Renders each
+// thumbnail once at 100px target width via pdf.js, cached on a ref so we
+// don't re-render on every parent re-render.
+// ===========================================================================
+function PdfThumbnailStrip({ pdfDoc, currentPage, onJump }) {
+  const canvasRefs = useRef({});
+  const renderedRef = useRef(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    async function renderAll() {
+      for (let i = 0; i < pdfDoc.numPages; i++) {
+        if (cancelled) return;
+        if (renderedRef.current.has(i)) continue;
+        const canvas = canvasRefs.current[i];
+        if (!canvas) continue;
+        try {
+          const page = await pdfDoc.getPage(i + 1);
+          const baseVp = page.getViewport({ scale: 1 });
+          const targetW = 100;
+          const scale = targetW / baseVp.width;
+          const vp = page.getViewport({ scale });
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.floor(vp.width * dpr);
+          canvas.height = Math.floor(vp.height * dpr);
+          canvas.style.width = `${vp.width}px`;
+          canvas.style.height = `${vp.height}px`;
+          const ctx = canvas.getContext('2d');
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          await page.render({ canvasContext: ctx, viewport: vp }).promise;
+          renderedRef.current.add(i);
+        } catch (e) {
+          /* ignore — main viewport handles errors */
+        }
+      }
+    }
+    renderAll();
+    return () => { cancelled = true; };
+  }, [pdfDoc]);
+
+  return (
+    <div className="max-w-[1200px] mx-auto mb-3 overflow-x-auto pb-2">
+      <div className="flex gap-2 px-1">
+        {Array.from({ length: pdfDoc.numPages }, (_, i) => (
+          <button
+            key={i}
+            onClick={() => onJump(i)}
+            className={`shrink-0 flex flex-col items-center gap-0.5 transition-opacity ${
+              i === currentPage ? 'opacity-100' : 'opacity-60 hover:opacity-100'
+            }`}
+            title={`Page ${i + 1}`}
+          >
+            <canvas
+              ref={(el) => { canvasRefs.current[i] = el; }}
+              className={`bg-white rounded shadow ${
+                i === currentPage ? 'ring-2 ring-rivvra-500' : 'ring-1 ring-dark-700'
+              }`}
+            />
+            <span className={`text-[10px] tabular-nums ${i === currentPage ? 'text-rivvra-300' : 'text-dark-500'}`}>
+              {i + 1}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PageContainer({
   pageIndex,
   totalPages,
@@ -1810,8 +2026,12 @@ function PageContainer({
   canvasRefs,
   getPageDims,
   getRoleColor,
+  getRoleName,
   selectedItemId,
   setSelectedItemId,
+  multiSelectIds,
+  setMultiSelectIds,
+  setContextMenu,
   handlePageDragOver,
   handlePageDrop,
   handlePageClick,
@@ -1836,6 +2056,7 @@ function PageContainer({
         } else {
           e.stopPropagation();
           setSelectedItemId(null);
+          setMultiSelectIds([]);
         }
       }}
     >
@@ -1861,8 +2082,11 @@ function PageContainer({
             item={item}
             dims={dims}
             getRoleColor={getRoleColor}
+            getRoleName={getRoleName}
             isSelected={item.id === selectedItemId}
+            isMultiSelected={multiSelectIds && multiSelectIds.includes(item.id)}
             setSelectedItemId={setSelectedItemId}
+            setMultiSelectIds={setMultiSelectIds}
             startFieldDrag={startFieldDrag}
             startFieldResize={startFieldResize}
             onContextMenu={(e) => {
@@ -1887,8 +2111,11 @@ function FieldOverlay({
   item,
   dims,
   getRoleColor,
+  getRoleName,
   isSelected,
+  isMultiSelected,
   setSelectedItemId,
+  setMultiSelectIds,
   startFieldDrag,
   startFieldResize,
   onContextMenu,
@@ -1907,7 +2134,9 @@ function FieldOverlay({
       className={`absolute pointer-events-auto group cursor-move select-none transition-shadow ${
         isSelected
           ? 'ring-2 ring-offset-1 ring-blue-500 z-10'
-          : 'hover:ring-1 hover:ring-white/30 z-[5]'
+          : isMultiSelected
+            ? 'ring-2 ring-offset-1 ring-blue-400/70 z-10'
+            : 'hover:ring-1 hover:ring-white/30 z-[5]'
       }`}
       style={{
         left: pxLeft,
@@ -1920,7 +2149,18 @@ function FieldOverlay({
       onMouseDown={(e) => startFieldDrag(e, item.id)}
       onClick={(e) => {
         e.stopPropagation();
-        setSelectedItemId(item.id);
+        if (e.shiftKey && setMultiSelectIds) {
+          // Shift+click toggles this field in/out of the multi-selection
+          // without changing the primary selection. Lets the user pick a
+          // group for bulk delete.
+          setMultiSelectIds((prev) =>
+            prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id],
+          );
+        } else {
+          // Plain click — single selection, clear any multi-select extras.
+          setSelectedItemId(item.id);
+          if (setMultiSelectIds) setMultiSelectIds([]);
+        }
       }}
       onContextMenu={onContextMenu}
     >
@@ -1941,7 +2181,12 @@ function FieldOverlay({
           className="text-[10px] font-medium truncate leading-none"
           style={{ color: roleColor }}
         >
-          {item.label || meta.label}
+          {/* Prefer the assigned role name so multi-role docs are scannable
+              ("Candidate · Sig" vs "Director · Sig") instead of every field
+              just reading "Signature". Custom item.label still wins. */}
+          {item.label || (getRoleName && item.roleId
+            ? `${getRoleName(item.roleId)} · ${meta.label}`
+            : meta.label)}
         </span>
       </div>
 
