@@ -1159,6 +1159,13 @@ export default function PublicSigningPage() {
           <p className="mt-4 text-xs text-gray-400">
             If you believe this is an error, please contact the sender.
           </p>
+          <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-400 flex items-center justify-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-gray-400" />
+            <span>Secured by</span>
+            <a href="https://www.rivvra.com" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:text-indigo-600 font-medium">
+              Rivvra Sign
+            </a>
+          </div>
         </div>
       </div>
     );

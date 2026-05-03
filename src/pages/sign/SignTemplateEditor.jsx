@@ -928,6 +928,15 @@ export default function SignTemplateEditor() {
         return;
       }
 
+      // Cmd/Ctrl+S saves the template explicitly (with toast). Browsers
+      // try to claim this for "Save Page As..." — preventDefault stops
+      // that and routes the keystroke to our handler instead.
+      if (isMod && (e.key === 's' || e.key === 'S') && !inEditable) {
+        e.preventDefault();
+        handleSave();
+        return;
+      }
+
       if (!selectedItemId) return;
       // Don't intercept if user is typing in an input
       const tag = e.target.tagName.toLowerCase();
@@ -960,7 +969,7 @@ export default function SignTemplateEditor() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedItemId, deleteField, duplicateField, placingFieldType, undo, redo]);
+  }, [selectedItemId, deleteField, duplicateField, placingFieldType, undo, redo, handleSave]);
 
   // Track which page is most-visible in the viewport so the jump bar can
   // highlight it. Re-attach when pdfDoc changes (page count changes).
@@ -1575,26 +1584,41 @@ export default function SignTemplateEditor() {
                 </div>
               )}
 
-              {/* Position info */}
+              {/* Position — editable so users can pixel-tune placement
+                  without having to drag. Values are stored as fractions
+                  (0–1) of page dimensions; the inputs show / accept
+                  percentages and we clamp on commit so a typo can't
+                  push a field off-page. */}
               <div className="pt-3 border-t border-dark-700">
                 <h4 className="text-xs text-gray-500 mb-2">Position</h4>
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
-                  <div className="bg-dark-800 rounded px-2 py-1.5">
-                    <span className="text-gray-600">X: </span>
-                    {(selectedItem.posX * 100).toFixed(1)}%
-                  </div>
-                  <div className="bg-dark-800 rounded px-2 py-1.5">
-                    <span className="text-gray-600">Y: </span>
-                    {(selectedItem.posY * 100).toFixed(1)}%
-                  </div>
-                  <div className="bg-dark-800 rounded px-2 py-1.5">
-                    <span className="text-gray-600">W: </span>
-                    {(selectedItem.width * 100).toFixed(1)}%
-                  </div>
-                  <div className="bg-dark-800 rounded px-2 py-1.5">
-                    <span className="text-gray-600">H: </span>
-                    {(selectedItem.height * 100).toFixed(1)}%
-                  </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { key: 'posX',   label: 'X', maxFn: () => Math.max(0, 1 - (selectedItem.width || 0)) },
+                    { key: 'posY',   label: 'Y', maxFn: () => Math.max(0, 1 - (selectedItem.height || 0)) },
+                    { key: 'width',  label: 'W', minFn: () => 0.02, maxFn: () => Math.max(0.02, 1 - (selectedItem.posX || 0)) },
+                    { key: 'height', label: 'H', minFn: () => 0.01, maxFn: () => Math.max(0.01, 1 - (selectedItem.posY || 0)) },
+                  ].map((spec) => (
+                    <div key={spec.key} className="bg-dark-800 rounded px-2 py-1 flex items-center gap-1">
+                      <span className="text-gray-600 w-3">{spec.label}</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={(spec.minFn ? spec.minFn() : 0) * 100}
+                        max={spec.maxFn() * 100}
+                        value={((selectedItem[spec.key] ?? 0) * 100).toFixed(1)}
+                        onChange={(e) => {
+                          const pct = Number(e.target.value);
+                          if (Number.isNaN(pct)) return;
+                          const min = spec.minFn ? spec.minFn() : 0;
+                          const max = spec.maxFn();
+                          const fraction = clamp(pct / 100, min, max);
+                          updateItemProp(selectedItem.id, spec.key, fraction);
+                        }}
+                        className="w-full bg-transparent text-white text-xs focus:outline-none"
+                      />
+                      <span className="text-gray-600">%</span>
+                    </div>
+                  ))}
                 </div>
                 <div className="mt-2 bg-dark-800 rounded px-2 py-1.5 text-xs text-gray-400">
                   <span className="text-gray-600">Page: </span>

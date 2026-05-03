@@ -202,6 +202,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
   const [validityDate, setValidityDate] = useState('');
   const [reminderDays, setReminderDays] = useState(7);
   const [ccEmails, setCcEmails] = useState('');
+  const [parallelSign, setParallelSign] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const isEnvelope = envelopeDocs.length > 1;
@@ -217,6 +218,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
       setValidityDate('');
       setReminderDays(7);
       setCcEmails('');
+      setParallelSign(false);
       setLoadingTemplates(true);
       Promise.all([
         signApi.listTemplates(orgSlug).then((res) => res.templates || []).catch(() => []),
@@ -333,6 +335,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
         validity: validityDate || undefined,
         reminderDays: Number(reminderDays) > 0 ? Number(reminderDays) : undefined,
         ccEmails: ccEmails.split(',').map((e) => e.trim()).filter(Boolean),
+        parallel: parallelSign,
       };
 
       let res;
@@ -511,8 +514,26 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-sm text-dark-400 mb-2">
-              Add signers and drag to reorder. They will sign in this order.
+              {parallelSign
+                ? 'Add signers. Everyone will receive the email at the same time and can sign in any order.'
+                : 'Add signers and drag to reorder. They will sign in this order.'}
             </p>
+            {signers.length > 1 && (
+              <label className="flex items-start gap-2 text-xs text-dark-300 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={parallelSign}
+                  onChange={(e) => setParallelSign(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium text-dark-200">Send to everyone at once (parallel)</span>
+                  <span className="block text-dark-500 mt-0.5">
+                    Off = sequential — each signer is emailed only after the previous one finishes.
+                  </span>
+                </span>
+              </label>
+            )}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={signers.map((s) => s._dragId)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-3 max-h-80 overflow-y-auto">
@@ -909,7 +930,7 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
           {/* Step 2: Signers */}
           {step === 2 && (
             <>
-              <p className="text-dark-400 text-sm">Add people who need to sign this document. Signer 1 signs first, then Signer 2, and so on.</p>
+              <p className="text-dark-400 text-sm">Add people who need to sign this document. Signer 1 signs first, then Signer 2, and so on. Next you'll drop signature / text fields onto the document in the editor before it actually sends.</p>
               <div className="space-y-3">
                 {signers.map((s, idx) => (
                   <div key={idx} className="bg-dark-900 rounded-lg p-3 border border-dark-700 space-y-2">
@@ -927,6 +948,7 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
                 ))}
               </div>
               <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
+
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
                 <button
@@ -935,7 +957,7 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
                   title={signers.some(s => !s.email?.trim() || !s.name?.trim()) ? 'Each signer needs a name and email.' : ''}
                   className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40"
                 >
-                  {preparing ? <><Loader2 size={14} className="animate-spin" /> Preparing...</> : <>Place Fields <ArrowRight size={14} /></>}
+                  {preparing ? <><Loader2 size={14} className="animate-spin" /> Preparing...</> : <>Continue to Editor <ArrowRight size={14} /></>}
                 </button>
               </div>
             </>
