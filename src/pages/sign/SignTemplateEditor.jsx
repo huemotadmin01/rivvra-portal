@@ -2201,17 +2201,15 @@ function FieldOverlay({
       style={{
         left: pxLeft,
         top: pxTop,
-        // Match the signing-time visual minimum (36px, see PublicSigningPage
-        // `visualHeight`). The signer renders a 36px-min box anchored at
-        // posY and bottom-aligns the value so text lands on the underline
-        // beneath. If the editor showed a smaller box, the user would
-        // position fields ON the underline — and at signing time the value
-        // would render 36px below where it appeared in the editor.
+        // Min clamps keep tiny fields grabbable for drag/resize without
+        // visually overpowering the document — restored to the long-standing
+        // 36×20 that matches the convention users rely on (place a thin box
+        // *above* the underline; the signer/PDF grow it downward so text
+        // lands on the underline beneath).
         width: Math.max(pxWidth, 36),
-        height: Math.max(pxHeight, 36),
+        height: Math.max(pxHeight, 20),
         // Inset shadow keeps the visible outline strictly inside the
-        // bounding box (no 1px overflow that the dashed border could cause
-        // if box-sizing ever changed).
+        // bounding box.
         boxShadow: `inset 0 0 0 1px ${roleColor}`,
         backgroundColor: isSelected ? `${roleColor}14` : 'transparent',
       }}
