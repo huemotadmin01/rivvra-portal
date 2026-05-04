@@ -1521,7 +1521,6 @@ export default function SignTemplateEditor() {
                   <PageContainer
                     key={pageIndex}
                     pageIndex={pageIndex}
-                    totalPages={pdfDoc.numPages}
                     pageItems={pageItems}
                     canvasRefs={canvasRefs}
                     getPageDims={getPageDims}
@@ -2077,7 +2076,6 @@ function PdfThumbnailStrip({ pdfDoc, currentPage, onJump }) {
 
 function PageContainer({
   pageIndex,
-  totalPages,
   pageItems,
   canvasRefs,
   getPageDims,
@@ -2116,11 +2114,6 @@ function PageContainer({
         }
       }}
     >
-      {/* Page number badge */}
-      <div className="absolute top-2 right-2 z-20 bg-dark-900/80 text-gray-300 text-xs px-2 py-0.5 rounded-full pointer-events-none">
-        {pageIndex + 1} / {totalPages}
-      </div>
-
       {/* PDF canvas */}
       <canvas
         ref={(el) => { canvasRefs.current[pageIndex] = el; }}
@@ -2208,9 +2201,17 @@ function FieldOverlay({
       style={{
         left: pxLeft,
         top: pxTop,
-        width: Math.max(pxWidth, 36),
-        height: Math.max(pxHeight, 20),
-        border: `1px dashed ${roleColor}`,
+        // Honor the saved field size more faithfully so a 1%-tall field
+        // doesn't *look* 20px tall in the editor and visually crash into the
+        // document line above. Min clamps stay just large enough to stay
+        // grabbable for drag/resize. Hover/focus expands the click target
+        // via the resize handles and label chip below.
+        width: Math.max(pxWidth, 24),
+        height: Math.max(pxHeight, 10),
+        // Inset shadow keeps the visible outline strictly inside the
+        // bounding box (no 1px overflow that the dashed border could cause
+        // if box-sizing ever changed).
+        boxShadow: `inset 0 0 0 1px ${roleColor}`,
         backgroundColor: isSelected ? `${roleColor}14` : 'transparent',
       }}
       onMouseDown={(e) => startFieldDrag(e, item.id)}

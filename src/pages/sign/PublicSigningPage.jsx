@@ -989,6 +989,9 @@ export default function PublicSigningPage() {
   const handleFieldChange = useCallback((fieldId, value) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
     if (showValidation) setShowValidation(false); // clear validation on any field change
+    // Treat any field interaction as "started" so the sticky CTA banner gets
+    // out of the way even if the signer scrolled past it without clicking.
+    setHasStarted(true);
   }, [showValidation]);
 
   // ── Signature reuse prompt ───────────────────────────────────────────
@@ -1475,8 +1478,8 @@ export default function PublicSigningPage() {
           {/* Right: signer info */}
           <div className="flex items-center gap-2 text-right min-w-0 flex-1 justify-end">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{signer?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{signer?.email}</p>
+              <p className="text-sm font-medium text-gray-900 truncate" title={signer?.name}>{signer?.name}</p>
+              <p className="text-xs text-gray-500 truncate" title={signer?.email}>{signer?.email}</p>
             </div>
             <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
               <User className="w-4 h-4 text-indigo-600" />
