@@ -587,10 +587,11 @@ function PdfPageWithFields({
               left,
               top,
               width,
-              // Grow text fields downward to a 30px minimum to match the
+              // Grow text fields downward to a 36px minimum to match the
               // active-signer's wrapping-div height so previous and current
-              // values render at the same visual size.
-              height: isSignatureDataUrl ? height + 20 : Math.max(height, 30),
+              // values render at the same visual size and land on the
+              // underline beneath.
+              height: isSignatureDataUrl ? height + 20 : Math.max(height, 36),
               border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
               backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
             }}
@@ -701,8 +702,10 @@ function PdfPageWithFields({
         // Same trick as the PDF renderer — grow the field downward to a sane
         // visual minimum so a thin sliver-sized field still produces a
         // readable input (and its content lands on the underline below
-        // rather than floating above it).
-        const visualHeight = Math.max(height, 30);
+        // rather than floating above it). The min height is calibrated so
+        // text lands on the printed underline beneath users' typical
+        // "box-above-the-line" placement habit.
+        const visualHeight = Math.max(height, 36);
         const filledFontSize = Math.min(Math.max(visualHeight * 0.5, 12), 16);
         return (
           <div
