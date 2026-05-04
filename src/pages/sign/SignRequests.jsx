@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import { downloadFile } from '../../utils/download';
+import { API_BASE_URL } from '../../utils/config';
 import {
   Loader2, Plus, FileText, Search, X,
   ChevronLeft, ChevronRight, ChevronDown,
@@ -20,17 +21,42 @@ import { formatDateUTC } from '../../utils/dateUtils';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
-  sent:      'bg-blue-500/10 text-blue-400',
-  signed:    'bg-emerald-500/10 text-emerald-400',
-  cancelled: 'bg-red-500/10 text-red-400',
-  expired:   'bg-orange-500/10 text-orange-400',
-  draft:     'bg-dark-700 text-dark-400',
-  refused:   'bg-red-500/10 text-red-400',
+  sent:        'bg-blue-500/10 text-blue-400',
+  in_progress: 'bg-amber-500/10 text-amber-400',
+  signed:      'bg-emerald-500/10 text-emerald-400',
+  cancelled:   'bg-red-500/10 text-red-400',
+  expired:     'bg-orange-500/10 text-orange-400',
+  draft:       'bg-dark-700 text-dark-400',
+  refused:     'bg-red-500/10 text-red-400',
 };
+
+const STATUS_LABELS = {
+  sent: 'Sent',
+  in_progress: 'In progress',
+  signed: 'Signed',
+  cancelled: 'Cancelled',
+  expired: 'Expired',
+  draft: 'Draft',
+  refused: 'Refused',
+};
+
+// Derive a virtual `in_progress` for `sent` rows where some signers have
+// already completed. Keeps the badge in sync with the new "In progress"
+// filter — otherwise those rows still read "Sent" which doesn't match the
+// filter the user picked.
+function deriveStatus(req) {
+  if (req?.state === 'sent') {
+    const completed = (req.signers || []).filter((s) => s.state === 'completed').length;
+    if (completed > 0) return 'in_progress';
+  }
+  return req?.state || 'draft';
+}
 
 function StatusBadge({ status }) {
   const cls = STATUS_STYLES[status] || STATUS_STYLES.draft;
-  const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Draft';
+  const label = STATUS_LABELS[status] || (status
+    ? status.charAt(0).toUpperCase() + status.slice(1)
+    : 'Draft');
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
       {label}
@@ -1365,6 +1391,15 @@ export default function SignRequests() {
   const [remindingId, setRemindingId] = useState(null);
 
   const debounceRef = useRef(null);
+  // searchRef carries the latest search value into the otherwise-stable
+  // fetchRequests callback. Keeping `search` out of fetchRequests' deps
+  // means typing doesn't re-fire the useEffect-driven fetch on every
+  // keystroke (the debounce is the sole path to fetch on search change).
+  const searchRef = useRef('');
+  useEffect(() => { searchRef.current = search; }, [search]);
+  // Track in-flight fetch sequence to discard stale responses if a newer
+  // fetch overtakes an older slow one.
+  const fetchSeqRef = useRef(0);
 
   // Check if ?create=true or ?quicksend=true in URL
   useEffect(() => {
@@ -1389,35 +1424,39 @@ export default function SignRequests() {
   const activeFilterCount = [statusFilter, templateFilter, tagFilter].filter(Boolean).length;
 
   // ── Fetch requests ─────────────────────────────────────────────────────
+  // Don't clear `requests`/`total` on fetch start — the previous data stays
+  // visible while we load, so changing a filter doesn't flash the table to
+  // empty. The render below switches to a top-bar progress indicator while
+  // loading instead of replacing the entire table with a spinner.
   const fetchRequests = useCallback(async (params = {}) => {
     if (!orgSlug) return;
+    const seq = ++fetchSeqRef.current;
     setLoading(true);
-    setRequests([]);
-    setTotal(0);
-    setTotalPages(1);
     try {
       const res = await signApi.listRequests(orgSlug, {
         page: params.page || page,
         limit: 20,
-        search: params.search !== undefined ? params.search : search,
+        search: params.search !== undefined ? params.search : searchRef.current,
         state: params.status !== undefined ? params.status : statusFilter,
         templateId: params.templateId !== undefined ? params.templateId : templateFilter,
         tagId: params.tagId !== undefined ? params.tagId : tagFilter,
       });
+      // Discard stale responses if a newer fetch has been kicked off.
+      if (seq !== fetchSeqRef.current) return;
       if (res.success !== false) {
         setRequests(res.requests || []);
         setTotal(res.total || 0);
         setTotalPages(res.pages || res.totalPages || 1);
       }
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       console.error('Failed to load requests:', err);
       showToast('Failed to load requests', 'error');
-      setRequests([]);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, page, search, statusFilter, templateFilter, tagFilter, showToast, currentCompany?._id]);
+  }, [orgSlug, page, statusFilter, templateFilter, tagFilter, showToast, currentCompany?._id]);
 
   const fetchTemplates = useCallback(async () => {
     if (!orgSlug) return;
@@ -1527,7 +1566,18 @@ export default function SignRequests() {
       setRemindingId(requestId);
       const res = await signApi.remindSigners(orgSlug, requestId);
       if (res.success !== false) {
-        showToast('Reminder sent to pending signers');
+        // The backend returns `reminded` = number of pending signers actually
+        // emailed. If 0, the toast claiming success would be misleading —
+        // surface the truthful count so the user knows whether anything went
+        // out (e.g. all signers may already have completed).
+        const count = typeof res.reminded === 'number' ? res.reminded : null;
+        if (count === 0) {
+          showToast('No pending signers to remind', 'info');
+        } else if (count != null) {
+          showToast(`Reminder sent to ${count} signer${count === 1 ? '' : 's'}`);
+        } else {
+          showToast('Reminder sent to pending signers');
+        }
       } else {
         showToast(res.message || 'Failed to send reminder', 'error');
       }
@@ -1538,10 +1588,39 @@ export default function SignRequests() {
     }
   };
 
+  // Open the signed PDF (or audit certificate) via the auth-protected
+  // backend proxy — same pattern as the detail page's openProxyPdf, lifted
+  // here so the row-level Download button doesn't require navigating away.
+  const openSignedPdf = async (e, requestId) => {
+    e.stopPropagation();
+    const newTab = window.open('about:blank', '_blank');
+    try {
+      const token = localStorage.getItem('rivvra_token');
+      const resp = await fetch(
+        `${API_BASE_URL}/api/org/${orgSlug}/sign/requests/${requestId}/signed-pdf`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!resp.ok) throw new Error('Failed to fetch');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      if (newTab) newTab.location.href = url;
+      else window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      if (newTab) newTab.close();
+      showToast('Failed to open signed PDF', 'error');
+    }
+  };
+
   // Filter options
   const statusOptions = [
     { value: '', label: 'All Statuses' },
     { value: 'sent', label: 'Sent' },
+    // "In progress" is a virtual filter the backend resolves as
+    // state==='sent' AND at least one signer already completed. There's no
+    // distinct DB state — many requests sit in 'sent' for days while one
+    // party signs and the other lags, and the user wants those isolated.
+    { value: 'in_progress', label: 'In progress' },
     { value: 'signed', label: 'Signed' },
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'expired', label: 'Expired' },
@@ -1659,11 +1738,15 @@ export default function SignRequests() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {/* Initial load (no rows yet) shows the big spinner. Once we have any
+          data, keep the table visible during subsequent refetches and show
+          a slim progress strip at the top instead — avoids the "table flashes
+          empty" flicker every time a filter changes. */}
+      {loading && requests.length === 0 ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
         </div>
-      ) : requests.length === 0 ? (
+      ) : !loading && requests.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
             <FileText className="w-8 h-8 text-dark-500" />
@@ -1677,6 +1760,11 @@ export default function SignRequests() {
         </div>
       ) : (
         <>
+          {loading && (
+            <div className="h-0.5 w-full bg-dark-800 overflow-hidden -mb-1">
+              <div className="h-full w-1/3 bg-indigo-500/60 animate-pulse" />
+            </div>
+          )}
           {/* Table */}
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
@@ -1719,7 +1807,7 @@ export default function SignRequests() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={req.state} />
+                          <StatusBadge status={deriveStatus(req)} />
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
                           <div className="flex items-center gap-2">
@@ -1771,6 +1859,15 @@ export default function SignRequests() {
                                   )}
                                 </button>
                               </>
+                            )}
+                            {req.state === 'signed' && req.signedPdfUrl && (
+                              <button
+                                onClick={(e) => openSignedPdf(e, req._id)}
+                                className="text-dark-400 hover:text-emerald-400 transition-colors p-1.5 rounded hover:bg-dark-700"
+                                title="Open signed PDF"
+                              >
+                                <Download size={14} />
+                              </button>
                             )}
                           </div>
                         </td>
