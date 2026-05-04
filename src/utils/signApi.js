@@ -204,26 +204,6 @@ const signApi = {
   getDashboard(orgSlug) {
     return api.request(`/api/org/${orgSlug}/sign/dashboard`);
   },
-
-  // ── Email Templates ───────────────────────────────────────────────
-  listEmailTemplates(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/sign/config/email-templates`);
-  },
-  updateEmailTemplate(orgSlug, key, data) {
-    return api.request(`/api/org/${orgSlug}/sign/config/email-templates/${key}`, {
-      method: 'PUT', body: JSON.stringify(data),
-    });
-  },
-  previewEmailTemplate(orgSlug, key, sampleData) {
-    return api.request(`/api/org/${orgSlug}/sign/config/email-templates/${key}/preview`, {
-      method: 'POST', body: JSON.stringify({ sampleData }),
-    });
-  },
-  deleteEmailTemplate(orgSlug, key) {
-    return api.request(`/api/org/${orgSlug}/sign/config/email-templates/${key}`, {
-      method: 'DELETE',
-    });
-  },
 };
 
 export default signApi;
