@@ -185,7 +185,10 @@ function SortableSignerCard({ signer, idx, totalSigners, updateSigner, removeSig
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-dark-400 mb-1">Role</label>
+        <label className="block text-xs font-medium text-dark-400 mb-1">
+          Role
+          {roles.length > 0 && <span className="text-red-400"> *</span>}
+        </label>
         <select
           value={signer.roleId || ''}
           onChange={(e) => {
@@ -195,7 +198,10 @@ function SortableSignerCard({ signer, idx, totalSigners, updateSigner, removeSig
           }}
           className="input-field text-sm"
         >
-          <option value="">Select role (optional)</option>
+          {/* Role picks the slice of fields this signer can fill — leaving
+              it unset silently sends a blank document. Force a choice when
+              the template has roles defined. */}
+          <option value="">{roles.length > 0 ? 'Select role' : 'Select role (optional)'}</option>
           {roles.map((r) => (
             <option key={r._id || r.id} value={r._id || r.id}>
               {r.name}
@@ -332,7 +338,17 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
 
   const canGoNext = () => {
     if (step === 1) return isEnvelope ? envelopeDocs.length >= 2 : !!selectedTemplate;
-    if (step === 2) return signers.every((s) => s.name.trim() && s.email.trim());
+    if (step === 2) {
+      // Require role assignment when the selected template defines roles —
+      // an unassigned signer has no fields to fill and silently receives a
+      // blank document.
+      const requireRole = selectableRoles.length > 0;
+      return signers.every((s) =>
+        s.name.trim() &&
+        s.email.trim() &&
+        (!requireRole || !!s.roleId),
+      );
+    }
     if (step === 3) return true;
     return true;
   };

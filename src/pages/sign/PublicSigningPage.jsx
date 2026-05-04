@@ -413,13 +413,28 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
   // Font size matches the read-only render's sizing (height-driven) so the
   // typing experience visually mirrors the surrounding document text rather
   // than always rendering at tiny text-xs.
-  const inputCls = 'absolute bg-white/90 border border-indigo-300 rounded px-2 py-1 sm:px-1.5 sm:py-0.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
-  // height comes from style.height set by the caller (in pixels).
-  const styleHeight = parseFloat(style?.height) || 0;
+  const inputCls = 'absolute bg-white/90 border border-indigo-300 rounded px-2 sm:px-1.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
+  // The wrapping field box passes its actual rendered height through as
+  // `style.height` (a number). When we can read it, bottom-align the typed
+  // text so it sits at the bottom edge of the box — that's where the
+  // printed underline sits in the source document, and matches the final
+  // PDF stamp's positioning.
+  const styleHeight = typeof style?.height === 'number' ? style.height : parseFloat(style?.height) || 0;
   const dynamicFontSize = styleHeight > 0
-    ? Math.min(Math.max(styleHeight * 0.55, 13), 20)
+    ? Math.min(Math.max(styleHeight * 0.5, 12), 16)
     : 14;
-  const sizedStyle = { ...style, fontSize: dynamicFontSize };
+  // Padding-top pushes the input's text content down so it lands near the
+  // bottom edge instead of being vertically centered (default browser
+  // behaviour). Caps so a very tall box doesn't get an absurd top gap.
+  const verticalGap = Math.max(0, styleHeight - dynamicFontSize - 8);
+  const padTop = Math.min(verticalGap, 24);
+  const sizedStyle = {
+    ...style,
+    fontSize: dynamicFontSize,
+    paddingTop: `${padTop}px`,
+    paddingBottom: '2px',
+    lineHeight: 1.1,
+  };
 
   if (fieldType === 'date') {
     return (
@@ -572,7 +587,10 @@ function PdfPageWithFields({
               left,
               top,
               width,
-              height: isSignatureDataUrl ? height + 20 : height,
+              // Grow text fields downward to a 30px minimum to match the
+              // active-signer's wrapping-div height so previous and current
+              // values render at the same visual size.
+              height: isSignatureDataUrl ? height + 20 : Math.max(height, 30),
               border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
               backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
             }}
@@ -583,12 +601,17 @@ function PdfPageWithFields({
               // shows: dashed rose frame, label, image, truncated hash.
               <SignatureStamp src={val} hash={previousSignatureHashes[fieldId]} />
             ) : (
-              // Inline-block + bg-white so the white pad is only as wide as
-              // the actual text glyphs (plus a tiny horizontal padding),
-              // not the whole field box. Avoids erasing surrounding
-              // document text like "Date:" or "between".
-              <div className="w-full h-full flex items-center font-medium" style={{ fontSize: Math.min(Math.max(height * 0.6, 13), 18) }}>
-                <span className="bg-white text-gray-800 px-1 truncate max-w-full leading-none">
+              // Bottom-align the read-only previous value so it visually
+              // sits on the underline beneath the field — matches what the
+              // current signer's own values will look like, and matches the
+              // final PDF stamp's positioning. Inline-block + bg-white pad
+              // is only as wide as the glyphs (plus tiny horizontal
+              // padding) so we don't erase surrounding document text.
+              <div
+                className="w-full h-full flex items-end font-medium pb-0.5"
+                style={{ fontSize: Math.min(Math.max(height * 0.5, 12), 16), lineHeight: 1.1 }}
+              >
+                <span className="bg-white text-gray-800 px-1 truncate max-w-full">
                   {displayDate}
                 </span>
               </div>
@@ -674,7 +697,13 @@ function PdfPageWithFields({
           );
         }
 
-        // Text-type fields: show inline input when active, placeholder when inactive
+        // Text-type fields: show inline input when active, placeholder when inactive.
+        // Same trick as the PDF renderer — grow the field downward to a sane
+        // visual minimum so a thin sliver-sized field still produces a
+        // readable input (and its content lands on the underline below
+        // rather than floating above it).
+        const visualHeight = Math.max(height, 30);
+        const filledFontSize = Math.min(Math.max(visualHeight * 0.5, 12), 16);
         return (
           <div
             key={item._id || item.id}
@@ -690,7 +719,7 @@ function PdfPageWithFields({
                       ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer'
                       : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer'
             }`}
-            style={{ left, top, width, height }}
+            style={{ left, top, width, height: visualHeight }}
             onClick={() => {
               if (!isActive) setActiveFieldId(item._id || item.id);
             }}
@@ -705,13 +734,19 @@ function PdfPageWithFields({
                   // Delay to allow click events to fire first
                   setTimeout(() => setActiveFieldId(null), 150);
                 }}
-                style={{ left: 0, top: 0, width: '100%', height: '100%', position: 'relative' }}
+                style={{ left: 0, top: 0, width: '100%', height: visualHeight, position: 'relative' }}
               />
             ) : (
-              <div className="flex items-center h-full px-1.5 gap-1 overflow-hidden">
+              // items-end + small bottom padding bottom-aligns the typed
+              // value to the box's lower edge so it visually sits on the
+              // underline beneath, matching the final flattened PDF.
+              <div
+                className="flex items-end h-full px-1.5 gap-1 pb-0.5 overflow-hidden"
+                style={{ fontSize: isFilled ? filledFontSize : undefined, lineHeight: 1.1 }}
+              >
                 {isFilled ? (
                   <>
-                    <span className="text-xs text-gray-900 truncate flex-1">
+                    <span className="text-gray-900 truncate flex-1">
                       {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
                     </span>
                     <Check className="w-3 h-3 text-green-600 flex-shrink-0" />
