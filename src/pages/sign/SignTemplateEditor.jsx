@@ -1521,6 +1521,7 @@ export default function SignTemplateEditor() {
                   <PageContainer
                     key={pageIndex}
                     pageIndex={pageIndex}
+                    totalPages={pdfDoc.numPages}
                     pageItems={pageItems}
                     canvasRefs={canvasRefs}
                     getPageDims={getPageDims}
@@ -2076,6 +2077,7 @@ function PdfThumbnailStrip({ pdfDoc, currentPage, onJump }) {
 
 function PageContainer({
   pageIndex,
+  totalPages,
   pageItems,
   canvasRefs,
   getPageDims,
@@ -2114,6 +2116,11 @@ function PageContainer({
         }
       }}
     >
+      {/* Page number badge */}
+      <div className="absolute top-2 right-2 z-20 bg-dark-900/80 text-gray-300 text-xs px-2 py-0.5 rounded-full pointer-events-none">
+        {pageIndex + 1} / {totalPages}
+      </div>
+
       {/* PDF canvas */}
       <canvas
         ref={(el) => { canvasRefs.current[pageIndex] = el; }}
@@ -2201,16 +2208,9 @@ function FieldOverlay({
       style={{
         left: pxLeft,
         top: pxTop,
-        // Min clamps keep tiny fields grabbable for drag/resize without
-        // visually overpowering the document — restored to the long-standing
-        // 36×20 that matches the convention users rely on (place a thin box
-        // *above* the underline; the signer/PDF grow it downward so text
-        // lands on the underline beneath).
         width: Math.max(pxWidth, 36),
         height: Math.max(pxHeight, 20),
-        // Inset shadow keeps the visible outline strictly inside the
-        // bounding box.
-        boxShadow: `inset 0 0 0 1px ${roleColor}`,
+        border: `1px dashed ${roleColor}`,
         backgroundColor: isSelected ? `${roleColor}14` : 'transparent',
       }}
       onMouseDown={(e) => startFieldDrag(e, item.id)}

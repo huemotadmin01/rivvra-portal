@@ -591,13 +591,6 @@ function PdfPageWithFields({
         // Signature fields arrive as data: URLs; text fields as plain strings.
         const isSignatureDataUrl = val && typeof val === 'string' && val.startsWith('data:');
         const displayDate = item.type === 'date' ? formatDisplayDate(val) : val;
-        // Mirror the active-signer block: anchor the visual box's BOTTOM at
-        // the saved (top + height) so the value lands on the underline
-        // beneath, and derive font size from the saved height so it
-        // matches the surrounding document text.
-        const prevVisualHeight = isSignatureDataUrl ? height + 20 : Math.max(height, 36);
-        const prevAdjustedTop = isSignatureDataUrl ? top : top - (prevVisualHeight - height);
-        const prevFontSize = Math.min(Math.max(height, 9), 18);
 
         return (
           <div
@@ -605,9 +598,13 @@ function PdfPageWithFields({
             className="absolute pointer-events-none rounded overflow-hidden"
             style={{
               left,
-              top: prevAdjustedTop,
+              top,
               width,
-              height: prevVisualHeight,
+              // Grow text fields downward to a 36px minimum to match the
+              // active-signer's wrapping-div height so previous and current
+              // values render at the same visual size and land on the
+              // underline beneath.
+              height: isSignatureDataUrl ? height + 20 : Math.max(height, 36),
               border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
               backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
             }}
@@ -626,7 +623,7 @@ function PdfPageWithFields({
               // padding) so we don't erase surrounding document text.
               <div
                 className="w-full h-full flex items-end font-medium pb-0.5"
-                style={{ fontSize: prevFontSize, lineHeight: 1.1 }}
+                style={{ fontSize: Math.min(Math.max(height * 0.5, 12), 16), lineHeight: 1.1 }}
               >
                 <span className="bg-white text-gray-800 px-1 truncate max-w-full">
                   {displayDate}
@@ -715,19 +712,14 @@ function PdfPageWithFields({
         }
 
         // Text-type fields: show inline input when active, placeholder when inactive.
-        // Mirror the PDF stamping behaviour in signPdfHelper.js — keep the
-        // *bottom* of the visual box anchored at the user's saved (top + height)
-        // and grow UPWARD when we need a larger click target. That way the
-        // typed value bottom-aligns onto the underline beneath the saved
-        // box, just like the final stamped PDF does, instead of dropping
-        // 36px below it.
+        // Same trick as the PDF renderer — grow the field downward to a sane
+        // visual minimum so a thin sliver-sized field still produces a
+        // readable input (and its content lands on the underline below
+        // rather than floating above it). The min height is calibrated so
+        // text lands on the printed underline beneath users' typical
+        // "box-above-the-line" placement habit.
         const visualHeight = Math.max(height, 36);
-        const adjustedTop = top - (visualHeight - height);
-        // Derive font size from the *saved* height (not the padded visual
-        // height) so the rendered value visually matches the surrounding
-        // document text the admin sized the box against. Bracketed to a
-        // legible 9–18px range for sanity.
-        const filledFontSize = Math.min(Math.max(height, 9), 18);
+        const filledFontSize = Math.min(Math.max(visualHeight * 0.5, 12), 16);
         return (
           <div
             key={item._id || item.id}
@@ -743,7 +735,7 @@ function PdfPageWithFields({
                       ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer'
                       : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer'
             }`}
-            style={{ left, top: adjustedTop, width, height: visualHeight }}
+            style={{ left, top, width, height: visualHeight }}
             onClick={() => {
               if (!isActive) setActiveFieldId(item._id || item.id);
             }}
@@ -997,9 +989,6 @@ export default function PublicSigningPage() {
   const handleFieldChange = useCallback((fieldId, value) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
     if (showValidation) setShowValidation(false); // clear validation on any field change
-    // Treat any field interaction as "started" so the sticky CTA banner gets
-    // out of the way even if the signer scrolled past it without clicking.
-    setHasStarted(true);
   }, [showValidation]);
 
   // ── Signature reuse prompt ───────────────────────────────────────────
@@ -1486,8 +1475,8 @@ export default function PublicSigningPage() {
           {/* Right: signer info */}
           <div className="flex items-center gap-2 text-right min-w-0 flex-1 justify-end">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate" title={signer?.name}>{signer?.name}</p>
-              <p className="text-xs text-gray-500 truncate" title={signer?.email}>{signer?.email}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{signer?.name}</p>
+              <p className="text-xs text-gray-500 truncate">{signer?.email}</p>
             </div>
             <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
               <User className="w-4 h-4 text-indigo-600" />
