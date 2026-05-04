@@ -1390,6 +1390,12 @@ export default function SignRequests() {
   const [cancellingId, setCancellingId] = useState(null);
   const [remindingId, setRemindingId] = useState(null);
 
+  // Bulk selection — Set of request IDs ticked on the current page. Cleared
+  // on filter change, page change, and after a successful bulk action so
+  // checkboxes never carry over a stale selection that the user can't see.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const debounceRef = useRef(null);
   // searchRef carries the latest search value into the otherwise-stable
   // fetchRequests callback. Keeping `search` out of fetchRequests' deps
@@ -1487,6 +1493,7 @@ export default function SignRequests() {
   // Debounced search
   const handleSearchChange = (value) => {
     setSearch(value);
+    setSelectedIds(new Set());
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setPage(1);
@@ -1502,6 +1509,7 @@ export default function SignRequests() {
     setter(val);
     setPage(1);
     setOpenFilter(null);
+    setSelectedIds(new Set());
   };
 
   const clearAllFilters = () => {
@@ -1509,6 +1517,51 @@ export default function SignRequests() {
     setTemplateFilter('');
     setTagFilter('');
     setPage(1);
+    setSelectedIds(new Set());
+  };
+
+  // Reset selection whenever the page actually changes — switching pages
+  // would otherwise carry the previous page's IDs and silently delete them.
+  useEffect(() => { setSelectedIds(new Set()); }, [page]);
+
+  const toggleSelected = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePageSelected = () => {
+    setSelectedIds((prev) => {
+      const allChecked = requests.length > 0 && requests.every((r) => prev.has(r._id));
+      if (allChecked) return new Set();
+      const next = new Set(prev);
+      requests.forEach((r) => next.add(r._id));
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (!window.confirm(`Permanently remove ${count} signature request${count === 1 ? '' : 's'} from this list? Signed PDFs and audit certificates already generated will remain accessible via their direct links.`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await signApi.bulkDeleteRequests(orgSlug, Array.from(selectedIds));
+      if (res.success !== false) {
+        const n = typeof res.deleted === 'number' ? res.deleted : count;
+        showToast(`Deleted ${n} request${n === 1 ? '' : 's'}`);
+        setSelectedIds(new Set());
+        fetchRequests();
+      } else {
+        showToast(res.message || 'Failed to delete requests', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete requests', 'error');
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const toggleFilter = (name) => {
@@ -1765,12 +1818,56 @@ export default function SignRequests() {
               <div className="h-full w-1/3 bg-indigo-500/60 animate-pulse" />
             </div>
           )}
+
+          {/* Bulk action bar — appears above the table whenever the user
+              has at least one row ticked. Selection is per-page (we already
+              clear it on page/filter changes), so the count shown here is
+              always tractable. */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+              <div className="flex items-center gap-3 text-sm text-indigo-200">
+                <Check size={14} />
+                <span>
+                  {selectedIds.size} selected
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="ml-3 text-indigo-300/80 hover:text-white text-xs underline-offset-2 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </span>
+              </div>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-200 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                Delete selected
+              </button>
+            </div>
+          )}
           {/* Table */}
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-700">
+                    <th className="px-3 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all rows on this page"
+                        ref={(el) => {
+                          if (!el) return;
+                          const allChecked = requests.length > 0 && requests.every((r) => selectedIds.has(r._id));
+                          const some = requests.some((r) => selectedIds.has(r._id));
+                          el.checked = allChecked;
+                          el.indeterminate = !allChecked && some;
+                        }}
+                        onChange={togglePageSelected}
+                        className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-indigo-500 focus:ring-1 focus:ring-indigo-500/50 cursor-pointer"
+                      />
+                    </th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium">Document</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Template</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
@@ -1789,8 +1886,19 @@ export default function SignRequests() {
                       <tr
                         key={req._id}
                         onClick={() => navigate(orgPath(`/sign/requests/${req._id}`))}
-                        className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                        className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${
+                          selectedIds.has(req._id) ? 'bg-indigo-500/5' : ''
+                        }`}
                       >
+                        <td className="px-3 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${req.reference || 'request'}`}
+                            checked={selectedIds.has(req._id)}
+                            onChange={() => toggleSelected(req._id)}
+                            className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-indigo-500 focus:ring-1 focus:ring-indigo-500/50 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">

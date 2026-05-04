@@ -62,6 +62,13 @@ const signApi = {
     });
   },
 
+  bulkDeleteRequests(orgSlug, ids) {
+    return api.request(`/api/org/${orgSlug}/sign/requests/bulk-delete`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  },
+
   remindSigners(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/sign/requests/${id}/remind`, {
       method: 'POST',
