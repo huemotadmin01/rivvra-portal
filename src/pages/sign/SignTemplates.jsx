@@ -8,8 +8,108 @@ import signApi from '../../utils/signApi';
 import {
   Loader2, Plus, Upload, FileText, LayoutTemplate,
   X, Copy, Trash2, Edit2, Tag, Search,
-  CloudUpload, File, Send, Check,
+  CloudUpload, File, Send, Check, Pencil,
 } from 'lucide-react';
+import TagPicker from '../../components/sign/TagPicker';
+
+/* ── Edit Template Details Modal ──────────────────────────────────────── */
+// Quick rename + retag for an existing template without opening the
+// full editor. Driven by the row-level "Edit details" button.
+function EditTemplateDetailsModal({ template, onClose, onSaved, orgSlug, showToast }) {
+  const [name, setName] = useState('');
+  const [tagIds, setTagIds] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!template) return;
+    setName(template.name || '');
+    const raw = Array.isArray(template.tags) ? template.tags : [];
+    setTagIds(raw.map((t) => (typeof t === 'string' ? t : t?._id)).filter(Boolean));
+  }, [template]);
+
+  if (!template) return null;
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      showToast('Template name is required', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await signApi.updateTemplate(orgSlug, template._id, {
+        name: name.trim(),
+        tags: tagIds,
+      });
+      if (res.success !== false) {
+        showToast('Template updated');
+        onSaved();
+      } else {
+        showToast(res.message || 'Failed to update template', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to update template', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-lg bg-dark-900 border border-dark-700 rounded-xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-white font-semibold">Edit template details</h3>
+          <button onClick={onClose} className="text-dark-400 hover:text-white p-1 rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-5 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              Template Name <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input-field"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Tags</label>
+            <TagPicker
+              orgSlug={orgSlug}
+              value={tagIds}
+              onChange={setTagIds}
+              onError={showToast}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-dark-700 bg-dark-950/40">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-2 text-sm text-dark-300 hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rivvra-600 hover:bg-rivvra-500 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── Upload Template Modal ────────────────────────────────────────────── */
 function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
@@ -359,6 +459,7 @@ export default function SignTemplates() {
   const [search, setSearch] = useState('');
   const [duplicating, setDuplicating] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [editingTpl, setEditingTpl] = useState(null);
 
   const debounceRef = useRef(null);
 
@@ -561,6 +662,13 @@ export default function SignTemplates() {
                             <Edit2 size={14} />
                           </button>
                           <button
+                            onClick={() => setEditingTpl(tpl)}
+                            className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"
+                            title="Edit name & tags"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
                             onClick={() => handleDuplicate(tpl._id)}
                             disabled={duplicating === tpl._id}
                             className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
@@ -601,6 +709,15 @@ export default function SignTemplates() {
         onClose={() => setShowUploadModal(false)}
         onSaved={fetchTemplates}
         orgSlug={orgSlug}
+      />
+
+      {/* Edit Details Modal — rename + retag without opening the editor. */}
+      <EditTemplateDetailsModal
+        template={editingTpl}
+        onClose={() => setEditingTpl(null)}
+        onSaved={() => { setEditingTpl(null); fetchTemplates(); }}
+        orgSlug={orgSlug}
+        showToast={showToast}
       />
     </div>
   );

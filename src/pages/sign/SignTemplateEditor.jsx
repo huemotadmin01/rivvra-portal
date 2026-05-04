@@ -42,8 +42,10 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Tag as TagIcon,
 } from 'lucide-react';
 import { EditorSkeleton } from '../../components/Skeletons';
+import TagPicker from '../../components/sign/TagPicker';
 
 // ---------------------------------------------------------------------------
 // PDF.js worker setup — use CDN for the matching version
@@ -161,6 +163,8 @@ export default function SignTemplateEditor() {
   const [numPages, setNumPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [templateTagIds, setTemplateTagIds] = useState([]);
+  const [editingTags, setEditingTags] = useState(false);
 
   // ── Roles ───────────────────────────────────────────────────────────
   const [roles, setRoles] = useState([]);
@@ -263,6 +267,10 @@ export default function SignTemplateEditor() {
           setSignItems(loadedItems);
           savedSignItemsRef.current = JSON.stringify(loadedItems);
           setNumPages(t.numPages || 0);
+          // Tags can come back as either array of populated tag objects or
+          // raw IDs depending on the route. Normalize to a list of IDs.
+          const rawTags = Array.isArray(t.tags) ? t.tags : [];
+          setTemplateTagIds(rawTags.map((tag) => (typeof tag === 'string' ? tag : tag?._id)).filter(Boolean));
         } else {
           showToast('Failed to load template', 'error');
           navigate(orgPath('/sign/templates'));
@@ -469,6 +477,7 @@ export default function SignTemplateEditor() {
         name: templateName,
         signItems,
         numPages,
+        tags: templateTagIds,
       });
       if (res.success) {
         savedSignItemsRef.current = JSON.stringify(signItems);
@@ -483,7 +492,7 @@ export default function SignTemplateEditor() {
     } finally {
       if (silent) setAutoSaving(false); else setSaving(false);
     }
-  }, [orgSlug, templateId, templateName, signItems, numPages, saving, showToast]);
+  }, [orgSlug, templateId, templateName, signItems, numPages, templateTagIds, saving, showToast]);
 
   const handleSave = useCallback(() => doSave({ silent: false }), [doSave]);
 
@@ -1138,6 +1147,21 @@ export default function SignTemplateEditor() {
               {templateName}
             </button>
           )}
+          {!isQuickSend && (
+            <button
+              type="button"
+              onClick={() => setEditingTags((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors ${
+                editingTags
+                  ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+                  : 'bg-dark-800 border-dark-700 text-dark-300 hover:text-white hover:border-dark-600'
+              }`}
+              title="Edit template tags"
+            >
+              <TagIcon size={12} />
+              {templateTagIds.length > 0 ? `${templateTagIds.length} tag${templateTagIds.length === 1 ? '' : 's'}` : 'Tags'}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1204,6 +1228,33 @@ export default function SignTemplateEditor() {
           )}
         </div>
       </header>
+
+      {/* Tag editor strip — appears below the header when the "Tags" pill in
+          the breadcrumb is toggled on. Saved values flow through the same
+          updateTemplate path as name/signItems (autosave + manual Save). */}
+      {!isQuickSend && editingTags && (
+        <div className="px-4 py-3 border-b border-dark-700 bg-dark-900/60 shrink-0">
+          <div className="flex items-start gap-3 max-w-3xl">
+            <span className="text-[11px] uppercase tracking-wide text-dark-500 mt-2 shrink-0">Tags</span>
+            <div className="flex-1">
+              <TagPicker
+                orgSlug={orgSlug}
+                value={templateTagIds}
+                onChange={setTemplateTagIds}
+                onError={showToast}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingTags(false)}
+              className="text-dark-400 hover:text-white text-xs px-2 py-1"
+              title="Close"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile sidebar toggles + dim overlay ────────────────────── */}
       <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-dark-700 bg-dark-900 shrink-0">
