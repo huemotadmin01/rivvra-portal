@@ -431,6 +431,7 @@ export default function TimesheetEntry() {
     const unfilledDays = [];
     for (let d = 1; d <= daysInMonth; d++) {
       if (isBeforeProjectStart(d)) continue; // skip days before project start
+      if (isAfterLwd(d)) continue; // skip days after employee's last working date
       const date = new Date(year, month - 1, d);
       if (date > today) continue; // skip future days
       const entry = entries[d] || { hours: '', status: null };
