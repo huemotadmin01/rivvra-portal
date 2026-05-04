@@ -2201,13 +2201,14 @@ function FieldOverlay({
       style={{
         left: pxLeft,
         top: pxTop,
-        // Honor the saved field size more faithfully so a 1%-tall field
-        // doesn't *look* 20px tall in the editor and visually crash into the
-        // document line above. Min clamps stay just large enough to stay
-        // grabbable for drag/resize. Hover/focus expands the click target
-        // via the resize handles and label chip below.
-        width: Math.max(pxWidth, 24),
-        height: Math.max(pxHeight, 10),
+        // Match the signing-time visual minimum (36px, see PublicSigningPage
+        // `visualHeight`). The signer renders a 36px-min box anchored at
+        // posY and bottom-aligns the value so text lands on the underline
+        // beneath. If the editor showed a smaller box, the user would
+        // position fields ON the underline — and at signing time the value
+        // would render 36px below where it appeared in the editor.
+        width: Math.max(pxWidth, 36),
+        height: Math.max(pxHeight, 36),
         // Inset shadow keeps the visible outline strictly inside the
         // bounding box (no 1px overflow that the dashed border could cause
         // if box-sizing ever changed).
