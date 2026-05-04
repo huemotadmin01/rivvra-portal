@@ -421,7 +421,7 @@ export const APP_REGISTRY = {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [
               { path: '/settings/sign', label: 'Settings', icon: Settings },
-              { path: '/sign/config', label: 'Picklists', icon: Layers },
+              { path: '/sign/config', label: 'Roles & Tags', icon: Layers },
             ],
           },
         ] : []),

@@ -2180,32 +2180,39 @@ function FieldOverlay({
       }}
       onContextMenu={onContextMenu}
     >
-      {/* Floating label chip — anchored above the box's top edge so the
-          box body stays clear of document text. Always visible (faded)
-          when idle; opaque on hover/select. */}
-      <div
-        className={`absolute left-0 flex items-center gap-1 px-1.5 py-0.5 rounded shadow-sm pointer-events-none whitespace-nowrap transition-opacity ${
-          isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
-        }`}
-        style={{
-          top: -16,
-          backgroundColor: 'rgba(255, 255, 255, 0.96)',
-          border: `1px solid ${roleColor}`,
-          maxWidth: 220,
-        }}
-      >
-        <GripVertical
-          className="w-2.5 h-2.5 shrink-0 opacity-50"
-          style={{ color: roleColor }}
-        />
-        <Icon className="w-2.5 h-2.5 shrink-0" style={{ color: roleColor }} />
-        <span
-          className="text-[9px] font-medium leading-none truncate"
-          style={{ color: roleColor }}
-        >
-          {labelText}
-        </span>
-      </div>
+      {/* Label chip — invisible at idle, fully shown on hover or selection.
+          When the box is tall enough to comfortably hold the chip (>=22px),
+          render INSIDE the top-left corner so it doesn't spill into the
+          document line above. Otherwise float just above the box. */}
+      {(() => {
+        const visibleH = Math.max(pxHeight, 20);
+        const chipInsideBox = visibleH >= 22;
+        return (
+          <div
+            className={`absolute left-0 flex items-center gap-1 px-1.5 py-0.5 rounded shadow-sm pointer-events-none whitespace-nowrap transition-opacity ${
+              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+            style={{
+              top: chipInsideBox ? 1 : -16,
+              backgroundColor: 'rgba(255, 255, 255, 0.96)',
+              border: `1px solid ${roleColor}`,
+              maxWidth: 220,
+            }}
+          >
+            <GripVertical
+              className="w-2.5 h-2.5 shrink-0 opacity-50"
+              style={{ color: roleColor }}
+            />
+            <Icon className="w-2.5 h-2.5 shrink-0" style={{ color: roleColor }} />
+            <span
+              className="text-[9px] font-medium leading-none truncate"
+              style={{ color: roleColor }}
+            >
+              {labelText}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Resize handles — visible whenever the field is selected or hovered.
           Three handles cover the common cases:

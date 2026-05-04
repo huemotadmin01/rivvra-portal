@@ -469,6 +469,29 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
 }
 
 // ── PDF Page with Fields ────────────────────────────────────────────────────
+// Shared signature "stamp" — used both for the active signer's filled
+// state and the read-only render of previous signers' signatures, so the
+// chrome (dashed rose frame + "Signed with Rivvra Sign" + image + hash)
+// stays consistent across both views and matches the final PDF output.
+// Three places used to hand-render this independently and drift apart.
+function SignatureStamp({ src, hash, alt = 'Signature' }) {
+  return (
+    <div className="flex flex-col items-center w-full h-full">
+      <span className="text-[9px] text-green-700 font-medium mt-0.5 leading-none">
+        Signed with Rivvra Sign
+      </span>
+      <div className="flex-1 flex items-center justify-center w-full px-1 min-h-0">
+        <img src={src} alt={alt} className="max-w-full max-h-full object-contain" />
+      </div>
+      {hash && (
+        <span className="text-[8px] text-gray-500 mb-0.5 font-mono leading-none">
+          {String(hash).slice(0, 18)}...
+        </span>
+      )}
+    </div>
+  );
+}
+
 function PdfPageWithFields({
   pageNum,
   pdfDoc,
@@ -482,6 +505,7 @@ function PdfPageWithFields({
   signatureHashes,
   showValidation,
   previousValues = {},
+  previousSignatureHashes = {},
   allSignItems = [],
 }) {
   const canvasRef = useRef(null);
@@ -543,19 +567,21 @@ function PdfPageWithFields({
         return (
           <div
             key={`prev-${fieldId}`}
-            className="absolute pointer-events-none"
-            style={{ left, top, width, height: isSignatureDataUrl ? height + 20 : height }}
+            className="absolute pointer-events-none rounded overflow-hidden"
+            style={{
+              left,
+              top,
+              width,
+              height: isSignatureDataUrl ? height + 20 : height,
+              border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
+              backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
+            }}
           >
             {isSignatureDataUrl ? (
-              // Show the actual signature image so subsequent signers can see
-              // what the previous party signed — consistent with DocuSign /
-              // Adobe Sign behaviour and legally expected in sequential flows.
-              <div className="flex flex-col items-center w-full h-full">
-                <span className="text-[9px] text-green-700 font-medium mt-0.5">Signed with Rivvra Sign</span>
-                <div className="flex-1 flex items-center justify-center w-full px-1">
-                  <img src={val} alt="Signature" className="max-w-full max-h-full object-contain" />
-                </div>
-              </div>
+              // Show the previous signer's stamp with the SAME chrome the
+              // active signer sees once they sign and that the final PDF
+              // shows: dashed rose frame, label, image, truncated hash.
+              <SignatureStamp src={val} hash={previousSignatureHashes[fieldId]} />
             ) : (
               // Inline-block + bg-white so the white pad is only as wide as
               // the actual text glyphs (plus a tiny horizontal padding),
@@ -603,13 +629,7 @@ function PdfPageWithFields({
               onClick={() => onOpenSignaturePad(fieldId, item.type)}
             >
               {isFilled ? (
-                <div className="flex flex-col items-center h-full">
-                  <span className="text-[9px] text-green-700 font-medium mt-0.5">Signed with Rivvra Sign</span>
-                  <div className="flex-1 flex items-center justify-center w-full px-1">
-                    <img src={fieldValue} alt={item.type} className="max-w-full max-h-full object-contain" />
-                  </div>
-                  {hash && <span className="text-[8px] text-gray-500 mb-0.5 font-mono">{hash}...</span>}
-                </div>
+                <SignatureStamp src={fieldValue} hash={hash} alt={item.type} />
               ) : (
                 <div className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded ${
                   showValidation && isRequired && !isFilled
@@ -756,6 +776,7 @@ export default function PublicSigningPage() {
 
   // Previous signers' values (read-only display)
   const [previousValues, setPreviousValues] = useState({});
+  const [previousSignatureHashes, setPreviousSignatureHashes] = useState({});
   const [allSignItems, setAllSignItems] = useState([]);
 
   // Click to Start / Next field navigation
@@ -814,6 +835,7 @@ export default function PublicSigningPage() {
 
         // Store previous signers' values and all sign items for read-only display
         if (data.previousValues) setPreviousValues(data.previousValues);
+        if (data.previousSignatureHashes) setPreviousSignatureHashes(data.previousSignatureHashes);
         if (data.template?.allSignItems) setAllSignItems(data.template.allSignItems);
 
         // Pre-fill name and email if available
@@ -1444,6 +1466,7 @@ export default function PublicSigningPage() {
                 signatureHashes={signatureHashes}
                 showValidation={showValidation}
                 previousValues={previousValues}
+                previousSignatureHashes={previousSignatureHashes}
                 allSignItems={allSignItems}
               />
             ))
