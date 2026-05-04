@@ -9,10 +9,15 @@ import { ChevronDown } from 'lucide-react';
  *  - displayValue : text to show in the input (e.g. option name)
  *  - options      : [{ _id, name }]  — can be empty for free-text mode
  *  - onChange(id, name) : callback when user picks or creates
+ *  - onCreateNew(name)  : optional — if provided, the "Create" item triggers
+ *                          this instead of onChange('', name). Used when the
+ *                          create flow needs extra fields (e.g. salesperson)
+ *                          captured via a separate modal.
+ *  - createLabel  : optional override for the create item label (default "Create")
  *  - placeholder  : input placeholder
  *  - disabled     : disables the input
  */
-export default function ComboSelect({ value, displayValue, options = [], onChange, placeholder, disabled }) {
+export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, createLabel = 'Create', placeholder, disabled }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(displayValue || '');
   const ref = useRef(null);
@@ -88,15 +93,20 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
             <button
               type="button"
               onClick={() => {
-                onChange('', inputValue.trim());
-                setInputValue(inputValue.trim());
+                const typed = inputValue.trim();
+                if (onCreateNew) {
+                  onCreateNew(typed);
+                } else {
+                  onChange('', typed);
+                  setInputValue(typed);
+                }
                 setOpen(false);
               }}
               className={`w-full text-left px-3 py-2 text-sm text-orange-400 hover:bg-dark-700 transition-colors font-medium ${
                 filtered.length > 0 ? 'border-t border-dark-700' : ''
               }`}
             >
-              + Create &ldquo;{inputValue.trim()}&rdquo;
+              + {createLabel} &ldquo;{inputValue.trim()}&rdquo;
             </button>
           )}
         </div>

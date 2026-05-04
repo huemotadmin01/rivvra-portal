@@ -57,6 +57,7 @@ import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import ComboSelect from '../../components/ComboSelect';
+import QuickAddClientModal from '../../components/QuickAddClientModal';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
 import { Paperclip } from 'lucide-react';
 
@@ -272,6 +273,7 @@ export default function EmployeeDetail() {
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [tsClients, setTsClients] = useState([]);
   const [tsProjects, setTsProjects] = useState([]);
+  const [quickAddClient, setQuickAddClient] = useState(null); // { name } when sub-modal is open
 
   // Rate revision state
   const [reviseModal, setReviseModal] = useState(null); // { assignmentIndex, currentRates }
@@ -2165,7 +2167,9 @@ export default function EmployeeDetail() {
                   displayValue={editAssignment.clientName}
                   options={tsClients}
                   onChange={(id, name) => setEditAssignment(prev => ({ ...prev, clientId: id, clientName: name }))}
-                  placeholder="Select or create client"
+                  onCreateNew={(typed) => setQuickAddClient({ name: typed })}
+                  createLabel="Add new client"
+                  placeholder="Select or add new client"
                 />
               </div>
 
@@ -2307,6 +2311,39 @@ export default function EmployeeDetail() {
         </div>
         );
       })()}
+
+      {/* ── Quick-add Client sub-modal ─────────────────────────────────── */}
+      <QuickAddClientModal
+        isOpen={!!quickAddClient}
+        orgSlug={currentOrg?.slug}
+        initialName={quickAddClient?.name || ''}
+        onClose={() => setQuickAddClient(null)}
+        onCreated={(contact) => {
+          // Add new contact to local options so the typeahead shows it as selected
+          setTsClients(prev => {
+            if (prev.some(c => c._id === contact._id)) return prev;
+            return [{ _id: contact._id, name: contact.name }, ...prev];
+          });
+          // Auto-select in the Edit Assignment modal
+          setEditAssignment(prev => prev ? { ...prev, clientId: contact._id, clientName: contact.name } : prev);
+          setQuickAddClient(null);
+          showToast(
+            <span>
+              Created client &ldquo;{contact.name}&rdquo; —{' '}
+              <a
+                href={`/org/${currentOrg?.slug}/contacts/${contact._id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Edit details
+              </a>
+            </span>,
+            'success'
+          );
+        }}
+      />
 
       {/* ── Delete Confirmation Dialog ────────────────────────────────── */}
       {showDeleteConfirm && (
