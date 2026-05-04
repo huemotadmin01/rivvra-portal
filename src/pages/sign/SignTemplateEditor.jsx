@@ -2134,13 +2134,24 @@ function FieldOverlay({
   const pxWidth = item.width * dims.width;
   const pxHeight = item.height * dims.height;
 
+  // Lay out the box itself as a thin dashed outline with no body fill, so
+  // a field placed across a fill-in-the-blank underline doesn't visually
+  // smother the surrounding document text. The label/icon used to sit
+  // INSIDE the box and forced the user to either oversize the field
+  // (overlapping adjacent paragraphs) or undersize it (saving an unreadable
+  // sliver). The label now floats just above the box's top-left edge as
+  // a compact chip — visible without expanding the field's footprint.
+  const labelText = item.label || (getRoleName && item.roleId
+    ? `${getRoleName(item.roleId)} · ${meta.label}`
+    : meta.label);
+
   return (
     <div
       className={`absolute pointer-events-auto group cursor-move select-none transition-shadow ${
         isSelected
-          ? 'ring-2 ring-offset-1 ring-blue-500 z-10'
+          ? 'ring-1 ring-offset-1 ring-blue-500 z-10'
           : isMultiSelected
-            ? 'ring-2 ring-offset-1 ring-blue-400/70 z-10'
+            ? 'ring-1 ring-offset-1 ring-blue-400/70 z-10'
             : 'hover:ring-1 hover:ring-white/30 z-[5]'
       }`}
       style={{
@@ -2148,8 +2159,8 @@ function FieldOverlay({
         top: pxTop,
         width: Math.max(pxWidth, 36),
         height: Math.max(pxHeight, 20),
-        borderLeft: `3px solid ${roleColor}`,
-        backgroundColor: `${roleColor}18`,
+        border: `1px dashed ${roleColor}`,
+        backgroundColor: isSelected ? `${roleColor}14` : 'transparent',
       }}
       onMouseDown={(e) => startFieldDrag(e, item.id)}
       onClick={(e) => {
@@ -2169,29 +2180,30 @@ function FieldOverlay({
       }}
       onContextMenu={onContextMenu}
     >
-      {/* Field content */}
+      {/* Floating label chip — anchored above the box's top edge so the
+          box body stays clear of document text. Always visible (faded)
+          when idle; opaque on hover/select. */}
       <div
-        className="flex items-center gap-1 px-1.5 h-full overflow-hidden"
-        style={{ minHeight: 20 }}
+        className={`absolute left-0 flex items-center gap-1 px-1.5 py-0.5 rounded shadow-sm pointer-events-none whitespace-nowrap transition-opacity ${
+          isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+        }`}
+        style={{
+          top: -16,
+          backgroundColor: 'rgba(255, 255, 255, 0.96)',
+          border: `1px solid ${roleColor}`,
+          maxWidth: 220,
+        }}
       >
         <GripVertical
-          className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity"
+          className="w-2.5 h-2.5 shrink-0 opacity-50"
           style={{ color: roleColor }}
         />
-        <Icon
-          className="w-3 h-3 shrink-0"
-          style={{ color: roleColor }}
-        />
+        <Icon className="w-2.5 h-2.5 shrink-0" style={{ color: roleColor }} />
         <span
-          className="text-[10px] font-medium truncate leading-none"
+          className="text-[9px] font-medium leading-none truncate"
           style={{ color: roleColor }}
         >
-          {/* Prefer the assigned role name so multi-role docs are scannable
-              ("Candidate · Sig" vs "Director · Sig") instead of every field
-              just reading "Signature". Custom item.label still wins. */}
-          {item.label || (getRoleName && item.roleId
-            ? `${getRoleName(item.roleId)} · ${meta.label}`
-            : meta.label)}
+          {labelText}
         </span>
       </div>
 
