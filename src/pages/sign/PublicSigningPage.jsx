@@ -833,6 +833,11 @@ export default function PublicSigningPage() {
   // Click to Start / Next field navigation
   const [hasStarted, setHasStarted] = useState(false);
 
+  // Download CTA state — guards against the race between the success page
+  // rendering and the backend finishing the signed-PDF generation/upload.
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+
   // Validation: highlight missing required fields on submit attempt
   const [showValidation, setShowValidation] = useState(false);
 
@@ -1113,6 +1118,54 @@ export default function PublicSigningPage() {
     return false; // all filled
   }, [template?.signItems, values, handleOpenSignaturePad]);
 
+  // Download the signed PDF, retrying briefly while the backend finishes
+  // sealing+uploading. Race: the success page renders the moment the
+  // signer's submit returns, but the signed PDF is generated and uploaded
+  // to Cloudinary asynchronously. A click within the first ~5s used to
+  // hit "Signed PDF not available yet". We retry with backoff and only
+  // surface an error if it's still not ready after ~25s.
+  const handleDownloadSigned = useCallback(async () => {
+    if (downloading) return;
+    setDownloadError(null);
+    setDownloading(true);
+    const url = `${API_BASE_URL}/api/sign/public/${requestId}/${signerId}/${token}/signed-pdf`;
+    const delays = [0, 1500, 2500, 4000, 6000, 8000]; // ~22s total
+    try {
+      for (let i = 0; i < delays.length; i++) {
+        if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
+        const res = await fetch(url, { credentials: 'omit' });
+        if (res.ok) {
+          const blob = await res.blob();
+          const cd = res.headers.get('content-disposition') || '';
+          const m = /filename="?([^";]+)"?/i.exec(cd);
+          const filename = m?.[1] || 'document_signed.pdf';
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objectUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+          setDownloading(false);
+          return;
+        }
+        // Only keep retrying for the "not ready yet" case. Other errors
+        // (403/500/etc.) bail out immediately.
+        if (res.status !== 404) {
+          setDownloadError('Could not download the signed copy. Please try again.');
+          setDownloading(false);
+          return;
+        }
+      }
+      setDownloadError('Still preparing your signed copy. Please try again in a moment.');
+    } catch {
+      setDownloadError('Could not download the signed copy. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloading, requestId, signerId, token]);
+
   const handleClickToStart = useCallback(() => {
     setHasStarted(true);
     scrollToNextField(null);
@@ -1381,14 +1434,27 @@ export default function PublicSigningPage() {
               download a doc that isn't sealed yet. */}
           {allPartiesSigned ? (
             <>
-              <a
-                href={`${API_BASE_URL}/api/sign/public/${requestId}/${signerId}/${token}/signed-pdf`}
-                download
-                className="mt-5 w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium text-sm py-2.5 px-4 rounded-lg transition-colors"
+              <button
+                type="button"
+                onClick={handleDownloadSigned}
+                disabled={downloading}
+                className="mt-5 w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/70 disabled:cursor-not-allowed text-white font-medium text-sm py-2.5 px-4 rounded-lg transition-colors"
               >
-                <Download size={16} />
-                Download signed copy
-              </a>
+                {downloading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Preparing signed copy…
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    Download signed copy
+                  </>
+                )}
+              </button>
+              {downloadError && (
+                <p className="mt-2 text-xs text-red-600 text-center">{downloadError}</p>
+              )}
               <p className="mt-3 text-xs text-gray-500 text-center">
                 Your signed PDF and the audit certificate were also emailed to you.
               </p>
