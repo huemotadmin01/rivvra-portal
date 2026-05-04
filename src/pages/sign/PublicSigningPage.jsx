@@ -145,24 +145,36 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
     reader.readAsDataURL(file);
   };
 
+  // Tracks whether handleAdopt is mid-flight. The Type tab does an async
+  // canvas render (generateTypedSignature) that can take a few hundred ms;
+  // a double-tap on mobile would otherwise queue two adoptions and fire
+  // onAdopt twice with two different data URLs.
+  const [adopting, setAdopting] = useState(false);
+
   const handleAdopt = async () => {
-    let dataUrl = null;
-    if (activeTab === 'draw') {
-      if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
-        dataUrl = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
+    if (adopting) return;
+    setAdopting(true);
+    try {
+      let dataUrl = null;
+      if (activeTab === 'draw') {
+        if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
+          dataUrl = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
+        }
+      } else if (activeTab === 'type') {
+        if (typedText.trim()) {
+          const w = type === 'initials' ? 200 : 400;
+          const h = type === 'initials' ? 100 : 150;
+          dataUrl = await generateTypedSignature(typedText.trim(), selectedFont, w, h);
+        }
+      } else if (activeTab === 'upload') {
+        dataUrl = uploadedImageUrl;
       }
-    } else if (activeTab === 'type') {
-      if (typedText.trim()) {
-        const w = type === 'initials' ? 200 : 400;
-        const h = type === 'initials' ? 100 : 150;
-        dataUrl = await generateTypedSignature(typedText.trim(), selectedFont, w, h);
+      if (dataUrl) {
+        onAdopt(dataUrl);
+        onClose();
       }
-    } else if (activeTab === 'upload') {
-      dataUrl = uploadedImageUrl;
-    }
-    if (dataUrl) {
-      onAdopt(dataUrl);
-      onClose();
+    } finally {
+      setAdopting(false);
     }
   };
 
@@ -351,9 +363,10 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
           </button>
           <button
             onClick={handleAdopt}
-            disabled={!canAdopt}
-            className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!canAdopt || adopting}
+            className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
+            {adopting && <Loader2 className="w-4 h-4 animate-spin" />}
             Adopt {type === 'initials' ? 'Initials' : 'Signature'}
           </button>
         </div>
@@ -914,17 +927,41 @@ export default function PublicSigningPage() {
     if (status !== 'signing' || !pdfSrc) return;
     let cancelled = false;
 
+    // pdfjsLib loads its worker from a CDN on the first getDocument call.
+    // If the CDN is unreachable, the underlying promise hangs indefinitely
+    // — the user just stares at a spinner with no signal that anything is
+    // wrong. Race the load against a 30s timeout so we always surface a
+    // visible error instead of an infinite spinner.
+    const PDF_LOAD_TIMEOUT_MS = 30000;
+
     async function loadPdf() {
+      const loadingTask = pdfjsLib.getDocument(pdfSrc);
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error('PDF load timed out'));
+        }, PDF_LOAD_TIMEOUT_MS);
+      });
       try {
-        const doc = await pdfjsLib.getDocument(pdfSrc).promise;
+        const doc = await Promise.race([loadingTask.promise, timeoutPromise]);
+        clearTimeout(timeoutId);
         if (!cancelled) {
           setPdfDoc(doc);
           setNumPages(doc.numPages);
         }
       } catch (err) {
+        clearTimeout(timeoutId);
+        // Best-effort cancel of the underlying loading task so it doesn't
+        // keep network in-flight after we've given up.
+        try { loadingTask.destroy(); } catch { /* ignore */ }
         if (!cancelled) {
+          const isTimeout = err?.message === 'PDF load timed out';
           console.error('Failed to load PDF:', err);
-          setError('Failed to load the document PDF. Please try again later.');
+          setError(
+            isTimeout
+              ? 'The document is taking too long to load. Please check your connection and refresh the page.'
+              : 'Failed to load the document PDF. Please refresh the page and try again.',
+          );
           setStatus('error');
         }
       }
