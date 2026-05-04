@@ -24,7 +24,7 @@ import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import EmployeePicker from '../../components/employee/EmployeePicker';
-import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase, UserCheck } from 'lucide-react';
+import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase, UserCheck, Users } from 'lucide-react';
 
 const DEFAULT_EMPLOYMENT_TYPES = [
   { key: 'confirmed', label: 'Confirmed Employee' },
@@ -47,6 +47,7 @@ export default function EmployeeQuickCreate() {
   const [email, setEmail] = useState('');
   const [employmentType, setEmploymentType] = useState('confirmed');
   const [sourcedByEmployeeId, setSourcedByEmployeeId] = useState('');
+  const [managerEmployeeId, setManagerEmployeeId] = useState('');
   const [employmentTypes, setEmploymentTypes] = useState(DEFAULT_EMPLOYMENT_TYPES);
   const [managerOptions, setManagerOptions] = useState([]);
   const [companyEmployeeCount, setCompanyEmployeeCount] = useState(null);
@@ -80,7 +81,8 @@ export default function EmployeeQuickCreate() {
   const canSave =
     fullName.trim().length > 0 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
-    (isFirstHire || !!sourcedByEmployeeId);
+    (isFirstHire || !!sourcedByEmployeeId) &&
+    (isFirstHire || !!managerEmployeeId);
 
   async function handleSave() {
     if (saving) return;
@@ -95,6 +97,10 @@ export default function EmployeeQuickCreate() {
       setError('Sourced By is required — pick the employee who referred this hire.');
       return;
     }
+    if (!isFirstHire && !managerEmployeeId) {
+      setError('Manager is required — pick the employee who manages this hire.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -105,6 +111,7 @@ export default function EmployeeQuickCreate() {
         email: normEmail,
         employmentType,
         ...(sourcedByEmployeeId ? { sourcedByEmployeeId } : {}),
+        ...(managerEmployeeId ? { manager: managerEmployeeId } : {}),
       });
       if (res?.success && res.employee?._id) {
         showToast('Employee created', 'success');
@@ -238,6 +245,28 @@ export default function EmployeeQuickCreate() {
                 placeholder="Search by name or ID…"
               />
               <p className="text-[11px] text-dark-500 mt-1">Employee who referred or sourced this hire.</p>
+            </Field>
+          )}
+
+          {isFirstHire ? (
+            <Field label="Manager" icon={Users}>
+              <div className="w-full bg-dark-900 border border-dark-700 rounded px-3 py-2 text-sm text-dark-400 italic">
+                First hire — no manager available yet
+              </div>
+              <p className="text-[11px] text-dark-500 mt-1">
+                {currentCompany?.name || 'This company'} has no employees yet, so the
+                first hire cannot have a manager. Subsequent hires will require this field.
+              </p>
+            </Field>
+          ) : (
+            <Field label="Manager" icon={Users} required>
+              <EmployeePicker
+                value={managerEmployeeId}
+                employees={managerOptions}
+                onChange={(id) => setManagerEmployeeId(id)}
+                placeholder="Search by name or ID…"
+              />
+              <p className="text-[11px] text-dark-500 mt-1">Employee who manages this hire.</p>
             </Field>
           )}
         </div>
