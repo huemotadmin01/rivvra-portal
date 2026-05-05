@@ -592,6 +592,12 @@ export default function CrmOpportunityDetail() {
                 <span className="text-dark-500 flex-shrink-0">Created</span>
                 <span className="text-dark-200">{new Date(opp.createdAt).toLocaleDateString()}</span>
               </div>
+              {opp.createdByName && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-500 flex-shrink-0">Created by</span>
+                  <span className="text-dark-200 truncate" title={opp.createdByName}>{opp.createdByName}</span>
+                </div>
+              )}
               {opp.wonAt && (
                 <div className="flex justify-between gap-2">
                   <span className="text-dark-500 flex-shrink-0">Won At</span>
