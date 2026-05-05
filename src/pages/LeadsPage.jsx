@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
+import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Linkedin, Users, Search, Filter, Download,
@@ -25,6 +26,9 @@ function LeadsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { leadId } = useParams();
+  const navigate = useNavigate();
+  const { orgPath } = usePlatform();
   const [leads, setLeads] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -187,13 +191,13 @@ function LeadsPage() {
         await api.deleteLead(deleteTarget._id);
         setLeads(leads.filter(l => l._id !== deleteTarget._id));
         setTotalCount(prev => prev - 1);
-        if (selectedLead?._id === deleteTarget._id) setSelectedLead(null);
+        if (selectedLead?._id === deleteTarget._id) handleClosePanel();
       } else {
         await Promise.all(selectedLeads.map(id => api.deleteLead(id)));
         setLeads(leads.filter(l => !selectedLeads.includes(l._id)));
         setTotalCount(prev => prev - selectedLeads.length);
         setSelectedLeads([]);
-        if (selectedLead && selectedLeads.includes(selectedLead._id)) setSelectedLead(null);
+        if (selectedLead && selectedLeads.includes(selectedLead._id)) handleClosePanel();
       }
     } catch (err) {
       console.error('Failed to delete:', err);
@@ -204,12 +208,44 @@ function LeadsPage() {
     }
   };
 
-  const handleRowClick = (lead) => setSelectedLead(lead);
+  const handleRowClick = (lead) => navigate(orgPath(`/outreach/leads/${lead._id}`));
+
+  const handleClosePanel = () => {
+    setSelectedLead(null);
+    navigate(orgPath('/outreach/leads'));
+  };
 
   const handleLeadUpdate = (updatedLead) => {
     setLeads(leads.map(l => l._id === updatedLead._id ? updatedLead : l));
     setSelectedLead(updatedLead);
   };
+
+  // Sync selectedLead with the :leadId URL param. If the lead isn't in the
+  // current page of results (e.g. shared deep-link), fetch it standalone.
+  useEffect(() => {
+    if (!leadId) {
+      setSelectedLead(null);
+      return;
+    }
+    if (selectedLead?._id === leadId) return;
+    const fromList = leads.find(l => l._id === leadId);
+    if (fromList) {
+      setSelectedLead(fromList);
+      return;
+    }
+    let cancelled = false;
+    api.getLead(leadId)
+      .then(res => {
+        if (cancelled) return;
+        const lead = res?.lead || res?.data || (res?._id ? res : null);
+        if (lead) setSelectedLead(lead);
+        else navigate(orgPath('/outreach/leads'), { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) navigate(orgPath('/outreach/leads'), { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [leadId, leads, selectedLead, orgPath, navigate]);
 
   const handleFilterChange = (setter) => (value) => {
     setter(value);
@@ -653,7 +689,7 @@ function LeadsPage() {
       {selectedLead && (
         <LeadDetailPanel
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={handleClosePanel}
           onUpdate={handleLeadUpdate}
         />
       )}

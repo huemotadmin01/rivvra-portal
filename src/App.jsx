@@ -140,6 +140,7 @@ const AtsApplicationDetail = lazy(() => import('./pages/ats/AtsApplicationDetail
 const AtsJobPositions = lazy(() => import('./pages/ats/AtsJobPositions'));
 const AtsJobDetail = lazy(() => import('./pages/ats/AtsJobDetail'));
 const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
+const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
 const AtsReporting = lazy(() => import('./pages/ats/AtsReporting'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
@@ -317,6 +318,7 @@ function App() {
                 <Route path="/org/:slug/outreach/engage/new-sequence" element={<SequenceWizardPage />} />
                 <Route path="/org/:slug/outreach/engage/edit-sequence/:sequenceId" element={<SequenceWizardPage />} />
                 <Route path="/org/:slug/outreach/leads" element={<LeadsPage />} />
+                <Route path="/org/:slug/outreach/leads/:leadId" element={<LeadsPage />} />
                 <Route path="/org/:slug/outreach/lists" element={<MyListsPage />} />
                 <Route path="/org/:slug/outreach/settings" element={<OrgOutreachSettingsRedirect />} />
                 <Route path="/org/:slug/outreach/team-dashboard" element={<TeamDashboardPage />} />
@@ -472,6 +474,7 @@ function App() {
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><AtsJobPositions /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><AtsCandidates /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
                   <Route path="/org/:slug/ats/reporting" element={<ErrorBoundary><AtsReporting /></ErrorBoundary>} />
                   <Route path="/org/:slug/ats/config" element={<ErrorBoundary><AtsConfig /></ErrorBoundary>} />
