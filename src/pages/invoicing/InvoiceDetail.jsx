@@ -2590,7 +2590,7 @@ export default function InvoiceDetail() {
                                 mode / receipt — the fields a finance reviewer
                                 actually cares about when checking a claim. */}
                             {(invoice.lines || invoice.lineItems || []).map((li, i) => {
-                              const lineTotal = li.amount ?? li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              const lineTotal = li.subtotal ?? li.amount ?? ((li.quantity || 0) * (li.unitPrice || 0) * (1 - (Number(li.discount) || 0) / 100));
                               const hasFx = li.originalCurrency && li.originalAmount != null && li.originalCurrency !== (invoice.currency || 'INR');
                               const paymentLabel = li.paymentMode
                                 ? li.paymentMode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -2671,7 +2671,7 @@ export default function InvoiceDetail() {
                                 array stamped by computeLineTotals (or the
                                 Phase-D backfill on legacy bills). */}
                             {(invoice.lines || invoice.lineItems || []).map((li, i) => {
-                              const lineTotal = li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              const lineTotal = li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0) * (1 - (Number(li.discount) || 0) / 100));
                               const taxLabel = (Array.isArray(li.taxNames) && li.taxNames.filter(Boolean).length > 0)
                                 ? li.taxNames.filter(Boolean).join(' + ')
                                 : (li.taxIds?.length ? `${li.taxIds.length} tax(es)` : '');
@@ -2721,7 +2721,7 @@ export default function InvoiceDetail() {
                                 Tax cell renders names from line.taxNames
                                 (post-cleanup migration always populated). */}
                             {(invoice.lines || invoice.lineItems || []).map((li, i) => {
-                              const lineTotal = li.total ?? li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0));
+                              const lineTotal = li.subtotal ?? ((li.quantity || 0) * (li.unitPrice || 0) * (1 - (Number(li.discount) || 0) / 100));
                               const taxLabel = (Array.isArray(li.taxNames) && li.taxNames.filter(Boolean).length > 0)
                                 ? li.taxNames.filter(Boolean).join(' + ')
                                 : (li.taxIds?.length ? `${li.taxIds.length} tax(es)` : '');
