@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import contactsApi from '../utils/contactsApi';
-import employeeApi from '../utils/employeeApi';
+import EmployeeLookup from './shared/EmployeeLookup';
 
 /**
  * Quick-add client sub-modal.
@@ -21,54 +21,17 @@ export default function QuickAddClientModal({ isOpen, orgSlug, initialName = '',
   const [name, setName] = useState(initialName);
   const [salespersonId, setSalespersonId] = useState('');
   const [salespersonName, setSalespersonName] = useState('');
-  const [salespersonInput, setSalespersonInput] = useState('');
-  const [results, setResults] = useState([]);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const searchRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
       setName(initialName);
       setSalespersonId('');
       setSalespersonName('');
-      setSalespersonInput('');
-      setResults([]);
       setError('');
     }
   }, [isOpen, initialName]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  // Debounced employee search
-  useEffect(() => {
-    if (!isOpen) return;
-    const q = salespersonInput.trim();
-    if (q.length < 2 || (salespersonName && q === salespersonName)) {
-      setResults([]);
-      return;
-    }
-    setSearching(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await employeeApi.list(orgSlug, { search: q, limit: 10 });
-        setResults(res?.employees || []);
-      } catch {
-        setResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [salespersonInput, orgSlug, isOpen, salespersonName]);
 
   if (!isOpen) return null;
 
@@ -134,53 +97,20 @@ export default function QuickAddClientModal({ isOpen, orgSlug, initialName = '',
             />
           </div>
 
-          <div ref={searchRef} className="relative">
+          <div>
             <label className="block text-sm text-dark-400 mb-1">
               Salesperson <span className="text-red-400">*</span>
             </label>
-            <input
-              type="text"
-              value={salespersonInput}
-              onChange={(e) => {
-                setSalespersonInput(e.target.value);
-                setSalespersonId('');
-                setSalespersonName('');
-                setSearchOpen(true);
-              }}
-              onFocus={() => setSearchOpen(true)}
-              className="input-field w-full text-sm"
-              placeholder="Type 2+ chars to search employees"
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              variant="row"
+              label=""
+              currentValue={salespersonId}
+              currentName={salespersonName}
+              placeholder="Search employees…"
+              allowClear
+              onSelect={(id, nm) => { setSalespersonId(id); setSalespersonName(nm); }}
             />
-            {searchOpen && salespersonInput.trim().length >= 2 && (
-              <div className="absolute z-10 top-full mt-1 w-full bg-dark-900 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                {searching && (
-                  <div className="px-3 py-2 text-xs text-dark-400">Searching…</div>
-                )}
-                {!searching && results.length === 0 && (
-                  <div className="px-3 py-2 text-xs text-dark-400">No employees found</div>
-                )}
-                {!searching && results.map((emp) => (
-                  <button
-                    key={emp._id}
-                    type="button"
-                    onClick={() => {
-                      setSalespersonId(emp._id);
-                      setSalespersonName(emp.fullName);
-                      setSalespersonInput(emp.fullName);
-                      setSearchOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-white hover:bg-dark-700 transition-colors"
-                  >
-                    <div className="font-medium">{emp.fullName}</div>
-                    {(emp.designation || emp.employeeId) && (
-                      <div className="text-xs text-dark-400">
-                        {[emp.designation, emp.employeeId].filter(Boolean).join(' · ')}
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {error && (

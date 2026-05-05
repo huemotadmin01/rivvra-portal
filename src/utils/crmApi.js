@@ -65,6 +65,9 @@ const crmApi = {
   convertToJob(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/convert-to-job`, { method: 'PATCH' });
   },
+  detachJob(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/detach-job`, { method: 'PATCH' });
+  },
   deleteOpportunity(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'DELETE' });
   },

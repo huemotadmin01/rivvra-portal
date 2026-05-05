@@ -1,38 +1,33 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { toDateInputValue } from '../../utils/dateUtils';
+import { formatMoney, currencySymbol } from '../../utils/currency';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import {
-  Star, Building2, User, Phone, Mail, Briefcase, Trophy, X,
-  Globe, Linkedin, IndianRupee, Calendar, Tag,
-  Check, Edit3, Trash2, ChevronRight, Loader2, XCircle, RotateCcw,
-  ExternalLink, Save,
+  Building2, User, Phone, Mail, Briefcase, Trophy,
+  Linkedin, Calendar, Tag, Megaphone,
+  Check, X, Edit3, Trash2, Loader2, XCircle, RotateCcw,
+  ExternalLink, Unlink,
 } from 'lucide-react';
 
-function EvalStars({ value = 0, onChange, size = 16 }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3].map(i => (
-        <Star
-          key={i}
-          size={size}
-          className={`cursor-pointer transition-colors ${i <= value ? 'text-amber-400 fill-amber-400' : 'text-dark-600 hover:text-dark-500'}`}
-          onClick={() => onChange?.(i === value ? 0 : i)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function StageBar({ stages, currentStageId, isLost, isWon, onStageClick }) {
+function StageBar({ stages, currentStageId, isLost, isWon, stageHistory = [], onStageClick }) {
   const currentIdx = stages.findIndex(s => s._id === currentStageId);
+  const enteredAtByStage = useMemo(() => {
+    const map = {};
+    for (const sh of stageHistory) {
+      // last entry wins (most recent visit)
+      if (sh?.stageId) map[sh.stageId] = sh.enteredAt;
+    }
+    return map;
+  }, [stageHistory]);
+
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 flex-wrap">
       {stages.map((s, i) => {
         const isActive = s._id === currentStageId;
         const isPast = i < currentIdx;
@@ -41,10 +36,14 @@ function StageBar({ stages, currentStageId, isLost, isWon, onStageClick }) {
         else if (isActive) colorClass = s.isWonStage ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-rivvra-500/20 text-rivvra-400 border-rivvra-500/30';
         else if (isPast) colorClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
 
+        const enteredAt = enteredAtByStage[s._id];
+        const tooltip = enteredAt ? `${s.name} · entered ${new Date(enteredAt).toLocaleDateString()}` : s.name;
+
         return (
           <button
             key={s._id}
             onClick={() => onStageClick(s._id)}
+            title={tooltip}
             className={`px-3 py-1 text-xs rounded-full border transition-colors hover:opacity-80 ${colorClass}`}
           >
             {s.name}
@@ -62,16 +61,20 @@ export default function CrmOpportunityDetail() {
   const navigate = useNavigate();
 
   const [opp, setOpp] = useState(null);
-  usePageTitle(opp?.name);
   const [stages, setStages] = useState([]);
   const [lostReasons, setLostReasons] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(null); // field name being edited
+  const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [showLostModal, setShowLostModal] = useState(false);
   const [converting, setConverting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDetachModal, setShowDetachModal] = useState(false);
+  const [showStageDetachModal, setShowStageDetachModal] = useState(null); // pendingStageId
+  const [errorFields, setErrorFields] = useState(new Set());
+  const [notesDraft, setNotesDraft] = useState('');
+  const fieldRefs = useRef({});
 
   const fetchAll = useCallback(async () => {
     try {
@@ -80,7 +83,10 @@ export default function CrmOpportunityDetail() {
         crmApi.listStages(slug),
         crmApi.listLostReasons(slug),
       ]);
-      if (oppRes.success) setOpp(oppRes.opportunity);
+      if (oppRes.success) {
+        setOpp(oppRes.opportunity);
+        setNotesDraft(oppRes.opportunity?.notes || '');
+      }
       if (stagesRes.success) setStages(stagesRes.stages || []);
       if (reasonsRes.success) setLostReasons(reasonsRes.reasons || []);
     } catch {
@@ -92,20 +98,42 @@ export default function CrmOpportunityDetail() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const handleFieldSave = async (field, value) => {
+  const clearErrorField = (field) => {
+    setErrorFields(prev => {
+      if (!prev.has(field)) return prev;
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+  };
+
+  const handleFieldSave = async (field, rawValue) => {
+    let value = rawValue;
+    // Numeric coercion for known number fields
+    if (field === 'expectedRevenue') {
+      if (rawValue === '' || rawValue == null) {
+        value = null;
+      } else {
+        const n = Number(rawValue);
+        if (!Number.isFinite(n) || n < 0) {
+          addToast('Expected Revenue must be a positive number', 'error');
+          return;
+        }
+        value = n;
+      }
+    }
     try {
       await crmApi.updateOpportunity(slug, opportunityId, { [field]: value });
       setOpp(prev => ({ ...prev, [field]: value }));
       setEditing(null);
+      clearErrorField(field);
       addToast('Updated', 'success');
     } catch {
       addToast('Failed to update', 'error');
     }
   };
 
-
-  const handleStageChange = async (stageId) => {
-    if (opp?.stageId === stageId) return; // already on this stage
+  const performStageChange = async (stageId) => {
     try {
       const res = await crmApi.moveStage(slug, opportunityId, stageId);
       await fetchAll();
@@ -121,14 +149,29 @@ export default function CrmOpportunityDetail() {
     }
   };
 
-  const handleWon = async () => {
-    try {
-      await crmApi.markWon(slug, opportunityId);
-      fetchAll();
-      addToast('Marked as Won!', 'success');
-    } catch {
-      addToast('Failed', 'error');
+  const handleStageChange = (stageId) => {
+    const targetStage = stages.find(s => s._id === stageId);
+    const currentStage = stages.find(s => s._id === opp?.stageId);
+    // Confirm before detaching: leaving Won stage on a converted opp
+    if (
+      opp?.isConverted &&
+      currentStage?.isWonStage &&
+      targetStage &&
+      !targetStage.isWonStage
+    ) {
+      setShowStageDetachModal(stageId);
+      return;
     }
+    performStageChange(stageId);
+  };
+
+  const handleWon = () => {
+    const wonStage = stages.find(s => s.isWonStage);
+    if (!wonStage) {
+      addToast('No Won stage configured', 'error');
+      return;
+    }
+    handleStageChange(wonStage._id);
   };
 
   const handleLost = async (reasonId) => {
@@ -152,26 +195,35 @@ export default function CrmOpportunityDetail() {
     }
   };
 
+  const focusFieldEditor = (field) => {
+    const node = fieldRefs.current[field];
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Click triggers EditableField's edit mode
+    setTimeout(() => node.click?.(), 250);
+  };
+
   const handleConvert = async () => {
-    if (!opp.expectedRole?.trim()) {
-      addToast('Please set the Expected Role first — it becomes the Job Position name in ATS', 'error');
-      return;
-    }
-    if (!opp.expectedRevenue) {
-      addToast('Please set the Expected Revenue first — it becomes the Client Budget on the Job Position', 'error');
+    const missing = [];
+    if (!opp.expectedRole?.trim()) missing.push('expectedRole');
+    if (!opp.expectedRevenue) missing.push('expectedRevenue');
+    if (missing.length > 0) {
+      setErrorFields(new Set(missing));
+      addToast(`Missing required field: ${missing[0] === 'expectedRole' ? 'Expected Role' : 'Expected Revenue'}`, 'error');
+      focusFieldEditor(missing[0]);
       return;
     }
     setConverting(true);
     try {
       const res = await crmApi.convertToJob(slug, opportunityId);
       if (res.success) {
-        setConverting(false);
         fetchAll();
         addToast(`Job Position "${res.jobName}" created!`, 'success');
       }
     } catch (err) {
+      addToast(err?.error || 'Failed to convert', 'error');
+    } finally {
       setConverting(false);
-      addToast('Failed to convert', 'error');
     }
   };
 
@@ -180,45 +232,86 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.deleteOpportunity(slug, opportunityId);
       setShowDeleteModal(false);
-      setDeleting(false);
       navigate(`/org/${slug}/crm/opportunities`, { replace: true });
       addToast('Opportunity deleted successfully', 'success');
-    } catch (err) {
-      setDeleting(false);
-      setShowDeleteModal(false);
+    } catch {
       addToast('Failed to delete opportunity', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  // Inline editable field
+  const handleDetach = async () => {
+    try {
+      await crmApi.detachJob(slug, opportunityId);
+      setShowDetachModal(false);
+      fetchAll();
+      addToast('Detached from Job Position', 'success');
+    } catch {
+      addToast('Failed to detach', 'error');
+    }
+  };
+
+  const handleStageDetachConfirm = async (stageId) => {
+    setShowStageDetachModal(null);
+    try {
+      await crmApi.detachJob(slug, opportunityId);
+    } catch {
+      addToast('Failed to detach job link before stage move', 'error');
+      return;
+    }
+    performStageChange(stageId);
+  };
+
+  const saveNotes = () => {
+    if (notesDraft === (opp?.notes || '')) return;
+    handleFieldSave('notes', notesDraft);
+  };
+
+  // Inline editable field with error-state styling + ref handle for autofocus
   const EditableField = ({ label, field, value, icon: Icon, type = 'text' }) => {
     const isEditing = editing === field;
+    const hasError = errorFields.has(field);
+    const inputType = type === 'email' ? 'email' : type === 'tel' ? 'tel' : type === 'url' ? 'url' : type;
+
+    const startEdit = () => {
+      setEditing(field);
+      setEditValue(value ?? '');
+      clearErrorField(field);
+    };
+
     return (
-      <div className="flex items-start gap-2 py-1.5">
+      <div
+        ref={el => { fieldRefs.current[field] = el; }}
+        onClick={!isEditing ? startEdit : undefined}
+        className={`flex items-start gap-2 py-1.5 ${hasError ? 'rounded-md ring-1 ring-red-500/60 bg-red-500/5 px-2' : ''}`}
+      >
         {Icon && <Icon size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />}
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">{label}</p>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider">
+            {label}
+            {hasError && <span className="ml-1 text-red-400 normal-case">required</span>}
+          </p>
           {isEditing ? (
             <div className="flex items-center gap-1 mt-0.5">
               <input
                 value={editValue}
                 onChange={e => setEditValue(e.target.value)}
-                type={type}
+                type={inputType}
+                {...(type === 'number' ? { min: 0, step: 'any' } : {})}
                 className="flex-1 bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
                 autoFocus
+                onClick={e => e.stopPropagation()}
                 onKeyDown={e => {
                   if (e.key === 'Enter') handleFieldSave(field, editValue);
                   if (e.key === 'Escape') setEditing(null);
                 }}
               />
-              <button onClick={() => handleFieldSave(field, editValue)} className="text-emerald-400 hover:text-emerald-300"><Check size={14} /></button>
-              <button onClick={() => setEditing(null)} className="text-dark-500 hover:text-dark-300"><X size={14} /></button>
+              <button onClick={e => { e.stopPropagation(); handleFieldSave(field, editValue); }} className="text-emerald-400 hover:text-emerald-300"><Check size={14} /></button>
+              <button onClick={e => { e.stopPropagation(); setEditing(null); }} className="text-dark-500 hover:text-dark-300"><X size={14} /></button>
             </div>
           ) : (
-            <p
-              className="text-xs text-dark-200 cursor-pointer hover:text-rivvra-400 transition-colors flex items-center gap-1 group"
-              onClick={() => { setEditing(field); setEditValue(value || ''); }}
-            >
+            <p className="text-xs text-dark-200 cursor-pointer hover:text-rivvra-400 transition-colors flex items-center gap-1 group">
               {value || <span className="text-dark-600 italic">Not set</span>}
               <Edit3 size={10} className="opacity-0 group-hover:opacity-100 text-dark-500" />
             </p>
@@ -236,16 +329,19 @@ export default function CrmOpportunityDetail() {
     return <div className="text-center py-20 text-dark-500">Opportunity not found</div>;
   }
 
+  const showWonLost = !opp.isConverted && !opp.isLost && !opp.wonAt;
+  const showRestore = !opp.isConverted && (opp.isLost || opp.wonAt);
+  const showConvert = !opp.isConverted && opp.requirementType !== 'Project Based' && (opp.wonAt || !opp.isLost);
+
   return (
     <div className="p-4 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-dark-100 truncate">{opp.name}</h1>
-            <EvalStars value={opp.evaluation || 0} onChange={v => handleFieldSave('evaluation', v)} />
+            <h1 className="text-lg font-semibold text-dark-100 truncate" title={opp.name}>{opp.name}</h1>
             {opp.isLost && <span className="text-xs bg-red-500/15 text-red-400 rounded-full px-2 py-0.5 border border-red-500/20">LOST</span>}
-            {opp.wonAt && !opp.isLost && <span className="text-xs bg-amber-500/15 text-amber-400 rounded-full px-2 py-0.5 border border-amber-500/20 flex items-center gap-1"><Trophy size={10} /> WON</span>}
+            {opp.wonAt && !opp.isLost && !opp.isConverted && <span className="text-xs bg-amber-500/15 text-amber-400 rounded-full px-2 py-0.5 border border-amber-500/20 flex items-center gap-1"><Trophy size={10} /> WON</span>}
             {opp.isConverted && <span className="text-xs bg-emerald-500/15 text-emerald-400 rounded-full px-2 py-0.5 border border-emerald-500/20">CONVERTED</span>}
           </div>
         </div>
@@ -253,12 +349,19 @@ export default function CrmOpportunityDetail() {
 
       {/* Stage Bar */}
       <div className="mb-4">
-        <StageBar stages={stages} currentStageId={opp.stageId} isLost={opp.isLost} isWon={!!opp.wonAt} onStageClick={handleStageChange} />
+        <StageBar
+          stages={stages}
+          currentStageId={opp.stageId}
+          isLost={opp.isLost}
+          isWon={!!opp.wonAt}
+          stageHistory={opp.stageHistory || []}
+          onStageClick={handleStageChange}
+        />
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Row */}
       <div className="flex items-center gap-2 mb-6">
-        {!opp.isLost && !opp.wonAt && (
+        {showWonLost && (
           <>
             <button onClick={handleWon} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/20 rounded-lg hover:bg-amber-500/25">
               <Trophy size={12} /> Won
@@ -268,49 +371,52 @@ export default function CrmOpportunityDetail() {
             </button>
           </>
         )}
-        {(opp.isLost || opp.wonAt) && (
+        {showRestore && (
           <button onClick={handleRestore} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-700 text-dark-300 rounded-lg hover:bg-dark-600">
             <RotateCcw size={12} /> Restore
           </button>
         )}
-        {!opp.isConverted && opp.requirementType !== 'Project Based' && (opp.wonAt || !opp.isLost) && (
+        {showConvert && (
           <button onClick={handleConvert} disabled={converting}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/25 disabled:opacity-50">
             {converting ? <Loader2 size={12} className="animate-spin" /> : <Briefcase size={12} />}
             Convert to Job
           </button>
         )}
+
+        {/* Post-conversion: bold "Open Job" CTA + small detach link */}
         {opp.isConverted && opp.relatedJobId && (
-          <button
-            onClick={() => navigate(`/org/${slug}/ats/jobs/${opp.relatedJobId}`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-500/15 text-purple-400 border border-purple-500/20 rounded-lg hover:bg-purple-500/25"
-          >
-            <ExternalLink size={12} /> View Job Position
-          </button>
+          <>
+            <button
+              onClick={() => navigate(`/org/${slug}/ats/jobs/${opp.relatedJobId}`)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition-colors shadow-sm"
+            >
+              <Briefcase size={14} /> Open Job{opp.relatedJob?.name ? `: ${opp.relatedJob.name}` : ''} <ExternalLink size={12} />
+            </button>
+            <button
+              onClick={() => setShowDetachModal(true)}
+              className="text-[11px] text-dark-500 hover:text-red-400 underline-offset-2 hover:underline transition-colors"
+            >
+              Detach
+            </button>
+          </>
         )}
-        {/* Save & Delete — pushed to the right */}
+
         <div className="flex-1" />
-        {editing && (
-          <button onClick={() => handleFieldSave(editing, editValue)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-dark-500 hover:text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/20 rounded-lg transition-colors">
-            <Save size={12} /> Save
-          </button>
-        )}
         <button onClick={() => setShowDeleteModal(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-dark-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-colors">
           <Trash2 size={12} /> Delete
         </button>
       </div>
 
-      {/* Two-column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Details */}
-        <div className="lg:col-span-2 space-y-4">
+      {/* Layout: main column + narrow Quick Info sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Main column */}
+        <div className="lg:col-span-3 space-y-4">
           {/* Contact & Company */}
           <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Contact & Company</h3>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-              {/* Contact Name — link to contact record if contactId exists */}
               {opp.contactId ? (
                 <div className="flex items-start gap-2 py-1.5">
                   <User size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />
@@ -327,7 +433,6 @@ export default function CrmOpportunityDetail() {
               ) : (
                 <EditableField label="Contact Name" field="contactName" value={opp.contactName} icon={User} />
               )}
-              {/* Company — link to company contact record if contactCompanyId exists */}
               {opp.contactCompanyId ? (
                 <div className="flex items-start gap-2 py-1.5">
                   <Building2 size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />
@@ -344,14 +449,13 @@ export default function CrmOpportunityDetail() {
               ) : (
                 <EditableField label="Company" field="companyName" value={opp.companyName} icon={Building2} />
               )}
-              <EditableField label="Email" field="contactEmail" value={opp.contactEmail} icon={Mail} />
-              <EditableField label="Phone" field="contactPhone" value={opp.contactPhone} icon={Phone} />
-              <EditableField label="LinkedIn" field="linkedinUrl" value={opp.linkedinUrl} icon={Linkedin} />
-              <EditableField label="Website" field="website" value={opp.website} icon={Globe} />
+              <EditableField label="Email" field="contactEmail" value={opp.contactEmail} icon={Mail} type="email" />
+              <EditableField label="Phone" field="contactPhone" value={opp.contactPhone} icon={Phone} type="tel" />
+              <EditableField label="LinkedIn" field="linkedinUrl" value={opp.linkedinUrl} icon={Linkedin} type="url" />
             </div>
           </div>
 
-          {/* Opportunity Info */}
+          {/* Opportunity Details */}
           <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Opportunity Details</h3>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
@@ -372,8 +476,55 @@ export default function CrmOpportunityDetail() {
                   </select>
                 </div>
               </div>
-              <EditableField label="Expected Revenue" field="expectedRevenue" value={opp.expectedRevenue} icon={IndianRupee} type="number" />
-              <EditableField label="Probability (%)" field="probability" value={opp.probability} type="number" />
+              {/* Expected Revenue — currency-aware (client currency → internal company fallback) */}
+              {(() => {
+                const code = opp.effectiveCurrency || 'INR';
+                const sym = currencySymbol(code).trim() || code;
+                const isEditing = editing === 'expectedRevenue';
+                const hasError = errorFields.has('expectedRevenue');
+                return (
+                  <div
+                    ref={el => { fieldRefs.current['expectedRevenue'] = el; }}
+                    onClick={!isEditing ? () => { setEditing('expectedRevenue'); setEditValue(opp.expectedRevenue ?? ''); clearErrorField('expectedRevenue'); } : undefined}
+                    className={`flex items-start gap-2 py-1.5 ${hasError ? 'rounded-md ring-1 ring-red-500/60 bg-red-500/5 px-2' : ''}`}
+                  >
+                    <span className="text-[11px] font-semibold text-dark-500 mt-0.5 flex-shrink-0 w-[13px] text-center">{sym}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-dark-500 uppercase tracking-wider">
+                        Expected Revenue <span className="text-dark-600 normal-case">({code})</span>
+                        {hasError && <span className="ml-1 text-red-400 normal-case">required</span>}
+                      </p>
+                      {isEditing ? (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <input
+                            value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            type="number"
+                            min={0}
+                            step="any"
+                            className="flex-1 bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+                            autoFocus
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleFieldSave('expectedRevenue', editValue);
+                              if (e.key === 'Escape') setEditing(null);
+                            }}
+                          />
+                          <button onClick={e => { e.stopPropagation(); handleFieldSave('expectedRevenue', editValue); }} className="text-emerald-400 hover:text-emerald-300"><Check size={14} /></button>
+                          <button onClick={e => { e.stopPropagation(); setEditing(null); }} className="text-dark-500 hover:text-dark-300"><X size={14} /></button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-dark-200 cursor-pointer hover:text-rivvra-400 transition-colors flex items-center gap-1 group">
+                          {opp.expectedRevenue != null && opp.expectedRevenue !== ''
+                            ? formatMoney(opp.expectedRevenue, code)
+                            : <span className="text-dark-600 italic">Not set</span>}
+                          <Edit3 size={10} className="opacity-0 group-hover:opacity-100 text-dark-500" />
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="flex items-start gap-2 py-1.5">
                 <Tag size={13} className="text-dark-500 mt-0.5 flex-shrink-0" />
                 <div>
@@ -390,100 +541,79 @@ export default function CrmOpportunityDetail() {
               </div>
               <EditableField label="Expected Closing" field="expectedClosing"
                 value={toDateInputValue(opp.expectedClosing)} icon={Calendar} type="date" />
+              <EditableField label="Source" field="source" value={opp.source} icon={Megaphone} />
             </div>
           </div>
 
-          {/* Marketing */}
-          <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
-            <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Marketing</h3>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-1">
-              <EditableField label="Source" field="source" value={opp.source} />
-              <EditableField label="Medium" field="medium" value={opp.medium} />
-              <EditableField label="Campaign" field="campaign" value={opp.campaign} />
-            </div>
-          </div>
-
-          {/* Notes */}
+          {/* Internal Notes */}
           <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Internal Notes</h3>
             <textarea
-              value={opp.notes || ''}
-              onChange={e => setOpp(prev => ({ ...prev, notes: e.target.value }))}
-              onBlur={e => handleFieldSave('notes', e.target.value)}
+              value={notesDraft}
+              onChange={e => setNotesDraft(e.target.value)}
+              onBlur={saveNotes}
               className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-xs text-dark-200 focus:border-rivvra-500 focus:outline-none min-h-[80px] resize-y"
               placeholder="Add notes..."
             />
           </div>
+
+          {/* Activities (moved here for breathing room) */}
+          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
         </div>
 
-        {/* Right: Activities + Meta */}
+        {/* Right: Quick Info + (conditionally) Signature Requests */}
         <div className="space-y-4">
-          {/* Quick Info */}
           <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-dark-500">Salesperson</span>
-                <span className="text-dark-200">{opp.salespersonName || 'Unassigned'}</span>
+              <div className="flex justify-between gap-2 items-center">
+                <span className="text-dark-500 flex-shrink-0">Salesperson</span>
+                <div className="text-dark-200 min-w-0 max-w-[60%] text-right">
+                  <EmployeeLookup
+                    orgSlug={slug}
+                    variant="inline"
+                    currentValue={opp.salespersonId}
+                    currentName={opp.salespersonName}
+                    onSelect={async (id, name) => {
+                      try {
+                        await crmApi.updateOpportunity(slug, opportunityId, {
+                          salespersonId: id || null,
+                          salespersonName: name || null,
+                        });
+                        setOpp(prev => ({ ...prev, salespersonId: id || null, salespersonName: name || null }));
+                        addToast('Salesperson updated', 'success');
+                      } catch {
+                        addToast('Failed to update salesperson', 'error');
+                      }
+                    }}
+                  />
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-dark-500">Created</span>
+              <div className="flex justify-between gap-2">
+                <span className="text-dark-500 flex-shrink-0">Created</span>
                 <span className="text-dark-200">{new Date(opp.createdAt).toLocaleDateString()}</span>
               </div>
               {opp.wonAt && (
-                <div className="flex justify-between">
-                  <span className="text-dark-500">Won At</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-500 flex-shrink-0">Won At</span>
                   <span className="text-amber-400">{new Date(opp.wonAt).toLocaleDateString()}</span>
                 </div>
               )}
               {opp.isConverted && opp.convertedAt && (
-                <div className="flex justify-between">
-                  <span className="text-dark-500">Converted</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-500 flex-shrink-0">Converted</span>
                   <span className="text-emerald-400">{new Date(opp.convertedAt).toLocaleDateString()}</span>
-                </div>
-              )}
-              {opp.relatedJob && (
-                <div className="flex justify-between">
-                  <span className="text-dark-500">Job Position</span>
-                  <button
-                    onClick={() => navigate(`/org/${slug}/ats/jobs/${opp.relatedJob._id}`)}
-                    className="text-purple-400 hover:underline flex items-center gap-0.5"
-                  >
-                    {opp.relatedJob.name} <ExternalLink size={9} />
-                  </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Activities */}
-          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
-
-          {/* Signature Requests */}
-          <SignRequestWidget
-            orgSlug={slug}
-            linkedModel="crm_opportunity"
-            linkedId={opportunityId}
-            prefillData={{ name: opp?.contactName || '', email: opp?.contactEmail || '', phone: opp?.contactPhone || '', company: opp?.company || '' }}
-          />
-
-          {/* Stage History */}
-          {opp.stageHistory?.length > 0 && (
-            <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-3">Stage History</h3>
-              <div className="space-y-1.5">
-                {[...opp.stageHistory].reverse().map((sh, i) => {
-                  const stageName = stages.find(s => s._id === sh.stageId)?.name || 'Unknown';
-                  return (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className="w-2 h-2 rounded-full bg-dark-600 flex-shrink-0" />
-                      <span className="text-dark-300">{stageName}</span>
-                      <span className="text-dark-600">·</span>
-                      <span className="text-dark-500">{new Date(sh.enteredAt).toLocaleDateString()}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          {!opp.isConverted && (
+            <SignRequestWidget
+              orgSlug={slug}
+              linkedModel="crm_opportunity"
+              linkedId={opportunityId}
+              prefillData={{ name: opp?.contactName || '', email: opp?.contactEmail || '', phone: opp?.contactPhone || '', company: opp?.company || '' }}
+            />
           )}
         </div>
       </div>
@@ -506,6 +636,50 @@ export default function CrmOpportunityDetail() {
                 className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
                 {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detach Confirmation Modal */}
+      {showDetachModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-2">Detach from Job Position</h2>
+            <p className="text-xs text-dark-400 mb-5">
+              The linked Job Position will not be deleted, but this opportunity will no longer be linked to it. You can reconvert later.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDetachModal(false)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleDetach}
+                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors flex items-center justify-center gap-1.5">
+                <Unlink size={12} /> Detach
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stage move (Won → other) confirm — protects linked Job Position */}
+      {showStageDetachModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-2">Move out of Won?</h2>
+            <p className="text-xs text-dark-400 mb-5">
+              This opportunity is converted to a Job Position. Moving it out of the Won stage will detach the link. The Job Position itself will not be deleted.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowStageDetachModal(null)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => handleStageDetachConfirm(showStageDetachModal)}
+                className="flex-1 px-3 py-2 text-xs text-white bg-amber-500 rounded-lg hover:bg-amber-400 transition-colors">
+                Detach & move
               </button>
             </div>
           </div>

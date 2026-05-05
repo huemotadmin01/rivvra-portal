@@ -74,14 +74,17 @@ export function useBreadcrumbs() {
           path: isLast ? null : orgPath(pathOverride || builtPath),
         });
       } else if (isLast) {
-        // Final segment with no label yet
+        // Final segment with no label yet. ObjectIds without a detail label
+        // are uninformative ("..."), so skip them — the page H1 carries the
+        // record name. Non-ObjectId terminal segments still get a humanised
+        // label so they appear in the trail.
         const isObjectId = /^[a-f0-9]{24}$/.test(segments[i]);
-        breadcrumbs.push({
-          label: isObjectId
-            ? '...'
-            : segments[i].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-          path: null,
-        });
+        if (!isObjectId) {
+          breadcrumbs.push({
+            label: segments[i].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            path: null,
+          });
+        }
       }
       // Skip intermediate unknown segments
     }
