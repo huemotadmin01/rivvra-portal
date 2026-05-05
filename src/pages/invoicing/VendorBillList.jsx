@@ -8,6 +8,7 @@ import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
 import employeeApi from '../../utils/employeeApi';
 import EmployeePicker from '../../components/employee/EmployeePicker';
+import ResizableTable from '../../components/ResizableTable';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Search, Plus, Loader2, FileText, ChevronLeft, ChevronRight,
@@ -570,71 +571,55 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           )}
         </div>
       ) : (
-        <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-dark-700">
-                  <th className="text-left px-4 py-3">
-                    <SortHeader field="number">Number</SortHeader>
-                  </th>
-                  <th className="text-left px-4 py-3">
-                    <span className="text-xs font-medium text-dark-400">Vendor</span>
-                  </th>
-                  <th className="text-left px-4 py-3">
-                    <span className="text-xs font-medium text-dark-400">Reference</span>
-                  </th>
-                  <th className="text-left px-4 py-3">
-                    <SortHeader field="date">Date</SortHeader>
-                  </th>
-                  <th className="text-left px-4 py-3">
-                    <SortHeader field="dueDate">Due Date</SortHeader>
-                  </th>
-                  <th className="text-right px-4 py-3">
-                    <SortHeader field="total">Total</SortHeader>
-                  </th>
-                  <th className="text-left px-4 py-3">
-                    <span className="text-xs font-medium text-dark-400">Status</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {bills.map(bill => (
-                  <tr
-                    key={bill._id}
-                    onClick={() => navigate(orgPath(`/invoicing/invoices/${bill._id}`))}
-                    className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-white">{bill.number || '-'}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Building2 size={14} className="text-dark-500 shrink-0" />
-                        <span className="text-dark-300 truncate max-w-[180px]">
-                          {bill.contactName || bill.contact?.name || '-'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-dark-400">
-                      {bill.vendorReference || bill.reference || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-dark-400">{formatDate(bill.date)}</td>
-                    <td className="px-4 py-3 text-dark-400">{formatDate(bill.dueDate)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-white">
-                      {formatCurrency(bill.total, bill.currency)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusChips bill={bill} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
+        <ResizableTable
+          storageKey={`invoicing.${isEmployeeMode ? 'employeeBills' : 'vendorBills'}.columns`}
+          rows={bills}
+          rowKey={(b) => b._id}
+          onRowClick={(b) => navigate(orgPath(`/invoicing/invoices/${b._id}`))}
+          emptyMessage="No bills"
+          columns={[
+            {
+              key: 'number', width: 200, minWidth: 120, sticky: 'left',
+              headerRender: () => <SortHeader field="number">Number</SortHeader>,
+              render: (b) => <span className="font-medium text-white">{b.number || '-'}</span>,
+            },
+            {
+              key: 'vendor', width: 240, minWidth: 120,
+              headerRender: () => <span className="text-xs font-medium text-dark-400">Vendor</span>,
+              render: (b) => (
+                <div className="flex items-center gap-2 min-w-0">
+                  <Building2 size={14} className="text-dark-500 shrink-0" />
+                  <span className="text-dark-300 truncate">{b.contactName || b.contact?.name || '-'}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'reference', width: 160, minWidth: 80,
+              headerRender: () => <span className="text-xs font-medium text-dark-400">Reference</span>,
+              render: (b) => <span className="text-dark-400 truncate block">{b.vendorReference || b.reference || '-'}</span>,
+            },
+            {
+              key: 'date', width: 130, minWidth: 100,
+              headerRender: () => <SortHeader field="date">Date</SortHeader>,
+              render: (b) => <span className="text-dark-400">{formatDate(b.date)}</span>,
+            },
+            {
+              key: 'dueDate', width: 130, minWidth: 100,
+              headerRender: () => <SortHeader field="dueDate">Due Date</SortHeader>,
+              render: (b) => <span className="text-dark-400">{formatDate(b.dueDate)}</span>,
+            },
+            {
+              key: 'total', width: 140, minWidth: 100, align: 'right',
+              headerRender: () => <SortHeader field="total">Total</SortHeader>,
+              render: (b) => <span className="font-medium text-white">{formatCurrency(b.total, b.currency)}</span>,
+            },
+            {
+              key: 'status', width: 180, minWidth: 120, sticky: 'right',
+              headerRender: () => <span className="text-xs font-medium text-dark-400">Status</span>,
+              render: (b) => <StatusChips bill={b} />,
+            },
+          ]}
+          footer={totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700">
               <span className="text-xs text-dark-500">
                 Page {page} of {totalPages} ({total} bills)
@@ -657,7 +642,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               </div>
             </div>
           )}
-        </div>
+        />
       )}
     </div>
   );
