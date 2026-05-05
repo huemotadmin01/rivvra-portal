@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlatform } from '../context/PlatformContext';
 import {
@@ -383,8 +383,53 @@ function DashboardPage() {
     listName: '',
   });
 
-  // Detail panel
+  // Detail panel — synced with ?lead=<id> query param for shareable URLs
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedLead, setSelectedLead] = useState(null);
+  const leadIdParam = searchParams.get('lead');
+
+  const openLead = useCallback((lead) => {
+    setSelectedLead(lead);
+    const next = new URLSearchParams(searchParams);
+    next.set('lead', lead._id);
+    setSearchParams(next, { replace: false });
+  }, [searchParams, setSearchParams]);
+
+  const closeLead = useCallback(() => {
+    setSelectedLead(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('lead');
+    setSearchParams(next, { replace: false });
+  }, [searchParams, setSearchParams]);
+
+  // Sync ?lead=<id> with selectedLead. If the leadId points to a record
+  // not in any currently-loaded section, fetch it standalone.
+  useEffect(() => {
+    if (!leadIdParam) {
+      if (selectedLead) setSelectedLead(null);
+      return;
+    }
+    if (selectedLead?._id === leadIdParam) return;
+    let cancelled = false;
+    api.getLead(leadIdParam)
+      .then(res => {
+        if (cancelled) return;
+        const lead = res?.lead || res?.data || (res?._id ? res : null);
+        if (lead) setSelectedLead(lead);
+        else {
+          const next = new URLSearchParams(searchParams);
+          next.delete('lead');
+          setSearchParams(next, { replace: true });
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete('lead');
+        setSearchParams(next, { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [leadIdParam, selectedLead, searchParams, setSearchParams]);
 
   // Save & Add to List
   const [savedLeadIds, setSavedLeadIds] = useState(new Set());
@@ -725,7 +770,7 @@ function DashboardPage() {
                       <LeadSearchCard
                         key={lead._id}
                         lead={lead}
-                        onClick={() => setSelectedLead(lead)}
+                        onClick={() => openLead(lead)}
                         onSave={handleSaveContact}
                         onAddToList={(lead) => setListModalLead(lead)}
                         isSaved={savedLeadIds.has(lead._id)}
@@ -986,7 +1031,7 @@ function DashboardPage() {
       {selectedLead && (
         <LeadDetailPanel
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={closeLead}
           onUpdate={(updated) => {
             setSearchResults(prev => prev.map(l => l._id === updated._id ? { ...l, ...updated } : l));
             setSelectedLead(updated);

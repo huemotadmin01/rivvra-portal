@@ -320,10 +320,13 @@ function App() {
                 <Route path="/org/:slug/outreach/leads" element={<LeadsPage />} />
                 <Route path="/org/:slug/outreach/leads/:leadId" element={<LeadsPage />} />
                 <Route path="/org/:slug/outreach/lists" element={<MyListsPage />} />
+                <Route path="/org/:slug/outreach/lists/:leadId" element={<MyListsPage />} />
                 <Route path="/org/:slug/outreach/settings" element={<OrgOutreachSettingsRedirect />} />
                 <Route path="/org/:slug/outreach/team-dashboard" element={<TeamDashboardPage />} />
                 <Route path="/org/:slug/outreach/team-contacts" element={<TeamContactsPage />} />
+                <Route path="/org/:slug/outreach/team-contacts/:leadId" element={<TeamContactsPage />} />
                 <Route path="/org/:slug/outreach/team-lists" element={<TeamListsPage />} />
+                <Route path="/org/:slug/outreach/team-lists/:leadId" element={<TeamListsPage />} />
               </Route>
 
               {/* Platform settings — profile is accessible to all, rest gated by admin */}

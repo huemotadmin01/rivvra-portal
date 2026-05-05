@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
+import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, ChevronRight, ChevronLeft, Linkedin,
@@ -22,6 +23,9 @@ import { useToast } from '../context/ToastContext';
 
 function MyListsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { leadId } = useParams();
+  const navigate = useNavigate();
+  const { orgPath } = usePlatform();
   const { user, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const [lists, setLists] = useState([]);
@@ -291,7 +295,7 @@ function MyListsPage() {
         setLeads(leads.filter(l => l._id !== deleteTarget._id));
         setTotalLeads(prev => prev - 1);
         if (selectedLead?._id === deleteTarget._id) {
-          setSelectedLead(null);
+          handleClosePanel();
         }
         setLists(lists.map(l =>
           l.name === selectedList ? { ...l, count: Math.max(0, (l.count || 0) - 1) } : l
@@ -301,7 +305,7 @@ function MyListsPage() {
         setLeads(leads.filter(l => !selectedLeads.includes(l._id)));
         setTotalLeads(prev => prev - selectedLeads.length);
         if (selectedLead && selectedLeads.includes(selectedLead._id)) {
-          setSelectedLead(null);
+          handleClosePanel();
         }
         setLists(lists.map(l =>
           l.name === selectedList ? { ...l, count: Math.max(0, (l.count || 0) - selectedLeads.length) } : l
@@ -318,8 +322,41 @@ function MyListsPage() {
   };
 
   const handleRowClick = (lead) => {
-    setSelectedLead(lead);
+    const qs = searchParams.toString();
+    navigate(orgPath(`/outreach/lists/${lead._id}${qs ? '?' + qs : ''}`));
   };
+
+  const handleClosePanel = () => {
+    setSelectedLead(null);
+    const qs = searchParams.toString();
+    navigate(orgPath(`/outreach/lists${qs ? '?' + qs : ''}`));
+  };
+
+  // Sync :leadId URL param with selectedLead state.
+  useEffect(() => {
+    if (!leadId) {
+      setSelectedLead(null);
+      return;
+    }
+    if (selectedLead?._id === leadId) return;
+    const fromList = leads.find(l => l._id === leadId);
+    if (fromList) {
+      setSelectedLead(fromList);
+      return;
+    }
+    let cancelled = false;
+    api.getLead(leadId)
+      .then(res => {
+        if (cancelled) return;
+        const lead = res?.lead || res?.data || (res?._id ? res : null);
+        if (lead) setSelectedLead(lead);
+        else navigate(orgPath('/outreach/lists' + (searchParams.toString() ? '?' + searchParams.toString() : '')), { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) navigate(orgPath('/outreach/lists' + (searchParams.toString() ? '?' + searchParams.toString() : '')), { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [leadId, leads, selectedLead, navigate, orgPath, searchParams]);
 
   const handleLeadUpdate = (updatedLead) => {
     setLeads(leads.map(l => l._id === updatedLead._id ? updatedLead : l));
@@ -830,7 +867,7 @@ function MyListsPage() {
       {selectedLead && (
         <LeadDetailPanel
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={handleClosePanel}
           onUpdate={handleLeadUpdate}
         />
       )}

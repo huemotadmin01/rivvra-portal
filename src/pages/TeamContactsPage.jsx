@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
+import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import {
@@ -28,6 +29,9 @@ function TeamContactsPage() {
   const orgRole = currentOrg ? getAppRole('outreach') : null;
   const effectiveRole = orgRole || user?.role || 'member';
   const [searchParams, setSearchParams] = useSearchParams();
+  const { leadId } = useParams();
+  const navigate = useNavigate();
+  const { orgPath } = usePlatform();
   const [leads, setLeads] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -157,13 +161,13 @@ function TeamContactsPage() {
         await api.deleteLead(deleteTarget._id);
         setLeads(leads.filter(l => l._id !== deleteTarget._id));
         setTotalCount(prev => prev - 1);
-        if (selectedLead?._id === deleteTarget._id) setSelectedLead(null);
+        if (selectedLead?._id === deleteTarget._id) handleClosePanel();
       } else {
         await Promise.all(selectedLeads.map(id => api.deleteLead(id)));
         setLeads(leads.filter(l => !selectedLeads.includes(l._id)));
         setTotalCount(prev => prev - selectedLeads.length);
         setSelectedLeads([]);
-        if (selectedLead && selectedLeads.includes(selectedLead._id)) setSelectedLead(null);
+        if (selectedLead && selectedLeads.includes(selectedLead._id)) handleClosePanel();
       }
     } catch (err) {
       console.error('Failed to delete:', err);
@@ -174,7 +178,42 @@ function TeamContactsPage() {
     }
   };
 
-  const handleRowClick = (lead) => setSelectedLead(lead);
+  const handleRowClick = (lead) => {
+    const qs = searchParams.toString();
+    navigate(orgPath(`/outreach/team-contacts/${lead._id}${qs ? '?' + qs : ''}`));
+  };
+
+  const handleClosePanel = () => {
+    setSelectedLead(null);
+    const qs = searchParams.toString();
+    navigate(orgPath(`/outreach/team-contacts${qs ? '?' + qs : ''}`));
+  };
+
+  // Sync :leadId URL param with selectedLead state.
+  useEffect(() => {
+    if (!leadId) {
+      setSelectedLead(null);
+      return;
+    }
+    if (selectedLead?._id === leadId) return;
+    const fromList = leads.find(l => l._id === leadId);
+    if (fromList) {
+      setSelectedLead(fromList);
+      return;
+    }
+    let cancelled = false;
+    api.getLead(leadId)
+      .then(res => {
+        if (cancelled) return;
+        const lead = res?.lead || res?.data || (res?._id ? res : null);
+        if (lead) setSelectedLead(lead);
+        else navigate(orgPath('/outreach/team-contacts' + (searchParams.toString() ? '?' + searchParams.toString() : '')), { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) navigate(orgPath('/outreach/team-contacts' + (searchParams.toString() ? '?' + searchParams.toString() : '')), { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [leadId, leads, selectedLead, navigate, orgPath, searchParams]);
 
   const handleLeadUpdate = (updatedLead) => {
     setLeads(leads.map(l => l._id === updatedLead._id ? { ...updatedLead, ownerName: l.ownerName } : l));
@@ -676,7 +715,7 @@ function TeamContactsPage() {
       {selectedLead && (
         <LeadDetailPanel
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={handleClosePanel}
           onUpdate={handleLeadUpdate}
           teamMode={true}
           teamMembers={teamMembers}
