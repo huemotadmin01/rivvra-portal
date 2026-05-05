@@ -1640,6 +1640,7 @@ const REFERENCE_LABELS = {
   incentiveRecords: 'Incentive records',
   childContacts: 'Child contacts',
   employeeAssignments: 'Employee assignments',
+  tsClients: 'Timesheet client records',
   timesheets: 'Timesheets',
 };
 
