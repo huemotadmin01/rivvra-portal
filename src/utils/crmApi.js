@@ -68,6 +68,13 @@ const crmApi = {
   detachJob(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/detach-job`, { method: 'PATCH' });
   },
+  checkDuplicateOpportunities(orgSlug, { email, contactName, companyName } = {}) {
+    const qs = new URLSearchParams();
+    if (email) qs.set('email', email);
+    if (contactName) qs.set('contactName', contactName);
+    if (companyName) qs.set('companyName', companyName);
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/check-duplicate?${qs.toString()}`);
+  },
   deleteOpportunity(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'DELETE' });
   },

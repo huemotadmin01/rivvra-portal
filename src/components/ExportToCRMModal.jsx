@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { X, Upload, RefreshCw, CheckCircle, AlertTriangle, Pencil, Sparkles, Briefcase, ExternalLink } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { X, Upload, RefreshCw, CheckCircle, AlertTriangle, Pencil, Sparkles, Briefcase, ExternalLink, UserCheck, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
@@ -9,9 +9,11 @@ import crmApi from '../utils/crmApi';
 function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   const { user } = useAuth();
   const { orgSlug } = useOrg();
+  const navigate = useNavigate();
   const isPro = user?.plan === 'pro' || user?.plan === 'premium';
 
-  // 'choose' → 'form' → 'confirm' → 'exporting' → 'success' | 'error' | 'duplicate'
+  // 'choose' → 'form' → 'dup-warn' → 'confirm' → 'exporting' → 'success' | 'error' | 'duplicate'
+  // (dup-warn = our new "an opportunity already exists for this contact" gate)
   const [step, setStep] = useState('choose');
   const [destination, setDestination] = useState(''); // 'odoo' | 'rivvra'
   const [profileType, setProfileType] = useState('');
@@ -27,6 +29,9 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   const [exportResult, setExportResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [profileTypeError, setProfileTypeError] = useState(false);
+  const [duplicateOpps, setDuplicateOpps] = useState([]);
+  const [reassigning, setReassigning] = useState(false);
+  const [checkingDup, setCheckingDup] = useState(false);
 
   // Reset state when modal opens with a new lead
   useEffect(() => {
@@ -46,6 +51,9 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
       setErrorMessage('');
       setProfileTypeError(false);
       setChecking(false);
+      setDuplicateOpps([]);
+      setReassigning(false);
+      setCheckingDup(false);
 
       // Check if already exported (Odoo)
       if (lead.linkedinUrl && user?.email) {
@@ -168,8 +176,18 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
     }
   };
 
+  // Cross-owner detection: the lead's owner (lead.userId — set by Outreach
+  // when the contact was first sourced) vs the user clicking Export.
+  const leadOwnerId = lead?.userId || null;
+  const leadOwnerName = lead?.ownerName || lead?.sourcedBy || lead?.userEmail || null;
+  const currentUserId = user?._id || user?.id || null;
+  const isCrossOwner = !!(leadOwnerId && currentUserId && String(leadOwnerId) !== String(currentUserId));
+
   // ── Rivvra CRM Export Handler ──
-  const handleRivvraExport = async () => {
+  // Two-phase: pre-flight checks for an existing opportunity; if found,
+  // routes to a warning step. The user can either Open the existing opp,
+  // proceed anyway, or cancel.
+  const performRivvraExport = async () => {
     setStep('exporting');
     try {
       const convertData = {
@@ -190,10 +208,7 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
       const result = await crmApi.convertLead(orgSlug, convertData);
 
       if (result.success) {
-
-        // Notify parent to update local state
         onSuccess?.(lead._id);
-
         setExportResult({
           message: 'Lead converted — opportunity, company & contact created.',
           opportunityId: result.opportunity?._id,
@@ -210,6 +225,57 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
       setErrorMessage(err.message || 'Export failed. Please try again.');
       setStep('error');
     }
+  };
+
+  const handleRivvraExportClick = async () => {
+    // Pre-flight: warn if a CRM opportunity already exists for this contact /
+    // company. Backend matches on contactEmail first, falls back to
+    // (contactName, companyName).
+    setCheckingDup(true);
+    try {
+      const dupRes = await crmApi.checkDuplicateOpportunities(orgSlug, {
+        email: email.trim() || undefined,
+        contactName: name.trim() || undefined,
+        companyName: company.trim() || undefined,
+      });
+      const matches = dupRes?.opportunities || [];
+      if (matches.length > 0) {
+        setDuplicateOpps(matches);
+        setStep('dup-warn');
+        return;
+      }
+    } catch {
+      // Non-fatal: if the pre-flight fails, fall through to export. Worst
+      // case the user gets a duplicate they could clean up after.
+    } finally {
+      setCheckingDup(false);
+    }
+    await performRivvraExport();
+  };
+
+  const handleReassignAndExport = async () => {
+    if (!currentUserId) return;
+    setReassigning(true);
+    try {
+      const res = await api.assignLeadOwner(lead._id, currentUserId);
+      if (!res?.success) throw new Error(res?.error || 'Reassign failed');
+      // Update the local lead reference so subsequent payloads/UI reflect
+      // the new owner. The parent's lead list will refetch on success.
+      lead.userId = currentUserId;
+      lead.ownerName = user?.name || user?.fullName || user?.email || 'You';
+    } catch (err) {
+      setReassigning(false);
+      const msg = err?.message || '';
+      if (/admin|team lead|permission|403/i.test(msg)) {
+        setErrorMessage('Only admins or team leads can reassign leads. Ask your admin, or click "Export anyway" to keep the original owner.');
+      } else {
+        setErrorMessage(msg || 'Failed to reassign lead.');
+      }
+      setStep('error');
+      return;
+    }
+    setReassigning(false);
+    await handleRivvraExportClick();
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -310,6 +376,27 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
                 </div>
               )}
 
+              {/* Lead owner banner — surfaces who owns this lead in Outreach.
+                  When the current user isn't the owner, the export footer
+                  offers a "reassign to me first" path so ownership change is
+                  explicit rather than silent. */}
+              {leadOwnerName && (
+                <div className={`flex items-start gap-2 mb-4 px-3 py-2 border rounded-lg ${
+                  isCrossOwner ? 'bg-blue-500/5 border-blue-500/20' : 'bg-dark-800 border-dark-600'
+                }`}>
+                  <Users className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isCrossOwner ? 'text-blue-400' : 'text-dark-400'}`} />
+                  <div className="text-xs leading-relaxed">
+                    <span className="text-dark-400">Lead owner: </span>
+                    <span className="text-white font-medium">{leadOwnerName}</span>
+                    {isCrossOwner && (
+                      <span className="block text-blue-300 mt-0.5">
+                        The new opportunity will be assigned to {leadOwnerName.split(' ')[0]}.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Name */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-dark-300 mb-1.5">
@@ -387,17 +474,40 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3">
-                <button onClick={() => setStep('choose')}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 text-white font-medium hover:bg-dark-700 transition-colors">
-                  Back
-                </button>
-                <button onClick={handleRivvraExport} disabled={!name.trim() || !company.trim() || !contactTitle.trim() || !requirementType}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-rivvra-500 text-dark-950 font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                  <Briefcase className="w-4 h-4" />
-                  Create Opportunity
-                </button>
-              </div>
+              {(() => {
+                const formInvalid = !name.trim() || !company.trim() || !contactTitle.trim() || !requirementType;
+                const busy = checkingDup || reassigning;
+                return (
+                  <div className="space-y-2">
+                    <div className="flex gap-3">
+                      <button onClick={() => setStep('choose')} disabled={busy}
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 text-white font-medium hover:bg-dark-700 transition-colors disabled:opacity-50">
+                        Back
+                      </button>
+                      <button
+                        onClick={handleRivvraExportClick}
+                        disabled={formInvalid || busy}
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-rivvra-500 text-dark-950 font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {checkingDup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
+                        {isCrossOwner
+                          ? `Export — assign to ${leadOwnerName?.split(' ')[0] || 'owner'}`
+                          : 'Create Opportunity'}
+                      </button>
+                    </div>
+                    {isCrossOwner && (
+                      <button
+                        onClick={handleReassignAndExport}
+                        disabled={formInvalid || busy}
+                        className="w-full px-4 py-2 rounded-xl bg-dark-800 border border-blue-500/30 text-blue-300 font-medium text-sm hover:bg-blue-500/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {reassigning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                        Reassign to me, then export
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -564,6 +674,87 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
                 className="flex-1 px-4 py-2.5 rounded-xl bg-purple-500 text-white font-semibold hover:bg-purple-400 transition-colors flex items-center justify-center gap-2">
                 <Upload className="w-4 h-4" />
                 Yes, Export
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // STEP: Duplicate-opp warning (Rivvra only)
+  // ═══════════════════════════════════════════════════════════════════════
+  if (step === 'dup-warn') {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={handleClose} />
+        <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl">
+          <button onClick={handleClose} className="absolute top-4 right-4 p-1 text-dark-400 hover:text-white transition-colors z-10">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Existing Opportunity Found</h2>
+                <p className="text-dark-400 text-sm">
+                  {duplicateOpps.length === 1
+                    ? 'An opportunity already exists for this contact.'
+                    : `${duplicateOpps.length} opportunities already exist for this contact.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-5 max-h-72 overflow-y-auto">
+              {duplicateOpps.map(opp => {
+                const statusColor = opp.status === 'Lost' ? 'text-red-400 bg-red-500/10'
+                  : opp.status === 'Converted' ? 'text-emerald-400 bg-emerald-500/10'
+                  : opp.status === 'Won' ? 'text-amber-400 bg-amber-500/10'
+                  : 'text-rivvra-400 bg-rivvra-500/10';
+                return (
+                  <Link
+                    key={opp._id}
+                    to={`/org/${orgSlug}/crm/opportunities/${opp._id}`}
+                    onClick={handleClose}
+                    className="block px-3 py-2.5 bg-dark-800 border border-dark-600 rounded-lg hover:border-rivvra-500/40 hover:bg-rivvra-500/5 transition-colors group"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm text-white font-medium truncate group-hover:text-rivvra-400">{opp.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0 ${statusColor}`}>
+                            {opp.status}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-dark-500 flex items-center gap-1.5 flex-wrap">
+                          {opp.stageName && <span>{opp.stageName}</span>}
+                          {opp.salespersonName && <><span>·</span><span>{opp.salespersonName}</span></>}
+                          {opp.createdAt && <><span>·</span><span>{new Date(opp.createdAt).toLocaleDateString()}</span></>}
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-dark-500 group-hover:text-rivvra-400 flex-shrink-0 mt-0.5" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={performRivvraExport}
+                className="w-full px-4 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium hover:bg-amber-500/25 transition-colors flex items-center justify-center gap-2"
+              >
+                <Briefcase className="w-4 h-4" />
+                Create new opportunity anyway
+              </button>
+              <button
+                onClick={() => setStep('form')}
+                className="w-full px-4 py-2 rounded-xl bg-dark-800 text-dark-300 font-medium text-sm hover:bg-dark-700 transition-colors"
+              >
+                Back
               </button>
             </div>
           </div>
