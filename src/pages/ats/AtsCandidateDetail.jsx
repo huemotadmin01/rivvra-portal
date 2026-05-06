@@ -98,6 +98,8 @@ export default function AtsCandidateDetail() {
       linkedin: candidate.linkedin || '',
       currentTitle: candidate.currentTitle || '',
       location: candidate.location || '',
+      // Phase-2 Odoo migration: candidate-level description (long bio/notes)
+      description: candidate.description || '',
     });
     setEditing(true);
   };
@@ -378,6 +380,24 @@ export default function AtsCandidateDetail() {
           />
         </div>
       </div>
+
+      {/* Description — long-form bio / notes (Phase-2 Odoo migration field) */}
+      {(editing || candidate.description) && (
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">Description</h2>
+          {editing ? (
+            <textarea
+              value={editForm.description || ''}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              rows={5}
+              placeholder="Background, summary, recruiter notes…"
+              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:border-rivvra-500 focus:outline-none resize-none"
+            />
+          ) : (
+            <p className="text-dark-300 text-sm whitespace-pre-wrap">{candidate.description}</p>
+          )}
+        </div>
+      )}
 
       {/* Skills */}
       {skills.length > 0 && (

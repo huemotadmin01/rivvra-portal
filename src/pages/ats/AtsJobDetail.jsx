@@ -315,6 +315,10 @@ export default function AtsJobDetail() {
         accountManagerId: editForm.accountManagerId || '',
         approverComment: editForm.approverComment || '',
         published: !!editForm.published,
+        // Phase-2 Odoo migration fields
+        clientJobLocation: editForm.clientJobLocation?.trim() || '',
+        missionDates: editForm.missionDates?.trim() || '',
+        emailAlias: editForm.emailAlias?.trim() || '',
       };
       const res = await atsApi.updateJob(orgSlug, jobId, payload);
       if (res.success) {
@@ -732,6 +736,52 @@ export default function AtsJobDetail() {
               />
             ) : (
               <p className="text-white text-sm">{job.location || '\u2014'}</p>
+            )}
+          </div>
+          {/* Phase-2 Odoo migration fields. clientJobLocation distinguishes
+              the work location at the client's site from `location` (our
+              office). missionDates is free-form (e.g. "Jun 2026 \u2013 Dec 2026").
+              emailAlias = inbound recruitment email alias from Odoo. */}
+          <div>
+            <p className="text-dark-500 text-xs mb-1">Client Job Location</p>
+            {editing ? (
+              <input
+                type="text"
+                value={editForm.clientJobLocation || ''}
+                onChange={(e) => handleEditChange('clientJobLocation', e.target.value)}
+                className="input-field text-sm"
+                placeholder="e.g. Remote, Bangalore on-site"
+              />
+            ) : (
+              <p className="text-white text-sm">{job.clientJobLocation || '\u2014'}</p>
+            )}
+          </div>
+          <div>
+            <p className="text-dark-500 text-xs mb-1">Mission Dates</p>
+            {editing ? (
+              <input
+                type="text"
+                value={editForm.missionDates || ''}
+                onChange={(e) => handleEditChange('missionDates', e.target.value)}
+                className="input-field text-sm"
+                placeholder="e.g. Jun 2026 - Dec 2026"
+              />
+            ) : (
+              <p className="text-white text-sm">{job.missionDates || '\u2014'}</p>
+            )}
+          </div>
+          <div>
+            <p className="text-dark-500 text-xs mb-1">Email Alias</p>
+            {editing ? (
+              <input
+                type="text"
+                value={editForm.emailAlias || ''}
+                onChange={(e) => handleEditChange('emailAlias', e.target.value)}
+                className="input-field text-sm"
+                placeholder="e.g. devops-jobs"
+              />
+            ) : (
+              <p className="text-white text-sm">{job.emailAlias || '\u2014'}</p>
             )}
           </div>
         </div>

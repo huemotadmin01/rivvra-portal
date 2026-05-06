@@ -173,10 +173,14 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
 
 // ── Create Opportunity Modal ─────────────────────────────────────────────
 function CreateModal({ stages, orgSlug, onClose, onCreate }) {
+  // Aligned with Odoo's "+" inline form (locked 2026-05-07): only the
+  // identity fields here. Expected Role / Revenue / Requirement Type /
+  // Stage all get filled later on the record page. Stage defaults
+  // server-side to the first one when omitted.
   const [form, setForm] = useState({
-    name: '', contactId: '', contactName: '', contactCompanyId: '', companyName: '',
+    contactId: '', contactName: '', contactCompanyId: '', companyName: '',
     contactEmail: '', contactPhone: '',
-    expectedRole: '', expectedRevenue: '', requirementType: '', stageId: stages[0]?._id || '',
+    clientType: 'new',
   });
   const [loading, setLoading] = useState(false);
   const [individualContacts, setIndividualContacts] = useState([]);
@@ -233,7 +237,11 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
     e.preventDefault();
     setLoading(true);
     try {
-      await onCreate(form);
+      // Auto-name the opportunity from the contact, matching Odoo's "X's
+      // opportunity" convention. User can edit on the record page after.
+      const baseName = form.contactName?.trim() || 'New';
+      const payload = { ...form, name: `${baseName}'s opportunity` };
+      await onCreate(payload);
       onClose();
     } finally {
       setLoading(false);
@@ -248,16 +256,6 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
           <button onClick={onClose} className="text-dark-400 hover:text-dark-200"><X size={18} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-xs text-dark-400 mb-1">Opportunity Name *</label>
-            <input
-              value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-              placeholder="e.g., Azure Data Architect - Robosoft"
-              required autoFocus
-            />
-          </div>
-
           {/* Customer's POC — single searchable field showing "Company, Contact Name" */}
           <div>
             <label className="block text-xs text-dark-400 mb-1">
@@ -324,51 +322,23 @@ function CreateModal({ stages, orgSlug, onClose, onCreate }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-dark-400 mb-1">Expected Role</label>
-              <input
-                value={form.expectedRole} onChange={e => setForm({ ...form, expectedRole: e.target.value })}
-                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                placeholder="e.g., Backend Developer"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-dark-400 mb-1">Requirement Type</label>
-              <select
-                value={form.requirementType} onChange={e => setForm({ ...form, requirementType: e.target.value })}
-                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-              >
-                <option value="">Not set</option>
-                <option value="Staff Augmentation">Staff Augmentation</option>
-                <option value="Project Based">Project Based</option>
-                <option value="Full-time Hire">Full-time Hire</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-dark-400 mb-1">Expected Revenue</label>
-              <input
-                value={form.expectedRevenue} onChange={e => setForm({ ...form, expectedRevenue: e.target.value })}
-                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                placeholder="e.g., 500000"
-                type="number"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-dark-400 mb-1">Stage</label>
-              <select
-                value={form.stageId} onChange={e => setForm({ ...form, stageId: e.target.value })}
-                className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-              >
-                {stages.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-              </select>
-            </div>
+          {/* Client Type — minimal field present in Odoo's "+" form. Other
+              fields (Expected Role / Revenue / Requirement Type / Stage)
+              fill in on the record page after creation. */}
+          <div>
+            <label className="block text-xs text-dark-400 mb-1">Client Type</label>
+            <select
+              value={form.clientType}
+              onChange={e => setForm({ ...form, clientType: e.target.value })}
+              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
+            >
+              <option value="new">New Client</option>
+              <option value="existing">Existing Client</option>
+            </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-dark-300 hover:text-dark-100 transition-colors">Cancel</button>
-            <button type="submit" disabled={loading || !form.name.trim() || !form.contactName.trim() || (isCreatingNew && !form.companyName.trim())}
+            <button type="submit" disabled={loading || !form.contactName.trim() || (isCreatingNew && !form.companyName.trim())}
               className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2">
               {loading && <Loader2 size={14} className="animate-spin" />} Create
             </button>

@@ -524,7 +524,10 @@ export default function AtsApplicationDetail() {
         medium: editForm.medium,
         degree: editForm.degree,
         availability: editForm.availability,
-        notes: editForm.notes,
+        // Application-level note (persisted server-side as `note`).
+        // The legacy UI was sending `notes` which the backend silently dropped;
+        // fixed forward by repointing at the new `note` field added 2026-05-07.
+        note: editForm.note,
         // New salary fields
         salaryExpected: editForm.salaryExpected,
         salaryProposed: editForm.salaryProposed,
@@ -1219,14 +1222,14 @@ export default function AtsApplicationDetail() {
                   <p className="text-dark-500 text-xs mb-1">Notes</p>
                   {editing ? (
                     <textarea
-                      value={editForm.notes || ''}
-                      onChange={(e) => handleEditChange('notes', e.target.value)}
+                      value={editForm.note || ''}
+                      onChange={(e) => handleEditChange('note', e.target.value)}
                       rows={3}
                       className="input-field resize-none text-sm"
                     />
                   ) : (
                     <p className="text-dark-300 text-sm whitespace-pre-wrap">
-                      {application.notes || 'No notes added.'}
+                      {application.note || 'No notes added.'}
                     </p>
                   )}
                 </div>
