@@ -81,6 +81,7 @@ export default function ContactsList({ filterType }) {
   const [typeFilter, setTypeFilter] = useState(filterType || '');
   const [tagFilter, setTagFilter] = useState('');
   const [salespersonFilter, setSalespersonFilter] = useState('');
+  const [archivedFilter, setArchivedFilter] = useState('');
   const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
@@ -92,7 +93,7 @@ export default function ContactsList({ filterType }) {
   const orgSlug = currentOrg?.slug;
 
   // Active filter count
-  const activeFilterCount = [typeFilter, tagFilter, salespersonFilter].filter(Boolean).length;
+  const activeFilterCount = [typeFilter, tagFilter, salespersonFilter, archivedFilter].filter(Boolean).length;
 
   // ── Fetch tags + salespersons once ──────────────────────────────────
   useEffect(() => {
@@ -132,6 +133,7 @@ export default function ContactsList({ filterType }) {
         type: params.type !== undefined ? params.type : typeFilter,
         tag: params.tag !== undefined ? params.tag : tagFilter,
         salesperson: params.salesperson !== undefined ? params.salesperson : salespersonFilter,
+        archived: params.archived !== undefined ? params.archived : archivedFilter,
       });
       if (res.success) {
         setContacts(res.contacts || []);
@@ -145,7 +147,7 @@ export default function ContactsList({ filterType }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, currentCompany?._id, page, search, typeFilter, tagFilter, salespersonFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, search, typeFilter, tagFilter, salespersonFilter, archivedFilter, showToast]);
 
   useEffect(() => {
     fetchContacts();
@@ -183,6 +185,7 @@ export default function ContactsList({ filterType }) {
     setTypeFilter('');
     setTagFilter('');
     setSalespersonFilter('');
+    setArchivedFilter('');
     setPage(1);
   };
 
@@ -304,6 +307,17 @@ export default function ContactsList({ filterType }) {
           isOpen={openFilter === 'salesperson'}
           onToggle={() => toggleFilter('salesperson')}
           onSelect={handleFilterSelect(setSalespersonFilter)}
+        />
+        <FilterChip
+          label="Active"
+          value={archivedFilter}
+          options={[
+            { value: '', label: 'Active' },
+            { value: '1', label: 'Archived' },
+          ]}
+          isOpen={openFilter === 'archived'}
+          onToggle={() => toggleFilter('archived')}
+          onSelect={handleFilterSelect(setArchivedFilter)}
         />
 
         {activeFilterCount > 0 && (

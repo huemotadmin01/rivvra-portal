@@ -31,6 +31,19 @@ const contactsApi = {
     });
   },
 
+  archivePreview(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/archive-preview`);
+  },
+  archive(orgSlug, id, { cascade = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ cascade }),
+    });
+  },
+  unarchive(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/contacts/${id}/unarchive`, { method: 'PATCH' });
+  },
+
   // Returns the parsed JSON body whether the response is 200 or 409 so callers
   // can inspect the `references`/`samples` payload produced by the server's FK
   // safety check and offer the user a force-delete confirmation. Non-JSON or

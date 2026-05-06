@@ -15,7 +15,7 @@ import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  Loader2, Trash2, Check, X, Plus,
+  Loader2, Trash2, Check, X, Plus, Archive, ArchiveRestore, MoreHorizontal,
   Building2, User, Mail, Phone, MapPin,
   Globe, Briefcase, Tag, FileText, Users, Receipt,
   Upload, Download, Paperclip, Eye, Pencil,
@@ -453,7 +453,7 @@ export default function ContactDetail() {
   const { contactId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentOrg, getAppRole } = useOrg();
+  const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
   const { orgPath } = usePlatform();
   const { companyCountry, currentCompany } = useCompany();
   const { showToast } = useToast();
@@ -513,13 +513,23 @@ export default function ContactDetail() {
   const [deleting, setDeleting] = useState(false);
   // FK-conflict modal (populated from a 409 response on DELETE)
   const [deleteConflict, setDeleteConflict] = useState(null);
+  // Archive modal
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivePreview, setArchivePreview] = useState(null);
+  const [archiving, setArchiving] = useState(false);
+  const [showKebab, setShowKebab] = useState(false);
 
   // Dropdown data
   const [salespersons, setSalespersons] = useState([]);
   const [paymentTerms, setPaymentTerms] = useState([]);
   const [products, setProducts] = useState([]);
 
-  const isAdmin = getAppRole('contacts') === 'admin';
+  // Archived = read-only across the page (Q-archive-edit, 2026-05-06).
+  // We collapse this onto `isAdmin` so every existing `editable={isAdmin}` /
+  // `isAdmin && ...` gate respects the archive state without touching every
+  // call site (this file has 30+ EditableField uses).
+  const isAdminRaw = getAppRole('contacts') === 'admin';
+  const isAdmin = isAdminRaw && !contact?.archived;
   const orgSlug = currentOrg?.slug;
 
   // -- Fetch contact ----------------------------------------------------------
@@ -682,6 +692,46 @@ export default function ContactDetail() {
     }
   };
 
+  const openArchiveModal = async () => {
+    setShowArchiveModal(true);
+    setArchivePreview(null);
+    try {
+      const res = await contactsApi.archivePreview(orgSlug, contactId);
+      setArchivePreview(res || { dependencies: [] });
+    } catch {
+      setArchivePreview({ dependencies: [] });
+    }
+  };
+
+  const handleArchive = async (cascade = false) => {
+    setArchiving(true);
+    try {
+      const res = await contactsApi.archive(orgSlug, contactId, { cascade });
+      setShowArchiveModal(false);
+      setContact((c) => ({ ...c, archived: true }));
+      const cnt = res?.cascadedChildCount || 0;
+      showToast(
+        cascade && cnt > 0
+          ? `Archived (with ${cnt} contact${cnt === 1 ? '' : 's'})`
+          : 'Archived'
+      );
+    } catch (err) {
+      showToast(err?.message || 'Failed to archive', 'error');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    try {
+      await contactsApi.unarchive(orgSlug, contactId);
+      setContact((c) => ({ ...c, archived: false }));
+      showToast('Unarchived');
+    } catch (err) {
+      showToast(err?.message || 'Failed to unarchive', 'error');
+    }
+  };
+
   // -- Loading state ----------------------------------------------------------
   if (loading) {
     return (
@@ -782,6 +832,13 @@ export default function ContactDetail() {
                 />
                 {contact.jobTitle && (
                   <p className="text-dark-400 mt-0.5">{contact.jobTitle}</p>
+                )}
+                {contact.archived && (
+                  <div className="mt-2">
+                    <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 inline-flex items-center gap-1">
+                      <Archive size={11} /> ARCHIVED
+                    </span>
+                  </div>
                 )}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   {isCreateMode ? (
@@ -899,15 +956,54 @@ export default function ContactDetail() {
                     Discard
                   </button>
                 </div>
-              ) : isAdmin && (
+              ) : isAdminRaw && (
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-dark-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-sm transition-colors"
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </button>
+                  {contact.archived ? (
+                    <button
+                      onClick={handleUnarchive}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-sm font-medium"
+                    >
+                      <ArchiveRestore size={14} /> Unarchive
+                    </button>
+                  ) : (
+                    <button
+                      onClick={openArchiveModal}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-dark-300 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 text-sm transition-colors"
+                    >
+                      <Archive size={14} />
+                      Archive
+                    </button>
+                  )}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowKebab((o) => !o)}
+                      className="p-2 rounded-lg text-dark-500 hover:text-dark-300 hover:bg-dark-800 transition-colors"
+                      aria-label="More actions"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                    {showKebab && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+                        <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                          {isOrgAdmin ? (
+                            <button
+                              onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
+                              className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                            >
+                              <Trash2 size={12} />
+                              <div className="flex-1">
+                                <div className="font-medium">Delete permanently</div>
+                                <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1482,6 +1578,62 @@ export default function ContactDetail() {
               onClose={() => setPreviewDoc(null)}
             />
           )}
+        </div>
+      )}
+
+      {/* Archive Confirmation Modal — soft cascade with explicit user choice */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <Archive size={16} /> Archive {contact.type === 'company' ? 'Company' : 'Contact'}
+            </h2>
+            <p className="text-sm text-dark-400 mb-3">
+              Archive <span className="text-white font-medium">{contact.name}</span>? Hidden from list views, can be restored at any time.
+            </p>
+            {archivePreview === null ? (
+              <div className="text-xs text-dark-500 mb-4 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Checking linked records…</div>
+            ) : archivePreview.dependencies?.length > 0 ? (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-300 font-medium mb-2">Linked records:</p>
+                <ul className="space-y-1 text-xs text-dark-200">
+                  {archivePreview.dependencies.map((d, i) => (
+                    <li key={i} className="flex items-center gap-1.5">
+                      <span>{d.label}</span>
+                      {d.informational && <span className="text-[10px] text-dark-500">(won't be archived)</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleArchive(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                Archive {contact.type === 'company' ? 'company' : 'contact'} only
+              </button>
+              {contact.type === 'company' && archivePreview?.dependencies?.find(d => d.type === 'contacts_individual') && (
+                <button
+                  onClick={() => handleArchive(true)}
+                  disabled={archiving}
+                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                  Archive company + child contacts
+                </button>
+              )}
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
