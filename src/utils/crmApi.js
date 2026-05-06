@@ -68,6 +68,18 @@ const crmApi = {
   detachJob(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/detach-job`, { method: 'PATCH' });
   },
+  archivePreview(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/archive-preview`);
+  },
+  archiveOpportunity(orgSlug, id, { cascade = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ cascade }),
+    });
+  },
+  unarchiveOpportunity(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}/unarchive`, { method: 'PATCH' });
+  },
   checkDuplicateOpportunities(orgSlug, { email, contactName, companyName } = {}) {
     const qs = new URLSearchParams();
     if (email) qs.set('email', email);

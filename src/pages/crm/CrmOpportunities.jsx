@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { downloadFile } from '../../utils/download';
 import { formatMoney } from '../../utils/currency';
+import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import {
-  Search, ChevronLeft, ChevronRight, ChevronDown, Plus, Star,
-  Building2, Trophy, XCircle, Briefcase, Loader2, ArrowUpDown, Download,
+  ChevronLeft, ChevronRight, Plus, Star,
+  Trophy, Loader2, ArrowUpDown, Download, Archive,
 } from 'lucide-react';
 
 function StageBadge({ name, isWon, isLost }) {
@@ -31,25 +33,30 @@ export default function CrmOpportunities() {
   const { addToast } = useToast();
   const navigate = useNavigate();
 
+  // Filter state lives in the URL — bookmarkable + refresh-safe.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParams = useFilterParams(['search', 'stageId', 'salespersonId', 'isLost', 'archived']);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const limit = 25;
+  const sortBy = searchParams.get('sortBy') || 'updatedAt';
+  const sortDir = searchParams.get('sortDir') || 'desc';
+
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(25);
+  const [archivedCount, setArchivedCount] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [stageId, setStageId] = useState('');
-  const [isLost, setIsLost] = useState('');
-  const [sortBy, setSortBy] = useState('updatedAt');
-  const [sortDir, setSortDir] = useState('desc');
   const [stages, setStages] = useState([]);
   const [exporting, setExporting] = useState(false);
 
+  const setPage = (next) => {
+    const np = new URLSearchParams(searchParams);
+    if (next > 1) np.set('page', String(next)); else np.delete('page');
+    setSearchParams(np);
+  };
+
   const fetchData = useCallback(async () => {
     try {
-      const params = { page, limit, sortBy, sortDir };
-      if (search) params.search = search;
-      if (stageId) params.stageId = stageId;
-      if (isLost) params.isLost = isLost;
+      const params = { page, limit, sortBy, sortDir, ...filterParams };
       const res = await crmApi.listOpportunities(slug, params);
       if (res.success) {
         setData(res.opportunities || []);
@@ -60,7 +67,19 @@ export default function CrmOpportunities() {
     } finally {
       setLoading(false);
     }
-  }, [slug, page, limit, search, stageId, isLost, sortBy, sortDir]);
+  }, [slug, page, limit, sortBy, sortDir, JSON.stringify(filterParams)]);
+
+  // Load archived count for the segmented Active/Archived chip — same filter
+  // shape, just flipped. Refreshes whenever the active list refreshes.
+  useEffect(() => {
+    if (!slug) return;
+    const controller = new AbortController();
+    crmApi.listOpportunities(slug, { ...filterParams, archived: '1', limit: 1, page: 1 })
+      .then(res => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, JSON.stringify({ ...filterParams, archived: undefined })]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -78,9 +97,7 @@ export default function CrmOpportunities() {
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      if (stageId) params.set('stageId', stageId);
-      if (isLost) params.set('isLost', isLost);
+      Object.entries(filterParams).forEach(([k, v]) => { if (v) params.set(k, v); });
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(
@@ -95,12 +112,14 @@ export default function CrmOpportunities() {
   };
 
   const handleSort = (field) => {
+    const np = new URLSearchParams(searchParams);
     if (sortBy === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+      np.set('sortDir', sortDir === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortBy(field);
-      setSortDir('desc');
+      np.set('sortBy', field);
+      np.set('sortDir', 'desc');
     }
+    setSearchParams(np);
   };
 
   const SortHeader = ({ field, children }) => (
@@ -135,36 +154,33 @@ export default function CrmOpportunities() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500" />
-          <input
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search opportunities..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 focus:border-rivvra-500 focus:outline-none"
-          />
+      {/* Filters — URL-driven via shared FilterBar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <FilterBar searchPlaceholder="Search opportunities…">
+            <FilterChip
+              type="select"
+              paramKey="stageId"
+              label="Stage"
+              options={stages.map(s => ({ value: s._id, label: s.name }))}
+            />
+            <FilterChip
+              type="select"
+              paramKey="isLost"
+              label="Status"
+              options={[
+                { value: 'false', label: 'Active' },
+                { value: 'true', label: 'Lost' },
+              ]}
+            />
+            <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+          </FilterBar>
         </div>
-        <select
-          value={stageId} onChange={e => { setStageId(e.target.value); setPage(1); }}
-          className="bg-dark-800 border border-dark-700 rounded-lg px-2.5 py-1.5 text-xs text-dark-200 focus:border-rivvra-500 focus:outline-none"
-        >
-          <option value="">All Stages</option>
-          {stages.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-        </select>
-        <select
-          value={isLost} onChange={e => { setIsLost(e.target.value); setPage(1); }}
-          className="bg-dark-800 border border-dark-700 rounded-lg px-2.5 py-1.5 text-xs text-dark-200 focus:border-rivvra-500 focus:outline-none"
-        >
-          <option value="">All Status</option>
-          <option value="false">Active</option>
-          <option value="true">Lost</option>
-        </select>
         <button
           onClick={handleExport}
           disabled={exporting || total === 0}
           title="Download the current filtered list as a CSV file"
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-dark-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-dark-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
         >
           {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
           Export CSV

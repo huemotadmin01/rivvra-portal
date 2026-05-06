@@ -13,7 +13,7 @@ import SectionCard from '../../components/platform/detail/SectionCard';
 import {
   Building2, User, Briefcase, Trophy, FileText, Tag,
   Trash2, Loader2, XCircle, RotateCcw,
-  ExternalLink, Unlink,
+  ExternalLink, Unlink, Archive, ArchiveRestore, MoreHorizontal,
 } from 'lucide-react';
 
 function StageBar({ stages, currentStageId, isLost, stageHistory = [], onStageClick }) {
@@ -72,7 +72,7 @@ function LinkedRecordField({ label, to, name, fallback = 'View' }) {
 }
 
 export default function CrmOpportunityDetail() {
-  const { orgSlug: slug } = useOrg();
+  const { orgSlug: slug, isOrgAdmin } = useOrg();
   const { opportunityId } = useParams();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -86,6 +86,10 @@ export default function CrmOpportunityDetail() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDetachModal, setShowDetachModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivePreview, setArchivePreview] = useState(null);
+  const [archiving, setArchiving] = useState(false);
+  const [showKebab, setShowKebab] = useState(false);
   const [showStageDetachModal, setShowStageDetachModal] = useState(null);
   const [errorFields, setErrorFields] = useState(new Set());
   const fieldRefs = useRef({});
@@ -254,6 +258,43 @@ export default function CrmOpportunityDetail() {
     }
   };
 
+  const openArchiveModal = async () => {
+    setShowKebab(false);
+    setShowArchiveModal(true);
+    setArchivePreview(null);
+    try {
+      const res = await crmApi.archivePreview(slug, opportunityId);
+      setArchivePreview(res?.dependencies || []);
+    } catch {
+      // Non-fatal — user can still archive without preview
+      setArchivePreview([]);
+    }
+  };
+
+  const handleArchive = async (cascade = false) => {
+    setArchiving(true);
+    try {
+      await crmApi.archiveOpportunity(slug, opportunityId, { cascade });
+      setShowArchiveModal(false);
+      fetchAll();
+      addToast(cascade ? 'Archived (with linked Job)' : 'Archived', 'success');
+    } catch {
+      addToast('Failed to archive', 'error');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    try {
+      await crmApi.unarchiveOpportunity(slug, opportunityId);
+      fetchAll();
+      addToast('Unarchived', 'success');
+    } catch {
+      addToast('Failed to unarchive', 'error');
+    }
+  };
+
   const handleStageDetachConfirm = async (stageId) => {
     setShowStageDetachModal(null);
     try {
@@ -312,6 +353,7 @@ export default function CrmOpportunityDetail() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-white truncate" title={opp.name}>{opp.name}</h1>
+            {opp.archived && <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1"><Archive size={11} /> ARCHIVED</span>}
             {opp.isLost && <span className="text-xs bg-red-500/15 text-red-400 rounded-full px-2 py-0.5 border border-red-500/20">LOST</span>}
             {opp.wonAt && !opp.isLost && !opp.isConverted && (
               <span className="text-xs bg-amber-500/15 text-amber-400 rounded-full px-2 py-0.5 border border-amber-500/20 flex items-center gap-1">
@@ -376,10 +418,53 @@ export default function CrmOpportunityDetail() {
         )}
 
         <div className="flex-1" />
-        <button onClick={() => setShowDeleteModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-dark-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-colors">
-          <Trash2 size={14} /> Delete
-        </button>
+        {/* Archive primary, Delete behind admin-only kebab. Unarchive replaces
+            both when the record is archived. */}
+        {opp.archived ? (
+          <button
+            onClick={handleUnarchive}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/25 font-medium"
+          >
+            <ArchiveRestore size={14} /> Unarchive
+          </button>
+        ) : (
+          <button
+            onClick={openArchiveModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-dark-300 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 rounded-lg transition-colors"
+          >
+            <Archive size={14} /> Archive
+          </button>
+        )}
+        <div className="relative">
+          <button
+            onClick={() => setShowKebab(o => !o)}
+            className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
+            aria-label="More actions"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          {showKebab && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+              <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                {isOrgAdmin ? (
+                  <button
+                    onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
+                    className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                  >
+                    <Trash2 size={12} />
+                    <div className="flex-1">
+                      <div className="font-medium">Delete permanently</div>
+                      <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body: main + narrow sidebar */}
@@ -534,6 +619,66 @@ export default function CrmOpportunityDetail() {
                 className="flex-1 px-3 py-2 text-sm text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
                 {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Archive Confirmation Modal — soft cascade with explicit user choice */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <Archive size={16} /> Archive Opportunity
+            </h2>
+            <p className="text-sm text-dark-400 mb-3">
+              Archive <span className="text-white font-medium">{opp.name}</span>? It will be hidden from list views but can be restored at any time.
+            </p>
+            {archivePreview === null ? (
+              <div className="text-xs text-dark-500 mb-4 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Checking linked records…</div>
+            ) : archivePreview.length > 0 ? (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-300 font-medium mb-2">Linked records found:</p>
+                <ul className="space-y-1.5">
+                  {archivePreview.map(d => (
+                    <li key={d.id} className="text-xs text-dark-200 flex items-center gap-1.5">
+                      <Briefcase size={11} className="text-dark-500 flex-shrink-0" />
+                      <span className="flex-1 truncate">{d.name}</span>
+                      {d.activeApplications > 0 && (
+                        <span className="text-[10px] text-dark-500">{d.activeApplications} active app{d.activeApplications !== 1 ? 's' : ''}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-dark-500 mt-2">Choose whether to archive these too.</p>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleArchive(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                Archive opportunity only
+              </button>
+              {archivePreview && archivePreview.length > 0 && (
+                <button
+                  onClick={() => handleArchive(true)}
+                  disabled={archiving}
+                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                  Archive opportunity + linked Job
+                </button>
+              )}
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>
