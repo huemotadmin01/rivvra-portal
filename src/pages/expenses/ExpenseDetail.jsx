@@ -346,6 +346,7 @@ export default function ExpenseDetail() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [posting, setPosting] = useState(false);
   const [receiptBusy, setReceiptBusy] = useState(false);
 
@@ -354,6 +355,7 @@ export default function ExpenseDetail() {
   const [comment, setComment] = useState('');
   const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [previewApprover, setPreviewApprover] = useState(null);
@@ -378,6 +380,10 @@ export default function ExpenseDetail() {
   const canDelete = !isNew && isOwner && status === 'draft';
   const canWithdraw = !isNew && isOwner && status === 'submitted';
   const canResubmit = !isNew && isOwner && status === 'rejected';
+  // Org admin escape hatch for already-approved/synced claims (e.g. wrong
+  // amount, duplicate import). For synced, the linked bill must already be
+  // cancelled — backend enforces this and returns a clear error if not.
+  const canCancel = !isNew && isOrgAdmin && (status === 'approved' || status === 'synced');
 
   const totalAmount = useMemo(
     () => form.lines.reduce((s, l) => s + lineConverted(l, form.claimCurrency), 0),
@@ -672,6 +678,22 @@ export default function ExpenseDetail() {
     }
   };
 
+  const handleCancel = async (note) => {
+    if (!note) return showToast('Reason is required', 'error');
+    try {
+      setCancelling(true);
+      const res = await expensesApi.cancel(orgSlug, expense._id, note);
+      setExpense(res.expense);
+      setShowCancel(false);
+      showToast('Expense cancelled');
+      invalidateExpensesList(orgSlug);
+    } catch (e) {
+      showToast(e.message || 'Failed to cancel', 'error');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handlePostComment = async () => {
     const note = comment.trim();
     if (!note) return;
@@ -782,6 +804,16 @@ export default function ExpenseDetail() {
                     Approve
                   </button>
                 </>
+              )}
+              {canCancel && (
+                <button
+                  onClick={() => setShowCancel(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-dark-800 hover:bg-red-500/10 border border-dark-700 hover:border-red-500/40 text-red-400 rounded-lg text-sm font-medium"
+                  title={status === 'synced' ? 'Cancel — linked bill must already be cancelled' : 'Cancel approved claim'}
+                >
+                  <XCircle size={14} />
+                  Cancel
+                </button>
               )}
             </div>
           </div>
@@ -1185,6 +1217,21 @@ export default function ExpenseDetail() {
         busy={rejecting}
         onConfirm={handleReject}
         onCancel={() => setShowReject(false)}
+      />
+      <ConfirmModal
+        open={showCancel}
+        title="Cancel this claim?"
+        body={
+          status === 'synced'
+            ? 'The linked employee bill must already be cancelled. The claim will move to Rejected and the submitter will be notified.'
+            : 'The claim will move to Rejected and the submitter will be notified. They can revise and resubmit if needed.'
+        }
+        confirmLabel="Cancel claim"
+        confirmTone="red"
+        requireReason
+        busy={cancelling}
+        onConfirm={handleCancel}
+        onCancel={() => setShowCancel(false)}
       />
       <ConfirmModal
         open={showWithdraw}

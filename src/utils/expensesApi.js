@@ -71,6 +71,12 @@ const expensesApi = {
       body: JSON.stringify({ note }),
     });
   },
+  cancel(orgSlug, id, note) {
+    return api.request(`/api/org/${orgSlug}/expenses/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    });
+  },
   comment(orgSlug, id, note) {
     return api.request(`/api/org/${orgSlug}/expenses/${id}/comments`, {
       method: 'POST',
