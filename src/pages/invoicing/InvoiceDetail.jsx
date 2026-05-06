@@ -18,7 +18,7 @@ import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
 import {
-  ArrowLeft, Send, Trash2, Download, Mail, Copy,
+  ArrowLeft, Send, Trash2, Download, Mail, Copy, Archive, ArchiveRestore,
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
   AlertTriangle, Check, Info, Upload, Eye, Paperclip,
   User, Calendar, Clock, RefreshCw, BellRing, Edit3,
@@ -1995,6 +1995,39 @@ export default function InvoiceDetail() {
               <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
             )}
 
+            {/* Archive / Unarchive — platform-wide soft-park action.
+                Visible regardless of status; backend write-guard prevents
+                edits to archived records via the PUT route. */}
+            {invoice.archived ? (
+              <ActionBtn
+                icon={ArchiveRestore}
+                label="Unarchive"
+                onClick={async () => {
+                  try {
+                    await invoicingApi.unarchiveInvoice(orgSlug, invoiceId);
+                    setInvoice((prev) => ({ ...prev, archived: false }));
+                    showToast('Unarchived');
+                  } catch (err) {
+                    showToast(err?.message || 'Failed to unarchive', 'error');
+                  }
+                }}
+              />
+            ) : (
+              <ActionBtn
+                icon={Archive}
+                label="Archive"
+                onClick={async () => {
+                  try {
+                    await invoicingApi.archiveInvoice(orgSlug, invoiceId);
+                    setInvoice((prev) => ({ ...prev, archived: true }));
+                    showToast('Archived');
+                  } catch (err) {
+                    showToast(err?.message || 'Failed to archive', 'error');
+                  }
+                }}
+              />
+            )}
+
             {/* Save indicator */}
             {saving && (
               <div className="flex items-center gap-1.5 text-xs text-dark-400 ml-2">
@@ -2113,11 +2146,16 @@ export default function InvoiceDetail() {
               <p className="text-sm text-dark-400 mb-1">{typeLabel}</p>
 
               {/* Invoice number */}
-              <h1 className="text-2xl font-bold mb-4">
+              <h1 className="text-2xl font-bold mb-4 flex items-center gap-2 flex-wrap">
                 {invoice.number
                   ? <span className="text-white">{invoice.number}</span>
                   : <span className="text-dark-500 italic">{previewNumber || 'Draft Invoice'}</span>
                 }
+                {invoice.archived && (
+                  <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 inline-flex items-center gap-1 font-normal">
+                    ARCHIVED
+                  </span>
+                )}
               </h1>
 
               {/* E-Invoice IRN block — shown after IRN is generated */}

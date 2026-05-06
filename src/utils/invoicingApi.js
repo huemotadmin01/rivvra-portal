@@ -34,6 +34,12 @@ const invoicingApi = {
   deleteInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}`, { method: 'DELETE' });
   },
+  archiveInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/archive`, { method: 'PATCH' });
+  },
+  unarchiveInvoice(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/unarchive`, { method: 'PATCH' });
+  },
   sendInvoice(orgSlug, id, data = {}) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/send`, {
       method: 'PATCH',

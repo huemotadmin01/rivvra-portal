@@ -48,6 +48,12 @@ const expensesApi = {
   remove(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/expenses/${id}`, { method: 'DELETE' });
   },
+  archive(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/expenses/${id}/archive`, { method: 'PATCH' });
+  },
+  unarchive(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/expenses/${id}/unarchive`, { method: 'PATCH' });
+  },
 
   // ---------- LIFECYCLE ----------
   submit(orgSlug, id) {

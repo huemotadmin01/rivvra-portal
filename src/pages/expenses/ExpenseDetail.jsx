@@ -12,7 +12,7 @@ import { invalidateExpensesList } from './_listCache';
 import {
   ArrowLeft, Save, Send, Trash2, CheckCircle2, XCircle, MessageSquare,
   Paperclip, Upload, Loader2, FileText, Eye, Wallet, AlertCircle, Clock,
-  Download, X, Plus, Undo2, UserCheck, AlertTriangle,
+  Download, X, Plus, Undo2, UserCheck, AlertTriangle, Archive, ArchiveRestore,
 } from 'lucide-react';
 
 const PAYMENT_MODES = [
@@ -741,6 +741,11 @@ export default function ExpenseDetail() {
                 {isNew ? 'New Expense Claim' : (expense?.title || 'Expense Claim')}
               </h1>
               {!isNew && <StatusBadge status={status} />}
+              {!isNew && expense?.archived && (
+                <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 inline-flex items-center gap-1">
+                  <Archive size={11} /> ARCHIVED
+                </span>
+              )}
               {currentCompany && (
                 <span className="text-xs text-dark-400 hidden sm:inline">
                   · {currentCompany.name}
@@ -789,6 +794,40 @@ export default function ExpenseDetail() {
                   <Trash2 size={14} />
                   <span className="hidden sm:inline">Delete</span>
                 </button>
+              )}
+              {/* Archive / Unarchive — only shown for the owner; owner-gated server-side too */}
+              {!isNew && isOwner && (
+                expense?.archived ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await expensesApi.unarchive(orgSlug, expenseId);
+                        setExpense((e) => ({ ...e, archived: false }));
+                        showToast?.('Unarchived');
+                      } catch (err) {
+                        showToast?.(err?.message || 'Failed to unarchive', 'error');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-lg text-sm font-medium"
+                  >
+                    <ArchiveRestore size={14} /> Unarchive
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await expensesApi.archive(orgSlug, expenseId);
+                        setExpense((e) => ({ ...e, archived: true }));
+                        showToast?.('Archived');
+                      } catch (err) {
+                        showToast?.(err?.message || 'Failed to archive', 'error');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-dark-800 hover:bg-amber-500/10 border border-dark-700 hover:border-amber-500/30 hover:text-amber-300 text-dark-200 rounded-lg text-sm"
+                  >
+                    <Archive size={14} /> Archive
+                  </button>
+                )
               )}
               {canApprove && (
                 <>

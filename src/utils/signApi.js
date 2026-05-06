@@ -61,6 +61,12 @@ const signApi = {
       method: 'PUT',
     });
   },
+  archiveRequest(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/sign/requests/${id}/archive`, { method: 'PATCH' });
+  },
+  unarchiveRequest(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/sign/requests/${id}/unarchive`, { method: 'PATCH' });
+  },
 
   bulkDeleteRequests(orgSlug, ids) {
     return api.request(`/api/org/${orgSlug}/sign/requests/bulk-delete`, {
