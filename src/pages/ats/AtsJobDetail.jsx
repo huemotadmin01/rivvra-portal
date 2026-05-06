@@ -8,7 +8,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Loader2, Star, ChevronDown, X,
   Edit3, Check, Briefcase, Users, Calendar,
-  DollarSign, MapPin, Shield, UserCheck, Trash2,
+  DollarSign, MapPin, Shield, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
 } from 'lucide-react';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
@@ -170,7 +170,7 @@ const APPROVAL_STATUS_OPTIONS = [
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsJobDetail() {
   const { jobId } = useParams();
-  const { currentOrg, getAppRole } = useOrg();
+  const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -199,6 +199,10 @@ export default function AtsJobDetail() {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivePreview, setArchivePreview] = useState(null);
+  const [archiving, setArchiving] = useState(false);
+  const [showKebab, setShowKebab] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -337,6 +341,48 @@ export default function AtsJobDetail() {
     }
   };
 
+  const openArchiveModal = async () => {
+    setShowKebab(false);
+    setShowArchiveModal(true);
+    setArchivePreview(null);
+    try {
+      const res = await atsApi.archiveJobPreview(orgSlug, jobId);
+      setArchivePreview(res || { dependencies: [] });
+    } catch {
+      setArchivePreview({ dependencies: [] });
+    }
+  };
+
+  const handleArchiveJob = async (cascade = false) => {
+    setArchiving(true);
+    try {
+      const res = await atsApi.archiveJob(orgSlug, jobId, { cascade });
+      setShowArchiveModal(false);
+      setJob((j) => ({ ...j, archived: true }));
+      const cascadedCount = res?.cascadedAppCount || 0;
+      showToast(
+        cascade && cascadedCount > 0
+          ? `Archived (with ${cascadedCount} application${cascadedCount === 1 ? '' : 's'})`
+          : 'Archived',
+        'success'
+      );
+    } catch (err) {
+      showToast(err.message || 'Failed to archive job position', 'error');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleUnarchiveJob = async () => {
+    try {
+      await atsApi.unarchiveJob(orgSlug, jobId);
+      setJob((j) => ({ ...j, archived: false }));
+      showToast('Unarchived', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to unarchive job position', 'error');
+    }
+  };
+
   const handleEditChange = (field, value) => {
     setEditForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -394,6 +440,11 @@ export default function AtsJobDetail() {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-bold text-white">{job.name}</h1>
+              {job.archived && (
+                <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
+                  <Archive size={11} /> ARCHIVED
+                </span>
+              )}
               <StatusBadge status={job.status} />
               {job.approvalStatus && <ApprovalBadge status={job.approvalStatus} />}
             </div>
@@ -441,12 +492,51 @@ export default function AtsJobDetail() {
                   Cancel
                 </button>
               )}
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-500 border-transparent hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
+              {job?.archived ? (
+                <button
+                  onClick={handleUnarchiveJob}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                >
+                  <ArchiveRestore size={14} /> Unarchive
+                </button>
+              ) : (
+                <button
+                  onClick={openArchiveModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30"
+                >
+                  <Archive size={14} /> Archive
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setShowKebab((o) => !o)}
+                  className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {showKebab && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+                    <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                      {isOrgAdmin ? (
+                        <button
+                          onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
+                          className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                        >
+                          <Trash2 size={12} />
+                          <div className="flex-1">
+                            <div className="font-medium">Delete permanently</div>
+                            <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -957,6 +1047,72 @@ export default function AtsJobDetail() {
           </>
         )}
       </div>
+
+      {/* Archive Confirmation Modal — soft cascade with explicit user choice */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <Archive size={16} /> Archive Job Position
+            </h2>
+            <p className="text-sm text-dark-400 mb-3">
+              Archive <span className="text-white font-medium">{job.name}</span>? It will be hidden from list views but can be restored at any time.
+            </p>
+            {archivePreview === null ? (
+              <div className="text-xs text-dark-500 mb-4 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Checking linked records…</div>
+            ) : (archivePreview.activeApplications > 0 || archivePreview.linkedOpportunity) ? (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-300 font-medium mb-2">Linked records:</p>
+                <ul className="space-y-1.5 text-xs text-dark-200">
+                  {archivePreview.activeApplications > 0 && (
+                    <li className="flex items-center gap-1.5">
+                      <Users size={11} className="text-dark-500 flex-shrink-0" />
+                      {archivePreview.activeApplications} active application{archivePreview.activeApplications === 1 ? '' : 's'}
+                    </li>
+                  )}
+                  {archivePreview.linkedOpportunity && (
+                    <li className="flex items-center gap-1.5">
+                      <Briefcase size={11} className="text-dark-500 flex-shrink-0" />
+                      <span className="flex-1 truncate">CRM opp: {archivePreview.linkedOpportunity.name}</span>
+                      <span className="text-[10px] text-dark-500">won't be archived</span>
+                    </li>
+                  )}
+                </ul>
+                {archivePreview.activeApplications > 0 && (
+                  <p className="text-[11px] text-dark-500 mt-2">Choose whether to archive the applications too.</p>
+                )}
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleArchiveJob(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                Archive job only
+              </button>
+              {archivePreview?.activeApplications > 0 && (
+                <button
+                  onClick={() => handleArchiveJob(true)}
+                  disabled={archiving}
+                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                  Archive job + {archivePreview.activeApplications} application{archivePreview.activeApplications === 1 ? '' : 's'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

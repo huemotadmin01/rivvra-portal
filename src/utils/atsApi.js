@@ -76,6 +76,19 @@ const atsApi = {
     });
   },
 
+  archiveJobPreview(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/archive-preview`);
+  },
+  archiveJob(orgSlug, id, { cascade = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ cascade }),
+    });
+  },
+  unarchiveJob(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/unarchive`, { method: 'PATCH' });
+  },
+
   // ── Applications ──────────────────────────────────────────────────────
   listApplications(orgSlug, params = {}) {
     const qs = new URLSearchParams(
@@ -139,6 +152,13 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}`, {
       method: 'DELETE',
     });
+  },
+
+  archiveApplication(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/archive`, { method: 'PATCH' });
+  },
+  unarchiveApplication(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/unarchive`, { method: 'PATCH' });
   },
 
   // ── Bulk actions ──────────────────────────────────────────────────────

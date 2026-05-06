@@ -373,6 +373,7 @@ export default function AtsApplications() {
   const [stageFilter, setStageFilter] = useState('');
   const [jobFilter, setJobFilter] = useState('');
   const [recruiterFilter, setRecruiterFilter] = useState('');
+  const [archivedFilter, setArchivedFilter] = useState('');
   const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
@@ -396,7 +397,7 @@ export default function AtsApplications() {
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
-  const activeFilterCount = [stageFilter, jobFilter, recruiterFilter].filter(Boolean).length;
+  const activeFilterCount = [stageFilter, jobFilter, recruiterFilter, archivedFilter].filter(Boolean).length;
 
   // ── Fetch applications ─────────────────────────────────────────────────
   const fetchApplications = useCallback(async (params = {}) => {
@@ -413,6 +414,7 @@ export default function AtsApplications() {
         stageId: params.stageId !== undefined ? params.stageId : stageFilter,
         jobId: params.jobId !== undefined ? params.jobId : jobFilter,
         recruiter: params.recruiter !== undefined ? params.recruiter : recruiterFilter,
+        archived: params.archived !== undefined ? params.archived : archivedFilter,
         sort: 'appliedOn',
         order: 'desc',
       });
@@ -429,7 +431,7 @@ export default function AtsApplications() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, stageFilter, jobFilter, recruiterFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, search, stageFilter, jobFilter, recruiterFilter, archivedFilter, showToast]);
 
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
@@ -600,6 +602,7 @@ export default function AtsApplications() {
     setStageFilter('');
     setJobFilter('');
     setRecruiterFilter('');
+    setArchivedFilter('');
     setPage(1);
   };
 
@@ -696,6 +699,17 @@ export default function AtsApplications() {
           isOpen={openFilter === 'recruiter'}
           onToggle={() => toggleFilter('recruiter')}
           onSelect={handleFilterSelect(setRecruiterFilter)}
+        />
+        <FilterChip
+          label="Active"
+          value={archivedFilter}
+          options={[
+            { value: '', label: 'Active' },
+            { value: '1', label: 'Archived' },
+          ]}
+          isOpen={openFilter === 'archived'}
+          onToggle={() => toggleFilter('archived')}
+          onSelect={handleFilterSelect(setArchivedFilter)}
         />
 
         {activeFilterCount > 0 && (

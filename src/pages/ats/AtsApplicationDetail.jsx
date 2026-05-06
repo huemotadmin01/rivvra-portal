@@ -16,6 +16,7 @@ import {
   Calendar, Edit3, Check, XCircle, Award,
   Tag, Plus,
   DollarSign, Circle, PenTool, FileSignature, UserPlus, ExternalLink,
+  Archive, ArchiveRestore, MoreHorizontal, Trash2,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -325,7 +326,7 @@ function SignRequestsPanel({ orgSlug, applicationId, orgPath }) {
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsApplicationDetail() {
   const { applicationId } = useParams();
-  const { currentOrg, getAppRole } = useOrg();
+  const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -350,6 +351,10 @@ export default function AtsApplicationDetail() {
   const [showHireModal, setShowHireModal] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [creatingEmployee, setCreatingEmployee] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [showKebab, setShowKebab] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -447,6 +452,41 @@ export default function AtsApplicationDetail() {
       showToast(err.message || 'Failed to hire candidate', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleArchiveApp = async () => {
+    setArchiving(true);
+    try {
+      await atsApi.archiveApplication(orgSlug, applicationId);
+      setApplication((a) => ({ ...a, archived: true }));
+      showToast('Archived', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to archive application', 'error');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleUnarchiveApp = async () => {
+    try {
+      await atsApi.unarchiveApplication(orgSlug, applicationId);
+      setApplication((a) => ({ ...a, archived: false }));
+      showToast('Unarchived', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to unarchive application', 'error');
+    }
+  };
+
+  const handleDeleteApp = async () => {
+    setDeleting(true);
+    try {
+      await atsApi.deleteApplication(orgSlug, applicationId);
+      showToast('Application deleted', 'success');
+      navigate(orgPath('/ats/applications'));
+    } catch (err) {
+      setDeleting(false);
+      showToast(err.message || 'Failed to delete application', 'error');
     }
   };
 
@@ -600,6 +640,11 @@ export default function AtsApplicationDetail() {
               <h1 className="text-2xl font-bold text-white">
                 {application.candidateName || 'Unnamed Candidate'}
               </h1>
+              {application.archived && (
+                <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
+                  <Archive size={11} /> ARCHIVED
+                </span>
+              )}
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 application.status === 'hired'
                   ? 'bg-emerald-500/10 text-emerald-400'
@@ -702,8 +747,89 @@ export default function AtsApplicationDetail() {
               )}
             </div>
           )}
+
+          {/* Archive group — separate from the contextual hired/refused gate
+              so users can archive a finished application from any state.
+              Still gated to ATS admin to match the page's existing role model. */}
+          {isAdmin && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {application.archived ? (
+                <button
+                  onClick={handleUnarchiveApp}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                >
+                  <ArchiveRestore size={14} /> Unarchive
+                </button>
+              ) : (
+                <button
+                  onClick={handleArchiveApp}
+                  disabled={archiving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30 disabled:opacity-50"
+                >
+                  {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                  Archive
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setShowKebab((o) => !o)}
+                  className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {showKebab && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+                    <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                      {isOrgAdmin ? (
+                        <button
+                          onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
+                          className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                        >
+                          <Trash2 size={12} />
+                          <div className="flex-1">
+                            <div className="font-medium">Delete permanently</div>
+                            <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Application Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-2">Delete Application</h2>
+            <p className="text-xs text-dark-400 mb-1">
+              Permanently delete this application for <span className="text-dark-200 font-medium">{application.candidateName}</span>?
+            </p>
+            <p className="text-xs text-dark-500 mb-5">
+              All attachments (résumé, documents) and activity history will also be deleted. Cannot be recovered.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleDeleteApp} disabled={deleting}
+                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stage Progression Bar */}
       {stages.length > 0 && application.status !== 'hired' && application.status !== 'refused' && (

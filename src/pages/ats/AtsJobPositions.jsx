@@ -480,6 +480,8 @@ export default function AtsJobPositions() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  // Platform-wide Active/Archived toggle. '' = active (default), '1' = archived.
+  const [archivedFilter, setArchivedFilter] = useState('');
   const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
@@ -492,7 +494,7 @@ export default function AtsJobPositions() {
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
-  const activeFilterCount = [statusFilter, departmentFilter].filter(Boolean).length;
+  const activeFilterCount = [statusFilter, departmentFilter, archivedFilter].filter(Boolean).length;
 
   // ── Fetch jobs ─────────────────────────────────────────────────────────
   const fetchJobs = useCallback(async (params = {}) => {
@@ -507,6 +509,7 @@ export default function AtsJobPositions() {
         search: params.search !== undefined ? params.search : search,
         status: params.status !== undefined ? params.status : statusFilter,
         department: params.department !== undefined ? params.department : departmentFilter,
+        archived: params.archived !== undefined ? params.archived : archivedFilter,
       });
       if (res.success) {
         setJobs(res.jobs || []);
@@ -527,7 +530,7 @@ export default function AtsJobPositions() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, statusFilter, departmentFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, search, statusFilter, departmentFilter, archivedFilter, showToast]);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
@@ -554,6 +557,7 @@ export default function AtsJobPositions() {
   const clearAllFilters = () => {
     setStatusFilter('');
     setDepartmentFilter('');
+    setArchivedFilter('');
     setPage(1);
   };
 
@@ -639,6 +643,17 @@ export default function AtsJobPositions() {
           isOpen={openFilter === 'department'}
           onToggle={() => toggleFilter('department')}
           onSelect={handleFilterSelect(setDepartmentFilter)}
+        />
+        <FilterChip
+          label="Active"
+          value={archivedFilter}
+          options={[
+            { value: '', label: 'Active' },
+            { value: '1', label: 'Archived' },
+          ]}
+          isOpen={openFilter === 'archived'}
+          onToggle={() => toggleFilter('archived')}
+          onSelect={handleFilterSelect(setArchivedFilter)}
         />
 
         {activeFilterCount > 0 && (
