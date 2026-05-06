@@ -1995,38 +1995,46 @@ export default function InvoiceDetail() {
               <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
             )}
 
-            {/* Archive / Unarchive — platform-wide soft-park action.
-                Visible regardless of status; backend write-guard prevents
-                edits to archived records via the PUT route. */}
-            {invoice.archived ? (
-              <ActionBtn
-                icon={ArchiveRestore}
-                label="Unarchive"
-                onClick={async () => {
-                  try {
-                    await invoicingApi.unarchiveInvoice(orgSlug, invoiceId);
-                    setInvoice((prev) => ({ ...prev, archived: false }));
-                    showToast('Unarchived');
-                  } catch (err) {
-                    showToast(err?.message || 'Failed to unarchive', 'error');
-                  }
-                }}
-              />
-            ) : (
-              <ActionBtn
-                icon={Archive}
-                label="Archive"
-                onClick={async () => {
-                  try {
-                    await invoicingApi.archiveInvoice(orgSlug, invoiceId);
-                    setInvoice((prev) => ({ ...prev, archived: true }));
-                    showToast('Archived');
-                  } catch (err) {
-                    showToast(err?.message || 'Failed to archive', 'error');
-                  }
-                }}
-              />
-            )}
+            {/* Archive / Unarchive — gated on financially-closed states only:
+                draft, cancelled, or fully paid. Hidden otherwise so users
+                can't accidentally hide outstanding receivables / payables.
+                Backend rejects with 400 as defense-in-depth. */}
+            {(() => {
+              const isClosed = ['draft', 'cancelled'].includes(invoice.status) || invoice.paymentStatus === 'paid';
+              if (invoice.archived) {
+                return (
+                  <ActionBtn
+                    icon={ArchiveRestore}
+                    label="Unarchive"
+                    onClick={async () => {
+                      try {
+                        await invoicingApi.unarchiveInvoice(orgSlug, invoiceId);
+                        setInvoice((prev) => ({ ...prev, archived: false }));
+                        showToast('Unarchived');
+                      } catch (err) {
+                        showToast(err?.message || 'Failed to unarchive', 'error');
+                      }
+                    }}
+                  />
+                );
+              }
+              if (!isClosed) return null;
+              return (
+                <ActionBtn
+                  icon={Archive}
+                  label="Archive"
+                  onClick={async () => {
+                    try {
+                      await invoicingApi.archiveInvoice(orgSlug, invoiceId);
+                      setInvoice((prev) => ({ ...prev, archived: true }));
+                      showToast('Archived');
+                    } catch (err) {
+                      showToast(err?.message || 'Failed to archive', 'error');
+                    }
+                  }}
+                />
+              );
+            })()}
 
             {/* Save indicator */}
             {saving && (

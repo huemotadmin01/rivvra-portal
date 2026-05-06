@@ -449,38 +449,48 @@ export default function SignRequestDetail() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Archive / Unarchive — platform-wide soft-park; visible regardless of state */}
-          {request.archived ? (
-            <button
-              onClick={async () => {
-                try {
-                  await signApi.unarchiveRequest(orgSlug, requestId);
-                  setRequest((r) => ({ ...r, archived: false }));
-                  showToast('Unarchived');
-                } catch (err) {
-                  showToast(err?.message || 'Failed to unarchive', 'error');
-                }
-              }}
-              className="flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-            >
-              <ArchiveRestore size={14} /> Unarchive
-            </button>
-          ) : (
-            <button
-              onClick={async () => {
-                try {
-                  await signApi.archiveRequest(orgSlug, requestId);
-                  setRequest((r) => ({ ...r, archived: true }));
-                  showToast('Archived');
-                } catch (err) {
-                  showToast(err?.message || 'Failed to archive', 'error');
-                }
-              }}
-              className="flex items-center gap-2 bg-dark-800 hover:bg-amber-500/10 text-dark-300 hover:text-amber-300 border border-dark-700 hover:border-amber-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-            >
-              <Archive size={14} /> Archive
-            </button>
-          )}
+          {/* Archive / Unarchive — gated on terminal states only. While
+              'sent' (in progress), Cancel must be used first. Backend
+              rejects non-terminal archives with 400 as defense-in-depth. */}
+          {(() => {
+            const TERMINAL = ['draft', 'signed', 'refused', 'cancelled'];
+            const isTerminal = TERMINAL.includes(request.state);
+            if (request.archived) {
+              return (
+                <button
+                  onClick={async () => {
+                    try {
+                      await signApi.unarchiveRequest(orgSlug, requestId);
+                      setRequest((r) => ({ ...r, archived: false }));
+                      showToast('Unarchived');
+                    } catch (err) {
+                      showToast(err?.message || 'Failed to unarchive', 'error');
+                    }
+                  }}
+                  className="flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                >
+                  <ArchiveRestore size={14} /> Unarchive
+                </button>
+              );
+            }
+            if (!isTerminal) return null;
+            return (
+              <button
+                onClick={async () => {
+                  try {
+                    await signApi.archiveRequest(orgSlug, requestId);
+                    setRequest((r) => ({ ...r, archived: true }));
+                    showToast('Archived');
+                  } catch (err) {
+                    showToast(err?.message || 'Failed to archive', 'error');
+                  }
+                }}
+                className="flex items-center gap-2 bg-dark-800 hover:bg-amber-500/10 text-dark-300 hover:text-amber-300 border border-dark-700 hover:border-amber-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              >
+                <Archive size={14} /> Archive
+              </button>
+            );
+          })()}
           {request.state === 'sent' && (
             <>
               <button

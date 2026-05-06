@@ -795,24 +795,32 @@ export default function ExpenseDetail() {
                   <span className="hidden sm:inline">Delete</span>
                 </button>
               )}
-              {/* Archive / Unarchive — only shown for the owner; owner-gated server-side too */}
-              {!isNew && isOwner && (
-                expense?.archived ? (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await expensesApi.unarchive(orgSlug, expenseId);
-                        setExpense((e) => ({ ...e, archived: false }));
-                        showToast?.('Unarchived');
-                      } catch (err) {
-                        showToast?.(err?.message || 'Failed to unarchive', 'error');
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-lg text-sm font-medium"
-                  >
-                    <ArchiveRestore size={14} /> Unarchive
-                  </button>
-                ) : (
+              {/* Archive / Unarchive — owner only, terminal states only.
+                  In-flight (submitted / approved / synced) means money is
+                  still owed; users must withdraw or wait for reimbursement.
+                  Backend rejects non-terminal archives with 400. */}
+              {!isNew && isOwner && (() => {
+                const TERMINAL = ['draft', 'rejected', 'reimbursed'];
+                if (expense?.archived) {
+                  return (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await expensesApi.unarchive(orgSlug, expenseId);
+                          setExpense((e) => ({ ...e, archived: false }));
+                          showToast?.('Unarchived');
+                        } catch (err) {
+                          showToast?.(err?.message || 'Failed to unarchive', 'error');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-lg text-sm font-medium"
+                    >
+                      <ArchiveRestore size={14} /> Unarchive
+                    </button>
+                  );
+                }
+                if (!TERMINAL.includes(status)) return null;
+                return (
                   <button
                     onClick={async () => {
                       try {
@@ -827,8 +835,8 @@ export default function ExpenseDetail() {
                   >
                     <Archive size={14} /> Archive
                   </button>
-                )
-              )}
+                );
+              })()}
               {canApprove && (
                 <>
                   <button
