@@ -729,6 +729,17 @@ export default function PayrollRunPage() {
                                     <span className="text-dark-500 text-xs">{item.payrollMode === 'contractor' ? 'Timesheet Days' : 'Working Days'}</span>
                                     <span className="text-dark-400 text-xs">{item.effectiveDays} of {item.totalWorkingDays}</span>
                                   </div>
+                                  {item.payrollMode === 'contractor' && item.paidLeave > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-dark-500 text-xs">Paid Leave</span>
+                                      <span className="text-emerald-400 text-xs">
+                                        +{item.paidLeave} day{item.paidLeave === 1 ? '' : 's'}
+                                        {item.payType === 'daily' && item.rate > 0
+                                          ? ` × ₹${fmt(item.rate)} = +₹${fmt(item.paidLeave * item.rate)}`
+                                          : ''}
+                                      </span>
+                                    </div>
+                                  )}
                                   {item.lopDays > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-500 text-xs">LOP Days</span>
