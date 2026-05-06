@@ -456,6 +456,7 @@ export default function AtsJobDetail() {
           {/* Action buttons */}
           {isAdmin && (
             <div className="flex items-center gap-2 flex-wrap">
+              {!job?.archived && (<>
               <ChangeStatusDropdown
                 currentStatus={statusKey}
                 isOpen={showStatusDropdown}
@@ -492,6 +493,7 @@ export default function AtsJobDetail() {
                   Cancel
                 </button>
               )}
+              </>)}
               {job?.archived ? (
                 <button
                   onClick={handleUnarchiveJob}

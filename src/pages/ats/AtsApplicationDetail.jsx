@@ -665,8 +665,8 @@ export default function AtsApplicationDetail() {
             </p>
           </div>
 
-          {/* Action buttons */}
-          {isAdmin && application.status !== 'hired' && application.status !== 'refused' && (
+          {/* Action buttons — hidden when archived (read-only mode) */}
+          {isAdmin && !application.archived && application.status !== 'hired' && application.status !== 'refused' && (
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => navigate(orgPath('/sign/requests?create=true&linkedModel=ats_application&linkedId=' + applicationId))}

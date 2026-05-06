@@ -1,10 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronDown, Upload, ListPlus, Pencil, Tag, Trash2, UserCog
+  ChevronDown, Upload, ListPlus, Pencil, Tag, Trash2, UserCog, Archive, ArchiveRestore,
 } from 'lucide-react';
 
-function ManageDropdown({ lead, onExportCRM, onAddToSequence, onAddToList, onEditContact, onTagContact, onRemoveContact, onAssignOwner, removeLabel = 'Remove contact' }) {
+function ManageDropdown({
+  lead,
+  onExportCRM, onAddToSequence, onAddToList, onEditContact, onTagContact,
+  onRemoveContact, onAssignOwner, onArchive, onUnarchive,
+  removeLabel = 'Remove contact',
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef(null);
@@ -93,6 +98,18 @@ function ManageDropdown({ lead, onExportCRM, onAddToSequence, onAddToList, onEdi
       label: 'Tag contact',
       action: onTagContact,
     },
+    // Archive / Unarchive — platform-wide soft-park action. Visible only when
+    // a handler is wired and reflects the lead's current archived state.
+    lead?.archived && onUnarchive ? {
+      icon: ArchiveRestore,
+      label: 'Unarchive',
+      action: onUnarchive,
+    } : null,
+    !lead?.archived && onArchive ? {
+      icon: Archive,
+      label: 'Archive',
+      action: onArchive,
+    } : null,
     {
       icon: Trash2,
       label: removeLabel,

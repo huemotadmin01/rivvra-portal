@@ -6,7 +6,7 @@ import atsApi from '../../utils/atsApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Loader2, ChevronLeft, Mail, Phone, Linkedin, ExternalLink, Briefcase,
-  MapPin, Tag, Edit3, Check, X, Award,
+  MapPin, Tag, Edit3, Check, X, Award, Archive, ArchiveRestore,
 } from 'lucide-react';
 
 function formatDate(d) {
@@ -58,6 +58,9 @@ export default function AtsCandidateDetail() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivePreview, setArchivePreview] = useState(null);
+  const [archiving, setArchiving] = useState(false);
 
   usePageTitle(candidate?.name);
 
@@ -119,6 +122,47 @@ export default function AtsCandidateDetail() {
     }
   };
 
+  const openArchiveModal = async () => {
+    setShowArchiveModal(true);
+    setArchivePreview(null);
+    try {
+      const res = await atsApi.archiveCandidatePreview(slug, candidateId);
+      setArchivePreview(res || { dependencies: [], activeApplications: 0 });
+    } catch {
+      setArchivePreview({ dependencies: [], activeApplications: 0 });
+    }
+  };
+
+  const handleArchive = async (cascade = false) => {
+    setArchiving(true);
+    try {
+      const res = await atsApi.archiveCandidate(slug, candidateId, { cascade });
+      setShowArchiveModal(false);
+      setCandidate((c) => ({ ...c, archived: true }));
+      const cnt = res?.cascadedAppCount || 0;
+      showToast(
+        cascade && cnt > 0
+          ? `Archived (with ${cnt} application${cnt === 1 ? '' : 's'})`
+          : 'Archived',
+        'success'
+      );
+    } catch (err) {
+      showToast(err.message || 'Failed to archive', 'error');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    try {
+      await atsApi.unarchiveCandidate(slug, candidateId);
+      setCandidate((c) => ({ ...c, archived: false }));
+      showToast('Unarchived', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to unarchive', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -157,7 +201,14 @@ export default function AtsCandidateDetail() {
                 className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-xl font-semibold text-white focus:border-rivvra-500 focus:outline-none"
               />
             ) : (
-              <h1 className="text-2xl font-bold text-white truncate">{candidate.name || 'Unnamed Candidate'}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold text-white truncate">{candidate.name || 'Unnamed Candidate'}</h1>
+                {candidate.archived && (
+                  <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
+                    <Archive size={11} /> ARCHIVED
+                  </span>
+                )}
+              </div>
             )}
             {!editing && candidate.currentTitle && (
               <p className="text-dark-400 mt-1 truncate">{candidate.currentTitle}</p>
@@ -192,17 +243,88 @@ export default function AtsCandidateDetail() {
                 </button>
               </>
             ) : (
-              <button
-                onClick={startEdit}
-                className="p-2 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
-                title="Edit"
-              >
-                <Edit3 size={18} />
-              </button>
+              <>
+                {!candidate.archived && (
+                  <button
+                    onClick={startEdit}
+                    className="p-2 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
+                    title="Edit"
+                  >
+                    <Edit3 size={18} />
+                  </button>
+                )}
+                {candidate.archived ? (
+                  <button
+                    onClick={handleUnarchive}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                  >
+                    <ArchiveRestore size={14} /> Unarchive
+                  </button>
+                ) : (
+                  <button
+                    onClick={openArchiveModal}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30"
+                  >
+                    <Archive size={14} /> Archive
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
+
+      {/* Archive Confirmation Modal */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <Archive size={16} /> Archive Candidate
+            </h2>
+            <p className="text-sm text-dark-400 mb-3">
+              Archive <span className="text-white font-medium">{candidate.name}</span>? Hidden from list views, can be restored at any time.
+            </p>
+            {archivePreview === null ? (
+              <div className="text-xs text-dark-500 mb-4 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Checking linked records…</div>
+            ) : archivePreview.activeApplications > 0 ? (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-300 font-medium mb-1">Linked records:</p>
+                <p className="text-xs text-dark-200">
+                  {archivePreview.activeApplications} active application{archivePreview.activeApplications === 1 ? '' : 's'}
+                </p>
+                <p className="text-[11px] text-dark-500 mt-2">Choose whether to archive the applications too.</p>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleArchive(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                Archive candidate only
+              </button>
+              {archivePreview?.activeApplications > 0 && (
+                <button
+                  onClick={() => handleArchive(true)}
+                  disabled={archiving}
+                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                  Archive candidate + {archivePreview.activeApplications} application{archivePreview.activeApplications === 1 ? '' : 's'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contact info */}
       <div className="card p-6">

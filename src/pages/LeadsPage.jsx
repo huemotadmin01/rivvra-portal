@@ -178,6 +178,28 @@ function LeadsPage() {
     setShowDeleteModal(true);
   };
 
+  const handleArchiveLead = async (lead) => {
+    try {
+      await api.archiveLead(lead._id);
+      setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, archived: true } : l));
+      if (selectedLead?._id === lead._id) setSelectedLead(prev => ({ ...prev, archived: true }));
+      showToast?.('Lead archived', 'success');
+    } catch (err) {
+      showToast?.(err?.message || 'Failed to archive lead', 'error');
+    }
+  };
+
+  const handleUnarchiveLead = async (lead) => {
+    try {
+      await api.unarchiveLead(lead._id);
+      setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, archived: false } : l));
+      if (selectedLead?._id === lead._id) setSelectedLead(prev => ({ ...prev, archived: false }));
+      showToast?.('Lead unarchived', 'success');
+    } catch (err) {
+      showToast?.(err?.message || 'Failed to unarchive lead', 'error');
+    }
+  };
+
   const handleBulkDelete = () => {
     if (selectedLeads.length === 0) return;
     setDeleteTarget(null);
@@ -563,6 +585,8 @@ function LeadsPage() {
                                 setShowEditContact(true);
                               }}
                               onTagContact={() => handleFeatureClick('Tag Contact')}
+                              onArchive={() => handleArchiveLead(lead)}
+                              onUnarchive={() => handleUnarchiveLead(lead)}
                               onRemoveContact={() => handleDeleteLead(lead)}
                             />
                           </td>

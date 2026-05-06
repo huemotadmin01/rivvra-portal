@@ -212,6 +212,19 @@ const atsApi = {
     });
   },
 
+  archiveCandidatePreview(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}/archive-preview`);
+  },
+  archiveCandidate(orgSlug, id, { cascade = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ cascade }),
+    });
+  },
+  unarchiveCandidate(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}/unarchive`, { method: 'PATCH' });
+  },
+
   // ── Activities ────────────────────────────────────────────────────────
   listActivities(orgSlug, applicationId) {
     return api.request(`/api/org/${orgSlug}/ats/activities?applicationId=${applicationId}`);

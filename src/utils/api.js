@@ -989,6 +989,14 @@ class ApiClient {
     });
   }
 
+  async archiveLead(leadId) {
+    return this.request(`/api/portal/leads/${leadId}/archive`, { method: 'PATCH' });
+  }
+
+  async unarchiveLead(leadId) {
+    return this.request(`/api/portal/leads/${leadId}/unarchive`, { method: 'PATCH' });
+  }
+
   // ─── Public Org Info ────────────────────────────────────────────────────────
 
   async getOrgPublicInfo(slug) {

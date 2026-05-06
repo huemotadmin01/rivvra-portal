@@ -8,7 +8,7 @@ import atsApi from '../../utils/atsApi';
 import {
   Search, Plus, Loader2, Users,
   ChevronLeft, ChevronRight,
-  Mail, Phone, Linkedin, ExternalLink, X,
+  Mail, Phone, Linkedin, ExternalLink, X, Check,
 } from 'lucide-react';
 
 /* ── New Candidate Modal ──────────────────────────────────────────────── */
@@ -193,8 +193,10 @@ export default function AtsCandidates() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Search
+  // Search + filters
   const [search, setSearch] = useState('');
+  const [archivedFilter, setArchivedFilter] = useState('');
+  const [hasActiveAppsFilter, setHasActiveAppsFilter] = useState('');
 
   const debounceRef = useRef(null);
   const orgSlug = currentOrg?.slug;
@@ -211,6 +213,8 @@ export default function AtsCandidates() {
       const res = await atsApi.listCandidates(orgSlug, {
         page: params.page || page,
         search: params.search !== undefined ? params.search : search,
+        archived: params.archived !== undefined ? params.archived : archivedFilter,
+        hasActiveApps: params.hasActiveApps !== undefined ? params.hasActiveApps : hasActiveAppsFilter,
       });
       if (res.success) {
         setCandidates(res.candidates || []);
@@ -225,7 +229,7 @@ export default function AtsCandidates() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, showToast]);
+  }, [orgSlug, currentCompany?._id, page, search, archivedFilter, hasActiveAppsFilter, showToast]);
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
@@ -297,6 +301,35 @@ export default function AtsCandidates() {
           className="input-field w-full pl-10"
           aria-label="Search candidates"
         />
+      </div>
+
+      {/* Filters — Active/Archived + Has applications */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => { setHasActiveAppsFilter(hasActiveAppsFilter ? '' : '1'); setPage(1); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+            hasActiveAppsFilter
+              ? 'bg-rivvra-500/15 text-rivvra-300 border-rivvra-500/30'
+              : 'bg-dark-800 border-dark-700 text-dark-400 hover:text-dark-200'
+          }`}
+        >
+          {hasActiveAppsFilter && <Check size={12} />}
+          Has applications
+        </button>
+        <div className="inline-flex items-center bg-dark-800 border border-dark-700 rounded-lg overflow-hidden">
+          <button
+            onClick={() => { setArchivedFilter(''); setPage(1); }}
+            className={`px-3 py-1.5 text-sm font-medium ${!archivedFilter ? 'bg-rivvra-500/20 text-rivvra-300' : 'text-dark-400 hover:text-dark-200'}`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => { setArchivedFilter('1'); setPage(1); }}
+            className={`px-3 py-1.5 text-sm font-medium border-l border-dark-700 ${archivedFilter ? 'bg-rivvra-500/20 text-rivvra-300' : 'text-dark-400 hover:text-dark-200'}`}
+          >
+            Archived
+          </button>
+        </div>
       </div>
 
       {/* Content */}

@@ -313,9 +313,14 @@ export default function CrmOpportunityDetail() {
     return <div className="text-center py-20 text-dark-500">Opportunity not found</div>;
   }
 
-  const showWonLost = !opp.isConverted && !opp.isLost && !opp.wonAt;
-  const showRestore = !opp.isConverted && (opp.isLost || opp.wonAt);
-  const showConvert = !opp.isConverted && opp.requirementType !== 'Project Based' && (opp.wonAt || !opp.isLost);
+  // Archived = read-only across the page (Q-archive-edit, 2026-05-06).
+  // All state actions, inline edits, stage clicks are gated on !isArchived;
+  // only Unarchive remains available.
+  const isArchived = !!opp.archived;
+  const canEdit = !isArchived;
+  const showWonLost = canEdit && !opp.isConverted && !opp.isLost && !opp.wonAt;
+  const showRestore = canEdit && !opp.isConverted && (opp.isLost || opp.wonAt);
+  const showConvert = canEdit && !opp.isConverted && opp.requirementType !== 'Project Based' && (opp.wonAt || !opp.isLost);
   const currencyCode = opp.effectiveCurrency || 'INR';
   const currencySym = currencySymbol(currencyCode).trim() || currencyCode;
 
@@ -372,7 +377,7 @@ export default function CrmOpportunityDetail() {
           currentStageId={opp.stageId}
           isLost={opp.isLost}
           stageHistory={opp.stageHistory || []}
-          onStageClick={handleStageChange}
+          onStageClick={canEdit ? handleStageChange : () => {}}
         />
       </div>
 
@@ -475,21 +480,21 @@ export default function CrmOpportunityDetail() {
             {opp.contactId ? (
               <LinkedRecordField label="Contact Name" to={`/org/${slug}/contacts/${opp.contactId}`} name={opp.contactName} fallback="View Contact" />
             ) : (
-              <InlineField label="Contact Name" field="contactName" value={opp.contactName} editable onSave={saveField} />
+              <InlineField label="Contact Name" field="contactName" value={opp.contactName} editable={canEdit} onSave={saveField} />
             )}
             {opp.contactCompanyId ? (
               <LinkedRecordField label="Company" to={`/org/${slug}/contacts/${opp.contactCompanyId}`} name={opp.companyName} fallback="View Company" />
             ) : (
-              <InlineField label="Company" field="companyName" value={opp.companyName} editable onSave={saveField} />
+              <InlineField label="Company" field="companyName" value={opp.companyName} editable={canEdit} onSave={saveField} />
             )}
-            <InlineField label="Email" field="contactEmail" value={opp.contactEmail} type="email" editable onSave={saveField} placeholder="Add email" />
-            <InlineField label="Phone" field="contactPhone" value={opp.contactPhone} type="phone" editable onSave={saveField} placeholder="Add phone" />
-            <InlineField label="LinkedIn" field="linkedinUrl" value={opp.linkedinUrl} type="url" editable onSave={saveField} placeholder="LinkedIn URL" />
+            <InlineField label="Email" field="contactEmail" value={opp.contactEmail} type="email" editable={canEdit} onSave={saveField} placeholder="Add email" />
+            <InlineField label="Phone" field="contactPhone" value={opp.contactPhone} type="phone" editable={canEdit} onSave={saveField} placeholder="Add phone" />
+            <InlineField label="LinkedIn" field="linkedinUrl" value={opp.linkedinUrl} type="url" editable={canEdit} onSave={saveField} placeholder="LinkedIn URL" />
           </SectionCard>
 
           <SectionCard title="Opportunity Details" icon={Briefcase}>
             <ErrorWrap field="expectedRole">
-              <InlineField label="Expected Role" field="expectedRole" value={opp.expectedRole} editable onSave={saveField} placeholder="e.g. Java Developer" />
+              <InlineField label="Expected Role" field="expectedRole" value={opp.expectedRole} editable={canEdit} onSave={saveField} placeholder="e.g. Java Developer" />
             </ErrorWrap>
             <InlineField
               label="Requirement Type"
@@ -497,7 +502,7 @@ export default function CrmOpportunityDetail() {
               value={opp.requirementType}
               type="select"
               options={requirementOptions}
-              editable
+              editable={canEdit}
               onSave={saveField}
             />
             <ErrorWrap field="expectedRevenue">
@@ -505,7 +510,7 @@ export default function CrmOpportunityDetail() {
                 label={`Expected Revenue (${currencyCode})`}
                 field="expectedRevenue"
                 value={opp.expectedRevenue}
-                editable
+                editable={canEdit}
                 onSave={saveField}
                 placeholder={`e.g. ${currencySym}900,000`}
                 displayValue={
@@ -521,11 +526,11 @@ export default function CrmOpportunityDetail() {
               value={opp.clientType || 'new'}
               type="select"
               options={clientTypeOptions}
-              editable
+              editable={canEdit}
               onSave={saveField}
             />
-            <InlineField label="Expected Closing" field="expectedClosing" value={opp.expectedClosing} type="date" editable onSave={saveField} />
-            <InlineField label="Source" field="source" value={opp.source} editable onSave={saveField} placeholder="e.g. Outreach, Referral" />
+            <InlineField label="Expected Closing" field="expectedClosing" value={opp.expectedClosing} type="date" editable={canEdit} onSave={saveField} />
+            <InlineField label="Source" field="source" value={opp.source} editable={canEdit} onSave={saveField} placeholder="e.g. Outreach, Referral" />
           </SectionCard>
 
           <SectionCard title="Internal Notes" icon={FileText}>
@@ -534,7 +539,7 @@ export default function CrmOpportunityDetail() {
               field="notes"
               value={opp.notes}
               type="textarea"
-              editable
+              editable={canEdit}
               onSave={saveField}
               placeholder="Add notes…"
             />
@@ -552,6 +557,7 @@ export default function CrmOpportunityDetail() {
                 <EmployeeLookup
                   orgSlug={slug}
                   variant="inline"
+                  editable={canEdit}
                   currentValue={opp.salespersonId}
                   currentName={opp.salespersonName}
                   onSelect={async (id, name) => {

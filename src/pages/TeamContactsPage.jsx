@@ -148,6 +148,26 @@ function TeamContactsPage() {
     setShowDeleteModal(true);
   };
 
+  const handleArchiveLead = async (lead) => {
+    try {
+      await api.archiveLead(lead._id);
+      setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, archived: true } : l));
+      showToast('Lead archived', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Failed to archive lead', 'error');
+    }
+  };
+
+  const handleUnarchiveLead = async (lead) => {
+    try {
+      await api.unarchiveLead(lead._id);
+      setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, archived: false } : l));
+      showToast('Lead unarchived', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Failed to unarchive lead', 'error');
+    }
+  };
+
   const handleBulkDelete = () => {
     if (selectedLeads.length === 0) return;
     setDeleteTarget(null);
@@ -575,6 +595,8 @@ function TeamContactsPage() {
                                 setShowEditContact(true);
                               }}
                               onTagContact={() => {}}
+                              onArchive={() => handleArchiveLead(lead)}
+                              onUnarchive={() => handleUnarchiveLead(lead)}
                               onRemoveContact={() => handleDeleteLead(lead)}
                               onAssignOwner={() => {
                                 setAssignTarget(lead);
