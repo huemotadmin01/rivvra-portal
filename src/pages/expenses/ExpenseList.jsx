@@ -12,12 +12,15 @@ import {
 } from 'lucide-react';
 import { cacheGet, cacheSet, cacheTTL } from './_listCache';
 
+// Approve creates the EMPBI bill in the same request, so a claim normally
+// never lingers in `approved` — it goes straight to `synced`. Merging the
+// two tabs avoids a perpetually-empty "Approved" filter while keeping the
+// status distinct on the row pill (amber for the rare sync-failed case).
 const STATUS_TABS = [
   { key: '', label: 'All' },
   { key: 'draft', label: 'Draft' },
   { key: 'submitted', label: 'Pending' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'synced', label: 'Synced' },
+  { key: 'approved_synced', label: 'Approved & Synced', statuses: ['approved', 'synced'] },
   { key: 'reimbursed', label: 'Reimbursed' },
   { key: 'rejected', label: 'Rejected' },
 ];
@@ -26,8 +29,8 @@ function StatusBadge({ status }) {
   const map = {
     draft:     { bg: 'bg-dark-700',       text: 'text-dark-300',     dot: 'bg-dark-400',    label: 'Draft' },
     submitted: { bg: 'bg-amber-500/10',   text: 'text-amber-400',    dot: 'bg-amber-500',   label: 'Pending' },
-    approved:  { bg: 'bg-blue-500/10',    text: 'text-blue-400',     dot: 'bg-blue-500',    label: 'Approved' },
-    synced:    { bg: 'bg-emerald-500/10', text: 'text-emerald-400',  dot: 'bg-emerald-500', label: 'Synced' },
+    approved:  { bg: 'bg-amber-500/10',   text: 'text-amber-400',    dot: 'bg-amber-500',   label: 'Approved · Sync pending' },
+    synced:    { bg: 'bg-emerald-500/10', text: 'text-emerald-400',  dot: 'bg-emerald-500', label: 'Approved & Synced' },
     reimbursed:{ bg: 'bg-violet-500/10',  text: 'text-violet-400',   dot: 'bg-violet-500',  label: 'Reimbursed' },
     rejected:  { bg: 'bg-red-500/10',     text: 'text-red-400',      dot: 'bg-red-500',     label: 'Rejected' },
   };
@@ -221,12 +224,20 @@ export default function ExpenseList() {
   const tabCounts = useMemo(() => {
     const c = { '': rows.length };
     for (const r of rows) c[r.status] = (c[r.status] || 0) + 1;
+    // Roll up multi-status tabs (e.g. "Approved & Synced" covers both).
+    for (const tab of STATUS_TABS) {
+      if (tab.statuses) {
+        c[tab.key] = tab.statuses.reduce((s, st) => s + (c[st] || 0), 0);
+      }
+    }
     return c;
   }, [rows]);
 
   // Client-side status filter — switching tabs is now instant, no network.
   const visibleRows = useMemo(() => {
     if (!statusTab) return rows;
+    const tab = STATUS_TABS.find((t) => t.key === statusTab);
+    if (tab?.statuses) return rows.filter((r) => tab.statuses.includes(r.status));
     return rows.filter((r) => r.status === statusTab);
   }, [rows, statusTab]);
 

@@ -28,7 +28,10 @@ const CURRENCY_OPTIONS = ['INR', 'USD', 'CAD', 'EUR', 'GBP', 'AUD', 'SGD', 'AED'
 const STATUS_META = {
   draft:     { bg: 'bg-dark-700',       text: 'text-dark-300',     dot: 'bg-dark-400',    label: 'Draft' },
   submitted: { bg: 'bg-amber-500/10',   text: 'text-amber-400',    dot: 'bg-amber-500',   label: 'Pending Approval' },
-  approved:  { bg: 'bg-blue-500/10',    text: 'text-blue-400',     dot: 'bg-blue-500',    label: 'Approved' },
+  // Bills are created on approval, so a happy-path claim never lingers in
+  // `approved` — this state means the bill failed to sync. Amber + explicit
+  // wording so an admin knows to retry.
+  approved:  { bg: 'bg-amber-500/10',   text: 'text-amber-400',    dot: 'bg-amber-500',   label: 'Approved · Sync pending' },
   synced:    { bg: 'bg-emerald-500/10', text: 'text-emerald-400',  dot: 'bg-emerald-500', label: 'Approved & Synced' },
   reimbursed:{ bg: 'bg-violet-500/10',  text: 'text-violet-400',   dot: 'bg-violet-500',  label: 'Reimbursed' },
   rejected:  { bg: 'bg-red-500/10',     text: 'text-red-400',      dot: 'bg-red-500',     label: 'Rejected' },
