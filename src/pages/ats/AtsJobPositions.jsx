@@ -1,59 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import {
-  Search, Plus, Loader2, Briefcase,
-  ChevronLeft, ChevronRight, ChevronDown, X,
+  Plus, Loader2, Briefcase,
+  ChevronLeft, ChevronRight, X,
 } from 'lucide-react';
-
-/* ── Inline FilterChip component ─────────────────────────────────────── */
-function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
-  const selectedOption = options.find((o) => o.value === value);
-  const displayLabel = selectedOption && value ? selectedOption.label : label;
-
-  return (
-    <div className="relative">
-      <button
-        onClick={onToggle}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all whitespace-nowrap ${
-          value
-            ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
-            : 'bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600 hover:text-dark-200'
-        }`}
-      >
-        {displayLabel}
-        <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute left-0 top-full mt-1.5 min-w-[180px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onSelect(opt.value)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  opt.value === value
-                    ? 'bg-rivvra-500/10 text-rivvra-400'
-                    : 'text-dark-300 hover:bg-dark-700 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 function StatusBadge({ status }) {
@@ -470,56 +426,46 @@ export default function AtsJobPositions() {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
+  // Filter state lives in the URL — bookmarkable + refresh-safe.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParams = useFilterParams(['search', 'status', 'department', 'archived']);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+
   const [jobs, setJobs] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  // Platform-wide Active/Archived toggle. '' = active (default), '1' = archived.
-  const [archivedFilter, setArchivedFilter] = useState('');
-  const [openFilter, setOpenFilter] = useState(null);
-
-  // Dropdown data
   const [departments, setDepartments] = useState([]);
-
-  // Modal
   const [showModal, setShowModal] = useState(false);
 
   const debounceRef = useRef(null);
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
-  const activeFilterCount = [statusFilter, departmentFilter, archivedFilter].filter(Boolean).length;
+  const setPage = (next) => {
+    const np = new URLSearchParams(searchParams);
+    if (next > 1) np.set('page', String(next)); else np.delete('page');
+    setSearchParams(np);
+  };
 
   // ── Fetch jobs ─────────────────────────────────────────────────────────
-  const fetchJobs = useCallback(async (params = {}) => {
+  const fetchJobs = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
     setJobs([]);
     setTotal(0);
     setTotalPages(1);
     try {
-      const res = await atsApi.listJobs(orgSlug, {
-        page: params.page || page,
-        search: params.search !== undefined ? params.search : search,
-        status: params.status !== undefined ? params.status : statusFilter,
-        department: params.department !== undefined ? params.department : departmentFilter,
-        archived: params.archived !== undefined ? params.archived : archivedFilter,
-      });
+      const res = await atsApi.listJobs(orgSlug, { page, ...filterParams });
       if (res.success) {
         setJobs(res.jobs || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
 
-        // Build departments list from job data
+        // Build departments list from job data (per-company switches reset).
         const deptSet = new Set();
         (res.jobs || []).forEach((j) => { if (j.department) deptSet.add(j.department); });
-        // Reset & rebuild on each fetch (so per-company switches don't leak depts)
         setDepartments([...deptSet].sort());
       }
     } catch (err) {
@@ -530,53 +476,32 @@ export default function AtsJobPositions() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, statusFilter, departmentFilter, archivedFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
-  // Debounced search
-  const handleSearchChange = (value) => {
-    setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchJobs({ search: value, page: 1 });
-    }, 300);
-  };
+  // Archived count for the segmented Active/Archived chip.
+  useEffect(() => {
+    if (!orgSlug) return;
+    const controller = new AbortController();
+    atsApi.listJobs(orgSlug, { ...filterParams, archived: '1', limit: 1, page: 1 })
+      .then((res) => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined })]);
 
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
 
-  const handleFilterSelect = (setter) => (val) => {
-    setter(val);
-    setPage(1);
-    setOpenFilter(null);
-  };
-
-  const clearAllFilters = () => {
-    setStatusFilter('');
-    setDepartmentFilter('');
-    setArchivedFilter('');
-    setPage(1);
-  };
-
-  const toggleFilter = (name) => {
-    setOpenFilter((prev) => (prev === name ? null : name));
-  };
-
   // Filter options
   const statusOptions = [
-    { value: '', label: 'All Statuses' },
     { value: 'open', label: 'Open' },
     { value: 'on_hold', label: 'On Hold' },
     { value: 'closed', label: 'Closed' },
   ];
-
-  const departmentOptions = [
-    { value: '', label: 'All Departments' },
-    ...departments.map((d) => ({ value: d, label: d })),
-  ];
+  const departmentOptions = departments.map((d) => ({ value: d, label: d }));
 
   // Pagination
   const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
@@ -613,59 +538,12 @@ export default function AtsJobPositions() {
         )}
       </div>
 
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
-        <input
-          type="text"
-          placeholder="Search by position name, department, or client..."
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="input-field w-full pl-10"
-          aria-label="Search job positions"
-        />
-      </div>
-
-      {/* Filter chips row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterChip
-          label="Status"
-          value={statusFilter}
-          options={statusOptions}
-          isOpen={openFilter === 'status'}
-          onToggle={() => toggleFilter('status')}
-          onSelect={handleFilterSelect(setStatusFilter)}
-        />
-        <FilterChip
-          label="Department"
-          value={departmentFilter}
-          options={departmentOptions}
-          isOpen={openFilter === 'department'}
-          onToggle={() => toggleFilter('department')}
-          onSelect={handleFilterSelect(setDepartmentFilter)}
-        />
-        <FilterChip
-          label="Active"
-          value={archivedFilter}
-          options={[
-            { value: '', label: 'Active' },
-            { value: '1', label: 'Archived' },
-          ]}
-          isOpen={openFilter === 'archived'}
-          onToggle={() => toggleFilter('archived')}
-          onSelect={handleFilterSelect(setArchivedFilter)}
-        />
-
-        {activeFilterCount > 0 && (
-          <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-dark-400 hover:text-white transition-colors rounded-lg hover:bg-dark-800"
-          >
-            <X className="w-3.5 h-3.5" />
-            Clear{activeFilterCount > 1 ? ` (${activeFilterCount})` : ''}
-          </button>
-        )}
-      </div>
+      {/* Filters — URL-driven via shared FilterBar */}
+      <FilterBar searchPlaceholder="Search by position name, department, or client…">
+        <FilterChip type="select" paramKey="status" label="Status" options={statusOptions} />
+        <FilterChip type="select" paramKey="department" label="Department" options={departmentOptions} />
+        <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+      </FilterBar>
 
       {/* Content */}
       {loading ? (
@@ -679,7 +557,7 @@ export default function AtsJobPositions() {
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No job positions found</h3>
           <p className="text-dark-400 text-sm text-center max-w-sm">
-            {search || statusFilter || departmentFilter
+            {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Create your first job position to start recruiting.'}
           </p>
@@ -803,7 +681,7 @@ export default function AtsJobPositions() {
               </p>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
@@ -838,7 +716,7 @@ export default function AtsJobPositions() {
                   )}
 
                 <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >

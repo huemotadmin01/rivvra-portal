@@ -1,66 +1,19 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import { downloadFile } from '../../utils/download';
+import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import {
-  Search, Plus, Users, Building2, User,
-  ChevronLeft, ChevronRight, ChevronDown, X, Download, Loader2,
+  Plus, Users,
+  ChevronLeft, ChevronRight, Download, Loader2,
 } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeletons';
 
 const PAGE_SIZE = 25;
-
-/* ── Inline FilterChip component ─────────────────────────────────────── */
-function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
-  const selectedOption = options.find((o) => o.value === value);
-  const displayLabel = selectedOption && value ? selectedOption.label : label;
-
-  return (
-    <div className="relative">
-      <button
-        onClick={onToggle}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all whitespace-nowrap ${
-          value
-            ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
-            : 'bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600 hover:text-dark-200'
-        }`}
-      >
-        {displayLabel}
-        <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <div className="fixed inset-0 z-10" onClick={onToggle} />
-
-          {/* Dropdown */}
-          <div className="absolute left-0 top-full mt-1.5 min-w-[180px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onSelect(opt.value)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  opt.value === value
-                    ? 'bg-rivvra-500/10 text-rivvra-400'
-                    : 'text-dark-300 hover:bg-dark-700 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function ContactsList({ filterType }) {
@@ -70,30 +23,34 @@ export default function ContactsList({ filterType }) {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
+  // Filter state lives in the URL — bookmarkable + refresh-safe.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParams = useFilterParams(['search', 'type', 'tag', 'salesperson', 'archived']);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+
+  // When the route is locked to a specific contact type (Companies / Individuals),
+  // the prop wins over any URL `type` param.
+  const effectiveType = filterType !== undefined ? filterType : (filterParams.type || '');
+
   const [contacts, setContacts] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState(filterType || '');
-  const [tagFilter, setTagFilter] = useState('');
-  const [salespersonFilter, setSalespersonFilter] = useState('');
-  const [archivedFilter, setArchivedFilter] = useState('');
-  const [openFilter, setOpenFilter] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   // Dropdown data
   const [tags, setTags] = useState([]);
   const [salespersons, setSalespersons] = useState([]);
 
-  const debounceRef = useRef(null);
   const isAdmin = getAppRole('contacts') === 'admin';
   const orgSlug = currentOrg?.slug;
 
-  // Active filter count
-  const activeFilterCount = [typeFilter, tagFilter, salespersonFilter, archivedFilter].filter(Boolean).length;
+  const setPage = (next) => {
+    const np = new URLSearchParams(searchParams);
+    if (next > 1) np.set('page', String(next)); else np.delete('page');
+    setSearchParams(np);
+  };
 
   // ── Fetch tags + salespersons once ──────────────────────────────────
   useEffect(() => {
@@ -117,23 +74,18 @@ export default function ContactsList({ filterType }) {
   }, [orgSlug, currentCompany?._id]);
 
   // ── Fetch contacts ──────────────────────────────────────────────────
-  const fetchContacts = useCallback(async (params = {}) => {
+  const fetchContacts = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
-    // Reset on company switch so the previous company's rows don't linger
-    // if the new fetch returns nothing.
     setContacts([]);
     setTotal(0);
     setTotalPages(1);
     try {
       const res = await contactsApi.list(orgSlug, {
-        page: params.page || page,
+        page,
         limit: PAGE_SIZE,
-        search: params.search !== undefined ? params.search : search,
-        type: params.type !== undefined ? params.type : typeFilter,
-        tag: params.tag !== undefined ? params.tag : tagFilter,
-        salesperson: params.salesperson !== undefined ? params.salesperson : salespersonFilter,
-        archived: params.archived !== undefined ? params.archived : archivedFilter,
+        ...filterParams,
+        type: effectiveType,
       });
       if (res.success) {
         setContacts(res.contacts || []);
@@ -147,51 +99,22 @@ export default function ContactsList({ filterType }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, currentCompany?._id, page, search, typeFilter, tagFilter, salespersonFilter, archivedFilter, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), effectiveType, showToast]);
 
+  useEffect(() => { fetchContacts(); }, [fetchContacts]);
+
+  // Archived count for the segmented Active/Archived chip — refreshes when
+  // any non-archive filter changes.
   useEffect(() => {
-    fetchContacts();
-  }, [fetchContacts]);
-
-  // Sync filterType prop when it changes
-  useEffect(() => {
-    if (filterType !== undefined) {
-      setTypeFilter(filterType);
-      setPage(1);
-    }
-  }, [filterType]);
-
-  // Debounced search
-  const handleSearchChange = (value) => {
-    setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchContacts({ search: value, page: 1 });
-    }, 300);
-  };
-
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
-  const handleFilterSelect = (setter) => (val) => {
-    setter(val);
-    setPage(1);
-    setOpenFilter(null);
-  };
-
-  const clearAllFilters = () => {
-    setTypeFilter('');
-    setTagFilter('');
-    setSalespersonFilter('');
-    setArchivedFilter('');
-    setPage(1);
-  };
-
-  const toggleFilter = (name) => {
-    setOpenFilter((prev) => (prev === name ? null : name));
-  };
+    if (!orgSlug) return;
+    const controller = new AbortController();
+    contactsApi.list(orgSlug, { ...filterParams, type: effectiveType, archived: '1', limit: 1, page: 1 })
+      .then((res) => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined }), effectiveType]);
 
   // Initials helper
   const getInitials = (name) => {
@@ -204,17 +127,13 @@ export default function ContactsList({ filterType }) {
 
   // CSV export — mirrors fetchContacts' filter chain so the export rows
   // match what the user sees on screen.
-  const [exporting, setExporting] = useState(false);
   const handleExport = async () => {
     if (!orgSlug) return;
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      if (typeFilter) params.set('type', typeFilter);
-      if (tagFilter) params.set('tag', tagFilter);
-      if (salespersonFilter) params.set('salesperson', salespersonFilter);
-      if (archivedFilter) params.set('archived', archivedFilter);
+      Object.entries(filterParams).forEach(([k, v]) => { if (v) params.set(k, v); });
+      if (effectiveType) params.set('type', effectiveType);
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(
@@ -228,22 +147,13 @@ export default function ContactsList({ filterType }) {
     }
   };
 
-  // Filter options
+  // Filter options for the chip dropdowns
   const typeOptions = [
-    { value: '', label: 'All Types' },
     { value: 'company', label: 'Companies' },
     { value: 'individual', label: 'Individuals' },
   ];
-
-  const tagOptions = [
-    { value: '', label: 'All Tags' },
-    ...tags.map((t) => ({ value: t._id, label: t.name })),
-  ];
-
-  const salespersonOptions = [
-    { value: '', label: 'All Salespersons' },
-    ...salespersons.map((sp) => ({ value: sp._id, label: sp.name })),
-  ];
+  const tagOptions = tags.map((t) => ({ value: t._id, label: t.name }));
+  const salespersonOptions = salespersons.map((sp) => ({ value: sp._id, label: sp.name }));
 
   // Pagination
   const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -270,72 +180,24 @@ export default function ContactsList({ filterType }) {
         )}
       </div>
 
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
-        <input
-          type="text"
-          placeholder="Search by name, email, or phone..."
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="input-field w-full pl-10"
-          aria-label="Search contacts"
-        />
-      </div>
-
-      {/* Filter chips row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterChip
-          label="Type"
-          value={typeFilter}
-          options={typeOptions}
-          isOpen={openFilter === 'type'}
-          onToggle={() => toggleFilter('type')}
-          onSelect={handleFilterSelect(setTypeFilter)}
-        />
-        <FilterChip
-          label="Tag"
-          value={tagFilter}
-          options={tagOptions}
-          isOpen={openFilter === 'tag'}
-          onToggle={() => toggleFilter('tag')}
-          onSelect={handleFilterSelect(setTagFilter)}
-        />
-        <FilterChip
-          label="Salesperson"
-          value={salespersonFilter}
-          options={salespersonOptions}
-          isOpen={openFilter === 'salesperson'}
-          onToggle={() => toggleFilter('salesperson')}
-          onSelect={handleFilterSelect(setSalespersonFilter)}
-        />
-        <FilterChip
-          label="Active"
-          value={archivedFilter}
-          options={[
-            { value: '', label: 'Active' },
-            { value: '1', label: 'Archived' },
-          ]}
-          isOpen={openFilter === 'archived'}
-          onToggle={() => toggleFilter('archived')}
-          onSelect={handleFilterSelect(setArchivedFilter)}
-        />
-
-        {activeFilterCount > 0 && (
-          <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-dark-400 hover:text-white transition-colors rounded-lg hover:bg-dark-800"
-          >
-            <X className="w-3.5 h-3.5" />
-            Clear{activeFilterCount > 1 ? ` (${activeFilterCount})` : ''}
-          </button>
-        )}
-
+      {/* Filters — URL-driven via shared FilterBar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <FilterBar searchPlaceholder="Search by name, email, or phone…">
+            {/* Hide the Type chip when the route prop locks the contact type. */}
+            {filterType === undefined && (
+              <FilterChip type="select" paramKey="type" label="Type" options={typeOptions} />
+            )}
+            <FilterChip type="select" paramKey="tag" label="Tag" options={tagOptions} />
+            <FilterChip type="select" paramKey="salesperson" label="Salesperson" options={salespersonOptions} />
+            <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+          </FilterBar>
+        </div>
         <button
           onClick={handleExport}
           disabled={exporting || total === 0}
           title="Download the current filtered list as a CSV file"
-          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
         >
           {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           Export CSV
@@ -352,7 +214,7 @@ export default function ContactsList({ filterType }) {
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No contacts found</h3>
           <p className="text-dark-400 text-sm text-center max-w-sm">
-            {search || typeFilter || tagFilter
+            {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Add your first contact to get started.'}
           </p>
@@ -508,7 +370,7 @@ export default function ContactsList({ filterType }) {
               </p>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
@@ -543,7 +405,7 @@ export default function ContactsList({ filterType }) {
                   )}
 
                 <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >

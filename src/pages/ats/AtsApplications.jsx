@@ -1,61 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { downloadFile } from '../../utils/download';
+import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import {
-  Search, Plus, Loader2, Users,
+  Plus, Loader2, Users,
   ChevronLeft, ChevronRight, ChevronDown, X,
   Star, Mail, Calendar, Download, ArrowRight, XCircle,
 } from 'lucide-react';
-
-/* ── Inline FilterChip component ─────────────────────────────────────── */
-function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
-  const selectedOption = options.find((o) => o.value === value);
-  const displayLabel = selectedOption && value ? selectedOption.label : label;
-
-  return (
-    <div className="relative">
-      <button
-        onClick={onToggle}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all whitespace-nowrap ${
-          value
-            ? 'bg-rivvra-500/10 border-rivvra-500/30 text-rivvra-400'
-            : 'bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600 hover:text-dark-200'
-        }`}
-      >
-        {displayLabel}
-        <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute left-0 top-full mt-1.5 min-w-[180px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onSelect(opt.value)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  opt.value === value
-                    ? 'bg-rivvra-500/10 text-rivvra-400'
-                    : 'text-dark-300 hover:bg-dark-700 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 /* ── Stage badge helper ──────────────────────────────────────────────── */
 function StageBadge({ stage, stageName }) {
@@ -362,29 +318,23 @@ export default function AtsApplications() {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
+  // Filter state lives in the URL — bookmarkable + refresh-safe.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParams = useFilterParams(['search', 'stageId', 'jobId', 'recruiter', 'archived']);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+
   const [applications, setApplications] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('');
-  const [jobFilter, setJobFilter] = useState('');
-  const [recruiterFilter, setRecruiterFilter] = useState('');
-  const [archivedFilter, setArchivedFilter] = useState('');
-  const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
   const [jobs, setJobs] = useState([]);
   const [stages, setStages] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
 
-  // Modal
   const [showModal, setShowModal] = useState(false);
-
-  // CSV export
   const [exporting, setExporting] = useState(false);
 
   // Bulk actions — selection + action-bar dropdowns
@@ -397,10 +347,14 @@ export default function AtsApplications() {
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
-  const activeFilterCount = [stageFilter, jobFilter, recruiterFilter, archivedFilter].filter(Boolean).length;
+  const setPage = (next) => {
+    const np = new URLSearchParams(searchParams);
+    if (next > 1) np.set('page', String(next)); else np.delete('page');
+    setSearchParams(np);
+  };
 
   // ── Fetch applications ─────────────────────────────────────────────────
-  const fetchApplications = useCallback(async (params = {}) => {
+  const fetchApplications = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
     setApplications([]);
@@ -408,13 +362,9 @@ export default function AtsApplications() {
     setTotalPages(1);
     try {
       const res = await atsApi.listApplications(orgSlug, {
-        page: params.page || page,
+        page,
         limit: 25,
-        search: params.search !== undefined ? params.search : search,
-        stageId: params.stageId !== undefined ? params.stageId : stageFilter,
-        jobId: params.jobId !== undefined ? params.jobId : jobFilter,
-        recruiter: params.recruiter !== undefined ? params.recruiter : recruiterFilter,
-        archived: params.archived !== undefined ? params.archived : archivedFilter,
+        ...filterParams,
         sort: 'appliedOn',
         order: 'desc',
       });
@@ -431,7 +381,7 @@ export default function AtsApplications() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, stageFilter, jobFilter, recruiterFilter, archivedFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
 
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
@@ -457,6 +407,17 @@ export default function AtsApplications() {
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
+  // Archived count for the segmented Active/Archived chip.
+  useEffect(() => {
+    if (!orgSlug) return;
+    const controller = new AbortController();
+    atsApi.listApplications(orgSlug, { ...filterParams, archived: '1', limit: 1, page: 1 })
+      .then((res) => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined })]);
+
   // Fetch refuse reasons once per (org, company) — used by the bulk-refuse
   // action bar's reason picker. Cheap; small set per org.
   useEffect(() => {
@@ -475,27 +436,11 @@ export default function AtsApplications() {
   useEffect(() => {
     setSelectedIds(new Set());
     setBulkAction(null);
-  }, [search, stageFilter, jobFilter, recruiterFilter, page]);
-
-  // Debounced search
-  const handleSearchChange = (value) => {
-    setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchApplications({ search: value, page: 1 });
-    }, 300);
-  };
+  }, [JSON.stringify(filterParams), page]);
 
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
-
-  const handleFilterSelect = (setter) => (val) => {
-    setter(val);
-    setPage(1);
-    setOpenFilter(null);
-  };
 
   // ── Bulk selection helpers ────────────────────────────────────────────
   const allVisibleIds = applications.map(a => a._id);
@@ -581,10 +526,7 @@ export default function AtsApplications() {
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      if (stageFilter) params.set('stageId', stageFilter);
-      if (jobFilter) params.set('jobId', jobFilter);
-      if (recruiterFilter) params.set('recruiter', recruiterFilter);
+      Object.entries(filterParams).forEach(([k, v]) => { if (v) params.set(k, v); });
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(
@@ -598,33 +540,10 @@ export default function AtsApplications() {
     }
   };
 
-  const clearAllFilters = () => {
-    setStageFilter('');
-    setJobFilter('');
-    setRecruiterFilter('');
-    setArchivedFilter('');
-    setPage(1);
-  };
-
-  const toggleFilter = (name) => {
-    setOpenFilter((prev) => (prev === name ? null : name));
-  };
-
-  // Build filter options
-  const stageOptions = [
-    { value: '', label: 'All Stages' },
-    ...stages.map((s) => ({ value: s._id, label: s.name })),
-  ];
-
-  const jobOptions = [
-    { value: '', label: 'All Positions' },
-    ...jobs.map((j) => ({ value: j._id, label: j.name })),
-  ];
-
-  const recruiterOptions = [
-    { value: '', label: 'All Recruiters' },
-    ...recruiters.map((r) => ({ value: r._id, label: r.name })),
-  ];
+  // Build filter options for the chip dropdowns.
+  const stageOptions = stages.map((s) => ({ value: s._id, label: s.name }));
+  const jobOptions = jobs.map((j) => ({ value: j._id, label: j.name }));
+  const recruiterOptions = recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id }));
 
   // Pagination
   const pageStart = total === 0 ? 0 : (page - 1) * 25 + 1;
@@ -661,66 +580,13 @@ export default function AtsApplications() {
         )}
       </div>
 
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
-        <input
-          type="text"
-          placeholder="Search by candidate name, email, or job position..."
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="input-field w-full pl-10"
-          aria-label="Search applications"
-        />
-      </div>
-
-      {/* Filter chips row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterChip
-          label="Stage"
-          value={stageFilter}
-          options={stageOptions}
-          isOpen={openFilter === 'stage'}
-          onToggle={() => toggleFilter('stage')}
-          onSelect={handleFilterSelect(setStageFilter)}
-        />
-        <FilterChip
-          label="Job Position"
-          value={jobFilter}
-          options={jobOptions}
-          isOpen={openFilter === 'job'}
-          onToggle={() => toggleFilter('job')}
-          onSelect={handleFilterSelect(setJobFilter)}
-        />
-        <FilterChip
-          label="Recruiter"
-          value={recruiterFilter}
-          options={recruiterOptions}
-          isOpen={openFilter === 'recruiter'}
-          onToggle={() => toggleFilter('recruiter')}
-          onSelect={handleFilterSelect(setRecruiterFilter)}
-        />
-        <FilterChip
-          label="Active"
-          value={archivedFilter}
-          options={[
-            { value: '', label: 'Active' },
-            { value: '1', label: 'Archived' },
-          ]}
-          isOpen={openFilter === 'archived'}
-          onToggle={() => toggleFilter('archived')}
-          onSelect={handleFilterSelect(setArchivedFilter)}
-        />
-
-        {activeFilterCount > 0 && (
-          <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-dark-400 hover:text-white transition-colors rounded-lg hover:bg-dark-800"
-          >
-            <X className="w-3.5 h-3.5" />
-            Clear{activeFilterCount > 1 ? ` (${activeFilterCount})` : ''}
-          </button>
-        )}
+      {/* Filters — URL-driven via shared FilterBar */}
+      <FilterBar searchPlaceholder="Search by candidate name, email, or job position…">
+        <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
+        <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
+        <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
+        <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+      </FilterBar>
 
         <button
           onClick={handleExport}
@@ -745,7 +611,7 @@ export default function AtsApplications() {
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No applications found</h3>
           <p className="text-dark-400 text-sm text-center max-w-sm">
-            {search || stageFilter || jobFilter || recruiterFilter
+            {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Create your first application or use the Pipeline view to add candidates.'}
           </p>
@@ -955,7 +821,7 @@ export default function AtsApplications() {
               </p>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
@@ -990,7 +856,7 @@ export default function AtsApplications() {
                   )}
 
                 <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >

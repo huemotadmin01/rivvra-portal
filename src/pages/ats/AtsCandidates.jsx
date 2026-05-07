@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import {
-  Search, Plus, Loader2, Users,
+  Plus, Loader2, Users,
   ChevronLeft, ChevronRight,
-  Mail, Phone, Linkedin, ExternalLink, X, Check,
+  Mail, Phone, Linkedin, ExternalLink, X,
 } from 'lucide-react';
 
 /* ── New Candidate Modal ──────────────────────────────────────────────── */
@@ -186,36 +187,37 @@ export default function AtsCandidates() {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
+  // Filter state lives in the URL — bookmarkable + refresh-safe.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParams = useFilterParams(['search', 'archived', 'hasActiveApps']);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // Search + filters
-  const [search, setSearch] = useState('');
-  const [archivedFilter, setArchivedFilter] = useState('');
-  const [hasActiveAppsFilter, setHasActiveAppsFilter] = useState('');
 
   const debounceRef = useRef(null);
   const orgSlug = currentOrg?.slug;
   const isAdmin = getAppRole('ats') === 'admin';
 
+  const setPage = (next) => {
+    const np = new URLSearchParams(searchParams);
+    if (next > 1) np.set('page', String(next)); else np.delete('page');
+    setSearchParams(np);
+  };
+
   // ── Fetch candidates ──────────────────────────────────────────────────
-  const fetchCandidates = useCallback(async (params = {}) => {
+  const fetchCandidates = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
     setCandidates([]);
     setTotal(0);
     setTotalPages(1);
     try {
-      const res = await atsApi.listCandidates(orgSlug, {
-        page: params.page || page,
-        search: params.search !== undefined ? params.search : search,
-        archived: params.archived !== undefined ? params.archived : archivedFilter,
-        hasActiveApps: params.hasActiveApps !== undefined ? params.hasActiveApps : hasActiveAppsFilter,
-      });
+      const res = await atsApi.listCandidates(orgSlug, { page, ...filterParams });
       if (res.success) {
         setCandidates(res.candidates || []);
         setTotal(res.total || 0);
@@ -229,19 +231,20 @@ export default function AtsCandidates() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, search, archivedFilter, hasActiveAppsFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
-  // Debounced search
-  const handleSearchChange = (value) => {
-    setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchCandidates({ search: value, page: 1 });
-    }, 300);
-  };
+  // Archived count for the segmented Active/Archived chip.
+  useEffect(() => {
+    if (!orgSlug) return;
+    const controller = new AbortController();
+    atsApi.listCandidates(orgSlug, { ...filterParams, archived: '1', limit: 1, page: 1 })
+      .then((res) => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined })]);
 
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -290,47 +293,11 @@ export default function AtsCandidates() {
         )}
       </div>
 
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
-        <input
-          type="text"
-          placeholder="Search by name or email..."
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="input-field w-full pl-10"
-          aria-label="Search candidates"
-        />
-      </div>
-
-      {/* Filters — Active/Archived + Has applications */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => { setHasActiveAppsFilter(hasActiveAppsFilter ? '' : '1'); setPage(1); }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
-            hasActiveAppsFilter
-              ? 'bg-rivvra-500/15 text-rivvra-300 border-rivvra-500/30'
-              : 'bg-dark-800 border-dark-700 text-dark-400 hover:text-dark-200'
-          }`}
-        >
-          {hasActiveAppsFilter && <Check size={12} />}
-          Has applications
-        </button>
-        <div className="inline-flex items-center bg-dark-800 border border-dark-700 rounded-lg overflow-hidden">
-          <button
-            onClick={() => { setArchivedFilter(''); setPage(1); }}
-            className={`px-3 py-1.5 text-sm font-medium ${!archivedFilter ? 'bg-rivvra-500/20 text-rivvra-300' : 'text-dark-400 hover:text-dark-200'}`}
-          >
-            Active
-          </button>
-          <button
-            onClick={() => { setArchivedFilter('1'); setPage(1); }}
-            className={`px-3 py-1.5 text-sm font-medium border-l border-dark-700 ${archivedFilter ? 'bg-rivvra-500/20 text-rivvra-300' : 'text-dark-400 hover:text-dark-200'}`}
-          >
-            Archived
-          </button>
-        </div>
-      </div>
+      {/* Filters — URL-driven via shared FilterBar */}
+      <FilterBar searchPlaceholder="Search by name or email…">
+        <FilterChip type="boolean" paramKey="hasActiveApps" label="Has applications" />
+        <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+      </FilterBar>
 
       {/* Content */}
       {loading ? (
@@ -344,8 +311,8 @@ export default function AtsCandidates() {
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No candidates found</h3>
           <p className="text-dark-400 text-sm text-center max-w-sm">
-            {search
-              ? 'Try adjusting your search terms.'
+            {Object.values(filterParams).some(Boolean)
+              ? 'Try adjusting your search or filters.'
               : 'Candidates will appear here when applications are created.'}
           </p>
         </div>
@@ -478,7 +445,7 @@ export default function AtsCandidates() {
               </p>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
@@ -513,7 +480,7 @@ export default function AtsCandidates() {
                   )}
 
                 <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
                   className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
