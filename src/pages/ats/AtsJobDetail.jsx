@@ -635,10 +635,10 @@ export default function AtsJobDetail() {
         )}
       </div>
 
-      {/* ─── Top row: Overview + sidebar (Q8 D+A) ───────────────────────── */}
+      {/* ─── Body: 2-col grid (left = main flow, right = sidebar) ──────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Overview */}
-        <div className="lg:col-span-2">
+        {/* Main flow */}
+        <div className="lg:col-span-2 space-y-5">
           <SectionCard title="Overview" icon={Briefcase}>
             <InlineField label="Position Name" field="name" value={job.name} editable={canEdit} onSave={saveField} required />
             <InlineField
@@ -664,6 +664,260 @@ export default function AtsJobDetail() {
             <InlineField label="Expected Hires" field="expectedHires" value={job.expectedHires ?? 1} editable={canEdit} onSave={saveField} />
             <InlineField label="Hired" field="hiredCount" value={job.hiredCount ?? 0} editable={false} />
           </SectionCard>
+
+          <SectionCard title="Description" icon={FileText}>
+            <DescriptionTabs
+              internal={job.description}
+              publicDesc={job.websiteDescription}
+              canEdit={canEdit}
+              onSave={saveField}
+            />
+          </SectionCard>
+
+          <SectionCard title="Staffing & Compensation" icon={MapPin}>
+            <InlineField
+              label="Required Exp."
+              field="requiredExperience"
+              value={job.requiredExperience}
+              type="select"
+              options={EXPERIENCE_OPTIONS}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={requiredExpDisplay || undefined}
+            />
+            <InlineField
+              label="Hiring Mode"
+              field="hiringMode"
+              value={job.hiringMode}
+              type="select"
+              options={HIRING_MODE_OPTIONS}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={
+                job.hiringMode ? (
+                  <span title={hiringModeFull} className="cursor-help underline decoration-dotted decoration-dark-500 underline-offset-2">
+                    {job.hiringMode}
+                  </span>
+                ) : undefined
+              }
+            />
+            <InlineField
+              label="Work Location"
+              field="clientJobLocation"
+              value={job.clientJobLocation}
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="e.g. Remote, Bangalore on-site"
+            />
+            <MaybeInlineField
+              hideWhenEmpty={!showEmpty}
+              label="Client Budget"
+              field="clientBudget"
+              value={job.clientBudget}
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="0"
+              displayValue={fmtBudget(job.clientBudget) || undefined}
+            />
+            <MaybeInlineField
+              hideWhenEmpty={!showEmpty}
+              label="Max Budget"
+              field="maxBudget"
+              value={job.maxBudget}
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="0"
+              displayValue={fmtBudget(job.maxBudget) || undefined}
+            />
+            {(showEmpty || !job.approvalStatus || job.approvalStatus === 'pending') && (
+              <InlineField
+                label="Approval Status"
+                field="approvalStatus"
+                value={job.approvalStatus}
+                type="select"
+                options={APPROVAL_STATUS_OPTIONS}
+                editable={canEdit}
+                onSave={saveField}
+                displayValue={job.approvalStatus ? <ApprovalIndicator status={job.approvalStatus} /> : undefined}
+              />
+            )}
+            {showEmpty && (
+              <InlineField
+                label="Approver Comment"
+                field="approverComment"
+                value={job.approverComment}
+                type="textarea"
+                editable={canEdit}
+                onSave={saveField}
+                placeholder="Approval notes…"
+              />
+            )}
+          </SectionCard>
+
+          {/* Applications */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Applications
+                <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
+              </h2>
+              {isAdmin && !job.archived && appsTotal > 0 && (
+                <button
+                  onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
+                  className="flex items-center gap-1.5 text-sm text-rivvra-300 hover:text-rivvra-200"
+                >
+                  <Plus size={14} /> Add Application
+                </button>
+              )}
+            </div>
+
+            {appsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
+              </div>
+            ) : applications.length === 0 ? (
+              <div className="card p-8 flex flex-col items-center justify-center">
+                <Users className="w-8 h-8 text-dark-500 mb-2" />
+                <p className="text-dark-400 text-sm mb-3">No applications for this position yet.</p>
+                {isAdmin && !job.archived && (
+                  <button
+                    onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400"
+                  >
+                    <Plus size={12} /> New Application
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-700">
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
+                          <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {applications.map((app) => {
+                          const recId = app.recruiter || app.recruiterId;
+                          const recUserId = userIdFor(recId);
+                          return (
+                            <tr
+                              key={app._id}
+                              onClick={() => openApp(app._id)}
+                              className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-rivvra-400 text-xs font-semibold">
+                                      {(app.candidateName || '?')[0].toUpperCase()}
+                                    </span>
+                                  </div>
+                                  {app.candidateId ? (
+                                    <Link
+                                      to={orgPath(`/ats/candidates/${app.candidateId}`)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-white font-medium truncate hover:text-rivvra-300 hover:underline"
+                                    >
+                                      {app.candidateName || 'Unnamed'}
+                                    </Link>
+                                  ) : (
+                                    <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
+                                <span className="truncate block max-w-[180px]">{app.candidateEmail || '—'}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <StageBadge stageName={app.stageName || app.stageId?.name} />
+                              </td>
+                              <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
+                                {recUserId && app.recruiterName ? (
+                                  <Link
+                                    to={orgPath(`/settings/users/${recUserId}`)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="hover:text-rivvra-300 hover:underline"
+                                  >
+                                    {app.recruiterName}
+                                  </Link>
+                                ) : (
+                                  app.recruiterName || '—'
+                                )}
+                              </td>
+                              <td className="px-4 py-3 hidden lg:table-cell">
+                                <div className="flex justify-center">
+                                  <EvalStars value={app.evaluation || 0} />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
+                                {formatDate(app.appliedOn)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {appsTotalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-dark-400 text-sm">
+                      Showing {appsTotal === 0 ? 0 : (appsPage - 1) * 15 + 1}–{Math.min(appsPage * 15, appsTotal)} of {appsTotal}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setAppsPage((p) => Math.max(1, p - 1))}
+                        disabled={appsPage === 1}
+                        className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronDown size={16} className="rotate-90" />
+                      </button>
+                      {Array.from({ length: appsTotalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === appsTotalPages || Math.abs(p - appsPage) <= 1)
+                        .reduce((acc, p, i, arr) => {
+                          if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, i) =>
+                          p === '...' ? (
+                            <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
+                          ) : (
+                            <button
+                              key={p}
+                              onClick={() => setAppsPage(p)}
+                              className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                                p === appsPage
+                                  ? 'bg-rivvra-500 text-dark-950'
+                                  : 'text-dark-400 hover:text-white hover:bg-dark-800'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          )
+                        )}
+                      <button
+                        onClick={() => setAppsPage((p) => Math.min(appsTotalPages, p + 1))}
+                        disabled={appsPage === appsTotalPages}
+                        className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronDown size={16} className="-rotate-90" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Sidebar — People, Client, Visibility, Meta */}
@@ -834,268 +1088,6 @@ export default function AtsJobDetail() {
             )}
           </SectionCard>
         </div>
-      </div>
-
-      {/* ─── Below first row: full-width single column (Q8-D) ──────────── */}
-      <SectionCard title="Description" icon={FileText}>
-        <DescriptionTabs
-          internal={job.description}
-          publicDesc={job.websiteDescription}
-          canEdit={canEdit}
-          onSave={saveField}
-        />
-      </SectionCard>
-
-      {/* Staffing & Financial — combined */}
-      <SectionCard title="Staffing & Compensation" icon={MapPin}>
-        <InlineField
-          label="Required Exp."
-          field="requiredExperience"
-          value={job.requiredExperience}
-          type="select"
-          options={EXPERIENCE_OPTIONS}
-          editable={canEdit}
-          onSave={saveField}
-          displayValue={requiredExpDisplay || undefined}
-        />
-        <InlineField
-          label="Hiring Mode"
-          field="hiringMode"
-          value={job.hiringMode}
-          type="select"
-          options={HIRING_MODE_OPTIONS}
-          editable={canEdit}
-          onSave={saveField}
-          displayValue={
-            job.hiringMode ? (
-              <span title={hiringModeFull} className="cursor-help underline decoration-dotted decoration-dark-500 underline-offset-2">
-                {job.hiringMode}
-              </span>
-            ) : undefined
-          }
-        />
-        {/* Q12-B: drop Overview Location; rename "Client Job Loc." → "Work Location" */}
-        <InlineField
-          label="Work Location"
-          field="clientJobLocation"
-          value={job.clientJobLocation}
-          editable={canEdit}
-          onSave={saveField}
-          placeholder="e.g. Remote, Bangalore on-site"
-        />
-        <MaybeInlineField
-          hideWhenEmpty={!showEmpty}
-          label="Client Budget"
-          field="clientBudget"
-          value={job.clientBudget}
-          editable={canEdit}
-          onSave={saveField}
-          placeholder="0"
-          displayValue={fmtBudget(job.clientBudget) || undefined}
-        />
-        <MaybeInlineField
-          hideWhenEmpty={!showEmpty}
-          label="Max Budget"
-          field="maxBudget"
-          value={job.maxBudget}
-          editable={canEdit}
-          onSave={saveField}
-          placeholder="0"
-          displayValue={fmtBudget(job.maxBudget) || undefined}
-        />
-        {/* Approval status edit (Q14: standalone card removed; status edit
-            still needs to live somewhere reachable. Tucked in here behind
-            "show empty fields" so the page doesn't show two approval rows
-            for already-approved jobs.) */}
-        {(showEmpty || !job.approvalStatus || job.approvalStatus === 'pending') && (
-          <InlineField
-            label="Approval Status"
-            field="approvalStatus"
-            value={job.approvalStatus}
-            type="select"
-            options={APPROVAL_STATUS_OPTIONS}
-            editable={canEdit}
-            onSave={saveField}
-            displayValue={job.approvalStatus ? <ApprovalIndicator status={job.approvalStatus} /> : undefined}
-          />
-        )}
-        {showEmpty && (
-          <InlineField
-            label="Approver Comment"
-            field="approverComment"
-            value={job.approverComment}
-            type="textarea"
-            editable={canEdit}
-            onSave={saveField}
-            placeholder="Approval notes…"
-          />
-        )}
-      </SectionCard>
-
-      {/* Applications */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">
-            Applications
-            <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
-          </h2>
-          {isAdmin && !job.archived && appsTotal > 0 && (
-            <button
-              onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
-              className="flex items-center gap-1.5 text-sm text-rivvra-300 hover:text-rivvra-200"
-            >
-              <Plus size={14} /> Add Application
-            </button>
-          )}
-        </div>
-
-        {appsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
-          </div>
-        ) : applications.length === 0 ? (
-          <div className="card p-8 flex flex-col items-center justify-center">
-            <Users className="w-8 h-8 text-dark-500 mb-2" />
-            <p className="text-dark-400 text-sm mb-3">No applications for this position yet.</p>
-            {isAdmin && !job.archived && (
-              <button
-                onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400"
-              >
-                <Plus size={12} /> New Application
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-dark-700">
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
-                      <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applications.map((app) => {
-                      const recId = app.recruiter || app.recruiterId;
-                      const recUserId = userIdFor(recId);
-                      return (
-                        <tr
-                          key={app._id}
-                          onClick={() => openApp(app._id)}
-                          className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
-                                <span className="text-rivvra-400 text-xs font-semibold">
-                                  {(app.candidateName || '?')[0].toUpperCase()}
-                                </span>
-                              </div>
-                              {app.candidateId ? (
-                                <Link
-                                  to={orgPath(`/ats/candidates/${app.candidateId}`)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="text-white font-medium truncate hover:text-rivvra-300 hover:underline"
-                                >
-                                  {app.candidateName || 'Unnamed'}
-                                </Link>
-                              ) : (
-                                <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
-                            <span className="truncate block max-w-[180px]">{app.candidateEmail || '—'}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <StageBadge stageName={app.stageName || app.stageId?.name} />
-                          </td>
-                          <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                            {recUserId && app.recruiterName ? (
-                              <Link
-                                to={orgPath(`/settings/users/${recUserId}`)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="hover:text-rivvra-300 hover:underline"
-                              >
-                                {app.recruiterName}
-                              </Link>
-                            ) : (
-                              app.recruiterName || '—'
-                            )}
-                          </td>
-                          <td className="px-4 py-3 hidden lg:table-cell">
-                            <div className="flex justify-center">
-                              <EvalStars value={app.evaluation || 0} />
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                            {formatDate(app.appliedOn)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Pagination */}
-            {appsTotalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-dark-400 text-sm">
-                  Showing {appsTotal === 0 ? 0 : (appsPage - 1) * 15 + 1}–{Math.min(appsPage * 15, appsTotal)} of {appsTotal}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setAppsPage((p) => Math.max(1, p - 1))}
-                    disabled={appsPage === 1}
-                    className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronDown size={16} className="rotate-90" />
-                  </button>
-                  {Array.from({ length: appsTotalPages }, (_, i) => i + 1)
-                    .filter((p) => p === 1 || p === appsTotalPages || Math.abs(p - appsPage) <= 1)
-                    .reduce((acc, p, i, arr) => {
-                      if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, i) =>
-                      p === '...' ? (
-                        <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
-                      ) : (
-                        <button
-                          key={p}
-                          onClick={() => setAppsPage(p)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                            p === appsPage
-                              ? 'bg-rivvra-500 text-dark-950'
-                              : 'text-dark-400 hover:text-white hover:bg-dark-800'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      )
-                    )}
-                  <button
-                    onClick={() => setAppsPage((p) => Math.min(appsTotalPages, p + 1))}
-                    disabled={appsPage === appsTotalPages}
-                    className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronDown size={16} className="-rotate-90" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
       </div>
 
       {/* Archive Confirmation Modal */}
