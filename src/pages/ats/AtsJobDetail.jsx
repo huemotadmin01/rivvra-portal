@@ -4,6 +4,8 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import contactsApi from '../../utils/contactsApi';
+import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -179,6 +181,8 @@ export default function AtsJobDetail() {
   const [loading, setLoading] = useState(true);
 
   const [recruiters, setRecruiters] = useState([]);
+  const [companyContacts, setCompanyContacts] = useState([]);
+  const [editingClient, setEditingClient] = useState(false);
 
   // Applications for this job
   const [applications, setApplications] = useState([]);
@@ -209,6 +213,27 @@ export default function AtsJobDetail() {
       .then((res) => { if (res.success) setRecruiters(res.recruiters || []); })
       .catch((err) => console.error('Failed to load recruiters:', err));
   }, [orgSlug]);
+
+  // ── Fetch company contacts for client lookup ─────────────────────────
+  useEffect(() => {
+    if (!orgSlug) return;
+    contactsApi.listCompanies(orgSlug)
+      .then((res) => { if (res.success) setCompanyContacts(res.companies || []); })
+      .catch(() => {});
+  }, [orgSlug]);
+
+  // Save client picker selection — writes both clientContactId + clientName
+  // so the page label stays in sync with the linked contact.
+  const handleClientSelect = async (id, name) => {
+    setEditingClient(false);
+    if (!id && !name) return;
+    try {
+      await atsApi.updateJob(orgSlug, jobId, { clientContactId: id || null, clientName: name || '' });
+      setJob((prev) => ({ ...prev, clientContactId: id || null, clientName: name || '' }));
+    } catch (err) {
+      showToast(err.message || 'Failed to update client', 'error');
+    }
+  };
 
   const recruiterOptions = useMemo(
     () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
@@ -490,8 +515,6 @@ export default function AtsJobDetail() {
             <InlineField label="Required Exp." field="requiredExperience" value={job.requiredExperience} type="select" options={EXPERIENCE_OPTIONS} editable={canEdit} onSave={saveField} />
             <InlineField label="Hiring Mode" field="hiringMode" value={job.hiringMode} type="select" options={HIRING_MODE_OPTIONS} editable={canEdit} onSave={saveField} />
             <InlineField label="Client Job Loc." field="clientJobLocation" value={job.clientJobLocation} editable={canEdit} onSave={saveField} placeholder="e.g. Remote, Bangalore on-site" />
-            <InlineField label="Mission Dates" field="missionDates" value={job.missionDates} editable={canEdit} onSave={saveField} placeholder="e.g. Jun 2026 – Dec 2026" />
-            <InlineField label="Email Alias" field="emailAlias" value={job.emailAlias} editable={canEdit} onSave={saveField} placeholder="e.g. devops-jobs" />
             <InlineField label="Website URL" field="websiteUrl" value={job.websiteUrl} type="url" editable={canEdit} onSave={saveField} placeholder="https://…" />
           </SectionCard>
 
@@ -537,8 +560,6 @@ export default function AtsJobDetail() {
               placeholder="Approval notes…"
             />
           </SectionCard>
-
-          <MiniPipeline stageCounts={stageCounts} />
 
           {/* Applications table */}
           <div>
@@ -691,16 +712,6 @@ export default function AtsJobDetail() {
               displayValue={job.accountOwnerName || undefined}
             />
             <InlineField
-              label="Account Mgr."
-              field="accountManagerId"
-              value={job.accountManagerId}
-              type="select"
-              options={recruiterOptions}
-              editable={canEdit}
-              onSave={saveField}
-              displayValue={job.accountManagerName || undefined}
-            />
-            <InlineField
               label="Approver"
               field="approverId"
               value={job.approverId}
@@ -721,14 +732,33 @@ export default function AtsJobDetail() {
               editable={canEdit}
               onSave={saveField}
             />
-            <InlineField
-              label="Client Name"
-              field="clientName"
-              value={job.clientName}
-              editable={canEdit && !!job.isClientRole}
-              onSave={saveField}
-              placeholder={job.isClientRole ? 'Client company name' : 'Toggle Client Role first'}
-            />
+            <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group items-start">
+              <span className="text-dark-400 text-sm pt-1.5">Client Name</span>
+              <div className="min-w-0">
+                {editingClient && canEdit && job.isClientRole ? (
+                  <ComboSelect
+                    value={job.clientContactId || ''}
+                    displayValue={job.clientName || ''}
+                    options={companyContacts}
+                    onChange={handleClientSelect}
+                    placeholder="Search or type a company name…"
+                  />
+                ) : (
+                  <div
+                    className={`flex items-center gap-1.5 rounded px-1 -mx-1 min-h-[28px] ${canEdit && job.isClientRole ? 'cursor-pointer hover:bg-dark-800' : ''}`}
+                    onClick={canEdit && job.isClientRole ? () => setEditingClient(true) : undefined}
+                  >
+                    <span className="text-white text-sm">
+                      {job.clientName || (
+                        <span className="text-dark-500 italic">
+                          {job.isClientRole ? 'Search or type a company name…' : 'Toggle Client Role first'}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </SectionCard>
 
           <SectionCard title="Visibility" icon={Globe}>
