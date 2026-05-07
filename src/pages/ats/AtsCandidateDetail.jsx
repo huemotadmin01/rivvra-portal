@@ -1,12 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import InlineField from '../../components/shared/InlineField';
+import RecordMeta from '../../components/shared/RecordMeta';
+import SectionCard from '../../components/platform/detail/SectionCard';
 import {
-  Loader2, ChevronLeft, Mail, Phone, Linkedin, ExternalLink, Briefcase,
-  MapPin, Tag, Edit3, Check, X, Award, Archive, ArchiveRestore,
+  Loader2, ChevronLeft, User, FileText, UserCheck, Star,
+  Award, Archive, ArchiveRestore, Briefcase,
 } from 'lucide-react';
 
 function formatDate(d) {
@@ -31,38 +35,33 @@ function StageBadge({ stageName }) {
   );
 }
 
-function ResultBadge({ result }) {
-  if (!result) return null;
-  const styles = {
-    hired: 'bg-emerald-500/10 text-emerald-400',
-    refused: 'bg-red-500/10 text-red-400',
-  };
-  const key = (result || '').toLowerCase();
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${styles[key] || 'bg-dark-700 text-dark-400'}`}>
-      {key.charAt(0).toUpperCase() + key.slice(1)}
-    </span>
-  );
-}
+const EVAL_OPTIONS = [
+  { value: 0, label: 'No rating' },
+  { value: 1, label: '★ Good' },
+  { value: 2, label: '★★ Very good' },
+  { value: 3, label: '★★★ Excellent' },
+];
 
 export default function AtsCandidateDetail() {
   const { slug, candidateId } = useParams();
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
+  const { getAppRole } = useOrg();
 
   const [candidate, setCandidate] = useState(null);
   const [applications, setApplications] = useState([]);
   const [skills, setSkills] = useState([]);
+  const [recruiters, setRecruiters] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({});
-  const [saving, setSaving] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archivePreview, setArchivePreview] = useState(null);
   const [archiving, setArchiving] = useState(false);
 
   usePageTitle(candidate?.name);
+
+  const isAdmin = getAppRole('ats') === 'admin';
+  const canEdit = isAdmin && !candidate?.archived;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,7 +76,7 @@ export default function AtsCandidateDetail() {
       setApplications(res.applications || []);
       try {
         const sk = await atsApi.listCandidateSkills(slug, candidateId);
-        if (sk?.success) setSkills(sk.skills || sk.data || []);
+        if (sk?.success) setSkills(sk.candidateSkills || sk.skills || sk.data || []);
       } catch { /* skills are optional */ }
     } catch (err) {
       console.error('Failed to load candidate:', err);
@@ -90,50 +89,45 @@ export default function AtsCandidateDetail() {
 
   useEffect(() => { load(); }, [load]);
 
-  const startEdit = () => {
-    setEditForm({
-      name: candidate.name || '',
-      email: candidate.email || '',
-      phone: candidate.phone || '',
-      linkedin: candidate.linkedin || '',
-      currentTitle: candidate.currentTitle || '',
-      location: candidate.location || '',
-      // Phase-2 Odoo migration: candidate-level description (long bio/notes)
-      description: candidate.description || '',
-      // Phase-2 wave-2: 0-3 evaluation rating, mirrors Odoo `priority`
-      evaluation: typeof candidate.evaluation === 'number' ? candidate.evaluation : 0,
-    });
-    setEditing(true);
-  };
+  // Recruiters list — fuels the manager dropdown.
+  useEffect(() => {
+    if (!slug) return;
+    atsApi.listRecruiters(slug)
+      .then((res) => { if (res.success) setRecruiters(res.recruiters || []); })
+      .catch(() => { /* non-fatal */ });
+  }, [slug]);
 
-  const cancelEdit = () => { setEditing(false); setEditForm({}); };
+  const recruiterOptions = useMemo(
+    () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
+    [recruiters]
+  );
 
-  const saveEdit = async () => {
-    setSaving(true);
-    try {
-      const res = await atsApi.updateCandidate(slug, candidateId, editForm);
-      if (res?.success) {
-        setCandidate({ ...candidate, ...editForm });
-        setEditing(false);
-        showToast('Candidate updated', 'success');
-      } else {
-        showToast(res?.error || 'Failed to update', 'error');
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to update', 'error');
-    } finally {
-      setSaving(false);
+  // Generic per-field inline-save. Coerces evaluation to a number (the
+  // select sends strings); throws on validation error so InlineField can
+  // flash a red status.
+  const saveField = async (field, value) => {
+    let coerced = value;
+    if (field === 'evaluation') {
+      const n = Number(value);
+      coerced = [0, 1, 2, 3].includes(n) ? n : 0;
+    }
+    const res = await atsApi.updateCandidate(slug, candidateId, { [field]: coerced });
+    if (res?.candidate) {
+      setCandidate(res.candidate);
+    } else {
+      setCandidate((prev) => ({ ...prev, [field]: coerced }));
     }
   };
 
+  // ── Archive handlers ─────────────────────────────────────────────────
   const openArchiveModal = async () => {
     setShowArchiveModal(true);
     setArchivePreview(null);
     try {
       const res = await atsApi.archiveCandidatePreview(slug, candidateId);
-      setArchivePreview(res || { dependencies: [], activeApplications: 0 });
+      setArchivePreview(res || { activeApplications: 0 });
     } catch {
-      setArchivePreview({ dependencies: [], activeApplications: 0 });
+      setArchivePreview({ activeApplications: 0 });
     }
   };
 
@@ -177,11 +171,8 @@ export default function AtsCandidateDetail() {
 
   if (!candidate) return null;
 
-  const tags = candidate.tagNames || candidate.tags || [];
-
   return (
-    <div className="space-y-6">
-      {/* Back link */}
+    <div className="p-6 md:p-8 space-y-6">
       <button
         onClick={() => navigate(orgPath('/ats/candidates'))}
         className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
@@ -191,90 +182,185 @@ export default function AtsCandidateDetail() {
       </button>
 
       {/* Header */}
-      <div className="card p-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-xl font-bold text-orange-400">{getInitials(candidate.name)}</span>
+          <div className="w-14 h-14 rounded-2xl bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+            <span className="text-lg font-bold text-orange-400">{getInitials(candidate.name)}</span>
           </div>
-          <div className="flex-1 min-w-0">
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-xl font-semibold text-white focus:border-rivvra-500 focus:outline-none"
-              />
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h1 className="text-2xl font-bold text-white">{candidate.name || 'Unnamed Candidate'}</h1>
+              {candidate.archived && (
+                <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
+                  <Archive size={11} /> ARCHIVED
+                </span>
+              )}
+            </div>
+            <p className="text-dark-400 text-sm">
+              {candidate.applicationCount || 0} application{candidate.applicationCount === 1 ? '' : 's'}
+              {candidate.evaluation > 0 && (
+                <span className="ml-2 text-amber-400">{'★'.repeat(candidate.evaluation)}</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {isAdmin && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {candidate.archived ? (
+              <button
+                onClick={handleUnarchive}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+              >
+                <ArchiveRestore size={14} /> Unarchive
+              </button>
             ) : (
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold text-white truncate">{candidate.name || 'Unnamed Candidate'}</h1>
-                {candidate.archived && (
-                  <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
-                    <Archive size={11} /> ARCHIVED
+              <button
+                onClick={openArchiveModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30"
+              >
+                <Archive size={14} /> Archive
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Body: main + sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Main column */}
+        <div className="lg:col-span-2 space-y-5">
+          <SectionCard title="Contact" icon={User}>
+            <InlineField label="Full Name" field="name" value={candidate.name} editable={canEdit} onSave={saveField} required />
+            <InlineField label="Email" field="email" value={candidate.email} type="email" editable={canEdit} onSave={saveField} placeholder="Add email" />
+            <InlineField label="Phone" field="phone" value={candidate.phone} type="phone" editable={canEdit} onSave={saveField} placeholder="Add phone" />
+            <InlineField label="Mobile" field="mobile" value={candidate.mobile} type="phone" editable={canEdit} onSave={saveField} placeholder="Add mobile" />
+            <InlineField label="LinkedIn" field="linkedinProfile" value={candidate.linkedinProfile} type="url" editable={canEdit} onSave={saveField} placeholder="LinkedIn URL" />
+          </SectionCard>
+
+          <SectionCard title="Description" icon={FileText}>
+            <InlineField
+              label="Description"
+              field="description"
+              value={candidate.description}
+              type="textarea"
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="Background, summary, recruiter notes…"
+            />
+          </SectionCard>
+
+          {/* Skills — read-only here. Per-skill add/remove lives on the
+              dedicated skills sub-routes; this card just summarises. */}
+          <SectionCard title="Skills" icon={Award}>
+            {skills.length === 0 ? (
+              <p className="text-dark-500 text-sm py-2">No skills recorded.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2 py-2">
+                {skills.map((s, i) => (
+                  <span key={s._id || i} className="bg-dark-700 text-dark-200 text-sm px-3 py-1 rounded-full">
+                    {s.skillName || s.name}
+                    {s.skillLevelName && <span className="text-dark-500 ml-1">· {s.skillLevelName}</span>}
+                    {s.proficiency && <span className="text-dark-500 ml-1">· {s.proficiency}</span>}
                   </span>
-                )}
+                ))}
               </div>
             )}
-            {!editing && candidate.currentTitle && (
-              <p className="text-dark-400 mt-1 truncate">{candidate.currentTitle}</p>
-            )}
-            <div className="flex flex-wrap gap-2 mt-3">
-              {tags.map((tag, i) => (
-                <span key={i} className="bg-dark-700 text-dark-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Tag size={10} />
-                  {typeof tag === 'string' ? tag : tag.name}
-                </span>
-              ))}
+          </SectionCard>
+
+          {/* Applications */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Applications
+                <span className="ml-2 text-dark-400 text-sm font-normal">({applications.length})</span>
+              </h2>
             </div>
-          </div>
-          <div className="flex-shrink-0 flex items-center gap-2">
-            {editing ? (
-              <>
-                <button
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  className="p-2 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors disabled:opacity-50"
-                  title="Cancel"
-                >
-                  <X size={18} />
-                </button>
-                <button
-                  onClick={saveEdit}
-                  disabled={saving}
-                  className="p-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-400 text-dark-950 transition-colors disabled:opacity-50"
-                  title="Save"
-                >
-                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                </button>
-              </>
+            {applications.length === 0 ? (
+              <div className="card p-8 flex flex-col items-center justify-center">
+                <Briefcase className="w-8 h-8 text-dark-500 mb-2" />
+                <p className="text-dark-400 text-sm">This candidate has no applications yet.</p>
+              </div>
             ) : (
-              <>
-                {!candidate.archived && (
-                  <button
-                    onClick={startEdit}
-                    className="p-2 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
-                    title="Edit"
-                  >
-                    <Edit3 size={18} />
-                  </button>
-                )}
-                {candidate.archived ? (
-                  <button
-                    onClick={handleUnarchive}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
-                  >
-                    <ArchiveRestore size={14} /> Unarchive
-                  </button>
-                ) : (
-                  <button
-                    onClick={openArchiveModal}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30"
-                  >
-                    <Archive size={14} /> Archive
-                  </button>
-                )}
-              </>
+              <div className="card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-dark-700 text-dark-400 text-xs uppercase">
+                        <th className="text-left px-4 py-3 font-medium">Job</th>
+                        <th className="text-left px-4 py-3 font-medium">Stage</th>
+                        <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Applied</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {applications.map((app) => (
+                        <tr
+                          key={app._id}
+                          onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
+                          className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-3 text-white">{app.jobName || '—'}</td>
+                          <td className="px-4 py-3"><StageBadge stageName={app.stageName} /></td>
+                          <td className="px-4 py-3 text-dark-400 text-xs hidden md:table-cell">{formatDate(app.createdAt || app.appliedOn)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-5">
+          <SectionCard title="Owner" icon={UserCheck}>
+            <InlineField
+              label="Manager"
+              field="managerId"
+              value={candidate.managerId}
+              type="select"
+              options={recruiterOptions}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={candidate.managerName || undefined}
+            />
+          </SectionCard>
+
+          <SectionCard title="Evaluation" icon={Star}>
+            <InlineField
+              label="Rating"
+              field="evaluation"
+              value={candidate.evaluation ?? 0}
+              type="select"
+              options={EVAL_OPTIONS}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={candidate.evaluation > 0
+                ? <span className="text-amber-400">{'★'.repeat(candidate.evaluation)}</span>
+                : undefined}
+            />
+          </SectionCard>
+
+          {candidate.employeeId && (
+            <SectionCard title="Hired" icon={UserCheck}>
+              <button
+                onClick={() => navigate(orgPath(`/employees/${candidate.employeeId}`))}
+                className="text-left w-full text-rivvra-400 hover:text-rivvra-300 text-sm py-2 underline-offset-2 hover:underline"
+              >
+                View linked employee →
+              </button>
+            </SectionCard>
+          )}
+
+          <SectionCard>
+            <RecordMeta
+              createdAt={candidate.createdAt}
+              createdByName={candidate.createdByName}
+              updatedAt={candidate.updatedAt}
+              updatedByName={candidate.updatedByName}
+            />
+          </SectionCard>
         </div>
       </div>
 
@@ -327,183 +413,6 @@ export default function AtsCandidateDetail() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Contact info */}
-      <div className="card p-6">
-        <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">Contact Information</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field
-            icon={<Mail size={14} />}
-            label="Email"
-            value={candidate.email}
-            editing={editing}
-            editValue={editForm.email}
-            onEditChange={(v) => setEditForm({ ...editForm, email: v })}
-            type="email"
-          />
-          <Field
-            icon={<Phone size={14} />}
-            label="Phone"
-            value={candidate.phone}
-            editing={editing}
-            editValue={editForm.phone}
-            onEditChange={(v) => setEditForm({ ...editForm, phone: v })}
-          />
-          <Field
-            icon={<Linkedin size={14} />}
-            label="LinkedIn"
-            value={candidate.linkedin}
-            editing={editing}
-            editValue={editForm.linkedin}
-            onEditChange={(v) => setEditForm({ ...editForm, linkedin: v })}
-            renderValue={(v) => v ? (
-              <a href={v} target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:text-rivvra-300 inline-flex items-center gap-1">
-                Profile <ExternalLink size={11} />
-              </a>
-            ) : null}
-          />
-          <Field
-            icon={<Briefcase size={14} />}
-            label="Current Title"
-            value={candidate.currentTitle}
-            editing={editing}
-            editValue={editForm.currentTitle}
-            onEditChange={(v) => setEditForm({ ...editForm, currentTitle: v })}
-          />
-          <Field
-            icon={<MapPin size={14} />}
-            label="Location"
-            value={candidate.location}
-            editing={editing}
-            editValue={editForm.location}
-            onEditChange={(v) => setEditForm({ ...editForm, location: v })}
-          />
-        </div>
-      </div>
-
-      {/* Evaluation rating — 0-3 stars, mirrors Odoo applicant `priority` */}
-      {(editing || (typeof candidate.evaluation === 'number' && candidate.evaluation > 0)) && (
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">Evaluation</h2>
-          {editing ? (
-            <div className="flex items-center gap-2">
-              {[0, 1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setEditForm({ ...editForm, evaluation: n })}
-                  className={`px-3 py-1.5 text-xs rounded-md border ${
-                    (editForm.evaluation ?? 0) === n
-                      ? 'bg-rivvra-500 border-rivvra-500 text-white'
-                      : 'bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600'
-                  }`}
-                >
-                  {n === 0 ? 'No rating' : '★'.repeat(n)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-dark-300 text-sm">
-              {candidate.evaluation > 0 ? '★'.repeat(candidate.evaluation) : '—'}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Description — long-form bio / notes (Phase-2 Odoo migration field) */}
-      {(editing || candidate.description) && (
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">Description</h2>
-          {editing ? (
-            <textarea
-              value={editForm.description || ''}
-              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              rows={5}
-              placeholder="Background, summary, recruiter notes…"
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:border-rivvra-500 focus:outline-none resize-none"
-            />
-          ) : (
-            <p className="text-dark-300 text-sm whitespace-pre-wrap">{candidate.description}</p>
-          )}
-        </div>
-      )}
-
-      {/* Skills */}
-      {skills.length > 0 && (
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide flex items-center gap-2">
-            <Award size={14} /> Skills
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {skills.map((s, i) => (
-              <span key={s._id || i} className="bg-dark-700 text-dark-200 text-sm px-3 py-1 rounded-full">
-                {s.skillName || s.name}
-                {s.proficiency && <span className="text-dark-500 ml-1">· {s.proficiency}</span>}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Applications */}
-      <div className="card p-6">
-        <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">
-          Applications ({applications.length})
-        </h2>
-        {applications.length === 0 ? (
-          <p className="text-dark-500 text-sm">This candidate has no applications yet.</p>
-        ) : (
-          <div className="overflow-x-auto -mx-6">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-dark-700 text-dark-400 text-xs uppercase">
-                  <th className="text-left px-6 py-2 font-medium">Job</th>
-                  <th className="text-left px-4 py-2 font-medium">Stage</th>
-                  <th className="text-left px-4 py-2 font-medium">Result</th>
-                  <th className="text-left px-4 py-2 font-medium">Applied</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((app) => (
-                  <tr
-                    key={app._id}
-                    onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
-                    className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-6 py-3 text-white">{app.jobName || '—'}</td>
-                    <td className="px-4 py-3"><StageBadge stageName={app.stageName} /></td>
-                    <td className="px-4 py-3"><ResultBadge result={app.kanbanState === 'done' ? 'hired' : app.kanbanState === 'blocked' ? 'refused' : null} /></td>
-                    <td className="px-4 py-3 text-dark-400 text-xs">{formatDate(app.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Field({ icon, label, value, editing, editValue, onEditChange, type = 'text', renderValue }) {
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 text-dark-500 text-xs mb-1">
-        {icon}
-        <span className="uppercase tracking-wide">{label}</span>
-      </div>
-      {editing ? (
-        <input
-          type={type}
-          value={editValue || ''}
-          onChange={(e) => onEditChange(e.target.value)}
-          className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:border-rivvra-500 focus:outline-none"
-        />
-      ) : (
-        <div className="text-white text-sm">
-          {renderValue ? (renderValue(value) || <span className="text-dark-500">—</span>) : (value || <span className="text-dark-500">—</span>)}
         </div>
       )}
     </div>

@@ -9,8 +9,8 @@ import EmployeePicker from '../employee/EmployeePicker';
  *  label       — field label
  *  field       — key used in onSave (e.g. "email", "bankDetails.pan")
  *  value       — current value
- *  type        — text | email | phone | date | select | toggle | masked |
- *                textarea | employee-picker
+ *  type        — text | email | phone | date | datetime-local | select |
+ *                toggle | masked | textarea | employee-picker
  *  editable    — whether the field is editable for the current viewer
  *  required    — if true, empty value shows validation error on blur
  *  options     — for type='select': [{ value, label }]
@@ -75,6 +75,19 @@ export default function InlineField({
       } else {
         const d = new Date(str);
         setEditVal(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
+      }
+    } else if (type === 'datetime-local' && raw) {
+      // Convert to YYYY-MM-DDTHH:MM for datetime-local input. Local TZ
+      // is intentional — interview times are scheduled in the user's
+      // local clock, not UTC.
+      const d = new Date(raw);
+      if (!Number.isNaN(d.getTime())) {
+        const pad = (n) => String(n).padStart(2, '0');
+        setEditVal(
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+        );
+      } else {
+        setEditVal('');
       }
     } else {
       setEditVal(String(raw));
@@ -326,6 +339,11 @@ function formatDisplayValue(val, type, maskFn, options) {
   if (maskFn) return maskFn(val);
   if (type === 'date') {
     return new Date(val).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+  if (type === 'datetime-local') {
+    const d = new Date(val);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
   if (type === 'select' && options.length > 0) {
     const opt = options.find(o => String(o.value) === String(val));
