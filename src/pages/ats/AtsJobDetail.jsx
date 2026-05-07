@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import InlineField from '../../components/shared/InlineField';
+import RecordMeta from '../../components/shared/RecordMeta';
+import SectionCard from '../../components/platform/detail/SectionCard';
 import {
-  Loader2, Star, ChevronDown, X,
-  Edit3, Check, Briefcase, Users, Calendar,
+  Loader2, Star, ChevronDown,
+  Briefcase, Users, FileText, Tag, Globe,
   DollarSign, MapPin, Shield, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
 } from 'lucide-react';
 
@@ -20,7 +23,6 @@ function StatusBadge({ status }) {
   };
   const labels = { open: 'Open', on_hold: 'On Hold', closed: 'Closed' };
   const key = (status || '').toLowerCase().replace(/\s+/g, '_');
-
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[key] || 'bg-dark-700 text-dark-400'}`}>
       {labels[key] || status || 'Unknown'}
@@ -37,7 +39,6 @@ function ApprovalBadge({ status }) {
   };
   const labels = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
   const key = (status || '').toLowerCase();
-
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[key] || 'bg-dark-700 text-dark-400'}`}>
       {labels[key] || status || 'Not Set'}
@@ -59,7 +60,6 @@ function StageBadge({ stageName }) {
   const name = stageName || 'Unknown';
   const hash = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const colorClass = colors[hash % colors.length];
-
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
       {name}
@@ -89,7 +89,6 @@ function ChangeStatusDropdown({ currentStatus, isOpen, onToggle, onSelect }) {
     { value: 'on_hold', label: 'On Hold' },
     { value: 'closed', label: 'Closed' },
   ];
-
   return (
     <div className="relative">
       <button
@@ -99,22 +98,19 @@ function ChangeStatusDropdown({ currentStatus, isOpen, onToggle, onSelect }) {
         Change Status
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
           <div className="absolute right-0 top-full mt-1.5 min-w-[150px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20">
-            {statuses
-              .filter((s) => s.value !== currentStatus)
-              .map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => onSelect(s.value)}
-                  className="w-full text-left px-3 py-2 text-sm text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
-                >
-                  {s.label}
-                </button>
-              ))}
+            {statuses.filter((s) => s.value !== currentStatus).map((s) => (
+              <button
+                key={s.value}
+                onClick={() => onSelect(s.value)}
+                className="w-full text-left px-3 py-2 text-sm text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
         </>
       )}
@@ -125,15 +121,10 @@ function ChangeStatusDropdown({ currentStatus, isOpen, onToggle, onSelect }) {
 /* ── Mini Pipeline (stage counts) ─────────────────────────────────────── */
 function MiniPipeline({ stageCounts }) {
   if (!stageCounts || stageCounts.length === 0) return null;
-
   const maxCount = Math.max(...stageCounts.map((s) => s.count), 1);
-
   return (
-    <div className="card p-5">
-      <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider mb-4">
-        Applications by Stage
-      </h2>
-      <div className="space-y-3">
+    <SectionCard title="Applications by Stage" icon={Users}>
+      <div className="space-y-3 pt-1">
         {stageCounts.map((s) => (
           <div key={s.stageId || s.name} className="flex items-center gap-3">
             <span className="text-dark-300 text-sm w-28 truncate flex-shrink-0">{s.name}</span>
@@ -148,24 +139,32 @@ function MiniPipeline({ stageCounts }) {
           </div>
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
-/* ── Enum option constants ────────────────────────────────────────────── */
-const EXPERIENCE_OPTIONS = [
-  '0-2 Years', '2-5 Years', '5-8 Years', '8-11 Years', '11-14 Years', '14+ Years',
-];
+/* ── Enum option constants (InlineField select shape) ─────────────────── */
+const EXPERIENCE_OPTIONS = ['0-2 Years', '2-5 Years', '5-8 Years', '8-11 Years', '11-14 Years', '14+ Years']
+  .map((v) => ({ value: v, label: v }));
 
-const HIRING_MODE_OPTIONS = [
-  'C2C', 'C2H', 'Full-time Hire', 'C2C or Full-time Hire',
-];
+const HIRING_MODE_OPTIONS = ['C2C', 'C2H', 'Full-time Hire', 'C2C or Full-time Hire']
+  .map((v) => ({ value: v, label: v }));
 
 const APPROVAL_STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
 ];
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatCurrency = (val) => {
+  if (val == null || val === '') return null;
+  return `$${Number(val).toLocaleString()}`;
+};
 
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsJobDetail() {
@@ -178,11 +177,7 @@ export default function AtsJobDetail() {
   const [job, setJob] = useState(null);
   usePageTitle(job?.name);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({});
 
-  // Recruiters list for user dropdowns
   const [recruiters, setRecruiters] = useState([]);
 
   // Applications for this job
@@ -192,10 +187,9 @@ export default function AtsJobDetail() {
   const [appsTotalPages, setAppsTotalPages] = useState(1);
   const [appsLoading, setAppsLoading] = useState(false);
 
-  // Stage counts for mini pipeline
   const [stageCounts, setStageCounts] = useState([]);
 
-  // UI
+  // UI / modal state
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -206,18 +200,22 @@ export default function AtsJobDetail() {
 
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
+  const canEdit = isAdmin && !job?.archived;
 
-  // ── Fetch recruiters for dropdowns ──────────────────────────────────
+  // ── Fetch recruiters for user-pickers ─────────────────────────────────
   useEffect(() => {
     if (!orgSlug) return;
     atsApi.listRecruiters(orgSlug)
-      .then((res) => {
-        if (res.success) setRecruiters(res.recruiters || []);
-      })
+      .then((res) => { if (res.success) setRecruiters(res.recruiters || []); })
       .catch((err) => console.error('Failed to load recruiters:', err));
   }, [orgSlug]);
 
-  // ── Fetch job ──────────────────────────────────────────────────────────
+  const recruiterOptions = useMemo(
+    () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
+    [recruiters]
+  );
+
+  // ── Fetch job ─────────────────────────────────────────────────────────
   const fetchJob = useCallback(async () => {
     if (!orgSlug || !jobId) return;
     setLoading(true);
@@ -225,8 +223,6 @@ export default function AtsJobDetail() {
       const res = await atsApi.getJob(orgSlug, jobId);
       if (res.success) {
         setJob(res.job);
-        setEditForm(res.job);
-        // If the API returns stage counts, use them
         if (res.stageCounts) setStageCounts(res.stageCounts);
       }
     } catch (err) {
@@ -237,7 +233,7 @@ export default function AtsJobDetail() {
     }
   }, [orgSlug, jobId, showToast]);
 
-  // ── Fetch applications for this job ────────────────────────────────────
+  // ── Fetch applications for this job ──────────────────────────────────
   const fetchApplications = useCallback(async (params = {}) => {
     if (!orgSlug || !jobId) return;
     setAppsLoading(true);
@@ -254,7 +250,6 @@ export default function AtsJobDetail() {
         setAppsTotal(res.total || 0);
         setAppsTotalPages(res.totalPages || 1);
 
-        // Build stage counts from applications if not provided by getJob
         if (stageCounts.length === 0) {
           const counts = {};
           (res.applications || []).forEach((app) => {
@@ -276,72 +271,43 @@ export default function AtsJobDetail() {
   useEffect(() => { fetchJob(); }, [fetchJob]);
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
-  // ── Actions ────────────────────────────────────────────────────────────
+  // ── Generic inline-field save handler ─────────────────────────────────
+  // Coerces numeric fields and validates ranges. Throws on error so
+  // InlineField can flash a red status indicator on the row.
+  const saveField = async (field, value) => {
+    let coerced = value;
+    if (field === 'expectedHires') {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 1) throw new Error('Must be at least 1');
+      coerced = n;
+    } else if (field === 'clientBudget' || field === 'maxBudget') {
+      if (value === '' || value == null) {
+        coerced = null;
+      } else {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 0) throw new Error('Must be a positive number');
+        coerced = n;
+      }
+    }
+    const res = await atsApi.updateJob(orgSlug, jobId, { [field]: coerced });
+    // updateJob returns { success, job } — use the server-echoed doc when
+    // present so denormalized fields (e.g. recruiterName) refresh too.
+    if (res?.job) {
+      setJob(res.job);
+    } else {
+      setJob((prev) => ({ ...prev, [field]: coerced }));
+    }
+  };
+
+  // ── Status / archive / delete handlers ────────────────────────────────
   const handleChangeStatus = async (status) => {
     setShowStatusDropdown(false);
     try {
-      setSaving(true);
       await atsApi.changeJobStatus(orgSlug, jobId, status);
       showToast('Status updated');
       fetchJob();
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    try {
-      setSaving(true);
-      const payload = {
-        name: editForm.name?.trim(),
-        department: editForm.department?.trim(),
-        description: editForm.description?.trim(),
-        requirements: editForm.requirements?.trim(),
-        recruiterId: editForm.recruiterId || undefined,
-        clientName: editForm.clientName?.trim(),
-        expectedHires: Number(editForm.expectedHires) || 1,
-        employmentType: editForm.employmentType?.trim(),
-        location: editForm.location?.trim(),
-        // New fields
-        requiredExperience: editForm.requiredExperience || '',
-        approvalStatus: editForm.approvalStatus || '',
-        approverId: editForm.approverId || '',
-        clientBudget: editForm.clientBudget !== '' && editForm.clientBudget != null ? Number(editForm.clientBudget) : null,
-        maxBudget: editForm.maxBudget !== '' && editForm.maxBudget != null ? Number(editForm.maxBudget) : null,
-        hiringMode: editForm.hiringMode || '',
-        accountOwnerId: editForm.accountOwnerId || '',
-        accountManagerId: editForm.accountManagerId || '',
-        approverComment: editForm.approverComment || '',
-        published: !!editForm.published,
-        // Phase-2 Odoo migration fields
-        clientJobLocation: editForm.clientJobLocation?.trim() || '',
-        missionDates: editForm.missionDates?.trim() || '',
-        emailAlias: editForm.emailAlias?.trim() || '',
-      };
-      const res = await atsApi.updateJob(orgSlug, jobId, payload);
-      if (res.success) {
-        showToast('Job position updated');
-        setEditing(false);
-        fetchJob();
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to update job position', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteJob = async () => {
-    setDeleting(true);
-    try {
-      await atsApi.deleteJob(orgSlug, jobId);
-      showToast('Job position deleted', 'success');
-      navigate(orgPath('/ats/jobs'));
-    } catch (err) {
-      setDeleting(false);
-      showToast(err.message || 'Failed to delete job position', 'error');
     }
   };
 
@@ -387,34 +353,19 @@ export default function AtsJobDetail() {
     }
   };
 
-  const handleEditChange = (field, value) => {
-    setEditForm((prev) => ({ ...prev, [field]: value }));
+  const handleDeleteJob = async () => {
+    setDeleting(true);
+    try {
+      await atsApi.deleteJob(orgSlug, jobId);
+      showToast('Job position deleted', 'success');
+      navigate(orgPath('/ats/jobs'));
+    } catch (err) {
+      setDeleting(false);
+      showToast(err.message || 'Failed to delete job position', 'error');
+    }
   };
 
-  // ── Helpers ────────────────────────────────────────────────────────────
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '\u2014';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatCurrency = (val) => {
-    if (val == null || val === '') return '\u2014';
-    return `$${Number(val).toLocaleString()}`;
-  };
-
-  /** Resolve a recruiter/user ID to a display name from the recruiters list */
-  const resolveUserName = (userId, fallbackName) => {
-    if (fallbackName) return fallbackName;
-    if (!userId) return '\u2014';
-    const user = recruiters.find((r) => r._id === userId);
-    return user ? user.name : '\u2014';
-  };
-
-  // ── Render ─────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -439,665 +390,370 @@ export default function AtsJobDetail() {
   return (
     <div className="p-6 md:p-8 space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold text-white">{job.name}</h1>
-              {job.archived && (
-                <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
-                  <Archive size={11} /> ARCHIVED
-                </span>
-              )}
-              <StatusBadge status={job.status} />
-              {job.approvalStatus && <ApprovalBadge status={job.approvalStatus} />}
-            </div>
-            <p className="text-dark-400 text-sm">
-              {job.department || 'No department'}{job.location ? ` \u00B7 ${job.location}` : ''}
-            </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h1 className="text-2xl font-bold text-white">{job.name}</h1>
+            {job.archived && (
+              <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
+                <Archive size={11} /> ARCHIVED
+              </span>
+            )}
+            <StatusBadge status={job.status} />
+            {job.approvalStatus && <ApprovalBadge status={job.approvalStatus} />}
           </div>
+          <p className="text-dark-400 text-sm">
+            {job.department || 'No department'}{job.location ? ` · ${job.location}` : ''}
+          </p>
+        </div>
 
-          {/* Action buttons */}
-          {isAdmin && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {!job?.archived && (<>
+        {isAdmin && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {!job.archived && (
               <ChangeStatusDropdown
                 currentStatus={statusKey}
                 isOpen={showStatusDropdown}
                 onToggle={() => setShowStatusDropdown((p) => !p)}
                 onSelect={handleChangeStatus}
               />
+            )}
+            {job.archived ? (
               <button
-                onClick={() => {
-                  if (editing) {
-                    handleSaveEdit();
-                  } else {
-                    setEditing(true);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600 hover:text-dark-200"
+                onClick={handleUnarchiveJob}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
               >
-                {editing ? (
-                  <>
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                    Save
-                  </>
-                ) : (
-                  <>
-                    <Edit3 size={14} />
-                    Edit
-                  </>
-                )}
+                <ArchiveRestore size={14} /> Unarchive
               </button>
-              {editing && (
-                <button
-                  onClick={() => { setEditing(false); setEditForm(job); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-dark-800 border-dark-700 text-dark-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-              )}
-              </>)}
-              {job?.archived ? (
-                <button
-                  onClick={handleUnarchiveJob}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
-                >
-                  <ArchiveRestore size={14} /> Unarchive
-                </button>
-              ) : (
-                <button
-                  onClick={openArchiveModal}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30"
-                >
-                  <Archive size={14} /> Archive
-                </button>
-              )}
-              <div className="relative">
-                <button
-                  onClick={() => setShowKebab((o) => !o)}
-                  className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
-                  aria-label="More actions"
-                >
-                  <MoreHorizontal size={16} />
-                </button>
-                {showKebab && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
-                      {isOrgAdmin ? (
-                        <button
-                          onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
-                          className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-                        >
-                          <Trash2 size={12} />
-                          <div className="flex-1">
-                            <div className="font-medium">Delete permanently</div>
-                            <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
-                          </div>
-                        </button>
-                      ) : (
-                        <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Job info card */}
-      <div className="card p-5">
-        <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider mb-4">
-          Job Details
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Position Name</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.name || ''}
-                onChange={(e) => handleEditChange('name', e.target.value)}
-                className="input-field text-sm"
-              />
             ) : (
-              <p className="text-white text-sm">{job.name || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Department</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.department || ''}
-                onChange={(e) => handleEditChange('department', e.target.value)}
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.department || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Employment Type</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.employmentType || ''}
-                onChange={(e) => handleEditChange('employmentType', e.target.value)}
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.employmentType || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Recruiter</p>
-            {editing ? (
-              <select
-                value={editForm.recruiterId || ''}
-                onChange={(e) => handleEditChange('recruiterId', e.target.value)}
-                className="input-field text-sm"
+              <button
+                onClick={openArchiveModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30"
               >
-                <option value="">Select Recruiter</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name || r.email}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-white text-sm">{job.recruiterName || '\u2014'}</p>
+                <Archive size={14} /> Archive
+              </button>
             )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Client</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.clientName || ''}
-                onChange={(e) => handleEditChange('clientName', e.target.value)}
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.clientName || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Expected Hires</p>
-            {editing ? (
-              <input
-                type="number"
-                value={editForm.expectedHires || 1}
-                onChange={(e) => handleEditChange('expectedHires', e.target.value)}
-                min="1"
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.expectedHires ?? '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Hired</p>
-            <p className="text-white text-sm">{job.hiredCount ?? 0}</p>
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Created</p>
-            <p className="text-white text-sm">{formatDate(job.createdAt)}</p>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="mt-5 pt-5 border-t border-dark-700">
-          <p className="text-dark-500 text-xs mb-1">Description</p>
-          {editing ? (
-            <textarea
-              value={editForm.description || ''}
-              onChange={(e) => handleEditChange('description', e.target.value)}
-              rows={4}
-              className="input-field resize-none text-sm"
-            />
-          ) : (
-            <p className="text-dark-300 text-sm whitespace-pre-wrap">
-              {job.description || 'No description provided.'}
-            </p>
-          )}
-        </div>
-
-        {/* Requirements */}
-        <div className="mt-4">
-          <p className="text-dark-500 text-xs mb-1">Requirements</p>
-          {editing ? (
-            <textarea
-              value={editForm.requirements || ''}
-              onChange={(e) => handleEditChange('requirements', e.target.value)}
-              rows={4}
-              className="input-field resize-none text-sm"
-            />
-          ) : (
-            <p className="text-dark-300 text-sm whitespace-pre-wrap">
-              {job.requirements || 'No requirements listed.'}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Staffing Details ──────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Briefcase size={14} className="text-dark-400" />
-          <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider">
-            Staffing Details
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Required Experience</p>
-            {editing ? (
-              <select
-                value={editForm.requiredExperience || ''}
-                onChange={(e) => handleEditChange('requiredExperience', e.target.value)}
-                className="input-field text-sm"
+            <div className="relative">
+              <button
+                onClick={() => setShowKebab((o) => !o)}
+                className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
+                aria-label="More actions"
               >
-                <option value="">Select...</option>
-                {EXPERIENCE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-white text-sm">{job.requiredExperience || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Hiring Mode</p>
-            {editing ? (
-              <select
-                value={editForm.hiringMode || ''}
-                onChange={(e) => handleEditChange('hiringMode', e.target.value)}
-                className="input-field text-sm"
-              >
-                <option value="">Select...</option>
-                {HIRING_MODE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-white text-sm">{job.hiringMode || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Location</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.location || ''}
-                onChange={(e) => handleEditChange('location', e.target.value)}
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.location || '\u2014'}</p>
-            )}
-          </div>
-          {/* Phase-2 Odoo migration fields. clientJobLocation distinguishes
-              the work location at the client's site from `location` (our
-              office). missionDates is free-form (e.g. "Jun 2026 \u2013 Dec 2026").
-              emailAlias = inbound recruitment email alias from Odoo. */}
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Client Job Location</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.clientJobLocation || ''}
-                onChange={(e) => handleEditChange('clientJobLocation', e.target.value)}
-                className="input-field text-sm"
-                placeholder="e.g. Remote, Bangalore on-site"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.clientJobLocation || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Mission Dates</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.missionDates || ''}
-                onChange={(e) => handleEditChange('missionDates', e.target.value)}
-                className="input-field text-sm"
-                placeholder="e.g. Jun 2026 - Dec 2026"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.missionDates || '\u2014'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Email Alias</p>
-            {editing ? (
-              <input
-                type="text"
-                value={editForm.emailAlias || ''}
-                onChange={(e) => handleEditChange('emailAlias', e.target.value)}
-                className="input-field text-sm"
-                placeholder="e.g. devops-jobs"
-              />
-            ) : (
-              <p className="text-white text-sm">{job.emailAlias || '\u2014'}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Financial ─────────────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <DollarSign size={14} className="text-dark-400" />
-          <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider">
-            Financial
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Client Budget</p>
-            {editing ? (
-              <input
-                type="number"
-                value={editForm.clientBudget ?? ''}
-                onChange={(e) => handleEditChange('clientBudget', e.target.value)}
-                min="0"
-                placeholder="0"
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{formatCurrency(job.clientBudget)}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Max Budget</p>
-            {editing ? (
-              <input
-                type="number"
-                value={editForm.maxBudget ?? ''}
-                onChange={(e) => handleEditChange('maxBudget', e.target.value)}
-                min="0"
-                placeholder="0"
-                className="input-field text-sm"
-              />
-            ) : (
-              <p className="text-white text-sm">{formatCurrency(job.maxBudget)}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── People ────────────────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <UserCheck size={14} className="text-dark-400" />
-          <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider">
-            People
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Account Owner</p>
-            {editing ? (
-              <select
-                value={editForm.accountOwnerId || ''}
-                onChange={(e) => handleEditChange('accountOwnerId', e.target.value)}
-                className="input-field text-sm"
-              >
-                <option value="">Select...</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-white text-sm">
-                {resolveUserName(job.accountOwnerId, job.accountOwnerName)}
-              </p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Account Manager</p>
-            {editing ? (
-              <select
-                value={editForm.accountManagerId || ''}
-                onChange={(e) => handleEditChange('accountManagerId', e.target.value)}
-                className="input-field text-sm"
-              >
-                <option value="">Select...</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-white text-sm">
-                {resolveUserName(job.accountManagerId, job.accountManagerName)}
-              </p>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Approver</p>
-            {editing ? (
-              <select
-                value={editForm.approverId || ''}
-                onChange={(e) => handleEditChange('approverId', e.target.value)}
-                className="input-field text-sm"
-              >
-                <option value="">Select...</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-white text-sm">
-                {resolveUserName(job.approverId, job.approverName)}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Approval ──────────────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield size={14} className="text-dark-400" />
-          <h2 className="text-sm font-semibold text-dark-400 uppercase tracking-wider">
-            Approval
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Approval Status</p>
-            {editing ? (
-              <select
-                value={editForm.approvalStatus || ''}
-                onChange={(e) => handleEditChange('approvalStatus', e.target.value)}
-                className="input-field text-sm"
-              >
-                <option value="">Select...</option>
-                {APPROVAL_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            ) : (
-              <div className="pt-0.5">
-                <ApprovalBadge status={job.approvalStatus} />
-              </div>
-            )}
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Approver</p>
-            <p className="text-white text-sm">
-              {resolveUserName(job.approverId, job.approverName)}
-            </p>
-          </div>
-          <div>
-            <p className="text-dark-500 text-xs mb-1">Approver Comment</p>
-            {editing ? (
-              <textarea
-                value={editForm.approverComment || ''}
-                onChange={(e) => handleEditChange('approverComment', e.target.value)}
-                className="input-field text-sm min-h-[60px]"
-                placeholder="Approval notes..."
-              />
-            ) : (
-              <p className="text-dark-300 text-sm">{job.approverComment || '—'}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Published Toggle */}
-      <div className="flex items-center justify-between px-1 py-2">
-        <div>
-          <p className="text-dark-200 text-sm font-medium">Published</p>
-          <p className="text-dark-500 text-xs">Make this position visible on the careers page</p>
-        </div>
-        <button
-          onClick={() => {
-            if (!editing) return;
-            handleEditChange('published', !editForm.published);
-          }}
-          className={`relative w-10 h-5 rounded-full transition-colors ${
-            (editing ? editForm.published : job.published) ? 'bg-rivvra-500' : 'bg-dark-600'
-          } ${!editing ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-            (editing ? editForm.published : job.published) ? 'translate-x-5' : ''
-          }`} />
-        </button>
-      </div>
-
-      {/* Mini Pipeline */}
-      <MiniPipeline stageCounts={stageCounts} />
-
-      {/* Applications table */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">
-            Applications
-            <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
-          </h2>
-        </div>
-
-        {appsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
-          </div>
-        ) : applications.length === 0 ? (
-          <div className="card p-8 flex flex-col items-center justify-center">
-            <Users className="w-8 h-8 text-dark-500 mb-2" />
-            <p className="text-dark-400 text-sm">No applications for this position yet.</p>
-          </div>
-        ) : (
-          <>
-            <div className="card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-dark-700">
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
-                      <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
-                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applications.map((app) => (
-                      <tr
-                        key={app._id}
-                        onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
-                        className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                <MoreHorizontal size={16} />
+              </button>
+              {showKebab && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                    {isOrgAdmin ? (
+                      <button
+                        onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
+                        className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
                       >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
-                              <span className="text-rivvra-400 text-xs font-semibold">
-                                {(app.candidateName || '?')[0].toUpperCase()}
-                              </span>
-                            </div>
-                            <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
-                          <span className="truncate block max-w-[180px]">{app.candidateEmail || '\u2014'}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <StageBadge stageName={app.stageName || app.stageId?.name} />
-                        </td>
-                        <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                          {app.recruiterName || '\u2014'}
-                        </td>
-                        <td className="px-4 py-3 hidden lg:table-cell">
-                          <div className="flex justify-center">
-                            <EvalStars value={app.evaluation || 0} />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                          {formatDate(app.appliedOn)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        <Trash2 size={12} />
+                        <div className="flex-1">
+                          <div className="font-medium">Delete permanently</div>
+                          <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Body: main column + narrow sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Main column */}
+        <div className="lg:col-span-2 space-y-5">
+          <SectionCard title="Overview" icon={Briefcase}>
+            <InlineField label="Position Name" field="name" value={job.name} editable={canEdit} onSave={saveField} required />
+            <InlineField label="Department" field="department" value={job.department} editable={canEdit} onSave={saveField} placeholder="e.g. Engineering" />
+            <InlineField label="Employment Type" field="employmentType" value={job.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
+            <InlineField label="Location" field="location" value={job.location} editable={canEdit} onSave={saveField} placeholder="Office / city" />
+            <InlineField label="Expected Hires" field="expectedHires" value={job.expectedHires ?? 1} editable={canEdit} onSave={saveField} />
+            <InlineField label="Hired" field="hiredCount" value={job.hiredCount ?? 0} editable={false} />
+          </SectionCard>
+
+          <SectionCard title="Description" icon={FileText}>
+            <InlineField label="Description" field="description" value={job.description} type="textarea" editable={canEdit} onSave={saveField} placeholder="Internal role description" />
+            <InlineField label="Requirements" field="requirements" value={job.requirements} type="textarea" editable={canEdit} onSave={saveField} placeholder="Must-have skills, certifications…" />
+            <InlineField label="Process Details" field="processDetails" value={job.processDetails} type="textarea" editable={canEdit} onSave={saveField} placeholder="Recruiter-facing process notes (rounds, panels, screening…)" />
+            <InlineField label="Public Description" field="websiteDescription" value={job.websiteDescription} type="textarea" editable={canEdit} onSave={saveField} placeholder="Candidate-facing description for the careers page" />
+          </SectionCard>
+
+          <SectionCard title="Staffing" icon={MapPin}>
+            <InlineField label="Required Exp." field="requiredExperience" value={job.requiredExperience} type="select" options={EXPERIENCE_OPTIONS} editable={canEdit} onSave={saveField} />
+            <InlineField label="Hiring Mode" field="hiringMode" value={job.hiringMode} type="select" options={HIRING_MODE_OPTIONS} editable={canEdit} onSave={saveField} />
+            <InlineField label="Client Job Loc." field="clientJobLocation" value={job.clientJobLocation} editable={canEdit} onSave={saveField} placeholder="e.g. Remote, Bangalore on-site" />
+            <InlineField label="Mission Dates" field="missionDates" value={job.missionDates} editable={canEdit} onSave={saveField} placeholder="e.g. Jun 2026 – Dec 2026" />
+            <InlineField label="Email Alias" field="emailAlias" value={job.emailAlias} editable={canEdit} onSave={saveField} placeholder="e.g. devops-jobs" />
+            <InlineField label="Website URL" field="websiteUrl" value={job.websiteUrl} type="url" editable={canEdit} onSave={saveField} placeholder="https://…" />
+          </SectionCard>
+
+          <SectionCard title="Financial" icon={DollarSign}>
+            <InlineField
+              label="Client Budget"
+              field="clientBudget"
+              value={job.clientBudget}
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="0"
+              displayValue={formatCurrency(job.clientBudget) || undefined}
+            />
+            <InlineField
+              label="Max Budget"
+              field="maxBudget"
+              value={job.maxBudget}
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="0"
+              displayValue={formatCurrency(job.maxBudget) || undefined}
+            />
+          </SectionCard>
+
+          <SectionCard title="Approval" icon={Shield}>
+            <InlineField
+              label="Approval Status"
+              field="approvalStatus"
+              value={job.approvalStatus}
+              type="select"
+              options={APPROVAL_STATUS_OPTIONS}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={job.approvalStatus ? <ApprovalBadge status={job.approvalStatus} /> : undefined}
+            />
+            <InlineField
+              label="Approver Comment"
+              field="approverComment"
+              value={job.approverComment}
+              type="textarea"
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="Approval notes…"
+            />
+          </SectionCard>
+
+          <MiniPipeline stageCounts={stageCounts} />
+
+          {/* Applications table */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Applications
+                <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
+              </h2>
             </div>
 
-            {/* Pagination */}
-            {appsTotalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-dark-400 text-sm">
-                  Showing {appsTotal === 0 ? 0 : (appsPage - 1) * 15 + 1}\u2013{Math.min(appsPage * 15, appsTotal)} of {appsTotal}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setAppsPage((p) => Math.max(1, p - 1))}
-                    disabled={appsPage === 1}
-                    className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronDown size={16} className="rotate-90" />
-                  </button>
-
-                  {Array.from({ length: appsTotalPages }, (_, i) => i + 1)
-                    .filter((p) => p === 1 || p === appsTotalPages || Math.abs(p - appsPage) <= 1)
-                    .reduce((acc, p, i, arr) => {
-                      if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, i) =>
-                      p === '...' ? (
-                        <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
-                      ) : (
-                        <button
-                          key={p}
-                          onClick={() => setAppsPage(p)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                            p === appsPage
-                              ? 'bg-rivvra-500 text-dark-950'
-                              : 'text-dark-400 hover:text-white hover:bg-dark-800'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      )
-                    )}
-
-                  <button
-                    onClick={() => setAppsPage((p) => Math.min(appsTotalPages, p + 1))}
-                    disabled={appsPage === appsTotalPages}
-                    className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronDown size={16} className="-rotate-90" />
-                  </button>
-                </div>
+            {appsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
               </div>
+            ) : applications.length === 0 ? (
+              <div className="card p-8 flex flex-col items-center justify-center">
+                <Users className="w-8 h-8 text-dark-500 mb-2" />
+                <p className="text-dark-400 text-sm">No applications for this position yet.</p>
+              </div>
+            ) : (
+              <>
+                <div className="card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-700">
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
+                          <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {applications.map((app) => (
+                          <tr
+                            key={app._id}
+                            onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
+                            className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-rivvra-400 text-xs font-semibold">
+                                    {(app.candidateName || '?')[0].toUpperCase()}
+                                  </span>
+                                </div>
+                                <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
+                              <span className="truncate block max-w-[180px]">{app.candidateEmail || '—'}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <StageBadge stageName={app.stageName || app.stageId?.name} />
+                            </td>
+                            <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
+                              {app.recruiterName || '—'}
+                            </td>
+                            <td className="px-4 py-3 hidden lg:table-cell">
+                              <div className="flex justify-center">
+                                <EvalStars value={app.evaluation || 0} />
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
+                              {formatDate(app.appliedOn)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Pagination */}
+                {appsTotalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-dark-400 text-sm">
+                      Showing {appsTotal === 0 ? 0 : (appsPage - 1) * 15 + 1}–{Math.min(appsPage * 15, appsTotal)} of {appsTotal}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setAppsPage((p) => Math.max(1, p - 1))}
+                        disabled={appsPage === 1}
+                        className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronDown size={16} className="rotate-90" />
+                      </button>
+                      {Array.from({ length: appsTotalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === appsTotalPages || Math.abs(p - appsPage) <= 1)
+                        .reduce((acc, p, i, arr) => {
+                          if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, i) =>
+                          p === '...' ? (
+                            <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
+                          ) : (
+                            <button
+                              key={p}
+                              onClick={() => setAppsPage(p)}
+                              className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                                p === appsPage
+                                  ? 'bg-rivvra-500 text-dark-950'
+                                  : 'text-dark-400 hover:text-white hover:bg-dark-800'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          )
+                        )}
+                      <button
+                        onClick={() => setAppsPage((p) => Math.min(appsTotalPages, p + 1))}
+                        disabled={appsPage === appsTotalPages}
+                        className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronDown size={16} className="-rotate-90" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-5">
+          <SectionCard title="People" icon={UserCheck}>
+            <InlineField
+              label="Recruiter"
+              field="recruiterId"
+              value={job.recruiterId}
+              type="select"
+              options={recruiterOptions}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={job.recruiterName || undefined}
+            />
+            <InlineField
+              label="Account Owner"
+              field="accountOwnerId"
+              value={job.accountOwnerId}
+              type="select"
+              options={recruiterOptions}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={job.accountOwnerName || undefined}
+            />
+            <InlineField
+              label="Account Mgr."
+              field="accountManagerId"
+              value={job.accountManagerId}
+              type="select"
+              options={recruiterOptions}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={job.accountManagerName || undefined}
+            />
+            <InlineField
+              label="Approver"
+              field="approverId"
+              value={job.approverId}
+              type="select"
+              options={recruiterOptions}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={job.approverName || undefined}
+            />
+          </SectionCard>
+
+          <SectionCard title="Client" icon={Tag}>
+            <InlineField
+              label="Client Role"
+              field="isClientRole"
+              value={!!job.isClientRole}
+              type="toggle"
+              editable={canEdit}
+              onSave={saveField}
+            />
+            <InlineField
+              label="Client Name"
+              field="clientName"
+              value={job.clientName}
+              editable={canEdit && !!job.isClientRole}
+              onSave={saveField}
+              placeholder={job.isClientRole ? 'Client company name' : 'Toggle Client Role first'}
+            />
+          </SectionCard>
+
+          <SectionCard title="Visibility" icon={Globe}>
+            <InlineField
+              label="Published"
+              field="published"
+              value={!!job.published}
+              type="toggle"
+              editable={canEdit}
+              onSave={saveField}
+            />
+            <p className="text-[11px] text-dark-500 mt-1 px-1">
+              When on, the role appears on the public careers page.
+            </p>
+          </SectionCard>
+
+          <SectionCard>
+            <RecordMeta
+              createdAt={job.createdAt}
+              createdByName={job.createdByName}
+              updatedAt={job.updatedAt}
+              updatedByName={job.updatedByName}
+            />
+          </SectionCard>
+        </div>
       </div>
 
       {/* Archive Confirmation Modal — soft cascade with explicit user choice */}
@@ -1176,12 +832,17 @@ export default function AtsJobDetail() {
             </p>
             <p className="text-xs text-dark-500 mb-5">This action cannot be undone. Jobs with existing applications cannot be deleted.</p>
             <div className="flex gap-2">
-              <button onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors"
+              >
                 Cancel
               </button>
-              <button onClick={handleDeleteJob} disabled={deleting}
-                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <button
+                onClick={handleDeleteJob}
+                disabled={deleting}
+                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
                 {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                 Delete
               </button>

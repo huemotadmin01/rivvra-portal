@@ -100,6 +100,8 @@ export default function AtsCandidateDetail() {
       location: candidate.location || '',
       // Phase-2 Odoo migration: candidate-level description (long bio/notes)
       description: candidate.description || '',
+      // Phase-2 wave-2: 0-3 evaluation rating, mirrors Odoo `priority`
+      evaluation: typeof candidate.evaluation === 'number' ? candidate.evaluation : 0,
     });
     setEditing(true);
   };
@@ -380,6 +382,35 @@ export default function AtsCandidateDetail() {
           />
         </div>
       </div>
+
+      {/* Evaluation rating — 0-3 stars, mirrors Odoo applicant `priority` */}
+      {(editing || (typeof candidate.evaluation === 'number' && candidate.evaluation > 0)) && (
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">Evaluation</h2>
+          {editing ? (
+            <div className="flex items-center gap-2">
+              {[0, 1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, evaluation: n })}
+                  className={`px-3 py-1.5 text-xs rounded-md border ${
+                    (editForm.evaluation ?? 0) === n
+                      ? 'bg-rivvra-500 border-rivvra-500 text-white'
+                      : 'bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600'
+                  }`}
+                >
+                  {n === 0 ? 'No rating' : '★'.repeat(n)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-dark-300 text-sm">
+              {candidate.evaluation > 0 ? '★'.repeat(candidate.evaluation) : '—'}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Description — long-form bio / notes (Phase-2 Odoo migration field) */}
       {(editing || candidate.description) && (

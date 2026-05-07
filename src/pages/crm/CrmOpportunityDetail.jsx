@@ -11,7 +11,7 @@ import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import {
-  Building2, User, Briefcase, Trophy, FileText, Tag,
+  Building2, User, Briefcase, Trophy, FileText, Tag, MapPin,
   Trash2, Loader2, XCircle, RotateCcw,
   ExternalLink, Unlink, Archive, ArchiveRestore, MoreHorizontal,
 } from 'lucide-react';
@@ -489,7 +489,17 @@ export default function CrmOpportunityDetail() {
             )}
             <InlineField label="Email" field="contactEmail" value={opp.contactEmail} type="email" editable={canEdit} onSave={saveField} placeholder="Add email" />
             <InlineField label="Phone" field="contactPhone" value={opp.contactPhone} type="phone" editable={canEdit} onSave={saveField} placeholder="Add phone" />
+            <InlineField label="Mobile" field="contactMobile" value={opp.contactMobile} type="phone" editable={canEdit} onSave={saveField} placeholder="Add mobile" />
             <InlineField label="LinkedIn" field="linkedinUrl" value={opp.linkedinUrl} type="url" editable={canEdit} onSave={saveField} placeholder="LinkedIn URL" />
+          </SectionCard>
+
+          <SectionCard title="Address" icon={MapPin}>
+            <InlineField label="Street" field="street" value={opp.street} editable={canEdit} onSave={saveField} placeholder="Street" />
+            <InlineField label="Street 2" field="street2" value={opp.street2} editable={canEdit} onSave={saveField} placeholder="Apt, suite, etc." />
+            <InlineField label="City" field="city" value={opp.city} editable={canEdit} onSave={saveField} placeholder="City" />
+            <InlineField label="State" field="stateId" value={opp.stateId} editable={canEdit} onSave={saveField} placeholder="State / Region" />
+            <InlineField label="ZIP" field="zip" value={opp.zip} editable={canEdit} onSave={saveField} placeholder="ZIP / Postal code" />
+            <InlineField label="Country" field="countryId" value={opp.countryId} editable={canEdit} onSave={saveField} placeholder="Country" />
           </SectionCard>
 
           <SectionCard title="Opportunity Details" icon={Briefcase}>
