@@ -17,11 +17,17 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ name: '' });
 
+  // Backend routes are kebab-case (`/ats/config/refuse-reasons`,
+  // `/ats/config/employment-types`) but the tab key carried over from the
+  // tab strip is snake_case (`refuse_reasons`, `employment_types`).
+  // Translate at the network boundary so the UI keeps a single key.
+  const apiEntity = entity.replace(/_/g, '-');
+
   const fetchItems = useCallback(async () => {
     if (!orgSlug) return;
     try {
       setLoading(true);
-      const res = await atsApi.listConfig(orgSlug, entity);
+      const res = await atsApi.listConfig(orgSlug, apiEntity);
       if (res.success) {
         setItems(res.items || res[entity] || []);
       }
@@ -30,7 +36,7 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, entity, entityLabel, showToast]);
+  }, [orgSlug, apiEntity, entity, entityLabel, showToast]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -60,7 +66,7 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
     try {
       setSaving(true);
       if (editingItem) {
-        const res = await atsApi.updateConfig(orgSlug, entity, editingItem._id, { name: form.name.trim() });
+        const res = await atsApi.updateConfig(orgSlug, apiEntity, editingItem._id, { name: form.name.trim() });
         if (res.success) {
           showToast(`${entityLabel.slice(0, -1)} updated`);
           closeModal();
@@ -69,7 +75,7 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
           showToast(res.error || `Failed to update ${entityLabel.toLowerCase()}`, 'error');
         }
       } else {
-        const res = await atsApi.createConfig(orgSlug, entity, { name: form.name.trim() });
+        const res = await atsApi.createConfig(orgSlug, apiEntity, { name: form.name.trim() });
         if (res.success) {
           showToast(`${entityLabel.slice(0, -1)} created`);
           closeModal();
@@ -90,7 +96,7 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
     if (!window.confirm(`Delete "${editingItem.name}"? This cannot be undone.`)) return;
     try {
       setDeleting(true);
-      const res = await atsApi.deleteConfig(orgSlug, entity, editingItem._id);
+      const res = await atsApi.deleteConfig(orgSlug, apiEntity, editingItem._id);
       if (res.success) {
         showToast(`${entityLabel.slice(0, -1)} deleted`);
         closeModal();
