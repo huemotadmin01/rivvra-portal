@@ -71,7 +71,12 @@ function Badge({ children, className }) {
 
 function NotFoundRedirect({ orgPath, showToast }) {
   const navigate = useNavigate();
+  const firedRef = useRef(false);
   useEffect(() => {
+    // StrictMode double-invokes effects in dev; ref-guard so the toast
+    // doesn't fire twice on the same mount.
+    if (firedRef.current) return;
+    firedRef.current = true;
     showToast('Contact not found', 'error');
     navigate(orgPath('/contacts/list'), { replace: true });
   }, [navigate, orgPath, showToast]);

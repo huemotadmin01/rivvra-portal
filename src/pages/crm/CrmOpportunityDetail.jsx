@@ -10,6 +10,7 @@ import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Building2, User, Briefcase, Trophy, FileText, Tag, MapPin,
   Trash2, Loader2, XCircle, RotateCcw,
@@ -78,6 +79,7 @@ export default function CrmOpportunityDetail() {
   const navigate = useNavigate();
 
   const [opp, setOpp] = useState(null);
+  usePageTitle(opp?.name);
   const [stages, setStages] = useState([]);
   const [lostReasons, setLostReasons] = useState([]);
   const [loading, setLoading] = useState(true);

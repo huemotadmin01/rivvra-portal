@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { downloadFile } from '../../utils/download';
 import { formatMoney } from '../../utils/currency';
 import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
-import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import {
   ChevronLeft, ChevronRight, Plus, Star,
-  Trophy, Loader2, ArrowUpDown, Download, Archive,
+  Trophy, Loader2, ArrowUpDown, Download,
 } from 'lucide-react';
 
 function StageBadge({ name, isWon, isLost }) {
@@ -30,6 +30,7 @@ function EvalStars({ value = 0 }) {
 
 export default function CrmOpportunities() {
   const { orgSlug: slug } = useOrg();
+  const { currentCompany } = useCompany();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -67,7 +68,8 @@ export default function CrmOpportunities() {
     } finally {
       setLoading(false);
     }
-  }, [slug, page, limit, sortBy, sortDir, JSON.stringify(filterParams)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, currentCompany?._id, page, limit, sortBy, sortDir, JSON.stringify(filterParams)]);
 
   // Load archived count for the segmented Active/Archived chip — same filter
   // shape, just flipped. Refreshes whenever the active list refreshes.

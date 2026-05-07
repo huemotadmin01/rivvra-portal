@@ -63,11 +63,15 @@ export default function CrmDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     crmApi.getDashboard(slug).then(res => {
       if (res.success) setData(res);
     }).catch(() => addToast('Failed to load dashboard', 'error'))
       .finally(() => setLoading(false));
-  }, [slug]);
+    // currentCompany?._id is included so a company switch refreshes
+    // the dashboard — backend filters by req.companyId server-side.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, currentCompany?._id]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;

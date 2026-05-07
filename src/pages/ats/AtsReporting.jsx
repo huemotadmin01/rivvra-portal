@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -62,7 +62,9 @@ function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
 
 /* ── Recruiter Table ──────────────────────────────────────────────────── */
 function RecruiterTable({ data, totalApplications }) {
-  const sorted = [...data].sort((a, b) => b.count - a.count);
+  // Sort descending by application count, memoised so we don't re-sort
+  // on every parent re-render (the table doesn't own this state).
+  const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
 
   return (
     <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">

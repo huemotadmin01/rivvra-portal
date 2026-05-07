@@ -18,11 +18,13 @@ export default function CrmReporting() {
   const currency = currentCompany?.currency || 'INR';
 
   useEffect(() => {
+    setLoading(true);
     crmApi.getDashboard(slug).then(res => {
       if (res.success) setData(res);
     }).catch(() => addToast('Failed to load', 'error'))
       .finally(() => setLoading(false));
-  }, [slug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, currentCompany?._id]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;
