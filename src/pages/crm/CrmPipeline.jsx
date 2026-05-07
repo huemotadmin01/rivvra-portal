@@ -4,8 +4,6 @@ import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
-import contactsApi from '../../utils/contactsApi';
-import ComboSelect from '../../components/ComboSelect';
 import { formatMoney } from '../../utils/currency';
 import {
   DndContext, DragOverlay, closestCorners,
@@ -15,9 +13,9 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  Plus, Search, ChevronDown, Star, Building2, User, Phone,
-  Mail, Briefcase, Trophy, X, GripVertical, Filter, Loader2,
-  IndianRupee, ExternalLink,
+  Plus, Search, ChevronDown, Star, Building2,
+  Trophy, GripVertical, Loader2,
+  IndianRupee,
 } from 'lucide-react';
 
 // ── Star Rating ──────────────────────────────────────────────────────────
@@ -172,182 +170,8 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
 }
 
 // ── Create Opportunity Modal ─────────────────────────────────────────────
-function CreateModal({ stages, orgSlug, onClose, onCreate }) {
-  // Aligned with Odoo's "+" inline form (locked 2026-05-07): only the
-  // identity fields here. Expected Role / Revenue / Requirement Type /
-  // Stage all get filled later on the record page. Stage defaults
-  // server-side to the first one when omitted.
-  const [form, setForm] = useState({
-    contactId: '', contactName: '', contactCompanyId: '', companyName: '',
-    contactEmail: '', contactPhone: '',
-    clientType: 'new',
-  });
-  const [loading, setLoading] = useState(false);
-  const [individualContacts, setIndividualContacts] = useState([]);
-  const [companyContacts, setCompanyContacts] = useState([]);
+// CreateModal removed — creation now routes to /crm/opportunities/new
 
-  // Fetch contacts for dropdowns on mount
-  useEffect(() => {
-    contactsApi.list(orgSlug, { type: 'individual', limit: 200 })
-      .then(res => { if (res.success) setIndividualContacts(res.contacts || []); })
-      .catch(() => {});
-    contactsApi.listCompanies(orgSlug)
-      .then(res => { if (res.success) setCompanyContacts(res.companies || []); })
-      .catch(() => {});
-  }, [orgSlug]);
-
-  // Build POC options — "Company, Contact Name" format (like Odoo)
-  const pocOptions = individualContacts.map(c => ({
-    _id: c._id,
-    name: c.parentCompanyName ? `${c.parentCompanyName}, ${c.name}` : c.name,
-  }));
-
-  // When POC is selected/changed
-  const handlePocChange = (id, displayName) => {
-    if (id) {
-      // Existing contact — auto-fill company + contact details
-      const contact = individualContacts.find(c => c._id === id);
-      setForm(f => ({
-        ...f,
-        contactId: id,
-        contactName: contact?.name || displayName,
-        contactCompanyId: contact?.parentCompanyId || '',
-        companyName: contact?.parentCompanyName || '',
-        contactEmail: contact?.email || f.contactEmail,
-        contactPhone: contact?.phone || f.contactPhone,
-      }));
-    } else {
-      // Free-text (create new) — displayName is the raw typed text
-      setForm(f => ({ ...f, contactId: '', contactName: displayName, contactCompanyId: '', companyName: '' }));
-    }
-  };
-
-  // POC display value
-  const pocDisplayValue = form.contactId
-    ? (form.companyName ? `${form.companyName}, ${form.contactName}` : form.contactName)
-    : form.contactName;
-
-  const handleCompanyChange = (id, name) => {
-    setForm(f => ({ ...f, contactCompanyId: id, companyName: name }));
-  };
-
-  const isCreatingNew = !form.contactId && form.contactName.trim();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      // Auto-name the opportunity from the contact, matching Odoo's "X's
-      // opportunity" convention. User can edit on the record page after.
-      const baseName = form.contactName?.trim() || 'New';
-      const payload = { ...form, name: `${baseName}'s opportunity` };
-      await onCreate(payload);
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h2 className="text-base font-semibold text-dark-100">New Opportunity</h2>
-          <button onClick={onClose} className="text-dark-400 hover:text-dark-200"><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Customer's POC — single searchable field showing "Company, Contact Name" */}
-          <div>
-            <label className="block text-xs text-dark-400 mb-1">
-              Customer&apos;s POC *
-            </label>
-            <ComboSelect
-              value={form.contactId}
-              displayValue={pocDisplayValue}
-              options={pocOptions}
-              onChange={handlePocChange}
-              placeholder="Search by company or contact name..."
-            />
-            {form.contactId && form.companyName && (
-              <p className="mt-1 text-[10px] text-dark-500 flex items-center gap-1">
-                <Building2 size={10} /> {form.companyName} &middot; <User size={10} /> {form.contactName}
-              </p>
-            )}
-          </div>
-
-          {/* When creating new contact — show expanded fields */}
-          {isCreatingNew && (
-            <div className="bg-dark-900/50 border border-dark-700 rounded-lg p-3 space-y-3">
-              <p className="text-[10px] text-dark-500 uppercase tracking-wider font-medium">New Contact Details</p>
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">Contact Name</label>
-                <input
-                  value={form.contactName}
-                  onChange={e => setForm({ ...form, contactName: e.target.value })}
-                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                  placeholder="Full name"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-dark-400 mb-1">Company *</label>
-                <ComboSelect
-                  value={form.contactCompanyId}
-                  displayValue={form.companyName}
-                  options={companyContacts}
-                  onChange={handleCompanyChange}
-                  placeholder="Search or type company name"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-dark-400 mb-1">Email</label>
-                  <input
-                    value={form.contactEmail}
-                    onChange={e => setForm({ ...form, contactEmail: e.target.value })}
-                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                    placeholder="email@company.com"
-                    type="email"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-dark-400 mb-1">Phone</label>
-                  <input
-                    value={form.contactPhone}
-                    onChange={e => setForm({ ...form, contactPhone: e.target.value })}
-                    className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                    placeholder="+91..."
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Client Type — minimal field present in Odoo's "+" form. Other
-              fields (Expected Role / Revenue / Requirement Type / Stage)
-              fill in on the record page after creation. */}
-          <div>
-            <label className="block text-xs text-dark-400 mb-1">Client Type</label>
-            <select
-              value={form.clientType}
-              onChange={e => setForm({ ...form, clientType: e.target.value })}
-              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-            >
-              <option value="new">New Client</option>
-              <option value="existing">Existing Client</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-dark-300 hover:text-dark-100 transition-colors">Cancel</button>
-            <button type="submit" disabled={loading || !form.contactName.trim() || (isCreatingNew && !form.companyName.trim())}
-              className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2">
-              {loading && <Loader2 size={14} className="animate-spin" />} Create
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -363,7 +187,7 @@ export default function CrmPipeline() {
   const [search, setSearch] = useState('');
   const [salespersonId, setSalespersonId] = useState('');
   const [salespersons, setSalespersons] = useState([]);
-  const [showCreate, setShowCreate] = useState(false);
+  // showCreate / CreateModal removed — creation now routes to /crm/opportunities/new
   const [activeId, setActiveId] = useState(null);
   const [activeOpp, setActiveOpp] = useState(null);
 
@@ -469,14 +293,6 @@ export default function CrmPipeline() {
     }
   };
 
-  const handleCreate = async (data) => {
-    const res = await crmApi.createOpportunity(slug, data);
-    if (res.success) {
-      addToast('Opportunity created', 'success');
-      fetchKanban();
-    }
-  };
-
   const handleCardClick = (opp) => {
     navigate(`/org/${slug}/crm/opportunities/${opp._id}`);
   };
@@ -513,7 +329,7 @@ export default function CrmPipeline() {
           />
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors"
         >
           <Plus size={14} /> New Opportunity
@@ -544,7 +360,7 @@ export default function CrmPipeline() {
       </DndContext>
 
       {/* Create modal */}
-      {showCreate && <CreateModal stages={stages} orgSlug={slug} onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
+      {/* New-opportunity creation now lives at /crm/opportunities/new */}
     </div>
   );
 }

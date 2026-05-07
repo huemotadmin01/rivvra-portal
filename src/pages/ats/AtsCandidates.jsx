@@ -9,175 +9,11 @@ import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../co
 import {
   Plus, Loader2, Users,
   ChevronLeft, ChevronRight,
-  Mail, Phone, Linkedin, ExternalLink, X,
+  Mail, Phone, Linkedin, ExternalLink,
 } from 'lucide-react';
 
-/* ── New Candidate Modal ──────────────────────────────────────────────── */
-const EMPTY_CANDIDATE = {
-  name: '',
-  email: '',
-  phone: '',
-  mobile: '',
-  linkedinProfile: '',
-};
+// EMPTY_CANDIDATE + NewCandidateModal removed — creation now routes to /ats/candidates/new
 
-function NewCandidateModal({ show, onClose, onSaved, orgSlug }) {
-  const modalRef = useRef(null);
-  const { showToast } = useToast();
-  const [form, setForm] = useState(EMPTY_CANDIDATE);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (show) {
-      setForm(EMPTY_CANDIDATE);
-      setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
-    }
-  }, [show]);
-
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim() || !form.email.trim()) return;
-
-    try {
-      setSaving(true);
-      const payload = {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || undefined,
-        mobile: form.mobile.trim() || undefined,
-        linkedinProfile: form.linkedinProfile.trim() || undefined,
-      };
-      const res = await atsApi.createCandidate(orgSlug, payload);
-      if (res.success) {
-        showToast('Candidate created');
-        onSaved();
-        onClose();
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to create candidate', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!show) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="candidate-modal-title"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg my-8"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h3 id="candidate-modal-title" className="text-lg font-semibold text-white">
-            New Candidate
-          </h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="e.g. John Doe"
-              className="input-field"
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Email <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              placeholder="e.g. john@example.com"
-              className="input-field"
-            />
-          </div>
-
-          {/* Phone & Mobile */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Phone</label>
-              <input
-                type="text"
-                value={form.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder="e.g. +1 555-0100"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Mobile</label>
-              <input
-                type="text"
-                value={form.mobile}
-                onChange={(e) => handleChange('mobile', e.target.value)}
-                placeholder="e.g. +1 555-0101"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* LinkedIn Profile */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">LinkedIn Profile</label>
-            <input
-              type="url"
-              value={form.linkedinProfile}
-              onChange={(e) => handleChange('linkedinProfile', e.target.value)}
-              placeholder="e.g. https://linkedin.com/in/johndoe"
-              className="input-field"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {saving && <Loader2 size={16} className="animate-spin" />}
-              Create Candidate
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsCandidates() {
@@ -197,7 +33,7 @@ export default function AtsCandidates() {
   const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // showCreateModal removed — creation now routes to /ats/candidates/new
 
   const debounceRef = useRef(null);
   const orgSlug = currentOrg?.slug;
@@ -285,7 +121,7 @@ export default function AtsCandidates() {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => navigate(orgPath('/ats/candidates/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors text-sm font-medium"
           >
             <Plus className="w-4 h-4" /> Add Candidate
@@ -492,15 +328,7 @@ export default function AtsCandidates() {
         </>
       )}
 
-      {/* New Candidate Modal */}
-      {showCreateModal && (
-        <NewCandidateModal
-          show={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onSaved={() => fetchCandidates({ page: 1 })}
-          orgSlug={orgSlug}
-        />
-      )}
+      {/* New-candidate creation now lives at /ats/candidates/new */}
     </div>
   );
 }
