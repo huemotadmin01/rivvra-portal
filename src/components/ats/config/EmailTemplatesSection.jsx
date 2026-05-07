@@ -2,10 +2,23 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import {
-  Plus, Edit2, X, Loader2, Trash2,
-  Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye,
+  X, Loader2, Mail, Eye,
   ToggleLeft, ToggleRight, RotateCcw, Save,
 } from 'lucide-react';
+
+const TEMPLATE_LABELS = {
+  ats_stage_new: 'Application Received',
+  ats_stage_qualification: 'Initial Qualification',
+  ats_stage_l1_interview: 'L1 Interview',
+  ats_stage_l2_interview: 'L2 Interview',
+  ats_stage_documents: 'Documents Collection',
+  ats_stage_hired: 'Hired / Welcome',
+  ats_refused: 'Application Refused',
+  ats_job_approval_request: 'Job Approval Request',
+  ats_job_approved: 'Job Approved',
+};
+
+const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_job_approval_request', 'ats_job_approved'];
 
 export default function EmailTemplatesSection({ orgSlug, showToast }) {
   const [templates, setTemplates] = useState([]);
