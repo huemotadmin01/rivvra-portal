@@ -67,7 +67,7 @@ const EMPTY_APP = {
   evaluation: 0,
 };
 
-function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, recruiters }) {
+function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, recruiters, prefillJobId = '' }) {
   const modalRef = useRef(null);
   const { showToast } = useToast();
   const [form, setForm] = useState(EMPTY_APP);
@@ -77,11 +77,12 @@ function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, re
     if (show) {
       setForm({
         ...EMPTY_APP,
+        jobId: prefillJobId || '',
         stageId: stages.length > 0 ? stages[0]._id : '',
       });
       setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
     }
-  }, [show, stages]);
+  }, [show, stages, prefillJobId]);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -336,6 +337,13 @@ export default function AtsApplications() {
 
   const [showModal, setShowModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Deep-link: /ats/applications?action=new[&jobId=…] auto-opens the modal.
+  // Used by AtsJobDetail's "+ New Application" button to land here with the
+  // job preselected.
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') setShowModal(true);
+  }, [searchParams]);
 
   // Bulk actions — selection + action-bar dropdowns
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -873,12 +881,22 @@ export default function AtsApplications() {
       {/* New Application Modal */}
       <NewApplicationModal
         show={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => {
+          setShowModal(false);
+          // Strip the deep-link params so a refresh doesn't re-pop the modal.
+          if (searchParams.get('action') === 'new') {
+            const np = new URLSearchParams(searchParams);
+            np.delete('action');
+            np.delete('jobId');
+            setSearchParams(np, { replace: true });
+          }
+        }}
         onSaved={() => fetchApplications({ page: 1 })}
         orgSlug={orgSlug}
         jobs={jobs}
         stages={stages}
         recruiters={recruiters}
+        prefillJobId={searchParams.get('jobId') || ''}
       />
     </div>
   );
