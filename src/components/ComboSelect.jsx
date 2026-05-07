@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 
 /**
@@ -16,16 +17,25 @@ import { ChevronDown } from 'lucide-react';
  *  - createLabel  : optional override for the create item label (default "Create")
  *  - placeholder  : input placeholder
  *  - disabled     : disables the input
+ *
+ * 2026-05-08: dropdown portal-anchored to document.body so it can escape
+ * narrow parent cards (e.g. Job Position → Client card was clipping the
+ * full company list). Position recomputed on scroll/resize while open.
  */
 export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, createLabel = 'Create', placeholder, disabled }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(displayValue || '');
-  const ref = useRef(null);
+  const [coords, setCoords] = useState(null); // { left, top, width }
+  const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
 
-  // Close on outside click
+  // Close on click outside (excluding the portal-rendered dropdown)
   useEffect(() => {
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (wrapperRef.current?.contains(e.target)) return;
+      if (dropdownRef.current?.contains(e.target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -34,23 +44,42 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   // Sync display value when prop changes
   useEffect(() => { setInputValue(displayValue || ''); }, [displayValue]);
 
+  // Recompute portal position on open + on scroll/resize while open.
+  // useLayoutEffect avoids a flicker between "no coords" and "positioned".
+  useLayoutEffect(() => {
+    if (!open) { setCoords(null); return; }
+    const update = () => {
+      const rect = inputRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setCoords({ left: rect.left, top: rect.bottom + 4, width: rect.width });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
+
   const trimmed = inputValue.trim().toLowerCase();
   const filtered = options.filter(o => o.name.toLowerCase().includes(trimmed));
   const exactMatch = options.some(o => o.name.toLowerCase() === trimmed);
 
-  // Only show dropdown when there are results or user is typing (for Create option)
-  const showDropdown = open && (filtered.length > 0 || inputValue.trim());
+  // Show dropdown when open AND there's something to render — either
+  // matching options, or a typed string that lets us offer "+ Create".
+  const showDropdown = open && coords && (filtered.length > 0 || inputValue.trim());
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={wrapperRef} className="relative">
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);
             setOpen(true);
-            // Clear selection if user is typing something different
             if (value && e.target.value !== displayValue) {
               onChange('', e.target.value.trim());
             }
@@ -69,26 +98,36 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
           <ChevronDown size={14} />
         </button>
       </div>
-      {showDropdown && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-          {filtered.length > 0 &&
-            filtered.map((o, i) => (
-              <button
-                key={o._id || `name-${i}`}
-                type="button"
-                onClick={() => {
-                  onChange(o._id || '', o.name);
-                  setInputValue(o.name);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-dark-700 transition-colors ${
-                  o._id === value ? 'text-orange-400 bg-dark-700/50' : 'text-white'
-                }`}
-              >
-                {o.name}
-              </button>
-            ))
-          }
+      {showDropdown && createPortal(
+        <div
+          ref={dropdownRef}
+          // Min width matches input but caps wider so long company names
+          // (e.g. "Huemot Technology Private Limited") aren't truncated.
+          style={{
+            position: 'fixed',
+            left: coords.left,
+            top: coords.top,
+            minWidth: coords.width,
+            maxWidth: Math.max(coords.width, 360),
+          }}
+          className="z-[60] bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+        >
+          {filtered.map((o, i) => (
+            <button
+              key={o._id || `name-${i}`}
+              type="button"
+              onClick={() => {
+                onChange(o._id || '', o.name);
+                setInputValue(o.name);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-dark-700 transition-colors ${
+                o._id === value ? 'text-orange-400 bg-dark-700/50' : 'text-white'
+              }`}
+            >
+              {o.name}
+            </button>
+          ))}
           {inputValue.trim() && !exactMatch && (
             <button
               type="button"
@@ -109,7 +148,8 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
               + {createLabel} &ldquo;{inputValue.trim()}&rdquo;
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -10,6 +10,7 @@ import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
+import ActivityPanel from '../../components/shared/ActivityPanel';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
@@ -721,7 +722,7 @@ export default function AtsJobDetail() {
             />
             <MaybeInlineField
               hideWhenEmpty={!showEmpty}
-              label="Max Budget"
+              label="Candidate Max Budget"
               field="maxBudget"
               value={job.maxBudget}
               editable={canEdit}
@@ -918,6 +919,9 @@ export default function AtsJobDetail() {
               </>
             )}
           </div>
+
+          {/* Q4-A: Activity panel sits at the bottom of the main flow */}
+          <ActivityPanel orgSlug={orgSlug} entityType="ats_job" entityId={jobId} />
         </div>
 
         {/* Sidebar — People, Client, Visibility, Meta */}

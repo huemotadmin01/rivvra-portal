@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import activityApi from '../../utils/activityApi';
-import { Check, Trash2, Calendar, Plus, Loader2, MessageSquare, ClipboardList, User } from 'lucide-react';
+import { Check, Trash2, Calendar, Plus, Loader2, MessageSquare, ClipboardList, User, Activity as ActivityIcon } from 'lucide-react';
 
 const TYPE_BADGES = {
   note:        'bg-dark-700 text-dark-300',
@@ -11,9 +11,59 @@ const TYPE_BADGES = {
   task:        'bg-emerald-500/10 text-emerald-400',
   onboarding:  'bg-rivvra-500/10 text-rivvra-400',
   offboarding: 'bg-orange-500/10 text-orange-400',
+  system:      'bg-sky-500/10 text-sky-300',
 };
 
+// System events render as a slim audit-trail line (no checkbox, no delete).
+// Action-tag → label mapping keeps the timeline compact and consistent
+// across job/application/opportunity records.
+const SYSTEM_ACTION_LABELS = {
+  status_change:        'Status',
+  approval_change:      'Approval',
+  recruiter_change:     'Recruiter',
+  account_owner_change: 'Account Owner',
+  approver_change:      'Approver',
+  client_change:        'Client',
+  published:            'Published',
+  unpublished:          'Unpublished',
+  archived:             'Archived',
+  unarchived:           'Unarchived',
+  stage_change:         'Stage',
+  refused:              'Refused',
+  hired:                'Hired',
+  won:                  'Won',
+  lost:                 'Lost',
+};
+
+function SystemEventItem({ activity, highlight }) {
+  const label = SYSTEM_ACTION_LABELS[activity.action] || activity.action || 'System';
+  return (
+    <div
+      id={`activity-${activity._id}`}
+      className={`flex items-start gap-3 px-3 py-2 rounded-lg ${
+        highlight ? 'bg-rivvra-500/10 ring-1 ring-rivvra-500/40' : ''
+      }`}
+    >
+      <ActivityIcon size={12} className="text-sky-400/80 mt-1 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300">
+            {label}
+          </span>
+          <span className="text-xs text-dark-200 min-w-0 truncate">{activity.summary || activity.note || activity.action}</span>
+        </div>
+        <p className="text-[10px] text-dark-600 mt-0.5">
+          {activity.createdByName || 'System'} · {new Date(activity.createdAt).toLocaleString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function ActivityItem({ activity, onToggle, onDelete, highlight }) {
+  if (activity.type === 'system') {
+    return <SystemEventItem activity={activity} highlight={highlight} />;
+  }
   const isNote = activity.type === 'note';
   return (
     <div
@@ -146,6 +196,10 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
   const [loading, setLoading] = useState(true);
   const [formMode, setFormMode] = useState(null); // null | 'note' | 'activity'
   const [highlightId, setHighlightId] = useState(null);
+  // Q3-B: "Show changes" toggle overlays system audit events into the
+  // same timeline. Default ON so the audit trail is visible without an
+  // extra click — matches how recruiters expect Odoo's chatter to behave.
+  const [showSystem, setShowSystem] = useState(true);
   const location = useLocation();
   const scrollDoneRef = useRef(false);
 
@@ -216,9 +270,18 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
       {/* Header with action buttons */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Activities</h3>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            onClick={() => setShowSystem((v) => !v)}
+            title={showSystem ? 'Hide system changes' : 'Show system changes'}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+              showSystem ? 'bg-sky-500/15 text-sky-300' : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
+            }`}
+          >
+            <ActivityIcon size={10} /> Changes
+          </button>
           <button
             onClick={() => setFormMode(formMode === 'note' ? null : 'note')}
             className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
@@ -256,11 +319,13 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
         <p className="text-center text-xs text-dark-600 py-6">No activities yet</p>
       ) : (
         <div className="space-y-0.5 max-h-[500px] overflow-y-auto">
-          {activities.map(a => (
-            <div key={a._id} className="group">
-              <ActivityItem activity={a} onToggle={handleToggle} onDelete={handleDelete} highlight={highlightId === a._id} />
-            </div>
-          ))}
+          {activities
+            .filter((a) => showSystem ? true : a.type !== 'system')
+            .map(a => (
+              <div key={a._id} className="group">
+                <ActivityItem activity={a} onToggle={handleToggle} onDelete={handleDelete} highlight={highlightId === a._id} />
+              </div>
+            ))}
         </div>
       )}
     </div>
