@@ -214,6 +214,7 @@ export default function ContactsList({ filterType }) {
       if (typeFilter) params.set('type', typeFilter);
       if (tagFilter) params.set('tag', tagFilter);
       if (salespersonFilter) params.set('salesperson', salespersonFilter);
+      if (archivedFilter) params.set('archived', archivedFilter);
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(

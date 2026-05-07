@@ -345,7 +345,7 @@ export default function AtsCandidateDetail() {
           {candidate.employeeId && (
             <SectionCard title="Hired" icon={UserCheck}>
               <button
-                onClick={() => navigate(orgPath(`/employees/${candidate.employeeId}`))}
+                onClick={() => navigate(orgPath(`/employee/${candidate.employeeId}`))}
                 className="text-left w-full text-rivvra-400 hover:text-rivvra-300 text-sm py-2 underline-offset-2 hover:underline"
               >
                 View linked employee →

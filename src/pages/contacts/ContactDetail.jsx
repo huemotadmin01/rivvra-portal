@@ -1216,7 +1216,7 @@ export default function ContactDetail() {
                   />
                   <EditableField
                     label="State"
-                    value={contact.address?.state || contact.placeOfSupply}
+                    value={contact.placeOfSupply || contact.address?.state}
                     field="placeOfSupply"
                     editable={isAdmin}
                     onSave={saveField}
@@ -1237,7 +1237,7 @@ export default function ContactDetail() {
                   />
                   <EditableField
                     label="Province"
-                    value={contact.address?.state || contact.placeOfSupply}
+                    value={contact.placeOfSupply || contact.address?.state}
                     field="placeOfSupply"
                     editable={isAdmin}
                     onSave={saveField}

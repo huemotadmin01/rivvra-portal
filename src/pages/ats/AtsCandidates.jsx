@@ -416,9 +416,9 @@ export default function AtsCandidates() {
 
                       {/* LinkedIn */}
                       <td className="px-4 py-3 hidden lg:table-cell">
-                        {candidate.linkedin ? (
+                        {candidate.linkedinProfile ? (
                           <a
-                            href={candidate.linkedin}
+                            href={candidate.linkedinProfile}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
@@ -474,7 +474,7 @@ export default function AtsCandidates() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
-                Showing {pageStart}\u2013{pageEnd} of {total}
+                Showing {pageStart}–{pageEnd} of {total}
               </p>
               <div className="flex items-center gap-1">
                 <button

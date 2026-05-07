@@ -241,12 +241,12 @@ export default function CrmOpportunities() {
               {((page - 1) * limit) + 1}–{Math.min(page * limit, total)} of {total}
             </span>
             <div className="flex items-center gap-1">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
                 className="p-1 rounded hover:bg-dark-700 disabled:opacity-30 text-dark-400">
                 <ChevronLeft size={16} />
               </button>
               <span className="text-xs text-dark-400 px-2">{page} / {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
                 className="p-1 rounded hover:bg-dark-700 disabled:opacity-30 text-dark-400">
                 <ChevronRight size={16} />
               </button>
