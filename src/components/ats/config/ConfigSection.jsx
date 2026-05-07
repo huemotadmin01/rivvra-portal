@@ -3,11 +3,10 @@ import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import {
   Plus, Edit2, X, Loader2, Trash2,
-  Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye,
-  ToggleLeft, ToggleRight, RotateCcw, Save,
+  Layers, Tag,
 } from 'lucide-react';
 
-export default function ConfigSection({ entity, entityLabel, orgSlug, showToast }) {
+export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag, orgSlug, showToast }) {
   const modalRef = useRef(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,8 +110,6 @@ export default function ConfigSection({ entity, entityLabel, orgSlug, showToast 
       </div>
     );
   }
-
-  const TabIcon = TABS.find((t) => t.key === entity)?.icon || Tag;
 
   return (
     <>

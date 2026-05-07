@@ -8,7 +8,7 @@ import contactsApi from '../../utils/contactsApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import {
-  Plus, Users,
+  Plus, Users, Building2,
   ChevronLeft, ChevronRight, Download, Loader2,
 } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeletons';

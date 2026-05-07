@@ -108,11 +108,11 @@ export default function AtsConfig() {
 
       {/* Tab content */}
       {activeTab === 'stages' && <StagesSection {...sectionProps} />}
-      {activeTab === 'tags' && <ConfigSection entity="tags" entityLabel="Tags" {...sectionProps} />}
-      {activeTab === 'sources' && <ConfigSection entity="sources" entityLabel="Sources" {...sectionProps} />}
-      {activeTab === 'refuse_reasons' && <ConfigSection entity="refuse_reasons" entityLabel="Refuse Reasons" {...sectionProps} />}
-      {activeTab === 'degrees' && <ConfigSection entity="degrees" entityLabel="Degrees" {...sectionProps} />}
-      {activeTab === 'employment_types' && <ConfigSection entity="employment_types" entityLabel="Employment Types" {...sectionProps} />}
+      {activeTab === 'tags' && <ConfigSection entity="tags" entityLabel="Tags" icon={Tag} {...sectionProps} />}
+      {activeTab === 'sources' && <ConfigSection entity="sources" entityLabel="Sources" icon={Globe} {...sectionProps} />}
+      {activeTab === 'refuse_reasons' && <ConfigSection entity="refuse_reasons" entityLabel="Refuse Reasons" icon={ThumbsDown} {...sectionProps} />}
+      {activeTab === 'degrees' && <ConfigSection entity="degrees" entityLabel="Degrees" icon={GraduationCap} {...sectionProps} />}
+      {activeTab === 'employment_types' && <ConfigSection entity="employment_types" entityLabel="Employment Types" icon={Briefcase} {...sectionProps} />}
       {activeTab === 'skill_types' && <SkillTypesSection {...sectionProps} />}
       {activeTab === 'skills' && <SkillsSection {...sectionProps} />}
       {activeTab === 'skill_levels' && <SkillLevelsSection {...sectionProps} />}
