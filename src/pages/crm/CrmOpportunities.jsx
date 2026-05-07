@@ -149,10 +149,10 @@ export default function CrmOpportunities() {
           <span className="text-xs text-dark-500">{total} total</span>
         </div>
         <button
-          onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
+          onClick={() => navigate(`/org/${slug}/crm/pipeline`)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600"
         >
-          <Plus size={14} /> New Opportunity
+          <Plus size={14} /> New
         </button>
       </div>
 

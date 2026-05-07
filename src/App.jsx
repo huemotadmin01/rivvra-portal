@@ -141,7 +141,6 @@ const AtsJobPositions = lazy(() => import('./pages/ats/AtsJobPositions'));
 const AtsJobDetail = lazy(() => import('./pages/ats/AtsJobDetail'));
 const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
 const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
-const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
 const AtsReporting = lazy(() => import('./pages/ats/AtsReporting'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
@@ -150,7 +149,6 @@ const CrmDashboard = lazy(() => import('./pages/crm/CrmDashboard'));
 const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
-const CrmOpportunityNew = lazy(() => import('./pages/crm/CrmOpportunityNew'));
 const CrmReporting = lazy(() => import('./pages/crm/CrmReporting'));
 const CrmConfigStages = lazy(() => import('./pages/crm/CrmConfigStages'));
 const CrmConfigTags = lazy(() => import('./pages/crm/CrmConfigTags'));
@@ -459,7 +457,6 @@ function App() {
                 <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><CrmDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><CrmOpportunities /></ErrorBoundary>} />
-                <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><CrmOpportunityNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><CrmOpportunityDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="crm" requiredRole="admin" allowTeamLead />}>
                   <Route path="/org/:slug/crm/reporting" element={<ErrorBoundary><CrmReporting /></ErrorBoundary>} />
@@ -480,7 +477,6 @@ function App() {
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><AtsJobPositions /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><AtsCandidates /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
                   <Route path="/org/:slug/ats/reporting" element={<ErrorBoundary><AtsReporting /></ErrorBoundary>} />
