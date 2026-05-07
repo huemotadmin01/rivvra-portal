@@ -581,18 +581,20 @@ export default function AtsApplications() {
       </div>
 
       {/* Filters — URL-driven via shared FilterBar */}
-      <FilterBar searchPlaceholder="Search by candidate name, email, or job position…">
-        <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
-        <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
-        <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
-        <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
-      </FilterBar>
-
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <FilterBar searchPlaceholder="Search by candidate name, email, or job position…">
+            <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
+            <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
+            <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
+            <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+          </FilterBar>
+        </div>
         <button
           onClick={handleExport}
           disabled={exporting || total === 0}
           title="Download the current filtered list as a CSV file"
-          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
         >
           {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           Export CSV
