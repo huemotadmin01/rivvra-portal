@@ -25,6 +25,8 @@ import EmployeePicker from '../employee/EmployeePicker';
  *  warn        — optional soft-warning string (non-blocking). Rendered as an
  *                amber hint line in read mode; does NOT prevent save. Used for
  *                things like country-aware ZIP format nudges. Falsy ⇒ hidden.
+ *  maxLength   — text/email/phone/url input maxLength attribute (e.g. PAN/GST).
+ *  transform   — function applied to keystrokes during editing (e.g. uppercase).
  */
 export default function InlineField({
   label,
@@ -40,6 +42,8 @@ export default function InlineField({
   onSave,
   placeholder = '',
   warn = '',
+  maxLength,
+  transform,
 }) {
   const [status, setStatus] = useState('idle'); // idle | editing | saving | saved | error
   const [editVal, setEditVal] = useState('');
@@ -287,10 +291,11 @@ export default function InlineField({
             ref={inputRef}
             type={type === 'masked' ? 'text' : type === 'phone' ? 'tel' : type}
             value={editVal}
-            onChange={e => setEditVal(e.target.value)}
+            onChange={e => setEditVal(transform ? transform(e.target.value) : e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
+            maxLength={maxLength}
             className="flex-1 bg-dark-900 border border-dark-600 rounded px-2 py-1.5 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
           />
         )}

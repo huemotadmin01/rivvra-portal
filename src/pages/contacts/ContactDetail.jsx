@@ -13,6 +13,8 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import InlineField from '../../components/shared/InlineField';
+import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Loader2, Trash2, Check, X, Plus, Archive, ArchiveRestore, MoreHorizontal,
@@ -80,17 +82,7 @@ function NotFoundRedirect({ orgPath, showToast }) {
   );
 }
 
-function SectionCard({ title, icon: Icon, children }) {
-  return (
-    <div className="card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        {Icon && <Icon size={16} className="text-dark-400" />}
-        <h3 className="text-white font-semibold">{title}</h3>
-      </div>
-      {children}
-    </div>
-  );
-}
+// SectionCard now imported from components/platform/detail/SectionCard
 
 // ---------------------------------------------------------------------------
 // NotesEditor — full-width textarea editor (no 140px label column)
@@ -286,116 +278,10 @@ function TagsEditor({ orgSlug, tagIds, tagNames, editable, onChange }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// EditableField – inline editing sub-component
-// ---------------------------------------------------------------------------
-
-function renderLinkedValue(value, type) {
-  if (!value) return null;
-  if (type === 'email') {
-    return <a href={`mailto:${value}`} className="text-rivvra-400 hover:underline" onClick={(e) => e.stopPropagation()}>{value}</a>;
-  }
-  if (type === 'tel') {
-    return <a href={`tel:${value}`} className="text-rivvra-400 hover:underline" onClick={(e) => e.stopPropagation()}>{value}</a>;
-  }
-  if (type === 'url') {
-    const href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
-    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:underline" onClick={(e) => e.stopPropagation()}>{value}</a>;
-  }
-  return null;
-}
-
-function EditableField({ label, value, field, type = 'text', options, editable, onSave, placeholder, maxLength, transform, warn = '' }) {
-  const [editing, setEditing] = useState(false);
-  const [localValue, setLocalValue] = useState(value ?? '');
-
-  useEffect(() => setLocalValue(value ?? ''), [value]);
-
-  const save = () => {
-    setEditing(false);
-    const finalValue = transform ? transform(localValue) : localValue;
-    if (finalValue !== (value ?? '')) onSave(field, finalValue);
-  };
-
-  const linked = renderLinkedValue(value, type);
-
-  if (!editable) {
-    return (
-      <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
-        <span className="text-dark-400 text-sm">{label}</span>
-        <div className="flex flex-col min-w-0">
-          <span className="text-white text-sm">{linked || value || '\u2014'}</span>
-          {warn && (
-            <span className="text-[11px] text-amber-400/80 mt-0.5 leading-tight">{warn}</span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group">
-      <span className="text-dark-400 text-sm">{label}</span>
-      {editing ? (
-        type === 'select' ? (
-          <select
-            autoFocus
-            value={localValue}
-            onChange={(e) => setLocalValue(e.target.value)}
-            onBlur={save}
-            className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
-          >
-            {(options || []).filter(o => o != null).map((o, i) => (
-              <option key={o.value ?? `opt-${i}`} value={o.value ?? ''}>{o.label ?? ''}</option>
-            ))}
-          </select>
-        ) : type === 'textarea' ? (
-          <textarea
-            autoFocus
-            value={localValue}
-            onChange={(e) => setLocalValue(e.target.value)}
-            onBlur={save}
-            className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none min-h-[60px]"
-          />
-        ) : (
-          <input
-            autoFocus
-            type={type}
-            value={localValue}
-            onChange={(e) => {
-              let v = e.target.value;
-              if (transform) v = transform(v);
-              setLocalValue(v);
-            }}
-            onBlur={save}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') save();
-              if (e.key === 'Escape') { setLocalValue(value ?? ''); setEditing(false); }
-            }}
-            placeholder={placeholder}
-            maxLength={maxLength}
-            className="bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
-          />
-        )
-      ) : (
-        <div className="flex flex-col min-w-0">
-          <div
-            className="flex items-center gap-1.5 cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800 min-h-[28px]"
-            onClick={() => setEditing(true)}
-          >
-            <span className="text-white text-sm">
-              {linked || value || <span className="text-dark-500 italic">{placeholder || '\u2014'}</span>}
-            </span>
-            <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />
-          </div>
-          {warn && (
-            <span className="text-[11px] text-amber-400/80 mt-0.5 leading-tight px-1 -mx-1">{warn}</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+// EditableField + renderLinkedValue removed — replaced by the shared
+// InlineField primitive (components/shared/InlineField). Phone/email/url
+// fields lose their inline mailto:/tel:/href anchor in read mode; users
+// click to edit and copy. Drop-in for everything else.
 
 // ---------------------------------------------------------------------------
 // Editable Name (header inline edit)
@@ -527,7 +413,7 @@ export default function ContactDetail() {
   // Archived = read-only across the page (Q-archive-edit, 2026-05-06).
   // We collapse this onto `isAdmin` so every existing `editable={isAdmin}` /
   // `isAdmin && ...` gate respects the archive state without touching every
-  // call site (this file has 30+ EditableField uses).
+  // call site (this file has 24 InlineField uses).
   const isAdminRaw = getAppRole('contacts') === 'admin';
   const isAdmin = isAdminRaw && !contact?.archived;
   const orgSlug = currentOrg?.slug;
@@ -1037,10 +923,10 @@ export default function ContactDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Contact Information */}
             <SectionCard title="Contact Information" icon={Mail}>
-              <EditableField label="Email" value={contact.email} field="email" type="email" editable={isAdmin} onSave={saveField} placeholder="Add email" />
-              <EditableField label="Phone" value={contact.phone} field="phone" type="tel" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
-              <EditableField label="Mobile" value={contact.mobile} field="mobile" type="tel" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
-              <EditableField label="Website" value={contact.website} field="website" type="url" editable={isAdmin} onSave={saveField} placeholder="Add website" />
+              <InlineField label="Email" value={contact.email} field="email" type="email" editable={isAdmin} onSave={saveField} placeholder="Add email" />
+              <InlineField label="Phone" value={contact.phone} field="phone" type="phone" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
+              <InlineField label="Mobile" value={contact.mobile} field="mobile" type="phone" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
+              <InlineField label="Website" value={contact.website} field="website" type="url" editable={isAdmin} onSave={saveField} placeholder="Add website" />
             </SectionCard>
 
             {/* Company / Work Details */}
@@ -1056,7 +942,7 @@ export default function ContactDetail() {
                       <Badge className="bg-emerald-500/10 text-emerald-400">Individual</Badge>
                     </span>
                   </div>
-                  <EditableField label="Job Title" value={contact.jobTitle} field="jobTitle" editable={isAdmin} onSave={saveField} placeholder="Add job title" />
+                  <InlineField label="Job Title" value={contact.jobTitle} field="jobTitle" editable={isAdmin} onSave={saveField} placeholder="Add job title" />
                   <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
                     <span className="text-dark-400 text-sm">Company</span>
                     <span className="text-white text-sm">
@@ -1097,16 +983,16 @@ export default function ContactDetail() {
               const billingLocale = getAddressLocale(addr.country);
               return (
                 <SectionCard title="Billing Address" icon={MapPin}>
-                  <EditableField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
-                  <EditableField label={billingLocale.street1Label} value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField}
+                  <InlineField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
+                  <InlineField label={billingLocale.street1Label} value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.street1Placeholder || 'Add street'} />
-                  <EditableField label={billingLocale.street2Label} value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField}
+                  <InlineField label={billingLocale.street2Label} value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.street2Placeholder || 'Apt, Suite, Floor'} />
-                  <EditableField label={billingLocale.cityLabel} value={addr.city} field="city" editable={isAdmin} onSave={saveAddressField}
+                  <InlineField label={billingLocale.cityLabel} value={addr.city} field="city" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.cityPlaceholder || 'Add city'} />
-                  <EditableField label={billingLocale.stateLabel} value={addr.state} field="state" editable={isAdmin} onSave={saveAddressField}
+                  <InlineField label={billingLocale.stateLabel} value={addr.state} field="state" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.statePlaceholder || 'Add state'} />
-                  <EditableField label={billingLocale.zipLabel} value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField}
+                  <InlineField label={billingLocale.zipLabel} value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField}
                     placeholder={billingLocale.zipPlaceholder || 'Add postal code'}
                     warn={validateZip(addr.zip, addr.country)} />
                 </SectionCard>
@@ -1125,7 +1011,7 @@ export default function ContactDetail() {
                   setContact(prev => ({ ...prev, salespersonId: id, salespersonName: name }));
                 }}
               />
-              <EditableField
+              <InlineField
                 label="Product"
                 value={productDisplayValue}
                 field="defaultProductId"
@@ -1154,7 +1040,7 @@ export default function ContactDetail() {
               {/* India-specific fields */}
               {companyCountry === 'IN' && (
                 <>
-                  <EditableField
+                  <InlineField
                     label="GST Treatment"
                     value={contact.gstTreatment}
                     field="gstTreatment"
@@ -1163,7 +1049,7 @@ export default function ContactDetail() {
                     editable={isAdmin}
                     onSave={saveField}
                   />
-                  <EditableField
+                  <InlineField
                     label="GSTIN"
                     value={contact.gstin}
                     field="gstin"
@@ -1173,7 +1059,7 @@ export default function ContactDetail() {
                     maxLength={15}
                     transform={(v) => v.toUpperCase()}
                   />
-                  <EditableField
+                  <InlineField
                     label="PAN"
                     value={contact.pan}
                     field="pan"
@@ -1183,7 +1069,7 @@ export default function ContactDetail() {
                     maxLength={10}
                     transform={(v) => v.toUpperCase()}
                   />
-                  <EditableField
+                  <InlineField
                     label="TAN"
                     value={contact.tan}
                     field="tan"
@@ -1193,7 +1079,7 @@ export default function ContactDetail() {
                     maxLength={10}
                     transform={(v) => v.toUpperCase()}
                   />
-                  <EditableField
+                  <InlineField
                     label="Place of Supply"
                     value={contact.placeOfSupply}
                     field="placeOfSupply"
@@ -1206,7 +1092,7 @@ export default function ContactDetail() {
               {/* US-specific fields */}
               {companyCountry === 'US' && (
                 <>
-                  <EditableField
+                  <InlineField
                     label="Tax ID (EIN)"
                     value={contact.taxId || contact.gstin}
                     field="taxId"
@@ -1214,7 +1100,7 @@ export default function ContactDetail() {
                     onSave={saveField}
                     placeholder="XX-XXXXXXX"
                   />
-                  <EditableField
+                  <InlineField
                     label="State"
                     value={contact.placeOfSupply || contact.address?.state}
                     field="placeOfSupply"
@@ -1227,7 +1113,7 @@ export default function ContactDetail() {
               {/* Canada-specific fields */}
               {companyCountry === 'CA' && (
                 <>
-                  <EditableField
+                  <InlineField
                     label="GST/HST Number"
                     value={contact.taxId || contact.gstin}
                     field="taxId"
@@ -1235,7 +1121,7 @@ export default function ContactDetail() {
                     onSave={saveField}
                     placeholder="123456789 RT0001"
                   />
-                  <EditableField
+                  <InlineField
                     label="Province"
                     value={contact.placeOfSupply || contact.address?.state}
                     field="placeOfSupply"
@@ -1246,17 +1132,15 @@ export default function ContactDetail() {
                 </>
               )}
               {/* Common fields for all countries */}
-              <EditableField
+              <InlineField
                 label="Country Code"
                 value={contact.countryCode}
                 field="countryCode"
                 editable={isAdmin}
                 onSave={saveField}
                 placeholder={companyCountry || 'IN'}
-                maxLength={2}
-                transform={(v) => v.toUpperCase()}
               />
-              <EditableField
+              <InlineField
                 label="Payment Terms"
                 value={paymentTermDisplayValue}
                 field="defaultPaymentTermId"
@@ -1265,7 +1149,7 @@ export default function ContactDetail() {
                 editable={isAdmin}
                 onSave={(field, val) => saveField(field, val || null)}
               />
-              <EditableField
+              <InlineField
                 label="Default Currency"
                 value={contact.defaultCurrency}
                 field="defaultCurrency"
