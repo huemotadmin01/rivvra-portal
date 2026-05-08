@@ -7,7 +7,6 @@ import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../utils/formatCurrency';
 import atsApi from '../../utils/atsApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
-import signApi from '../../utils/signApi';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
@@ -19,7 +18,7 @@ import {
   Loader2, Star, X, ChevronDown,
   User, Briefcase, FileText, Tag, Calendar,
   XCircle, Award,
-  Plus, ExternalLink,
+  ExternalLink,
   PenTool, FileSignature, UserPlus, UserCheck,
   DollarSign,
   Archive, ArchiveRestore, MoreHorizontal, Trash2,
@@ -166,59 +165,6 @@ function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect 
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-/* ── Sign Requests Panel ─────────────────────────────────────────────── */
-function SignRequestsPanel({ orgSlug, applicationId, orgPath }) {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!orgSlug || !applicationId) return;
-    (async () => {
-      try {
-        const res = await signApi.listRequests(orgSlug, { linkedModel: 'ats_application', linkedId: applicationId });
-        if (res.success) setRequests(res.requests || []);
-      } catch (_) {}
-      setLoading(false);
-    })();
-  }, [orgSlug, applicationId]);
-
-  if (loading) return <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-dark-500" /></div>;
-  if (!requests.length) return <p className="text-dark-500 text-xs py-1">No signature requests yet.</p>;
-
-  const stateColors = {
-    draft: 'bg-dark-700 text-dark-300',
-    sent: 'bg-blue-500/10 text-blue-400',
-    signed: 'bg-emerald-500/10 text-emerald-400',
-    refused: 'bg-red-500/10 text-red-400',
-    cancelled: 'bg-dark-700 text-dark-400',
-    expired: 'bg-amber-500/10 text-amber-400',
-  };
-
-  return (
-    <div className="space-y-2">
-      {requests.map((r) => (
-        <Link
-          key={r._id}
-          to={orgPath('/sign/requests/' + r._id)}
-          className="flex items-center justify-between p-2.5 rounded-lg bg-dark-800/50 hover:bg-dark-800 transition-colors group"
-        >
-          <div className="min-w-0">
-            <p className="text-sm text-white truncate group-hover:text-rivvra-400 transition-colors">
-              {r.reference || r.templateName || 'Untitled'}
-            </p>
-            <p className="text-xs text-dark-500 mt-0.5">
-              {r.progress?.completed || 0}/{r.progress?.total || 0} signed
-            </p>
-          </div>
-          <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${stateColors[r.state] || stateColors.draft}`}>
-            {r.state?.charAt(0).toUpperCase() + r.state?.slice(1)}
-          </span>
-        </Link>
-      ))}
     </div>
   );
 }
@@ -786,31 +732,22 @@ export default function AtsApplicationDetail() {
             <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!isAdmin} />
           </SectionCard>
 
-          <SectionCard
-            title="Signature Requests"
-            icon={FileSignature}
-            action={isAdmin && (
-              <button
-                onClick={() => navigate(orgPath('/sign/requests?create=true&linkedModel=ats_application&linkedId=' + applicationId))}
-                className="text-indigo-400 hover:text-indigo-300 transition-colors"
-                title="Request Signature"
-              >
-                <Plus size={14} />
-              </button>
-            )}
-          >
-            <SignRequestsPanel orgSlug={orgSlug} applicationId={applicationId} orgPath={orgPath} />
-            <SignRequestWidget
-              orgSlug={orgSlug}
-              linkedModel="ats_application"
-              linkedId={applicationId}
-              prefillData={{
-                name: application.candidateName || '',
-                email: application.email || '',
-                phone: application.phone || '',
-              }}
-            />
-          </SectionCard>
+          {/* SignRequestWidget brings its own card styling, header, list,
+              and "+ Send for Signature" composer modal — same component
+              CRM / Employee / Contact use. Wrapping it in a SectionCard
+              caused two nested headers and duplicated the request list
+              alongside an inline panel. The header "Request Signature"
+              button stays as a quick entry point to /sign/requests. */}
+          <SignRequestWidget
+            orgSlug={orgSlug}
+            linkedModel="ats_application"
+            linkedId={applicationId}
+            prefillData={{
+              name: application.candidateName || '',
+              email: application.email || '',
+              phone: application.phone || '',
+            }}
+          />
 
           <SectionCard title="Interview" icon={Calendar}>
             <InterviewRound
