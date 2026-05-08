@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -370,11 +370,6 @@ export default function AtsJobDetail() {
     }
   };
 
-  const recruiterOptions = useMemo(
-    () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
-    [recruiters]
-  );
-
   // Resolve a recruiter id → portal-user id for profile links. The job
   // stores the recruiter as a recruiter._id which itself maps 1:1 to
   // portal_users._id (same id space) on this platform — but we keep the
@@ -649,6 +644,9 @@ export default function AtsJobDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Main flow */}
         <div className="lg:col-span-2 space-y-5">
+          {/* Top sub-grid: Overview + Staffing & Compensation side-by-side
+              on md+ so the two short cards fill the row. Stacks below md. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <SectionCard title="Overview" icon={Briefcase}>
             <InlineField label="Position Name" field="name" value={job.name} editable={canEdit} onSave={saveField} required />
             <InlineField
@@ -673,15 +671,6 @@ export default function AtsJobDetail() {
             <InlineField label="Employment Type" field="employmentType" value={job.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
             <InlineField label="Expected Hires" field="expectedHires" value={job.expectedHires ?? 1} editable={canEdit} onSave={saveField} />
             <InlineField label="Hired" field="hiredCount" value={job.hiredCount ?? 0} editable={false} />
-          </SectionCard>
-
-          <SectionCard title="Description" icon={FileText}>
-            <DescriptionTabs
-              internal={job.description}
-              publicDesc={job.websiteDescription}
-              canEdit={canEdit}
-              onSave={saveField}
-            />
           </SectionCard>
 
           <SectionCard title="Staffing & Compensation" icon={MapPin}>
@@ -762,6 +751,16 @@ export default function AtsJobDetail() {
                 placeholder="Approval notes…"
               />
             )}
+          </SectionCard>
+          </div>{/* /sub-grid */}
+
+          <SectionCard title="Description" icon={FileText}>
+            <DescriptionTabs
+              internal={job.description}
+              publicDesc={job.websiteDescription}
+              canEdit={canEdit}
+              onSave={saveField}
+            />
           </SectionCard>
 
           {/* Applications */}
@@ -939,7 +938,7 @@ export default function AtsJobDetail() {
               field="recruiterId"
               jobId={job.recruiterId}
               jobName={job.recruiterName}
-              recruiterOptions={recruiterOptions}
+              recruiters={recruiters}
               orgPath={orgPath}
               userIdFor={userIdFor}
               canEdit={canEdit}
@@ -950,7 +949,7 @@ export default function AtsJobDetail() {
               field="accountOwnerId"
               jobId={job.accountOwnerId}
               jobName={job.accountOwnerName}
-              recruiterOptions={recruiterOptions}
+              recruiters={recruiters}
               orgPath={orgPath}
               userIdFor={userIdFor}
               canEdit={canEdit}
@@ -962,7 +961,7 @@ export default function AtsJobDetail() {
               field="approverId"
               jobId={job.approverId}
               jobName={job.approverName}
-              recruiterOptions={recruiterOptions}
+              recruiters={recruiters}
               orgPath={orgPath}
               userIdFor={userIdFor}
               canEdit={canEdit}
@@ -1178,36 +1177,76 @@ export default function AtsJobDetail() {
   );
 }
 
-/* ── PersonField — InlineField with displayValue rendered as a profile link
- *   (Q5-A). Keeps editing via the existing select dropdown. */
+/* ── PersonField — searchable user lookup with hyperlink in display mode.
+ *   Uses ComboSelect with disableCreate so picks must come from the
+ *   existing recruiter list (no orphan free-text). Display mode renders
+ *   the user's name as a profile link; chevron toggles to edit mode.
+ *
+ *   recruiters arrives as the raw portal_users array; transformed to
+ *   ComboSelect's {_id, name} shape locally.
+ */
 function PersonField({
-  label, field, jobId, jobName, recruiterOptions, orgPath, userIdFor,
+  label, field, jobId, jobName, recruiters, orgPath, userIdFor,
   canEdit, saveField, hideWhenEmpty,
 }) {
+  const [editing, setEditing] = useState(false);
   if (hideWhenEmpty && !jobId) return null;
   const userId = userIdFor(jobId);
+  const lookupOptions = recruiters.map((r) => ({ _id: r._id, name: r.name || r.email || r._id }));
+
+  const handlePick = async (id /*, name */) => {
+    setEditing(false);
+    if (!id || String(id) === String(jobId || '')) return;
+    try { await saveField(field, id); } catch (_) { /* InlineField pattern: caller toasts */ }
+  };
+
   return (
-    <InlineField
-      label={label}
-      field={field}
-      value={jobId}
-      type="select"
-      options={recruiterOptions}
-      editable={canEdit}
-      onSave={saveField}
-      displayValue={
-        jobName && userId ? (
-          <Link
-            to={orgPath(`/settings/users/${userId}`)}
-            onClick={(e) => e.stopPropagation()}
-            className="text-rivvra-300 hover:text-rivvra-200 hover:underline"
-          >
-            {jobName}
-          </Link>
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group items-start">
+      <span className="text-dark-400 text-sm pt-1.5">{label}</span>
+      <div className="min-w-0">
+        {editing && canEdit ? (
+          <ComboSelect
+            value={jobId || ''}
+            displayValue={jobName || ''}
+            options={lookupOptions}
+            onChange={handlePick}
+            disableCreate
+            placeholder={`Search ${label.toLowerCase()}…`}
+          />
         ) : jobName ? (
-          <span>{jobName}</span>
-        ) : undefined
-      }
-    />
+          <div className="flex items-center gap-1.5 text-sm">
+            {userId ? (
+              <Link
+                to={orgPath(`/settings/users/${userId}`)}
+                className="text-rivvra-300 hover:text-rivvra-200 hover:underline truncate"
+              >
+                {jobName}
+              </Link>
+            ) : (
+              <span className="text-white truncate">{jobName}</span>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-dark-500 hover:text-dark-300 flex-shrink-0"
+                title={`Change ${label.toLowerCase()}`}
+                aria-label={`Change ${label.toLowerCase()}`}
+              >
+                <ChevronDown size={14} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <div
+            onClick={canEdit ? () => setEditing(true) : undefined}
+            className={`text-sm rounded px-1 -mx-1 ${canEdit ? 'cursor-pointer hover:bg-dark-800' : ''}`}
+          >
+            <span className="text-dark-500 italic">
+              {canEdit ? `Search ${label.toLowerCase()}…` : '—'}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
