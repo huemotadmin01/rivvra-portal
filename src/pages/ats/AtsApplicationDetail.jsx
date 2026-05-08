@@ -930,11 +930,39 @@ export default function AtsApplicationDetail() {
 
 /* ── Interview round helper ──────────────────────────────────────────── */
 function InterviewRound({ label, resultField, dateField, feedbackField, application, canEdit, saveField }) {
+  const isEmpty = (v) => v == null || v === '' || (typeof v === 'string' && v.trim() === '');
+  const hasAny = !isEmpty(application[resultField])
+    || !isEmpty(application[dateField])
+    || !isEmpty(application[feedbackField]);
+
+  // Collapsed-by-default when nothing's been filled in. Imported records
+  // come in with all three fields blank for L1 / L2 / HR, which used to
+  // render 9 empty "—" rows on every application detail. Now we show a
+  // single "Not scheduled" line per round, with an "Add details" toggle
+  // for admins.
+  const [expanded, setExpanded] = useState(hasAny);
+  const showFields = hasAny || expanded;
+
   return (
     <div>
-      <h4 className="text-xs font-semibold text-dark-300 uppercase tracking-wider mb-1 px-1">
-        {label} Interview
-      </h4>
+      <div className="flex items-center justify-between px-1 mb-1">
+        <h4 className="text-xs font-semibold text-dark-300 uppercase tracking-wider">
+          {label} Interview
+        </h4>
+        {!hasAny && canEdit && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs text-rivvra-400 hover:text-rivvra-300"
+          >
+            {expanded ? 'Collapse' : '+ Add details'}
+          </button>
+        )}
+      </div>
+      {!showFields && (
+        <p className="text-dark-500 text-xs px-1 pb-2">Not scheduled.</p>
+      )}
+      {showFields && <>
       <InlineField
         label="Result"
         field={resultField}
@@ -961,6 +989,7 @@ function InterviewRound({ label, resultField, dateField, feedbackField, applicat
         onSave={saveField}
         placeholder="Add feedback notes…"
       />
+      </>}
     </div>
   );
 }
