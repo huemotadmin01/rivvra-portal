@@ -288,16 +288,23 @@ export default function AtsApplicationDetail() {
       if (res.success) {
         // Merge enriched fields onto the doc so InlineField can read
         // them as plain properties.
+        // Prefer API-enriched names, fall back to the doc's own
+        // denormalized values. Importer writes accountOwnerName /
+        // accountManagerName / submittedByName onto the application
+        // doc; without the fallback those rows showed "—" whenever the
+        // API enrichment couldn't resolve the FK (e.g. employee._id on
+        // People fields that older code only looked up in portal_users).
+        const a = res.application || {};
         const merged = {
-          ...res.application,
-          jobName: res.jobName || res.application.jobName,
-          jobDepartment: res.jobDepartment || res.application.department,
+          ...a,
+          jobName: res.jobName || a.jobName,
+          jobDepartment: res.jobDepartment || a.department,
           jobClient: res.jobClientName || null,
-          stageName: res.stageName || res.application.stageName,
-          recruiterName: res.recruiterName || res.application.recruiterName,
-          accountOwnerName: res.accountOwnerName || null,
-          accountManagerName: res.accountManagerName || null,
-          submittedByName: res.submittedByName || null,
+          stageName: res.stageName || a.stageName,
+          recruiterName: res.recruiterName || a.recruiterName || null,
+          accountOwnerName: res.accountOwnerName || a.accountOwnerName || null,
+          accountManagerName: res.accountManagerName || a.accountManagerName || null,
+          submittedByName: res.submittedByName || a.submittedByName || null,
         };
         setApplication(merged);
       }
