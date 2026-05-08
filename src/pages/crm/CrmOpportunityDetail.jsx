@@ -526,7 +526,14 @@ export default function CrmOpportunityDetail() {
                 onSave={saveField}
                 placeholder={`e.g. ${currencySym}900,000`}
                 displayValue={
-                  opp.expectedRevenue != null && opp.expectedRevenue !== ''
+                  // Treat 0 as unset for display so imported opps —
+                  // which were written with expectedRevenue=0 when Odoo
+                  // had no value — render "—" instead of "₹0". Inline-
+                  // save still accepts an explicit 0 if needed; matches
+                  // the salary 0-as-unset rule on AtsApplicationDetail.
+                  opp.expectedRevenue != null
+                  && opp.expectedRevenue !== ''
+                  && Number(opp.expectedRevenue) !== 0
                     ? <span>{formatMoney(opp.expectedRevenue, currencyCode)}</span>
                     : undefined
                 }
@@ -557,11 +564,16 @@ export default function CrmOpportunityDetail() {
             />
           </SectionCard>
 
-          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
         </div>
 
         {/* Sidebar */}
         <div className="space-y-5">
+          {/* Activity moved out of the long main column into the right
+              rail so the Notes / Opportunity Details sections aren't
+              pushed off-screen on long timelines. Mirrors the same move
+              landed for AtsApplicationDetail. */}
+          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
+
           <SectionCard title="Owner" icon={Tag}>
             <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
               <span className="text-dark-400 text-sm">Salesperson</span>
