@@ -14,8 +14,8 @@ import ActivityPanel from '../../components/shared/ActivityPanel';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
-  Loader2, Star, ChevronDown, ExternalLink,
-  Briefcase, Users, FileText, Tag, Globe, Plus,
+  Loader2, Star, ChevronDown,
+  Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
   CheckCircle2, Clock, XCircle, Eye, EyeOff,
 } from 'lucide-react';
@@ -537,7 +537,16 @@ export default function AtsJobDetail() {
   const statusKey = (job.status || '').toLowerCase().replace(/\s+/g, '_');
   const fmtBudget = (v) => (v == null || v === '' ? null : formatCurrency(v, companyCurrency));
   const hiringModeFull = HIRING_MODE_FULL[job.hiringMode] || job.hiringMode;
-  const requiredExpDisplay = job.requiredExperience || null;
+  // Odoo imports arrive as "7-8" / "5+" without a unit suffix; the
+  // dropdown options carry "Years" baked in. Normalize the display so a
+  // user reading "7-8" doesn't have to guess whether that's years or
+  // months. Idempotent — won't double-suffix values that already include
+  // years/yr/months.
+  const requiredExpDisplay = job.requiredExperience
+    ? (/years?|yrs?|months?|mos?\b/i.test(job.requiredExperience)
+        ? job.requiredExperience
+        : `${job.requiredExperience} Years`)
+    : null;
 
   // Q9-A: row click handler — guard against link-cell propagation.
   const openApp = (appId) => navigate(orgPath(`/ats/applications/${appId}`));
@@ -920,11 +929,9 @@ export default function AtsJobDetail() {
             )}
           </div>
 
-          {/* Q4-A: Activity panel sits at the bottom of the main flow */}
-          <ActivityPanel orgSlug={orgSlug} entityType="ats_job" entityId={jobId} />
         </div>
 
-        {/* Sidebar — People, Client, Visibility, Meta */}
+        {/* Sidebar — People, Client, Meta, Activities */}
         <div className="space-y-5">
           <SectionCard title="People" icon={UserCheck}>
             <PersonField
@@ -984,7 +991,8 @@ export default function AtsJobDetail() {
                     displayValue={job.clientName || ''}
                     options={companyContacts}
                     onChange={handleClientSelect}
-                    placeholder="Search or type a company name…"
+                    disableCreate
+                    placeholder="Search a company contact…"
                   />
                 ) : job.clientName ? (
                   <div className="flex items-center gap-1.5 text-sm">
@@ -1023,36 +1031,10 @@ export default function AtsJobDetail() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Visibility" icon={Globe}>
-            <InlineField
-              label="Published"
-              field="published"
-              value={!!job.published}
-              type="toggle"
-              editable={canEdit}
-              onSave={saveField}
-            />
-            <p className="text-[11px] text-dark-500 mt-1 px-1">
-              When on, the role appears on the public careers page.
-            </p>
-            {/* Q10-C: "Public Page" button — disabled when unpublished */}
-            {job.websiteUrl && (
-              <a
-                href={job.published ? job.websiteUrl : undefined}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => { if (!job.published) e.preventDefault(); }}
-                className={`mt-2 inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                  job.published
-                    ? 'text-rivvra-300 border-rivvra-500/30 hover:bg-rivvra-500/10'
-                    : 'text-dark-500 border-dark-700 cursor-not-allowed opacity-60'
-                }`}
-                title={job.published ? 'Open public careers page' : 'Publish to enable public link'}
-              >
-                <ExternalLink size={12} /> Public Page
-              </a>
-            )}
-          </SectionCard>
+          {/* Visibility card — hidden until the public careers-page feature
+              actually ships. Showing a Published toggle that doesn't do
+              anything misleads users. The schema field stays so the
+              feature can light up by re-rendering this card later. */}
 
           {/* Q14-D + Q8-A: Meta card — Created/Updated/Source + folded Approval */}
           <SectionCard>
@@ -1091,6 +1073,10 @@ export default function AtsJobDetail() {
               </p>
             )}
           </SectionCard>
+
+          {/* Activities — sits at the bottom of the right column so the
+              feed can grow vertically without bounding the main flow. */}
+          <ActivityPanel orgSlug={orgSlug} entityType="ats_job" entityId={jobId} />
         </div>
       </div>
 

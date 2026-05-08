@@ -17,12 +17,17 @@ import { ChevronDown } from 'lucide-react';
  *  - createLabel  : optional override for the create item label (default "Create")
  *  - placeholder  : input placeholder
  *  - disabled     : disables the input
+ *  - disableCreate: hides the inline "+ Create" option entirely. Use when
+ *                   the field must only pick from existing records (e.g.
+ *                   Job Position → Client should only reference contacts
+ *                   that already live in the contacts app, not silently
+ *                   fork unmatched names into orphan strings).
  *
  * 2026-05-08: dropdown portal-anchored to document.body so it can escape
  * narrow parent cards (e.g. Job Position → Client card was clipping the
  * full company list). Position recomputed on scroll/resize while open.
  */
-export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, createLabel = 'Create', placeholder, disabled }) {
+export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, createLabel = 'Create', placeholder, disabled, disableCreate = false }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(displayValue || '');
   const [coords, setCoords] = useState(null); // { left, top, width }
@@ -67,8 +72,11 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   const exactMatch = options.some(o => o.name.toLowerCase() === trimmed);
 
   // Show dropdown when open AND there's something to render — either
-  // matching options, or a typed string that lets us offer "+ Create".
-  const showDropdown = open && coords && (filtered.length > 0 || inputValue.trim());
+  // matching options, or a typed string that lets us offer "+ Create"
+  // (suppressed when disableCreate is set).
+  const showDropdown = open && coords && (
+    filtered.length > 0 || (!disableCreate && inputValue.trim())
+  );
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -80,11 +88,23 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
           onChange={(e) => {
             setInputValue(e.target.value);
             setOpen(true);
-            if (value && e.target.value !== displayValue) {
+            // Free-text mode: clear the bound value as the user types
+            // (so a stale id doesn't survive an unmatched input). In
+            // disableCreate mode we never accept free text — keep the
+            // current selection until a real option is picked.
+            if (!disableCreate && value && e.target.value !== displayValue) {
               onChange('', e.target.value.trim());
             }
           }}
           onFocus={() => setOpen(true)}
+          onBlur={() => {
+            // disableCreate: if the user typed but didn't pick, restore
+            // the previously selected display value on blur. Without
+            // this the input would visibly diverge from the bound value.
+            if (disableCreate) {
+              setTimeout(() => setInputValue(displayValue || ''), 150);
+            }
+          }}
           placeholder={placeholder}
           disabled={disabled}
           className="input-field w-full text-sm pr-8"
@@ -128,7 +148,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
               {o.name}
             </button>
           ))}
-          {inputValue.trim() && !exactMatch && (
+          {!disableCreate && inputValue.trim() && !exactMatch && (
             <button
               type="button"
               onClick={() => {
