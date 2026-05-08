@@ -3,6 +3,8 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
+import { useCompany } from '../../context/CompanyContext';
+import { formatCurrency } from '../../utils/formatCurrency';
 import atsApi from '../../utils/atsApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import signApi from '../../utils/signApi';
@@ -239,9 +241,14 @@ const EVAL_OPTIONS = [
 export default function AtsApplicationDetail() {
   const { applicationId } = useParams();
   const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
+
+  const companyCurrency = currentCompany?.currency || 'INR';
+  const fmtSalary = (v) =>
+    v == null || v === '' ? null : formatCurrency(v, companyCurrency);
 
   const [application, setApplication] = useState(null);
   usePageTitle(application?.candidateName);
@@ -265,7 +272,11 @@ export default function AtsApplicationDetail() {
 
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
-  const isTerminal = application?.status === 'hired' || application?.status === 'refused';
+  // Canonical status field on ats_applications is `applicationStatus`
+  // ('ongoing' | 'hired' | 'refused'). Tolerate the legacy `status` alias
+  // in case any caller still emits it, but prefer the canonical one.
+  const appStatus = application?.applicationStatus || application?.status;
+  const isTerminal = appStatus === 'hired' || appStatus === 'refused';
   const canEdit = isAdmin && !application?.archived && !isTerminal;
 
   // ── Fetch application ─────────────────────────────────────────────────
@@ -493,13 +504,13 @@ export default function AtsApplicationDetail() {
               </span>
             )}
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              application.status === 'hired'
+              appStatus === 'hired'
                 ? 'bg-emerald-500/10 text-emerald-400'
-                : application.status === 'refused'
+                : appStatus === 'refused'
                 ? 'bg-red-500/10 text-red-400'
                 : 'bg-rivvra-500/10 text-rivvra-400'
             }`}>
-              {application.status === 'hired' ? 'Hired' : application.status === 'refused' ? 'Refused' : currentStageName}
+              {appStatus === 'hired' ? 'Hired' : appStatus === 'refused' ? 'Refused' : currentStageName}
             </span>
             <KanbanDot
               state={application.kanbanState || 'normal'}
@@ -734,7 +745,7 @@ export default function AtsApplicationDetail() {
               editable={canEdit}
               onSave={saveField}
               placeholder="0"
-              displayValue={application.salaryExpected != null ? `$${Number(application.salaryExpected).toLocaleString()}` : undefined}
+              displayValue={fmtSalary(application.salaryExpected) || undefined}
             />
             <InlineField
               label="Salary Proposed"
@@ -743,7 +754,7 @@ export default function AtsApplicationDetail() {
               editable={canEdit}
               onSave={saveField}
               placeholder="0"
-              displayValue={application.salaryProposed != null ? `$${Number(application.salaryProposed).toLocaleString()}` : undefined}
+              displayValue={fmtSalary(application.salaryProposed) || undefined}
             />
           </SectionCard>
 
@@ -835,13 +846,14 @@ export default function AtsApplicationDetail() {
             />
           </SectionCard>
 
-          <SectionCard title="Activity" icon={Star}>
-            <ActivityPanel orgSlug={orgSlug} entityType="ats_application" entityId={applicationId} />
-          </SectionCard>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-5">
+          <SectionCard title="Activity" icon={Star}>
+            <ActivityPanel orgSlug={orgSlug} entityType="ats_application" entityId={applicationId} />
+          </SectionCard>
+
           <SectionCard title="Tags" icon={Tag}>
             {(application.tags && application.tags.length > 0) ? (
               <div className="flex flex-wrap gap-1.5 py-2">
@@ -856,7 +868,7 @@ export default function AtsApplicationDetail() {
             )}
           </SectionCard>
 
-          {application.status === 'refused' && (
+          {appStatus === 'refused' && (
             <SectionCard className="border-red-500/20" title="Refused" icon={XCircle}>
               <p className="text-dark-300 text-sm py-1">
                 {application.refuseReason || 'No reason provided'}
