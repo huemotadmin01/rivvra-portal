@@ -11,6 +11,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import ActivityPanel from '../../components/shared/ActivityPanel';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
@@ -312,7 +313,6 @@ export default function AtsJobDetail() {
   usePageTitle(job?.name);
   const [loading, setLoading] = useState(true);
 
-  const [recruiters, setRecruiters] = useState([]);
   const [companyContacts, setCompanyContacts] = useState([]);
   const [editingClient, setEditingClient] = useState(false);
 
@@ -341,13 +341,8 @@ export default function AtsJobDetail() {
   const orgSlug = currentOrg?.slug;
   const canEdit = isAdmin && !job?.archived;
 
-  // ── Fetch recruiters for user-pickers ─────────────────────────────────
-  useEffect(() => {
-    if (!orgSlug) return;
-    atsApi.listRecruiters(orgSlug)
-      .then((res) => { if (res.success) setRecruiters(res.recruiters || []); })
-      .catch((err) => console.error('Failed to load recruiters:', err));
-  }, [orgSlug]);
+  // EmployeeLookup hits /contacts/salespersons internally — no need for
+  // a page-level recruiters fetch anymore. Removed.
 
   // ── Fetch company contacts for client lookup ─────────────────────────
   useEffect(() => {
@@ -369,16 +364,6 @@ export default function AtsJobDetail() {
       showToast(err.message || 'Failed to update client', 'error');
     }
   };
-
-  // Resolve a recruiter id → portal-user id for profile links. The job
-  // stores the recruiter as a recruiter._id which itself maps 1:1 to
-  // portal_users._id (same id space) on this platform — but we keep the
-  // resolution explicit so a future schema split doesn't silently break.
-  const userIdFor = useCallback((recId) => {
-    if (!recId) return null;
-    const r = recruiters.find((x) => String(x._id) === String(recId));
-    return r?.userId || r?._id || null;
-  }, [recruiters]);
 
   // ── Fetch job ─────────────────────────────────────────────────────────
   const fetchJob = useCallback(async () => {
@@ -441,6 +426,23 @@ export default function AtsJobDetail() {
     const res = await atsApi.updateJob(orgSlug, jobId, { [field]: coerced });
     if (res?.job) setJob(res.job);
     else setJob((prev) => ({ ...prev, [field]: coerced }));
+  };
+
+  // savePerson — atomic update of an id + denormalized name pair (e.g.
+  // recruiterId + recruiterName). Saving the name alongside the id keeps
+  // list views reading the row without an extra lookup; saving them in
+  // the same PUT means a refresh never shows id-without-name flicker.
+  const savePerson = async (idField, nameField, id, name) => {
+    try {
+      const res = await atsApi.updateJob(orgSlug, jobId, {
+        [idField]: id || null,
+        [nameField]: name || '',
+      });
+      if (res?.job) setJob(res.job);
+      else setJob((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
+    } catch (err) {
+      showToast(err.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
+    }
   };
 
   // ── Status / archive / delete handlers ────────────────────────────────
@@ -814,8 +816,12 @@ export default function AtsJobDetail() {
                       </thead>
                       <tbody>
                         {applications.map((app) => {
+                          // recruiterId on applications now stores the
+                          // employee _id (semantic shifted with the People
+                          // field migration). Older rows may still hold a
+                          // portal_user id — the link will 404 until the
+                          // backfill (or a re-save) runs.
                           const recId = app.recruiter || app.recruiterId;
-                          const recUserId = userIdFor(recId);
                           return (
                             <tr
                               key={app._id}
@@ -849,9 +855,9 @@ export default function AtsJobDetail() {
                                 <StageBadge stageName={app.stageName || app.stageId?.name} />
                               </td>
                               <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                                {recUserId && app.recruiterName ? (
+                                {recId && app.recruiterName ? (
                                   <Link
-                                    to={orgPath(`/settings/users/${recUserId}`)}
+                                    to={orgPath(`/employee/${recId}`)}
                                     onClick={(e) => e.stopPropagation()}
                                     className="hover:text-rivvra-300 hover:underline"
                                   >
@@ -933,41 +939,37 @@ export default function AtsJobDetail() {
         {/* Sidebar — People, Client, Meta, Activities */}
         <div className="space-y-5">
           <SectionCard title="People" icon={UserCheck}>
-            <PersonField
+            <EmployeeLookup
+              orgSlug={orgSlug}
               label="Recruiter"
-              field="recruiterId"
-              jobId={job.recruiterId}
-              jobName={job.recruiterName}
-              recruiters={recruiters}
-              orgPath={orgPath}
-              userIdFor={userIdFor}
-              canEdit={canEdit}
-              saveField={saveField}
+              currentValue={job.recruiterId}
+              currentName={job.recruiterName}
+              editable={canEdit}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
-            <PersonField
-              label="Account Owner"
-              field="accountOwnerId"
-              jobId={job.accountOwnerId}
-              jobName={job.accountOwnerName}
-              recruiters={recruiters}
-              orgPath={orgPath}
-              userIdFor={userIdFor}
-              canEdit={canEdit}
-              saveField={saveField}
-              hideWhenEmpty={!showEmpty}
-            />
-            <PersonField
-              label="Approver"
-              field="approverId"
-              jobId={job.approverId}
-              jobName={job.approverName}
-              recruiters={recruiters}
-              orgPath={orgPath}
-              userIdFor={userIdFor}
-              canEdit={canEdit}
-              saveField={saveField}
-              hideWhenEmpty={!showEmpty}
-            />
+            {(showEmpty || job.accountOwnerId || job.accountOwnerName) && (
+              <EmployeeLookup
+                orgSlug={orgSlug}
+                label="Account Owner"
+                currentValue={job.accountOwnerId}
+                currentName={job.accountOwnerName}
+                editable={canEdit}
+                linkTo={(id) => orgPath(`/employee/${id}`)}
+                onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
+              />
+            )}
+            {(showEmpty || job.approverId || job.approverName) && (
+              <EmployeeLookup
+                orgSlug={orgSlug}
+                label="Approver"
+                currentValue={job.approverId}
+                currentName={job.approverName}
+                editable={canEdit}
+                linkTo={(id) => orgPath(`/employee/${id}`)}
+                onSelect={(id, name) => savePerson('approverId', 'approverName', id, name)}
+              />
+            )}
           </SectionCard>
 
           <SectionCard title="Client" icon={Tag}>
@@ -1173,80 +1175,6 @@ export default function AtsJobDetail() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ── PersonField — searchable user lookup with hyperlink in display mode.
- *   Uses ComboSelect with disableCreate so picks must come from the
- *   existing recruiter list (no orphan free-text). Display mode renders
- *   the user's name as a profile link; chevron toggles to edit mode.
- *
- *   recruiters arrives as the raw portal_users array; transformed to
- *   ComboSelect's {_id, name} shape locally.
- */
-function PersonField({
-  label, field, jobId, jobName, recruiters, orgPath, userIdFor,
-  canEdit, saveField, hideWhenEmpty,
-}) {
-  const [editing, setEditing] = useState(false);
-  if (hideWhenEmpty && !jobId) return null;
-  const userId = userIdFor(jobId);
-  const lookupOptions = recruiters.map((r) => ({ _id: r._id, name: r.name || r.email || r._id }));
-
-  const handlePick = async (id /*, name */) => {
-    setEditing(false);
-    if (!id || String(id) === String(jobId || '')) return;
-    try { await saveField(field, id); } catch (_) { /* InlineField pattern: caller toasts */ }
-  };
-
-  return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group items-start">
-      <span className="text-dark-400 text-sm pt-1.5">{label}</span>
-      <div className="min-w-0">
-        {editing && canEdit ? (
-          <ComboSelect
-            value={jobId || ''}
-            displayValue={jobName || ''}
-            options={lookupOptions}
-            onChange={handlePick}
-            disableCreate
-            placeholder={`Search ${label.toLowerCase()}…`}
-          />
-        ) : jobName ? (
-          <div className="flex items-center gap-1.5 text-sm">
-            {userId ? (
-              <Link
-                to={orgPath(`/settings/users/${userId}`)}
-                className="text-rivvra-300 hover:text-rivvra-200 hover:underline truncate"
-              >
-                {jobName}
-              </Link>
-            ) : (
-              <span className="text-white truncate">{jobName}</span>
-            )}
-            {canEdit && (
-              <button
-                onClick={() => setEditing(true)}
-                className="text-dark-500 hover:text-dark-300 flex-shrink-0"
-                title={`Change ${label.toLowerCase()}`}
-                aria-label={`Change ${label.toLowerCase()}`}
-              >
-                <ChevronDown size={14} />
-              </button>
-            )}
-          </div>
-        ) : (
-          <div
-            onClick={canEdit ? () => setEditing(true) : undefined}
-            className={`text-sm rounded px-1 -mx-1 ${canEdit ? 'cursor-pointer hover:bg-dark-800' : ''}`}
-          >
-            <span className="text-dark-500 italic">
-              {canEdit ? `Search ${label.toLowerCase()}…` : '—'}
-            </span>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

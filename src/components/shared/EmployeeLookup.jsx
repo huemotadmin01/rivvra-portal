@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Pencil, Search, X } from 'lucide-react';
 import contactsApi from '../../utils/contactsApi';
 
@@ -17,6 +18,11 @@ import contactsApi from '../../utils/contactsApi';
  *   variant      — 'row' (label + value, default) | 'inline' (just the value cell)
  *   label        — label text (used by 'row' variant)
  *   allowClear   — show "No selection" option (default true)
+ *   linkTo       — optional fn(id) => path. When provided + value set, the
+ *                  display-mode name renders as a Link to that path. Click
+ *                  on the name navigates; click the pencil icon (or empty
+ *                  cell) still enters edit mode. Used for People fields
+ *                  that hyperlink to /employee/:id.
  */
 export default function EmployeeLookup({
   orgSlug,
@@ -28,6 +34,7 @@ export default function EmployeeLookup({
   variant = 'row',
   label = 'Salesperson',
   allowClear = true,
+  linkTo = null,
 }) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState('');
@@ -142,6 +149,10 @@ export default function EmployeeLookup({
 
   // variant === 'row'
   if (!editing) {
+    const linkPath = linkTo && currentValue ? linkTo(currentValue) : null;
+    // When a hyperlink is rendered, the name needs to navigate on click
+    // while the rest of the row should still enter edit mode. Stop the
+    // anchor click from bubbling so the row's onClick doesn't fire too.
     return (
       <div
         className={`grid grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
@@ -149,7 +160,21 @@ export default function EmployeeLookup({
       >
         <span className="text-dark-400 text-sm">{label}</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-white text-sm">{currentName || <span className="text-dark-500">—</span>}</span>
+          {currentName ? (
+            linkPath ? (
+              <Link
+                to={linkPath}
+                onClick={(e) => e.stopPropagation()}
+                className="text-rivvra-300 hover:text-rivvra-200 hover:underline text-sm truncate"
+              >
+                {currentName}
+              </Link>
+            ) : (
+              <span className="text-white text-sm">{currentName}</span>
+            )
+          ) : (
+            <span className="text-dark-500 text-sm">—</span>
+          )}
           {editable && <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100" />}
         </div>
       </div>
