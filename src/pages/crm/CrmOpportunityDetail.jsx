@@ -528,14 +528,17 @@ export default function CrmOpportunityDetail() {
                 displayValue={
                   // Treat 0 as unset for display so imported opps —
                   // which were written with expectedRevenue=0 when Odoo
-                  // had no value — render "—" instead of "₹0". Inline-
-                  // save still accepts an explicit 0 if needed; matches
-                  // the salary 0-as-unset rule on AtsApplicationDetail.
+                  // had no value — render an em-dash instead of "₹0"
+                  // or the raw "0". Explicit dash (not undefined) so
+                  // InlineField doesn't fall back to rendering the raw
+                  // value. Inline-save still accepts an explicit 0 if
+                  // needed; matches the salary 0-as-unset rule on
+                  // AtsApplicationDetail.
                   opp.expectedRevenue != null
                   && opp.expectedRevenue !== ''
                   && Number(opp.expectedRevenue) !== 0
                     ? <span>{formatMoney(opp.expectedRevenue, currencyCode)}</span>
-                    : undefined
+                    : <span className="text-dark-500">—</span>
                 }
               />
             </ErrorWrap>
