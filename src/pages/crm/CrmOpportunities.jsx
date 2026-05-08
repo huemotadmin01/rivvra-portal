@@ -223,7 +223,7 @@ export default function CrmOpportunities() {
                     <StageBadge name={opp.stageName} isWon={!!opp.wonAt && !opp.isLost} isLost={opp.isLost} />
                   </td>
                   <td className="px-3 py-2.5 text-xs text-emerald-400">{opp.expectedRole || '—'}</td>
-                  <td className="px-3 py-2.5 text-xs text-dark-300">{formatMoney(opp.expectedRevenue, opp.currency)}</td>
+                  <td className="px-3 py-2.5 text-xs text-dark-300">{Number(opp.expectedRevenue) > 0 ? formatMoney(opp.expectedRevenue, opp.currency) : '—'}</td>
                   <td className="px-3 py-2.5"><EvalStars value={opp.evaluation} /></td>
                   <td className="px-3 py-2.5 text-xs text-dark-300">{opp.salespersonName || '—'}</td>
                   <td className="px-3 py-2.5 text-xs text-dark-500">{new Date(opp.updatedAt).toLocaleDateString()}</td>

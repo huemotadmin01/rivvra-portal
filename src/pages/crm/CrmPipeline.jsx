@@ -101,7 +101,14 @@ function KanbanCard({ opp, onClick }) {
 
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-2">
-          {opp.expectedRevenue && (
+          {/* Treat 0 / "0" / null / undefined uniformly as "unset". The
+              old `opp.expectedRevenue &&` check let string "0" through
+              and rendered a bare "0" with the rupee icon — looked like
+              a deal worth zero rupees rather than a deal with no
+              captured value. Mirrors the salary 0-as-unset rule on
+              AtsApplicationDetail and the Expected Revenue em-dash on
+              CrmOpportunityDetail. */}
+          {Number(opp.expectedRevenue) > 0 && (
             <span className="text-xs text-amber-400 flex items-center gap-0.5">
               <IndianRupee size={10} /> {opp.expectedRevenue}
             </span>
