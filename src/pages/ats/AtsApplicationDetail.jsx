@@ -193,8 +193,14 @@ export default function AtsApplicationDetail() {
   const navigate = useNavigate();
 
   const companyCurrency = currentCompany?.currency || 'INR';
+  // Treat 0 as "unset" for display. Imported records pre-2026-05-09
+  // were written with salaryExpected/Proposed = 0 instead of null;
+  // the importer was hardened (5-import-data.js: null defaults) but it
+  // skips existing rows on re-run, so backfilling those legacy zeros
+  // here is the cheapest fix. Legitimate "0 expected" is not a real
+  // staffing case at Huemot — confirmed before shipping.
   const fmtSalary = (v) =>
-    v == null || v === '' ? null : formatCurrency(v, companyCurrency);
+    v == null || v === '' || Number(v) === 0 ? null : formatCurrency(v, companyCurrency);
 
   const [application, setApplication] = useState(null);
   usePageTitle(application?.candidateName);
