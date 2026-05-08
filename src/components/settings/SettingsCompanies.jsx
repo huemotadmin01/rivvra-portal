@@ -63,6 +63,31 @@ function getSignatureUrl(company) {
   return `${API_BASE_URL}/api/org-company/${company._id}/signature?t=${company.updatedAt || ''}`;
 }
 
+// Country-aware labels (mirror invoicePdfHelper.js so the form matches the PDF output)
+function taxIdLabel(cc) {
+  if (cc === 'US') return 'EIN';
+  if (cc === 'CA') return 'BN';
+  return 'GSTIN';
+}
+
+function taxIdPlaceholder(cc) {
+  if (cc === 'US') return '12-3456789';
+  if (cc === 'CA') return '123456789RC0001';
+  return '29AALCR0152L1Z2';
+}
+
+function bankRoutingLabel(cc) {
+  if (cc === 'US') return 'SWIFT / BIC';
+  if (cc === 'CA') return 'Transit / Institution';
+  return 'IFSC Code';
+}
+
+function bankRoutingPlaceholder(cc) {
+  if (cc === 'US') return 'e.g. CHASUS33XXX';
+  if (cc === 'CA') return 'e.g. 12345-001';
+  return 'e.g. HDFC0004668';
+}
+
 // ─── Reusable Field Row (Odoo label:value style) ────────────────────────────
 
 function FieldRow({ label, children, className = '' }) {
@@ -664,27 +689,29 @@ export default function SettingsCompanies() {
                   </div>
                 </FieldRow>
 
-                <FieldRow label="Tax ID (GSTIN)">
+                <FieldRow label={`Tax ID (${taxIdLabel(form.address.countryCode)})`}>
                   <input
                     type="text"
                     value={form.gstin}
                     onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
                     className="input-field text-sm"
-                    placeholder="29AALCR0152L1Z2"
-                    maxLength={15}
+                    placeholder={taxIdPlaceholder(form.address.countryCode)}
+                    maxLength={form.address.countryCode === 'IN' ? 15 : 32}
                   />
                 </FieldRow>
 
-                <FieldRow label="PAN">
-                  <input
-                    type="text"
-                    value={form.pan}
-                    onChange={(e) => handleChange('pan', e.target.value.toUpperCase())}
-                    className="input-field text-sm"
-                    placeholder="AALCR0152L"
-                    maxLength={10}
-                  />
-                </FieldRow>
+                {form.address.countryCode === 'IN' && (
+                  <FieldRow label="PAN">
+                    <input
+                      type="text"
+                      value={form.pan}
+                      onChange={(e) => handleChange('pan', e.target.value.toUpperCase())}
+                      className="input-field text-sm"
+                      placeholder="AALCR0152L"
+                      maxLength={10}
+                    />
+                  </FieldRow>
+                )}
 
                 <FieldRow label="Company ID">
                   <input
@@ -928,13 +955,13 @@ export default function SettingsCompanies() {
                       placeholder="e.g. 50200072741421"
                     />
                   </FieldRow>
-                  <FieldRow label="IFSC Code">
+                  <FieldRow label={bankRoutingLabel(form.address.countryCode)}>
                     <input
                       type="text"
                       value={form.bankDetails.ifsc}
                       onChange={(e) => handleBankChange('ifsc', e.target.value)}
                       className="input-field text-sm"
-                      placeholder="e.g. HDFC0004668"
+                      placeholder={bankRoutingPlaceholder(form.address.countryCode)}
                     />
                   </FieldRow>
                 </div>
