@@ -107,6 +107,12 @@ const contactsApi = {
     const qs = search ? `?search=${encodeURIComponent(search)}` : '';
     return api.request(`/api/org/${orgSlug}/contacts/salespersons${qs}`);
   },
+  // Single-employee membership probe used by EmployeeLookup to decide
+  // whether to render a name as a hyperlink. Returns { salespersons: [] }
+  // when the id isn't an active employee in the current company scope.
+  probeSalesperson(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/contacts/salespersons?id=${encodeURIComponent(id)}`);
+  },
 
   // ── Attachments ──────────────────────────────────────────────────────
   listAttachments(orgSlug, contactId) {

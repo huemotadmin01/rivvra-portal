@@ -40,9 +40,22 @@ export default function EmployeeLookup({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  // Whether the currentValue resolves to an active employee — gates the
+  // hyperlink in display mode. Probed once per id change. Avoids 404s for
+  // legacy ids (e.g. "HR Team" portal_user with no employee record).
+  const [linkable, setLinkable] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const searchTimer = useRef(null);
+
+  useEffect(() => {
+    if (!linkTo || !currentValue) { setLinkable(false); return; }
+    let cancelled = false;
+    contactsApi.probeSalesperson(orgSlug, currentValue)
+      .then((res) => { if (!cancelled) setLinkable(!!res?.salespersons?.length); })
+      .catch(() => { if (!cancelled) setLinkable(false); });
+    return () => { cancelled = true; };
+  }, [orgSlug, currentValue, linkTo]);
 
   const doSearch = async (q) => {
     try {
@@ -149,7 +162,7 @@ export default function EmployeeLookup({
 
   // variant === 'row'
   if (!editing) {
-    const linkPath = linkTo && currentValue ? linkTo(currentValue) : null;
+    const linkPath = linkTo && currentValue && linkable ? linkTo(currentValue) : null;
     // When a hyperlink is rendered, the name needs to navigate on click
     // while the rest of the row should still enter edit mode. Stop the
     // anchor click from bubbling so the row's onClick doesn't fire too.

@@ -18,7 +18,7 @@ import {
   Loader2, Star, ChevronDown,
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
-  CheckCircle2, Clock, XCircle, Eye, EyeOff,
+  CheckCircle2, Clock, XCircle,
 } from 'lucide-react';
 
 /* ── Job-status pill ─────────────────────────────────────────────────────
@@ -264,15 +264,6 @@ function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
   );
 }
 
-/* ── Optional InlineField wrapper — hides empty fields in display mode
- *   when `hideWhenEmpty` is true (Q15-C). Lets the page show a single
- *   "Show empty fields" toggle to reveal them on demand.
- */
-function MaybeInlineField({ hideWhenEmpty, value, ...props }) {
-  if (hideWhenEmpty && (value == null || value === '')) return null;
-  return <InlineField {...props} value={value} />;
-}
-
 /* ── Hiring-mode tooltip helper (Q11-B: keep abbrev, tooltip with full form) */
 const HIRING_MODE_FULL = {
   'C2C':                  'Contract-to-Contract',
@@ -332,8 +323,6 @@ export default function AtsJobDetail() {
   const [archiving, setArchiving] = useState(false);
   const [showKebab, setShowKebab] = useState(false);
 
-  // Q15-C: page-level "show empty fields" toggle
-  const [showEmpty, setShowEmpty] = useState(false);
   // Q14-D: optional Approval comment expansion in Meta card
   const [showApprovalComment, setShowApprovalComment] = useState(false);
 
@@ -586,14 +575,6 @@ export default function AtsJobDetail() {
                 onSelect={handleChangeStatus}
               />
             )}
-            {/* Show-empty toggle (Q15-C) */}
-            <button
-              onClick={() => setShowEmpty((s) => !s)}
-              title={showEmpty ? 'Hide empty fields' : 'Show empty fields'}
-              className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
-            >
-              {showEmpty ? <Eye size={16} /> : <EyeOff size={16} />}
-            </button>
             {/* Overflow — Archive lives here (Q13-D) */}
             <div className="relative">
               <button
@@ -710,8 +691,7 @@ export default function AtsJobDetail() {
               onSave={saveField}
               placeholder="e.g. Remote, Bangalore on-site"
             />
-            <MaybeInlineField
-              hideWhenEmpty={!showEmpty}
+            <InlineField
               label="Client Budget"
               field="clientBudget"
               value={job.clientBudget}
@@ -720,8 +700,7 @@ export default function AtsJobDetail() {
               placeholder="0"
               displayValue={fmtBudget(job.clientBudget) || undefined}
             />
-            <MaybeInlineField
-              hideWhenEmpty={!showEmpty}
+            <InlineField
               label="Candidate Max Budget"
               field="maxBudget"
               value={job.maxBudget}
@@ -730,29 +709,25 @@ export default function AtsJobDetail() {
               placeholder="0"
               displayValue={fmtBudget(job.maxBudget) || undefined}
             />
-            {(showEmpty || !job.approvalStatus || job.approvalStatus === 'pending') && (
-              <InlineField
-                label="Approval Status"
-                field="approvalStatus"
-                value={job.approvalStatus}
-                type="select"
-                options={APPROVAL_STATUS_OPTIONS}
-                editable={canEdit}
-                onSave={saveField}
-                displayValue={job.approvalStatus ? <ApprovalIndicator status={job.approvalStatus} /> : undefined}
-              />
-            )}
-            {showEmpty && (
-              <InlineField
-                label="Approver Comment"
-                field="approverComment"
-                value={job.approverComment}
-                type="textarea"
-                editable={canEdit}
-                onSave={saveField}
-                placeholder="Approval notes…"
-              />
-            )}
+            <InlineField
+              label="Approval Status"
+              field="approvalStatus"
+              value={job.approvalStatus}
+              type="select"
+              options={APPROVAL_STATUS_OPTIONS}
+              editable={canEdit}
+              onSave={saveField}
+              displayValue={job.approvalStatus ? <ApprovalIndicator status={job.approvalStatus} /> : undefined}
+            />
+            <InlineField
+              label="Approver Comment"
+              field="approverComment"
+              value={job.approverComment}
+              type="textarea"
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="Approval notes…"
+            />
           </SectionCard>
           </div>{/* /sub-grid */}
 
@@ -948,28 +923,24 @@ export default function AtsJobDetail() {
               linkTo={(id) => orgPath(`/employee/${id}`)}
               onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
-            {(showEmpty || job.accountOwnerId || job.accountOwnerName) && (
-              <EmployeeLookup
-                orgSlug={orgSlug}
-                label="Account Owner"
-                currentValue={job.accountOwnerId}
-                currentName={job.accountOwnerName}
-                editable={canEdit}
-                linkTo={(id) => orgPath(`/employee/${id}`)}
-                onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
-              />
-            )}
-            {(showEmpty || job.approverId || job.approverName) && (
-              <EmployeeLookup
-                orgSlug={orgSlug}
-                label="Approver"
-                currentValue={job.approverId}
-                currentName={job.approverName}
-                editable={canEdit}
-                linkTo={(id) => orgPath(`/employee/${id}`)}
-                onSelect={(id, name) => savePerson('approverId', 'approverName', id, name)}
-              />
-            )}
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              label="Account Owner"
+              currentValue={job.accountOwnerId}
+              currentName={job.accountOwnerName}
+              editable={canEdit}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
+            />
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              label="Approver"
+              currentValue={job.approverId}
+              currentName={job.approverName}
+              editable={canEdit}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('approverId', 'approverName', id, name)}
+            />
           </SectionCard>
 
           <SectionCard title="Client" icon={Tag}>
