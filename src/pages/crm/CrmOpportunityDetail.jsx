@@ -571,12 +571,6 @@ export default function CrmOpportunityDetail() {
 
         {/* Sidebar */}
         <div className="space-y-5">
-          {/* Activity moved out of the long main column into the right
-              rail so the Notes / Opportunity Details sections aren't
-              pushed off-screen on long timelines. Mirrors the same move
-              landed for AtsApplicationDetail. */}
-          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
-
           <SectionCard title="Owner" icon={Tag}>
             <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
               <span className="text-dark-400 text-sm">Salesperson</span>
@@ -631,6 +625,8 @@ export default function CrmOpportunityDetail() {
               prefillData={{ name: opp?.contactName || '', email: opp?.contactEmail || '', phone: opp?.contactPhone || '', company: opp?.companyName || '' }}
             />
           )}
+
+          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
         </div>
       </div>
 

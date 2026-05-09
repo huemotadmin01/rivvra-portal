@@ -800,10 +800,6 @@ export default function AtsApplicationDetail() {
 
         {/* Sidebar */}
         <div className="space-y-5">
-          <SectionCard title="Activity" icon={Star}>
-            <ActivityPanel orgSlug={orgSlug} entityType="ats_application" entityId={applicationId} />
-          </SectionCard>
-
           <SectionCard title="Tags" icon={Tag}>
             {(application.tags && application.tags.length > 0) ? (
               <div className="flex flex-wrap gap-1.5 py-2">
@@ -849,6 +845,10 @@ export default function AtsApplicationDetail() {
               updatedAt={application.updatedAt}
               updatedByName={application.updatedByName}
             />
+          </SectionCard>
+
+          <SectionCard title="Activity" icon={Star}>
+            <ActivityPanel orgSlug={orgSlug} entityType="ats_application" entityId={applicationId} />
           </SectionCard>
         </div>
       </div>

@@ -1610,17 +1610,14 @@ export default function EmployeeDetail() {
         />
       )}
 
-      {/* ── Activities & Log Notes ─────────────────────────────────────── */}
+      {/* ── Sign Requests ──────────────────────────────────────────────── */}
       <div className="mt-5">
-        <ActivityPanel orgSlug={currentOrg?.slug} entityType="employee" entityId={employeeId} />
-        <div className="mt-4">
-          <SignRequestWidget
-            orgSlug={currentOrg?.slug}
-            linkedModel="employee"
-            linkedId={employeeId}
-            prefillData={{ name: emp?.name || '', email: emp?.email || '', phone: emp?.phone || emp?.mobile || '' }}
-          />
-        </div>
+        <SignRequestWidget
+          orgSlug={currentOrg?.slug}
+          linkedModel="employee"
+          linkedId={employeeId}
+          prefillData={{ name: emp?.name || '', email: emp?.email || '', phone: emp?.phone || emp?.mobile || '' }}
+        />
       </div>
 
       {/* ── Project Assignments (full-width) ────────────────────────────── */}
@@ -1902,6 +1899,11 @@ export default function EmployeeDetail() {
       {/* ── Onboarding/Offboarding Plans ─────────────────────────────── */}
       <div className="mt-5">
         <PlanProgress employeeId={emp._id} isAdmin={isAdmin} />
+      </div>
+
+      {/* ── Activities & Log Notes (always last per platform convention) ── */}
+      <div className="mt-5">
+        <ActivityPanel orgSlug={currentOrg?.slug} entityType="employee" entityId={employeeId} />
       </div>
 
       {/* ── Separation Confirm Modal (audit M1) ──────────────────────── */}
