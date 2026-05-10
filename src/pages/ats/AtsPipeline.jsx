@@ -784,15 +784,10 @@ export default function AtsPipeline() {
             Drag and drop candidates across stages
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary flex items-center gap-2 self-start"
-          >
-            <Plus size={16} />
-            New Application
-          </button>
-        )}
+        {/* New Application creation isn't surfaced on the Pipeline page
+            since 2026-05-10. Applications are created from the Job
+            Position detail page (gated to open/on_hold jobs) — same
+            funnel rule as the All Applications list. */}
       </div>
 
       {/* Filters bar */}
