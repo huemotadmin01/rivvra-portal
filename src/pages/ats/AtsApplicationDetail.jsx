@@ -159,10 +159,18 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const seededDirectorName = appCompany?.signatoryName || '';
   const seededDirectorEmail = appCompany?.signatoryEmail || '';
 
-  // Lazy-load Sign templates the first time the modal opens. Cached for
-  // the lifetime of the modal instance so re-opens don't refetch.
+  // Lazy-load Sign templates when the modal opens. Cached for the
+  // lifetime of the modal instance so re-opens don't refetch.
+  //
+  // Bug fix 2026-05-10 #2: do NOT depend on signLoading in this effect.
+  // The original wrote setSignLoading(true) which mutated the dep,
+  // re-fired the effect, cancelled the in-flight promise, and the
+  // .finally guarded `if (!cancelled) setSignLoading(false)` never
+  // ran — leaving the dropdown stuck on "Loading templates..." forever.
+  // We also always clear the loading flag in finally now (cancellation
+  // affects state-write, not loading-state cleanup).
   useEffect(() => {
-    if (!show || !orgSlug || signTemplates.length > 0 || signLoading) return;
+    if (!show || !orgSlug || signTemplates.length > 0) return;
     let cancelled = false;
     setSignLoading(true);
     setSignError('');
@@ -175,9 +183,16 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
         if (cancelled) return;
         setSignError(err?.message || 'Failed to load Sign templates');
       })
-      .finally(() => { if (!cancelled) setSignLoading(false); });
+      .finally(() => { setSignLoading(false); });
     return () => { cancelled = true; };
-  }, [show, orgSlug, signTemplates.length, signLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, orgSlug, signTemplates.length]);
+
+  // Manual retry — clears state so the lazy-load effect re-fires.
+  const handleRetryLoadTemplates = () => {
+    setSignTemplates([]);
+    setSignError('');
+  };
 
   // Reset Sign-section state every time the modal opens so a fresh
   // open after a previous send doesn't carry stale data. signedOfferDocId
@@ -417,18 +432,38 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
               /* No envelope yet — render the Sign picker + signer slots */
               <div className="rounded-md border border-dark-700 bg-dark-900/40 p-3 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-dark-400 mb-1">Sign template</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-dark-400">Sign template</label>
+                    {(signError || (!signLoading && signTemplates.length === 0)) && (
+                      <button
+                        type="button"
+                        onClick={handleRetryLoadTemplates}
+                        className="text-[11px] text-rivvra-300 hover:text-rivvra-200 underline-offset-2 hover:underline"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
                   <select
                     value={signTemplateId}
                     onChange={(e) => setSignTemplateId(e.target.value)}
-                    disabled={signLoading || sendingEnv}
+                    disabled={signLoading || sendingEnv || signTemplates.length === 0}
                     className="input-field"
                   >
-                    <option value="">{signLoading ? 'Loading templates…' : 'Pick an offer template…'}</option>
+                    <option value="">
+                      {signLoading
+                        ? 'Loading templates…'
+                        : signError
+                          ? 'Failed to load — click Retry'
+                          : signTemplates.length === 0
+                            ? 'No Sign templates available'
+                            : 'Pick an offer template…'}
+                    </option>
                     {signTemplates.map((t) => (
                       <option key={t._id} value={String(t._id)}>{t.name}</option>
                     ))}
                   </select>
+                  {signError && <p className="text-[11px] text-red-400 mt-1">{signError}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -488,16 +523,21 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                   Send for signature
                 </button>
 
-                <p className="text-[11px] text-dark-500 text-center">
-                  Or paste an existing attachment / envelope id manually:{' '}
-                  <input
-                    type="text"
-                    value={signedOfferDocId}
-                    onChange={(e) => setSignedOfferDocId(e.target.value)}
-                    placeholder="paste id"
-                    className="bg-transparent border-b border-dark-700 focus:border-rivvra-500 focus:outline-none text-dark-300 px-1 w-32"
-                  />
-                </p>
+                <details className="text-[11px] text-dark-500">
+                  <summary className="cursor-pointer hover:text-dark-300 select-none">Have an existing envelope or signed PDF id? Link it manually</summary>
+                  <div className="mt-2 pl-1">
+                    <input
+                      type="text"
+                      value={signedOfferDocId}
+                      onChange={(e) => setSignedOfferDocId(e.target.value)}
+                      placeholder="Paste the Sign envelope id or attachment id"
+                      className="input-field text-sm"
+                    />
+                    <p className="text-[11px] text-dark-500 mt-1">
+                      Use this when the offer was signed offline and uploaded as a document, or when a Sign envelope was already created outside this flow.
+                    </p>
+                  </div>
+                </details>
               </div>
             )}
             {!signedDocRequired && !signedOfferDocId && (
