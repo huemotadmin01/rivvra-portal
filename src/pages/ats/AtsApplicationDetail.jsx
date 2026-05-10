@@ -593,6 +593,88 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
   );
 }
 
+/* ── Backward Move Reason Modal (Phase-1 / Q13, 2026-05-10) ───────────────
+ * Fires when the API rejects a backward stage move with
+ * requiresBackwardReason: true. Captures a free-text reason that lands
+ * in stageHistory[].reason for audit. Quick-pick chips speed up the
+ * common cases; a custom reason is always available.
+ */
+const BACKWARD_REASON_QUICK_PICKS = [
+  'Candidate failed evaluation — re-test required',
+  'Salary mismatch — renegotiating',
+  'BGV / reference flagged — pause',
+  'Candidate withdrew interim',
+  'Wrong stage selected by mistake',
+];
+
+function BackwardMoveReasonModal({ show, onClose, onConfirm, saving, fromStage, toStage }) {
+  const [reason, setReason] = useState('');
+  useEffect(() => { if (show) setReason(''); }, [show]);
+  if (!show) return null;
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!reason.trim()) return;
+    onConfirm(reason.trim());
+  };
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Reason for moving back</h3>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {fromStage && toStage
+                ? <>Stepping back from <span className="text-dark-200">{fromStage}</span> to <span className="text-dark-200">{toStage}</span></>
+                : 'Backward stage moves require an audit reason'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {BACKWARD_REASON_QUICK_PICKS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setReason(r)}
+              className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${
+                reason === r
+                  ? 'bg-rivvra-500/20 border-rivvra-500/50 text-rivvra-200'
+                  : 'bg-dark-900/60 border-dark-700 text-dark-300 hover:border-dark-600'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          autoFocus
+          placeholder="Or type a custom reason…"
+          className="input-field resize-y w-full"
+          required
+        />
+        <div className="flex items-center gap-3 mt-4">
+          <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
+          <button
+            type="submit"
+            disabled={saving || !reason.trim()}
+            className="flex-1 flex items-center justify-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            Move back
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* ── Move-to-Stage Dropdown ───────────────────────────────────────────── */
 function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect }) {
   return (
@@ -676,6 +758,12 @@ export default function AtsApplicationDetail() {
   // target stage so the success handler knows what to retry.
   //   { stageId, stageName, requireSignedDoc } | null
   const [pendingStageMove, setPendingStageMove] = useState(null);
+  // Phase-1 / Q13 (2026-05-10): backward stage moves require a reason.
+  // When the API rejects with requiresBackwardReason, we open the
+  // BackwardMoveReasonModal and remember the target stage so the
+  // success handler can retry with the captured reason.
+  //   { stageId, fromStageName, toStageName } | null
+  const [pendingBackwardMove, setPendingBackwardMove] = useState(null);
   // P0.1 (2026-05-10): Create Employee is now a pre-filled drawer (Q4-B step 2),
   // not a one-click action. Old immediate-create behaviour produced empty
   // employee records (bug B2).
@@ -806,14 +894,34 @@ export default function AtsApplicationDetail() {
   };
 
   // ── Stage / refuse / hire / archive / delete actions ─────────────────
-  const handleMoveStage = async (stageId) => {
+  const handleMoveStage = async (stageId, opts = {}) => {
     setShowMoveDropdown(false);
     try {
       setActionSaving(true);
-      await atsApi.moveStage(orgSlug, applicationId, stageId);
-      showToast('Stage updated');
+      await atsApi.moveStage(orgSlug, applicationId, stageId, opts);
+      showToast(opts.reason ? 'Stage moved back' : 'Stage updated');
+      // Backward-reason flow finished — clear the pending state so a
+      // fresh click on a different chip starts clean.
+      if (pendingBackwardMove) setPendingBackwardMove(null);
       fetchApplication();
     } catch (err) {
+      // Phase-1 / Q13: skip-ahead is rejected with the immediate next
+      // stage's name so we can guide the user instead of showing a raw
+      // error string.
+      if (err?.requiresSequentialMove) {
+        showToast(err.message || 'Stages must advance one at a time', 'warning');
+        return;
+      }
+      // Phase-1 / Q13: backward moves need a reason for audit. Open
+      // the modal, then retry with the captured reason.
+      if (err?.requiresBackwardReason) {
+        setPendingBackwardMove({
+          stageId,
+          fromStageName: err.currentStageName || '',
+          toStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
+        });
+        return;
+      }
       // P0.2 hard-gate handling. When the API blocks a transition into
       // Offer Proposal / Offer Signed because the offer subdoc is
       // missing fields, open the HireModal in 'offer' mode pre-filled
@@ -1435,6 +1543,14 @@ export default function AtsApplicationDetail() {
         application={application}
         companies={companies}
         orgSlug={orgSlug}
+      />
+      <BackwardMoveReasonModal
+        show={!!pendingBackwardMove}
+        onClose={() => setPendingBackwardMove(null)}
+        onConfirm={(reason) => handleMoveStage(pendingBackwardMove.stageId, { reason })}
+        saving={actionSaving}
+        fromStage={pendingBackwardMove?.fromStageName}
+        toStage={pendingBackwardMove?.toStageName}
       />
     </div>
   );

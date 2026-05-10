@@ -122,10 +122,19 @@ const atsApi = {
     });
   },
 
-  moveStage(orgSlug, id, stageId) {
+  // Phase-1 / Q13 (2026-05-10): backward stage moves require a reason
+  // (captured in stageHistory). Forward moves don't, so reason is
+  // optional. The API ignores reason on forward moves; passing it is
+  // harmless. Caller (handleMoveStage) supplies it after the user fills
+  // the BackwardMoveReasonModal that fires on the first 400.
+  moveStage(orgSlug, id, stageId, opts = {}) {
+    const body = { stageId };
+    if (opts && typeof opts.reason === 'string' && opts.reason.trim()) {
+      body.reason = opts.reason.trim();
+    }
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}/stage`, {
       method: 'PATCH',
-      body: JSON.stringify({ stageId }),
+      body: JSON.stringify(body),
     });
   },
 
