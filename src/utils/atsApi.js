@@ -165,6 +165,17 @@ const atsApi = {
     });
   },
 
+  // Phase-1 / Q26 (2026-05-11): schedule one round of interview on the
+  // application. Used by the interview-slot gate at L1/L2/HR. Body:
+  //   { level: 'l1'|'l2'|'hr', slot: { datetime, interviewerId,
+  //     interviewerName?, mode, meetingLink?, durationMinutes? } }
+  scheduleInterview(orgSlug, applicationId, payload) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/interview`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
   // Phase-1 / Q11+Q12 (2026-05-10): list Sign templates available to this
   // org+company. Reuses the existing Sign module endpoint as-is per Q17-A1
   // — same filtering Sign already applies (active + non-ephemeral + scope).

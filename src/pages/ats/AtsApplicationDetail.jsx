@@ -1094,6 +1094,160 @@ function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageNa
   );
 }
 
+/* ── Interview Schedule Modal (Phase-1 / Q26, 2026-05-11) ────────────────
+ * Fires when the API rejects a stage move with requiresInterview: true.
+ * Captures: datetime, interviewer (EmployeeLookup), mode (Phone / Video
+ * / In-person), meeting link (required when mode=Video), duration. The
+ * /interview endpoint also mirrors the datetime onto the legacy
+ * application.l1DateTime / l2DateTime / hrDateTime fields so the
+ * existing candidate-ICS side-effect on PUT /applications keeps firing.
+ */
+const INTERVIEW_LEVEL_LABEL = { l1: 'L1 Interview', l2: 'L2 Interview', hr: 'HR Discussion' };
+
+function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targetStageName, existingSlot, orgSlug }) {
+  const [datetime, setDatetime] = useState('');
+  const [interviewerId, setInterviewerId] = useState('');
+  const [interviewerName, setInterviewerName] = useState('');
+  const [mode, setMode] = useState('Video');
+  const [meetingLink, setMeetingLink] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState('60');
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (!show) return;
+    // Pre-fill from any partial slot the API echoed back. Datetime
+    // needs to be in 'YYYY-MM-DDTHH:mm' for <input type=datetime-local>.
+    const dt = existingSlot?.datetime ? new Date(existingSlot.datetime) : null;
+    setDatetime(dt && !isNaN(dt.getTime()) ? new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '');
+    setInterviewerId(existingSlot?.interviewerId || '');
+    setInterviewerName(existingSlot?.interviewerName || '');
+    setMode(existingSlot?.mode || 'Video');
+    setMeetingLink(existingSlot?.meetingLink || '');
+    setDurationMinutes(existingSlot?.durationMinutes ? String(existingSlot.durationMinutes) : '60');
+    setErrors({});
+  }, [show, existingSlot]);
+
+  if (!show) return null;
+  const levelLabel = INTERVIEW_LEVEL_LABEL[level] || 'Interview';
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    const errs = {};
+    if (!datetime) errs.datetime = 'Required';
+    if (!interviewerId) errs.interviewerId = 'Pick an interviewer';
+    if (!mode) errs.mode = 'Required';
+    if (mode === 'Video' && !meetingLink.trim()) errs.meetingLink = 'Meeting link is required for Video';
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    onConfirm({
+      datetime: new Date(datetime).toISOString(),
+      interviewerId,
+      interviewerName,
+      mode,
+      meetingLink: meetingLink.trim() || null,
+      durationMinutes: Number(durationMinutes) || 60,
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-xl">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Schedule {levelLabel}</h3>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {targetStageName
+                ? <>Required to move to <span className="text-dark-200">{targetStageName}</span></>
+                : 'Capture interview details'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-dark-300 mb-1">When <span className="text-red-400">*</span></label>
+            <input
+              type="datetime-local"
+              value={datetime}
+              onChange={(e) => setDatetime(e.target.value)}
+              className="input-field"
+              required
+            />
+            {errors.datetime && <p className="text-xs text-red-400 mt-1">{errors.datetime}</p>}
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-dark-300 mb-1">Interviewer <span className="text-red-400">*</span></label>
+            <div className="rounded-md border border-dark-700 bg-dark-900/60 px-2.5 py-1.5 hover:border-dark-600 focus-within:border-rivvra-500 transition-colors">
+              <EmployeeLookup
+                orgSlug={orgSlug}
+                currentValue={interviewerId}
+                currentName={interviewerName}
+                onSelect={(id, name) => { setInterviewerId(id || ''); setInterviewerName(name || ''); }}
+                editable
+                variant="inline"
+                placeholder="Search employees by name…"
+                allowClear
+              />
+            </div>
+            {errors.interviewerId && <p className="text-xs text-red-400 mt-1">{errors.interviewerId}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Mode <span className="text-red-400">*</span></label>
+            <select value={mode} onChange={(e) => setMode(e.target.value)} className="input-field" required>
+              <option value="Video">Video</option>
+              <option value="Phone">Phone</option>
+              <option value="In-person">In-person</option>
+            </select>
+            {errors.mode && <p className="text-xs text-red-400 mt-1">{errors.mode}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Duration (minutes)</label>
+            <input
+              type="number"
+              min="15"
+              step="15"
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              className="input-field"
+            />
+          </div>
+
+          {mode === 'Video' && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-dark-300 mb-1">Meeting link <span className="text-red-400">*</span></label>
+              <input
+                type="url"
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+                placeholder="https://meet.google.com/..."
+                className="input-field"
+                required
+              />
+              {errors.meetingLink && <p className="text-xs text-red-400 mt-1">{errors.meetingLink}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 mt-5">
+          <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
+          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            Schedule &amp; advance
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* ── Move-to-Stage Dropdown ───────────────────────────────────────────── */
 function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect }) {
   return (
@@ -1189,6 +1343,12 @@ export default function AtsApplicationDetail() {
   // the missing kind. After upload, re-fire the original transition.
   //   { stageId, targetStageName, missingAttachment } | null
   const [pendingAttachmentMove, setPendingAttachmentMove] = useState(null);
+  // Phase-1 / Q26 (2026-05-11): when a forward move into L1 / L2 / HR
+  // is blocked because the interview slot is missing, open the
+  // InterviewScheduleModal pre-filled with whatever the API echoes
+  // back (existingSlot). After save, re-fire the original transition.
+  //   { stageId, targetStageName, level, existingSlot } | null
+  const [pendingInterviewMove, setPendingInterviewMove] = useState(null);
   // P0.1 (2026-05-10): Create Employee is now a pre-filled drawer (Q4-B step 2),
   // not a one-click action. Old immediate-create behaviour produced empty
   // employee records (bug B2).
@@ -1359,6 +1519,18 @@ export default function AtsApplicationDetail() {
         });
         return;
       }
+      // Phase-1 / Q26: forward move blocked because the target stage
+      // (L1 / L2 / HR) needs an interview slot. Open the schedule
+      // modal pre-filled with whatever the API echoed back.
+      if (err?.requiresInterview && err.interviewLevel) {
+        setPendingInterviewMove({
+          stageId,
+          targetStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
+          level: err.interviewLevel,
+          existingSlot: err.existingSlot || null,
+        });
+        return;
+      }
       // P0.2 hard-gate handling. When the API blocks a transition into
       // Offer Proposal / Offer Signed because the offer subdoc is
       // missing fields, open the HireModal in 'offer' mode pre-filled
@@ -1492,6 +1664,41 @@ export default function AtsApplicationDetail() {
       fetchApplication();
     } catch (err) {
       showToast(err.message || 'Upload failed', 'error');
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  // Phase-1 / Q26 (2026-05-11): save the interview slot via /interview
+  // and re-fire the original stage move. Same chained-action pattern
+  // as the offer/attachment gates: clear the pending state, retry
+  // the transition; if a different gate now trips, the existing
+  // handleMoveStage error-routing catches it and opens the right
+  // modal next.
+  const handleScheduleInterview = async (slot) => {
+    if (!pendingInterviewMove) return;
+    const { stageId, level } = pendingInterviewMove;
+    try {
+      setActionSaving(true);
+      await atsApi.scheduleInterview(orgSlug, applicationId, { level, slot });
+      showToast(`${INTERVIEW_LEVEL_LABEL[level] || 'Interview'} scheduled`);
+      setPendingInterviewMove(null);
+      try {
+        await atsApi.moveStage(orgSlug, applicationId, stageId);
+        showToast('Stage updated');
+      } catch (retryErr) {
+        showToast(retryErr.message || 'Stage move failed after scheduling', 'error');
+      }
+      await fetchApplication();
+    } catch (err) {
+      const fields = err?.fieldErrors;
+      if (fields && typeof fields === 'object') {
+        const first = Object.entries(fields)[0];
+        if (first) showToast(`${first[0]}: ${first[1]}`, 'error');
+        else showToast(err.message || 'Failed to schedule interview', 'error');
+      } else {
+        showToast(err.message || 'Failed to schedule interview', 'error');
+      }
     } finally {
       setActionSaving(false);
     }
@@ -2045,6 +2252,16 @@ export default function AtsApplicationDetail() {
         saving={actionSaving}
         targetStageName={pendingAttachmentMove?.targetStageName}
         missingAttachment={pendingAttachmentMove?.missingAttachment}
+      />
+      <InterviewScheduleModal
+        show={!!pendingInterviewMove}
+        onClose={() => setPendingInterviewMove(null)}
+        onConfirm={handleScheduleInterview}
+        saving={actionSaving}
+        level={pendingInterviewMove?.level}
+        targetStageName={pendingInterviewMove?.targetStageName}
+        existingSlot={pendingInterviewMove?.existingSlot}
+        orgSlug={orgSlug}
       />
     </div>
   );
