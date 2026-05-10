@@ -957,7 +957,10 @@ export default function AtsApplicationNew() {
               {candQuery.trim() ? `No matches — will create new candidate "${candQuery.trim()}"` : 'Start typing to search'}
             </div>
           )}
-          {candResults.map((c) => (
+          {/* C1 (2026-05-10): hide stale results while a fresh search is in
+              flight, otherwise the dropdown shows the previous query's
+              candidates as if they matched the new typed text. */}
+          {!candSearching && candResults.map((c) => (
             <button
               key={c._id}
               type="button"
@@ -977,7 +980,7 @@ export default function AtsApplicationNew() {
               </div>
             </button>
           ))}
-          {candQuery.trim() && !candResults.some((c) => (c.name || '').trim().toLowerCase() === candQuery.trim().toLowerCase()) && (
+          {!candSearching && candQuery.trim() && !candResults.some((c) => (c.name || '').trim().toLowerCase() === candQuery.trim().toLowerCase()) && (
             <button
               type="button"
               onClick={() => {

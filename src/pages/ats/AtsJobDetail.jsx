@@ -180,14 +180,20 @@ function DescriptionTabs({ internal, publicDesc, canEdit, onSave }) {
  *   readable without paying for a full markdown parser.
  */
 function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
+  // Defensive: legacy Odoo imports (#1483 et al.) wrote literal "false" / "true"
+  // into description fields. Treat those as empty so the UI doesn't render the
+  // word "false". Root fix is in scripts/odoo-dry-run/helpers.js (smartStripHtml).
+  const safeValue = (value === false || value === true || value === 'false' || value === 'true')
+    ? ''
+    : (value || '');
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value || '');
+  const [draft, setDraft] = useState(safeValue);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { setDraft(value || ''); }, [value]);
+  useEffect(() => { setDraft(safeValue); }, [safeValue]);
 
   const handleSave = async () => {
-    if ((draft || '') === (value || '')) { setEditing(false); return; }
+    if ((draft || '') === safeValue) { setEditing(false); return; }
     setSaving(true);
     try {
       await onSave(field, draft);
@@ -217,7 +223,7 @@ function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button
-            onClick={() => { setDraft(value || ''); setEditing(false); }}
+            onClick={() => { setDraft(safeValue); setEditing(false); }}
             disabled={saving}
             className="px-3 py-1.5 text-xs font-medium text-dark-300 hover:text-white"
           >
@@ -228,7 +234,7 @@ function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
     );
   }
 
-  if (!value) {
+  if (!safeValue) {
     return (
       <div
         onClick={canEdit ? () => setEditing(true) : undefined}
@@ -241,7 +247,7 @@ function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
 
   // Render: bullets + newlines preserved. Lines starting with `•` get a
   // hanging-indent so multi-line bullets wrap nicely.
-  const lines = String(value).split(/\r?\n|(?<=\.)\s+(?=•)/g);
+  const lines = String(safeValue).split(/\r?\n|(?<=\.)\s+(?=•)/g);
   return (
     <div
       onClick={canEdit ? () => setEditing(true) : undefined}
@@ -810,22 +816,31 @@ export default function AtsJobDetail() {
                             >
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
-                                    <span className="text-rivvra-400 text-xs font-semibold">
-                                      {(app.candidateName || '?')[0].toUpperCase()}
-                                    </span>
-                                  </div>
                                   {app.candidateId ? (
                                     <Link
                                       to={orgPath(`/ats/candidates/${app.candidateId}`)}
                                       onClick={(e) => e.stopPropagation()}
-                                      className="text-white font-medium truncate hover:text-rivvra-300 hover:underline"
+                                      title="Open candidate profile"
+                                      className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0 hover:bg-rivvra-500/20 transition-colors"
                                     >
-                                      {app.candidateName || 'Unnamed'}
+                                      <span className="text-rivvra-400 text-xs font-semibold">
+                                        {(app.candidateName || '?')[0].toUpperCase()}
+                                      </span>
                                     </Link>
                                   ) : (
-                                    <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
+                                    <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
+                                      <span className="text-rivvra-400 text-xs font-semibold">
+                                        {(app.candidateName || '?')[0].toUpperCase()}
+                                      </span>
+                                    </div>
                                   )}
+                                  <Link
+                                    to={orgPath(`/ats/applications/${app._id}`)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-white font-medium truncate hover:text-rivvra-300 hover:underline"
+                                  >
+                                    {app.candidateName || 'Unnamed'}
+                                  </Link>
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
