@@ -338,12 +338,10 @@ export default function AtsApplications() {
   const [showModal, setShowModal] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Deep-link: /ats/applications?action=new[&jobId=…] auto-opens the modal.
-  // Used by AtsJobDetail's "+ New Application" button to land here with the
-  // job preselected.
-  useEffect(() => {
-    if (searchParams.get('action') === 'new') setShowModal(true);
-  }, [searchParams]);
+  // The ?action=new deep-link used to auto-open the modal on this list,
+  // but creation now happens at the routed page /ats/jobs/:id/applications/new
+  // off the Job Position detail. Old links that still hit this URL just
+  // show the list; the modal stays unmounted.
 
   // Bulk actions — selection + action-bar dropdowns
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -577,15 +575,12 @@ export default function AtsApplications() {
             {total} {total === 1 ? 'application' : 'applications'} total
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary flex items-center gap-2 self-start"
-          >
-            <Plus size={16} />
-            New Application
-          </button>
-        )}
+        {/* New Application creation is intentionally not surfaced here
+            since 2026-05-10. Applications are created from the Job
+            Position detail page (/ats/jobs/:id) via "+ New Application",
+            which is gated to jobs in `open` or `on_hold` status. The
+            ?action=new deep-link below is also gone — landing here via
+            that URL just shows the list. */}
       </div>
 
       {/* Filters — URL-driven via shared FilterBar */}

@@ -142,6 +142,7 @@ const AtsJobDetail = lazy(() => import('./pages/ats/AtsJobDetail'));
 const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
 const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
 const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
+const AtsApplicationNew = lazy(() => import('./pages/ats/AtsApplicationNew'));
 const AtsReporting = lazy(() => import('./pages/ats/AtsReporting'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
@@ -479,6 +480,7 @@ function App() {
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><AtsApplicationDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><AtsJobPositions /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/jobs/:jobId/applications/new" element={<ErrorBoundary><AtsApplicationNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><AtsCandidates /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />

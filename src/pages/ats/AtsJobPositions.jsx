@@ -527,15 +527,11 @@ export default function AtsJobPositions() {
             {total} {total === 1 ? 'position' : 'positions'} total
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary flex items-center gap-2 self-start"
-          >
-            <Plus size={16} />
-            New Job
-          </button>
-        )}
+        {/* New Job creation is intentionally not surfaced here. Jobs come
+            from converting a Won opportunity via "Convert to Job" on
+            CrmOpportunityDetail — the canonical funnel since 2026-05-10.
+            The API endpoint stays open so superadmin scripts and the
+            Odoo importer can still seed jobs directly. */}
       </div>
 
       {/* Filters — URL-driven via shared FilterBar */}

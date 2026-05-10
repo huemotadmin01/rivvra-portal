@@ -322,7 +322,11 @@ export default function CrmOpportunityDetail() {
   const canEdit = !isArchived;
   const showWonLost = canEdit && !opp.isConverted && !opp.isLost && !opp.wonAt;
   const showRestore = canEdit && !opp.isConverted && (opp.isLost || opp.wonAt);
-  const showConvert = canEdit && !opp.isConverted && opp.requirementType !== 'Project Based' && (opp.wonAt || !opp.isLost);
+  // 2026-05-10: tightened to Won-only. Earlier this allowed any active
+  // (non-Lost) opp to convert, which let recruiters spin up jobs for
+  // unconfirmed deals and inflate funnel counts. Convert is now strictly
+  // post-close: requires opp.wonAt, not converted yet, not Project Based.
+  const showConvert = canEdit && !opp.isConverted && opp.requirementType !== 'Project Based' && !!opp.wonAt;
   const currencyCode = opp.effectiveCurrency || 'INR';
   const currencySym = currencySymbol(currencyCode).trim() || currencyCode;
 

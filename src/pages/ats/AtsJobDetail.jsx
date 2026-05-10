@@ -521,6 +521,11 @@ export default function AtsJobDetail() {
   }
 
   const statusKey = (job.status || '').toLowerCase().replace(/\s+/g, '_');
+  // 2026-05-10: New Application creation is only allowed while a job is
+  // actively recruiting. `closed` and `archived` jobs are terminal — no
+  // new pipeline entries. `on_hold` still allows queuing candidates so
+  // recruiters are ready when the role reopens.
+  const canCreateApplication = isAdmin && !job.archived && (statusKey === 'open' || statusKey === 'on_hold');
   const fmtBudget = (v) => (v == null || v === '' ? null : formatCurrency(v, companyCurrency));
   const hiringModeFull = HIRING_MODE_FULL[job.hiringMode] || job.hiringMode;
   // Odoo imports arrive as "7-8" / "5+" without a unit suffix; the
@@ -559,9 +564,9 @@ export default function AtsJobDetail() {
         {isAdmin && (
           <div className="flex items-center gap-2 flex-wrap">
             {/* Q13-D: + New Application + Change Status as primary actions */}
-            {!job.archived && (
+            {canCreateApplication && (
               <button
-                onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
+                onClick={() => navigate(orgPath(`/ats/jobs/${jobId}/applications/new`))}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 transition-colors"
               >
                 <Plus size={14} /> New Application
@@ -747,9 +752,9 @@ export default function AtsJobDetail() {
                 Applications
                 <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
               </h2>
-              {isAdmin && !job.archived && appsTotal > 0 && (
+              {canCreateApplication && appsTotal > 0 && (
                 <button
-                  onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
+                  onClick={() => navigate(orgPath(`/ats/jobs/${jobId}/applications/new`))}
                   className="flex items-center gap-1.5 text-sm text-rivvra-300 hover:text-rivvra-200"
                 >
                   <Plus size={14} /> Add Application
@@ -765,9 +770,9 @@ export default function AtsJobDetail() {
               <div className="card p-8 flex flex-col items-center justify-center">
                 <Users className="w-8 h-8 text-dark-500 mb-2" />
                 <p className="text-dark-400 text-sm mb-3">No applications for this position yet.</p>
-                {isAdmin && !job.archived && (
+                {canCreateApplication && (
                   <button
-                    onClick={() => navigate(orgPath(`/ats/applications?action=new&jobId=${jobId}`))}
+                    onClick={() => navigate(orgPath(`/ats/jobs/${jobId}/applications/new`))}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400"
                   >
                     <Plus size={12} /> New Application
