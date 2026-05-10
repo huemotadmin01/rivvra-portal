@@ -146,6 +146,16 @@ const atsApi = {
     });
   },
 
+  // P0.2 (2026-05-10): save the offer subdoc independently of /hire so
+  // recruiters can satisfy the Offer Proposal / Offer Signed stage gates
+  // without marking the application as Hired. Same payload shape as /hire.
+  updateOffer(orgSlug, id, payload) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/offer`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
   // P0.1 (2026-05-10): /create-employee now requires HR-side fields.
   //   payload: { workEmail, managerId, internalCompanyId, billable,
   //              department?, designation?, employeeCode? }

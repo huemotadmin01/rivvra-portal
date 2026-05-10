@@ -110,41 +110,67 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving }) {
   );
 }
 
-/* ── Confirm Hire Modal (P0.1, 2026-05-10) ────────────────────────────────
+/* ── Offer / Hire Modal (P0.1, 2026-05-10; mode-prop added 2026-05-10 v2) ──
  * Two-step Hire flow per Q4-B + Q9 contract:
  *   Step 1 (this modal): captures offer-acceptance data so the resulting
  *                        Application.offer subdoc isn't empty (bug B1).
  *   Step 2 (CreateEmployeeDrawer): HR-side fields when promoting to Employee.
  *
- * signedOfferDocId is intentionally optional in v1 (Q9.2-C) — many IN
- * contract hires don't have a signed PDF day-1; we surface a soft warning
- * after submit instead of hard-blocking.
+ * P0.2 (2026-05-10) reuses this modal in 'offer' mode for the Offer
+ * Proposal / Offer Signed stage gates: same form, but the submit
+ * button calls /offer instead of /hire and labels the action
+ * accordingly. The parent's onConfirm decides which API to hit.
+ *
+ * Props:
+ *   mode             'hire' (default) | 'offer'
+ *   targetStageName  optional, shown in the header for offer mode
+ *                    so the user knows which gate they're satisfying
+ *   requireSignedDoc when true, makes signedOfferDocId required (used
+ *                    by the Offer Signed gate)
+ *   initialOffer     prefill the form from an existing application.offer
+ *
+ * signedOfferDocId is intentionally optional unless requireSignedDoc=true
+ * (Q9.2-C) — many IN contract hires don't have a signed PDF day-1; we
+ * surface a soft warning after submit instead of hard-blocking on /hire.
  */
-function HireModal({ show, onClose, onConfirm, saving }) {
-  // Default joining date = today (HR can pick any future date)
+function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [joiningDate, setJoiningDate] = useState(today);
-  const [currency, setCurrency] = useState('INR'); // Q9.1-B default; override per offer
-  const [amount, setAmount] = useState('');
-  const [noticePeriodDays, setNoticePeriodDays] = useState('30');
-  const [probationMonths, setProbationMonths] = useState('6');
-  const [signedOfferDocId, setSignedOfferDocId] = useState('');
+  const initJoining = initialOffer?.joiningDate
+    ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10)
+    : today;
+  const [joiningDate, setJoiningDate] = useState(initJoining);
+  const [currency, setCurrency] = useState(initialOffer?.offeredCTC?.currency || 'INR');
+  const [amount, setAmount] = useState(initialOffer?.offeredCTC?.amount ? String(initialOffer.offeredCTC.amount) : '');
+  const [noticePeriodDays, setNoticePeriodDays] = useState(initialOffer?.noticePeriodDays != null ? String(initialOffer.noticePeriodDays) : '30');
+  const [probationMonths, setProbationMonths] = useState(initialOffer?.probationMonths != null ? String(initialOffer.probationMonths) : '6');
+  const [signedOfferDocId, setSignedOfferDocId] = useState(initialOffer?.signedOfferDocId || '');
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (show) {
-      // Reset to defaults each time the modal opens
-      setJoiningDate(today);
-      setCurrency('INR');
-      setAmount('');
-      setNoticePeriodDays('30');
-      setProbationMonths('6');
-      setSignedOfferDocId('');
+      // Re-prefill on every open. Falls back to defaults when no initialOffer.
+      setJoiningDate(initialOffer?.joiningDate ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10) : today);
+      setCurrency(initialOffer?.offeredCTC?.currency || 'INR');
+      setAmount(initialOffer?.offeredCTC?.amount ? String(initialOffer.offeredCTC.amount) : '');
+      setNoticePeriodDays(initialOffer?.noticePeriodDays != null ? String(initialOffer.noticePeriodDays) : '30');
+      setProbationMonths(initialOffer?.probationMonths != null ? String(initialOffer.probationMonths) : '6');
+      setSignedOfferDocId(initialOffer?.signedOfferDocId || '');
       setErrors({});
     }
-  }, [show, today]);
+  }, [show, today, initialOffer]);
 
   if (!show) return null;
+
+  const isOfferMode = mode === 'offer';
+  const headerTitle = isOfferMode ? 'Offer Details' : 'Confirm Hire';
+  const headerSub = isOfferMode
+    ? (targetStageName ? `Capture offer details to move to ${targetStageName}` : 'Capture offer details')
+    : 'Capture offer details before marking as hired';
+  const submitLabel = isOfferMode ? 'Save Offer Details' : 'Confirm Hire';
+  const submitClass = isOfferMode
+    ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30'
+    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+  const signedDocRequired = isOfferMode && requireSignedDoc;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -159,6 +185,9 @@ function HireModal({ show, onClose, onConfirm, saving }) {
     if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
     const pm = Number(probationMonths);
     if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
+    if (signedDocRequired && !signedOfferDocId.trim()) {
+      errs.signedOfferDocId = 'Signed offer document is required for this stage';
+    }
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -187,8 +216,8 @@ function HireModal({ show, onClose, onConfirm, saving }) {
       >
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-lg font-semibold text-white">Confirm Hire</h3>
-            <p className="text-xs text-dark-400 mt-0.5">Capture offer details before marking as hired</p>
+            <h3 className="text-lg font-semibold text-white">{headerTitle}</h3>
+            <p className="text-xs text-dark-400 mt-0.5">{headerSub}</p>
           </div>
           <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
         </div>
@@ -261,23 +290,32 @@ function HireModal({ show, onClose, onConfirm, saving }) {
           </div>
 
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-dark-300 mb-1">Signed offer document id <span className="text-dark-500 font-normal">(optional)</span></label>
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              Signed offer document id {signedDocRequired
+                ? <span className="text-red-400">*</span>
+                : <span className="text-dark-500 font-normal">(optional)</span>
+              }
+            </label>
             <input
               type="text"
               value={signedOfferDocId}
               onChange={(e) => setSignedOfferDocId(e.target.value)}
-              placeholder="Attachment id from this application's documents (leave blank for now)"
+              placeholder="Attachment id from this application's documents"
               className="input-field"
+              required={signedDocRequired}
             />
-            <p className="text-xs text-dark-500 mt-1">If blank, the application will show a "signed offer missing" warning until added.</p>
+            {errors.signedOfferDocId && <p className="text-xs text-red-400 mt-1">{errors.signedOfferDocId}</p>}
+            {!signedDocRequired && (
+              <p className="text-xs text-dark-500 mt-1">If blank, the application will show a "signed offer missing" warning until added.</p>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 mt-6">
           <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
-          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
+          <button type="submit" disabled={saving} className={`flex-1 flex items-center justify-center gap-2 ${submitClass} rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50`}>
             {saving && <Loader2 size={16} className="animate-spin" />}
-            Confirm Hire
+            {submitLabel}
           </button>
         </div>
       </form>
@@ -631,6 +669,13 @@ export default function AtsApplicationDetail() {
   // Modal / action UI state
   const [showRefuseModal, setShowRefuseModal] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
+  // P0.2 (2026-05-10): when a stage transition into Offer Proposal /
+  // Offer Signed is rejected by the API gate, we open the same HireModal
+  // in 'offer' mode so the recruiter can capture the data and we then
+  // re-fire the original transition. `pendingStageMove` carries the
+  // target stage so the success handler knows what to retry.
+  //   { stageId, stageName, requireSignedDoc } | null
+  const [pendingStageMove, setPendingStageMove] = useState(null);
   // P0.1 (2026-05-10): Create Employee is now a pre-filled drawer (Q4-B step 2),
   // not a one-click action. Old immediate-create behaviour produced empty
   // employee records (bug B2).
@@ -769,6 +814,27 @@ export default function AtsApplicationDetail() {
       showToast('Stage updated');
       fetchApplication();
     } catch (err) {
+      // P0.2 hard-gate handling. When the API blocks a transition into
+      // Offer Proposal / Offer Signed because the offer subdoc is
+      // missing fields, open the HireModal in 'offer' mode pre-filled
+      // with whatever offer data already exists. The modal's submit
+      // flow saves the offer via /offer, then we re-fire this same
+      // stage transition. When blocked because the user clicked the
+      // Hired chip directly, point them at the Hire button instead.
+      if (err?.requiresOffer) {
+        const stage = stages.find((s) => s._id === stageId);
+        setPendingStageMove({
+          stageId,
+          stageName: err.targetStageName || stage?.name || 'next stage',
+          requireSignedDoc: err.requiresSignedDoc === true,
+        });
+        setShowHireModal(true);
+        return;
+      }
+      if (err?.requiresHire) {
+        showToast('Click the Hire button (top right) to capture offer details and mark as hired.', 'warning');
+        return;
+      }
       showToast(err.message || 'Failed to move stage', 'error');
     } finally {
       setActionSaving(false);
@@ -789,9 +855,38 @@ export default function AtsApplicationDetail() {
     }
   };
 
+  // P0.1+P0.2 (2026-05-10): single submit handler for the HireModal,
+  // which now operates in two modes. When pendingStageMove is set, the
+  // modal is being shown to satisfy a stage gate (Offer Proposal /
+  // Offer Signed) — save via /offer then re-fire the original stage
+  // transition. Otherwise it's the Hire flow — call /hire as before.
   const handleHire = async (payload) => {
+    const isOfferOnly = !!pendingStageMove;
     try {
       setActionSaving(true);
+      if (isOfferOnly) {
+        const res = await atsApi.updateOffer(orgSlug, applicationId, payload);
+        const warns = Array.isArray(res?.warnings) ? res.warnings : [];
+        if (warns.includes('signed_offer_missing') && !pendingStageMove.requireSignedDoc) {
+          showToast('Offer details saved — signed offer still missing.', 'warning');
+        } else {
+          showToast('Offer details saved');
+        }
+        // Retry the original stage transition that triggered this modal.
+        const targetId = pendingStageMove.stageId;
+        setPendingStageMove(null);
+        setShowHireModal(false);
+        try {
+          await atsApi.moveStage(orgSlug, applicationId, targetId);
+          showToast('Stage updated');
+        } catch (retryErr) {
+          // Should be rare — gate just passed. Surface anything left.
+          showToast(retryErr.message || 'Stage move failed after saving offer', 'error');
+        }
+        fetchApplication();
+        return;
+      }
+
       const res = await atsApi.hireApplication(orgSlug, applicationId, payload);
       const warns = Array.isArray(res?.warnings) ? res.warnings : [];
       if (warns.includes('signed_offer_missing')) {
@@ -802,14 +897,14 @@ export default function AtsApplicationDetail() {
       setShowHireModal(false);
       fetchApplication();
     } catch (err) {
-      // Surface field-level errors from the API contract (P0.1)
       const fields = err?.fieldErrors;
+      const verb = isOfferOnly ? 'save offer' : 'hire candidate';
       if (fields && typeof fields === 'object') {
         const first = Object.entries(fields)[0];
         if (first) showToast(`${first[0]}: ${first[1]}`, 'error');
-        else showToast(err.message || 'Failed to hire candidate', 'error');
+        else showToast(err.message || `Failed to ${verb}`, 'error');
       } else {
-        showToast(err.message || 'Failed to hire candidate', 'error');
+        showToast(err.message || `Failed to ${verb}`, 'error');
       }
     } finally {
       setActionSaving(false);
@@ -1324,9 +1419,13 @@ export default function AtsApplicationDetail() {
       />
       <HireModal
         show={showHireModal}
-        onClose={() => setShowHireModal(false)}
+        onClose={() => { setShowHireModal(false); setPendingStageMove(null); }}
         onConfirm={handleHire}
         saving={actionSaving}
+        mode={pendingStageMove ? 'offer' : 'hire'}
+        targetStageName={pendingStageMove?.stageName}
+        requireSignedDoc={pendingStageMove?.requireSignedDoc === true}
+        initialOffer={application?.offer || null}
       />
       <CreateEmployeeDrawer
         show={showCreateEmpDrawer}
