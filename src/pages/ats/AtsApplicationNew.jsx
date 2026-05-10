@@ -5,26 +5,22 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
-import SectionCard from '../../components/platform/detail/SectionCard';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { ChevronLeft, Loader2, User, Search, Plus, Briefcase } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Loader2, User, Search, Plus, Briefcase,
+  Mail, Phone as PhoneIcon, Linkedin, Building2, GitBranch, Users,
+  FileText, Check,
+} from 'lucide-react';
 
 /**
  * AtsApplicationNew — routed create flow for new applications under a
  * specific Job Position. Reachable only from /ats/jobs/:jobId/applications/new
- * — there is no list-page entry point.
  *
- * Behavior locked 2026-05-10:
- *  - Parent job hard-required from URL; bounces back if not open/on_hold.
- *  - Recruiter and Employment Type auto-fill from the job; Stage = "New".
- *  - Candidate field typeaheads existing candidates (auto-fills email/
- *    phone/LinkedIn) or types a new name.
- *  - Required: candidate name + (email OR phone). API enforces.
- *  - Source intentionally absent — edited later on detail page.
- *
- * Layout matches AtsCandidateNew: p-6 md:p-8 max-w-2xl mx-auto with
- * the label-left grid form rows used across the rest of the platform.
+ * Layout: two-column on lg+ — form on the left, sticky context summary
+ * on the right showing what will be created, plus a sticky bottom action
+ * bar visible even mid-scroll. Modern SAAS-grade create flow rather than
+ * the legacy modal it replaced.
  */
 export default function AtsApplicationNew() {
   const { jobId } = useParams();
@@ -50,7 +46,15 @@ export default function AtsApplicationNew() {
     recruiterId: null,
     recruiterName: '',
   });
+  // Track whether email/phone/linkedin came from picking an existing
+  // candidate (we still allow edits, but apply a subtle "inherited" hint).
+  const [inheritedFromPick, setInheritedFromPick] = useState({
+    email: false, phone: false, linkedin: false,
+  });
+  // Track whether recruiter is still the job's default vs user override.
+  const [recruiterOverridden, setRecruiterOverridden] = useState(false);
 
+  // Candidate typeahead state
   const [candQuery, setCandQuery] = useState('');
   const [candResults, setCandResults] = useState([]);
   const [candDropdownOpen, setCandDropdownOpen] = useState(false);
@@ -158,6 +162,11 @@ export default function AtsApplicationNew() {
       phone: cand.phone || '',
       linkedinProfile: cand.linkedinProfile || '',
     }));
+    setInheritedFromPick({
+      email: !!cand.email,
+      phone: !!cand.phone,
+      linkedin: !!cand.linkedinProfile,
+    });
     setCandQuery(cand.name || '');
     setCandDropdownOpen(false);
   };
@@ -197,7 +206,7 @@ export default function AtsApplicationNew() {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────
+  // ── Loading shell ───────────────────────────────────────────────────
   if (loadingJob) {
     return (
       <div className="p-6 md:p-8 flex items-center justify-center py-20">
@@ -207,166 +216,315 @@ export default function AtsApplicationNew() {
   }
   if (!job) return null;
 
-  const labelCol = 'text-dark-400 text-sm';
-  const inputCls = 'bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none w-full';
+  // ── Helpers for input chrome ────────────────────────────────────────
+  const initials = (name) => {
+    const parts = String(name || '').trim().split(/\s+/).slice(0, 2);
+    return parts.map((p) => p[0]?.toUpperCase()).join('') || '?';
+  };
+  const inputBase = 'w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-dark-100 placeholder:text-dark-600 focus:border-rivvra-500/60 focus:outline-none focus:ring-2 focus:ring-rivvra-500/20 transition-all';
+  const inputWithIcon = `${inputBase} pl-9`;
+  const inheritedBg = 'bg-dark-900/30';
 
   return (
-    <div className="p-6 md:p-8 max-w-2xl mx-auto space-y-6">
-      <button
-        onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
-        className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
-      >
-        <ChevronLeft size={16} /> Back to {job.name}
-      </button>
-
-      <div>
-        <h1 className="text-2xl font-bold text-white">New Application</h1>
-        <p className="text-dark-400 text-sm mt-1 flex items-center gap-1.5">
-          <Briefcase size={12} /> {job.name}
-          {job.department && <span className="text-dark-500">· {job.department}</span>}
-        </p>
+    <>
+      {/* ── Top breadcrumb bar ───────────────────────────────────────── */}
+      <div className="border-b border-dark-800/60 bg-dark-950/40 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center gap-2 text-xs text-dark-400">
+          <button
+            onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
+            className="flex items-center gap-1 hover:text-white transition-colors"
+          >
+            <ChevronLeft size={12} /> {job.name}
+          </button>
+          <ChevronRight size={11} className="text-dark-700" />
+          <span className="text-dark-300">New Application</span>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <SectionCard title="Candidate" icon={User}>
-          {/* Candidate typeahead — single full-width row */}
-          <div ref={candContainerRef} className="grid grid-cols-[140px_1fr] gap-2 py-2 items-start">
-            <span className={`${labelCol} pt-2`}>
-              Name <span className="text-red-400">*</span>
-            </span>
-            <div className="relative">
-              <Search size={12} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                ref={candInputRef}
-                type="text"
-                value={candQuery}
-                placeholder="Search existing candidates or type a new name…"
-                onFocus={() => setCandDropdownOpen(true)}
-                onChange={(e) => {
-                  setCandQuery(e.target.value);
-                  setCandDropdownOpen(true);
-                  if (form.candidateId) setForm((p) => ({ ...p, candidateId: '' }));
-                  setForm((p) => ({ ...p, candidateName: e.target.value }));
-                }}
-                className={`${inputCls} pl-8 pr-20`}
-                required
-                autoFocus
-              />
-              {form.candidateId && (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-rivvra-300 bg-rivvra-500/10 px-1.5 py-0.5 rounded">
-                  existing
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>Email</span>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-              placeholder="john@example.com"
-              className={inputCls}
-            />
-          </div>
-
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>Phone</span>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-              placeholder="+91 90000 00000"
-              className={inputCls}
-            />
-          </div>
-
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-1">
-            <span />
-            <p className={`text-xs ${hasContact ? 'text-dark-500' : 'text-amber-400/80'}`}>
-              {hasContact ? 'At least one contact method captured.' : 'At least one of email or phone is required.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>LinkedIn</span>
-            <input
-              type="url"
-              value={form.linkedinProfile}
-              onChange={(e) => setForm((p) => ({ ...p, linkedinProfile: e.target.value }))}
-              placeholder="https://linkedin.com/in/…"
-              className={inputCls}
-            />
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Job & Pipeline" icon={Briefcase}>
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>Job Position</span>
-            <span className="text-white text-sm truncate">{job.name}</span>
-          </div>
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>Stage</span>
-            <span className="text-white text-sm">New</span>
-          </div>
-          {/* Recruiter — required, pre-filled from job, but admins can
-              override per-application (e.g. when one recruiter sources
-              and another owns the candidate going forward). EmployeeLookup
-              gives the same typeahead used on detail pages, including
-              ex-employees that have no portal_users record. */}
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-start">
-            <span className={`${labelCol} pt-1`}>
-              Recruiter <span className="text-red-400">*</span>
-            </span>
-            <div>
-              <EmployeeLookup
-                orgSlug={orgSlug}
-                variant="inline"
-                editable
-                allowClear={false}
-                placeholder="Search employees…"
-                currentValue={form.recruiterId}
-                currentName={form.recruiterName}
-                onSelect={(id, name) => setForm((p) => ({ ...p, recruiterId: id || null, recruiterName: name || '' }))}
-              />
-              {!hasRecruiter && (
-                <p className="text-[11px] text-amber-400/80 mt-1">Recruiter is required.</p>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>Employment</span>
-            <span className="text-white text-sm">
-              {form.employmentType || <span className="text-dark-500 italic">—</span>}
-            </span>
-          </div>
-          <p className="text-xs text-dark-500 mt-3">
-            Recruiter is pre-filled from the linked job — change here if a different recruiter owns this candidate. Employment type is inherited from the job and edited on the application detail page after creation.
+      <div className="max-w-6xl mx-auto px-6 md:px-8 py-8 pb-32">
+        {/* ── Page heading ─────────────────────────────────────────── */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white tracking-tight">New Application</h1>
+          <p className="text-dark-400 text-sm mt-1.5">
+            Add a candidate to <span className="text-dark-200">{job.name}</span>’s pipeline.
+            Required fields marked with <span className="text-red-400">*</span>.
           </p>
-        </SectionCard>
-
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
-            className="px-4 py-2 text-sm text-dark-300 hover:text-dark-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2 font-medium"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />}
-            Create Application
-          </button>
         </div>
-      </form>
 
-      {/* Candidate typeahead dropdown — portaled to body so it escapes
-          the SectionCard's backdrop-blur stacking context. */}
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* ── Form column ──────────────────────────────────── */}
+            <div className="lg:col-span-3 space-y-6">
+
+              {/* Candidate section */}
+              <section className="card p-6 space-y-5">
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-rivvra-300" />
+                  <h2 className="text-sm font-semibold text-white tracking-wide">Candidate</h2>
+                </div>
+
+                {/* Name typeahead */}
+                <div ref={candContainerRef} className="relative">
+                  <label className="block text-xs font-medium text-dark-300 mb-1.5">
+                    Name <span className="text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    {form.candidateId ? (
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-rivvra-500/15 text-rivvra-300 text-[10px] font-semibold flex items-center justify-center">
+                        {initials(form.candidateName)}
+                      </span>
+                    ) : (
+                      <Search size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    )}
+                    <input
+                      ref={candInputRef}
+                      type="text"
+                      value={candQuery}
+                      placeholder="Search existing candidates or type a new name…"
+                      onFocus={() => setCandDropdownOpen(true)}
+                      onChange={(e) => {
+                        setCandQuery(e.target.value);
+                        setCandDropdownOpen(true);
+                        if (form.candidateId) {
+                          setForm((p) => ({ ...p, candidateId: '' }));
+                          setInheritedFromPick({ email: false, phone: false, linkedin: false });
+                        }
+                        setForm((p) => ({ ...p, candidateName: e.target.value }));
+                      }}
+                      className={`${inputWithIcon} ${form.candidateId ? 'pl-10' : ''} pr-24`}
+                      required
+                      autoFocus
+                    />
+                    {form.candidateId && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                        existing
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email + Phone — 2 col */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-dark-300 mb-1.5">Email</label>
+                    <div className="relative">
+                      <Mail size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => {
+                          setForm((p) => ({ ...p, email: e.target.value }));
+                          if (inheritedFromPick.email) setInheritedFromPick((p) => ({ ...p, email: false }));
+                        }}
+                        placeholder="john@example.com"
+                        className={`${inputWithIcon} ${inheritedFromPick.email ? inheritedBg : ''}`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-dark-300 mb-1.5">Phone</label>
+                    <div className="relative">
+                      <PhoneIcon size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) => {
+                          setForm((p) => ({ ...p, phone: e.target.value }));
+                          if (inheritedFromPick.phone) setInheritedFromPick((p) => ({ ...p, phone: false }));
+                        }}
+                        placeholder="+91 90000 00000"
+                        className={`${inputWithIcon} ${inheritedFromPick.phone ? inheritedBg : ''}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <p className={`text-xs ${hasContact ? 'text-dark-500' : 'text-amber-400/80'}`}>
+                  {hasContact ? 'At least one contact method captured.' : 'At least one of email or phone is required.'}
+                </p>
+
+                <div>
+                  <label className="block text-xs font-medium text-dark-300 mb-1.5">LinkedIn <span className="text-dark-600">(optional)</span></label>
+                  <div className="relative">
+                    <Linkedin size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="url"
+                      value={form.linkedinProfile}
+                      onChange={(e) => {
+                        setForm((p) => ({ ...p, linkedinProfile: e.target.value }));
+                        if (inheritedFromPick.linkedin) setInheritedFromPick((p) => ({ ...p, linkedin: false }));
+                      }}
+                      placeholder="https://linkedin.com/in/…"
+                      className={`${inputWithIcon} ${inheritedFromPick.linkedin ? inheritedBg : ''}`}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Pipeline section */}
+              <section className="card p-6 space-y-5">
+                <div className="flex items-center gap-2">
+                  <GitBranch size={14} className="text-rivvra-300" />
+                  <h2 className="text-sm font-semibold text-white tracking-wide">Pipeline</h2>
+                </div>
+
+                {/* Recruiter — required, lookup */}
+                <div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
+                    Recruiter <span className="text-red-400">*</span>
+                    {!recruiterOverridden && form.recruiterId && (
+                      <span className="text-[9px] uppercase tracking-wider bg-rivvra-500/10 text-rivvra-300 px-1.5 py-0.5 rounded">
+                        inherited
+                      </span>
+                    )}
+                  </label>
+                  <div className="bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-1.5 focus-within:border-rivvra-500/60 focus-within:ring-2 focus-within:ring-rivvra-500/20 transition-all">
+                    <EmployeeLookup
+                      orgSlug={orgSlug}
+                      variant="inline"
+                      editable
+                      allowClear={false}
+                      placeholder="Search employees…"
+                      currentValue={form.recruiterId}
+                      currentName={form.recruiterName}
+                      onSelect={(id, name) => {
+                        setForm((p) => ({ ...p, recruiterId: id || null, recruiterName: name || '' }));
+                        setRecruiterOverridden(true);
+                      }}
+                    />
+                  </div>
+                  {!hasRecruiter && (
+                    <p className="text-[11px] text-amber-400/80 mt-1.5">Recruiter is required.</p>
+                  )}
+                </div>
+
+                {/* Inherited (read-only) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
+                      Stage
+                    </label>
+                    <div className="px-3 py-2 bg-dark-900/30 border border-dark-800 rounded-lg text-sm text-dark-200">
+                      New
+                    </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
+                      Employment
+                      {form.employmentType && (
+                        <span className="text-[9px] uppercase tracking-wider bg-rivvra-500/10 text-rivvra-300 px-1.5 py-0.5 rounded">
+                          inherited
+                        </span>
+                      )}
+                    </label>
+                    <div className="px-3 py-2 bg-dark-900/30 border border-dark-800 rounded-lg text-sm text-dark-200">
+                      {form.employmentType || <span className="text-dark-500 italic">—</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-dark-500 leading-relaxed">
+                  Stage starts at <span className="text-dark-300">New</span>. Employment type is inherited from the linked job and editable on the application detail page after creation.
+                </p>
+              </section>
+            </div>
+
+            {/* ── Right: context summary ───────────────────────── */}
+            <aside className="lg:col-span-2">
+              <div className="lg:sticky lg:top-24 space-y-4">
+                <div className="card p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <FileText size={13} className="text-rivvra-300" />
+                    <h3 className="text-xs font-semibold text-white tracking-wider uppercase">Summary</h3>
+                  </div>
+
+                  <dl className="space-y-3 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-dark-400 text-xs flex items-center gap-1.5"><Briefcase size={11} /> Job</dt>
+                      <dd className="text-white text-right truncate font-medium" title={job.name}>{job.name}</dd>
+                    </div>
+                    {job.department && (
+                      <div className="flex items-start justify-between gap-3">
+                        <dt className="text-dark-400 text-xs flex items-center gap-1.5"><Building2 size={11} /> Dept</dt>
+                        <dd className="text-dark-200 text-right truncate" title={job.department}>{job.department}</dd>
+                      </div>
+                    )}
+                    {job.clientName && (
+                      <div className="flex items-start justify-between gap-3">
+                        <dt className="text-dark-400 text-xs flex items-center gap-1.5"><Users size={11} /> Client</dt>
+                        <dd className="text-dark-200 text-right truncate" title={job.clientName}>{job.clientName}</dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  <div className="border-t border-dark-800 my-4" />
+
+                  <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Will create</div>
+                  <dl className="space-y-3 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-dark-400 text-xs">Candidate</dt>
+                      <dd className="text-white text-right truncate font-medium">
+                        {trimmedName || <span className="text-dark-600 italic">unnamed</span>}
+                        {form.candidateId && <span className="ml-1.5 text-[9px] uppercase tracking-wider text-emerald-300">existing</span>}
+                      </dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-dark-400 text-xs">Recruiter</dt>
+                      <dd className="text-dark-200 text-right truncate">
+                        {form.recruiterName || <span className="text-amber-400/80">— required</span>}
+                      </dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-dark-400 text-xs">Stage</dt>
+                      <dd className="text-dark-200">New</dd>
+                    </div>
+                  </dl>
+
+                  <div className="border-t border-dark-800 my-4" />
+
+                  {/* Validation checklist */}
+                  <div className="space-y-1.5">
+                    <ChecklistRow ok={!!trimmedName} label="Candidate name" />
+                    <ChecklistRow ok={hasContact} label="Email or phone" />
+                    <ChecklistRow ok={hasRecruiter} label="Recruiter assigned" />
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          {/* ── Sticky bottom action bar ─────────────────────────── */}
+          <div className="fixed bottom-0 left-0 right-0 border-t border-dark-800/80 bg-dark-950/85 backdrop-blur-md z-20">
+            <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center justify-between gap-4">
+              <p className="text-xs text-dark-500 hidden md:block">
+                {canSubmit
+                  ? <span className="text-dark-300">Ready to create.</span>
+                  : 'Fill required fields to enable Create.'}
+              </p>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
+                  className="px-4 py-2 text-sm text-dark-300 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="bg-rivvra-500 text-dark-950 px-5 py-2 rounded-lg text-sm font-semibold hover:bg-rivvra-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-lg shadow-rivvra-500/10"
+                >
+                  {saving && <Loader2 size={14} className="animate-spin" />}
+                  Create Application
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {/* Candidate typeahead dropdown — portaled to body to escape any
+          backdrop-blur stacking context. */}
       {candDropdownOpen && candAnchorRect && createPortal(
         <div
           data-cand-typeahead
@@ -377,7 +535,7 @@ export default function AtsApplicationNew() {
             width: candAnchorRect.width,
             zIndex: 1000,
           }}
-          className="bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-72 overflow-y-auto"
+          className="bg-dark-800 border border-dark-600 rounded-lg shadow-2xl max-h-72 overflow-y-auto"
         >
           {candSearching && (
             <div className="px-3 py-2 text-xs text-dark-500 flex items-center gap-1.5">
@@ -394,14 +552,19 @@ export default function AtsApplicationNew() {
               key={c._id}
               type="button"
               onClick={() => pickExistingCandidate(c)}
-              className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0"
+              className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0 flex items-center gap-2.5"
             >
-              <div className="text-xs text-white">{c.name}</div>
-              {(c.email || c.phone) && (
-                <div className="text-[10px] text-dark-400">
-                  {c.email}{c.email && c.phone ? ' · ' : ''}{c.phone}
-                </div>
-              )}
+              <span className="w-7 h-7 rounded-full bg-rivvra-500/15 text-rivvra-300 text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+                {initials(c.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-white truncate">{c.name}</div>
+                {(c.email || c.phone) && (
+                  <div className="text-[10px] text-dark-400 truncate">
+                    {c.email}{c.email && c.phone ? ' · ' : ''}{c.phone}
+                  </div>
+                )}
+              </div>
             </button>
           ))}
           {candQuery.trim() && !candResults.some((c) => (c.name || '').trim().toLowerCase() === candQuery.trim().toLowerCase()) && (
@@ -409,6 +572,7 @@ export default function AtsApplicationNew() {
               type="button"
               onClick={() => {
                 setForm((p) => ({ ...p, candidateId: '', candidateName: candQuery.trim() }));
+                setInheritedFromPick({ email: false, phone: false, linkedin: false });
                 setCandDropdownOpen(false);
               }}
               className="w-full text-left px-3 py-2 text-xs text-rivvra-300 hover:bg-dark-700 border-t border-dark-700 flex items-center gap-1.5"
@@ -419,6 +583,17 @@ export default function AtsApplicationNew() {
         </div>,
         document.body,
       )}
+    </>
+  );
+}
+
+function ChecklistRow({ ok, label }) {
+  return (
+    <div className={`flex items-center gap-2 text-xs ${ok ? 'text-emerald-300' : 'text-dark-500'}`}>
+      <span className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${ok ? 'bg-emerald-500/15' : 'bg-dark-800 border border-dark-700'}`}>
+        {ok ? <Check size={9} /> : <span className="w-1 h-1 rounded-full bg-dark-600" />}
+      </span>
+      <span>{label}</span>
     </div>
   );
 }
