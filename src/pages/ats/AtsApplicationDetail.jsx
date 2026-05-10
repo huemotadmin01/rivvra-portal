@@ -133,7 +133,66 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving }) {
  * (Q9.2-C) — many IN contract hires don't have a signed PDF day-1; we
  * surface a soft warning after submit instead of hard-blocking on /hire.
  */
-function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null }) {
+function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null, application = null, companies = [], orgSlug = null }) {
+  // Phase-1 / Q11+Q12 (2026-05-10): Sign integration. The offer letter
+  // is sent for e-signature via the existing Sign module. Director slot
+  // pre-fills from the application's internal-company signatory metadata
+  // (companies.signatoryName / signatoryEmail seeded for Huemot Pvt Ltd
+  // IN). Candidate slot pre-fills from the application. Templates load
+  // lazily on modal open from Sign's GET /templates (no extra filter,
+  // per Q17-A1).
+  const [signTemplates, setSignTemplates] = useState([]);
+  const [signLoading, setSignLoading] = useState(false);
+  const [signError, setSignError] = useState('');
+  const [signTemplateId, setSignTemplateId] = useState('');
+  const [directorName, setDirectorName] = useState('');
+  const [directorEmail, setDirectorEmail] = useState('');
+  const [candSignName, setCandSignName] = useState('');
+  const [candSignEmail, setCandSignEmail] = useState('');
+  const [sendingEnv, setSendingEnv] = useState(false);
+
+  // Resolve the application's internal company so we can read the seeded
+  // signatory metadata. The companies array comes from CompanyContext.
+  const appCompany = (application?.companyId && Array.isArray(companies))
+    ? companies.find((c) => String(c._id) === String(application.companyId))
+    : null;
+  const seededDirectorName = appCompany?.signatoryName || '';
+  const seededDirectorEmail = appCompany?.signatoryEmail || '';
+
+  // Lazy-load Sign templates the first time the modal opens. Cached for
+  // the lifetime of the modal instance so re-opens don't refetch.
+  useEffect(() => {
+    if (!show || !orgSlug || signTemplates.length > 0 || signLoading) return;
+    let cancelled = false;
+    setSignLoading(true);
+    setSignError('');
+    atsApi.listSignTemplates(orgSlug)
+      .then((res) => {
+        if (cancelled) return;
+        setSignTemplates(Array.isArray(res?.templates) ? res.templates : []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSignError(err?.message || 'Failed to load Sign templates');
+      })
+      .finally(() => { if (!cancelled) setSignLoading(false); });
+    return () => { cancelled = true; };
+  }, [show, orgSlug, signTemplates.length, signLoading]);
+
+  // Reset Sign-section state every time the modal opens so a fresh
+  // open after a previous send doesn't carry stale data. signedOfferDocId
+  // itself is reset by the existing initialOffer effect below.
+  useEffect(() => {
+    if (!show) return;
+    setSignTemplateId('');
+    setDirectorName(seededDirectorName);
+    setDirectorEmail(seededDirectorEmail);
+    setCandSignName(application?.candidateName || '');
+    setCandSignEmail(application?.email || '');
+    setSendingEnv(false);
+    setSignError('');
+  }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email]);
+
   const today = new Date().toISOString().slice(0, 10);
   const initJoining = initialOffer?.joiningDate
     ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10)
@@ -160,6 +219,41 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   }, [show, today, initialOffer]);
 
   if (!show) return null;
+
+  // Phase-1 / Q11+Q12 (2026-05-10): create the Sign envelope using the
+  // existing single-doc /sign/requests endpoint with linkedModel set to
+  // 'ats_application' so the Sign completion handler back-links the
+  // request id to application.offer.signedOfferDocId. Director signs
+  // first (order=1), then candidate (order=2) per Huemot's offer flow.
+  const handleSendForSignature = async () => {
+    setSignError('');
+    if (!signTemplateId) { setSignError('Pick a template'); return; }
+    if (!directorName.trim() || !directorEmail.trim()) { setSignError('Director name and email are required'); return; }
+    if (!candSignName.trim() || !candSignEmail.trim()) { setSignError('Candidate name and email are required'); return; }
+    if (!application?._id) { setSignError('Application not loaded'); return; }
+    setSendingEnv(true);
+    try {
+      const tmpl = signTemplates.find((t) => String(t._id) === String(signTemplateId));
+      const res = await atsApi.createOfferSignRequest(orgSlug, application._id, {
+        templateId: signTemplateId,
+        reference: `Offer — ${application.candidateName || 'Candidate'} · ${application.jobPositionName || ''}`.trim(),
+        signers: [
+          { name: directorName.trim(), email: directorEmail.trim().toLowerCase(), roleName: 'Director' },
+          { name: candSignName.trim(), email: candSignEmail.trim().toLowerCase(), roleName: 'Candidate' },
+        ],
+      });
+      const newId = res?.request?._id || res?.request?.id || '';
+      if (!newId) throw new Error('Sign API returned no request id');
+      setSignedOfferDocId(String(newId));
+      setSignError('');
+    } catch (err) {
+      const fields = err?.fieldErrors;
+      const msg = fields ? Object.entries(fields)[0]?.join(': ') : null;
+      setSignError(msg || err?.message || 'Failed to send for signature');
+    } finally {
+      setSendingEnv(false);
+    }
+  };
 
   const isOfferMode = mode === 'offer';
   const headerTitle = isOfferMode ? 'Offer Details' : 'Confirm Hire';
@@ -290,23 +384,124 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
           </div>
 
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Signed offer document id {signedDocRequired
+            <label className="block text-sm font-medium text-dark-300 mb-2">
+              Offer signature {signedDocRequired
                 ? <span className="text-red-400">*</span>
                 : <span className="text-dark-500 font-normal">(optional)</span>
               }
             </label>
-            <input
-              type="text"
-              value={signedOfferDocId}
-              onChange={(e) => setSignedOfferDocId(e.target.value)}
-              placeholder="Attachment id from this application's documents"
-              className="input-field"
-              required={signedDocRequired}
-            />
-            {errors.signedOfferDocId && <p className="text-xs text-red-400 mt-1">{errors.signedOfferDocId}</p>}
-            {!signedDocRequired && (
-              <p className="text-xs text-dark-500 mt-1">If blank, the application will show a "signed offer missing" warning until added.</p>
+
+            {signedOfferDocId ? (
+              /* Envelope already linked — show summary + disconnect option */
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm text-emerald-300 font-medium flex items-center gap-1.5">
+                      <FileSignature size={14} /> Offer envelope linked
+                    </div>
+                    <div className="text-xs text-dark-400 mt-0.5 font-mono truncate">{signedOfferDocId}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSignedOfferDocId('')}
+                    className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors flex-shrink-0"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                <p className="text-[11px] text-dark-500 mt-2">
+                  When all signers complete the envelope, this application's offer will be marked as signed automatically.
+                </p>
+              </div>
+            ) : (
+              /* No envelope yet — render the Sign picker + signer slots */
+              <div className="rounded-md border border-dark-700 bg-dark-900/40 p-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Sign template</label>
+                  <select
+                    value={signTemplateId}
+                    onChange={(e) => setSignTemplateId(e.target.value)}
+                    disabled={signLoading || sendingEnv}
+                    className="input-field"
+                  >
+                    <option value="">{signLoading ? 'Loading templates…' : 'Pick an offer template…'}</option>
+                    {signTemplates.map((t) => (
+                      <option key={t._id} value={String(t._id)}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-dark-400 mb-1">Director (signs first)</label>
+                    <input
+                      type="text"
+                      value={directorName}
+                      onChange={(e) => setDirectorName(e.target.value)}
+                      placeholder="Director name"
+                      className="input-field text-sm mb-1.5"
+                      disabled={sendingEnv}
+                    />
+                    <input
+                      type="email"
+                      value={directorEmail}
+                      onChange={(e) => setDirectorEmail(e.target.value)}
+                      placeholder="director@company.com"
+                      className="input-field text-sm"
+                      disabled={sendingEnv}
+                    />
+                    {!seededDirectorName && !directorName && (
+                      <p className="text-[11px] text-amber-400/80 mt-1">No default signatory configured for this company.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-dark-400 mb-1">Candidate (signs after)</label>
+                    <input
+                      type="text"
+                      value={candSignName}
+                      onChange={(e) => setCandSignName(e.target.value)}
+                      placeholder="Candidate name"
+                      className="input-field text-sm mb-1.5"
+                      disabled={sendingEnv}
+                    />
+                    <input
+                      type="email"
+                      value={candSignEmail}
+                      onChange={(e) => setCandSignEmail(e.target.value)}
+                      placeholder="candidate@example.com"
+                      className="input-field text-sm"
+                      disabled={sendingEnv}
+                    />
+                  </div>
+                </div>
+
+                {signError && <p className="text-xs text-red-400">{signError}</p>}
+                {errors.signedOfferDocId && !signError && <p className="text-xs text-red-400">{errors.signedOfferDocId}</p>}
+
+                <button
+                  type="button"
+                  onClick={handleSendForSignature}
+                  disabled={sendingEnv || signLoading || !signTemplateId}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {sendingEnv ? <Loader2 size={14} className="animate-spin" /> : <PenTool size={14} />}
+                  Send for signature
+                </button>
+
+                <p className="text-[11px] text-dark-500 text-center">
+                  Or paste an existing attachment / envelope id manually:{' '}
+                  <input
+                    type="text"
+                    value={signedOfferDocId}
+                    onChange={(e) => setSignedOfferDocId(e.target.value)}
+                    placeholder="paste id"
+                    className="bg-transparent border-b border-dark-700 focus:border-rivvra-500 focus:outline-none text-dark-300 px-1 w-32"
+                  />
+                </p>
+              </div>
+            )}
+            {!signedDocRequired && !signedOfferDocId && (
+              <p className="text-xs text-dark-500 mt-1.5">If blank, the application will show a "signed offer missing" warning until added.</p>
             )}
           </div>
         </div>
@@ -1686,6 +1881,9 @@ export default function AtsApplicationDetail() {
         targetStageName={pendingStageMove?.stageName}
         requireSignedDoc={pendingStageMove?.requireSignedDoc === true}
         initialOffer={application?.offer || null}
+        application={application}
+        companies={companies}
+        orgSlug={orgSlug}
       />
       <CreateEmployeeDrawer
         show={showCreateEmpDrawer}

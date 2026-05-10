@@ -165,6 +165,29 @@ const atsApi = {
     });
   },
 
+  // Phase-1 / Q11+Q12 (2026-05-10): list Sign templates available to this
+  // org+company. Reuses the existing Sign module endpoint as-is per Q17-A1
+  // — same filtering Sign already applies (active + non-ephemeral + scope).
+  listSignTemplates(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/sign/templates`);
+  },
+
+  // Phase-1 / Q11+Q12 (2026-05-10): create a Sign request for an offer
+  // letter from the ATS offer modal. linkedModel='ats_application' makes
+  // the Sign completion handler write back to application.offer
+  // .signedOfferDocId once all signers complete.
+  // payload: { templateId, signers: [{ name, email, roleName? }], reference?, subject?, message? }
+  createOfferSignRequest(orgSlug, applicationId, payload) {
+    return api.request(`/api/org/${orgSlug}/sign/requests`, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        linkedModel: 'ats_application',
+        linkedId: applicationId,
+      }),
+    });
+  },
+
   // P0.1 (2026-05-10): /create-employee now requires HR-side fields.
   //   payload: { workEmail, managerId, internalCompanyId, billable,
   //              department?, designation?, employeeCode? }
