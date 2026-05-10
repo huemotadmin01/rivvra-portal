@@ -134,7 +134,7 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving }) {
  * (Q9.2-C) — many IN contract hires don't have a signed PDF day-1; we
  * surface a soft warning after submit instead of hard-blocking on /hire.
  */
-function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null, application = null, companies = [], orgSlug = null, offerLevel = 'full' }) {
+function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null, application = null, companies = [], orgSlug = null, offerLevel = 'full', onRefresh = null }) {
   // Phase-1 / Q21+Q22 (2026-05-10): the salary input adapts to the
   // application's employment type. Contract → "Day rate" + per_day unit;
   // Full-Time / Internal Consultant → "Annual CTC (LPA)" + lpa unit.
@@ -278,8 +278,16 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
       });
       const newId = res?.request?._id || res?.request?.id || '';
       if (!newId) throw new Error('Sign API returned no request id');
-      setSignedOfferDocId(String(newId));
+      // Q24-A (2026-05-10): we DO NOT set signedOfferDocId on creation
+      // anymore — that field is reserved for the Sign completion
+      // back-link, so the Offer Signed gate can't be satisfied
+      // prematurely. The envelope id lands in
+      // application.offer.signEnvelopeId via the Sign-side back-link.
+      // Trigger a parent refetch so the new state shows up.
       setSignError('');
+      if (typeof onRefresh === 'function') {
+        try { await onRefresh(); } catch { /* ignore */ }
+      }
     } catch (err) {
       const fields = err?.fieldErrors;
       const msg = fields ? Object.entries(fields)[0]?.join(': ') : null;
@@ -454,12 +462,12 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
             </label>
 
             {signedOfferDocId ? (
-              /* Envelope already linked — show summary + disconnect option */
+              /* State 1: envelope completed — back-link wrote signedOfferDocId */
               <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm text-emerald-300 font-medium flex items-center gap-1.5">
-                      <FileSignature size={14} /> Offer envelope linked
+                      <FileSignature size={14} /> Signed by all parties
                     </div>
                     <div className="text-xs text-dark-400 mt-0.5 font-mono truncate">{signedOfferDocId}</div>
                   </div>
@@ -471,8 +479,25 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                     Disconnect
                   </button>
                 </div>
+              </div>
+            ) : application?.offer?.signEnvelopeId ? (
+              /* State 2: envelope sent, awaiting completion (Q24-A 2026-05-10) */
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm text-amber-300 font-medium flex items-center gap-1.5">
+                      <Loader2 size={14} className="animate-spin" /> Envelope sent · awaiting signatures
+                    </div>
+                    <div className="text-xs text-dark-400 mt-0.5 font-mono truncate">{application.offer.signEnvelopeId}</div>
+                    {application.offer.signEnvelopeSentAt && (
+                      <div className="text-[11px] text-dark-500 mt-0.5">
+                        Sent {formatDateUTC(application.offer.signEnvelopeSentAt)}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <p className="text-[11px] text-dark-500 mt-2">
-                  When all signers complete the envelope, this application's offer will be marked as signed automatically.
+                  Once both Director and Candidate sign in the Sign module, this offer will mark itself as signed automatically and the Offer Signed stage gate will pass.
                 </p>
               </div>
             ) : (
@@ -1409,7 +1434,12 @@ export default function AtsApplicationDetail() {
           // Should be rare — gate just passed. Surface anything left.
           showToast(retryErr.message || 'Stage move failed after saving offer', 'error');
         }
-        fetchApplication();
+        // Q24+race-fix (2026-05-10): await the refetch so React state is
+        // current before the user's next click. Without this, clicking
+        // a subsequent stage chip immediately would open the next gate
+        // modal against the stale offer subdoc and the salary the user
+        // just typed wouldn't pre-fill.
+        await fetchApplication();
         return;
       }
 
@@ -1989,6 +2019,7 @@ export default function AtsApplicationDetail() {
         application={application}
         companies={companies}
         orgSlug={orgSlug}
+        onRefresh={fetchApplication}
       />
       <CreateEmployeeDrawer
         show={showCreateEmpDrawer}
