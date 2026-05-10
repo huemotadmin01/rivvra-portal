@@ -10,17 +10,26 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   ChevronLeft, ChevronRight, Loader2, User, Search, Plus, Briefcase,
   Mail, Phone as PhoneIcon, Linkedin, Building2, GitBranch, Users,
-  FileText, Check,
+  FileText, Check, Award, X, Upload, FileCheck2,
 } from 'lucide-react';
 
 /**
  * AtsApplicationNew — routed create flow for new applications under a
  * specific Job Position. Reachable only from /ats/jobs/:jobId/applications/new
  *
- * Layout: two-column on lg+ — form on the left, sticky context summary
- * on the right showing what will be created, plus a sticky bottom action
- * bar visible even mid-scroll. Modern SAAS-grade create flow rather than
- * the legacy modal it replaced.
+ * Locked behavior 2026-05-10:
+ *  - Recruiter required (typeahead, prefills from job).
+ *  - Candidate name + (email OR phone) required.
+ *  - At least one skill required (existing-candidate's tagged skills count
+ *    toward the gate; new picks union into the candidate's skill set).
+ *  - Resume required: existing-candidate's prior resume satisfies the gate;
+ *    new candidates must upload one (PDF/DOC/DOCX, ≤10 MB).
+ *  - Source intentionally absent — edited later on the application detail
+ *    page. Account Owner / Client Name / Account Mgr inherited from job.
+ *
+ * Submit is multi-step on purpose (per Q9-B): create application first,
+ * then attach skills + upload resume against the returned application's
+ * candidateId / _id. Reuses existing endpoints; no new code paths.
  */
 export default function AtsApplicationNew() {
   const { jobId } = useParams();
@@ -46,12 +55,9 @@ export default function AtsApplicationNew() {
     recruiterId: null,
     recruiterName: '',
   });
-  // Track whether email/phone/linkedin came from picking an existing
-  // candidate (we still allow edits, but apply a subtle "inherited" hint).
   const [inheritedFromPick, setInheritedFromPick] = useState({
     email: false, phone: false, linkedin: false,
   });
-  // Track whether recruiter is still the job's default vs user override.
   const [recruiterOverridden, setRecruiterOverridden] = useState(false);
 
   // Candidate typeahead state
@@ -64,7 +70,39 @@ export default function AtsApplicationNew() {
   const candContainerRef = useRef(null);
   const candSearchTimer = useRef(null);
 
-  // ── Load parent job + auto-fill defaults ───────────────────────────
+  // ── Skills state ─────────────────────────────────────────────────────
+  // pickedSkills are skills the recruiter selected on this form (will be
+  // attached to the candidate post-create). inheritedSkills are skills
+  // the existing-picked candidate already has (read-only chips here).
+  const [masterSkills, setMasterSkills] = useState([]);
+  const [skillLevels, setSkillLevels] = useState([]);
+  const [pickedSkills, setPickedSkills] = useState([]); // [{tempKey, skillId|null, skillName, levelId|'', levelName|'', isNew}]
+  const [inheritedSkills, setInheritedSkills] = useState([]); // [{_id, skillId, skillName, skillLevelName}]
+  const [loadingInherited, setLoadingInherited] = useState(false);
+
+  // Skill typeahead UI state
+  const [skillQuery, setSkillQuery] = useState('');
+  const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+  const [skillAnchorRect, setSkillAnchorRect] = useState(null);
+  const [pendingLevelId, setPendingLevelId] = useState('');
+  const skillInputRef = useRef(null);
+  const skillContainerRef = useRef(null);
+
+  // ── Resume state ─────────────────────────────────────────────────────
+  const [resumeFile, setResumeFile] = useState(null); // File | null
+  const [existingResume, setExistingResume] = useState(null); // { fileName, url, ... } | null
+  const [loadingResume, setLoadingResume] = useState(false);
+  const [resumeOverride, setResumeOverride] = useState(false); // true if user uploaded a new resume despite existing one
+  const resumeInputRef = useRef(null);
+  const RESUME_MAX_BYTES = 10 * 1024 * 1024;
+  const RESUME_ACCEPTED_EXT = ['pdf', 'doc', 'docx'];
+  const RESUME_ACCEPTED_MIME = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+
+  // ── Load parent job ──────────────────────────────────────────────────
   useEffect(() => {
     if (!orgSlug || !jobId) return;
     let cancelled = false;
@@ -104,7 +142,55 @@ export default function AtsApplicationNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, jobId]);
 
-  // ── Candidate typeahead ─────────────────────────────────────────────
+  // ── Load master skill list + levels (once) ───────────────────────────
+  useEffect(() => {
+    if (!orgSlug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [skills, levels] = await Promise.all([
+          atsApi.listSkills(orgSlug),
+          atsApi.listSkillLevels(orgSlug),
+        ]);
+        if (cancelled) return;
+        setMasterSkills(skills?.skills || skills?.items || []);
+        const ls = levels?.skillLevels || levels?.items || [];
+        setSkillLevels([...ls].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
+      } catch { /* skills are optional surface — failure is silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug]);
+
+  // ── Load existing candidate's skills + resume on pick ────────────────
+  useEffect(() => {
+    if (!orgSlug || !form.candidateId) {
+      setInheritedSkills([]);
+      setExistingResume(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingInherited(true);
+    setLoadingResume(true);
+    (async () => {
+      try {
+        const [skillsRes, resumeRes] = await Promise.all([
+          atsApi.listCandidateSkills(orgSlug, form.candidateId).catch(() => null),
+          atsApi.getCandidateResume(orgSlug, form.candidateId).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setInheritedSkills(skillsRes?.candidateSkills || skillsRes?.skills || []);
+        setExistingResume(resumeRes?.resume || null);
+      } finally {
+        if (!cancelled) {
+          setLoadingInherited(false);
+          setLoadingResume(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, form.candidateId]);
+
+  // ── Candidate typeahead behavior ─────────────────────────────────────
   const searchCandidates = useCallback(async (q) => {
     if (!orgSlug) return;
     setCandSearching(true);
@@ -153,6 +239,35 @@ export default function AtsApplicationNew() {
     };
   }, [candDropdownOpen]);
 
+  // ── Skill typeahead behavior (anchor + outside click) ────────────────
+  useEffect(() => {
+    if (!skillDropdownOpen) return;
+    const handleClick = (e) => {
+      if (skillContainerRef.current && skillContainerRef.current.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-skill-typeahead]')) return;
+      setSkillDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [skillDropdownOpen]);
+
+  useEffect(() => {
+    if (!skillDropdownOpen) return;
+    const measure = () => {
+      const node = skillInputRef.current;
+      if (!node) return;
+      const r = node.getBoundingClientRect();
+      setSkillAnchorRect({ top: r.bottom, left: r.left, width: r.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [skillDropdownOpen]);
+
   const pickExistingCandidate = (cand) => {
     setForm((p) => ({
       ...p,
@@ -169,20 +284,117 @@ export default function AtsApplicationNew() {
     });
     setCandQuery(cand.name || '');
     setCandDropdownOpen(false);
+    // Wipe any picked skills the user added before switching candidates
+    // — they were attached to a different person.
+    setPickedSkills([]);
+    setResumeFile(null);
+    setResumeOverride(false);
   };
 
-  // ── Validation ──────────────────────────────────────────────────────
+  // ── Skill picker helpers ─────────────────────────────────────────────
+  const skillSuggestions = (() => {
+    const q = skillQuery.trim().toLowerCase();
+    const usedNames = new Set([
+      ...pickedSkills.map((s) => (s.skillName || '').toLowerCase()),
+      ...inheritedSkills.map((s) => (s.skillName || s.name || '').toLowerCase()),
+    ]);
+    const candidates = masterSkills.filter((s) => !usedNames.has((s.name || '').toLowerCase()));
+    if (!q) return candidates.slice(0, 30);
+    return candidates
+      .filter((s) => (s.name || '').toLowerCase().includes(q))
+      .slice(0, 30);
+  })();
+  const exactSkillMatch = skillSuggestions.find(
+    (s) => (s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
+  );
+  const showSkillCreateOption = skillQuery.trim().length > 0 && !exactSkillMatch && !pickedSkills.some(
+    (s) => (s.skillName || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
+  ) && !inheritedSkills.some(
+    (s) => (s.skillName || s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
+  );
+
+  const addPickedSkill = ({ skillId, skillName, isNew }) => {
+    const levelDoc = pendingLevelId ? skillLevels.find((l) => String(l._id) === String(pendingLevelId)) : null;
+    setPickedSkills((p) => [
+      ...p,
+      {
+        tempKey: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        skillId: skillId || null,
+        skillName,
+        levelId: levelDoc ? String(levelDoc._id) : '',
+        levelName: levelDoc ? levelDoc.name : '',
+        isNew: !!isNew,
+      },
+    ]);
+    setSkillQuery('');
+    setSkillDropdownOpen(false);
+    setPendingLevelId('');
+  };
+
+  const removePickedSkill = (tempKey) => {
+    setPickedSkills((p) => p.filter((s) => s.tempKey !== tempKey));
+  };
+
+  // ── Resume handlers ──────────────────────────────────────────────────
+  const validateResumeFile = (file) => {
+    if (!file) return 'No file selected';
+    if (file.size > RESUME_MAX_BYTES) return 'File exceeds 10 MB limit';
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!RESUME_ACCEPTED_EXT.includes(ext) && !RESUME_ACCEPTED_MIME.includes(file.type)) {
+      return 'Only PDF, DOC, or DOCX files are accepted';
+    }
+    return null;
+  };
+
+  const handleResumePick = (file) => {
+    const err = validateResumeFile(file);
+    if (err) { showToast(err, 'error'); return; }
+    setResumeFile(file);
+    if (existingResume) setResumeOverride(true);
+  };
+
+  const handleResumeDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleResumePick(file);
+  };
+
+  // ── Validation ───────────────────────────────────────────────────────
   const trimmedName = (form.candidateName || candQuery || '').trim();
   const hasContact = !!(form.email.trim() || form.phone.trim());
   const hasRecruiter = !!form.recruiterId;
-  const canSubmit = !!trimmedName && hasContact && hasRecruiter && !saving && !loadingJob && !!job;
+  const totalSkills = pickedSkills.length + inheritedSkills.length;
+  const hasSkill = totalSkills >= 1;
+  const hasResume = !!resumeFile || !!existingResume;
+  const canSubmit = !!trimmedName && hasContact && hasRecruiter && hasSkill && hasResume && !saving && !loadingJob && !!job;
 
-  // ── Submit ──────────────────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
     setSaving(true);
     try {
+      // Step 1: resolve any "new" master skills to real ids
+      const resolvedSkills = [];
+      for (const s of pickedSkills) {
+        if (s.isNew) {
+          try {
+            const created = await atsApi.createSkill(orgSlug, { name: s.skillName });
+            const newId = created?.skill?._id;
+            if (!newId) throw new Error(`Failed to create skill "${s.skillName}"`);
+            resolvedSkills.push({ ...s, skillId: String(newId), isNew: false });
+          } catch (err) {
+            showToast(err?.message || `Failed to create skill "${s.skillName}"`, 'error');
+            setSaving(false);
+            return;
+          }
+        } else {
+          resolvedSkills.push(s);
+        }
+      }
+
+      // Step 2: create the application (server creates / dedups candidate)
       const payload = {
         candidateName: trimmedName,
         email: form.email.trim() || null,
@@ -195,8 +407,39 @@ export default function AtsApplicationNew() {
       };
       if (form.candidateId) payload.candidateId = form.candidateId;
       const res = await atsApi.createApplication(orgSlug, payload);
-      const newAppId = res?.application?._id || res?.applicationId;
+      const newApp = res?.application;
+      const newAppId = newApp?._id;
+      const newCandidateId = newApp?.candidateId || form.candidateId;
       if (!newAppId) throw new Error('Server returned no application id');
+
+      // Step 3: attach picked skills to the candidate (idempotent on
+      // (candidateId, skillId) per the importer's dedup)
+      const skillFailures = [];
+      for (const s of resolvedSkills) {
+        if (!s.skillId) continue;
+        try {
+          await atsApi.addCandidateSkill(orgSlug, newCandidateId, {
+            skillId: s.skillId,
+            ...(s.levelId ? { skillLevelId: s.levelId } : {}),
+          });
+        } catch (err) {
+          skillFailures.push(s.skillName);
+        }
+      }
+      if (skillFailures.length) {
+        showToast(`Application created but skills failed: ${skillFailures.join(', ')}`, 'warning');
+      }
+
+      // Step 4: upload resume if recruiter chose one (skip when relying
+      // on existingResume satisfying the gate)
+      if (resumeFile) {
+        try {
+          await atsApi.uploadAttachment(orgSlug, newAppId, resumeFile, true);
+        } catch (err) {
+          showToast('Application created, but resume upload failed — retry from the application page.', 'warning');
+        }
+      }
+
       showToast('Application created');
       navigate(orgPath(`/ats/applications/${newAppId}`));
     } catch (err) {
@@ -206,7 +449,7 @@ export default function AtsApplicationNew() {
     }
   };
 
-  // ── Loading shell ───────────────────────────────────────────────────
+  // ── Loading shell ────────────────────────────────────────────────────
   if (loadingJob) {
     return (
       <div className="p-6 md:p-8 flex items-center justify-center py-20">
@@ -216,7 +459,7 @@ export default function AtsApplicationNew() {
   }
   if (!job) return null;
 
-  // ── Helpers for input chrome ────────────────────────────────────────
+  // ── Helpers for input chrome ─────────────────────────────────────────
   const initials = (name) => {
     const parts = String(name || '').trim().split(/\s+/).slice(0, 2);
     return parts.map((p) => p[0]?.toUpperCase()).join('') || '?';
@@ -227,7 +470,7 @@ export default function AtsApplicationNew() {
 
   return (
     <>
-      {/* ── Top breadcrumb bar ───────────────────────────────────────── */}
+      {/* Top breadcrumb bar */}
       <div className="border-b border-dark-800/60 bg-dark-950/40 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center gap-2 text-xs text-dark-400">
           <button
@@ -242,7 +485,6 @@ export default function AtsApplicationNew() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 md:px-8 py-8 pb-32">
-        {/* ── Page heading ─────────────────────────────────────────── */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white tracking-tight">New Application</h1>
           <p className="text-dark-400 text-sm mt-1.5">
@@ -253,17 +495,16 @@ export default function AtsApplicationNew() {
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* ── Form column ──────────────────────────────────── */}
+            {/* ─── Form column ──────────────────────────────────── */}
             <div className="lg:col-span-3 space-y-6">
 
-              {/* Candidate section */}
+              {/* Candidate */}
               <section className="card p-6 space-y-5">
                 <div className="flex items-center gap-2">
                   <User size={14} className="text-rivvra-300" />
                   <h2 className="text-sm font-semibold text-white tracking-wide">Candidate</h2>
                 </div>
 
-                {/* Name typeahead */}
                 <div ref={candContainerRef} className="relative">
                   <label className="block text-xs font-medium text-dark-300 mb-1.5">
                     Name <span className="text-red-400">*</span>
@@ -288,6 +529,9 @@ export default function AtsApplicationNew() {
                         if (form.candidateId) {
                           setForm((p) => ({ ...p, candidateId: '' }));
                           setInheritedFromPick({ email: false, phone: false, linkedin: false });
+                          setInheritedSkills([]);
+                          setExistingResume(null);
+                          setResumeOverride(false);
                         }
                         setForm((p) => ({ ...p, candidateName: e.target.value }));
                       }}
@@ -303,7 +547,6 @@ export default function AtsApplicationNew() {
                   </div>
                 </div>
 
-                {/* Email + Phone — 2 col */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-dark-300 mb-1.5">Email</label>
@@ -361,14 +604,182 @@ export default function AtsApplicationNew() {
                 </div>
               </section>
 
-              {/* Pipeline section */}
+              {/* Skills */}
+              <section className="card p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Award size={14} className="text-rivvra-300" />
+                  <h2 className="text-sm font-semibold text-white tracking-wide">
+                    Skills <span className="text-red-400">*</span>
+                    <span className="ml-2 text-[11px] font-normal text-dark-500">at least one required</span>
+                  </h2>
+                </div>
+
+                {/* Inherited (read-only) chips */}
+                {form.candidateId && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Already on this candidate</div>
+                    {loadingInherited ? (
+                      <div className="text-xs text-dark-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Loading…</div>
+                    ) : inheritedSkills.length === 0 ? (
+                      <div className="text-xs text-dark-500 italic">None yet — pick at least one below.</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {inheritedSkills.map((s) => (
+                          <span key={s._id} className="inline-flex items-center gap-1 bg-dark-800 border border-dark-700 text-dark-300 text-xs px-2 py-1 rounded-full">
+                            {s.skillName || s.name}
+                            {s.skillLevelName && <span className="text-dark-500 text-[10px]">· {s.skillLevelName}</span>}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Picked-on-this-form chips */}
+                {pickedSkills.length > 0 && (
+                  <div>
+                    {form.candidateId && <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Adding now</div>}
+                    <div className="flex flex-wrap gap-1.5">
+                      {pickedSkills.map((s) => (
+                        <span key={s.tempKey} className="inline-flex items-center gap-1 bg-rivvra-500/10 border border-rivvra-500/20 text-rivvra-200 text-xs px-2 py-1 rounded-full">
+                          {s.skillName}
+                          {s.levelName && <span className="text-rivvra-300/70 text-[10px]">· {s.levelName}</span>}
+                          {s.isNew && <span className="text-[9px] uppercase tracking-wider text-emerald-300 ml-0.5">new</span>}
+                          <button
+                            type="button"
+                            onClick={() => removePickedSkill(s.tempKey)}
+                            className="text-rivvra-300/60 hover:text-red-400 transition-colors ml-0.5"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add skill row */}
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+                  <div ref={skillContainerRef} className="relative">
+                    <Search size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      ref={skillInputRef}
+                      type="text"
+                      value={skillQuery}
+                      placeholder="Search or create a skill…"
+                      onFocus={() => setSkillDropdownOpen(true)}
+                      onChange={(e) => {
+                        setSkillQuery(e.target.value);
+                        setSkillDropdownOpen(true);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setSkillDropdownOpen(false);
+                        if (e.key === 'Enter' && showSkillCreateOption) {
+                          e.preventDefault();
+                          addPickedSkill({ skillName: skillQuery.trim(), isNew: true });
+                        }
+                      }}
+                      className={`${inputWithIcon}`}
+                    />
+                  </div>
+                  <select
+                    value={pendingLevelId}
+                    onChange={(e) => setPendingLevelId(e.target.value)}
+                    className={inputBase}
+                    aria-label="Skill level (optional)"
+                  >
+                    <option value="">Level (optional)</option>
+                    {skillLevels.map((l) => (
+                      <option key={l._id} value={l._id}>{l.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <p className="text-xs text-dark-500">
+                  Picked skills attach to the candidate on submit. Existing-candidate skills already count toward the requirement.
+                </p>
+              </section>
+
+              {/* Resume */}
+              <section className="card p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-rivvra-300" />
+                  <h2 className="text-sm font-semibold text-white tracking-wide">
+                    Resume <span className="text-red-400">*</span>
+                    <span className="ml-2 text-[11px] font-normal text-dark-500">PDF, DOC, or DOCX · max 10 MB</span>
+                  </h2>
+                </div>
+
+                {form.candidateId && loadingResume ? (
+                  <div className="text-xs text-dark-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Looking up candidate's resume…</div>
+                ) : existingResume && !resumeFile ? (
+                  <div className="bg-dark-900/40 border border-dark-700 rounded-lg p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileCheck2 size={18} className="text-emerald-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm text-white truncate">{existingResume.fileName}</div>
+                        <div className="text-[11px] text-dark-500">Resume on file — this satisfies the requirement.</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => resumeInputRef.current?.click()}
+                      className="text-xs text-rivvra-300 hover:text-rivvra-200 flex-shrink-0"
+                    >
+                      Upload new
+                    </button>
+                  </div>
+                ) : resumeFile ? (
+                  <div className="bg-dark-900/40 border border-dark-700 rounded-lg p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileCheck2 size={18} className="text-emerald-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm text-white truncate">{resumeFile.name}</div>
+                        <div className="text-[11px] text-dark-500">
+                          {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
+                          {resumeOverride && <span className="ml-2 text-amber-400/80">replaces existing</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setResumeFile(null); setResumeOverride(false); if (resumeInputRef.current) resumeInputRef.current.value = ''; }}
+                      className="text-xs text-dark-400 hover:text-red-400 flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDrop={handleResumeDrop}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={() => resumeInputRef.current?.click()}
+                    className="border-2 border-dashed border-dark-700 rounded-lg p-8 text-center cursor-pointer hover:border-rivvra-500/40 hover:bg-dark-900/30 transition-colors"
+                  >
+                    <Upload size={20} className="text-dark-500 mx-auto mb-2" />
+                    <div className="text-sm text-dark-300">Drop a resume here or <span className="text-rivvra-300">browse</span></div>
+                    <div className="text-[11px] text-dark-500 mt-1">PDF, DOC, DOCX · up to 10 MB</div>
+                  </div>
+                )}
+                <input
+                  ref={resumeInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleResumePick(f);
+                  }}
+                />
+              </section>
+
+              {/* Pipeline */}
               <section className="card p-6 space-y-5">
                 <div className="flex items-center gap-2">
                   <GitBranch size={14} className="text-rivvra-300" />
                   <h2 className="text-sm font-semibold text-white tracking-wide">Pipeline</h2>
                 </div>
 
-                {/* Recruiter — required, lookup */}
                 <div>
                   <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
                     Recruiter <span className="text-red-400">*</span>
@@ -398,23 +809,16 @@ export default function AtsApplicationNew() {
                   )}
                 </div>
 
-                {/* Inherited (read-only) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
-                      Stage
-                    </label>
-                    <div className="px-3 py-2 bg-dark-900/30 border border-dark-800 rounded-lg text-sm text-dark-200">
-                      New
-                    </div>
+                    <label className="text-xs font-medium text-dark-300 mb-1.5 block">Stage</label>
+                    <div className="px-3 py-2 bg-dark-900/30 border border-dark-800 rounded-lg text-sm text-dark-200">New</div>
                   </div>
                   <div>
                     <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
                       Employment
                       {form.employmentType && (
-                        <span className="text-[9px] uppercase tracking-wider bg-rivvra-500/10 text-rivvra-300 px-1.5 py-0.5 rounded">
-                          inherited
-                        </span>
+                        <span className="text-[9px] uppercase tracking-wider bg-rivvra-500/10 text-rivvra-300 px-1.5 py-0.5 rounded">inherited</span>
                       )}
                     </label>
                     <div className="px-3 py-2 bg-dark-900/30 border border-dark-800 rounded-lg text-sm text-dark-200">
@@ -429,7 +833,7 @@ export default function AtsApplicationNew() {
               </section>
             </div>
 
-            {/* ── Right: context summary ───────────────────────── */}
+            {/* ─── Right: context summary ───────────────────────── */}
             <aside className="lg:col-span-2">
               <div className="lg:sticky lg:top-24 space-y-4">
                 <div className="card p-5">
@@ -475,28 +879,38 @@ export default function AtsApplicationNew() {
                       </dd>
                     </div>
                     <div className="flex items-start justify-between gap-3">
-                      <dt className="text-dark-400 text-xs">Stage</dt>
-                      <dd className="text-dark-200">New</dd>
+                      <dt className="text-dark-400 text-xs">Skills</dt>
+                      <dd className="text-dark-200 text-right">
+                        {totalSkills > 0
+                          ? `${totalSkills} total${pickedSkills.length ? ` (${pickedSkills.length} new)` : ''}`
+                          : <span className="text-amber-400/80">— required</span>}
+                      </dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-dark-400 text-xs">Resume</dt>
+                      <dd className="text-dark-200 text-right truncate">
+                        {resumeFile ? resumeFile.name
+                          : existingResume ? <span>on file <span className="text-[10px] text-dark-500">(reused)</span></span>
+                          : <span className="text-amber-400/80">— required</span>}
+                      </dd>
                     </div>
                   </dl>
 
                   <div className="border-t border-dark-800 my-4" />
 
-                  {/* Validation checklist */}
                   <div className="space-y-1.5">
                     <ChecklistRow ok={!!trimmedName} label="Candidate name" />
                     <ChecklistRow ok={hasContact} label="Email or phone" />
                     <ChecklistRow ok={hasRecruiter} label="Recruiter assigned" />
+                    <ChecklistRow ok={hasSkill} label="At least one skill" />
+                    <ChecklistRow ok={hasResume} label="Resume uploaded" />
                   </div>
                 </div>
               </div>
             </aside>
           </div>
 
-          {/* ── Sticky bottom action bar ─────────────────────────── */}
-          {/* Sidebar is fixed w-64 left-0 on lg+, so the bar starts at
-              lg:left-64 to avoid hiding behind it. On mobile the sidebar
-              is offscreen so left-0 is correct. */}
+          {/* Sticky bottom action bar */}
           <div className="fixed bottom-0 left-0 lg:left-64 right-0 border-t border-dark-800/80 bg-dark-950/85 backdrop-blur-md z-20">
             <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center justify-between gap-4">
               <p className="text-xs text-dark-500 hidden md:block">
@@ -526,18 +940,11 @@ export default function AtsApplicationNew() {
         </form>
       </div>
 
-      {/* Candidate typeahead dropdown — portaled to body to escape any
-          backdrop-blur stacking context. */}
+      {/* Candidate typeahead dropdown — portaled */}
       {candDropdownOpen && candAnchorRect && createPortal(
         <div
           data-cand-typeahead
-          style={{
-            position: 'fixed',
-            top: candAnchorRect.top + 4,
-            left: candAnchorRect.left,
-            width: candAnchorRect.width,
-            zIndex: 1000,
-          }}
+          style={{ position: 'fixed', top: candAnchorRect.top + 4, left: candAnchorRect.left, width: candAnchorRect.width, zIndex: 1000 }}
           className="bg-dark-800 border border-dark-600 rounded-lg shadow-2xl max-h-72 overflow-y-auto"
         >
           {candSearching && (
@@ -576,6 +983,8 @@ export default function AtsApplicationNew() {
               onClick={() => {
                 setForm((p) => ({ ...p, candidateId: '', candidateName: candQuery.trim() }));
                 setInheritedFromPick({ email: false, phone: false, linkedin: false });
+                setInheritedSkills([]);
+                setExistingResume(null);
                 setCandDropdownOpen(false);
               }}
               className="w-full text-left px-3 py-2 text-xs text-rivvra-300 hover:bg-dark-700 border-t border-dark-700 flex items-center gap-1.5"
@@ -583,6 +992,42 @@ export default function AtsApplicationNew() {
               <Plus size={11} /> Create new candidate &ldquo;{candQuery.trim()}&rdquo;
             </button>
           )}
+        </div>,
+        document.body,
+      )}
+
+      {/* Skill typeahead dropdown — portaled */}
+      {skillDropdownOpen && skillAnchorRect && createPortal(
+        <div
+          data-skill-typeahead
+          style={{ position: 'fixed', top: skillAnchorRect.top + 4, left: skillAnchorRect.left, width: skillAnchorRect.width, zIndex: 1000 }}
+          className="bg-dark-800 border border-dark-600 rounded-lg shadow-2xl max-h-64 overflow-y-auto"
+        >
+          {showSkillCreateOption && (
+            <button
+              type="button"
+              onClick={() => addPickedSkill({ skillName: skillQuery.trim(), isNew: true })}
+              className="w-full text-left px-3 py-2 text-xs text-rivvra-300 hover:bg-dark-700 border-b border-dark-700/50 flex items-center gap-1.5"
+            >
+              <Plus size={11} /> Create &ldquo;{skillQuery.trim()}&rdquo;
+            </button>
+          )}
+          {skillSuggestions.length === 0 && !showSkillCreateOption && (
+            <div className="px-3 py-2 text-xs text-dark-500">
+              {skillQuery.trim() ? 'No matching skills' : 'Type to search'}
+            </div>
+          )}
+          {skillSuggestions.map((s) => (
+            <button
+              key={s._id}
+              type="button"
+              onClick={() => addPickedSkill({ skillId: String(s._id), skillName: s.name, isNew: false })}
+              className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0"
+            >
+              <div className="text-xs text-white">{s.name}</div>
+              {s.skillTypeName && <div className="text-[10px] text-dark-400">{s.skillTypeName}</div>}
+            </button>
+          ))}
         </div>,
         document.body,
       )}

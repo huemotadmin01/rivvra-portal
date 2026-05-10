@@ -388,6 +388,11 @@ const atsApi = {
     });
   },
 
+  // ── Candidate Resume (lookup latest isResume:true attachment) ────────
+  getCandidateResume(orgSlug, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${candidateId}/resume`);
+  },
+
   // ── Candidate Skills ────────────────────────────────────────────────
   listCandidateSkills(orgSlug, candidateId) {
     return api.request(`/api/org/${orgSlug}/ats/candidates/${candidateId}/skills`);
