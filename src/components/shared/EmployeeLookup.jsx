@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Pencil, Search, X } from 'lucide-react';
 import contactsApi from '../../utils/contactsApi';
@@ -44,6 +45,11 @@ export default function EmployeeLookup({
   // hyperlink in display mode. Probed once per id change. Avoids 404s for
   // legacy ids (e.g. "HR Team" portal_user with no employee record).
   const [linkable, setLinkable] = useState(false);
+  // Anchor rect for the portal-rendered dropdown. Recomputed when editing
+  // opens (and on scroll/resize) so the dropdown floats below its input
+  // even though the DOM lives at document.body to escape sidebar cards'
+  // backdrop-blur stacking contexts (which clip a regular absolute popup).
+  const [anchorRect, setAnchorRect] = useState(null);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const searchTimer = useRef(null);
@@ -80,10 +86,34 @@ export default function EmployeeLookup({
   useEffect(() => {
     if (!editing) return;
     const handleClick = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setEditing(false);
+      // Click outside both the input container AND the portaled dropdown.
+      // Portal nodes are tagged data-employee-lookup-dropdown so we can
+      // recognise them as part of "inside" without ref plumbing.
+      if (containerRef.current && containerRef.current.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-employee-lookup-dropdown]')) return;
+      setEditing(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
+  }, [editing]);
+
+  // Track the input's bounding rect so the portaled dropdown can float
+  // below it. Re-measures on edit-open, window resize, and scroll.
+  useEffect(() => {
+    if (!editing) return;
+    const measure = () => {
+      const node = inputRef.current;
+      if (!node) return;
+      const r = node.getBoundingClientRect();
+      setAnchorRect({ top: r.bottom, left: r.left, width: r.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
   }, [editing]);
 
   const handleChange = (e) => {
@@ -98,8 +128,18 @@ export default function EmployeeLookup({
     setQuery('');
   };
 
-  const dropdown = (
-    <div className="absolute top-full left-0 right-0 mt-1 bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-56 overflow-y-auto z-50">
+  const dropdown = anchorRect ? createPortal(
+    <div
+      data-employee-lookup-dropdown
+      style={{
+        position: 'fixed',
+        top: anchorRect.top + 4,
+        left: anchorRect.left,
+        width: anchorRect.width,
+        zIndex: 1000,
+      }}
+      className="bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-56 overflow-y-auto"
+    >
       {allowClear && (
         <button
           type="button"
@@ -124,8 +164,9 @@ export default function EmployeeLookup({
           {emp.designation && <div className="text-[10px] text-dark-400">{emp.designation}</div>}
         </button>
       ))}
-    </div>
-  );
+    </div>,
+    document.body,
+  ) : null;
 
   if (variant === 'inline') {
     if (!editing) {

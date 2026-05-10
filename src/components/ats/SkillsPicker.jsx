@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
-import { Plus, X, Loader2, Award, ChevronDown } from 'lucide-react';
+import { Plus, X, Loader2, Award, Search } from 'lucide-react';
 
 /**
  * Reusable SkillsPicker for candidate/application pages.
@@ -21,7 +22,16 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
   // Add-skill form state
   const [showAdd, setShowAdd] = useState(false);
   const [selectedSkillId, setSelectedSkillId] = useState('');
+  const [selectedSkillName, setSelectedSkillName] = useState('');
   const [selectedLevelId, setSelectedLevelId] = useState('');
+  // Typeahead state for the skill picker — searchable list with a
+  // "+ Create '<query>'" affordance when no exact match exists.
+  const [skillQuery, setSkillQuery] = useState('');
+  const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+  const [creatingSkill, setCreatingSkill] = useState(false);
+  const [skillAnchorRect, setSkillAnchorRect] = useState(null);
+  const skillInputRef = useRef(null);
+  const skillContainerRef = useRef(null);
 
   const fetchSkills = useCallback(async () => {
     if (!orgSlug || !candidateId) return;
@@ -46,6 +56,36 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
   }, [orgSlug, candidateId, showToast]);
 
   useEffect(() => { fetchSkills(); }, [fetchSkills]);
+
+  // Close the typeahead dropdown when the user clicks outside it.
+  useEffect(() => {
+    if (!skillDropdownOpen) return;
+    const handleClick = (e) => {
+      if (skillContainerRef.current && skillContainerRef.current.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-skill-typeahead]')) return;
+      setSkillDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [skillDropdownOpen]);
+
+  // Re-measure anchor rect for portaled dropdown.
+  useEffect(() => {
+    if (!skillDropdownOpen) return;
+    const measure = () => {
+      const node = skillInputRef.current;
+      if (!node) return;
+      const r = node.getBoundingClientRect();
+      setSkillAnchorRect({ top: r.bottom, left: r.left, width: r.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [skillDropdownOpen]);
 
   // Group assigned skills by type
   const groupedSkills = skills.reduce((acc, s) => {
@@ -75,8 +115,7 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       if (selectedLevelId) payload.skillLevelId = selectedLevelId;
       await atsApi.addCandidateSkill(orgSlug, candidateId, payload);
       showToast('Skill added');
-      setSelectedSkillId('');
-      setSelectedLevelId('');
+      resetAddForm();
       setShowAdd(false);
       fetchSkills();
     } catch (err) {
@@ -85,6 +124,52 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       setAdding(false);
     }
   };
+
+  const resetAddForm = () => {
+    setSelectedSkillId('');
+    setSelectedSkillName('');
+    setSelectedLevelId('');
+    setSkillQuery('');
+    setSkillDropdownOpen(false);
+  };
+
+  // Create a new master skill on the fly when no existing skill matches
+  // what the user typed. Closes the typeahead and selects the freshly
+  // created skill so the admin can pick a level and click Add.
+  const handleCreateSkill = async (rawName) => {
+    const name = (rawName || '').trim();
+    if (!name) return;
+    try {
+      setCreatingSkill(true);
+      const res = await atsApi.createSkill(orgSlug, { name });
+      const newSkill = res?.skill;
+      if (!newSkill?._id) throw new Error('Create returned no skill');
+      setAllSkills((prev) => [...prev, newSkill]);
+      setSelectedSkillId(newSkill._id);
+      setSelectedSkillName(newSkill.name);
+      setSkillQuery(newSkill.name);
+      setSkillDropdownOpen(false);
+      showToast(`Created skill "${newSkill.name}"`);
+    } catch (err) {
+      showToast(err.message || 'Failed to create skill', 'error');
+    } finally {
+      setCreatingSkill(false);
+    }
+  };
+
+  // Filter master list by the search query, excluding already-assigned.
+  const skillSuggestions = (() => {
+    const q = skillQuery.trim().toLowerCase();
+    const list = availableSkills;
+    if (!q) return list.slice(0, 30);
+    return list
+      .filter((s) => (s.name || '').toLowerCase().includes(q))
+      .slice(0, 30);
+  })();
+  const exactSkillMatch = skillSuggestions.find(
+    (s) => (s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
+  );
+  const showCreateOption = skillQuery.trim().length > 0 && !exactSkillMatch;
 
   const handleRemove = async (assignmentId) => {
     try {
@@ -128,20 +213,42 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       {showAdd && !readOnly && (
         <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            <select
-              value={selectedSkillId}
-              onChange={(e) => setSelectedSkillId(e.target.value)}
-              className="input-field text-sm py-1.5"
-            >
-              <option value="">Select skill...</option>
-              {Object.entries(groupedAvailable).map(([type, typeSkills]) => (
-                <optgroup key={type} label={type}>
-                  {typeSkills.map((s) => (
-                    <option key={s._id} value={s._id}>{s.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            {/* Searchable skill typeahead — replaces the long native <select>
+                that listed every master skill (and on Huemot, ~360 of them).
+                Includes a "+ Create '<query>'" affordance when there's no
+                exact match, so admins can add new skills inline. */}
+            <div ref={skillContainerRef} className="relative">
+              <Search size={11} className="text-dark-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                ref={skillInputRef}
+                type="text"
+                value={skillQuery}
+                placeholder="Search or create skill…"
+                onFocus={() => setSkillDropdownOpen(true)}
+                onChange={(e) => {
+                  setSkillQuery(e.target.value);
+                  setSkillDropdownOpen(true);
+                  // Typing invalidates a previous pick.
+                  if (selectedSkillId) {
+                    setSelectedSkillId('');
+                    setSelectedSkillName('');
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSkillDropdownOpen(false);
+                  if (e.key === 'Enter' && showCreateOption && !creatingSkill) {
+                    e.preventDefault();
+                    handleCreateSkill(skillQuery);
+                  }
+                }}
+                className="input-field text-sm py-1.5 pl-7 w-full"
+              />
+              {selectedSkillId && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-rivvra-300 bg-rivvra-500/10 px-1.5 py-0.5 rounded">
+                  picked
+                </span>
+              )}
+            </div>
             <select
               value={selectedLevelId}
               onChange={(e) => setSelectedLevelId(e.target.value)}
@@ -163,13 +270,64 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
               Add
             </button>
             <button
-              onClick={() => { setShowAdd(false); setSelectedSkillId(''); setSelectedLevelId(''); }}
+              onClick={() => { setShowAdd(false); resetAddForm(); }}
               className="text-dark-400 hover:text-white text-xs transition-colors"
             >
               Cancel
             </button>
           </div>
         </div>
+      )}
+
+      {/* Skill typeahead dropdown — portaled to body so it escapes any
+          parent's backdrop-blur stacking context (which otherwise traps
+          the popup behind sibling SectionCards on the detail pages). */}
+      {showAdd && !readOnly && skillDropdownOpen && skillAnchorRect && createPortal(
+        <div
+          data-skill-typeahead
+          style={{
+            position: 'fixed',
+            top: skillAnchorRect.top + 4,
+            left: skillAnchorRect.left,
+            width: skillAnchorRect.width,
+            zIndex: 1000,
+          }}
+          className="bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+        >
+          {showCreateOption && (
+            <button
+              type="button"
+              onClick={() => handleCreateSkill(skillQuery)}
+              disabled={creatingSkill}
+              className="w-full text-left px-3 py-2 text-xs text-rivvra-300 hover:bg-dark-700 border-b border-dark-700/50 flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {creatingSkill ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+              Create &ldquo;{skillQuery.trim()}&rdquo;
+            </button>
+          )}
+          {skillSuggestions.length === 0 && !showCreateOption && (
+            <div className="px-3 py-2 text-xs text-dark-500">
+              {skillQuery.trim() ? 'No matching skills' : 'Type to search'}
+            </div>
+          )}
+          {skillSuggestions.map((s) => (
+            <button
+              key={s._id}
+              type="button"
+              onClick={() => {
+                setSelectedSkillId(s._id);
+                setSelectedSkillName(s.name);
+                setSkillQuery(s.name);
+                setSkillDropdownOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0"
+            >
+              <div className="text-xs text-white">{s.name}</div>
+              {s.skillTypeName && <div className="text-[10px] text-dark-400">{s.skillTypeName}</div>}
+            </button>
+          ))}
+        </div>,
+        document.body,
       )}
 
       {/* Assigned skills display */}
