@@ -11,6 +11,7 @@ import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import InlineField from '../../components/shared/InlineField';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -230,6 +231,10 @@ export default function AtsApplicationDetail() {
   const appStatus = application?.applicationStatus || application?.status;
   const isTerminal = appStatus === 'hired' || appStatus === 'refused';
   const canEdit = isAdmin && !application?.archived && !isTerminal;
+  // People fields stay editable on `refused` apps too — only `hired` locks
+  // them, since changing the recruiter on a closed-loss record is a normal
+  // attribution correction. Mirrors the user request 2026-05-10.
+  const canEditPeople = isAdmin && !application?.archived && appStatus !== 'hired';
 
   // ── Fetch application ─────────────────────────────────────────────────
   const fetchApplication = useCallback(async () => {
@@ -313,6 +318,25 @@ export default function AtsApplicationDetail() {
       setApplication((prev) => ({ ...prev, ...res.application }));
     } else {
       setApplication((prev) => ({ ...prev, [field]: coerced }));
+    }
+  };
+
+  // savePerson — atomic update of an id + denormalized name pair (e.g.
+  // recruiterId + recruiterName). Mirrors AtsJobDetail.savePerson so the
+  // EmployeeLookup picker behaves identically across detail pages.
+  const savePerson = async (idField, nameField, id, name) => {
+    try {
+      const res = await atsApi.updateApplication(orgSlug, applicationId, {
+        [idField]: id || null,
+        [nameField]: name || '',
+      });
+      if (res?.application) {
+        setApplication((prev) => ({ ...prev, ...res.application }));
+      } else {
+        setApplication((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
+      }
+    } catch (err) {
+      showToast(err?.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
     }
   };
 
@@ -662,17 +686,32 @@ export default function AtsApplicationDetail() {
               )}
             </div>
             <InlineField label="Department" field="jobDepartment" value={application.jobDepartment} editable={false} />
-            <InlineField label="Recruiter" field="recruiterName" value={application.recruiterName} editable={false} />
-            <InlineField label="Account Owner" field="accountOwnerName" value={application.accountOwnerName} editable={false} />
-            <InlineField
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              label="Recruiter"
+              currentValue={application.recruiterId}
+              currentName={application.recruiterName}
+              editable={canEditPeople}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
+            />
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              label="Account Owner"
+              currentValue={application.accountOwnerId}
+              currentName={application.accountOwnerName}
+              editable={canEditPeople}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
+            />
+            <EmployeeLookup
+              orgSlug={orgSlug}
               label="Account Mgr."
-              field="accountManagerId"
-              value={application.accountManagerId}
-              type="select"
-              options={recruiterOptions}
-              editable={canEdit}
-              onSave={saveField}
-              displayValue={application.accountManagerName || undefined}
+              currentValue={application.accountManagerId}
+              currentName={application.accountManagerName}
+              editable={canEditPeople}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('accountManagerId', 'accountManagerName', id, name)}
             />
             <InlineField label="Employment" field="employmentType" value={application.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
             <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={canEdit} onSave={saveField} />
