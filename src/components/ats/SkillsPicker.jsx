@@ -33,8 +33,11 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
         atsApi.listSkillLevels(orgSlug),
       ]);
       if (assigned.success) setSkills(assigned.candidateSkills || assigned.skills || []);
-      if (master.success) setAllSkills(master.items || []);
-      if (levels.success) setSkillLevels((levels.items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
+      // GET /config/skills returns { skills } and /config/skill-levels returns
+      // { skillLevels }; the legacy `items` shape is kept as a fallback in case
+      // any future endpoint is added with that name.
+      if (master.success) setAllSkills(master.skills || master.items || []);
+      if (levels.success) setSkillLevels((levels.skillLevels || levels.items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
     } catch {
       showToast('Failed to load skills', 'error');
     } finally {

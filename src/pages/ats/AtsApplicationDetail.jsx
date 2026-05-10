@@ -674,16 +674,6 @@ export default function AtsApplicationDetail() {
               onSave={saveField}
               displayValue={application.accountManagerName || undefined}
             />
-            <InlineField
-              label="Submitted By"
-              field="submittedById"
-              value={application.submittedById}
-              type="select"
-              options={recruiterOptions}
-              editable={canEdit}
-              onSave={saveField}
-              displayValue={application.submittedByName || undefined}
-            />
             <InlineField label="Employment" field="employmentType" value={application.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
             <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={canEdit} onSave={saveField} />
             <InlineField
