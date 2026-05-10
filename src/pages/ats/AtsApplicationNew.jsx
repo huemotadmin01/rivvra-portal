@@ -494,7 +494,10 @@ export default function AtsApplicationNew() {
           </div>
 
           {/* ── Sticky bottom action bar ─────────────────────────── */}
-          <div className="fixed bottom-0 left-0 right-0 border-t border-dark-800/80 bg-dark-950/85 backdrop-blur-md z-20">
+          {/* Sidebar is fixed w-64 left-0 on lg+, so the bar starts at
+              lg:left-64 to avoid hiding behind it. On mobile the sidebar
+              is offscreen so left-0 is correct. */}
+          <div className="fixed bottom-0 left-0 lg:left-64 right-0 border-t border-dark-800/80 bg-dark-950/85 backdrop-blur-md z-20">
             <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center justify-between gap-4">
               <p className="text-xs text-dark-500 hidden md:block">
                 {canSubmit
