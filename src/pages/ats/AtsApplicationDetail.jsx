@@ -21,7 +21,7 @@ import {
   XCircle, Award,
   ExternalLink,
   PenTool, FileSignature, UserPlus, UserCheck,
-  DollarSign,
+  DollarSign, Mail, Building2, Hash, IdCard,
   Archive, ArchiveRestore, MoreHorizontal, Trash2,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
@@ -285,15 +285,58 @@ function HireModal({ show, onClose, onConfirm, saving }) {
   );
 }
 
-/* ── Create Employee Drawer (P0.1, 2026-05-10) ───────────────────────────
- * Step 2 of the Hire flow. Pre-fills from application + offer subdoc;
- * HR fills work email, manager, internal company, billable, optional
- * department/designation/employeeCode.
+/* ── Create Employee Drawer (P0.1, 2026-05-10; redesigned 2026-05-10 v2) ─
+ * Step 2 of the Hire flow. Pre-fills from application + offer subdoc.
+ * v2 fixes:
+ *   - EmployeeLookup variant changed from 'row' (which renders an inner
+ *     "Manager" label that duplicates the outer "Reporting manager" label)
+ *     to 'inline' (just the value cell, label-less).
+ *   - EmployeeLookup onSelect signature is (id, name) — not (employee
+ *     object). The original v1 code passed `(emp) => emp._id` which was
+ *     reading _id off of a string and silently storing nothing, leaving
+ *     the form un-submittable. Caught while user-testing on Vinay Belsare.
+ *   - Modal widened (max-w-3xl) so dropdown overflow no longer obscures
+ *     adjacent fields. Sticky footer keeps the action buttons visible
+ *     when fields scroll on shorter viewports.
+ *   - Sectioned visual hierarchy (Identity / Placement / Engagement)
+ *     via tinted card surfaces with section icons.
  */
+function FormSection({ icon: Icon, title, hint, children }) {
+  return (
+    <div className="rounded-lg border border-dark-700/70 bg-dark-900/40 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center justify-center w-6 h-6 rounded-md bg-rivvra-500/10 text-rivvra-300">
+          <Icon size={13} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-dark-200">{title}</h4>
+          {hint && <p className="text-[11px] text-dark-500 mt-0.5">{hint}</p>}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FieldLabel({ children, required, hint }) {
+  return (
+    <label className="block mb-1.5">
+      <span className="text-xs font-medium text-dark-300">
+        {children}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </span>
+      {hint && <span className="text-[11px] text-dark-500 ml-2">{hint}</span>}
+    </label>
+  );
+}
+
 function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, companies, orgSlug }) {
   const personalEmail = application?.email || '';
   const defaultCompanyId = companies && companies[0] ? String(companies[0]._id) : '';
-  const defaultDesignation = application?.jobPositionName || '';
+  // Strip a trailing requisition suffix like " - 1R" / " - CM" from the
+  // job position name so the default Designation reads cleanly. HR can
+  // still edit if our heuristic is wrong (B4 mitigation).
+  const rawJobName = application?.jobPositionName || '';
+  const defaultDesignation = rawJobName.replace(/\s+-\s+[A-Za-z0-9]{1,4}\s*$/, '').trim() || rawJobName;
 
   const [workEmail, setWorkEmail] = useState('');
   const [managerId, setManagerId] = useState('');
@@ -326,7 +369,7 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
     const errs = {};
     if (!workEmail.trim()) errs.workEmail = 'Required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(workEmail.trim())) errs.workEmail = 'Invalid email';
-    if (!managerId) errs.managerId = 'Required';
+    if (!managerId) errs.managerId = 'Pick a reporting manager';
     if (!internalCompanyId) errs.internalCompanyId = 'Required';
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -344,82 +387,166 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
     >
-      <form role="dialog" aria-modal="true" onSubmit={handleSubmit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-lg font-semibold text-white">Create Employee</h3>
-            <p className="text-xs text-dark-400 mt-0.5">From application: {application?.candidateName || 'Candidate'} · {personalEmail || '—'}</p>
+      <form
+        role="dialog"
+        aria-modal="true"
+        onSubmit={handleSubmit}
+        className="bg-dark-850 rounded-2xl border border-dark-700 shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-dark-700/70 bg-gradient-to-b from-purple-500/[0.04] to-transparent">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/15 text-purple-300 flex-shrink-0">
+              <UserPlus size={18} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-white">Create Employee</h3>
+              <p className="text-xs text-dark-400 mt-0.5 truncate">
+                From application <span className="text-dark-200 font-medium">{application?.candidateName || 'Candidate'}</span>
+                {personalEmail && <> · <span className="font-mono">{personalEmail}</span></>}
+              </p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0">
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-dark-300 mb-1">Work email <span className="text-red-400">*</span></label>
-            <input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} placeholder="firstname.lastname@huemot.com" className="input-field" required />
-            {errors.workEmail && <p className="text-xs text-red-400 mt-1">{errors.workEmail}</p>}
-            {personalEmail && (
-              <p className="text-xs text-dark-500 mt-1">Personal email <span className="font-mono">{personalEmail}</span> will be saved as Private Email.</p>
-            )}
-          </div>
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {/* Identity */}
+          <FormSection icon={Mail} title="Identity" hint="How this employee will sign in and be addressed">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <FieldLabel required>Work email</FieldLabel>
+                <input
+                  type="email"
+                  value={workEmail}
+                  onChange={(e) => setWorkEmail(e.target.value)}
+                  placeholder="firstname.lastname@huemot.com"
+                  className="input-field"
+                  required
+                />
+                {errors.workEmail && <p className="text-xs text-red-400 mt-1">{errors.workEmail}</p>}
+                {personalEmail && (
+                  <p className="text-[11px] text-dark-500 mt-1.5 flex items-center gap-1.5">
+                    <IdCard size={11} /> Personal email <span className="font-mono text-dark-400">{personalEmail}</span> will be kept as Private Email.
+                  </p>
+                )}
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Reporting manager <span className="text-red-400">*</span></label>
-            <EmployeeLookup
-              orgSlug={orgSlug}
-              currentValue={managerId}
-              currentName={managerName}
-              onSelect={(emp) => { setManagerId(emp?._id || ''); setManagerName(emp?.fullName || ''); }}
-              editable
-              variant="row"
-              label="Manager"
-              placeholder="Search by name…"
-              allowClear
-            />
-            {errors.managerId && <p className="text-xs text-red-400 mt-1">{errors.managerId}</p>}
-          </div>
+              <div className="col-span-2 sm:col-span-1">
+                <FieldLabel hint="auto-generated if blank">Employee code</FieldLabel>
+                <div className="relative">
+                  <Hash size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={employeeCode}
+                    onChange={(e) => setEmployeeCode(e.target.value)}
+                    placeholder="e.g. 11332247"
+                    className="input-field pl-8"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Internal company <span className="text-red-400">*</span></label>
-            <select value={internalCompanyId} onChange={(e) => setInternalCompanyId(e.target.value)} className="input-field" required>
-              <option value="">Select…</option>
-              {(companies || []).map((c) => (
-                <option key={c._id} value={String(c._id)}>{c.name || c.code || String(c._id)}</option>
-              ))}
-            </select>
-            {errors.internalCompanyId && <p className="text-xs text-red-400 mt-1">{errors.internalCompanyId}</p>}
-          </div>
+              <div className="col-span-2 sm:col-span-1 flex items-end">
+                <label htmlFor="billable-toggle" className="flex items-center gap-2.5 cursor-pointer w-full px-3 py-2 rounded-md bg-dark-800/60 border border-dark-700 hover:border-dark-600 transition-colors">
+                  <input
+                    id="billable-toggle"
+                    type="checkbox"
+                    checked={billable}
+                    onChange={(e) => setBillable(e.target.checked)}
+                    className="w-4 h-4 rounded border-dark-600 bg-dark-900 accent-rivvra-500"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs text-dark-200 font-medium">Billable</div>
+                    <div className="text-[11px] text-dark-500">Contractor / consultant</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </FormSection>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Designation</label>
-            <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. SOC2 Compliance Analyst" className="input-field" />
-            <p className="text-xs text-dark-500 mt-1">Edit out the requisition suffix (e.g. " - 1R") if present.</p>
-          </div>
+          {/* Org placement */}
+          <FormSection icon={Building2} title="Org placement" hint="Where this person sits in the org">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 sm:col-span-1">
+                <FieldLabel required>Reporting manager</FieldLabel>
+                <div className="rounded-md border border-dark-700 bg-dark-900/60 px-2.5 py-1.5 hover:border-dark-600 focus-within:border-rivvra-500 transition-colors">
+                  <EmployeeLookup
+                    orgSlug={orgSlug}
+                    currentValue={managerId}
+                    currentName={managerName}
+                    onSelect={(id, name) => { setManagerId(id || ''); setManagerName(name || ''); }}
+                    editable
+                    variant="inline"
+                    placeholder="Search employees by name…"
+                    allowClear
+                  />
+                </div>
+                {errors.managerId && <p className="text-xs text-red-400 mt-1">{errors.managerId}</p>}
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Department</label>
-            <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Inherited from job if blank" className="input-field" />
-          </div>
+              <div className="col-span-2 sm:col-span-1">
+                <FieldLabel required>Internal company</FieldLabel>
+                <select
+                  value={internalCompanyId}
+                  onChange={(e) => setInternalCompanyId(e.target.value)}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Select…</option>
+                  {(companies || []).map((c) => (
+                    <option key={c._id} value={String(c._id)}>{c.name || c.code || String(c._id)}</option>
+                  ))}
+                </select>
+                {errors.internalCompanyId && <p className="text-xs text-red-400 mt-1">{errors.internalCompanyId}</p>}
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Employee code <span className="text-dark-500 font-normal">(optional)</span></label>
-            <input type="text" value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="Auto-generated if blank" className="input-field" />
-          </div>
+              <div className="col-span-2 sm:col-span-1">
+                <FieldLabel hint="from the job, editable">Designation</FieldLabel>
+                <input
+                  type="text"
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                  placeholder="e.g. SOC2 Compliance Analyst"
+                  className="input-field"
+                />
+              </div>
 
-          <div className="col-span-2 flex items-center gap-2 pt-2">
-            <input id="billable-toggle" type="checkbox" checked={billable} onChange={(e) => setBillable(e.target.checked)} className="w-4 h-4 rounded border-dark-600 bg-dark-900 text-rivvra-500" />
-            <label htmlFor="billable-toggle" className="text-sm text-dark-300">Billable employee (contractor / consultant)</label>
-          </div>
+              <div className="col-span-2 sm:col-span-1">
+                <FieldLabel hint="inherits from job if blank">Department</FieldLabel>
+                <input
+                  type="text"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  placeholder="e.g. IT, Recruitment, Sales"
+                  className="input-field"
+                />
+              </div>
+            </div>
+          </FormSection>
         </div>
 
-        <div className="flex items-center gap-3 mt-6">
-          <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
-          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
-            {saving && <Loader2 size={16} className="animate-spin" />}
+        {/* Sticky footer */}
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-dark-700/70 bg-dark-900/30">
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex items-center justify-center gap-2 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/40 rounded-lg px-5 py-2 text-sm font-semibold transition-colors disabled:opacity-50 min-w-[160px]"
+          >
+            {saving && <Loader2 size={15} className="animate-spin" />}
             Create Employee
           </button>
         </div>
