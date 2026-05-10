@@ -110,31 +110,320 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving }) {
   );
 }
 
-/* ── Hire Confirm Modal ───────────────────────────────────────────────── */
+/* ── Confirm Hire Modal (P0.1, 2026-05-10) ────────────────────────────────
+ * Two-step Hire flow per Q4-B + Q9 contract:
+ *   Step 1 (this modal): captures offer-acceptance data so the resulting
+ *                        Application.offer subdoc isn't empty (bug B1).
+ *   Step 2 (CreateEmployeeDrawer): HR-side fields when promoting to Employee.
+ *
+ * signedOfferDocId is intentionally optional in v1 (Q9.2-C) — many IN
+ * contract hires don't have a signed PDF day-1; we surface a soft warning
+ * after submit instead of hard-blocking.
+ */
 function HireModal({ show, onClose, onConfirm, saving }) {
+  // Default joining date = today (HR can pick any future date)
+  const today = new Date().toISOString().slice(0, 10);
+  const [joiningDate, setJoiningDate] = useState(today);
+  const [currency, setCurrency] = useState('INR'); // Q9.1-B default; override per offer
+  const [amount, setAmount] = useState('');
+  const [noticePeriodDays, setNoticePeriodDays] = useState('30');
+  const [probationMonths, setProbationMonths] = useState('6');
+  const [signedOfferDocId, setSignedOfferDocId] = useState('');
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (show) {
+      // Reset to defaults each time the modal opens
+      setJoiningDate(today);
+      setCurrency('INR');
+      setAmount('');
+      setNoticePeriodDays('30');
+      setProbationMonths('6');
+      setSignedOfferDocId('');
+      setErrors({});
+    }
+  }, [show, today]);
+
   if (!show) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const errs = {};
+    const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+    const jd = new Date(joiningDate);
+    if (!joiningDate || isNaN(jd.getTime())) errs.joiningDate = 'Required';
+    else if (jd < todayMidnight) errs.joiningDate = 'Cannot be in the past';
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) errs.amount = 'Must be > 0';
+    const np = Number(noticePeriodDays);
+    if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
+    const pm = Number(probationMonths);
+    if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    onConfirm({
+      offer: {
+        joiningDate,
+        offeredCTC: { currency, amount: amt },
+        noticePeriodDays: np,
+        probationMonths: pm,
+        signedOfferDocId: signedOfferDocId.trim() || null,
+      },
+    });
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
     >
-      <div role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
+      <form
+        role="dialog"
+        aria-modal="true"
+        onSubmit={handleSubmit}
+        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-xl"
+      >
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-semibold text-white">Hire Candidate</h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Confirm Hire</h3>
+            <p className="text-xs text-dark-400 mt-0.5">Capture offer details before marking as hired</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
         </div>
-        <p className="text-dark-300 text-sm mb-6">
-          Mark this candidate as hired? This will update their application status.
-        </p>
-        <div className="flex items-center gap-3">
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-dark-300 mb-1">Joining date <span className="text-red-400">*</span></label>
+            <input
+              type="date"
+              value={joiningDate}
+              onChange={(e) => setJoiningDate(e.target.value)}
+              min={today}
+              className="input-field"
+              required
+            />
+            {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Currency</label>
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input-field">
+              <option value="INR">INR</option>
+              <option value="USD">USD</option>
+              <option value="CAD">CAD</option>
+              <option value="GBP">GBP</option>
+              <option value="EUR">EUR</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Offered CTC (annual) <span className="text-red-400">*</span></label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 1200000"
+              className="input-field"
+              required
+            />
+            {errors.amount && <p className="text-xs text-red-400 mt-1">{errors.amount}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Notice period (days) <span className="text-red-400">*</span></label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={noticePeriodDays}
+              onChange={(e) => setNoticePeriodDays(e.target.value)}
+              className="input-field"
+            />
+            {errors.noticePeriodDays && <p className="text-xs text-red-400 mt-1">{errors.noticePeriodDays}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Probation (months)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={probationMonths}
+              onChange={(e) => setProbationMonths(e.target.value)}
+              className="input-field"
+            />
+            {errors.probationMonths && <p className="text-xs text-red-400 mt-1">{errors.probationMonths}</p>}
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-dark-300 mb-1">Signed offer document id <span className="text-dark-500 font-normal">(optional)</span></label>
+            <input
+              type="text"
+              value={signedOfferDocId}
+              onChange={(e) => setSignedOfferDocId(e.target.value)}
+              placeholder="Attachment id from this application's documents (leave blank for now)"
+              className="input-field"
+            />
+            <p className="text-xs text-dark-500 mt-1">If blank, the application will show a "signed offer missing" warning until added.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mt-6">
           <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
-          <button onClick={onConfirm} disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
             {saving && <Loader2 size={16} className="animate-spin" />}
             Confirm Hire
           </button>
         </div>
-      </div>
+      </form>
+    </div>
+  );
+}
+
+/* ── Create Employee Drawer (P0.1, 2026-05-10) ───────────────────────────
+ * Step 2 of the Hire flow. Pre-fills from application + offer subdoc;
+ * HR fills work email, manager, internal company, billable, optional
+ * department/designation/employeeCode.
+ */
+function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, companies, orgSlug }) {
+  const personalEmail = application?.email || '';
+  const defaultCompanyId = companies && companies[0] ? String(companies[0]._id) : '';
+  const defaultDesignation = application?.jobPositionName || '';
+
+  const [workEmail, setWorkEmail] = useState('');
+  const [managerId, setManagerId] = useState('');
+  const [managerName, setManagerName] = useState('');
+  const [internalCompanyId, setInternalCompanyId] = useState(defaultCompanyId);
+  const [billable, setBillable] = useState(false);
+  const [designation, setDesignation] = useState(defaultDesignation);
+  const [department, setDepartment] = useState('');
+  const [employeeCode, setEmployeeCode] = useState('');
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (show) {
+      setWorkEmail('');
+      setManagerId('');
+      setManagerName('');
+      setInternalCompanyId(defaultCompanyId);
+      setBillable(false);
+      setDesignation(defaultDesignation);
+      setDepartment('');
+      setEmployeeCode('');
+      setErrors({});
+    }
+  }, [show, defaultCompanyId, defaultDesignation]);
+
+  if (!show) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!workEmail.trim()) errs.workEmail = 'Required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(workEmail.trim())) errs.workEmail = 'Invalid email';
+    if (!managerId) errs.managerId = 'Required';
+    if (!internalCompanyId) errs.internalCompanyId = 'Required';
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    onConfirm({
+      workEmail: workEmail.trim(),
+      managerId,
+      internalCompanyId,
+      billable,
+      designation: designation.trim() || null,
+      department: department.trim() || null,
+      employeeCode: employeeCode.trim() || null,
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <form role="dialog" aria-modal="true" onSubmit={handleSubmit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Create Employee</h3>
+            <p className="text-xs text-dark-400 mt-0.5">From application: {application?.candidateName || 'Candidate'} · {personalEmail || '—'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-dark-300 mb-1">Work email <span className="text-red-400">*</span></label>
+            <input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} placeholder="firstname.lastname@huemot.com" className="input-field" required />
+            {errors.workEmail && <p className="text-xs text-red-400 mt-1">{errors.workEmail}</p>}
+            {personalEmail && (
+              <p className="text-xs text-dark-500 mt-1">Personal email <span className="font-mono">{personalEmail}</span> will be saved as Private Email.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Reporting manager <span className="text-red-400">*</span></label>
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              currentValue={managerId}
+              currentName={managerName}
+              onSelect={(emp) => { setManagerId(emp?._id || ''); setManagerName(emp?.fullName || ''); }}
+              editable
+              variant="row"
+              label="Manager"
+              placeholder="Search by name…"
+              allowClear
+            />
+            {errors.managerId && <p className="text-xs text-red-400 mt-1">{errors.managerId}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Internal company <span className="text-red-400">*</span></label>
+            <select value={internalCompanyId} onChange={(e) => setInternalCompanyId(e.target.value)} className="input-field" required>
+              <option value="">Select…</option>
+              {(companies || []).map((c) => (
+                <option key={c._id} value={String(c._id)}>{c.name || c.code || String(c._id)}</option>
+              ))}
+            </select>
+            {errors.internalCompanyId && <p className="text-xs text-red-400 mt-1">{errors.internalCompanyId}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Designation</label>
+            <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. SOC2 Compliance Analyst" className="input-field" />
+            <p className="text-xs text-dark-500 mt-1">Edit out the requisition suffix (e.g. " - 1R") if present.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Department</label>
+            <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Inherited from job if blank" className="input-field" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Employee code <span className="text-dark-500 font-normal">(optional)</span></label>
+            <input type="text" value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="Auto-generated if blank" className="input-field" />
+          </div>
+
+          <div className="col-span-2 flex items-center gap-2 pt-2">
+            <input id="billable-toggle" type="checkbox" checked={billable} onChange={(e) => setBillable(e.target.checked)} className="w-4 h-4 rounded border-dark-600 bg-dark-900 text-rivvra-500" />
+            <label htmlFor="billable-toggle" className="text-sm text-dark-300">Billable employee (contractor / consultant)</label>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mt-6">
+          <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
+          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            Create Employee
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -188,7 +477,7 @@ const EVAL_OPTIONS = [
 export default function AtsApplicationDetail() {
   const { applicationId } = useParams();
   const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companies } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -215,6 +504,10 @@ export default function AtsApplicationDetail() {
   // Modal / action UI state
   const [showRefuseModal, setShowRefuseModal] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
+  // P0.1 (2026-05-10): Create Employee is now a pre-filled drawer (Q4-B step 2),
+  // not a one-click action. Old immediate-create behaviour produced empty
+  // employee records (bug B2).
+  const [showCreateEmpDrawer, setShowCreateEmpDrawer] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [actionSaving, setActionSaving] = useState(false);
   const [creatingEmployee, setCreatingEmployee] = useState(false);
@@ -369,15 +662,28 @@ export default function AtsApplicationDetail() {
     }
   };
 
-  const handleHire = async () => {
+  const handleHire = async (payload) => {
     try {
       setActionSaving(true);
-      await atsApi.hireApplication(orgSlug, applicationId);
-      showToast('Candidate hired!');
+      const res = await atsApi.hireApplication(orgSlug, applicationId, payload);
+      const warns = Array.isArray(res?.warnings) ? res.warnings : [];
+      if (warns.includes('signed_offer_missing')) {
+        showToast('Hired — remember to attach the signed offer.', 'warning');
+      } else {
+        showToast('Candidate hired!');
+      }
       setShowHireModal(false);
       fetchApplication();
     } catch (err) {
-      showToast(err.message || 'Failed to hire candidate', 'error');
+      // Surface field-level errors from the API contract (P0.1)
+      const fields = err?.fieldErrors;
+      if (fields && typeof fields === 'object') {
+        const first = Object.entries(fields)[0];
+        if (first) showToast(`${first[0]}: ${first[1]}`, 'error');
+        else showToast(err.message || 'Failed to hire candidate', 'error');
+      } else {
+        showToast(err.message || 'Failed to hire candidate', 'error');
+      }
     } finally {
       setActionSaving(false);
     }
@@ -418,16 +724,24 @@ export default function AtsApplicationDetail() {
     }
   };
 
-  const handleCreateEmployee = async () => {
+  const handleCreateEmployeeConfirm = async (payload) => {
     try {
       setCreatingEmployee(true);
-      const res = await atsApi.createEmployeeFromApplication(orgSlug, applicationId);
+      const res = await atsApi.createEmployeeFromApplication(orgSlug, applicationId, payload);
       if (res.success) {
         showToast(res.existing ? 'Linked to existing employee' : `Employee "${res.employeeName}" created!`);
+        setShowCreateEmpDrawer(false);
         fetchApplication();
       }
     } catch (err) {
-      showToast(err.message || 'Failed to create employee', 'error');
+      const fields = err?.fieldErrors;
+      if (fields && typeof fields === 'object') {
+        const first = Object.entries(fields)[0];
+        if (first) showToast(`${first[0]}: ${first[1]}`, 'error');
+        else showToast(err.message || 'Failed to create employee', 'error');
+      } else {
+        showToast(err.message || 'Failed to create employee', 'error');
+      }
     } finally {
       setCreatingEmployee(false);
     }
@@ -539,11 +853,10 @@ export default function AtsApplicationDetail() {
             )}
             {application.hireDate && !application.employeeId && (
               <button
-                onClick={handleCreateEmployee}
-                disabled={creatingEmployee}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 disabled:opacity-50"
+                onClick={() => setShowCreateEmpDrawer(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
               >
-                {creatingEmployee ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                <UserPlus size={14} />
                 Create Employee
               </button>
             )}
@@ -887,6 +1200,15 @@ export default function AtsApplicationDetail() {
         onClose={() => setShowHireModal(false)}
         onConfirm={handleHire}
         saving={actionSaving}
+      />
+      <CreateEmployeeDrawer
+        show={showCreateEmpDrawer}
+        onClose={() => setShowCreateEmpDrawer(false)}
+        onConfirm={handleCreateEmployeeConfirm}
+        saving={creatingEmployee}
+        application={application}
+        companies={companies}
+        orgSlug={orgSlug}
       />
     </div>
   );

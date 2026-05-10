@@ -136,15 +136,23 @@ const atsApi = {
     });
   },
 
-  hireApplication(orgSlug, id) {
+  // P0.1 (2026-05-10): /hire now requires offer-acceptance data.
+  //   payload: { offer: { joiningDate, offeredCTC: {currency, amount},
+  //                       noticePeriodDays, probationMonths, signedOfferDocId? } }
+  hireApplication(orgSlug, id, payload) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}/hire`, {
       method: 'PATCH',
+      body: JSON.stringify(payload || {}),
     });
   },
 
-  createEmployeeFromApplication(orgSlug, id) {
+  // P0.1 (2026-05-10): /create-employee now requires HR-side fields.
+  //   payload: { workEmail, managerId, internalCompanyId, billable,
+  //              department?, designation?, employeeCode? }
+  createEmployeeFromApplication(orgSlug, id, payload) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}/create-employee`, {
       method: 'POST',
+      body: JSON.stringify(payload || {}),
     });
   },
 
