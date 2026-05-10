@@ -334,10 +334,15 @@ const atsApi = {
   listAttachments(orgSlug, applicationId) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/attachments`);
   },
-  uploadAttachment(orgSlug, applicationId, file, isResume = false) {
+  // Phase-1 / Q14 (2026-05-10): optional `kind` slug ties an upload to
+  // a stage-attachment requirement (e.g. 'screening_evidence',
+  // 'hr_discussion_evidence'). The API rejects unknown slugs so a typo
+  // can't silently bypass the gate.
+  uploadAttachment(orgSlug, applicationId, file, isResume = false, kind = null) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('isResume', String(isResume));
+    if (kind) formData.append('kind', kind);
     return api.uploadFile(`/api/org/${orgSlug}/ats/applications/${applicationId}/attachments`, formData);
   },
   toggleResume(orgSlug, attachmentId) {

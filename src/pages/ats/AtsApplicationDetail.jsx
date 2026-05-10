@@ -675,6 +675,110 @@ function BackwardMoveReasonModal({ show, onClose, onConfirm, saving, fromStage, 
   );
 }
 
+/* ── Attachment Upload Modal (Phase-1 / Q14+Q15, 2026-05-10) ──────────────
+ * Fires when the API rejects a stage move with requiresAttachment: true.
+ * The error response carries `missingAttachments: [{ slug, label, mime,
+ * maxSizeMb }, ...]` — one item per missing kind. v1 handles a single
+ * required attachment per stage (which is all Huemot needs day-1); the
+ * UX naturally extends to multiple by stacking modals.
+ *
+ * On upload: POSTs to /attachments with the right kind slug, then the
+ * parent re-fires the original stage transition.
+ */
+function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageName, missingAttachment }) {
+  const [file, setFile] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { if (show) { setFile(null); setError(''); } }, [show]);
+  if (!show || !missingAttachment) return null;
+
+  const acceptAttr = missingAttachment.mime === 'image/*' ? 'image/*'
+    : missingAttachment.mime === 'application/pdf' ? '.pdf,application/pdf'
+    : missingAttachment.mime || undefined;
+  const maxBytes = missingAttachment.maxSizeMb ? missingAttachment.maxSizeMb * 1024 * 1024 : null;
+
+  const handleFile = (f) => {
+    if (!f) { setFile(null); return; }
+    if (maxBytes && f.size > maxBytes) {
+      setError(`File is larger than ${missingAttachment.maxSizeMb} MB`);
+      setFile(null);
+      return;
+    }
+    setError('');
+    setFile(f);
+  };
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (!file) { setError('Pick a file to upload'); return; }
+    onConfirm(file);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Upload required document</h3>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {targetStageName
+                ? <>Required to move to <span className="text-dark-200">{targetStageName}</span>:</>
+                : 'Required to advance:'}
+              {' '}<span className="text-rivvra-300">{missingAttachment.label}</span>
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
+        </div>
+
+        <label className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+          file ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-dark-600 bg-dark-900/40 hover:border-dark-500'
+        }`}>
+          <input
+            type="file"
+            accept={acceptAttr}
+            onChange={(e) => handleFile(e.target.files?.[0] || null)}
+            className="hidden"
+          />
+          {file ? (
+            <div>
+              <FileText size={20} className="mx-auto text-emerald-400 mb-1.5" />
+              <div className="text-sm text-white font-medium">{file.name}</div>
+              <div className="text-xs text-dark-400 mt-0.5">
+                {(file.size / 1024 / 1024).toFixed(2)} MB · click to choose a different file
+              </div>
+            </div>
+          ) : (
+            <div>
+              <UserPlus size={20} className="mx-auto text-dark-500 mb-1.5" />
+              <div className="text-sm text-dark-300">Click or drag a file here</div>
+              <div className="text-xs text-dark-500 mt-1">
+                {missingAttachment.mime || 'Any type'}
+                {missingAttachment.maxSizeMb ? ` · max ${missingAttachment.maxSizeMb} MB` : ''}
+              </div>
+            </div>
+          )}
+        </label>
+        {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+
+        <div className="flex items-center gap-3 mt-5">
+          <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
+          <button
+            type="submit"
+            disabled={saving || !file}
+            className="flex-1 flex items-center justify-center gap-2 bg-rivvra-500/15 hover:bg-rivvra-500/25 text-rivvra-300 border border-rivvra-500/40 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            Upload &amp; advance
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* ── Move-to-Stage Dropdown ───────────────────────────────────────────── */
 function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect }) {
   return (
@@ -764,6 +868,12 @@ export default function AtsApplicationDetail() {
   // success handler can retry with the captured reason.
   //   { stageId, fromStageName, toStageName } | null
   const [pendingBackwardMove, setPendingBackwardMove] = useState(null);
+  // Phase-1 / Q14+Q15 (2026-05-10): when a forward move is blocked
+  // because the target stage requires a document the application
+  // doesn't have yet, open the AttachmentUploadModal pre-loaded with
+  // the missing kind. After upload, re-fire the original transition.
+  //   { stageId, targetStageName, missingAttachment } | null
+  const [pendingAttachmentMove, setPendingAttachmentMove] = useState(null);
   // P0.1 (2026-05-10): Create Employee is now a pre-filled drawer (Q4-B step 2),
   // not a one-click action. Old immediate-create behaviour produced empty
   // employee records (bug B2).
@@ -922,6 +1032,18 @@ export default function AtsApplicationDetail() {
         });
         return;
       }
+      // Phase-1 / Q14+Q15: forward move blocked because the target
+      // stage requires a document this application doesn't have.
+      // Open the upload modal pre-loaded with the missing kind label,
+      // then re-fire the move once the upload succeeds.
+      if (err?.requiresAttachment && Array.isArray(err.missingAttachments) && err.missingAttachments.length > 0) {
+        setPendingAttachmentMove({
+          stageId,
+          targetStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
+          missingAttachment: err.missingAttachments[0],
+        });
+        return;
+      }
       // P0.2 hard-gate handling. When the API blocks a transition into
       // Offer Proposal / Offer Signed because the offer subdoc is
       // missing fields, open the HireModal in 'offer' mode pre-filled
@@ -1014,6 +1136,36 @@ export default function AtsApplicationDetail() {
       } else {
         showToast(err.message || `Failed to ${verb}`, 'error');
       }
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  // Phase-1 / Q14+Q15 (2026-05-10): upload the missing required
+  // attachment and re-fire the original stage transition. The upload
+  // tags the file with the kind slug from missingAttachment so the
+  // re-fire passes the gate.
+  const handleAttachmentUpload = async (file) => {
+    if (!pendingAttachmentMove) return;
+    const { stageId, missingAttachment } = pendingAttachmentMove;
+    try {
+      setActionSaving(true);
+      await atsApi.uploadAttachment(orgSlug, applicationId, file, false, missingAttachment.slug);
+      showToast(`${missingAttachment.label} uploaded`);
+      setPendingAttachmentMove(null);
+      try {
+        await atsApi.moveStage(orgSlug, applicationId, stageId);
+        showToast('Stage updated');
+      } catch (retryErr) {
+        // Should be rare — gate just passed. If a different gate now
+        // trips (e.g. Offer Proposal also needs the offer subdoc),
+        // the original handleMoveStage error-routing logic catches
+        // it and opens the right modal next.
+        showToast(retryErr.message || 'Stage move failed after upload', 'error');
+      }
+      fetchApplication();
+    } catch (err) {
+      showToast(err.message || 'Upload failed', 'error');
     } finally {
       setActionSaving(false);
     }
@@ -1551,6 +1703,14 @@ export default function AtsApplicationDetail() {
         saving={actionSaving}
         fromStage={pendingBackwardMove?.fromStageName}
         toStage={pendingBackwardMove?.toStageName}
+      />
+      <AttachmentUploadModal
+        show={!!pendingAttachmentMove}
+        onClose={() => setPendingAttachmentMove(null)}
+        onConfirm={handleAttachmentUpload}
+        saving={actionSaving}
+        targetStageName={pendingAttachmentMove?.targetStageName}
+        missingAttachment={pendingAttachmentMove?.missingAttachment}
       />
     </div>
   );
