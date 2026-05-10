@@ -265,7 +265,12 @@ export default function InlineField({
           <select
             ref={inputRef}
             value={editVal}
-            onChange={e => { setEditVal(e.target.value); }}
+            // Save immediately on pick. Native select keeps focus after the
+            // dropdown closes, so onBlur-only saving forced users to click
+            // elsewhere before the change committed — felt like editing was
+            // broken (esp. for the evaluation rating on ATS app/candidate
+            // detail). Mirrors the toggle/employee-picker save-on-change UX.
+            onChange={e => { setEditVal(e.target.value); save(e.target.value); }}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             className="flex-1 bg-dark-900 border border-dark-600 rounded px-2 py-1.5 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"

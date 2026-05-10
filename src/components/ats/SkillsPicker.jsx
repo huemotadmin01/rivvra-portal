@@ -32,7 +32,7 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
         atsApi.listSkills(orgSlug),
         atsApi.listSkillLevels(orgSlug),
       ]);
-      if (assigned.success) setSkills(assigned.skills || []);
+      if (assigned.success) setSkills(assigned.candidateSkills || assigned.skills || []);
       if (master.success) setAllSkills(master.items || []);
       if (levels.success) setSkillLevels((levels.items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
     } catch {
