@@ -8,6 +8,8 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
+import SkillsPicker from '../../components/ats/SkillsPicker';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
   Award, Archive, ArchiveRestore, Briefcase,
@@ -116,6 +118,25 @@ export default function AtsCandidateDetail() {
       setCandidate(res.candidate);
     } else {
       setCandidate((prev) => ({ ...prev, [field]: coerced }));
+    }
+  };
+
+  // savePerson — atomic update of an id + denormalized name pair (e.g.
+  // managerId + managerName). Mirrors AtsApplicationDetail.savePerson so
+  // the EmployeeLookup picker behaves identically across detail pages.
+  const savePerson = async (idField, nameField, id, name) => {
+    try {
+      const res = await atsApi.updateCandidate(slug, candidateId, {
+        [idField]: id || null,
+        [nameField]: name || '',
+      });
+      if (res?.candidate) {
+        setCandidate(res.candidate);
+      } else {
+        setCandidate((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
+      }
+    } catch (err) {
+      showToast(err?.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
     }
   };
 
@@ -250,22 +271,11 @@ export default function AtsCandidateDetail() {
             />
           </SectionCard>
 
-          {/* Skills — read-only here. Per-skill add/remove lives on the
-              dedicated skills sub-routes; this card just summarises. */}
+          {/* Skills — same SkillsPicker the application detail uses, so
+              admins can add/remove skills inline without bouncing to a
+              separate sub-route. Read-only when canEdit is false. */}
           <SectionCard title="Skills" icon={Award}>
-            {skills.length === 0 ? (
-              <p className="text-dark-500 text-sm py-2">No skills recorded.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2 py-2">
-                {skills.map((s, i) => (
-                  <span key={s._id || i} className="bg-dark-700 text-dark-200 text-sm px-3 py-1 rounded-full">
-                    {s.skillName || s.name}
-                    {s.skillLevelName && <span className="text-dark-500 ml-1">· {s.skillLevelName}</span>}
-                    {s.proficiency && <span className="text-dark-500 ml-1">· {s.proficiency}</span>}
-                  </span>
-                ))}
-              </div>
-            )}
+            <SkillsPicker orgSlug={slug} candidateId={candidateId} readOnly={!canEdit} />
           </SectionCard>
 
           {/* Applications */}
@@ -315,15 +325,14 @@ export default function AtsCandidateDetail() {
         {/* Sidebar */}
         <div className="space-y-5">
           <SectionCard title="Owner" icon={UserCheck}>
-            <InlineField
+            <EmployeeLookup
+              orgSlug={slug}
               label="Manager"
-              field="managerId"
-              value={candidate.managerId}
-              type="select"
-              options={recruiterOptions}
+              currentValue={candidate.managerId}
+              currentName={candidate.managerName}
               editable={canEdit}
-              onSave={saveField}
-              displayValue={candidate.managerName || undefined}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('managerId', 'managerName', id, name)}
             />
           </SectionCard>
 
