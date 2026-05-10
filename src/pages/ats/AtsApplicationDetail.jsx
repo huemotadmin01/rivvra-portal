@@ -695,33 +695,25 @@ export default function AtsApplicationDetail() {
               linkTo={(id) => orgPath(`/employee/${id}`)}
               onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
+            {/* Account Owner — read-only mirror of the linked Job Position.
+                Edit it on the Job page and it propagates to every app. */}
             <EmployeeLookup
               orgSlug={orgSlug}
               label="Account Owner"
               currentValue={application.accountOwnerId}
               currentName={application.accountOwnerName}
-              editable={canEditPeople}
+              editable={false}
               linkTo={(id) => orgPath(`/employee/${id}`)}
-              onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
-            />
-            <EmployeeLookup
-              orgSlug={orgSlug}
-              label="Account Mgr."
-              currentValue={application.accountManagerId}
-              currentName={application.accountManagerName}
-              editable={canEditPeople}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
-              onSelect={(id, name) => savePerson('accountManagerId', 'accountManagerName', id, name)}
             />
             <InlineField label="Employment" field="employmentType" value={application.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
             <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={canEdit} onSave={saveField} />
+            {/* Client Name — read-only mirror of the linked Job Position.
+                Edit it on the Job page and it propagates to every app. */}
             <InlineField
               label="Client Name"
               field="clientName"
               value={application.clientName}
-              editable={canEdit && !!application.isClientRole}
-              onSave={saveField}
-              placeholder={application.isClientRole ? 'Client company name' : 'Toggle Client Role first'}
+              editable={false}
             />
           </SectionCard>
 
