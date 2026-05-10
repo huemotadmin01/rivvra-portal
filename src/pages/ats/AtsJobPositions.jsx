@@ -5,6 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
 import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import {
   Plus, Loader2, Briefcase,
@@ -208,13 +209,16 @@ function NewJobModal({ show, onClose, onSaved, orgSlug }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Employment Type</label>
-              <input
-                type="text"
+              <select
                 value={form.employmentType}
                 onChange={(e) => handleChange('employmentType', e.target.value)}
-                placeholder="e.g. Full-time"
                 className="input-field"
-              />
+              >
+                <option value="">Pick employment type…</option>
+                {ATS_EMPLOYMENT_TYPE_KEYS.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
             </div>
           </div>
 

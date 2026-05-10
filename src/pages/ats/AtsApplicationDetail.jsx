@@ -25,6 +25,7 @@ import {
   Archive, ArchiveRestore, MoreHorizontal, Trash2,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
+import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
 
 /* ── Kanban State Dot ─────────────────────────────────────────────────── */
 const KANBAN_STATES = ['normal', 'done', 'blocked'];
@@ -133,7 +134,25 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving }) {
  * (Q9.2-C) — many IN contract hires don't have a signed PDF day-1; we
  * surface a soft warning after submit instead of hard-blocking on /hire.
  */
-function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null, application = null, companies = [], orgSlug = null }) {
+function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null, application = null, companies = [], orgSlug = null, offerLevel = 'full' }) {
+  // Phase-1 / Q21+Q22 (2026-05-10): the salary input adapts to the
+  // application's employment type. Contract → "Day rate" + per_day unit;
+  // Full-Time / Internal Consultant → "Annual CTC (LPA)" + lpa unit.
+  // Falls back to LPA for legacy applications without a picklist value.
+  const empMeta = getEmploymentTypeMeta(application?.employmentType);
+  const salaryUnit = empMeta.salaryUnit;
+  const salaryLabel = empMeta.salaryLabel;
+  const salaryInputCfg = SALARY_UNIT_INPUT[salaryUnit] || SALARY_UNIT_INPUT.lpa;
+
+  // Phase-1 / Q23 (2026-05-10): progressive offer gate. Only the salary
+  // block is required at the L1 Interview gate (offerLevel='salary');
+  // joining date / notice / probation become required at Offer Proposal
+  // (offerLevel='full'); signed-doc is required at Offer Signed
+  // (offerLevel='signed') and at the Hire button. The Hire button passes
+  // mode='hire' which always requires the full offer.
+  const fullOfferRequired = mode === 'hire' || offerLevel !== 'salary';
+  const signedDocRequiredEffective = (mode === 'offer' && offerLevel === 'signed') || requireSignedDoc;
+
   // Phase-1 / Q11+Q12 (2026-05-10): Sign integration. The offer letter
   // is sent for e-signature via the existing Sign module. Director slot
   // pre-fills from the application's internal-company signatory metadata
@@ -271,30 +290,42 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   };
 
   const isOfferMode = mode === 'offer';
-  const headerTitle = isOfferMode ? 'Offer Details' : 'Confirm Hire';
-  const headerSub = isOfferMode
-    ? (targetStageName ? `Capture offer details to move to ${targetStageName}` : 'Capture offer details')
-    : 'Capture offer details before marking as hired';
-  const submitLabel = isOfferMode ? 'Save Offer Details' : 'Confirm Hire';
+  const isSalaryOnlyMode = isOfferMode && offerLevel === 'salary';
+  const headerTitle = isSalaryOnlyMode
+    ? 'Salary Proposed'
+    : (isOfferMode ? 'Offer Details' : 'Confirm Hire');
+  const headerSub = isSalaryOnlyMode
+    ? (targetStageName ? `Capture salary proposed to move to ${targetStageName}` : 'Capture salary proposed')
+    : isOfferMode
+      ? (targetStageName ? `Capture offer details to move to ${targetStageName}` : 'Capture offer details')
+      : 'Capture offer details before marking as hired';
+  // Phase-1 / Q23 (2026-05-10): the L1-gate variant of the modal is a
+  // "Salary Proposed" capture, not a full offer. Title and submit
+  // label adapt accordingly.
+  const submitLabel = isSalaryOnlyMode ? 'Save Salary Proposed' : (isOfferMode ? 'Save Offer Details' : 'Confirm Hire');
   const submitClass = isOfferMode
     ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30'
     : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-  const signedDocRequired = isOfferMode && requireSignedDoc;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const errs = {};
-    const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-    const jd = new Date(joiningDate);
-    if (!joiningDate || isNaN(jd.getTime())) errs.joiningDate = 'Required';
-    else if (jd < todayMidnight) errs.joiningDate = 'Cannot be in the past';
+    // Salary block — required at every level (L1 gate, Offer Proposal, Hire).
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) errs.amount = 'Must be > 0';
-    const np = Number(noticePeriodDays);
-    if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
-    const pm = Number(probationMonths);
-    if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
-    if (signedDocRequired && !signedOfferDocId.trim()) {
+
+    // Joining date / notice / probation only required when fullOfferRequired.
+    if (fullOfferRequired) {
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const jd = new Date(joiningDate);
+      if (!joiningDate || isNaN(jd.getTime())) errs.joiningDate = 'Required';
+      else if (jd < todayMidnight) errs.joiningDate = 'Cannot be in the past';
+      const np = Number(noticePeriodDays);
+      if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
+      const pm = Number(probationMonths);
+      if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
+    }
+    if (signedDocRequiredEffective && !signedOfferDocId.trim()) {
       errs.signedOfferDocId = 'Signed offer document is required for this stage';
     }
     setErrors(errs);
@@ -302,11 +333,17 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
 
     onConfirm({
       offer: {
-        joiningDate,
-        offeredCTC: { currency, amount: amt },
-        noticePeriodDays: np,
-        probationMonths: pm,
-        signedOfferDocId: signedOfferDocId.trim() || null,
+        // Salary always sent; other fields only when the user filled them
+        // (lets the L1-gate save just-the-salary without overwriting any
+        // joiningDate/notice/probation that may already exist on the
+        // application's offer subdoc — /offer endpoint handles partial).
+        offeredCTC: { currency, amount: amt, unit: salaryUnit },
+        ...(fullOfferRequired ? {
+          joiningDate,
+          noticePeriodDays: Number(noticePeriodDays),
+          probationMonths: Number(probationMonths),
+          signedOfferDocId: signedOfferDocId.trim() || null,
+        } : {}),
       },
     });
   };
@@ -332,18 +369,20 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-dark-300 mb-1">Joining date <span className="text-red-400">*</span></label>
-            <input
-              type="date"
-              value={joiningDate}
-              onChange={(e) => setJoiningDate(e.target.value)}
-              min={today}
-              className="input-field"
-              required
-            />
-            {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
-          </div>
+          {fullOfferRequired && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-dark-300 mb-1">Joining date <span className="text-red-400">*</span></label>
+              <input
+                type="date"
+                value={joiningDate}
+                onChange={(e) => setJoiningDate(e.target.value)}
+                min={today}
+                className="input-field"
+                required
+              />
+              {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">Currency</label>
@@ -358,49 +397,57 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Offered CTC (annual) <span className="text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              {salaryLabel} <span className="text-red-400">*</span>
+            </label>
             <input
               type="number"
               min="1"
               step="1"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 1200000"
+              placeholder={salaryInputCfg.placeholder}
               className="input-field"
               required
             />
+            <p className="text-[11px] text-dark-500 mt-1">{salaryInputCfg.helper}{application?.employmentType ? ` · matches ${application.employmentType} job type` : ''}</p>
             {errors.amount && <p className="text-xs text-red-400 mt-1">{errors.amount}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Notice period (days) <span className="text-red-400">*</span></label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={noticePeriodDays}
-              onChange={(e) => setNoticePeriodDays(e.target.value)}
-              className="input-field"
-            />
-            {errors.noticePeriodDays && <p className="text-xs text-red-400 mt-1">{errors.noticePeriodDays}</p>}
-          </div>
+          {fullOfferRequired && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Notice period (days) <span className="text-red-400">*</span></label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={noticePeriodDays}
+                  onChange={(e) => setNoticePeriodDays(e.target.value)}
+                  className="input-field"
+                />
+                {errors.noticePeriodDays && <p className="text-xs text-red-400 mt-1">{errors.noticePeriodDays}</p>}
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Probation (months)</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={probationMonths}
-              onChange={(e) => setProbationMonths(e.target.value)}
-              className="input-field"
-            />
-            {errors.probationMonths && <p className="text-xs text-red-400 mt-1">{errors.probationMonths}</p>}
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">Probation (months)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={probationMonths}
+                  onChange={(e) => setProbationMonths(e.target.value)}
+                  className="input-field"
+                />
+                {errors.probationMonths && <p className="text-xs text-red-400 mt-1">{errors.probationMonths}</p>}
+              </div>
+            </>
+          )}
 
+          {fullOfferRequired && (
           <div className="col-span-2">
             <label className="block text-sm font-medium text-dark-300 mb-2">
-              Offer signature {signedDocRequired
+              Offer signature {signedDocRequiredEffective
                 ? <span className="text-red-400">*</span>
                 : <span className="text-dark-500 font-normal">(optional)</span>
               }
@@ -540,10 +587,18 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                 </details>
               </div>
             )}
-            {!signedDocRequired && !signedOfferDocId && (
+            {!signedDocRequiredEffective && !signedOfferDocId && (
               <p className="text-xs text-dark-500 mt-1.5">If blank, the application will show a "signed offer missing" warning until added.</p>
             )}
           </div>
+          )}
+          {isSalaryOnlyMode && (
+            <div className="col-span-2 rounded-md border border-dark-700 bg-dark-900/40 p-2.5">
+              <p className="text-[11px] text-dark-400">
+                Just the salary is needed at this stage. Joining date, notice period and offer signature will be captured later when moving to <span className="text-dark-200">Offer Proposal</span>.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 mt-6">
@@ -1292,6 +1347,12 @@ export default function AtsApplicationDetail() {
           stageId,
           stageName: err.targetStageName || stage?.name || 'next stage',
           requireSignedDoc: err.requiresSignedDoc === true,
+          // Phase-1 / Q23 (2026-05-10): the API tells us which level of
+          // the offer subdoc is needed at this gate ('salary' at L1,
+          // 'full' at Offer Proposal, 'signed' at Offer Signed). The
+          // modal uses this to hide irrelevant fields and pick the
+          // right title / submit label.
+          offerLevel: err.offerLevel || 'full',
         });
         setShowHireModal(true);
         return;
@@ -1735,7 +1796,10 @@ export default function AtsApplicationDetail() {
               editable={false}
               linkTo={(id) => orgPath(`/employee/${id}`)}
             />
-            <InlineField label="Employment" field="employmentType" value={application.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
+            {/* Employment type is denorm from the job position and not
+                directly editable here (Phase-1 / Q22, 2026-05-10).
+                Edit it on the Job Position page and it propagates. */}
+            <InlineField label="Employment" field="employmentType" value={application.employmentType || '—'} editable={false} />
             <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={canEdit} onSave={saveField} />
             {/* Client Name — read-only mirror of the linked Job Position.
                 Edit it on the Job page and it propagates to every app. */}
@@ -1920,6 +1984,7 @@ export default function AtsApplicationDetail() {
         mode={pendingStageMove ? 'offer' : 'hire'}
         targetStageName={pendingStageMove?.stageName}
         requireSignedDoc={pendingStageMove?.requireSignedDoc === true}
+        offerLevel={pendingStageMove?.offerLevel || 'full'}
         initialOffer={application?.offer || null}
         application={application}
         companies={companies}

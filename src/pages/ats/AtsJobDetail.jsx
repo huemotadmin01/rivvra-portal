@@ -5,6 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -662,7 +663,16 @@ export default function AtsJobDetail() {
                 ) : undefined
               }
             />
-            <InlineField label="Employment Type" field="employmentType" value={job.employmentType} editable={canEdit} onSave={saveField} placeholder="e.g. Permanent, Contract" />
+            <InlineField
+              label="Employment Type"
+              field="employmentType"
+              value={job.employmentType}
+              type="select"
+              options={ATS_EMPLOYMENT_TYPE_KEYS.map((k) => ({ value: k, label: k }))}
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="Pick employment type"
+            />
             <InlineField label="Expected Hires" field="expectedHires" value={job.expectedHires ?? 1} editable={canEdit} onSave={saveField} />
             <InlineField label="Hired" field="hiredCount" value={job.hiredCount ?? 0} editable={false} />
           </SectionCard>
