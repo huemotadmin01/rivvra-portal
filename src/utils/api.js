@@ -108,7 +108,19 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
+        // Carry the full API error envelope onto the thrown Error so callers
+        // can read fields like `requiresOffer`, `requiresHire`, `fieldErrors`
+        // without losing them at the throw boundary. Without this, only
+        // `err.message` survives and the gate-handling logic in
+        // AtsApplicationDetail.handleMoveStage falls back to a generic toast.
+        const err = new Error(data.error || 'Request failed');
+        err.status = response.status;
+        if (data && typeof data === 'object') {
+          for (const k of Object.keys(data)) {
+            if (k !== 'message' && !(k in err)) err[k] = data[k];
+          }
+        }
+        throw err;
       }
 
       return data;
