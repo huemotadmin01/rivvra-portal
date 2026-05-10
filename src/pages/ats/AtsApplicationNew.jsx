@@ -6,6 +6,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import SectionCard from '../../components/platform/detail/SectionCard';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ChevronLeft, Loader2, User, Search, Plus, Briefcase } from 'lucide-react';
 
@@ -164,7 +165,8 @@ export default function AtsApplicationNew() {
   // ── Validation ──────────────────────────────────────────────────────
   const trimmedName = (form.candidateName || candQuery || '').trim();
   const hasContact = !!(form.email.trim() || form.phone.trim());
-  const canSubmit = !!trimmedName && hasContact && !saving && !loadingJob && !!job;
+  const hasRecruiter = !!form.recruiterId;
+  const canSubmit = !!trimmedName && hasContact && hasRecruiter && !saving && !loadingJob && !!job;
 
   // ── Submit ──────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
@@ -308,11 +310,30 @@ export default function AtsApplicationNew() {
             <span className={labelCol}>Stage</span>
             <span className="text-white text-sm">New</span>
           </div>
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className={labelCol}>Recruiter</span>
-            <span className="text-white text-sm">
-              {form.recruiterName || <span className="text-dark-500 italic">— (no recruiter on this job)</span>}
+          {/* Recruiter — required, pre-filled from job, but admins can
+              override per-application (e.g. when one recruiter sources
+              and another owns the candidate going forward). EmployeeLookup
+              gives the same typeahead used on detail pages, including
+              ex-employees that have no portal_users record. */}
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-start">
+            <span className={`${labelCol} pt-1`}>
+              Recruiter <span className="text-red-400">*</span>
             </span>
+            <div>
+              <EmployeeLookup
+                orgSlug={orgSlug}
+                variant="inline"
+                editable
+                allowClear={false}
+                placeholder="Search employees…"
+                currentValue={form.recruiterId}
+                currentName={form.recruiterName}
+                onSelect={(id, name) => setForm((p) => ({ ...p, recruiterId: id || null, recruiterName: name || '' }))}
+              />
+              {!hasRecruiter && (
+                <p className="text-[11px] text-amber-400/80 mt-1">Recruiter is required.</p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
             <span className={labelCol}>Employment</span>
@@ -321,7 +342,7 @@ export default function AtsApplicationNew() {
             </span>
           </div>
           <p className="text-xs text-dark-500 mt-3">
-            Recruiter and employment type are inherited from the linked job. Edit them on the application detail page after creation.
+            Recruiter is pre-filled from the linked job — change here if a different recruiter owns this candidate. Employment type is inherited from the job and edited on the application detail page after creation.
           </p>
         </SectionCard>
 
