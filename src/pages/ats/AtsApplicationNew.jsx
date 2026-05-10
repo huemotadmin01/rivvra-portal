@@ -12,20 +12,18 @@ import { ChevronLeft, Loader2, User, Search, Plus, Briefcase } from 'lucide-reac
 /**
  * AtsApplicationNew — routed create flow for new applications under a
  * specific Job Position. Reachable only from /ats/jobs/:jobId/applications/new
- * — there is no list-page entry point. Replaces the legacy modal that
- * lived on AtsApplications with ?action=new.
+ * — there is no list-page entry point.
  *
  * Behavior locked 2026-05-10:
- *  - Parent job is hard-required from the URL; if the job isn't open or
- *    on_hold, the page bounces back with a toast (creation only allowed
- *    on actively recruiting roles).
- *  - Recruiter and Employment Type auto-fill from the job. Stage = "New".
- *  - Candidate field is a typeahead — picks an existing candidate (and
- *    auto-fills email/phone/LinkedIn from their record) or types a new
- *    name and creates a fresh candidate via the application POST dedup.
- *  - Required fields: candidate name + (email OR phone). API enforces.
- *  - Source field is intentionally not on the create form — it's a
- *    reporting field, edited later on the application detail page.
+ *  - Parent job hard-required from URL; bounces back if not open/on_hold.
+ *  - Recruiter and Employment Type auto-fill from the job; Stage = "New".
+ *  - Candidate field typeaheads existing candidates (auto-fills email/
+ *    phone/LinkedIn) or types a new name.
+ *  - Required: candidate name + (email OR phone). API enforces.
+ *  - Source intentionally absent — edited later on detail page.
+ *
+ * Layout matches AtsCandidateNew: p-6 md:p-8 max-w-2xl mx-auto with
+ * the label-left grid form rows used across the rest of the platform.
  */
 export default function AtsApplicationNew() {
   const { jobId } = useParams();
@@ -42,7 +40,7 @@ export default function AtsApplicationNew() {
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
-    candidateId: '',          // populated on existing-candidate pick
+    candidateId: '',
     candidateName: '',
     email: '',
     phone: '',
@@ -52,7 +50,6 @@ export default function AtsApplicationNew() {
     recruiterName: '',
   });
 
-  // Candidate typeahead state
   const [candQuery, setCandQuery] = useState('');
   const [candResults, setCandResults] = useState([]);
   const [candDropdownOpen, setCandDropdownOpen] = useState(false);
@@ -164,15 +161,10 @@ export default function AtsApplicationNew() {
     setCandDropdownOpen(false);
   };
 
-  const detachCandidate = () => {
-    // User typed past an existing pick; treat as a new-candidate path.
-    setForm((p) => ({ ...p, candidateId: '' }));
-  };
-
   // ── Validation ──────────────────────────────────────────────────────
   const trimmedName = (form.candidateName || candQuery || '').trim();
   const hasContact = !!(form.email.trim() || form.phone.trim());
-  const canSubmit = !!trimmedName && hasContact && !saving && !loadingJob && job;
+  const canSubmit = !!trimmedName && hasContact && !saving && !loadingJob && !!job;
 
   // ── Submit ──────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
@@ -191,7 +183,6 @@ export default function AtsApplicationNew() {
         recruiterName: form.recruiterName || '',
       };
       if (form.candidateId) payload.candidateId = form.candidateId;
-
       const res = await atsApi.createApplication(orgSlug, payload);
       const newAppId = res?.application?._id || res?.applicationId;
       if (!newAppId) throw new Error('Server returned no application id');
@@ -207,20 +198,23 @@ export default function AtsApplicationNew() {
   // ── Render ──────────────────────────────────────────────────────────
   if (loadingJob) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="p-6 md:p-8 flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
       </div>
     );
   }
   if (!job) return null;
 
+  const labelCol = 'text-dark-400 text-sm';
+  const inputCls = 'bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none w-full';
+
   return (
-    <div className="space-y-5">
+    <div className="p-6 md:p-8 max-w-2xl mx-auto space-y-6">
       <button
         onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
         className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
       >
-        <ChevronLeft size={14} /> Back to {job.name}
+        <ChevronLeft size={16} /> Back to {job.name}
       </button>
 
       <div>
@@ -231,15 +225,15 @@ export default function AtsApplicationNew() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5 max-w-2xl">
+      <form onSubmit={handleSubmit} className="space-y-6">
         <SectionCard title="Candidate" icon={User}>
-          <div className="space-y-4">
-            {/* Candidate typeahead */}
-            <div ref={candContainerRef} className="relative">
-              <label className="block text-sm font-medium text-dark-300 mb-1">
-                Candidate Name <span className="text-red-400">*</span>
-              </label>
-              <Search size={12} className="text-dark-500 absolute left-2 top-[34px] pointer-events-none" />
+          {/* Candidate typeahead — single full-width row */}
+          <div ref={candContainerRef} className="grid grid-cols-[140px_1fr] gap-2 py-2 items-start">
+            <span className={`${labelCol} pt-2`}>
+              Name <span className="text-red-400">*</span>
+            </span>
+            <div className="relative">
+              <Search size={12} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={candInputRef}
                 type="text"
@@ -249,106 +243,103 @@ export default function AtsApplicationNew() {
                 onChange={(e) => {
                   setCandQuery(e.target.value);
                   setCandDropdownOpen(true);
-                  if (form.candidateId) detachCandidate();
+                  if (form.candidateId) setForm((p) => ({ ...p, candidateId: '' }));
                   setForm((p) => ({ ...p, candidateName: e.target.value }));
                 }}
-                className="input-field text-sm py-2 pl-7 w-full"
+                className={`${inputCls} pl-8 pr-20`}
                 required
+                autoFocus
               />
               {form.candidateId && (
-                <span className="absolute right-2 top-[36px] text-[10px] text-rivvra-300 bg-rivvra-500/10 px-1.5 py-0.5 rounded">
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-rivvra-300 bg-rivvra-500/10 px-1.5 py-0.5 rounded">
                   existing
                 </span>
               )}
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="john@example.com"
-                  className="input-field text-sm py-2 w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder="+91 90000 00000"
-                  className="input-field text-sm py-2 w-full"
-                />
-              </div>
-            </div>
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>Email</span>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+              placeholder="john@example.com"
+              className={inputCls}
+            />
+          </div>
 
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>Phone</span>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+              placeholder="+91 90000 00000"
+              className={inputCls}
+            />
+          </div>
+
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-1">
+            <span />
             <p className={`text-xs ${hasContact ? 'text-dark-500' : 'text-amber-400/80'}`}>
               {hasContact ? 'At least one contact method captured.' : 'At least one of email or phone is required.'}
             </p>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">LinkedIn (optional)</label>
-              <input
-                type="url"
-                value={form.linkedinProfile}
-                onChange={(e) => setForm((p) => ({ ...p, linkedinProfile: e.target.value }))}
-                placeholder="https://linkedin.com/in/…"
-                className="input-field text-sm py-2 w-full"
-              />
-            </div>
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>LinkedIn</span>
+            <input
+              type="url"
+              value={form.linkedinProfile}
+              onChange={(e) => setForm((p) => ({ ...p, linkedinProfile: e.target.value }))}
+              placeholder="https://linkedin.com/in/…"
+              className={inputCls}
+            />
           </div>
         </SectionCard>
 
         <SectionCard title="Job & Pipeline" icon={Briefcase}>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Job Position</label>
-              <div className="px-3 py-2 bg-dark-900 border border-dark-700 rounded text-sm text-dark-300 truncate">
-                {job.name}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Stage</label>
-              <div className="px-3 py-2 bg-dark-900 border border-dark-700 rounded text-sm text-dark-300">
-                New
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Recruiter</label>
-              <div className="px-3 py-2 bg-dark-900 border border-dark-700 rounded text-sm text-dark-300">
-                {form.recruiterName || <span className="text-dark-500">Inherited from job ({job.recruiterName || '—'})</span>}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Employment Type</label>
-              <div className="px-3 py-2 bg-dark-900 border border-dark-700 rounded text-sm text-dark-300">
-                {form.employmentType || <span className="text-dark-500">—</span>}
-              </div>
-            </div>
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>Job Position</span>
+            <span className="text-white text-sm truncate">{job.name}</span>
+          </div>
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>Stage</span>
+            <span className="text-white text-sm">New</span>
+          </div>
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>Recruiter</span>
+            <span className="text-white text-sm">
+              {form.recruiterName || <span className="text-dark-500 italic">— (no recruiter on this job)</span>}
+            </span>
+          </div>
+          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+            <span className={labelCol}>Employment</span>
+            <span className="text-white text-sm">
+              {form.employmentType || <span className="text-dark-500 italic">—</span>}
+            </span>
           </div>
           <p className="text-xs text-dark-500 mt-3">
-            Recruiter and employment type are inherited from the linked job. You can change them on the application detail page after creation.
+            Recruiter and employment type are inherited from the linked job. Edit them on the application detail page after creation.
           </p>
         </SectionCard>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="bg-rivvra-500 text-dark-950 px-5 py-2 rounded-lg text-sm font-semibold hover:bg-rivvra-400 disabled:opacity-50 flex items-center gap-2 transition-colors"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />}
-            Create Application
-          </button>
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
-            className="text-dark-400 hover:text-white text-sm transition-colors"
+            className="px-4 py-2 text-sm text-dark-300 hover:text-dark-100 transition-colors"
           >
             Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2 font-medium"
+          >
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            Create Application
           </button>
         </div>
       </form>
