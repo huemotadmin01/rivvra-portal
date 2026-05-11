@@ -280,7 +280,12 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   // *Dirty flags).
   const [signSubjectDirty, setSignSubjectDirty] = useState(false);
   const [signMessageDirty, setSignMessageDirty] = useState(false);
-  const jobTitle = application?.jobPositionName || application?.jobTitle || '';
+  // The canonical job-title field on an ATS application is `jobName`
+  // (jobPositionName / jobTitle were stale names — they aren't populated,
+  // which is why the previous subject came out as "Offer Letter — test01"
+  // with no role).
+  const jobTitle = application?.jobName || application?.jobPositionName || application?.jobTitle || '';
+  const orgCompanyName = appCompany?.name || '';
   const formatRate = () => {
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return '';
@@ -299,31 +304,57 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
       day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
     });
   };
+  const firstName = (full) => {
+    const cand = (full || '').trim();
+    if (!cand) return '';
+    return cand.split(/\s+/)[0];
+  };
   const defaultSubject = () => {
     const cand = (candSignName || application?.candidateName || 'Candidate').trim();
     return jobTitle
       ? `Offer Letter — ${cand} · ${jobTitle}`
       : `Offer Letter — ${cand}`;
   };
+  // Plain-text message — readable in the textarea. Converted to HTML
+  // (<br> for newlines) when actually sent so the styled email <p>
+  // wrapper in the Sign template renders the line breaks.
   const defaultMessage = () => {
-    const cand = (candSignName || application?.candidateName || '').trim();
-    const greeting = cand ? `Hi ${cand.split(' ')[0]},` : 'Hi,';
+    const fn = firstName(candSignName || application?.candidateName) || 'there';
     const role = jobTitle ? ` for the ${jobTitle} role` : '';
+    const at = orgCompanyName ? ` at ${orgCompanyName}` : '';
     const rate = formatRate();
     const join = formatJoining();
-    const bits = [];
-    if (rate) bits.push(`compensation ${rate}`);
-    if (join) bits.push(`joining date ${join}`);
-    const detailsClause = bits.length ? ` — ${bits.join(', ')}` : '';
-    // Single line so the email renderer's <p> wrapper keeps it readable.
-    return `${greeting} we're delighted to extend an offer${role}${detailsClause}. Please review and sign at your earliest convenience.`;
+    const np = Number(noticePeriodDays);
+    const pm = Number(probationMonths);
+    const terms = [];
+    if (rate) terms.push(`Compensation: ${rate}`);
+    if (join) terms.push(`Joining date: ${join}`);
+    if (fullOfferRequired && Number.isFinite(np) && np >= 0) terms.push(`Notice period: ${np} days`);
+    if (fullOfferRequired && Number.isFinite(pm) && pm > 0) terms.push(`Probation: ${pm} months`);
+    const termsBlock = terms.length ? `\n\n${terms.join('\n')}` : '';
+    return (
+      `Hi ${fn},\n\n`
+      + `We're delighted to extend an offer${role}${at}.`
+      + termsBlock
+      + `\n\nPlease review the offer letter and sign at your earliest convenience. Reach out if you have any questions — looking forward to having you on the team.`
+    );
+  };
+  // Convert recruiter-edited plain text to HTML for the Sign email.
+  // Escape HTML so candidate-supplied names can't accidentally produce
+  // markup, then turn newlines into <br>.
+  const messageToHtml = (text) => {
+    const escaped = String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escaped.replace(/\n/g, '<br>');
   };
   useEffect(() => {
     if (!show) return;
     if (!signSubjectDirty) setSignSubject(defaultSubject());
     if (!signMessageDirty) setSignMessage(defaultMessage());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, candSignName, application?.candidateName, jobTitle, amount, currency, salaryUnit, joiningDate]);
+  }, [show, candSignName, application?.candidateName, jobTitle, orgCompanyName, amount, currency, salaryUnit, joiningDate, noticePeriodDays, probationMonths, fullOfferRequired]);
 
   useEffect(() => {
     if (!show) return;
@@ -348,12 +379,13 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     try {
       const tmpl = signTemplates.find((t) => String(t._id) === String(signTemplateId));
       const subjectForSend = (signSubject || defaultSubject()).trim();
-      const messageForSend = (signMessage || defaultMessage()).trim();
+      const messageTextForSend = (signMessage || defaultMessage()).trim();
+      const messageHtmlForSend = messageToHtml(messageTextForSend);
       const res = await atsApi.createOfferSignRequest(orgSlug, application._id, {
         templateId: signTemplateId,
-        reference: `Offer — ${application.candidateName || 'Candidate'} · ${application.jobPositionName || ''}`.trim(),
+        reference: `Offer — ${application.candidateName || 'Candidate'} · ${jobTitle}`.replace(/\s+·\s+$/, '').trim(),
         subject: subjectForSend || undefined,
-        message: messageForSend || undefined,
+        message: messageHtmlForSend || undefined,
         signers: [
           { name: directorName.trim(), email: directorEmail.trim().toLowerCase(), roleName: 'Director' },
           { name: candSignName.trim(), email: candSignEmail.trim().toLowerCase(), roleName: 'Candidate' },
@@ -704,11 +736,11 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                   <textarea
                     value={signMessage}
                     onChange={(e) => { setSignMessage(e.target.value); setSignMessageDirty(true); }}
-                    rows={3}
+                    rows={8}
                     disabled={sendingEnv}
-                    className="input-field text-sm resize-none"
+                    className="input-field text-sm resize-y"
                   />
-                  <p className="text-[11px] text-dark-500 mt-1">Pre-filled from candidate name, rate, title, and joining date. Edits stick.</p>
+                  <p className="text-[11px] text-dark-500 mt-1">Pre-filled from candidate name, role, company, compensation, joining date, notice and probation. Edits stick. Line breaks are preserved in the email.</p>
                 </div>
 
                 {signError && <p className="text-xs text-red-400">{signError}</p>}
