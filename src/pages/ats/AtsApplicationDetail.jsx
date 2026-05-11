@@ -1104,7 +1104,7 @@ function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageNa
  */
 const INTERVIEW_LEVEL_LABEL = { l1: 'L1 Interview', l2: 'L2 Interview', hr: 'HR Discussion' };
 
-function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targetStageName, existingSlot, orgSlug }) {
+function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targetStageName, existingSlot, orgSlug, isClientRole = false }) {
   const [datetime, setDatetime] = useState('');
   const [interviewerId, setInterviewerId] = useState('');
   const [interviewerName, setInterviewerName] = useState('');
@@ -1134,9 +1134,11 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
     e?.preventDefault?.();
     const errs = {};
     if (!datetime) errs.datetime = 'Required';
-    if (!interviewerId) errs.interviewerId = 'Pick an interviewer';
+    // 2026-05-11 carve-out: client roles skip interviewer + meeting-link
+    // checks because the client schedules directly with the consultant.
+    if (!isClientRole && !interviewerId) errs.interviewerId = 'Pick an interviewer';
     if (!mode) errs.mode = 'Required';
-    if (mode === 'Video' && !meetingLink.trim()) errs.meetingLink = 'Meeting link is required for Video';
+    if (!isClientRole && mode === 'Video' && !meetingLink.trim()) errs.meetingLink = 'Meeting link is required for Video';
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
     onConfirm({
@@ -1181,8 +1183,20 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
             {errors.datetime && <p className="text-xs text-red-400 mt-1">{errors.datetime}</p>}
           </div>
 
+          {isClientRole && (
+            <div className="col-span-2 -mb-2 rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+              <p className="text-[11px] text-blue-300">
+                Client role — interviewer and meeting link are optional. The client schedules the meeting directly with the consultant.
+              </p>
+            </div>
+          )}
+
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-dark-300 mb-1">Interviewer <span className="text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              Interviewer {isClientRole
+                ? <span className="text-dark-500 font-normal">(optional)</span>
+                : <span className="text-red-400">*</span>}
+            </label>
             <div className="rounded-md border border-dark-700 bg-dark-900/60 px-2.5 py-1.5 hover:border-dark-600 focus-within:border-rivvra-500 transition-colors">
               <EmployeeLookup
                 orgSlug={orgSlug}
@@ -1222,14 +1236,18 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
 
           {mode === 'Video' && (
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-dark-300 mb-1">Meeting link <span className="text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-dark-300 mb-1">
+                Meeting link {isClientRole
+                  ? <span className="text-dark-500 font-normal">(optional)</span>
+                  : <span className="text-red-400">*</span>}
+              </label>
               <input
                 type="url"
                 value={meetingLink}
                 onChange={(e) => setMeetingLink(e.target.value)}
                 placeholder="https://meet.google.com/..."
                 className="input-field"
-                required
+                required={!isClientRole}
               />
               {errors.meetingLink && <p className="text-xs text-red-400 mt-1">{errors.meetingLink}</p>}
             </div>
@@ -1653,6 +1671,9 @@ export default function AtsApplicationDetail() {
           targetStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
           level: err.interviewLevel,
           existingSlot: err.existingSlot || null,
+          // 2026-05-11: client roles drop interviewer + meeting link
+          // requirements (client schedules with consultant directly).
+          isClientRole: err.isClientRole === true,
         });
         return;
       }
@@ -2453,6 +2474,7 @@ export default function AtsApplicationDetail() {
         targetStageName={pendingInterviewMove?.targetStageName}
         existingSlot={pendingInterviewMove?.existingSlot}
         orgSlug={orgSlug}
+        isClientRole={pendingInterviewMove?.isClientRole === true}
       />
       <InterviewResultModal
         show={!!pendingResultMove}
