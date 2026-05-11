@@ -210,6 +210,17 @@ const atsApi = {
     });
   },
 
+  // 2026-05-11: detach the in-flight envelope from the offer subdoc
+  // (clears offer.signEnvelopeId + signEnvelopeSentAt). Used by the
+  // Offer Details modal's Disconnect button when the recruiter needs
+  // to reset and resend — e.g. wrong candidate email captured. Does
+  // NOT cancel the underlying sign request.
+  disconnectOfferEnvelope(orgSlug, applicationId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/offer/envelope`, {
+      method: 'DELETE',
+    });
+  },
+
   // P0.1 (2026-05-10): /create-employee now requires HR-side fields.
   //   payload: { workEmail, managerId, internalCompanyId, billable,
   //              department?, designation?, employeeCode? }

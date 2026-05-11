@@ -607,7 +607,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
             ) : application?.offer?.signEnvelopeId ? (
               /* State 2: envelope sent, awaiting completion (Q24-A 2026-05-10) */
               <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm text-amber-300 font-medium flex items-center gap-1.5">
                       <Loader2 size={14} className="animate-spin" /> Envelope sent · awaiting signatures
@@ -619,10 +619,30 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                       </div>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!application?._id) return;
+                      const ok = window.confirm('Disconnect this envelope from the offer? The sign request itself isn’t cancelled — cancel it from the Sign module separately if needed. You can then resend with corrected details.');
+                      if (!ok) return;
+                      try {
+                        await atsApi.disconnectOfferEnvelope(orgSlug, application._id);
+                        if (typeof onRefresh === 'function') {
+                          try { await onRefresh(); } catch { /* ignore */ }
+                        }
+                      } catch (err) {
+                        setSignError(err?.message || 'Failed to disconnect envelope');
+                      }
+                    }}
+                    className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors flex-shrink-0"
+                  >
+                    Disconnect
+                  </button>
                 </div>
                 <p className="text-[11px] text-dark-500 mt-2">
                   Once both Director and Candidate sign in the Sign module, this offer will mark itself as signed automatically and the Offer Signed stage gate will pass.
                 </p>
+                {signError && <p className="text-[11px] text-red-400 mt-2">{signError}</p>}
               </div>
             ) : (
               /* No envelope yet — render the Sign picker + signer slots */
