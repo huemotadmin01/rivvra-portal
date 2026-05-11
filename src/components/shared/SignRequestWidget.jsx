@@ -5,6 +5,7 @@
  * Shows linked sign requests + "Send for Signature" button.
  */
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -172,8 +173,12 @@ export default function SignRequestWidget({
         </div>
       )}
 
-      {/* Send-for-signature modal */}
-      {showModal && (
+      {/* Send-for-signature modal — rendered via portal so an ancestor
+          CSS transform/filter doesn't trap our position:fixed inside
+          the widget's containing block (which was making the modal
+          appear off-center, with the backdrop missing the left
+          sidebar and the modal getting clipped vertically). */}
+      {showModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-2xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden">
             {/* Sticky header */}
@@ -302,7 +307,8 @@ export default function SignRequestWidget({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
