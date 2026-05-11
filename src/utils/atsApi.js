@@ -221,6 +221,17 @@ const atsApi = {
     });
   },
 
+  // 2026-05-11: revise an already-signed offer (rate renegotiation etc).
+  // Snapshots the current offer subdoc into offer.previousVersions[],
+  // clears signedOfferDocId + envelope back-link, regresses the stage
+  // from Offer Signed → Offer Proposal. Reason is required. Admin-only.
+  reviseOffer(orgSlug, applicationId, reason) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/offer/revise`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   // P0.1 (2026-05-10): /create-employee now requires HR-side fields.
   //   payload: { workEmail, managerId, internalCompanyId, billable,
   //              department?, designation?, employeeCode? }

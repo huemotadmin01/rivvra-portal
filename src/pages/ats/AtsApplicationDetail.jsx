@@ -588,21 +588,56 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
             {signedOfferDocId ? (
               /* State 1: envelope completed — back-link wrote signedOfferDocId */
               <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm text-emerald-300 font-medium flex items-center gap-1.5">
                       <FileSignature size={14} /> Signed by all parties
                     </div>
                     <div className="text-xs text-dark-400 mt-0.5 font-mono truncate">{signedOfferDocId}</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSignedOfferDocId('')}
-                    className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors flex-shrink-0"
-                  >
-                    Disconnect
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!application?._id) return;
+                        const reason = window.prompt(
+                          'Revise this signed offer?\n\nThe current terms + signed PDF will be archived under offer.previousVersions, the back-link cleared, and the stage moved back to Offer Proposal so you can edit terms and re-send.\n\nGive a short reason (required) — e.g. "Rate renegotiation", "Joining date changed":',
+                          '',
+                        );
+                        if (reason == null) return; // cancelled
+                        const trimmed = reason.trim();
+                        if (!trimmed) {
+                          window.alert('A reason is required.');
+                          return;
+                        }
+                        try {
+                          const res = await atsApi.reviseOffer(orgSlug, application._id, trimmed);
+                          if (typeof onRefresh === 'function') {
+                            try { await onRefresh(); } catch { /* ignore */ }
+                          }
+                          if (res?.regressedStage && res?.regressTargetName) {
+                            window.alert(`Offer revised. Stage moved back to ${res.regressTargetName}. Edit the terms and Send for signature again.`);
+                          }
+                        } catch (err) {
+                          setSignError(err?.message || 'Failed to revise offer');
+                        }
+                      }}
+                      className="text-xs text-amber-300 hover:text-amber-200 border border-amber-500/30 rounded px-2 py-1 transition-colors"
+                      title="Archive this signed offer and start a new revision (e.g. rate renegotiation)"
+                    >
+                      Revise
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSignedOfferDocId('')}
+                      className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors"
+                      title="Detach the back-link without archiving — low-level escape hatch"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
                 </div>
+                {signError && <p className="text-[11px] text-red-400 mt-2">{signError}</p>}
               </div>
             ) : application?.offer?.signEnvelopeId ? (
               /* State 2: envelope sent, awaiting completion (Q24-A 2026-05-10) */
