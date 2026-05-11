@@ -29,7 +29,19 @@ function StatusBadge({ status }) {
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{label}</span>;
 }
 
-export default function SignRequestWidget({ orgSlug, linkedModel, linkedId, prefillData }) {
+export default function SignRequestWidget({
+  orgSlug,
+  linkedModel,
+  linkedId,
+  prefillData,
+  // Optional label overrides. Callers (e.g. ATS application detail,
+  // where the dedicated Offer Details modal already owns "Send for
+  // signature") can rename this section to disambiguate. Defaults
+  // preserve the existing CRM / Employee / Contact wording.
+  sectionTitle = 'Signature Requests',
+  sendButtonLabel = 'Send for Signature',
+  modalTitle = 'Send for Signature',
+}) {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
@@ -123,10 +135,10 @@ export default function SignRequestWidget({ orgSlug, linkedModel, linkedId, pref
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-dark-400 uppercase tracking-wide flex items-center gap-2">
           <PenTool size={14} className="text-indigo-400" />
-          Signature Requests
+          {sectionTitle}
         </h3>
         <button onClick={openModal} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-          <Plus size={12} /> Send for Signature
+          <Plus size={12} /> {sendButtonLabel}
         </button>
       </div>
 
@@ -166,7 +178,7 @@ export default function SignRequestWidget({ orgSlug, linkedModel, linkedId, pref
           <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <PenTool size={16} className="text-indigo-400" /> Send for Signature
+                <PenTool size={16} className="text-indigo-400" /> {modalTitle}
               </h2>
               <button onClick={() => setShowModal(false)} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"><X size={18} /></button>
             </div>

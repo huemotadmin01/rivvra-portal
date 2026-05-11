@@ -2537,6 +2537,14 @@ export default function AtsApplicationDetail() {
               email: application.email || '',
               phone: application.phone || '',
             }}
+            // 2026-05-11: Offer letters go through the Offer Details
+            // modal so they bind to application.offer.* properly.
+            // This widget stays for everything else (NDAs, policies,
+            // employment bonds), so we relabel it to make the split
+            // obvious to the recruiter.
+            sectionTitle="Other Documents"
+            sendButtonLabel="Send other document"
+            modalTitle="Send other document"
           />
 
           <SectionCard title="Interview" icon={Calendar}>
