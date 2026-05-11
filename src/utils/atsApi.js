@@ -145,6 +145,18 @@ const atsApi = {
     });
   },
 
+  // 2026-05-11: restore a refused application back to 'ongoing'.
+  // Clears refused / refusedAt / refuseReasonId. Reason is required
+  // and stored in the stageHistory entry for audit. Admin-only.
+  // Note: the candidate's rejection email already went out at refuse
+  // time — restoring does not un-send it.
+  unrefuseApplication(orgSlug, id, reason) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/unrefuse`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   // P0.1 (2026-05-10): /hire now requires offer-acceptance data.
   //   payload: { offer: { joiningDate, offeredCTC: {currency, amount},
   //                       noticePeriodDays, probationMonths, signedOfferDocId? } }

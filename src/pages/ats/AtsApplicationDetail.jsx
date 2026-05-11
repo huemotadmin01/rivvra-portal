@@ -2166,6 +2166,32 @@ export default function AtsApplicationDetail() {
     }
   };
 
+  // Restore a refused application. The ats_refused rejection email was
+  // already sent at refuse time — restoring does NOT recall it, which
+  // is why the confirm dialog is explicit about reaching out separately.
+  const handleUnrefuseApp = async () => {
+    const ok = window.confirm(
+      'Restore this refused application?\n\nThe candidate already received the rejection email when you refused. '
+      + 'Restoring will not un-send it. Reach out to the candidate separately before continuing.\n\n'
+      + 'Click OK to enter a reason and restore.',
+    );
+    if (!ok) return;
+    const reason = window.prompt('Why are you restoring this application? (required, e.g. "candidate re-applied", "wrong refusal")', '');
+    if (reason == null) return;
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      window.alert('A reason is required.');
+      return;
+    }
+    try {
+      await atsApi.unrefuseApplication(orgSlug, applicationId, trimmed);
+      showToast('Application restored', 'success');
+      await fetchApplication();
+    } catch (err) {
+      showToast(err.message || 'Failed to restore application', 'error');
+    }
+  };
+
   const handleDeleteApp = async () => {
     setDeleting(true);
     try {
@@ -2323,6 +2349,15 @@ export default function AtsApplicationDetail() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
               >
                 <ExternalLink size={14} /> Employee
+              </button>
+            )}
+            {(application.applicationStatus === 'refused' || application.refused) && !application.archived && (
+              <button
+                onClick={handleUnrefuseApp}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+                title="Restore this refused application back to ongoing"
+              >
+                <ArchiveRestore size={14} /> Restore
               </button>
             )}
             {application.archived ? (
