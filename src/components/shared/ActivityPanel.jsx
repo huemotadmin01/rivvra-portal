@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import activityApi from '../../utils/activityApi';
-import { Check, Trash2, Calendar, Plus, Loader2, MessageSquare, ClipboardList, User, Activity as ActivityIcon } from 'lucide-react';
+import atsApi from '../../utils/atsApi';
+import {
+  Check, Trash2, Calendar, Plus, Loader2, MessageSquare, ClipboardList,
+  User, Activity as ActivityIcon, Mail, AlertCircle, X,
+} from 'lucide-react';
 
 const TYPE_BADGES = {
   note:        'bg-dark-700 text-dark-300',
@@ -30,10 +35,162 @@ const SYSTEM_ACTION_LABELS = {
   unarchived:           'Unarchived',
   stage_change:         'Stage',
   refused:              'Refused',
+  unrefused:            'Restored',
   hired:                'Hired',
   won:                  'Won',
   lost:                 'Lost',
+  email_sent:           'Email',
+  email_failed:         'Email',
+  offer_revised:        'Offer revised',
+  offer_envelope_disconnected: 'Envelope disconnected',
+  stage_auto_advance:   'Stage',
 };
+
+// Email-event row (Q1+Q2 locked 2026-05-11). One row per send, all
+// recipients inline. Body is fetched on demand and shown in a side
+// drawer — keeps the activities collection light.
+function EmailEventItem({ activity, highlight, onOpenBody }) {
+  const failed = activity.action === 'email_failed';
+  const subject = activity.meta?.subject || activity.meta?.templateKey || '(no subject)';
+  const recipients = Array.isArray(activity.meta?.recipients) ? activity.meta.recipients : [];
+  const emailLogId = activity.meta?.emailLogId || null;
+  return (
+    <div
+      id={`activity-${activity._id}`}
+      className={`flex items-start gap-3 px-3 py-2 rounded-lg ${
+        highlight ? 'bg-rivvra-500/10 ring-1 ring-rivvra-500/40' : ''
+      }`}
+    >
+      {failed ? (
+        <AlertCircle size={12} className="text-red-400/90 mt-1 flex-shrink-0" />
+      ) : (
+        <Mail size={12} className="text-amber-400/90 mt-1 flex-shrink-0" />
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+            failed ? 'bg-red-500/10 text-red-300' : 'bg-amber-500/10 text-amber-300'
+          }`}>
+            {failed ? 'Email · failed' : 'Email · sent'}
+          </span>
+          <span className="text-xs text-dark-200 min-w-0 truncate">{subject}</span>
+          {emailLogId && onOpenBody && (
+            <button
+              type="button"
+              onClick={() => onOpenBody(emailLogId, subject)}
+              className="text-[10px] text-rivvra-300 hover:text-rivvra-200 underline-offset-2 hover:underline"
+            >
+              View email
+            </button>
+          )}
+        </div>
+        {recipients.length > 0 && (
+          <p className="text-[10px] text-dark-500 mt-0.5 truncate">
+            to {recipients.join(', ')}
+          </p>
+        )}
+        {failed && activity.meta?.error && (
+          <p className="text-[10px] text-red-400/90 mt-0.5 truncate" title={activity.meta.error}>
+            {activity.meta.error}
+          </p>
+        )}
+        <p className="text-[10px] text-dark-600 mt-0.5">
+          {activity.createdByName || 'System'} · {new Date(activity.createdAt).toLocaleString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Lightweight portal-rendered side drawer for viewing the rendered HTML
+// body of a sent email. Lazy-fetches on open so the activity list itself
+// stays cheap to load.
+function EmailBodyDrawer({ open, orgSlug, applicationId, logId, fallbackSubject, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [log, setLog] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open || !logId || !applicationId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    setLog(null);
+    atsApi.getApplicationEmailBody(orgSlug, applicationId, logId)
+      .then((res) => { if (!cancelled) setLog(res?.log || null); })
+      .catch((err) => { if (!cancelled) setError(err?.message || 'Failed to load email'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, orgSlug, applicationId, logId]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handler = (e) => { if (e.key === 'Escape') onClose?.(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[60] flex items-stretch justify-end bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+    >
+      <div className="bg-dark-800 border-l border-dark-700 shadow-2xl w-full max-w-2xl h-full flex flex-col">
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-dark-700/80 bg-gradient-to-b from-dark-800 to-dark-800/70">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-amber-500/10 text-amber-300">
+              <Mail size={18} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-white leading-tight truncate">
+                {log?.subject || fallbackSubject || 'Email'}
+              </h3>
+              {log && (
+                <p className="text-xs text-dark-400 mt-0.5 truncate">
+                  to {(log.to || []).join(', ')} · {new Date(log.sentAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0 -mr-1">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading && (
+            <div className="flex items-center justify-center py-12 text-dark-500">
+              <Loader2 size={18} className="animate-spin mr-2" /> Loading…
+            </div>
+          )}
+          {!loading && error && (
+            <p className="text-sm text-red-400">{error}</p>
+          )}
+          {!loading && !error && log && !log.bodyHtml && (
+            <p className="text-sm text-dark-400">
+              Body not captured for this email. It was sent before email-snapshotting was
+              enabled, or sending failed before rendering completed.
+              {log.error && <span className="block mt-2 text-red-400">{log.error}</span>}
+            </p>
+          )}
+          {!loading && !error && log?.bodyHtml && (
+            <div className="bg-white text-black rounded-lg p-5 shadow-inner">
+              {/* The Sign / ATS email templates ship inline-styled HTML
+                  intended for an email client. Rendering it inside an
+                  iframe-style white surface keeps that intent. The body
+                  comes from our own renderer and a server-trusted DB
+                  template, not user input. */}
+              <div dangerouslySetInnerHTML={{ __html: log.bodyHtml }} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 function SystemEventItem({ activity, highlight }) {
   const label = SYSTEM_ACTION_LABELS[activity.action] || activity.action || 'System';
@@ -60,7 +217,12 @@ function SystemEventItem({ activity, highlight }) {
   );
 }
 
-function ActivityItem({ activity, onToggle, onDelete, highlight }) {
+function ActivityItem({ activity, onToggle, onDelete, highlight, onOpenEmailBody }) {
+  // Email-sent / email-failed get their own renderer with the "View email"
+  // affordance (Q1+Q2 locked 2026-05-11).
+  if (activity.type === 'system' && (activity.action === 'email_sent' || activity.action === 'email_failed')) {
+    return <EmailEventItem activity={activity} highlight={highlight} onOpenBody={onOpenEmailBody} />;
+  }
   if (activity.type === 'system') {
     return <SystemEventItem activity={activity} highlight={highlight} />;
   }
@@ -200,6 +362,10 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
   // same timeline. Default ON so the audit trail is visible without an
   // extra click — matches how recruiters expect Odoo's chatter to behave.
   const [showSystem, setShowSystem] = useState(true);
+  // Email-body side-drawer state. Only relevant for ats_application
+  // panels — the endpoint that backs this lives under /ats/applications/
+  // and is scoped to verify the log belongs to the current application.
+  const [emailDrawer, setEmailDrawer] = useState(null); // null | { logId, subject }
   const location = useLocation();
   const scrollDoneRef = useRef(false);
 
@@ -323,10 +489,33 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
             .filter((a) => showSystem ? true : a.type !== 'system')
             .map(a => (
               <div key={a._id} className="group">
-                <ActivityItem activity={a} onToggle={handleToggle} onDelete={handleDelete} highlight={highlightId === a._id} />
+                <ActivityItem
+                  activity={a}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                  highlight={highlightId === a._id}
+                  onOpenEmailBody={entityType === 'ats_application'
+                    ? (logId, subject) => setEmailDrawer({ logId, subject })
+                    : null}
+                />
               </div>
             ))}
         </div>
+      )}
+
+      {/* ATS-only: email-body side drawer. Other entity panels share this
+          component but don't have a body-fetch endpoint wired up yet, so
+          we only mount the drawer for ats_application. The "View email"
+          link is also conditionally rendered above. */}
+      {entityType === 'ats_application' && (
+        <EmailBodyDrawer
+          open={!!emailDrawer}
+          orgSlug={orgSlug}
+          applicationId={entityId}
+          logId={emailDrawer?.logId}
+          fallbackSubject={emailDrawer?.subject}
+          onClose={() => setEmailDrawer(null)}
+        />
       )}
     </div>
   );

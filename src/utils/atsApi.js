@@ -145,6 +145,15 @@ const atsApi = {
     });
   },
 
+  // 2026-05-11: fetch the snapshotted HTML body of an email previously
+  // sent for this application. Drives the ActivityPanel side-drawer
+  // ("View email") — keeps the activity-log row itself light (200 bytes
+  // metadata) while letting the recruiter pull the rendered email
+  // on-demand.
+  getApplicationEmailBody(orgSlug, applicationId, logId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/email-body/${logId}`);
+  },
+
   // 2026-05-11: restore a refused application back to 'ongoing'.
   // Clears refused / refusedAt / refuseReasonId. Reason is required
   // and stored in the stageHistory entry for audit. Admin-only.
