@@ -2278,12 +2278,6 @@ export default function AtsApplicationDetail() {
           <div className="flex items-center gap-2 flex-wrap">
             {canEdit && (
               <>
-                <button
-                  onClick={() => navigate(orgPath('/sign/requests?create=true&linkedModel=ats_application&linkedId=' + applicationId))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-                >
-                  <PenTool size={14} /> Request Signature
-                </button>
                 <MoveStageDropdown
                   stages={stages}
                   currentStageId={currentStageId}
@@ -2542,11 +2536,13 @@ export default function AtsApplicationDetail() {
           </SectionCard>
 
           {/* SignRequestWidget brings its own card styling, header, list,
-              and "+ Send for Signature" composer modal — same component
+              and "+ Send other document" composer modal — same component
               CRM / Employee / Contact use. Wrapping it in a SectionCard
               caused two nested headers and duplicated the request list
-              alongside an inline panel. The header "Request Signature"
-              button stays as a quick entry point to /sign/requests. */}
+              alongside an inline panel. 2026-05-11: the header
+              "Request Signature" button was removed since this widget
+              already provides an in-place entry point and the new
+              "Offer" header button owns the offer-letter flow. */}
           <SignRequestWidget
             orgSlug={orgSlug}
             linkedModel="ats_application"
