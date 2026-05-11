@@ -1678,6 +1678,11 @@ export default function AtsApplicationDetail() {
   // Modal / action UI state
   const [showRefuseModal, setShowRefuseModal] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
+  // editOfferOnly: opens the HireModal in 'offer' mode without any
+  // pending stage move — used by the header "Offer" button so the
+  // recruiter can view / edit / Revise the offer (including
+  // already-signed ones) without having to drag the chip past a gate.
+  const [editOfferOnly, setEditOfferOnly] = useState(false);
   // P0.2 (2026-05-10): when a stage transition into Offer Proposal /
   // Offer Signed is rejected by the API gate, we open the same HireModal
   // in 'offer' mode so the recruiter can capture the data and we then
@@ -1968,27 +1973,32 @@ export default function AtsApplicationDetail() {
   // Offer Signed) — save via /offer then re-fire the original stage
   // transition. Otherwise it's the Hire flow — call /hire as before.
   const handleHire = async (payload) => {
-    const isOfferOnly = !!pendingStageMove;
+    const isOfferOnly = !!pendingStageMove || editOfferOnly;
     try {
       setActionSaving(true);
       if (isOfferOnly) {
         const res = await atsApi.updateOffer(orgSlug, applicationId, payload);
         const warns = Array.isArray(res?.warnings) ? res.warnings : [];
-        if (warns.includes('signed_offer_missing') && !pendingStageMove.requireSignedDoc) {
+        if (warns.includes('signed_offer_missing') && !pendingStageMove?.requireSignedDoc) {
           showToast('Offer details saved — signed offer still missing.', 'warning');
         } else {
           showToast('Offer details saved');
         }
-        // Retry the original stage transition that triggered this modal.
-        const targetId = pendingStageMove.stageId;
+        // Retry the original stage transition only when this save was
+        // triggered by a stage gate. The standalone "Offer" entry
+        // point (editOfferOnly) just saves and closes.
+        const targetId = pendingStageMove?.stageId || null;
         setPendingStageMove(null);
+        setEditOfferOnly(false);
         setShowHireModal(false);
-        try {
-          await atsApi.moveStage(orgSlug, applicationId, targetId);
-          showToast('Stage updated');
-        } catch (retryErr) {
-          // Should be rare — gate just passed. Surface anything left.
-          showToast(retryErr.message || 'Stage move failed after saving offer', 'error');
+        if (targetId) {
+          try {
+            await atsApi.moveStage(orgSlug, applicationId, targetId);
+            showToast('Stage updated');
+          } catch (retryErr) {
+            // Should be rare — gate just passed. Surface anything left.
+            showToast(retryErr.message || 'Stage move failed after saving offer', 'error');
+          }
         }
         // Q24+race-fix (2026-05-10): await the refetch so React state is
         // current before the user's next click. Without this, clicking
@@ -2281,6 +2291,15 @@ export default function AtsApplicationDetail() {
                   onToggle={() => setShowMoveDropdown((p) => !p)}
                   onSelect={handleMoveStage}
                 />
+                {application?.offer?.offeredCTC && (
+                  <button
+                    onClick={() => { setEditOfferOnly(true); setShowHireModal(true); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
+                    title="View, edit, or revise the captured offer"
+                  >
+                    <FileSignature size={14} /> Offer
+                  </button>
+                )}
                 <button
                   onClick={() => setShowRefuseModal(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
@@ -2655,10 +2674,10 @@ export default function AtsApplicationDetail() {
       />
       <HireModal
         show={showHireModal}
-        onClose={() => { setShowHireModal(false); setPendingStageMove(null); }}
+        onClose={() => { setShowHireModal(false); setPendingStageMove(null); setEditOfferOnly(false); }}
         onConfirm={handleHire}
         saving={actionSaving}
-        mode={pendingStageMove ? 'offer' : 'hire'}
+        mode={(pendingStageMove || editOfferOnly) ? 'offer' : 'hire'}
         targetStageName={pendingStageMove?.stageName}
         requireSignedDoc={pendingStageMove?.requireSignedDoc === true}
         offerLevel={pendingStageMove?.offerLevel || 'full'}
