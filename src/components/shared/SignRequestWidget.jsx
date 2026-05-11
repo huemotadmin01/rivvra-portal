@@ -172,77 +172,132 @@ export default function SignRequestWidget({
         </div>
       )}
 
-      {/* Send for Signature Modal */}
+      {/* Send-for-signature modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <PenTool size={16} className="text-indigo-400" /> {modalTitle}
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"><X size={18} /></button>
+          <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-2xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden">
+            {/* Sticky header */}
+            <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-dark-700/80 bg-gradient-to-b from-dark-800 to-dark-800/70">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-500/10 text-indigo-300">
+                  <PenTool size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-white leading-tight">{modalTitle}</h2>
+                  <p className="text-xs text-dark-400 mt-0.5">
+                    Step {step} of 2 · {step === 1 ? 'Choose a template' : 'Add signers and send'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-dark-400 hover:text-white transition-colors flex-shrink-0 -mr-1"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-5">
-              {/* Step 1: Template */}
+
+            {/* Scrollable body */}
+            <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
               {step === 1 && (
                 <>
-                  <p className="text-dark-400 text-sm">Choose a template.</p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {templates.map(t => (
-                      <button key={t._id} onClick={() => setSelectedTemplate(t)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all ${selectedTemplate?._id === t._id ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-dark-900 border-dark-700 hover:border-dark-600'}`}>
-                        <div className="flex items-center gap-3">
-                          <FileText size={14} className="text-indigo-400 flex-shrink-0" />
-                          <span className="text-white text-sm">{t.name}</span>
+                  <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Template</div>
+                  {templates.length === 0 ? (
+                    <p className="text-dark-500 text-sm py-4 text-center">No templates available.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {templates.map(t => (
+                        <button
+                          key={t._id}
+                          onClick={() => setSelectedTemplate(t)}
+                          className={`w-full text-left px-3 py-2 rounded-lg border transition-all ${selectedTemplate?._id === t._id ? 'bg-indigo-500/10 border-indigo-500/40 ring-1 ring-indigo-500/30' : 'bg-dark-900 border-dark-700 hover:border-dark-600'}`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <FileText size={14} className={`flex-shrink-0 ${selectedTemplate?._id === t._id ? 'text-indigo-300' : 'text-indigo-400'}`} />
+                            <span className="text-white text-sm truncate">{t.name}</span>
+                            {selectedTemplate?._id === t._id && (
+                              <CheckCircle2 size={14} className="ml-auto text-indigo-300 flex-shrink-0" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {step === 2 && (
+                <>
+                  <div>
+                    <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider mb-2">Signers</div>
+                    <div className="space-y-2">
+                      {signers.map((s, idx) => (
+                        <div key={idx} className="bg-dark-900 rounded-lg p-3 border border-dark-700 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-dark-500">Signer {idx + 1}</span>
+                            {signers.length > 1 && <button type="button" onClick={() => removeSigner(idx)} className="text-dark-500 hover:text-red-400" title="Remove signer"><X size={14} /></button>}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input value={s.name} onChange={e => updateSigner(idx, 'name', e.target.value)} placeholder="Name" className="input-field text-sm" />
+                            <input value={s.email} onChange={e => updateSigner(idx, 'email', e.target.value)} placeholder="Email *" type="email" className="input-field text-sm" />
+                          </div>
+                          {roles.length > 0 && (
+                            <select value={s.roleId || ''} onChange={e => updateSigner(idx, 'roleId', e.target.value || null)} className="input-field text-sm w-full">
+                              <option value="">No role</option>
+                              {roles.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+                            </select>
+                          )}
                         </div>
-                      </button>
-                    ))}
+                      ))}
+                    </div>
+                    <button type="button" onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1 mt-2">
+                      <Plus size={14} /> Add signer
+                    </button>
                   </div>
-                  <button onClick={() => setStep(2)} disabled={!selectedTemplate} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
+
+                  <div className="pt-3 border-t border-dark-700/60">
+                    <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider mb-2">Email</div>
+                    <label className="text-xs font-medium text-dark-400 mb-1 block">Subject <span className="text-dark-500 font-normal">(optional)</span></label>
+                    <input
+                      value={subject}
+                      onChange={e => setSubject(e.target.value)}
+                      placeholder={`Signature Request - ${selectedTemplate?.name || ''}`}
+                      className="input-field w-full text-sm mb-3"
+                    />
+                    <label className="text-xs font-medium text-dark-400 mb-1 block">Message <span className="text-dark-500 font-normal">(optional)</span></label>
+                    <textarea
+                      value={message}
+                      onChange={e => setMessage(e.target.value)}
+                      rows={3}
+                      className="input-field w-full text-sm resize-y"
+                      placeholder="Add a short note for the signer(s)…"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Sticky footer */}
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-dark-700/80 bg-dark-800/95">
+              {step === 1 && (
+                <>
+                  <button type="button" onClick={() => setShowModal(false)} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    disabled={!selectedTemplate}
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-40"
+                  >
                     Next <ArrowRight size={14} />
                   </button>
                 </>
               )}
-
-              {/* Step 2: Signers + Options */}
               {step === 2 && (
                 <>
-                  <p className="text-dark-400 text-sm">Add signers and send.</p>
-                  <div className="space-y-3">
-                    {signers.map((s, idx) => (
-                      <div key={idx} className="bg-dark-900 rounded-lg p-3 border border-dark-700 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-dark-500">Signer {idx + 1}</span>
-                          {signers.length > 1 && <button onClick={() => removeSigner(idx)} className="text-dark-500 hover:text-red-400"><X size={14} /></button>}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input value={s.name} onChange={e => updateSigner(idx, 'name', e.target.value)} placeholder="Name" className="input-field text-sm" />
-                          <input value={s.email} onChange={e => updateSigner(idx, 'email', e.target.value)} placeholder="Email *" type="email" className="input-field text-sm" />
-                        </div>
-                        {roles.length > 0 && (
-                          <select value={s.roleId || ''} onChange={e => updateSigner(idx, 'roleId', e.target.value || null)} className="input-field text-sm w-full">
-                            <option value="">No role</option>
-                            {roles.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
-                          </select>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
-                  <div>
-                    <label className="text-xs font-medium text-dark-400 mb-1 block">Subject (optional)</label>
-                    <input value={subject} onChange={e => setSubject(e.target.value)} placeholder={`Signature Request - ${selectedTemplate?.name}`} className="input-field w-full text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
-                    <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} className="input-field w-full text-sm resize-none" />
-                  </div>
-                  <div className="flex gap-3">
-                    <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                    <button onClick={handleSend} disabled={sending || signers.some(s => !s.email)} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
-                      {sending ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><Send size={14} /> Send</>}
-                    </button>
-                  </div>
+                  <button type="button" onClick={() => setStep(1)} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors flex items-center gap-1.5"><ArrowLeft size={14} /> Back</button>
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={sending || signers.some(s => !s.email)}
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-40"
+                  >
+                    {sending ? <><Loader2 size={14} className="animate-spin" /> Sending…</> : <><Send size={14} /> Send</>}
+                  </button>
                 </>
               )}
             </div>
