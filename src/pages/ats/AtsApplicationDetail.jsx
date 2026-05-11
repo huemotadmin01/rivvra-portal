@@ -13,6 +13,7 @@ import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import InlineField from '../../components/shared/InlineField';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import RecordMeta from '../../components/shared/RecordMeta';
+import ReasonPromptDialog from '../../components/shared/ReasonPromptDialog';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
@@ -169,6 +170,11 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const [candSignName, setCandSignName] = useState('');
   const [candSignEmail, setCandSignEmail] = useState('');
   const [sendingEnv, setSendingEnv] = useState(false);
+  // Revise-signed-offer ReasonPromptDialog state. Replaces an earlier
+  // window.prompt + window.alert chain that looked out of place
+  // against the rest of the modern modal chrome.
+  const [showReviseDialog, setShowReviseDialog] = useState(false);
+  const [reviseSaving, setReviseSaving] = useState(false);
   // Bumping this nonce re-fires the template-load effect. The previous
   // Retry handler reset signTemplates to [] which kept the length at 0
   // (unchanged dep) — so clicking Retry after a failed fetch silently
@@ -430,6 +436,28 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30'
     : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
 
+  // Drives the ReasonPromptDialog opened by the Revise button on a
+  // fully signed offer. On success, we just refresh — the parent
+  // refetch causes the HireModal to re-prefill from the cleared
+  // signedOfferDocId / regressed stage, so the user lands back in the
+  // Sign-picker state with the prior terms ready to edit.
+  const handleReviseConfirm = async (reason) => {
+    if (!application?._id) return;
+    setReviseSaving(true);
+    try {
+      await atsApi.reviseOffer(orgSlug, application._id, reason);
+      setShowReviseDialog(false);
+      if (typeof onRefresh === 'function') {
+        try { await onRefresh(); } catch { /* ignore */ }
+      }
+    } catch (err) {
+      setSignError(err?.message || 'Failed to revise offer');
+      setShowReviseDialog(false);
+    } finally {
+      setReviseSaving(false);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const errs = {};
@@ -598,30 +626,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       type="button"
-                      onClick={async () => {
-                        if (!application?._id) return;
-                        const reason = window.prompt(
-                          'Revise this signed offer?\n\nThe current terms + signed PDF will be archived under offer.previousVersions, the back-link cleared, and the stage moved back to Offer Proposal so you can edit terms and re-send.\n\nGive a short reason (required) — e.g. "Rate renegotiation", "Joining date changed":',
-                          '',
-                        );
-                        if (reason == null) return; // cancelled
-                        const trimmed = reason.trim();
-                        if (!trimmed) {
-                          window.alert('A reason is required.');
-                          return;
-                        }
-                        try {
-                          const res = await atsApi.reviseOffer(orgSlug, application._id, trimmed);
-                          if (typeof onRefresh === 'function') {
-                            try { await onRefresh(); } catch { /* ignore */ }
-                          }
-                          if (res?.regressedStage && res?.regressTargetName) {
-                            window.alert(`Offer revised. Stage moved back to ${res.regressTargetName}. Edit the terms and Send for signature again.`);
-                          }
-                        } catch (err) {
-                          setSignError(err?.message || 'Failed to revise offer');
-                        }
-                      }}
+                      onClick={() => { if (application?._id) setShowReviseDialog(true); }}
                       className="text-xs text-amber-300 hover:text-amber-200 border border-amber-500/30 rounded px-2 py-1 transition-colors"
                       title="Archive this signed offer and start a new revision (e.g. rate renegotiation)"
                     >
@@ -851,6 +856,28 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
           </button>
         </div>
       </form>
+      <ReasonPromptDialog
+        open={showReviseDialog}
+        title="Revise this signed offer?"
+        message={
+          <>
+            The current terms + signed PDF will be archived under
+            <span className="text-dark-200"> offer.previousVersions</span>, the back-link cleared,
+            and the stage moved back to <span className="text-dark-200">Offer Proposal</span> so
+            you can edit terms and re-send.
+            {'\n\n'}
+            This does <strong className="text-amber-300">not</strong> recall the signed agreement —
+            it just lets you supersede it with a new version.
+          </>
+        }
+        reasonLabel="Reason for revising"
+        reasonPlaceholder='e.g. "Rate renegotiation", "Joining date changed"'
+        confirmLabel="Revise offer"
+        danger
+        busy={reviseSaving}
+        onCancel={() => { if (!reviseSaving) setShowReviseDialog(false); }}
+        onConfirm={handleReviseConfirm}
+      />
     </div>
   );
 }
@@ -2166,29 +2193,24 @@ export default function AtsApplicationDetail() {
     }
   };
 
-  // Restore a refused application. The ats_refused rejection email was
-  // already sent at refuse time — restoring does NOT recall it, which
-  // is why the confirm dialog is explicit about reaching out separately.
-  const handleUnrefuseApp = async () => {
-    const ok = window.confirm(
-      'Restore this refused application?\n\nThe candidate already received the rejection email when you refused. '
-      + 'Restoring will not un-send it. Reach out to the candidate separately before continuing.\n\n'
-      + 'Click OK to enter a reason and restore.',
-    );
-    if (!ok) return;
-    const reason = window.prompt('Why are you restoring this application? (required, e.g. "candidate re-applied", "wrong refusal")', '');
-    if (reason == null) return;
-    const trimmed = reason.trim();
-    if (!trimmed) {
-      window.alert('A reason is required.');
-      return;
-    }
+  // Restore a refused application via the styled ReasonPromptDialog
+  // instead of the browser's native confirm/prompt chain. The
+  // ats_refused rejection email was already sent at refuse time —
+  // restoring does NOT recall it, which is why the dialog body is
+  // explicit about reaching out separately.
+  const [showUnrefuseDialog, setShowUnrefuseDialog] = useState(false);
+  const [unrefuseSaving, setUnrefuseSaving] = useState(false);
+  const handleUnrefuseConfirm = async (reason) => {
+    setUnrefuseSaving(true);
     try {
-      await atsApi.unrefuseApplication(orgSlug, applicationId, trimmed);
+      await atsApi.unrefuseApplication(orgSlug, applicationId, reason);
       showToast('Application restored', 'success');
+      setShowUnrefuseDialog(false);
       await fetchApplication();
     } catch (err) {
       showToast(err.message || 'Failed to restore application', 'error');
+    } finally {
+      setUnrefuseSaving(false);
     }
   };
 
@@ -2353,7 +2375,7 @@ export default function AtsApplicationDetail() {
             )}
             {(application.applicationStatus === 'refused' || application.refused) && !application.archived && (
               <button
-                onClick={handleUnrefuseApp}
+                onClick={() => setShowUnrefuseDialog(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
                 title="Restore this refused application back to ongoing"
               >
@@ -2702,6 +2724,25 @@ export default function AtsApplicationDetail() {
         onConfirm={handleRefuse}
         reasons={refuseReasons}
         saving={actionSaving}
+      />
+      <ReasonPromptDialog
+        open={showUnrefuseDialog}
+        title="Restore this refused application?"
+        message={
+          <>
+            The candidate already received the rejection email when this application
+            was refused. Restoring will <strong className="text-amber-300">not un-send</strong> it —
+            reach out to the candidate separately before continuing.
+            {'\n\n'}
+            Stage stays where it was; status flips back to Ongoing.
+          </>
+        }
+        reasonLabel="Reason for restoring"
+        reasonPlaceholder='e.g. "candidate re-applied", "wrong refusal"'
+        confirmLabel="Restore application"
+        busy={unrefuseSaving}
+        onCancel={() => { if (!unrefuseSaving) setShowUnrefuseDialog(false); }}
+        onConfirm={handleUnrefuseConfirm}
       />
       <HireModal
         show={showHireModal}
