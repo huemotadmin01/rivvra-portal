@@ -2249,7 +2249,10 @@ export default function AtsApplicationDetail() {
                 directly editable here (Phase-1 / Q22, 2026-05-10).
                 Edit it on the Job Position page and it propagates. */}
             <InlineField label="Employment" field="employmentType" value={application.employmentType || '—'} editable={false} />
-            <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={canEdit} onSave={saveField} />
+            {/* Client Role — denorm from the linked Job Position (2026-05-11).
+                Edit it on the Job page; the cascade in PUT /jobs/:id
+                propagates to every linked application. */}
+            <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={false} />
             {/* Client Name — read-only mirror of the linked Job Position.
                 Edit it on the Job page and it propagates to every app. */}
             <InlineField
@@ -2492,7 +2495,17 @@ export default function AtsApplicationDetail() {
 /* ── Interview round helper ──────────────────────────────────────────── */
 function InterviewRound({ label, resultField, dateField, feedbackField, application, canEdit, saveField }) {
   const isEmpty = (v) => v == null || v === '' || (typeof v === 'string' && v.trim() === '');
-  const hasAny = !isEmpty(application[resultField])
+  // Phase-1 / Q28-D (2026-05-11): l1Result / l2Result / hrResult are now
+  // stored as a structured subdoc { recommendation, notes, capturedAt,
+  // capturedBy, capturedByName } via the /interview-result endpoint.
+  // Older records (and freshly imported Odoo data) still carry the legacy
+  // string ('awaited' | 'selected' | 'rejected') or null. Normalize for
+  // display so the read mode never tries to render the object directly
+  // (React error #31).
+  const rawResult = application[resultField];
+  const isResultSubdoc = rawResult != null && typeof rawResult === 'object';
+  const resultString = isResultSubdoc ? (rawResult.recommendation || '') : (rawResult || '');
+  const hasAny = !isEmpty(resultString)
     || !isEmpty(application[dateField])
     || !isEmpty(application[feedbackField]);
 
@@ -2527,10 +2540,10 @@ function InterviewRound({ label, resultField, dateField, feedbackField, applicat
       <InlineField
         label="Result"
         field={resultField}
-        value={application[resultField]}
+        value={resultString}
         type="select"
-        options={RESULT_OPTIONS}
-        editable={canEdit}
+        options={isResultSubdoc ? [{ value: resultString, label: resultString }] : RESULT_OPTIONS}
+        editable={canEdit && !isResultSubdoc}
         onSave={saveField}
       />
       <InlineField
