@@ -169,6 +169,15 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const [candSignName, setCandSignName] = useState('');
   const [candSignEmail, setCandSignEmail] = useState('');
   const [sendingEnv, setSendingEnv] = useState(false);
+  // Bumping this nonce re-fires the template-load effect. The previous
+  // Retry handler reset signTemplates to [] which kept the length at 0
+  // (unchanged dep) — so clicking Retry after a failed fetch silently
+  // did nothing. Now Retry increments the nonce, which is a dep.
+  const [signFetchNonce, setSignFetchNonce] = useState(0);
+  // Pre-filled subject + body for the Sign email so the recruiter
+  // doesn't have to retype candidate name, rate, title, joining date.
+  const [signSubject, setSignSubject] = useState('');
+  const [signMessage, setSignMessage] = useState('');
 
   // Resolve the application's internal company so we can read the seeded
   // signatory metadata. The companies array comes from CompanyContext.
@@ -189,7 +198,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   // We also always clear the loading flag in finally now (cancellation
   // affects state-write, not loading-state cleanup).
   useEffect(() => {
-    if (!show || !orgSlug || signTemplates.length > 0) return;
+    if (!show || !orgSlug) return;
+    if (signTemplates.length > 0 && signFetchNonce === 0) return;
     let cancelled = false;
     setSignLoading(true);
     setSignError('');
@@ -205,12 +215,14 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
       .finally(() => { setSignLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, orgSlug, signTemplates.length]);
+  }, [show, orgSlug, signFetchNonce]);
 
-  // Manual retry — clears state so the lazy-load effect re-fires.
+  // Manual retry — bumps the fetch nonce so the lazy-load effect refires
+  // even when signTemplates is already [] (the previous "set to []" reset
+  // was a no-op when length was already 0).
   const handleRetryLoadTemplates = () => {
-    setSignTemplates([]);
     setSignError('');
+    setSignFetchNonce((n) => n + 1);
   };
 
   // Reset Sign-section state every time the modal opens so a fresh
@@ -227,7 +239,16 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     setSignError('');
   }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Local-TZ YYYY-MM-DD so the `min` on the date input and the
+  // "cannot be in the past" guard agree with what the recruiter sees
+  // in their browser. Using new Date().toISOString() was UTC-based,
+  // which marked today as past for users west of UTC and let users
+  // east of UTC pick yesterday.
+  const ymdLocal = (d) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const today = ymdLocal(new Date());
   const initJoining = initialOffer?.joiningDate
     ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10)
     : today;
@@ -252,6 +273,64 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     }
   }, [show, today, initialOffer]);
 
+  // Pre-fill subject + body for the Sign email from offer details so
+  // the recruiter doesn't retype candidate name, rate, title, joining
+  // date. Recomputes whenever any source value changes — unless the
+  // recruiter has typed into the field themselves (tracked via the
+  // *Dirty flags).
+  const [signSubjectDirty, setSignSubjectDirty] = useState(false);
+  const [signMessageDirty, setSignMessageDirty] = useState(false);
+  const jobTitle = application?.jobPositionName || application?.jobTitle || '';
+  const formatRate = () => {
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return '';
+    const formatted = amt.toLocaleString('en-IN');
+    const unitLabel = salaryUnit === 'per_day' ? 'per day'
+      : salaryUnit === 'per_month' ? 'per month'
+      : salaryUnit === 'lpa' ? 'LPA'
+      : salaryUnit === 'per_year' ? 'per year'
+      : '';
+    return `${currency} ${formatted}${unitLabel ? ` ${unitLabel}` : ''}`;
+  };
+  const formatJoining = () => {
+    if (!joiningDate || !/^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) return '';
+    const [y, m, d] = joiningDate.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    });
+  };
+  const defaultSubject = () => {
+    const cand = (candSignName || application?.candidateName || 'Candidate').trim();
+    return jobTitle
+      ? `Offer Letter — ${cand} · ${jobTitle}`
+      : `Offer Letter — ${cand}`;
+  };
+  const defaultMessage = () => {
+    const cand = (candSignName || application?.candidateName || '').trim();
+    const greeting = cand ? `Hi ${cand.split(' ')[0]},` : 'Hi,';
+    const role = jobTitle ? ` for the ${jobTitle} role` : '';
+    const rate = formatRate();
+    const join = formatJoining();
+    const bits = [];
+    if (rate) bits.push(`compensation ${rate}`);
+    if (join) bits.push(`joining date ${join}`);
+    const detailsClause = bits.length ? ` — ${bits.join(', ')}` : '';
+    // Single line so the email renderer's <p> wrapper keeps it readable.
+    return `${greeting} we're delighted to extend an offer${role}${detailsClause}. Please review and sign at your earliest convenience.`;
+  };
+  useEffect(() => {
+    if (!show) return;
+    if (!signSubjectDirty) setSignSubject(defaultSubject());
+    if (!signMessageDirty) setSignMessage(defaultMessage());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, candSignName, application?.candidateName, jobTitle, amount, currency, salaryUnit, joiningDate]);
+
+  useEffect(() => {
+    if (!show) return;
+    setSignSubjectDirty(false);
+    setSignMessageDirty(false);
+  }, [show]);
+
   if (!show) return null;
 
   // Phase-1 / Q11+Q12 (2026-05-10): create the Sign envelope using the
@@ -268,9 +347,13 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     setSendingEnv(true);
     try {
       const tmpl = signTemplates.find((t) => String(t._id) === String(signTemplateId));
+      const subjectForSend = (signSubject || defaultSubject()).trim();
+      const messageForSend = (signMessage || defaultMessage()).trim();
       const res = await atsApi.createOfferSignRequest(orgSlug, application._id, {
         templateId: signTemplateId,
         reference: `Offer — ${application.candidateName || 'Candidate'} · ${application.jobPositionName || ''}`.trim(),
+        subject: subjectForSend || undefined,
+        message: messageForSend || undefined,
         signers: [
           { name: directorName.trim(), email: directorEmail.trim().toLowerCase(), roleName: 'Director' },
           { name: candSignName.trim(), email: candSignEmail.trim().toLowerCase(), roleName: 'Candidate' },
@@ -324,10 +407,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
 
     // Joining date / notice / probation only required when fullOfferRequired.
     if (fullOfferRequired) {
-      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-      const jd = new Date(joiningDate);
-      if (!joiningDate || isNaN(jd.getTime())) errs.joiningDate = 'Required';
-      else if (jd < todayMidnight) errs.joiningDate = 'Cannot be in the past';
+      if (!joiningDate || !/^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) errs.joiningDate = 'Required';
+      else if (joiningDate < today) errs.joiningDate = 'Cannot be in the past';
       const np = Number(noticePeriodDays);
       if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
       const pm = Number(probationMonths);
@@ -366,16 +447,25 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
         role="dialog"
         aria-modal="true"
         onSubmit={handleSubmit}
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-xl"
+        className="bg-dark-800 rounded-2xl border border-dark-700 shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col"
       >
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-lg font-semibold text-white">{headerTitle}</h3>
-            <p className="text-xs text-dark-400 mt-0.5">{headerSub}</p>
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-dark-700/80 bg-gradient-to-b from-dark-800 to-dark-800/70">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isOfferMode ? 'bg-blue-500/10 text-blue-300' : 'bg-emerald-500/10 text-emerald-300'}`}>
+              <FileSignature size={18} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-white leading-tight">{headerTitle}</h3>
+              <p className="text-xs text-dark-400 mt-0.5">{headerSub}</p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0 -mr-1"><X size={20} /></button>
         </div>
 
+        <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+        {fullOfferRequired && (
+          <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer terms</div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           {fullOfferRequired && (
             <div className="col-span-2">
@@ -453,13 +543,15 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
           )}
 
           {fullOfferRequired && (
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-dark-300 mb-2">
-              Offer signature {signedDocRequiredEffective
-                ? <span className="text-red-400">*</span>
-                : <span className="text-dark-500 font-normal">(optional)</span>
-              }
-            </label>
+          <div className="col-span-2 pt-3 mt-1 border-t border-dark-700/60">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer signature</div>
+              <div className="text-[11px] text-dark-500">
+                {signedDocRequiredEffective
+                  ? <span className="text-red-400">Required</span>
+                  : 'Optional'}
+              </div>
+            </div>
 
             {signedOfferDocId ? (
               /* State 1: envelope completed — back-link wrote signedOfferDocId */
@@ -582,6 +674,43 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                   </div>
                 </div>
 
+                <div className="border-t border-dark-700/70 pt-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-dark-400">Email subject</label>
+                    {(signSubjectDirty || signMessageDirty) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSignSubject(defaultSubject());
+                          setSignMessage(defaultMessage());
+                          setSignSubjectDirty(false);
+                          setSignMessageDirty(false);
+                        }}
+                        className="text-[11px] text-rivvra-300 hover:text-rivvra-200 underline-offset-2 hover:underline"
+                      >
+                        Reset to default
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={signSubject}
+                    onChange={(e) => { setSignSubject(e.target.value); setSignSubjectDirty(true); }}
+                    className="input-field text-sm mb-2"
+                    disabled={sendingEnv}
+                    placeholder="Offer Letter — Candidate · Role"
+                  />
+                  <label className="block text-xs font-medium text-dark-400 mb-1">Email message</label>
+                  <textarea
+                    value={signMessage}
+                    onChange={(e) => { setSignMessage(e.target.value); setSignMessageDirty(true); }}
+                    rows={3}
+                    disabled={sendingEnv}
+                    className="input-field text-sm resize-none"
+                  />
+                  <p className="text-[11px] text-dark-500 mt-1">Pre-filled from candidate name, rate, title, and joining date. Edits stick.</p>
+                </div>
+
                 {signError && <p className="text-xs text-red-400">{signError}</p>}
                 {errors.signedOfferDocId && !signError && <p className="text-xs text-red-400">{errors.signedOfferDocId}</p>}
 
@@ -625,8 +754,9 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
             </div>
           )}
         </div>
+        </div>
 
-        <div className="flex items-center gap-3 mt-6">
+        <div className="flex items-center gap-3 px-6 py-4 border-t border-dark-700/80 bg-dark-800/95">
           <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
           <button type="submit" disabled={saving} className={`flex-1 flex items-center justify-center gap-2 ${submitClass} rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50`}>
             {saving && <Loader2 size={16} className="animate-spin" />}
