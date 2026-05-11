@@ -1248,6 +1248,125 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
   );
 }
 
+/* ── Interview Result Modal (Phase-1 / Q28+Q29+Q30, 2026-05-11) ──────────
+ * Fires when the API rejects a forward move out of an interview stage
+ * with requiresInterviewResult. Captures the recommendation
+ * (Proceed/Hold/Reject) + free-text notes (Q28-D shape — scorecard
+ * deferred to a future phase).
+ *
+ * Reject path is handled separately by the parent (Q29-B): instead of
+ * opening this modal, the parent surfaces a "Refuse this candidate?"
+ * confirm that opens the existing Refuse modal. So the recommendation
+ * picker here only really shows Proceed / Hold options as the
+ * "common" path; Reject is still selectable for completeness but
+ * picking it then saving will save the result and the user must
+ * explicitly Refuse the application (consistent with Q29-B).
+ */
+function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetStageName, existingResult }) {
+  const [recommendation, setRecommendation] = useState('Proceed');
+  const [notes, setNotes] = useState('');
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (!show) return;
+    setRecommendation(existingResult?.recommendation || 'Proceed');
+    setNotes(existingResult?.notes || '');
+    setErrors({});
+  }, [show, existingResult]);
+
+  if (!show) return null;
+  const levelLabel = INTERVIEW_LEVEL_LABEL[level] || 'Interview';
+  const isHoldChange = existingResult?.recommendation === 'Hold';
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    const errs = {};
+    if (!recommendation || !['Proceed', 'Hold', 'Reject'].includes(recommendation)) {
+      errs.recommendation = 'Pick one';
+    }
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    onConfirm({ recommendation, notes: notes.trim() });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">{levelLabel} Result</h3>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {isHoldChange
+                ? <>Currently on <span className="text-amber-300">Hold</span> — change to Proceed (or Reject) to advance to <span className="text-dark-200">{targetStageName}</span></>
+                : targetStageName
+                  ? <>Required to move to <span className="text-dark-200">{targetStageName}</span></>
+                  : 'Capture the interview outcome'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-2">Recommendation <span className="text-red-400">*</span></label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { val: 'Proceed', tone: 'emerald', hint: 'Advance to next stage' },
+                { val: 'Hold',    tone: 'amber',   hint: 'Pause — undecided' },
+                { val: 'Reject',  tone: 'red',     hint: 'Decline — refuse' },
+              ].map(({ val, tone, hint }) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setRecommendation(val)}
+                  className={`flex flex-col items-start text-left rounded-lg border px-3 py-2.5 transition-colors ${
+                    recommendation === val
+                      ? `bg-${tone}-500/15 border-${tone}-500/50 text-${tone}-200`
+                      : 'bg-dark-900/40 border-dark-700 text-dark-300 hover:border-dark-600'
+                  }`}
+                >
+                  <span className="text-sm font-semibold">{val}</span>
+                  <span className="text-[11px] text-dark-500 mt-0.5">{hint}</span>
+                </button>
+              ))}
+            </div>
+            {errors.recommendation && <p className="text-xs text-red-400 mt-1">{errors.recommendation}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Notes <span className="text-dark-500 font-normal">(optional)</span></label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Why? Anything HR / Offer-stage should know — strengths, gaps, salary signals…"
+              className="input-field resize-y w-full"
+            />
+          </div>
+
+          {recommendation === 'Reject' && (
+            <p className="text-[11px] text-amber-400/80">
+              Saving as Reject just records the result — it doesn't terminate the application. Use the Refuse button after to refuse the candidate.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 mt-5">
+          <button type="button" onClick={onClose} className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors">Cancel</button>
+          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            Save result
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* ── Move-to-Stage Dropdown ───────────────────────────────────────────── */
 function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect }) {
   return (
@@ -1349,6 +1468,12 @@ export default function AtsApplicationDetail() {
   // back (existingSlot). After save, re-fire the original transition.
   //   { stageId, targetStageName, level, existingSlot } | null
   const [pendingInterviewMove, setPendingInterviewMove] = useState(null);
+  // Phase-1 / Q28+Q30 (2026-05-11): when a forward move out of an
+  // interview stage (L1→L2, L2→Documents, HR→Offer Proposal) is
+  // blocked because the previous round's result wasn't captured (or
+  // is on Hold), open the InterviewResultModal pre-filled.
+  //   { stageId, targetStageName, level, existingResult, isHoldChange } | null
+  const [pendingResultMove, setPendingResultMove] = useState(null);
   // P0.1 (2026-05-10): Create Employee is now a pre-filled drawer (Q4-B step 2),
   // not a one-click action. Old immediate-create behaviour produced empty
   // employee records (bug B2).
@@ -1531,6 +1656,27 @@ export default function AtsApplicationDetail() {
         });
         return;
       }
+      // Phase-1 / Q28+Q29+Q30: forward move out of an interview stage
+      // blocked because the previous round's result is missing / Hold /
+      // Reject. Q29-B: Reject doesn't open the result modal — we
+      // surface a confirm-toast pointing at the Refuse button instead.
+      // Q30-A: Hold opens the result modal pre-filled so the recruiter
+      // can flip the call. Missing opens the result modal blank.
+      if (err?.requiresInterviewResult && err.interviewLevel) {
+        const levelLabel = err.interviewLevel.toUpperCase();
+        if (err.suggestRefuse) {
+          showToast(`${levelLabel} result is "Reject" — click Refuse (top right) to terminate this application.`, 'warning');
+          return;
+        }
+        setPendingResultMove({
+          stageId,
+          targetStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
+          level: err.interviewLevel,
+          existingResult: err.existingResult || null,
+          isHoldChange: err.onHold === true,
+        });
+        return;
+      }
       // P0.2 hard-gate handling. When the API blocks a transition into
       // Offer Proposal / Offer Signed because the offer subdoc is
       // missing fields, open the HireModal in 'offer' mode pre-filled
@@ -1698,6 +1844,51 @@ export default function AtsApplicationDetail() {
         else showToast(err.message || 'Failed to schedule interview', 'error');
       } else {
         showToast(err.message || 'Failed to schedule interview', 'error');
+      }
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  // Phase-1 / Q28+Q30 (2026-05-11): save the interview result via
+  // /interview-result, then re-fire the original stage move. If the
+  // user picked Reject, we save the result but DON'T re-fire the
+  // move (Q29-B says Reject means the candidate should be Refused,
+  // not advanced) — we surface the same Refuse-prompt toast as the
+  // gate's `suggestRefuse` branch.
+  const handleCaptureResult = async (resultPayload) => {
+    if (!pendingResultMove) return;
+    const { stageId, level } = pendingResultMove;
+    try {
+      setActionSaving(true);
+      await atsApi.captureInterviewResult(orgSlug, applicationId, { level, result: resultPayload });
+      const levelLabel = (level || '').toUpperCase();
+      showToast(`${levelLabel} result saved`);
+      setPendingResultMove(null);
+      if (resultPayload.recommendation === 'Reject') {
+        // Q29-B: don't advance. Tell the recruiter to Refuse.
+        showToast(`${levelLabel} result is "Reject" — click Refuse (top right) to terminate this application.`, 'warning');
+        await fetchApplication();
+        return;
+      }
+      try {
+        await atsApi.moveStage(orgSlug, applicationId, stageId);
+        showToast('Stage updated');
+      } catch (retryErr) {
+        // Q30-A: if user kept Hold (didn't change to Proceed), the
+        // gate fires again. Surface the gate's message rather than a
+        // generic "failed" so the recruiter knows what's wrong.
+        showToast(retryErr.message || 'Stage move failed after saving result', 'error');
+      }
+      await fetchApplication();
+    } catch (err) {
+      const fields = err?.fieldErrors;
+      if (fields && typeof fields === 'object') {
+        const first = Object.entries(fields)[0];
+        if (first) showToast(`${first[0]}: ${first[1]}`, 'error');
+        else showToast(err.message || 'Failed to save result', 'error');
+      } else {
+        showToast(err.message || 'Failed to save result', 'error');
       }
     } finally {
       setActionSaving(false);
@@ -2262,6 +2453,15 @@ export default function AtsApplicationDetail() {
         targetStageName={pendingInterviewMove?.targetStageName}
         existingSlot={pendingInterviewMove?.existingSlot}
         orgSlug={orgSlug}
+      />
+      <InterviewResultModal
+        show={!!pendingResultMove}
+        onClose={() => setPendingResultMove(null)}
+        onConfirm={handleCaptureResult}
+        saving={actionSaving}
+        level={pendingResultMove?.level}
+        targetStageName={pendingResultMove?.targetStageName}
+        existingResult={pendingResultMove?.existingResult}
       />
     </div>
   );

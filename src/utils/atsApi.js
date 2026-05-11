@@ -165,6 +165,17 @@ const atsApi = {
     });
   },
 
+  // Phase-1 / Q28 (2026-05-11): capture an interview's result. Used by
+  // the result-gate that blocks forward moves out of L1/L2/HR. Body:
+  //   { level: 'l1'|'l2'|'hr',
+  //     result: { recommendation: 'Proceed'|'Hold'|'Reject', notes? } }
+  captureInterviewResult(orgSlug, applicationId, payload) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/interview-result`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
   // Phase-1 / Q26 (2026-05-11): schedule one round of interview on the
   // application. Used by the interview-slot gate at L1/L2/HR. Body:
   //   { level: 'l1'|'l2'|'hr', slot: { datetime, interviewerId,
