@@ -1294,12 +1294,12 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
 
   if (!show) return null;
   const levelLabel = INTERVIEW_LEVEL_LABEL[level] || 'Interview';
-  const isHoldChange = existingResult?.recommendation === 'Hold';
+  const isHoldChange = existingResult?.recommendation === 'Awaited';
 
   const submit = (e) => {
     e?.preventDefault?.();
     const errs = {};
-    if (!recommendation || !['Proceed', 'Hold', 'Reject'].includes(recommendation)) {
+    if (!recommendation || !['Proceed', 'Awaited', 'Reject'].includes(recommendation)) {
       errs.recommendation = 'Pick one';
     }
     setErrors(errs);
@@ -1319,7 +1319,7 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
             <h3 className="text-lg font-semibold text-white">{levelLabel} Result</h3>
             <p className="text-xs text-dark-400 mt-0.5">
               {isHoldChange
-                ? <>Currently on <span className="text-amber-300">Hold</span> — change to Proceed (or Reject) to advance to <span className="text-dark-200">{targetStageName}</span></>
+                ? <>Currently <span className="text-amber-300">Awaited</span> — change to Proceed (or Reject) to advance to <span className="text-dark-200">{targetStageName}</span></>
                 : targetStageName
                   ? <>Required to move to <span className="text-dark-200">{targetStageName}</span></>
                   : 'Capture the interview outcome'}
@@ -1334,7 +1334,7 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
             <div className="grid grid-cols-3 gap-2">
               {[
                 { val: 'Proceed', tone: 'emerald', hint: 'Advance to next stage' },
-                { val: 'Hold',    tone: 'amber',   hint: 'Pause — undecided' },
+                { val: 'Awaited', tone: 'amber',   hint: 'Pause — undecided' },
                 { val: 'Reject',  tone: 'red',     hint: 'Decline — refuse' },
               ].map(({ val, tone, hint }) => (
                 <button
