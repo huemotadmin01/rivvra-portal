@@ -24,6 +24,7 @@ import {
   PenTool, FileSignature, UserPlus, UserCheck,
   DollarSign, Mail, Building2, Hash, IdCard,
   Archive, ArchiveRestore, MoreHorizontal, Trash2,
+  MessageSquare, AlertCircle,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
@@ -2096,6 +2097,28 @@ export default function AtsApplicationDetail() {
   // the transition; if a different gate now trips, the existing
   // handleMoveStage error-routing catches it and opens the right
   // modal next.
+  // Q4-D entry points (2026-05-12): callers from the InterviewRoundCard's
+  // Schedule / Reschedule button. Reuse pendingInterviewMove with
+  // stageId:null so the handler below skips the post-save stage retry.
+  const openInterviewScheduleModal = (level, existingSlot, isClientRole) => {
+    setPendingInterviewMove({
+      stageId: null,
+      level,
+      targetStageName: '',
+      existingSlot: existingSlot || null,
+      isClientRole: !!isClientRole,
+    });
+  };
+  const openInterviewResultModal = (level, existingResult) => {
+    setPendingResultMove({
+      stageId: null,
+      level,
+      targetStageName: '',
+      existingResult: existingResult || null,
+      isHoldChange: existingResult?.recommendation === 'Awaited',
+    });
+  };
+
   const handleScheduleInterview = async (slot) => {
     if (!pendingInterviewMove) return;
     const { stageId, level } = pendingInterviewMove;
@@ -2104,11 +2127,17 @@ export default function AtsApplicationDetail() {
       await atsApi.scheduleInterview(orgSlug, applicationId, { level, slot });
       showToast(`${INTERVIEW_LEVEL_LABEL[level] || 'Interview'} scheduled`);
       setPendingInterviewMove(null);
-      try {
-        await atsApi.moveStage(orgSlug, applicationId, stageId);
-        showToast('Stage updated');
-      } catch (retryErr) {
-        showToast(retryErr.message || 'Stage move failed after scheduling', 'error');
+      // Only re-fire the stage move when this modal was opened by a
+      // gate (stageId present). The standalone "Schedule" / "Reschedule"
+      // entry points from InterviewRoundCard pass stageId:null and just
+      // want the slot saved without advancing the pipeline.
+      if (stageId) {
+        try {
+          await atsApi.moveStage(orgSlug, applicationId, stageId);
+          showToast('Stage updated');
+        } catch (retryErr) {
+          showToast(retryErr.message || 'Stage move failed after scheduling', 'error');
+        }
       }
       await fetchApplication();
     } catch (err) {
@@ -2146,14 +2175,19 @@ export default function AtsApplicationDetail() {
         await fetchApplication();
         return;
       }
-      try {
-        await atsApi.moveStage(orgSlug, applicationId, stageId);
-        showToast('Stage updated');
-      } catch (retryErr) {
-        // Q30-A: if user kept Hold (didn't change to Proceed), the
-        // gate fires again. Surface the gate's message rather than a
-        // generic "failed" so the recruiter knows what's wrong.
-        showToast(retryErr.message || 'Stage move failed after saving result', 'error');
+      // Q4-D (2026-05-12): standalone result-capture from InterviewRoundCard
+      // passes stageId:null. Skip the stage retry — the recruiter just
+      // wants the result saved.
+      if (stageId) {
+        try {
+          await atsApi.moveStage(orgSlug, applicationId, stageId);
+          showToast('Stage updated');
+        } catch (retryErr) {
+          // Q30-A: if user kept Hold (didn't change to Proceed), the
+          // gate fires again. Surface the gate's message rather than a
+          // generic "failed" so the recruiter knows what's wrong.
+          showToast(retryErr.message || 'Stage move failed after saving result', 'error');
+        }
       }
       await fetchApplication();
     } catch (err) {
@@ -2470,7 +2504,36 @@ export default function AtsApplicationDetail() {
         <div className="lg:col-span-2 space-y-5">
           <SectionCard title="Candidate" icon={User}>
             <InlineField label="Name" field="candidateName" value={application.candidateName} editable={canEdit} onSave={saveField} required />
-            <InlineField label="Email" field="email" value={application.email} type="email" editable={canEdit} onSave={saveField} placeholder="Add email" />
+            <InlineField
+              label="Email"
+              field="email"
+              value={application.email}
+              type="email"
+              editable={canEdit}
+              onSave={saveField}
+              placeholder="Add email"
+              // Q5-B (2026-05-12): if the most recent email to this address
+              // failed, surface a red ⚠ inline so the recruiter notices
+              // before wondering why the candidate hasn't replied. The
+              // server only embeds this when status === 'sent' or 'failed'
+              // and sentAt is within the last 30 days, so the chip is
+              // self-clearing on a fresh successful send.
+              displayValue={application.email
+                ? (
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{application.email}</span>
+                    {application.lastCandidateEmail?.status === 'failed' && (
+                      <span
+                        title={`Last email failed${application.lastCandidateEmail.error ? ' — ' + application.lastCandidateEmail.error : ''} (${new Date(application.lastCandidateEmail.sentAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })})`}
+                        className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/30 flex-shrink-0"
+                      >
+                        <AlertCircle size={10} /> bounce
+                      </span>
+                    )}
+                  </span>
+                )
+                : undefined}
+            />
             <InlineField label="Phone" field="phone" value={application.phone} type="phone" editable={canEdit} onSave={saveField} placeholder="Add phone" />
             <InlineField label="LinkedIn" field="linkedinProfile" value={application.linkedinProfile} type="url" editable={canEdit} onSave={saveField} placeholder="LinkedIn URL" />
             <InlineField
@@ -2620,35 +2683,47 @@ export default function AtsApplicationDetail() {
           />
 
           <SectionCard title="Interview" icon={Calendar}>
-            <InterviewRound
-              label="L1"
-              resultField="l1Result"
-              dateField="l1DateTime"
-              feedbackField="l1Feedback"
-              application={application}
-              canEdit={canEdit}
-              saveField={saveField}
-            />
-            <div className="border-t border-dark-700 my-3" />
-            <InterviewRound
-              label="L2"
-              resultField="l2Result"
-              dateField="l2DateTime"
-              feedbackField="l2Feedback"
-              application={application}
-              canEdit={canEdit}
-              saveField={saveField}
-            />
-            <div className="border-t border-dark-700 my-3" />
-            <InterviewRound
-              label="HR"
-              resultField="hrResult"
-              dateField="hrDateTime"
-              feedbackField="hrRoundFeedback"
-              application={application}
-              canEdit={canEdit}
-              saveField={saveField}
-            />
+            <div className="space-y-2.5">
+              <InterviewRoundCard
+                label="L1"
+                level="l1"
+                interviewField="l1Interview"
+                resultField="l1Result"
+                dateField="l1DateTime"
+                feedbackField="l1Feedback"
+                application={application}
+                canEdit={canEdit}
+                isClientRole={application.isClientRole === true}
+                onEditSchedule={openInterviewScheduleModal}
+                onEditResult={openInterviewResultModal}
+              />
+              <InterviewRoundCard
+                label="L2"
+                level="l2"
+                interviewField="l2Interview"
+                resultField="l2Result"
+                dateField="l2DateTime"
+                feedbackField="l2Feedback"
+                application={application}
+                canEdit={canEdit}
+                isClientRole={application.isClientRole === true}
+                onEditSchedule={openInterviewScheduleModal}
+                onEditResult={openInterviewResultModal}
+              />
+              <InterviewRoundCard
+                label="HR"
+                level="hr"
+                interviewField="hrInterview"
+                resultField="hrResult"
+                dateField="hrDateTime"
+                feedbackField="hrRoundFeedback"
+                application={application}
+                canEdit={canEdit}
+                isClientRole={false}
+                onEditSchedule={openInterviewScheduleModal}
+                onEditResult={openInterviewResultModal}
+              />
+            </div>
             <div className="border-t border-dark-700 my-3" />
             <InlineField
               label="Hire Date"
@@ -2809,77 +2884,180 @@ export default function AtsApplicationDetail() {
 }
 
 /* ── Interview round helper ──────────────────────────────────────────── */
-function InterviewRound({ label, resultField, dateField, feedbackField, application, canEdit, saveField }) {
-  const isEmpty = (v) => v == null || v === '' || (typeof v === 'string' && v.trim() === '');
-  // Phase-1 / Q28-D (2026-05-11): l1Result / l2Result / hrResult are now
-  // stored as a structured subdoc { recommendation, notes, capturedAt,
-  // capturedBy, capturedByName } via the /interview-result endpoint.
-  // Older records (and freshly imported Odoo data) still carry the legacy
-  // string ('awaited' | 'selected' | 'rejected') or null. Normalize for
-  // display so the read mode never tries to render the object directly
-  // (React error #31).
+// Q4-D refactor (2026-05-12): InterviewRoundCard replaces the old
+// InterviewRound's three inline fields. Reads structured subdocs
+// (l1Interview / l1Result + L2 + HR) and falls back to the legacy
+// flat fields (l1DateTime / l1Feedback etc.) for imported records.
+// All editing is funneled through the existing InterviewScheduleModal
+// / InterviewResultModal — no inline writes — so there's only one
+// write path and no divergence between flat fields and the subdocs.
+function InterviewRoundCard({
+  label,
+  level,                 // 'l1' | 'l2' | 'hr'
+  interviewField,        // 'l1Interview' | 'l2Interview' | 'hrInterview'
+  resultField,           // 'l1Result' | 'l2Result' | 'hrResult'
+  dateField,             // 'l1DateTime' | ... (legacy fallback)
+  feedbackField,         // 'l1Feedback' | ... (legacy fallback)
+  application,
+  canEdit,
+  isClientRole = false,
+  onEditSchedule,        // (level, existingSlot, isClientRole) => void
+  onEditResult,          // (level, existingResult) => void
+}) {
+  const slot = application[interviewField];
+  const isSlotObject = slot != null && typeof slot === 'object';
+
   const rawResult = application[resultField];
   const isResultSubdoc = rawResult != null && typeof rawResult === 'object';
-  const resultString = isResultSubdoc ? (rawResult.recommendation || '') : (rawResult || '');
-  const hasAny = !isEmpty(resultString)
-    || !isEmpty(application[dateField])
-    || !isEmpty(application[feedbackField]);
+  const resultRecommendation = isResultSubdoc ? (rawResult.recommendation || '') : (rawResult || '');
+  const resultNotes = isResultSubdoc ? (rawResult.notes || '') : '';
 
-  // Collapsed-by-default when nothing's been filled in. Imported records
-  // come in with all three fields blank for L1 / L2 / HR, which used to
-  // render 9 empty "—" rows on every application detail. Now we show a
-  // single "Not scheduled" line per round, with an "Add details" toggle
-  // for admins.
-  const [expanded, setExpanded] = useState(hasAny);
-  const showFields = hasAny || expanded;
+  // Datetime resolution: prefer the structured subdoc, fall back to the
+  // legacy flat field that imports populate.
+  const datetimeRaw = isSlotObject ? slot.datetime : application[dateField];
+  const datetimeFormatted = (() => {
+    if (!datetimeRaw) return '';
+    const d = new Date(datetimeRaw);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    });
+  })();
+
+  const interviewerName = isSlotObject ? (slot.interviewerName || '') : '';
+  const mode = isSlotObject ? (slot.mode || '') : '';
+  const meetingLink = isSlotObject ? (slot.meetingLink || '') : '';
+  const durationMin = isSlotObject ? (slot.durationMinutes || null) : null;
+
+  // Feedback fallback to legacy free-text field for imported records.
+  const feedbackText = resultNotes
+    || application[feedbackField]
+    || '';
+
+  // What state is this round in? Drives the Edit-button behaviour and
+  // the chips shown.
+  const hasSchedule = !!datetimeRaw;
+  const hasResult = !!resultRecommendation;
+  const isUnscheduled = !hasSchedule && !hasResult && !feedbackText;
+
+  // Result chip color + label.
+  const resultChip = (() => {
+    if (!resultRecommendation) return null;
+    const r = String(resultRecommendation).toLowerCase();
+    const tone = r === 'proceed' || r === 'selected' ? 'emerald'
+      : r === 'reject' || r === 'rejected' ? 'red'
+      : r === 'awaited' || r === 'hold' ? 'amber'
+      : 'sky';
+    const cls = {
+      emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+      red:     'bg-red-500/10 text-red-300 border-red-500/30',
+      amber:   'bg-amber-500/10 text-amber-300 border-amber-500/30',
+      sky:     'bg-sky-500/10 text-sky-300 border-sky-500/30',
+    }[tone];
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border ${cls}`}>
+        {resultRecommendation}
+      </span>
+    );
+  })();
+
+  // Edit-button label + handler. When unscheduled → schedule modal.
+  // When scheduled but no result → result modal. When both → menu
+  // would be ideal but a single button that opens the result modal
+  // is what recruiters reach for most often; "Reschedule" stays as
+  // a smaller affordance below.
+  const primaryEditAction = (() => {
+    if (!canEdit) return null;
+    if (!hasSchedule) {
+      return {
+        label: 'Schedule',
+        onClick: () => onEditSchedule?.(level, slot || null, isClientRole),
+      };
+    }
+    if (!hasResult) {
+      return {
+        label: 'Capture result',
+        onClick: () => onEditResult?.(level, isResultSubdoc ? rawResult : null),
+      };
+    }
+    return {
+      label: 'Edit result',
+      onClick: () => onEditResult?.(level, isResultSubdoc ? rawResult : null),
+    };
+  })();
 
   return (
-    <div>
-      <div className="flex items-center justify-between px-1 mb-1">
-        <h4 className="text-xs font-semibold text-dark-300 uppercase tracking-wider">
-          {label} Interview
-        </h4>
-        {!hasAny && canEdit && (
+    <div className="bg-dark-900/40 border border-dark-700/70 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <h4 className="text-xs font-semibold text-dark-300 uppercase tracking-wider">
+            {label} Interview
+          </h4>
+          {resultChip}
+        </div>
+        {primaryEditAction && (
           <button
             type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="text-xs text-rivvra-400 hover:text-rivvra-300"
+            onClick={primaryEditAction.onClick}
+            className="text-xs text-rivvra-300 hover:text-rivvra-200 border border-rivvra-500/30 rounded px-2 py-0.5 transition-colors"
           >
-            {expanded ? 'Collapse' : '+ Add details'}
+            {primaryEditAction.label}
           </button>
         )}
       </div>
-      {!showFields && (
-        <p className="text-dark-500 text-xs px-1 pb-2">Not scheduled.</p>
+
+      {isUnscheduled ? (
+        <p className="text-dark-500 text-xs">Not scheduled.</p>
+      ) : (
+        <div className="space-y-1.5 text-xs">
+          {datetimeFormatted ? (
+            <div className="flex items-start gap-2">
+              <Calendar size={12} className="text-dark-500 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0">
+                <span className="text-dark-200">{datetimeFormatted}</span>
+                {durationMin ? <span className="text-dark-500"> · {durationMin} min</span> : null}
+              </div>
+            </div>
+          ) : null}
+          {interviewerName ? (
+            <div className="flex items-start gap-2">
+              <User size={12} className="text-dark-500 mt-0.5 flex-shrink-0" />
+              <span className="text-dark-200 truncate">{interviewerName}</span>
+            </div>
+          ) : null}
+          {mode || meetingLink ? (
+            <div className="flex items-start gap-2">
+              <span className="w-3 flex-shrink-0" aria-hidden />
+              <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                {mode ? <span className="text-[10px] uppercase tracking-wider text-dark-500 bg-dark-800 px-1.5 py-0.5 rounded">{mode}</span> : null}
+                {meetingLink ? (
+                  <a href={meetingLink} target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:text-rivvra-300 underline-offset-2 hover:underline truncate">
+                    Join meeting
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          {feedbackText ? (
+            <div className="flex items-start gap-2 pt-1">
+              <MessageSquare size={12} className="text-dark-500 mt-0.5 flex-shrink-0" />
+              <p className="text-dark-300 whitespace-pre-wrap leading-relaxed">{feedbackText}</p>
+            </div>
+          ) : null}
+          {hasSchedule && canEdit && (
+            <div className="pt-1.5">
+              <button
+                type="button"
+                onClick={() => onEditSchedule?.(level, slot || null, isClientRole)}
+                className="text-[11px] text-dark-400 hover:text-dark-200 transition-colors"
+              >
+                Reschedule
+              </button>
+            </div>
+          )}
+        </div>
       )}
-      {showFields && <>
-      <InlineField
-        label="Result"
-        field={resultField}
-        value={resultString}
-        type="select"
-        options={isResultSubdoc ? [{ value: resultString, label: resultString }] : RESULT_OPTIONS}
-        editable={canEdit && !isResultSubdoc}
-        onSave={saveField}
-      />
-      <InlineField
-        label="Date & Time"
-        field={dateField}
-        value={application[dateField]}
-        type="datetime-local"
-        editable={canEdit}
-        onSave={saveField}
-      />
-      <InlineField
-        label="Feedback"
-        field={feedbackField}
-        value={application[feedbackField]}
-        type="textarea"
-        editable={canEdit}
-        onSave={saveField}
-        placeholder="Add feedback notes…"
-      />
-      </>}
     </div>
   );
 }
