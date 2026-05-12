@@ -180,12 +180,17 @@ export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'S
  *   options   — for 'select' / 'segmented': [{ value, label, count? }]
  *   placeholder — for 'select': empty-state label
  */
-export function FilterChip({ type = 'select', paramKey, label, options = [], placeholder }) {
+export function FilterChip({ type = 'select', paramKey, label, options = [], placeholder, searchable = false }) {
   const [searchParams] = useSearchParams();
   const updateParam = useUpdateParam();
   const value = searchParams.get(paramKey) || '';
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const ref = useRef(null);
+  // 2026-05-12: auto-enable search for any select chip with >10 options
+  // (Manager / Job / Tag / Client lists are commonly long). Caller can
+  // also pass searchable={true} explicitly.
+  const isSearchable = searchable || (type === 'select' && options.length > 10);
 
   useEffect(() => {
     if (!open) return;
@@ -193,6 +198,9 @@ export function FilterChip({ type = 'select', paramKey, label, options = [], pla
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
+
+  // Reset the search query when the panel closes.
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
 
   if (type === 'segmented') {
     return (
@@ -257,21 +265,41 @@ export function FilterChip({ type = 'select', paramKey, label, options = [], pla
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 min-w-[180px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 max-h-72 overflow-y-auto">
-          {!options.length && <div className="px-3 py-2 text-xs text-dark-500">{placeholder || 'No options'}</div>}
-          {options.map(o => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => { updateParam(paramKey, o.value); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-dark-700 ${
-                String(o.value) === value ? 'text-rivvra-300' : 'text-dark-200'
-              }`}
-            >
-              <span>{o.label}</span>
-              {String(o.value) === value && <Check size={12} className="text-rivvra-400" />}
-            </button>
-          ))}
+        <div className="absolute top-full left-0 mt-1 min-w-[220px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 flex flex-col max-h-80">
+          {isSearchable && (
+            <div className="p-2 border-b border-dark-700">
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={placeholder || `Search ${label?.toLowerCase() || 'options'}…`}
+                className="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+              />
+            </div>
+          )}
+          <div className="overflow-y-auto">
+            {(() => {
+              const q = query.trim().toLowerCase();
+              const filtered = q ? options.filter((o) => String(o.label || '').toLowerCase().includes(q)) : options;
+              if (filtered.length === 0) {
+                return <div className="px-3 py-2 text-xs text-dark-500">{q ? 'No matches' : (placeholder || 'No options')}</div>;
+              }
+              return filtered.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => { updateParam(paramKey, o.value); setOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-dark-700 ${
+                    String(o.value) === value ? 'text-rivvra-300' : 'text-dark-200'
+                  }`}
+                >
+                  <span className="truncate pr-2">{o.label}</span>
+                  {String(o.value) === value && <Check size={12} className="text-rivvra-400 shrink-0" />}
+                </button>
+              ));
+            })()}
+          </div>
         </div>
       )}
     </div>
