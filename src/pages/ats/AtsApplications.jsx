@@ -6,7 +6,22 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { downloadFile } from '../../utils/download';
-import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
+
+const APP_GROUP_BY_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'stage', label: 'Stage' },
+  { value: 'recruiter', label: 'Recruiter' },
+  { value: 'job', label: 'Job Position' },
+];
+
+const APP_STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'ongoing', label: 'Ongoing' },
+  { value: 'hired', label: 'Hired' },
+  { value: 'refused', label: 'Refused' },
+];
 import StageBadge from '../../components/ats/StageBadge';
 import {
   Plus, Loader2, Users,
@@ -337,19 +352,27 @@ export default function AtsApplications() {
 
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
-  const filterParams = useFilterParams(['search', 'stageId', 'jobId', 'recruiter', 'archived']);
+  const filterParams = useFilterParams([
+    'search', 'stageId', 'jobId', 'recruiter', 'archived',
+    'source', 'employmentType', 'applicationStatus', 'groupBy',
+  ]);
   const page = parseInt(searchParams.get('page') || '1', 10);
+  const groupBy = filterParams.groupBy || '';
+  const isGrouped = Boolean(groupBy);
 
   const [applications, setApplications] = useState([]);
   const [total, setTotal] = useState(0);
   const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
 
   // Dropdown data
   const [jobs, setJobs] = useState([]);
   const [stages, setStages] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
+  const [sources, setSources] = useState([]);
+  const [employmentTypes, setEmploymentTypes] = useState([]);
 
   const [showModal, setShowModal] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -411,15 +434,21 @@ export default function AtsApplications() {
     setJobs([]);
     setStages([]);
     setRecruiters([]);
+    setSources([]);
+    setEmploymentTypes([]);
     try {
-      const [jobsRes, stagesRes, recruitersRes] = await Promise.all([
+      const [jobsRes, stagesRes, recruitersRes, sourcesRes, empTypesRes] = await Promise.all([
         atsApi.listJobs(orgSlug, { limit: 200 }),
         atsApi.listStages(orgSlug),
         atsApi.listRecruiters(orgSlug),
+        atsApi.listConfig(orgSlug, 'sources').catch(() => null),
+        atsApi.listConfig(orgSlug, 'employment-types').catch(() => null),
       ]);
       if (jobsRes.success) setJobs(jobsRes.jobs || []);
       if (stagesRes.success) setStages(stagesRes.stages || []);
       if (recruitersRes.success) setRecruiters(recruitersRes.recruiters || recruitersRes.members || []);
+      if (sourcesRes?.success) setSources(sourcesRes.items || sourcesRes.sources || []);
+      if (empTypesRes?.success) setEmploymentTypes(empTypesRes.items || empTypesRes.employmentTypes || []);
     } catch (err) {
       console.error('Failed to load dropdowns:', err);
     }
@@ -579,6 +608,51 @@ export default function AtsApplications() {
     () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
     [recruiters],
   );
+  const sourceOptions = useMemo(
+    () => sources.map((s) => ({ value: s.name || s._id, label: s.name || s._id })),
+    [sources],
+  );
+  const employmentTypeOptions = useMemo(
+    // Server returns rows from ats_employment_types picklist;
+    // also accepts the hardcoded ATS_EMPLOYMENT_TYPE_KEYS fallback shape.
+    () => employmentTypes.map((t) => ({
+      value: t.name || t.value || t.key || t,
+      label: t.label || t.name || t.value || t.key || t,
+    })),
+    [employmentTypes],
+  );
+
+  // ── Grouped data (Phase 1: stage / recruiter / job) ──────────────────
+  const groupedApplications = useMemo(() => {
+    if (!groupBy) return null;
+    const extractor = (app) => {
+      if (groupBy === 'stage') {
+        return [{ key: app.stageId || '__unknown__', label: app.stageName || 'Unknown stage' }];
+      }
+      if (groupBy === 'recruiter') {
+        return [{
+          key: app.recruiterId || '__unknown__',
+          label: app.recruiterName || (app.recruiterId ? 'Unknown recruiter' : 'No recruiter'),
+        }];
+      }
+      if (groupBy === 'job') {
+        return [{
+          key: app.jobPositionId || '__unknown__',
+          label: app.jobName || 'Unknown job',
+        }];
+      }
+      return [];
+    };
+    return sortGroupsByCount(groupRecords(applications, extractor));
+  }, [applications, groupBy]);
+
+  const toggleGroup = (key) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   // Pagination
   const pageStart = total === 0 ? 0 : (page - 1) * 25 + 1;
@@ -619,6 +693,12 @@ export default function AtsApplications() {
             <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
             <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
             <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
+            <FilterChip type="select" paramKey="applicationStatus" label="Status" options={APP_STATUS_OPTIONS} />
+            <GroupByChip options={APP_GROUP_BY_OPTIONS} />
+            <MoreFiltersPopover paramKeys={['source', 'employmentType']}>
+              <FilterChip type="select" paramKey="source" label="Source" options={sourceOptions} placeholder="No sources" />
+              <FilterChip type="select" paramKey="employmentType" label="Employment Type" options={employmentTypeOptions} placeholder="No types" />
+            </MoreFiltersPopover>
             <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
           </FilterBar>
         </div>
@@ -762,9 +842,10 @@ export default function AtsApplications() {
                   </tr>
                 </thead>
                 <tbody>
-                  {applications.map((app) => (
+                  {(() => {
+                  const renderRow = (app, keySuffix = '') => (
                     <tr
-                      key={app._id}
+                      key={`${app._id}${keySuffix}`}
                       onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
                       className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''}`}
                     >
@@ -840,14 +921,47 @@ export default function AtsApplications() {
                         <FeedbackBadge result={app.l2Result} legacy={app.l2Feedback} />
                       </td>
                     </tr>
-                  ))}
+                  );
+                  // 2026-05-12 ATS audit Q2 = A: when groupBy is set, wrap
+                  // the row stream in collapsible group section headers.
+                  if (!isGrouped) {
+                    return applications.map((a) => renderRow(a));
+                  }
+                  return (groupedApplications || []).flatMap(([key, group]) => {
+                    const collapsed = collapsedGroups.has(key);
+                    const header = (
+                      <tr key={`__group__${key}`} className="bg-dark-800/40">
+                        <td colSpan={10} className="px-4 py-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(key)}
+                            className="flex items-center gap-2 text-sm font-semibold text-dark-100 hover:text-white w-full text-left"
+                          >
+                            <ChevronDown
+                              size={14}
+                              className={`text-dark-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+                            />
+                            <span>{group.label}</span>
+                            <span className="text-xs text-dark-400 font-normal">
+                              {group.records.length} application{group.records.length === 1 ? '' : 's'}
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                    const rows = collapsed ? [] : group.records.map((a) => renderRow(a, `__${key}`));
+                    return [header, ...rows];
+                  });
+                  })()}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {/* Pagination — hidden in grouped mode (server returns the full
+              filtered set so grouping is correct; pagination would
+              fragment groups). */}
+          {!isGrouped && totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
                 Showing {pageStart}\u2013{pageEnd} of {total}
