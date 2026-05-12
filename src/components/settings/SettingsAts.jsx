@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import { Save, Loader2, AlertCircle, UserSearch } from 'lucide-react';
+import { Save, Loader2, AlertCircle, UserSearch, BarChart3 } from 'lucide-react';
 import atsApi from '../../utils/atsApi';
 
 function ToggleSwitch({ checked, onChange, disabled }) {
@@ -95,6 +95,20 @@ export default function SettingsAts() {
   }
 
   const update = (key, value) => setSettings(prev => ({ ...prev, [key]: value }));
+  // Reporting thresholds live under settings.reportingThresholds. The
+  // updater merges into that nested object so individual fields can be
+  // edited without nuking the others.
+  const updateThreshold = (key, value) => setSettings((prev) => ({
+    ...prev,
+    reportingThresholds: { ...(prev?.reportingThresholds || {}), [key]: value },
+  }));
+  // Defaults match ATS_REPORTING_THRESHOLD_DEFAULTS in the API
+  // (src/ats.js). Keep these in sync if the server-side defaults
+  // change so the placeholder text never lies.
+  const thresholds = settings?.reportingThresholds || {};
+  const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : 14;
+  const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : 3;
+  const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : 24;
 
   return (
     <div className="space-y-6">
@@ -129,6 +143,64 @@ export default function SettingsAts() {
                   <option key={s._id} value={s._id}>{s.name}</option>
                 ))}
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Reporting Thresholds (Phase 2) */}
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 size={18} className="text-amber-400" />
+            <h3 className="font-semibold text-white">Reporting Thresholds</h3>
+          </div>
+          <p className="text-xs text-dark-500 mb-4">
+            Controls when records appear on the ATS Reporting "Needs attention" cards.
+          </p>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Stale applications</label>
+              <p className="text-xs text-dark-500 mb-2">Applications stuck in the same stage longer than this many days flag as stale.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={staleDays}
+                  onChange={(e) => updateThreshold('staleDays', Number(e.target.value) || 14)}
+                  className="input-field w-24"
+                />
+                <span className="text-xs text-dark-500">days</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Awaiting interview result</label>
+              <p className="text-xs text-dark-500 mb-2">Interviews older than this without a captured Proceed / Reject result flag as awaiting.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={awaitingResultDays}
+                  onChange={(e) => updateThreshold('awaitingResultDays', Number(e.target.value) || 3)}
+                  className="input-field w-24"
+                />
+                <span className="text-xs text-dark-500">days</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Pending job approvals</label>
+              <p className="text-xs text-dark-500 mb-2">Jobs awaiting approval longer than this flag as overdue.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="720"
+                  value={pendingApprovalHours}
+                  onChange={(e) => updateThreshold('pendingApprovalHours', Number(e.target.value) || 24)}
+                  className="input-field w-24"
+                />
+                <span className="text-xs text-dark-500">hours</span>
+              </div>
             </div>
           </div>
         </div>

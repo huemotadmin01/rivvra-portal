@@ -6,7 +6,10 @@ import atsApi from '../../utils/atsApi';
 import {
   Loader2, BarChart3, Users, UserCheck, Clock,
   ShieldAlert, FileBarChart, RefreshCw, Download, ChevronDown,
+  AlertTriangle, MessageSquareWarning, Hourglass, ArrowRight,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { usePlatform } from '../../context/PlatformContext';
 
 /* ── Sticky range preference ──────────────────────────────────────────────
  * 2026-05-12 Phase 1 (audit Q8 = D). Per-user, per-device. Default = 30d
@@ -291,10 +294,62 @@ function RecruiterTable({ data, totalApplications }) {
   );
 }
 
+/* ── Pipeline-health Alert Card ───────────────────────────────────────────
+ * 2026-05-12 Phase 2 (audit Q6 = A). Three of these on the dashboard for
+ * Stale apps / Awaiting result / Pending approvals. Each renders:
+ *   - Heading + threshold label (e.g. "Stale (> 14 days)")
+ *   - Count badge
+ *   - First N affected records as clickable rows
+ *   - "View all" link when items overflow N (capped at 25 server-side)
+ * Empty state collapses to a single "All clear" line — recruiters don't
+ * need to scroll past three blank cards on a healthy day.
+ */
+function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, renderItem, emptyMessage, viewAllPath }) {
+  const list = Array.isArray(items) ? items : [];
+  const visible = list.slice(0, 5);
+  const overflow = list.length > 5;
+  return (
+    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
+      <div className="flex items-start justify-between mb-4 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`p-2 rounded-lg shrink-0 ${iconColor}`}>
+            <Icon size={18} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-white truncate">{title}</h3>
+            <p className="text-xs text-dark-500">{thresholdLabel}</p>
+          </div>
+        </div>
+        <span className={`text-2xl font-bold ${list.length > 0 ? 'text-amber-400' : 'text-dark-500'}`}>
+          {list.length}
+        </span>
+      </div>
+      {list.length === 0 ? (
+        <p className="text-sm text-dark-500 text-center py-4">{emptyMessage}</p>
+      ) : (
+        <>
+          <ul className="space-y-2">
+            {visible.map(renderItem)}
+          </ul>
+          {overflow && viewAllPath && (
+            <Link
+              to={viewAllPath}
+              className="flex items-center justify-end gap-1 mt-3 text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
+            >
+              View all {list.length} <ArrowRight size={12} />
+            </Link>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main AtsReporting Component ──────────────────────────────────────── */
 export default function AtsReporting() {
   const { currentOrg, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
+  const { orgPath } = usePlatform();
   const { showToast } = useToast();
 
   const isAdmin = getAppRole('ats') === 'admin';
@@ -382,6 +437,7 @@ export default function AtsReporting() {
     totalCandidates = 0,
     hiredCount = 0,
     avgTimeToHire = 0,
+    alerts = {},
   } = data;
 
   return (
@@ -471,6 +527,85 @@ export default function AtsReporting() {
       {/* ── Funnel (Phase 1) — replaces the old Applications-by-Stage
           horizontal bar; shows same data plus cumulative + conversion %. */}
       <RecruitmentFunnel data={applicationsByStage} />
+
+      {/* ── Pipeline health alerts (Phase 2) ─────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <AlertCard
+          title="Stale applications"
+          icon={Hourglass}
+          iconColor="bg-amber-500/15 text-amber-400"
+          thresholdLabel={`> ${alerts.stale?.threshold ?? 14} days in same stage`}
+          items={alerts.stale?.items || []}
+          emptyMessage="No stale applications."
+          viewAllPath={orgPath('/ats/applications')}
+          renderItem={(item) => (
+            <li key={item.applicationId}>
+              <Link
+                to={orgPath(`/ats/applications/${item.applicationId}`)}
+                className="flex items-baseline justify-between gap-2 text-sm py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+              >
+                <span className="text-dark-200 truncate min-w-0" title={item.candidateName}>
+                  <span className="text-white">{item.candidateName}</span>
+                  {item.jobName && <span className="text-dark-500"> · {item.jobName}</span>}
+                </span>
+                <span className="text-xs text-amber-400 shrink-0">
+                  {item.daysSinceLastMove != null ? `${item.daysSinceLastMove}d` : '—'} · {item.stageName}
+                </span>
+              </Link>
+            </li>
+          )}
+        />
+        <AlertCard
+          title="Awaiting interview result"
+          icon={MessageSquareWarning}
+          iconColor="bg-orange-500/15 text-orange-400"
+          thresholdLabel={`> ${alerts.awaiting?.threshold ?? 3} days since interview`}
+          items={alerts.awaiting?.items || []}
+          emptyMessage="No outstanding results."
+          viewAllPath={orgPath('/ats/applications')}
+          renderItem={(item) => (
+            <li key={item.applicationId}>
+              <Link
+                to={orgPath(`/ats/applications/${item.applicationId}`)}
+                className="flex items-baseline justify-between gap-2 text-sm py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+              >
+                <span className="text-dark-200 truncate min-w-0" title={item.candidateName}>
+                  <span className="text-white">{item.candidateName}</span>
+                  {item.jobName && <span className="text-dark-500"> · {item.jobName}</span>}
+                </span>
+                <span className="text-xs text-orange-400 shrink-0">
+                  {item.overdue.map((o) => o.label.replace(' Interview', '').replace(' Discussion', '')).join(', ')}
+                </span>
+              </Link>
+            </li>
+          )}
+        />
+        <AlertCard
+          title="Pending approvals"
+          icon={AlertTriangle}
+          iconColor="bg-red-500/15 text-red-400"
+          thresholdLabel={`> ${alerts.pendingApprovals?.threshold ?? 24}h awaiting approval`}
+          items={alerts.pendingApprovals?.items || []}
+          emptyMessage="No jobs waiting for approval."
+          viewAllPath={orgPath('/ats/jobs?approvalStatus=pending')}
+          renderItem={(item) => (
+            <li key={item.jobId}>
+              <Link
+                to={orgPath(`/ats/jobs/${item.jobId}`)}
+                className="flex items-baseline justify-between gap-2 text-sm py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+              >
+                <span className="text-dark-200 truncate min-w-0" title={item.jobName}>
+                  <span className="text-white">{item.jobName}</span>
+                  {item.department && <span className="text-dark-500"> · {item.department}</span>}
+                </span>
+                <span className="text-xs text-red-400 shrink-0">
+                  {item.hoursSinceCreated != null ? `${item.hoursSinceCreated}h` : '—'}
+                </span>
+              </Link>
+            </li>
+          )}
+        />
+      </div>
 
       {/* ── Source breakdown ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
