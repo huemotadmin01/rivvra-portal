@@ -492,6 +492,26 @@ export default function AtsJobPositions() {
     setSearchParams(np);
   };
 
+  // 2026-05-13: default the Job Positions list to status=open when the
+  // user lands with no status filter in the URL. Recruiters want to
+  // focus on actively-hiring roles by default; Closed / On Hold are
+  // accessible by clearing the chip or picking from the dropdown.
+  //
+  // Uses `replace: true` so we don't pollute history. If the user
+  // clears the Status chip explicitly (URL has no `status`), the
+  // default re-applies on next mount — that's intentional: it matches
+  // a recruiter's day-to-day workflow rather than treating "show all"
+  // as a sticky preference. To make their choice sticky, they pick a
+  // specific status (Open / On Hold / Closed) which the URL preserves.
+  useEffect(() => {
+    if (!searchParams.has('status')) {
+      const np = new URLSearchParams(searchParams);
+      np.set('status', 'open');
+      setSearchParams(np, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Fetch jobs ─────────────────────────────────────────────────────────
   const fetchJobs = useCallback(async () => {
     if (!orgSlug) return;
