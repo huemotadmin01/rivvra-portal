@@ -38,12 +38,21 @@ function ImpersonationBanner() {
   );
 }
 
-// 2026-05-12: persistent sidebar collapse state. Per-user, per-device
-// via localStorage. Defaults to expanded so existing users see no
-// change until they choose to collapse. SSR-safe via the useEffect
-// hydrate-on-mount pattern (the initial render uses the default; the
-// stored preference kicks in on the next paint).
-const SIDEBAR_COLLAPSED_KEY = 'rivvra:sidebar-collapsed';
+// 2026-05-12: persistent sidebar collapse state, per app, per device.
+// Apps default to expanded; ATS defaults to collapsed (recruiters work
+// across long candidate lists / wide pipeline kanbans where horizontal
+// room is at a premium — Priyanshu locked this 2026-05-12). User can
+// toggle and their choice persists per-app.
+const SIDEBAR_COLLAPSED_KEY_PREFIX = 'rivvra:sidebar-collapsed:';
+const APPS_DEFAULT_COLLAPSED = new Set(['ats']);
+
+function storageKeyForApp(appId) {
+  return `${SIDEBAR_COLLAPSED_KEY_PREFIX}${appId || 'default'}`;
+}
+
+function defaultCollapsedFor(appId) {
+  return APPS_DEFAULT_COLLAPSED.has(appId);
+}
 
 function PlatformLayout() {
   const { isImpersonating } = useAuth();
@@ -51,20 +60,30 @@ function PlatformLayout() {
   const { currentCompanyId, hydrated } = useCompany();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => defaultCollapsedFor(currentApp?.id));
 
-  // Hydrate the collapse preference from localStorage on mount.
+  // Re-hydrate the collapse preference whenever the active app changes.
+  // A user who has expanded the sidebar in ATS keeps it expanded there;
+  // moving to CRM gets CRM's default (expanded). Same flow on first
+  // render — sets the per-app default until localStorage overrides it.
   useEffect(() => {
+    const appId = currentApp?.id;
     try {
-      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      const stored = localStorage.getItem(storageKeyForApp(appId));
       if (stored === 'true') setSidebarCollapsed(true);
-    } catch (_) { /* localStorage blocked — fall back to expanded */ }
-  }, []);
+      else if (stored === 'false') setSidebarCollapsed(false);
+      else setSidebarCollapsed(defaultCollapsedFor(appId));
+    } catch (_) {
+      setSidebarCollapsed(defaultCollapsedFor(appId));
+    }
+  }, [currentApp?.id]);
 
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
-      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next)); } catch (_) {}
+      try {
+        localStorage.setItem(storageKeyForApp(currentApp?.id), String(next));
+      } catch (_) {}
       return next;
     });
   };

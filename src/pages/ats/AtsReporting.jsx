@@ -124,10 +124,12 @@ export default function AtsReporting() {
       if (res.success) {
         setData(res);
       } else {
-        showToast('Failed to load reporting data', 'error');
+        showToast(res?.error || 'Failed to load reporting data', 'error');
       }
-    } catch {
-      showToast('Failed to load reporting data', 'error');
+    } catch (err) {
+      // Surface the actual server error so we can diagnose post-deploy
+      // instead of staring at a generic "Failed" toast.
+      showToast(err?.message || 'Failed to load reporting data', 'error');
     } finally {
       setLoading(false);
     }
