@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, X, ChevronDown, Filter, Check } from 'lucide-react';
+import { Search, X, ChevronDown, Filter, Check, Layers } from 'lucide-react';
 
 /**
  * FilterBar — shared list-page filter shell.
@@ -80,13 +80,25 @@ export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'S
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get(searchKey)]);
 
-  // Count active non-search filter params for the mobile collapse pill.
-  const activeChipCount = Array.from(searchParams.entries()).filter(([k, v]) => k !== searchKey && k !== 'page' && v).length;
+  // 2026-05-13 audit Q1 = D: count active filter params for the
+  // visual badge + "Clear all" affordance. groupBy is a view-mode
+  // control, not a filter — exclude it from both the count and the
+  // clear-all action so changing the view doesn't reset filters and
+  // vice versa.
+  const activeChipCount = Array.from(searchParams.entries()).filter(([k, v]) =>
+    k !== searchKey && k !== 'page' && k !== 'groupBy' && k !== 'sort' && k !== 'dir' && v
+  ).length;
 
   const clearAll = () => {
     const next = new URLSearchParams();
+    // Preserve search, groupBy, and sort/dir — only filters get nuked.
     if (searchValue) next.set(searchKey, searchValue);
-    // setSearchParams via updateParam is per-key; do it directly here.
+    const groupBy = searchParams.get('groupBy');
+    if (groupBy) next.set('groupBy', groupBy);
+    const sort = searchParams.get('sort');
+    const dir = searchParams.get('dir');
+    if (sort) next.set('sort', sort);
+    if (dir) next.set('dir', dir);
     window.history.replaceState({}, '', window.location.pathname + (next.toString() ? '?' + next.toString() : ''));
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
@@ -108,13 +120,20 @@ export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'S
         {/* Desktop chip row */}
         <div className="hidden sm:flex items-center gap-2 flex-wrap">
           {children}
-          {activeChipCount > 0 && (
+          {/* 2026-05-13 audit Q1 = D: Clear-all becomes a chip-style
+              button when 2+ filters are active (more visible than the
+              old underlined text link). Hidden when 0-1 filters set
+              since clearing a single chip is faster from its own X. */}
+          {activeChipCount >= 2 && (
             <button
               type="button"
               onClick={clearAll}
-              className="text-[11px] text-dark-500 hover:text-dark-300 underline-offset-2 hover:underline"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+              title={`Clear ${activeChipCount} active filters`}
             >
+              <X size={12} />
               Clear all
+              <span className="text-[10px] text-red-400/80">({activeChipCount})</span>
             </button>
           )}
         </div>
@@ -363,18 +382,68 @@ export function MoreFiltersPopover({ paramKeys = [], children, label = 'More fil
 // Pages render their grouped output by reading the `groupBy` query param
 // (via useFilterParams) and switching between flat and grouped renderers.
 //
-// 2026-05-12 ATS audit Q4 = B (Candidates multi-skill grouping = candidate
-// appears in every skill group). Each page decides what to do with the
-// groupBy value; this chip is just the URL bridge.
+// 2026-05-13 audit Q2 = A: distinct icon + neutral palette so users see
+// group-by isn't just another filter. Renders the Layers icon to the left
+// of the label and uses a violet-tinted active state to differentiate
+// from the rivvra-green of filter chips.
 // ---------------------------------------------------------------------------
 export function GroupByChip({ options = [], paramKey = 'groupBy', label = 'Group by' }) {
+  const [searchParams] = useSearchParams();
+  const updateParam = useUpdateParam();
+  const value = searchParams.get(paramKey) || '';
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const selected = options.find((o) => String(o.value) === value);
+  const isActive = Boolean(value);
+
   return (
-    <FilterChip
-      type="select"
-      paramKey={paramKey}
-      label={label}
-      options={options}
-    />
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+          isActive
+            ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+            : 'bg-dark-900 text-dark-300 border-dark-700 hover:text-dark-200 hover:border-dark-600'
+        }`}
+      >
+        <Layers size={12} className={isActive ? 'text-violet-300' : 'text-dark-500'} />
+        <span>{label}{selected && selected.value ? `: ${selected.label}` : ''}</span>
+        {isActive && (
+          <X
+            size={12}
+            className="hover:text-red-400"
+            onClick={(e) => { e.stopPropagation(); updateParam(paramKey, ''); }}
+          />
+        )}
+        {!isActive && <ChevronDown size={12} />}
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 min-w-[200px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 py-1">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { updateParam(paramKey, o.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-dark-700 ${
+                String(o.value) === value ? 'text-violet-300' : 'text-dark-200'
+              }`}
+            >
+              <span>{o.label}</span>
+              {String(o.value) === value && <Check size={12} className="text-violet-400" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
