@@ -64,10 +64,28 @@ function buildReportingCsv(data, rangeLabel) {
   });
   lines.push('');
   lines.push('Applications by recruiter');
-  lines.push('Recruiter,Count');
+  lines.push('Recruiter,Applications,Hired,Conversion %');
   (data.applicationsByRecruiter || []).forEach((r) => {
-    lines.push(`${csvEscape(r.recruiterName)},${r.count}`);
+    const conv = r.conversion == null ? '' : `${r.conversion}%`;
+    lines.push(`${csvEscape(r.recruiterName)},${r.count},${r.hired ?? 0},${conv}`);
   });
+  // Phase 3 export sections.
+  if (data.offerAcceptance) {
+    lines.push('');
+    lines.push('Offer acceptance');
+    lines.push('Metric,Value');
+    lines.push(`Offered,${data.offerAcceptance.proposed ?? 0}`);
+    lines.push(`Accepted,${data.offerAcceptance.accepted ?? 0}`);
+    lines.push(`Rate,${data.offerAcceptance.rate == null ? '' : `${data.offerAcceptance.rate}%`}`);
+  }
+  if (Array.isArray(data.refusalReasons) && data.refusalReasons.length > 0) {
+    lines.push('');
+    lines.push('Refusal reasons');
+    lines.push('Reason,Count');
+    data.refusalReasons.forEach((r) => {
+      lines.push(`${csvEscape(r.reasonName)},${r.count}`);
+    });
+  }
   return lines.join('\n');
 }
 
@@ -255,6 +273,7 @@ function RecruitmentFunnel({ data }) {
 function RecruiterTable({ data, totalApplications }) {
   // Sort descending by application count, memoised so we don't re-sort
   // on every parent re-render (the table doesn't own this state).
+  // 2026-05-12 Phase 3 (audit Q5 = A): added Hired + Conversion columns.
   const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
 
   return (
@@ -270,6 +289,8 @@ function RecruiterTable({ data, totalApplications }) {
               <tr className="text-dark-400 border-b border-dark-800">
                 <th className="text-left py-2 pr-4 font-medium">Recruiter</th>
                 <th className="text-right py-2 px-4 font-medium">Applications</th>
+                <th className="text-right py-2 px-4 font-medium">Hired</th>
+                <th className="text-right py-2 px-4 font-medium">Conversion</th>
                 <th className="text-right py-2 pl-4 font-medium">% of Total</th>
               </tr>
             </thead>
@@ -278,16 +299,65 @@ function RecruiterTable({ data, totalApplications }) {
                 const pct = totalApplications > 0
                   ? ((r.count / totalApplications) * 100).toFixed(1)
                   : '0.0';
+                const convText = r.conversion == null ? '—' : `${r.conversion}%`;
+                // Highlight conversion in green when ≥ 20%, amber 5-20%, dim otherwise.
+                // Tells managers at a glance who's closing vs. just sourcing.
+                const convColor = r.conversion == null
+                  ? 'text-dark-500'
+                  : r.conversion >= 20
+                  ? 'text-emerald-400'
+                  : r.conversion >= 5
+                  ? 'text-amber-400'
+                  : 'text-dark-400';
                 return (
                   <tr key={i} className="border-b border-dark-800/50 last:border-0">
                     <td className="py-3 pr-4 text-dark-200">{r.recruiterName}</td>
                     <td className="py-3 px-4 text-right text-dark-300">{r.count}</td>
+                    <td className="py-3 px-4 text-right text-dark-300">{r.hired ?? 0}</td>
+                    <td className={`py-3 px-4 text-right font-medium ${convColor}`}>{convText}</td>
                     <td className="py-3 pl-4 text-right text-dark-400">{pct}%</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Offer Acceptance Card ────────────────────────────────────────────────
+ * Phase 3 (audit Q7 = B). Big rate number + the underlying counts
+ * (offered / accepted) so the recruiter can sanity-check what the
+ * percentage is computed from. Empty state when no offers in the
+ * range — avoids displaying a misleading "0%" before there's data. */
+function OfferAcceptanceCard({ data }) {
+  const proposed = data?.proposed ?? 0;
+  const accepted = data?.accepted ?? 0;
+  const rate = data?.rate;
+  const rateColor = rate == null ? 'text-dark-500'
+    : rate >= 70 ? 'text-emerald-400'
+    : rate >= 40 ? 'text-amber-400'
+    : 'text-red-400';
+  return (
+    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
+      <h3 className="text-lg font-semibold text-white mb-1">Offer Acceptance</h3>
+      <p className="text-dark-500 text-xs mb-5">Accepted ÷ offered in this window</p>
+      {proposed === 0 ? (
+        <p className="text-sm text-dark-500 text-center py-6">No offers extended yet</p>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className={`text-4xl font-bold ${rateColor}`}>{rate == null ? '—' : `${rate}%`}</p>
+            <p className="text-xs text-dark-500 mt-2">
+              {accepted} accepted of {proposed} offered
+            </p>
+          </div>
+          <div className="text-right text-xs text-dark-400 space-y-1">
+            <div><span className="text-emerald-400 font-medium">{accepted}</span> Accepted</div>
+            <div><span className="text-dark-300 font-medium">{proposed - accepted}</span> Pending / declined</div>
+          </div>
         </div>
       )}
     </div>
@@ -438,6 +508,8 @@ export default function AtsReporting() {
     hiredCount = 0,
     avgTimeToHire = 0,
     alerts = {},
+    offerAcceptance = null,
+    refusalReasons = [],
   } = data;
 
   return (
@@ -607,7 +679,7 @@ export default function AtsReporting() {
         />
       </div>
 
-      {/* ── Source breakdown ─────────────────────────────────────────────── */}
+      {/* ── Source breakdown + Refusal reasons (Phase 3 right slot) ──── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <HorizontalBarChart
           title="Applications by Source"
@@ -616,9 +688,20 @@ export default function AtsReporting() {
           valueKey="count"
           barColor="bg-blue-500"
         />
-        {/* Right column reserved for Phase 3 quality metrics
-            (Offer acceptance + Refusal reasons). Left as an empty slot
-            for now rather than crammed with something irrelevant. */}
+        <HorizontalBarChart
+          title="Refusal Reasons"
+          data={refusalReasons}
+          labelKey="reasonName"
+          valueKey="count"
+          barColor="bg-red-500"
+        />
+      </div>
+
+      {/* ── Offer Acceptance card (Phase 3) ─────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <OfferAcceptanceCard data={offerAcceptance} />
+        {/* Right slot reserved for a future "Time-to-fill by job" or
+            similar — left empty rather than crammed with filler. */}
       </div>
 
       {/* ── Recruiter Table ─────────────────────────────────────────────── */}
