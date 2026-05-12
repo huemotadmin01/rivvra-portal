@@ -7,6 +7,10 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import FilterBar, { FilterChip, GroupByChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
+import { useDensity } from '../../hooks/useDensity';
+import DensityToggle from '../../components/shared/DensityToggle';
+import SortableHeader from '../../components/shared/SortableHeader';
+import GroupedHeader from '../../components/shared/GroupedHeader';
 import {
   Plus, Loader2, Users, ChevronDown,
   ChevronLeft, ChevronRight,
@@ -32,10 +36,11 @@ export default function AtsCandidates() {
 
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
-  const filterParams = useFilterParams(['search', 'archived', 'hasActiveApps', 'managerId', 'groupBy']);
+  const filterParams = useFilterParams(['search', 'archived', 'hasActiveApps', 'managerId', 'groupBy', 'sort', 'dir']);
   const page = parseInt(searchParams.get('page') || '1', 10);
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
+  const { density, setDensity, cellPadding } = useDensity('ats:candidates');
 
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
@@ -183,14 +188,17 @@ export default function AtsCandidates() {
             {total} {total === 1 ? 'candidate' : 'candidates'} total
           </p>
         </div>
-        {isAdmin && (
+        <div className="flex items-center gap-2">
+          <DensityToggle density={density} onChange={setDensity} />
+          {isAdmin && (
           <button
             onClick={() => navigate(orgPath('/ats/candidates/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors text-sm font-medium"
           >
             <Plus className="w-4 h-4" /> Add Candidate
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Filters — URL-driven via shared FilterBar */}
@@ -226,17 +234,15 @@ export default function AtsCandidates() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-700">
-                    {/* 2026-05-12 audit P3: column visibility shuffled to
-                        match recruiter priority. Phone is the second-
-                        most-asked-for column after name (calls happen),
-                        Application count was previously promoted ahead
-                        of it which made no sense on tablet widths. */}
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium">Name</th>
+                    {/* 2026-05-13 audit Q4 = A: clickable column headers
+                        for sortable fields. Non-sortable columns (Phone,
+                        LinkedIn, Tags) stay as plain <th>. */}
+                    <SortableHeader column="name">Name</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Phone</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
+                    <SortableHeader column="email" className="hidden md:table-cell">Email</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">LinkedIn</th>
-                    <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Applications</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Last Applied</th>
+                    <SortableHeader column="applicationCount" align="center" className="hidden lg:table-cell">Applications</SortableHeader>
+                    <SortableHeader column="lastApplicationDate" className="hidden xl:table-cell">Last Applied</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Tags</th>
                   </tr>
                 </thead>
@@ -249,7 +255,7 @@ export default function AtsCandidates() {
                       <tr
                         key={`${candidate._id}${keySuffix}`}
                         onClick={() => navigate(orgPath(`/ats/candidates/${candidate._id}`))}
-                        className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                        className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
@@ -336,25 +342,26 @@ export default function AtsCandidates() {
                     }
                     return (groupedCandidates || []).flatMap(([key, group]) => {
                       const collapsed = collapsedGroups.has(key);
+                      // 2026-05-13 audit Q3 = A+B: sticky group headers
+                      // with visual hooks. Manager grouping → initials
+                      // avatar in violet. Skill grouping → emerald
+                      // accent bar (no avatar; skill name is the label).
+                      const isManagerGroup = groupBy === 'manager';
                       const header = (
-                        <tr key={`__group__${key}`} className="bg-dark-800/40 sticky">
-                          <td colSpan={7} className="px-4 py-2">
-                            <button
-                              type="button"
-                              onClick={() => toggleGroup(key)}
-                              className="flex items-center gap-2 text-sm font-semibold text-dark-100 hover:text-white w-full text-left"
-                            >
-                              <ChevronDown
-                                size={14}
-                                className={`text-dark-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-                              />
-                              <span>{group.label}</span>
-                              <span className="text-xs text-dark-400 font-normal">
-                                {group.records.length} candidate{group.records.length === 1 ? '' : 's'}
-                              </span>
-                            </button>
-                          </td>
-                        </tr>
+                        <GroupedHeader
+                          key={`__group__${key}`}
+                          label={group.label}
+                          count={group.records.length}
+                          recordSingular="candidate"
+                          colSpan={7}
+                          collapsed={collapsed}
+                          onToggle={() => toggleGroup(key)}
+                          accent={isManagerGroup ? 'bg-violet-500' : 'bg-emerald-500'}
+                          avatarText={isManagerGroup ? undefined : ''}
+                          avatarColor={isManagerGroup ? 'bg-violet-500/15 text-violet-300' : ''}
+                          sticky
+                          stickyTop="-1px"
+                        />
                       );
                       // Group-by-skill duplicates candidates across groups,
                       // so suffix the row key with the group key to keep
