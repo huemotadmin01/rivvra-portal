@@ -5,6 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
@@ -316,9 +317,24 @@ export default function AtsJobDetail() {
   // Q14-D: optional Approval comment expansion in Meta card
   const [showApprovalComment, setShowApprovalComment] = useState(false);
 
+  // Current user's employee _id — used to detect whether the caller is the
+  // job's assigned approver. People fields (approverId, recruiterId, …)
+  // store employee._id, never portal_user._id (see semantic locked
+  // 2026-05-08), so we resolve via /employees/me before comparing.
+  const [myEmployeeId, setMyEmployeeId] = useState(null);
+
+  // Approval-decision panel state (local — only the assigned approver or
+  // an org admin can submit it).
+  const [approvalDraftComment, setApprovalDraftComment] = useState('');
+  const [approvalSubmitting, setApprovalSubmitting] = useState(false);
+
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
   const canEdit = isAdmin && !job?.archived;
+  const isAssignedApprover = !!(myEmployeeId && job?.approverId && String(job.approverId) === String(myEmployeeId));
+  // Mirrors the server rule (PUT /jobs/:id): no approval writes are
+  // possible until an approver is assigned, even for org admin.
+  const canDecideApproval = !!job?.approverId && (isOrgAdmin || isAssignedApprover) && !job?.archived;
 
   // EmployeeLookup hits /contacts/salespersons internally — no need for
   // a page-level recruiters fetch anymore. Removed.
@@ -385,6 +401,47 @@ export default function AtsJobDetail() {
 
   useEffect(() => { fetchJob(); }, [fetchJob]);
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
+
+  // Resolve current user → employee _id once per org. Same pattern as
+  // EmployeeDetail.jsx:367. Used to gate the Approval Decision panel.
+  useEffect(() => {
+    if (!orgSlug) return;
+    employeeApi.getMyProfile(orgSlug)
+      .then((res) => { if (res?.success && res.employee) setMyEmployeeId(res.employee._id); })
+      .catch(() => {});
+  }, [orgSlug]);
+
+  // Hydrate the approval-comment draft from the saved job whenever it
+  // refreshes — lets the assigned approver edit the existing comment
+  // inline instead of starting from blank every render.
+  useEffect(() => {
+    if (job?.approverComment != null) setApprovalDraftComment(job.approverComment || '');
+  }, [job?.approverComment]);
+
+  // Submit an approve/reject decision. Goes through the same PUT /jobs/:id
+  // the inline fields use, but with both fields set atomically so the
+  // server-side activity log gets a clean (status, comment) pair.
+  const submitApprovalDecision = async (decision) => {
+    if (!canDecideApproval || approvalSubmitting) return;
+    if (decision === 'rejected' && !approvalDraftComment.trim()) {
+      showToast('Please add a comment explaining why this position is rejected.', 'error');
+      return;
+    }
+    setApprovalSubmitting(true);
+    try {
+      const res = await atsApi.updateJob(orgSlug, jobId, {
+        approvalStatus: decision,
+        approverComment: approvalDraftComment || null,
+      });
+      if (res?.job) setJob(res.job);
+      else setJob((prev) => ({ ...prev, approvalStatus: decision, approverComment: approvalDraftComment || null }));
+      showToast(decision === 'approved' ? 'Position approved' : 'Position rejected', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to submit decision', 'error');
+    } finally {
+      setApprovalSubmitting(false);
+    }
+  };
 
   // ── Generic inline-field save handler ─────────────────────────────────
   const saveField = async (field, value) => {
@@ -515,7 +572,11 @@ export default function AtsJobDetail() {
   // actively recruiting. `closed` and `archived` jobs are terminal — no
   // new pipeline entries. `on_hold` still allows queuing candidates so
   // recruiters are ready when the role reopens.
-  const canCreateApplication = isAdmin && !job.archived && (statusKey === 'open' || statusKey === 'on_hold');
+  // 2026-05-13: approval gate. A pending or rejected position is locked
+  // for sourcing — the API will reject POST /applications with 403
+  // JOB_NOT_APPROVED, so we hide the CTA at the UI layer for clarity.
+  const isApproved = job.approvalStatus === 'approved';
+  const canCreateApplication = isAdmin && !job.archived && isApproved && (statusKey === 'open' || statusKey === 'on_hold');
   const fmtBudget = (v) => (v == null || v === '' ? null : formatCurrency(v, companyCurrency));
   const hiringModeFull = HIRING_MODE_FULL[job.hiringMode] || job.hiringMode;
   // Odoo imports arrive as "7-8" / "5+" without a unit suffix; the
@@ -552,7 +613,9 @@ export default function AtsJobDetail() {
               </span>
             )}
             <StatusBadge status={job.status} />
-            <ApprovalIndicator status={job.approvalStatus} />
+            {/* Suppress the approval indicator until an approver is
+                assigned — the page-top banner explains what's needed. */}
+            {job.approverId && <ApprovalIndicator status={job.approvalStatus} />}
           </div>
           {/* Q6-B: department dropped from header subtitle (kept linkified in
               Overview below). Header stays clean. */}
@@ -624,6 +687,38 @@ export default function AtsJobDetail() {
           </div>
         )}
       </div>
+
+      {/* ─── Approval-state banner ───────────────────────────────────────
+          Surfaces *why* New Application is missing/disabled. Pending and
+          rejected positions cannot accept candidates (server enforces with
+          403 JOB_NOT_APPROVED); this banner makes the gate visible up-top
+          rather than leaving the recruiter wondering where the CTA went. */}
+      {!job.archived && job.approvalStatus === 'pending' && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
+          <Clock size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-100/90">
+            <div className="font-medium text-amber-200">Pending approval</div>
+            <div className="text-amber-100/70 mt-0.5">
+              {job.approverName
+                ? <>Applications can be added only after <span className="text-amber-200">{job.approverName}</span> approves this position.</>
+                : <>Assign an Approver in the <strong>People</strong> card to start the approval flow. Applications are blocked until approved.</>}
+            </div>
+          </div>
+        </div>
+      )}
+      {!job.archived && job.approvalStatus === 'rejected' && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-start gap-3">
+          <XCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-red-100/90">
+            <div className="font-medium text-red-200">Position rejected</div>
+            <div className="text-red-100/70 mt-0.5">
+              {job.approverName && <>Rejected by <span className="text-red-200">{job.approverName}</span>. </>}
+              {job.approverComment ? <>Reason: <em>{job.approverComment}</em></> : <>No reason provided.</>}
+              {' '}Applications cannot be added until the position is re-submitted and approved.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Body: 2-col grid (left = main flow, right = sidebar) ──────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -720,25 +815,21 @@ export default function AtsJobDetail() {
               placeholder="0"
               displayValue={fmtBudget(job.maxBudget) || undefined}
             />
-            <InlineField
-              label="Approval Status"
-              field="approvalStatus"
-              value={job.approvalStatus}
-              type="select"
-              options={APPROVAL_STATUS_OPTIONS}
-              editable={canEdit}
-              onSave={saveField}
-              displayValue={job.approvalStatus ? <ApprovalIndicator status={job.approvalStatus} /> : undefined}
-            />
-            <InlineField
-              label="Approver Comment"
-              field="approverComment"
-              value={job.approverComment}
-              type="textarea"
-              editable={canEdit}
-              onSave={saveField}
-              placeholder="Approval notes…"
-            />
+            {/* Approval Status is a read-only mirror here; the actual
+                approve/reject UI lives in the "Approval Decision" card.
+                We only render it once an approver is assigned — showing
+                a misleading "Pending" with no recourse before assignment
+                would just confuse the recruiter. The banner at the top
+                of the page already prompts "assign an approver". */}
+            {job.approverId && (
+              <InlineField
+                label="Approval Status"
+                field="approvalStatus"
+                value={job.approvalStatus}
+                editable={false}
+                displayValue={job.approvalStatus ? <ApprovalIndicator status={job.approvalStatus} /> : undefined}
+              />
+            )}
           </SectionCard>
           </div>{/* /sub-grid */}
 
@@ -960,6 +1051,76 @@ export default function AtsJobDetail() {
             />
           </SectionCard>
 
+          {/* ─── Approval Decision ─────────────────────────────────────────
+              Only the assigned approver (job.approverId === my employee
+              _id) or an org owner/admin can submit. Server re-enforces the
+              same rule on PUT /jobs/:id with 403 APPROVAL_FORBIDDEN.
+              Hidden entirely if no approver is assigned AND the caller
+              isn't an org admin — there's nothing they can do here. */}
+          {(canDecideApproval || (isOrgAdmin && !job.approverId)) && (
+            <SectionCard title="Approval Decision" icon={UserCheck}>
+              {!job.approverId ? (
+                <p className="text-sm text-dark-400">
+                  No approver assigned yet. Pick one in the <strong className="text-dark-200">People</strong> card above to start the approval flow.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-dark-400">Current status</div>
+                    <ApprovalIndicator status={job.approvalStatus} />
+                  </div>
+                  {!canDecideApproval && (
+                    <p className="text-xs text-dark-500 italic">
+                      Only {job.approverName || 'the assigned approver'} (or an org admin) can submit a decision here.
+                    </p>
+                  )}
+                  {canDecideApproval && (
+                    <>
+                      <div>
+                        <label className="block text-xs text-dark-400 mb-1">
+                          Comment <span className="text-dark-500">(required to reject)</span>
+                        </label>
+                        <textarea
+                          value={approvalDraftComment}
+                          onChange={(e) => setApprovalDraftComment(e.target.value)}
+                          rows={3}
+                          placeholder="Add context for your decision…"
+                          className="w-full text-sm bg-dark-900 border border-dark-700 rounded-md px-2.5 py-1.5 text-dark-100 placeholder-dark-500 focus:outline-none focus:border-rivvra-500 resize-y"
+                          disabled={approvalSubmitting}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => submitApprovalDecision('approved')}
+                          disabled={approvalSubmitting || job.approvalStatus === 'approved'}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <CheckCircle2 size={13} /> Approve
+                        </button>
+                        <button
+                          onClick={() => submitApprovalDecision('rejected')}
+                          disabled={approvalSubmitting || job.approvalStatus === 'rejected'}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <XCircle size={13} /> Reject
+                        </button>
+                      </div>
+                      {job.approvalStatus !== 'pending' && (
+                        <button
+                          onClick={() => submitApprovalDecision('pending')}
+                          disabled={approvalSubmitting}
+                          className="w-full text-[11px] text-dark-400 hover:text-dark-200 underline disabled:opacity-40"
+                        >
+                          Reset to pending
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </SectionCard>
+          )}
+
           <SectionCard title="Client" icon={Tag}>
             <InlineField
               label="Client Role"
@@ -1033,7 +1194,7 @@ export default function AtsJobDetail() {
               updatedAt={job.updatedAt}
               updatedByName={job.updatedByName}
             />
-            {(job.approvalStatus || job.approverName) && (
+            {job.approverId && (job.approvalStatus || job.approverName) && (
               <div className="text-[11px] text-dark-500 mt-2 pt-2 border-t border-dark-700/50 space-y-1">
                 <div className="flex items-center gap-1.5">
                   <ApprovalIndicator status={job.approvalStatus} />

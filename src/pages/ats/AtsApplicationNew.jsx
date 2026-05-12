@@ -122,6 +122,20 @@ export default function AtsApplicationNew() {
           navigate(orgPath(`/ats/jobs/${jobId}`), { replace: true });
           return;
         }
+        // Approval gate (2026-05-13). Pending/rejected positions cannot
+        // accept candidates — the API also blocks with 403 JOB_NOT_APPROVED
+        // but pre-empting at load-time avoids the half-filled-form
+        // surprise.
+        if (j.approvalStatus !== 'approved') {
+          showToast(
+            j.approvalStatus === 'rejected'
+              ? 'This position was rejected and cannot accept applications.'
+              : 'This position is pending approval. Applications can be added only after it is approved.',
+            'error',
+          );
+          navigate(orgPath(`/ats/jobs/${jobId}`), { replace: true });
+          return;
+        }
         setJob(j);
         setForm((p) => ({
           ...p,
@@ -473,6 +487,15 @@ export default function AtsApplicationNew() {
       showToast('Application created');
       navigate(orgPath(`/ats/applications/${newAppId}`));
     } catch (err) {
+      // Surfacing the server-side approval gate (403 JOB_NOT_APPROVED) as
+      // a friendly toast and a redirect back to the job — the page-load
+      // pre-check above usually catches this, but the approval can be
+      // flipped while the form is open.
+      if (err?.code === 'JOB_NOT_APPROVED' || err?.response?.data?.code === 'JOB_NOT_APPROVED') {
+        showToast(err?.message || 'This position is no longer approved for new applications.', 'error');
+        navigate(orgPath(`/ats/jobs/${jobId}`), { replace: true });
+        return;
+      }
       showToast(err?.message || 'Failed to create application', 'error');
     } finally {
       setSaving(false);

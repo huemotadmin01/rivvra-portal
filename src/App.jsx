@@ -144,6 +144,7 @@ const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
 const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
 const AtsApplicationNew = lazy(() => import('./pages/ats/AtsApplicationNew'));
 const AtsReporting = lazy(() => import('./pages/ats/AtsReporting'));
+const AtsMyApprovals = lazy(() => import('./pages/ats/AtsMyApprovals'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
 // Lazy-loaded: CRM app pages
@@ -484,6 +485,7 @@ function App() {
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><AtsCandidates /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><AtsMyApprovals /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
                   <Route path="/org/:slug/ats/reporting" element={<ErrorBoundary><AtsReporting /></ErrorBoundary>} />
                   <Route path="/org/:slug/ats/config" element={<ErrorBoundary><AtsConfig /></ErrorBoundary>} />

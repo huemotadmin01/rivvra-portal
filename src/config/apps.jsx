@@ -386,6 +386,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/ats/applications', label: 'Applications', icon: FileText },
         { type: 'item', path: '/ats/jobs', label: 'Job Positions', icon: Briefcase },
         { type: 'item', path: '/ats/candidates', label: 'Candidates', icon: Users },
+        { type: 'item', path: '/ats/my-approvals', label: 'My Approvals', icon: CheckCircle2 },
         ...(isAdmin ? [
           { type: 'item', path: '/ats/reporting', label: 'Reporting', icon: BarChart3 },
           {
