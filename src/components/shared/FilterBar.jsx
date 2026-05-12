@@ -187,10 +187,10 @@ export function FilterChip({ type = 'select', paramKey, label, options = [], pla
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
-  // 2026-05-12: auto-enable search for any select chip with >10 options
-  // (Manager / Job / Tag / Client lists are commonly long). Caller can
-  // also pass searchable={true} explicitly.
-  const isSearchable = searchable || (type === 'select' && options.length > 10);
+  // 2026-05-13: auto-enable search for any select chip with >5 options
+  // (was >10 — too high; the Jobs Client filter with exactly 10 entries
+  // missed it). Caller can also pass searchable={true} explicitly.
+  const isSearchable = searchable || (type === 'select' && options.length > 5);
 
   useEffect(() => {
     if (!open) return;

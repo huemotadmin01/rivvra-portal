@@ -17,10 +17,33 @@ import {
   Star, X, Calendar, User, Mail, Briefcase,
 } from 'lucide-react';
 
-/* ── Inline FilterChip component ─────────────────────────────────────── */
+/* ── Inline FilterChip component ───────────────────────────────────────
+ * Local-state filter chip used only by the Pipeline page (other ATS
+ * lists use the URL-driven FilterChip from components/shared/FilterBar).
+ *
+ * 2026-05-13: added inline search input that auto-shows when there are
+ * more than 5 options. The Pipeline's Recruiter dropdown was unscrollable
+ * for Huemot's 40+ employees. */
 function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
   const selectedOption = options.find((o) => o.value === value);
   const displayLabel = selectedOption && value ? selectedOption.label : label;
+  const [query, setQuery] = useState('');
+  // The first option in Pipeline is always the "All X" reset row; show
+  // it regardless of search query so users can clear without deleting
+  // characters. The rest filter case-insensitively against the label.
+  const filtered = (() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    const head = options[0] && !options[0].value ? [options[0]] : [];
+    const rest = options.slice(head.length).filter((o) =>
+      String(o.label || '').toLowerCase().includes(q),
+    );
+    return [...head, ...rest];
+  })();
+  const isSearchable = options.length > 5;
+
+  // Reset the query whenever the dropdown closes.
+  useEffect(() => { if (!isOpen) setQuery(''); }, [isOpen]);
 
   return (
     <div className="relative">
@@ -41,20 +64,38 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute left-0 top-full mt-1.5 min-w-[180px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onSelect(opt.value)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  opt.value === value
-                    ? 'bg-rivvra-500/10 text-rivvra-400'
-                    : 'text-dark-300 hover:bg-dark-700 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="absolute left-0 top-full mt-1.5 min-w-[220px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl z-20 flex flex-col max-h-72 overflow-hidden">
+            {isSearchable && (
+              <div className="p-2 border-b border-dark-700 shrink-0">
+                <input
+                  autoFocus
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={`Search ${label.toLowerCase()}…`}
+                  className="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+                />
+              </div>
+            )}
+            <div className="overflow-y-auto py-1">
+              {filtered.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-dark-500">No matches</div>
+              ) : (
+                filtered.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => onSelect(opt.value)}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      opt.value === value
+                        ? 'bg-rivvra-500/10 text-rivvra-400'
+                        : 'text-dark-300 hover:bg-dark-700 hover:text-white'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </>
       )}
