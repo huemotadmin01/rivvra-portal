@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -6,10 +6,38 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
-import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
+
+const JOB_GROUP_BY_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'client', label: 'Client' },
+  { value: 'status', label: 'Status' },
+  { value: 'department', label: 'Department' },
+];
+
+const JOB_APPROVAL_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+];
+
+const JOB_HIRING_MODE_OPTIONS = [
+  { value: 'C2C', label: 'C2C' },
+  { value: 'Full-time Hire', label: 'Full-time Hire' },
+  { value: 'Contract', label: 'Contract' },
+];
+
+const JOB_EXPERIENCE_OPTIONS = [
+  { value: '0-2', label: '0–2 years' },
+  { value: '3-4', label: '3–4 years' },
+  { value: '5+', label: '5+ years' },
+  { value: '7-8', label: '7–8 years' },
+  { value: '8-10', label: '8–10 years' },
+];
 import {
   Plus, Loader2, Briefcase,
-  ChevronLeft, ChevronRight, X,
+  ChevronLeft, ChevronRight, ChevronDown, X,
 } from 'lucide-react';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
@@ -432,7 +460,13 @@ export default function AtsJobPositions() {
 
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
-  const filterParams = useFilterParams(['search', 'status', 'department', 'archived']);
+  const filterParams = useFilterParams([
+    'search', 'status', 'department', 'archived',
+    'approvalStatus', 'hiringMode', 'requiredExperience', 'clientName', 'groupBy',
+  ]);
+  const groupBy = filterParams.groupBy || '';
+  const isGrouped = Boolean(groupBy);
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
   const page = parseInt(searchParams.get('page') || '1', 10);
 
   const [jobs, setJobs] = useState([]);
@@ -505,7 +539,52 @@ export default function AtsJobPositions() {
     { value: 'on_hold', label: 'On Hold' },
     { value: 'closed', label: 'Closed' },
   ];
-  const departmentOptions = departments.map((d) => ({ value: d, label: d }));
+  const departmentOptions = useMemo(
+    () => departments.map((d) => ({ value: d, label: d })),
+    [departments],
+  );
+  // Derive client list from the loaded jobs (denorm'd clientName field).
+  // Sorted alphabetically. Same pattern as departmentOptions.
+  const clientOptions = useMemo(() => {
+    const unique = new Set(jobs.map((j) => j.clientName).filter(Boolean));
+    return [...unique].sort().map((n) => ({ value: n, label: n }));
+  }, [jobs]);
+
+  // ── Grouped data (Phase 1: client / status / department) ─────────────
+  const groupedJobs = useMemo(() => {
+    if (!groupBy) return null;
+    const extractor = (job) => {
+      if (groupBy === 'client') {
+        return [{
+          key: job.clientName || job.partnerId || '__unknown__',
+          label: job.clientName || (job.partnerId ? 'Unknown client' : 'No client'),
+        }];
+      }
+      if (groupBy === 'status') {
+        const labelMap = { open: 'Open', on_hold: 'On Hold', closed: 'Closed' };
+        return [{
+          key: job.status || '__unknown__',
+          label: labelMap[job.status] || job.status || 'Unknown',
+        }];
+      }
+      if (groupBy === 'department') {
+        return [{
+          key: job.department || '__unknown__',
+          label: job.department || 'No department',
+        }];
+      }
+      return [];
+    };
+    return sortGroupsByCount(groupRecords(jobs, extractor));
+  }, [jobs, groupBy]);
+
+  const toggleGroup = (key) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   // Pagination
   const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
@@ -542,6 +621,13 @@ export default function AtsJobPositions() {
       <FilterBar searchPlaceholder="Search by position name, department, or client…">
         <FilterChip type="select" paramKey="status" label="Status" options={statusOptions} />
         <FilterChip type="select" paramKey="department" label="Department" options={departmentOptions} />
+        <FilterChip type="select" paramKey="clientName" label="Client" options={clientOptions} placeholder="No clients" />
+        <FilterChip type="select" paramKey="approvalStatus" label="Approval" options={JOB_APPROVAL_OPTIONS} />
+        <GroupByChip options={JOB_GROUP_BY_OPTIONS} />
+        <MoreFiltersPopover paramKeys={['hiringMode', 'requiredExperience']}>
+          <FilterChip type="select" paramKey="hiringMode" label="Hiring Mode" options={JOB_HIRING_MODE_OPTIONS} />
+          <FilterChip type="select" paramKey="requiredExperience" label="Experience" options={JOB_EXPERIENCE_OPTIONS} />
+        </MoreFiltersPopover>
         <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
       </FilterBar>
 
@@ -585,9 +671,10 @@ export default function AtsJobPositions() {
                   </tr>
                 </thead>
                 <tbody>
-                  {jobs.map((job) => (
+                  {(() => {
+                  const renderRow = (job, keySuffix = '') => (
                     <tr
-                      key={job._id}
+                      key={`${job._id}${keySuffix}`}
                       onClick={() => navigate(orgPath(`/ats/jobs/${job._id}`))}
                       className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                     >
@@ -667,14 +754,45 @@ export default function AtsJobPositions() {
                         {formatDate(job.createdAt)}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  // 2026-05-12 ATS audit Q2 = A: when groupBy is set, wrap
+                  // row stream in collapsible group sections.
+                  if (!isGrouped) {
+                    return jobs.map((j) => renderRow(j));
+                  }
+                  return (groupedJobs || []).flatMap(([key, group]) => {
+                    const collapsed = collapsedGroups.has(key);
+                    const header = (
+                      <tr key={`__group__${key}`} className="bg-dark-800/40">
+                        <td colSpan={12} className="px-4 py-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(key)}
+                            className="flex items-center gap-2 text-sm font-semibold text-dark-100 hover:text-white w-full text-left"
+                          >
+                            <ChevronDown
+                              size={14}
+                              className={`text-dark-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+                            />
+                            <span>{group.label}</span>
+                            <span className="text-xs text-dark-400 font-normal">
+                              {group.records.length} job{group.records.length === 1 ? '' : 's'}
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                    const rows = collapsed ? [] : group.records.map((j) => renderRow(j, `__${key}`));
+                    return [header, ...rows];
+                  });
+                  })()}
                 </tbody>
               </table>
             </div>
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {!isGrouped && totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
                 Showing {pageStart}\u2013{pageEnd} of {total}
