@@ -5,8 +5,34 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import {
   Loader2, BarChart3, Users, UserCheck, Clock,
-  ShieldAlert, FileBarChart,
+  ShieldAlert, FileBarChart, RefreshCw,
 } from 'lucide-react';
+
+/* ── Time-range options ───────────────────────────────────────────────────
+ * 2026-05-12 audit P1 #8. Each option emits a { dateFrom, dateTo } pair
+ * (or both null = all time). "Custom" is intentionally omitted for now —
+ * the four presets cover ~95% of recruiter intent and avoid a date
+ * picker dependency. Add later if leadership asks for arbitrary ranges. */
+const TIME_RANGE_OPTIONS = [
+  { key: 'all', label: 'All time' },
+  { key: '7d', label: 'Last 7 days', days: 7 },
+  { key: '30d', label: 'Last 30 days', days: 30 },
+  { key: '90d', label: 'Last 90 days', days: 90 },
+  { key: 'ytd', label: 'Year to date' },
+];
+
+function rangeToDates(key) {
+  if (key === 'all') return { dateFrom: null, dateTo: null };
+  const now = new Date();
+  if (key === 'ytd') {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    return { dateFrom: yearStart.toISOString(), dateTo: now.toISOString() };
+  }
+  const opt = TIME_RANGE_OPTIONS.find((o) => o.key === key);
+  if (!opt?.days) return { dateFrom: null, dateTo: null };
+  const from = new Date(now.getTime() - opt.days * 24 * 60 * 60 * 1000);
+  return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
+}
 
 /* ── Stat Card ────────────────────────────────────────────────────────── */
 function StatCard({ label, value, icon: Icon, iconColor }) {
@@ -113,14 +139,18 @@ export default function AtsReporting() {
   const orgSlug = currentOrg?.slug;
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
+  const [rangeKey, setRangeKey] = useState('all');
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async ({ silent = false } = {}) => {
     if (!orgSlug) return;
-    setLoading(true);
-    setData(null);
+    // First fetch: full-page loading. Range change or explicit refresh:
+    // small spinner only, dashboard stays rendered.
+    if (silent || data) setRefreshing(true);
+    else setLoading(true);
     try {
-      const res = await atsApi.getDashboard(orgSlug);
+      const res = await atsApi.getDashboard(orgSlug, rangeToDates(rangeKey));
       if (res.success) {
         setData(res);
       } else {
@@ -132,9 +162,10 @@ export default function AtsReporting() {
       showToast(err?.message || 'Failed to load reporting data', 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, showToast]);
+  }, [orgSlug, currentCompany?._id, rangeKey, showToast]);
 
   useEffect(() => {
     if (isAdmin) fetchDashboard();
@@ -153,8 +184,10 @@ export default function AtsReporting() {
     );
   }
 
-  // Loading state
-  if (loading) {
+  // Full-page loading only on the very first fetch. Subsequent fetches
+  // (range change, refresh) keep the existing dashboard rendered and
+  // surface progress via the small spinner inside the Refresh button.
+  if (loading && !data) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-20">
@@ -191,9 +224,35 @@ export default function AtsReporting() {
   return (
     <div className="p-6 bg-dark-950 min-h-full space-y-6">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">ATS Reporting</h1>
-        <p className="text-dark-400 text-sm mt-1">Recruitment analytics &amp; metrics</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">ATS Reporting</h1>
+          <p className="text-dark-400 text-sm mt-1">Recruitment analytics &amp; metrics</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="ats-reporting-range" className="sr-only">Time range</label>
+          <select
+            id="ats-reporting-range"
+            value={rangeKey}
+            onChange={(e) => setRangeKey(e.target.value)}
+            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
+          >
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => fetchDashboard({ silent: true })}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-900 border border-dark-700 text-sm text-dark-200 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-50"
+            title="Refresh"
+            aria-label="Refresh reporting data"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Stats Cards ─────────────────────────────────────────────────── */}

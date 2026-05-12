@@ -420,8 +420,15 @@ const atsApi = {
   },
 
   // ── Dashboard ─────────────────────────────────────────────────────────
-  getDashboard(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/ats/dashboard`);
+  // 2026-05-12 audit P1 #8: time-range filter. Both dateFrom and dateTo
+  // are optional ISO strings; omitting both preserves the legacy
+  // "all time" behaviour.
+  getDashboard(orgSlug, { dateFrom = null, dateTo = null } = {}) {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
+    const qs = params.toString();
+    return api.request(`/api/org/${orgSlug}/ats/dashboard${qs ? `?${qs}` : ''}`);
   },
 
   // ── Settings ──────────────────────────────────────────────────────────
