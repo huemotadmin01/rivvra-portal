@@ -138,6 +138,29 @@ const atsApi = {
     });
   },
 
+  // 2026-05-12 stage-transition wizard (api commit d15c030). Preflight
+  // returns the ordered list of fillable steps the wizard should render
+  // for this transition + non-fillable blockers + (for backward moves)
+  // the list of interview fields that will get wiped on commit so the
+  // wizard can show the "this will clear …" warning.
+  transitionPreflight(orgSlug, applicationId, targetStageId) {
+    return api.request(
+      `/api/org/${orgSlug}/ats/applications/${applicationId}/transition-preflight?targetStageId=${encodeURIComponent(targetStageId)}`,
+    );
+  },
+
+  // Atomic wizard-submit endpoint. Re-runs every gate via the same
+  // helper /stage uses, then performs the move (backward wipe +
+  // stageHistory + emails). Body: { targetStageId, reason? } — the
+  // wizard auto-saves per-step data via existing endpoints on Next so
+  // by submit time everything is persisted.
+  stageTransition(orgSlug, applicationId, body) {
+    return api.request(
+      `/api/org/${orgSlug}/ats/applications/${applicationId}/stage-transition`,
+      { method: 'POST', body: JSON.stringify(body || {}) },
+    );
+  },
+
   refuseApplication(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}/refuse`, {
       method: 'PATCH',
