@@ -5,8 +5,23 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import {
   Loader2, BarChart3, Users, UserCheck, Clock,
-  ShieldAlert, FileBarChart, RefreshCw, Download,
+  ShieldAlert, FileBarChart, RefreshCw, Download, ChevronDown,
 } from 'lucide-react';
+
+/* ── Sticky range preference ──────────────────────────────────────────────
+ * 2026-05-12 Phase 1 (audit Q8 = D). Per-user, per-device. Default = 30d
+ * on first visit; respects the user's last selection thereafter. */
+const RANGE_STORAGE_KEY = 'rivvra:ats-reporting-range';
+function readStoredRange() {
+  try {
+    const stored = localStorage.getItem(RANGE_STORAGE_KEY);
+    if (stored && ['all', '7d', '30d', '90d', 'ytd'].includes(stored)) return stored;
+  } catch (_) { /* localStorage blocked */ }
+  return '30d';
+}
+function writeStoredRange(key) {
+  try { localStorage.setItem(RANGE_STORAGE_KEY, key); } catch (_) {}
+}
 
 /* ── CSV export ───────────────────────────────────────────────────────────
  * 2026-05-12 audit P3 #28. Client-side serialise — the dashboard data
@@ -143,6 +158,96 @@ function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
   );
 }
 
+/* ── Recruitment Funnel ───────────────────────────────────────────────────
+ * 2026-05-12 Phase 1 (audit Q2 = A). Full pipeline funnel:
+ *   - One bar per stage in canonical sequence order (New → ... → Hired)
+ *   - Each row shows applicants currently at OR past this stage
+ *     (cumulative-from-end, so "L1" = current L1 + everyone downstream)
+ *   - Stage-to-stage conversion % shown between bars (e.g. "30% of L1 → L2")
+ *
+ * Why cumulative-from-end: an applicant currently "Hired" passed through
+ * every earlier stage. A "candidates currently at this stage" view would
+ * look like a near-empty funnel because most are clustered at one end.
+ * Cumulative answers the question recruiters actually ask — "how many
+ * have we kept through this gate?"
+ */
+function RecruitmentFunnel({ data }) {
+  // Only stages with a known sequence; sort ascending. Stages with null
+  // sequence (e.g. archived or oddly imported) drop out of the funnel.
+  const ordered = useMemo(() => {
+    return [...data]
+      .filter((s) => Number.isFinite(s.sequence))
+      .sort((a, b) => a.sequence - b.sequence);
+  }, [data]);
+
+  // Cumulative-from-end: passed[i] = sum(ordered[i..].count).
+  const passed = useMemo(() => {
+    const out = new Array(ordered.length).fill(0);
+    let running = 0;
+    for (let i = ordered.length - 1; i >= 0; i--) {
+      running += ordered[i].count || 0;
+      out[i] = running;
+    }
+    return out;
+  }, [ordered]);
+
+  const maxVal = Math.max(...passed, 1);
+
+  return (
+    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
+      <h3 className="text-lg font-semibold text-white mb-1">Recruitment Funnel</h3>
+      <p className="text-dark-500 text-xs mb-5">Applicants currently at or past each stage</p>
+
+      {ordered.length === 0 ? (
+        <p className="text-dark-500 text-sm text-center py-6">No data yet</p>
+      ) : (
+        <div className="space-y-1">
+          {ordered.map((stage, i) => {
+            const count = passed[i];
+            const pct = Math.round((count / maxVal) * 100);
+            const isLast = i === ordered.length - 1;
+            // Conversion from this stage to the next (% that progressed)
+            const conv = !isLast && passed[i] > 0
+              ? Math.round((passed[i + 1] / passed[i]) * 100)
+              : null;
+            return (
+              <div key={stage.stageId || i}>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-dark-300 w-36 shrink-0 truncate" title={stage.stageName}>
+                    {stage.stageName}
+                  </span>
+                  <div className="flex-1 bg-dark-800 rounded-full h-6 overflow-hidden">
+                    <div
+                      className="bg-rivvra-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, minWidth: count > 0 ? '1.5rem' : 0 }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-dark-200 w-10 text-right shrink-0">
+                    {count}
+                  </span>
+                </div>
+                {!isLast && (
+                  <div className="flex items-center gap-3 pl-36">
+                    <div className="flex-1 flex items-center gap-2 py-1 text-xs text-dark-500">
+                      <ChevronDown size={12} />
+                      <span>
+                        {conv === null
+                          ? <span className="italic">—</span>
+                          : <><span className={conv >= 50 ? 'text-emerald-400' : conv >= 25 ? 'text-amber-400' : 'text-red-400'}>{conv}%</span> progressed to {ordered[i + 1].stageName}</>}
+                      </span>
+                    </div>
+                    <span className="w-10" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Recruiter Table ──────────────────────────────────────────────────── */
 function RecruiterTable({ data, totalApplications }) {
   // Sort descending by application count, memoised so we don't re-sort
@@ -198,7 +303,8 @@ export default function AtsReporting() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
-  const [rangeKey, setRangeKey] = useState('all');
+  // Sticky per-user range. Lazy init reads localStorage; falls back to 30d.
+  const [rangeKey, setRangeKey] = useState(() => readStoredRange());
 
   const fetchDashboard = useCallback(async ({ silent = false } = {}) => {
     if (!orgSlug) return;
@@ -291,7 +397,11 @@ export default function AtsReporting() {
           <select
             id="ats-reporting-range"
             value={rangeKey}
-            onChange={(e) => setRangeKey(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setRangeKey(next);
+              writeStoredRange(next);
+            }}
             className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
           >
             {TIME_RANGE_OPTIONS.map((opt) => (
@@ -358,15 +468,12 @@ export default function AtsReporting() {
         />
       </div>
 
-      {/* ── Charts (Stage + Source) ──────────────────────────────────────── */}
+      {/* ── Funnel (Phase 1) — replaces the old Applications-by-Stage
+          horizontal bar; shows same data plus cumulative + conversion %. */}
+      <RecruitmentFunnel data={applicationsByStage} />
+
+      {/* ── Source breakdown ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HorizontalBarChart
-          title="Applications by Stage"
-          data={applicationsByStage}
-          labelKey="stageName"
-          valueKey="count"
-          barColor="bg-rivvra-500"
-        />
         <HorizontalBarChart
           title="Applications by Source"
           data={applicationsBySource}
@@ -374,6 +481,9 @@ export default function AtsReporting() {
           valueKey="count"
           barColor="bg-blue-500"
         />
+        {/* Right column reserved for Phase 3 quality metrics
+            (Offer acceptance + Refusal reasons). Left as an empty slot
+            for now rather than crammed with something irrelevant. */}
       </div>
 
       {/* ── Recruiter Table ─────────────────────────────────────────────── */}
