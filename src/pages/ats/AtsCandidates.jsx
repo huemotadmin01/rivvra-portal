@@ -160,11 +160,16 @@ export default function AtsCandidates() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-700">
+                    {/* 2026-05-12 audit P3: column visibility shuffled to
+                        match recruiter priority. Phone is the second-
+                        most-asked-for column after name (calls happen),
+                        Application count was previously promoted ahead
+                        of it which made no sense on tablet widths. */}
                     <th className="text-left px-4 py-3 text-dark-400 font-medium">Name</th>
+                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Phone</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Phone</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">LinkedIn</th>
-                    <th className="text-center px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Applications</th>
+                    <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Applications</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Last Applied</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Tags</th>
                   </tr>
@@ -193,24 +198,25 @@ export default function AtsCandidates() {
                         </div>
                       </td>
 
-                      {/* Email */}
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        {candidate.email ? (
+                      {/* Phone \u2014 promoted to sm+ (was lg+); recruiters
+                          need to call candidates from tablet views too. */}
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        {candidate.phone ? (
                           <div className="flex items-center gap-1.5 text-dark-300">
-                            <Mail size={12} className="text-dark-500 flex-shrink-0" />
-                            <span className="truncate block max-w-[200px]">{candidate.email}</span>
+                            <Phone size={12} className="text-dark-500 flex-shrink-0" />
+                            <span title={candidate.phone}>{candidate.phone}</span>
                           </div>
                         ) : (
                           <span className="text-dark-500">{'\u2014'}</span>
                         )}
                       </td>
 
-                      {/* Phone */}
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        {candidate.phone ? (
+                      {/* Email */}
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        {candidate.email ? (
                           <div className="flex items-center gap-1.5 text-dark-300">
-                            <Phone size={12} className="text-dark-500 flex-shrink-0" />
-                            <span>{candidate.phone}</span>
+                            <Mail size={12} className="text-dark-500 flex-shrink-0" />
+                            <span className="truncate block max-w-[200px]" title={candidate.email}>{candidate.email}</span>
                           </div>
                         ) : (
                           <span className="text-dark-500">{'\u2014'}</span>
@@ -236,8 +242,9 @@ export default function AtsCandidates() {
                         )}
                       </td>
 
-                      {/* Application Count */}
-                      <td className="px-4 py-3 text-center hidden sm:table-cell">
+                      {/* Application Count \u2014 demoted to lg+ (was sm+);
+                          contact methods win when space is tight. */}
+                      <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="bg-dark-700 text-dark-300 text-xs px-2 py-0.5 rounded-full">
                           {candidate.applicationCount ?? candidate.applications?.length ?? 0}
                         </span>

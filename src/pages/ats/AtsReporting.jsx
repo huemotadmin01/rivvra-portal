@@ -5,8 +5,65 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import {
   Loader2, BarChart3, Users, UserCheck, Clock,
-  ShieldAlert, FileBarChart, RefreshCw,
+  ShieldAlert, FileBarChart, RefreshCw, Download,
 } from 'lucide-react';
+
+/* ── CSV export ───────────────────────────────────────────────────────────
+ * 2026-05-12 audit P3 #28. Client-side serialise — the dashboard data
+ * is already loaded; no need for a separate backend export endpoint.
+ * Layout is multi-section: headline counts at top, then each breakdown
+ * (by stage / source / recruiter) with its own header row. Recruiters
+ * can paste this straight into Sheets for leadership reporting. */
+function csvEscape(value) {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildReportingCsv(data, rangeLabel) {
+  const lines = [];
+  lines.push(`ATS Reporting Export,${csvEscape(rangeLabel)}`);
+  lines.push(`Generated,${new Date().toISOString()}`);
+  lines.push('');
+  lines.push('Headline metrics');
+  lines.push('Metric,Value');
+  lines.push(`Total applications,${data.totalApplications ?? 0}`);
+  lines.push(`Total candidates,${data.totalCandidates ?? 0}`);
+  lines.push(`Total jobs,${data.totalJobs ?? 0}`);
+  lines.push(`Total hired,${data.hiredCount ?? 0}`);
+  lines.push(`Avg time to hire (days),${data.avgTimeToHire ?? ''}`);
+  lines.push('');
+  lines.push('Applications by stage');
+  lines.push('Stage,Count');
+  (data.applicationsByStage || []).forEach((s) => {
+    lines.push(`${csvEscape(s.stageName)},${s.count}`);
+  });
+  lines.push('');
+  lines.push('Applications by source');
+  lines.push('Source,Count');
+  (data.applicationsBySource || []).forEach((s) => {
+    lines.push(`${csvEscape(s.source)},${s.count}`);
+  });
+  lines.push('');
+  lines.push('Applications by recruiter');
+  lines.push('Recruiter,Count');
+  (data.applicationsByRecruiter || []).forEach((r) => {
+    lines.push(`${csvEscape(r.recruiterName)},${r.count}`);
+  });
+  return lines.join('\n');
+}
+
+function downloadCsv(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
 
 /* ── Time-range options ───────────────────────────────────────────────────
  * 2026-05-12 audit P1 #8. Each option emits a { dateFrom, dateTo } pair
@@ -251,6 +308,20 @@ export default function AtsReporting() {
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const rangeLabel = TIME_RANGE_OPTIONS.find((o) => o.key === rangeKey)?.label || rangeKey;
+              const dateStamp = new Date().toISOString().slice(0, 10);
+              downloadCsv(buildReportingCsv(data, rangeLabel), `ats-reporting-${dateStamp}.csv`);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-900 border border-dark-700 text-sm text-dark-200 hover:text-white hover:border-dark-600 transition-colors"
+            title="Export to CSV"
+            aria-label="Export reporting data as CSV"
+          >
+            <Download size={14} />
+            <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </div>

@@ -559,7 +559,7 @@ export default function AtsJobPositions() {
           <p className="text-dark-400 text-sm text-center max-w-sm">
             {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
-              : 'Create your first job position to start recruiting.'}
+              : 'Job positions are created from CRM opportunities once they\'re won. Open an opportunity in CRM and use Convert to Job Position to add one here.'}
           </p>
         </div>
       ) : (

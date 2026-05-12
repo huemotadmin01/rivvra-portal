@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -527,10 +527,23 @@ export default function AtsApplications() {
     }
   };
 
-  // Build filter options for the chip dropdowns.
-  const stageOptions = stages.map((s) => ({ value: s._id, label: s.name }));
-  const jobOptions = jobs.map((j) => ({ value: j._id, label: j.name }));
-  const recruiterOptions = recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id }));
+  // Build filter options for the chip dropdowns. Memoised — these
+  // arrays of {value,label} pairs are passed down to FilterChip whose
+  // identity check triggers a re-render of every option in the dropdown
+  // on any parent re-render (search keystroke, filter toggle).
+  // 2026-05-12 audit P2 #17.
+  const stageOptions = useMemo(
+    () => stages.map((s) => ({ value: s._id, label: s.name })),
+    [stages],
+  );
+  const jobOptions = useMemo(
+    () => jobs.map((j) => ({ value: j._id, label: j.name })),
+    [jobs],
+  );
+  const recruiterOptions = useMemo(
+    () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
+    [recruiters],
+  );
 
   // Pagination
   const pageStart = total === 0 ? 0 : (page - 1) * 25 + 1;
@@ -632,7 +645,7 @@ export default function AtsApplications() {
                     <ChevronDown size={12} />
                   </button>
                   {bulkAction === 'stage' && (
-                    <div className="absolute right-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
+                    <div className="absolute right-0 mt-1 w-56 max-w-[calc(100vw-2rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
                       {stages.length === 0 ? (
                         <div className="px-3 py-2 text-xs text-dark-500">No stages configured</div>
                       ) : stages.map((s) => (
@@ -660,7 +673,7 @@ export default function AtsApplications() {
                     <ChevronDown size={12} />
                   </button>
                   {bulkAction === 'refuse' && (
-                    <div className="absolute right-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
+                    <div className="absolute right-0 mt-1 w-56 max-w-[calc(100vw-2rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
                       <button
                         onClick={() => { setBulkAction(null); handleBulkRefuse(null); }}
                         className="w-full text-left px-3 py-2 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors italic"

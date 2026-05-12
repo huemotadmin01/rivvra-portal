@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
@@ -319,7 +319,10 @@ export default function AtsApplicationNew() {
   };
 
   // ── Skill picker helpers ─────────────────────────────────────────────
-  const skillSuggestions = (() => {
+  // 2026-05-12 audit P2 #16: was an inline IIFE recomputed every render
+  // (every keystroke in any input → re-filter all 30+ master skills 2-3x).
+  // Memoised on the three real inputs.
+  const skillSuggestions = useMemo(() => {
     const q = skillQuery.trim().toLowerCase();
     const usedNames = new Set([
       ...pickedSkills.map((s) => (s.skillName || '').toLowerCase()),
@@ -330,7 +333,7 @@ export default function AtsApplicationNew() {
     return candidates
       .filter((s) => (s.name || '').toLowerCase().includes(q))
       .slice(0, 30);
-  })();
+  }, [skillQuery, pickedSkills, inheritedSkills, masterSkills]);
   const exactSkillMatch = skillSuggestions.find(
     (s) => (s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
   );
