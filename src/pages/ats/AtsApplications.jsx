@@ -766,7 +766,7 @@ export default function AtsApplications() {
 
                       {/* Email */}
                       <td className="px-4 py-3 text-dark-300 hidden md:table-cell">
-                        <span className="truncate block max-w-[180px]">
+                        <span className="truncate block max-w-[180px]" title={app.candidateEmail || ''}>
                           {app.candidateEmail || '\u2014'}
                         </span>
                       </td>
@@ -800,14 +800,14 @@ export default function AtsApplications() {
 
                       {/* L1 Feedback */}
                       <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                        <span className="truncate block max-w-[120px]">
+                        <span className="truncate block max-w-[120px]" title={app.l1Feedback || ''}>
                           {app.l1Feedback || '\u2014'}
                         </span>
                       </td>
 
                       {/* L2 Feedback */}
                       <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                        <span className="truncate block max-w-[120px]">
+                        <span className="truncate block max-w-[120px]" title={app.l2Feedback || ''}>
                           {app.l2Feedback || '\u2014'}
                         </span>
                       </td>

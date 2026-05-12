@@ -17,7 +17,7 @@ import ReasonPromptDialog from '../../components/shared/ReasonPromptDialog';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
-  Loader2, Star, X, ChevronDown,
+  Loader2, Star, X, ChevronDown, ChevronLeft,
   User, Briefcase, FileText, Tag, Calendar,
   XCircle, Award,
   ExternalLink,
@@ -2311,6 +2311,14 @@ export default function AtsApplicationDetail() {
 
   return (
     <div className="p-6 md:p-8 space-y-6">
+      {/* Back nav — recruiters landing here from email/list have no other escape hatch */}
+      <button
+        onClick={() => navigate(orgPath('/ats/applications'))}
+        className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
+      >
+        <ChevronLeft size={16} />
+        Back to Applications
+      </button>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>

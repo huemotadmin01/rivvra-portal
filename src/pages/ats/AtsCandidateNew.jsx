@@ -98,6 +98,8 @@ export default function AtsCandidateNew() {
             <input
               type="email"
               required
+              pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+              title="Enter a valid email like name@example.com"
               value={form.email}
               onChange={(e) => handleChange('email', e.target.value)}
               placeholder="e.g. john@example.com"
@@ -109,6 +111,8 @@ export default function AtsCandidateNew() {
             <span className="text-dark-400 text-sm">Phone</span>
             <input
               type="tel"
+              pattern="[\d\s\+\-\(\)]{7,}"
+              title="Digits, spaces, +, -, ( ) only — minimum 7 characters"
               value={form.phone}
               onChange={(e) => handleChange('phone', e.target.value)}
               placeholder="e.g. +91 98765 43210"
@@ -120,6 +124,8 @@ export default function AtsCandidateNew() {
             <span className="text-dark-400 text-sm">Mobile</span>
             <input
               type="tel"
+              pattern="[\d\s\+\-\(\)]{7,}"
+              title="Digits, spaces, +, -, ( ) only — minimum 7 characters"
               value={form.mobile}
               onChange={(e) => handleChange('mobile', e.target.value)}
               placeholder="e.g. +91 98765 43210"

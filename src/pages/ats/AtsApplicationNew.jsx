@@ -268,6 +268,33 @@ export default function AtsApplicationNew() {
     };
   }, [skillDropdownOpen]);
 
+  // 2026-05-12 audit P1: guard against lost work on accidental tab
+  // close / refresh / external nav. Considers the form "dirty" when any
+  // typed field is non-empty, any skill is picked, or a resume file is
+  // attached — but suppresses the prompt while saving (success nav)
+  // and once the new application has been created.
+  const isDirty = (
+    !!form.candidateName?.trim()
+    || !!form.email?.trim()
+    || !!form.phone?.trim()
+    || !!form.linkedinProfile?.trim()
+    || !!form.recruiterId
+    || (Array.isArray(pickedSkills) && pickedSkills.length > 0)
+    || !!resumeFile
+  );
+  useEffect(() => {
+    if (!isDirty || saving) return undefined;
+    const handler = (e) => {
+      e.preventDefault();
+      // Modern browsers ignore the custom string; the side-effect of
+      // setting returnValue is what triggers the native prompt.
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty, saving]);
+
   const pickExistingCandidate = (cand) => {
     setForm((p) => ({
       ...p,
@@ -554,6 +581,8 @@ export default function AtsApplicationNew() {
                       <Mail size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="email"
+                        pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                        title="Enter a valid email like name@example.com"
                         value={form.email}
                         onChange={(e) => {
                           setForm((p) => ({ ...p, email: e.target.value }));
@@ -570,6 +599,8 @@ export default function AtsApplicationNew() {
                       <PhoneIcon size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="tel"
+                        pattern="[\d\s\+\-\(\)]{7,}"
+                        title="Digits, spaces, +, -, ( ) only — minimum 7 characters"
                         value={form.phone}
                         onChange={(e) => {
                           setForm((p) => ({ ...p, phone: e.target.value }));

@@ -16,7 +16,7 @@ import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
-  Loader2, Star, ChevronDown,
+  Loader2, Star, ChevronDown, ChevronLeft,
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
   CheckCircle2, Clock, XCircle,
@@ -551,11 +551,18 @@ export default function AtsJobDetail() {
 
   return (
     <div className="p-6 md:p-8 space-y-6">
+      <button
+        onClick={() => navigate(orgPath('/ats/jobs'))}
+        className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
+      >
+        <ChevronLeft size={16} />
+        Back to Job Positions
+      </button>
       {/* ─── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <h1 className="text-2xl font-bold text-white truncate">{job.name}</h1>
+            <h1 className="text-2xl font-bold text-white truncate" title={job.name}>{job.name}</h1>
             {job.archived && (
               <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 flex items-center gap-1">
                 <Archive size={11} /> ARCHIVED
@@ -763,19 +770,16 @@ export default function AtsJobDetail() {
 
           {/* Applications */}
           <div>
-            <div className="flex items-center justify-between mb-4">
+            {/* 2026-05-12 audit dedupe: header already has "+ New
+                Application" as the primary CTA — removed the duplicate
+                inline link here. Empty-state button below still renders
+                when applications.length === 0 because at that point the
+                header CTA needs reinforcing as the next action. */}
+            <div className="mb-4">
               <h2 className="text-lg font-semibold text-white">
                 Applications
                 <span className="ml-2 text-dark-400 text-sm font-normal">({appsTotal})</span>
               </h2>
-              {canCreateApplication && appsTotal > 0 && (
-                <button
-                  onClick={() => navigate(orgPath(`/ats/jobs/${jobId}/applications/new`))}
-                  className="flex items-center gap-1.5 text-sm text-rivvra-300 hover:text-rivvra-200"
-                >
-                  <Plus size={14} /> Add Application
-                </button>
-              )}
             </div>
 
             {appsLoading ? (
