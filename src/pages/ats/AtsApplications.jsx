@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import StageBadge from '../../components/ats/StageBadge';
 import {
   Plus, Loader2, Users,
   ChevronLeft, ChevronRight, ChevronDown, X,
@@ -14,29 +15,9 @@ import {
 } from 'lucide-react';
 
 /* ── Stage badge helper ──────────────────────────────────────────────── */
-function StageBadge({ stage, stageName }) {
-  // Assign colors based on stage order or name
-  const colors = [
-    'bg-blue-500/10 text-blue-400',
-    'bg-purple-500/10 text-purple-400',
-    'bg-amber-500/10 text-amber-400',
-    'bg-emerald-500/10 text-emerald-400',
-    'bg-pink-500/10 text-pink-400',
-    'bg-cyan-500/10 text-cyan-400',
-    'bg-orange-500/10 text-orange-400',
-  ];
-
-  // Use stage order or hash the name for consistent color
-  const name = stageName || stage?.name || 'Unknown';
-  const hash = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const colorClass = colors[hash % colors.length];
-
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-      {name}
-    </span>
-  );
-}
+// StageBadge moved to ../../components/ats/StageBadge.jsx — shared
+// across AtsApplications, AtsJobDetail, AtsCandidateDetail so the same
+// stage renders in the same colour everywhere (audit P1 #12).
 
 /* ── Evaluation Stars (read-only) ─────────────────────────────────────── */
 function EvalStars({ value = 0, max = 3 }) {

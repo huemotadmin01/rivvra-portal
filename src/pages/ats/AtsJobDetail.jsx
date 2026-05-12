@@ -13,6 +13,7 @@ import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import StageBadge from '../../components/ats/StageBadge';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
@@ -59,26 +60,8 @@ function ApprovalIndicator({ status }) {
   );
 }
 
-/* ── Stage badge (Applications table) ─────────────────────────────────── */
-function StageBadge({ stageName }) {
-  const colors = [
-    'bg-blue-500/10 text-blue-400',
-    'bg-purple-500/10 text-purple-400',
-    'bg-amber-500/10 text-amber-400',
-    'bg-emerald-500/10 text-emerald-400',
-    'bg-pink-500/10 text-pink-400',
-    'bg-cyan-500/10 text-cyan-400',
-    'bg-orange-500/10 text-orange-400',
-  ];
-  const name = stageName || 'Unknown';
-  const hash = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const colorClass = colors[hash % colors.length];
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-      {name}
-    </span>
-  );
-}
+// StageBadge moved to ../../components/ats/StageBadge.jsx — shared
+// component, same colour palette as the Applications list (audit P1 #12).
 
 /* ── Evaluation Stars (read-only) ─────────────────────────────────────── */
 function EvalStars({ value = 0, max = 3 }) {

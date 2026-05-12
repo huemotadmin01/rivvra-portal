@@ -9,6 +9,7 @@ import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import SkillsPicker from '../../components/ats/SkillsPicker';
+import StageBadge from '../../components/ats/StageBadge';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
@@ -28,14 +29,9 @@ function getInitials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('') || '?';
 }
 
-function StageBadge({ stageName }) {
-  if (!stageName) return <span className="text-dark-500 text-xs">—</span>;
-  return (
-    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-dark-700 text-dark-300">
-      {stageName}
-    </span>
-  );
-}
+// StageBadge moved to ../../components/ats/StageBadge.jsx — shared
+// component so the same stage renders in the same colour across
+// Applications list / Job detail / Candidate detail (audit P1 #12).
 
 const EVAL_OPTIONS = [
   { value: 0, label: 'No rating' },
