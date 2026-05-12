@@ -548,7 +548,8 @@ export default function MyProfilePage() {
                 <InfoRow label="Email" value={empProfile.email} />
                 <InfoRow label="Phone" value={empProfile.phone} />
                 <InfoRow label="Department" value={empProfile.departmentName || empProfile.department} />
-                <InfoRow label="Designation" value={empProfile.designation} />
+                <InlineField label="Designation" field="designation" value={empProfile.designation} type="text"
+                  editable onSave={handleSelfSave} placeholder="e.g. Senior Engineer" />
                 <InfoRow label="Manager" value={empProfile.managerName || empProfile.manager} />
                 <InfoRow label="Joining Date" value={formatDateUTC(empProfile.joiningDate) || '—'} />
                 <InfoRow label="Employment" value={empProfile.employmentType ? empProfile.employmentType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—'} />
