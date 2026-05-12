@@ -38,12 +38,36 @@ function ImpersonationBanner() {
   );
 }
 
+// 2026-05-12: persistent sidebar collapse state. Per-user, per-device
+// via localStorage. Defaults to expanded so existing users see no
+// change until they choose to collapse. SSR-safe via the useEffect
+// hydrate-on-mount pattern (the initial render uses the default; the
+// stored preference kicks in on the next paint).
+const SIDEBAR_COLLAPSED_KEY = 'rivvra:sidebar-collapsed';
+
 function PlatformLayout() {
   const { isImpersonating } = useAuth();
   const { currentApp } = usePlatform();
   const { currentCompanyId, hydrated } = useCompany();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Hydrate the collapse preference from localStorage on mount.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      if (stored === 'true') setSidebarCollapsed(true);
+    } catch (_) { /* localStorage blocked — fall back to expanded */ }
+  }, []);
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next)); } catch (_) {}
+      return next;
+    });
+  };
 
   // Close sidebar on route change (mobile)
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
@@ -66,8 +90,17 @@ function PlatformLayout() {
           <ImpersonationBanner />
           <TopBar onToggleSidebar={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
           <div className="flex">
-            {showSidebar && <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
-            <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] ${showSidebar ? 'md:ml-64' : ''}`}>
+            {showSidebar && (
+              <AppSidebar
+                isOpen={sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
+                collapsed={sidebarCollapsed}
+                onToggleCollapsed={toggleSidebarCollapsed}
+              />
+            )}
+            <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] transition-[margin] duration-200 ${
+              showSidebar ? (sidebarCollapsed ? 'md:ml-16' : 'md:ml-64') : ''
+            }`}>
               <TrialBanner />
               <AlumniBanner />
               {!isFullScreenPage && <Breadcrumbs />}
