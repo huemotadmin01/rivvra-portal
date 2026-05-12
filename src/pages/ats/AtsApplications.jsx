@@ -8,6 +8,10 @@ import atsApi from '../../utils/atsApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
+import { useDensity } from '../../hooks/useDensity';
+import DensityToggle from '../../components/shared/DensityToggle';
+import SortableHeader from '../../components/shared/SortableHeader';
+import GroupedHeader from '../../components/shared/GroupedHeader';
 
 const APP_GROUP_BY_OPTIONS = [
   { value: '', label: 'None' },
@@ -354,8 +358,9 @@ export default function AtsApplications() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParams = useFilterParams([
     'search', 'stageId', 'jobId', 'recruiter', 'archived',
-    'source', 'employmentType', 'applicationStatus', 'groupBy',
+    'source', 'employmentType', 'applicationStatus', 'groupBy', 'sort', 'dir',
   ]);
+  const { density, setDensity } = useDensity('ats:applications');
   const page = parseInt(searchParams.get('page') || '1', 10);
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
@@ -702,15 +707,18 @@ export default function AtsApplications() {
             <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
           </FilterBar>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={exporting || total === 0}
-          title="Download the current filtered list as a CSV file"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-        >
-          {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <DensityToggle density={density} onChange={setDensity} />
+          <button
+            onClick={handleExport}
+            disabled={exporting || total === 0}
+            title="Download the current filtered list as a CSV file"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-dark-300 hover:text-white transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -830,13 +838,17 @@ export default function AtsApplications() {
                         className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 cursor-pointer"
                       />
                     </th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
+                    {/* 2026-05-13 audit Q4 = A: sortable column headers.
+                        Candidate/Job/Stage/Recruiter/Evaluation/Applied
+                        all sort; L1/L2 Feedback skip sort (structured
+                        result data, not a comparable scalar). */}
+                    <SortableHeader column="candidateName">Candidate</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Job Position</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
+                    <SortableHeader column="jobPositionId" className="hidden sm:table-cell">Job Position</SortableHeader>
+                    <SortableHeader column="stageId">Stage</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
-                    <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
+                    <SortableHeader column="evaluation" align="center" className="hidden lg:table-cell">Evaluation</SortableHeader>
+                    <SortableHeader column="appliedOn" className="hidden xl:table-cell">Applied</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">L1 Feedback</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">L2 Feedback</th>
                   </tr>
@@ -847,7 +859,7 @@ export default function AtsApplications() {
                     <tr
                       key={`${app._id}${keySuffix}`}
                       onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
-                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''}`}
+                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''} ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                     >
                       {/* Bulk-select checkbox — stop click bubbling so the
                           row's onClick navigation doesn't fire. */}
@@ -929,25 +941,31 @@ export default function AtsApplications() {
                   }
                   return (groupedApplications || []).flatMap(([key, group]) => {
                     const collapsed = collapsedGroups.has(key);
+                    // 2026-05-13 audit Q3 = A+B: visual hooks + sticky.
+                    // Stage groups → blue accent, no avatar (stage isn't
+                    // a person). Recruiter → violet accent + initials.
+                    // Job → cyan accent, no avatar.
+                    const accent = groupBy === 'stage' ? 'bg-blue-500'
+                      : groupBy === 'recruiter' ? 'bg-violet-500'
+                      : 'bg-cyan-500';
+                    const avatarColor = groupBy === 'recruiter'
+                      ? 'bg-violet-500/15 text-violet-300'
+                      : '';
                     const header = (
-                      <tr key={`__group__${key}`} className="bg-dark-800/40">
-                        <td colSpan={10} className="px-4 py-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleGroup(key)}
-                            className="flex items-center gap-2 text-sm font-semibold text-dark-100 hover:text-white w-full text-left"
-                          >
-                            <ChevronDown
-                              size={14}
-                              className={`text-dark-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-                            />
-                            <span>{group.label}</span>
-                            <span className="text-xs text-dark-400 font-normal">
-                              {group.records.length} application{group.records.length === 1 ? '' : 's'}
-                            </span>
-                          </button>
-                        </td>
-                      </tr>
+                      <GroupedHeader
+                        key={`__group__${key}`}
+                        label={group.label}
+                        count={group.records.length}
+                        recordSingular="application"
+                        colSpan={10}
+                        collapsed={collapsed}
+                        onToggle={() => toggleGroup(key)}
+                        accent={accent}
+                        avatarText={groupBy === 'recruiter' ? undefined : ''}
+                        avatarColor={avatarColor}
+                        sticky
+                        stickyTop="-1px"
+                      />
                     );
                     const rows = collapsed ? [] : group.records.map((a) => renderRow(a, `__${key}`));
                     return [header, ...rows];

@@ -8,6 +8,10 @@ import atsApi from '../../utils/atsApi';
 import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
 import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
+import { useDensity } from '../../hooks/useDensity';
+import DensityToggle from '../../components/shared/DensityToggle';
+import SortableHeader from '../../components/shared/SortableHeader';
+import GroupedHeader from '../../components/shared/GroupedHeader';
 
 const JOB_GROUP_BY_OPTIONS = [
   { value: '', label: 'None' },
@@ -462,8 +466,9 @@ export default function AtsJobPositions() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParams = useFilterParams([
     'search', 'status', 'department', 'archived',
-    'approvalStatus', 'hiringMode', 'requiredExperience', 'clientName', 'groupBy',
+    'approvalStatus', 'hiringMode', 'requiredExperience', 'clientName', 'groupBy', 'sort', 'dir',
   ]);
+  const { density, setDensity } = useDensity('ats:jobs');
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
@@ -610,11 +615,12 @@ export default function AtsJobPositions() {
             {total} {total === 1 ? 'position' : 'positions'} total
           </p>
         </div>
-        {/* New Job creation is intentionally not surfaced here. Jobs come
-            from converting a Won opportunity via "Convert to Job" on
-            CrmOpportunityDetail — the canonical funnel since 2026-05-10.
-            The API endpoint stays open so superadmin scripts and the
-            Odoo importer can still seed jobs directly. */}
+        <div className="flex items-center gap-2">
+          <DensityToggle density={density} onChange={setDensity} />
+          {/* New Job creation is intentionally not surfaced here. Jobs come
+              from converting a Won opportunity via "Convert to Job" on
+              CrmOpportunityDetail — the canonical funnel since 2026-05-10. */}
+        </div>
       </div>
 
       {/* Filters — URL-driven via shared FilterBar */}
@@ -656,18 +662,19 @@ export default function AtsJobPositions() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-700">
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium">Name</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Department</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Status</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Experience</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Hiring Mode</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Approval</th>
+                    {/* 2026-05-13 audit Q4 = A: sortable column headers. */}
+                    <SortableHeader column="name">Name</SortableHeader>
+                    <SortableHeader column="department" className="hidden md:table-cell">Department</SortableHeader>
+                    <SortableHeader column="status" className="hidden sm:table-cell">Status</SortableHeader>
+                    <SortableHeader column="requiredExperience" className="hidden lg:table-cell">Experience</SortableHeader>
+                    <SortableHeader column="hiringMode" className="hidden lg:table-cell">Hiring Mode</SortableHeader>
+                    <SortableHeader column="approvalStatus" className="hidden lg:table-cell">Approval</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Client</th>
+                    <SortableHeader column="clientName" className="hidden lg:table-cell">Client</SortableHeader>
                     <th className="text-center px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Published</th>
                     <th className="text-center px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applications</th>
-                    <th className="text-center px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Expected</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Created</th>
+                    <SortableHeader column="expectedHires" align="center" className="hidden xl:table-cell">Expected</SortableHeader>
+                    <SortableHeader column="createdAt" className="hidden xl:table-cell">Created</SortableHeader>
                   </tr>
                 </thead>
                 <tbody>
@@ -676,7 +683,7 @@ export default function AtsJobPositions() {
                     <tr
                       key={`${job._id}${keySuffix}`}
                       onClick={() => navigate(orgPath(`/ats/jobs/${job._id}`))}
-                      className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                     >
                       {/* Name */}
                       <td className="px-4 py-3">
@@ -762,25 +769,30 @@ export default function AtsJobPositions() {
                   }
                   return (groupedJobs || []).flatMap(([key, group]) => {
                     const collapsed = collapsedGroups.has(key);
+                    // 2026-05-13 audit Q3 = A+B: client → cyan accent
+                    // with initials avatar (clients are entities);
+                    // status → amber (state); department → slate (taxonomy).
+                    const accent = groupBy === 'client' ? 'bg-cyan-500'
+                      : groupBy === 'status' ? 'bg-amber-500'
+                      : 'bg-slate-500';
+                    const avatarColor = groupBy === 'client'
+                      ? 'bg-cyan-500/15 text-cyan-300'
+                      : '';
                     const header = (
-                      <tr key={`__group__${key}`} className="bg-dark-800/40">
-                        <td colSpan={12} className="px-4 py-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleGroup(key)}
-                            className="flex items-center gap-2 text-sm font-semibold text-dark-100 hover:text-white w-full text-left"
-                          >
-                            <ChevronDown
-                              size={14}
-                              className={`text-dark-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-                            />
-                            <span>{group.label}</span>
-                            <span className="text-xs text-dark-400 font-normal">
-                              {group.records.length} job{group.records.length === 1 ? '' : 's'}
-                            </span>
-                          </button>
-                        </td>
-                      </tr>
+                      <GroupedHeader
+                        key={`__group__${key}`}
+                        label={group.label}
+                        count={group.records.length}
+                        recordSingular="job"
+                        colSpan={12}
+                        collapsed={collapsed}
+                        onToggle={() => toggleGroup(key)}
+                        accent={accent}
+                        avatarText={groupBy === 'client' ? undefined : ''}
+                        avatarColor={avatarColor}
+                        sticky
+                        stickyTop="-1px"
+                      />
                     );
                     const rows = collapsed ? [] : group.records.map((j) => renderRow(j, `__${key}`));
                     return [header, ...rows];
