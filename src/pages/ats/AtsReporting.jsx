@@ -122,8 +122,8 @@ function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
             const pct = Math.round((item[valueKey] / maxVal) * 100);
             return (
               <div key={i} className="flex items-center gap-3">
-                <span className="text-sm text-dark-300 w-32 shrink-0 truncate">
-                  {item[labelKey]}
+                <span className="text-sm text-dark-300 w-32 shrink-0 truncate" title={item[labelKey] || 'Unknown'}>
+                  {item[labelKey] && String(item[labelKey]).trim() ? item[labelKey] : <span className="italic text-dark-500">Unknown</span>}
                 </span>
                 <div className="flex-1 bg-dark-800 rounded-full h-6 overflow-hidden">
                   <div
@@ -348,7 +348,11 @@ export default function AtsReporting() {
         />
         <StatCard
           label="Avg Time to Hire"
-          value={`${avgTimeToHire} days`}
+          value={
+            Number.isFinite(Number(avgTimeToHire)) && Number(avgTimeToHire) > 0
+              ? `${avgTimeToHire} days`
+              : '—'
+          }
           icon={Clock}
           iconColor="bg-amber-500/15 text-amber-400"
         />

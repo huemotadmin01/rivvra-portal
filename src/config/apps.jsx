@@ -368,7 +368,11 @@ export const APP_REGISTRY = {
     color: 'purple',
     basePath: '/ats',
     status: 'active',
-    defaultRoute: '/ats/pipeline',
+    // 2026-05-12 audit: ATS landing page is role-aware. Admin lands on
+    // Reporting (they monitor throughput / hires); Recruiter lands on
+    // Pipeline (they work, not read). Matches Greenhouse / Lever / Workable.
+    // Other apps keep static string defaults — only ATS needs the split today.
+    defaultRoute: (orgAppRole) => (orgAppRole === 'admin' ? '/ats/reporting' : '/ats/pipeline'),
     derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'purple' },
@@ -635,6 +639,16 @@ export const APP_REGISTRY = {
     },
   },
 };
+
+// 2026-05-12: defaultRoute may be a string (most apps) or a function
+// of (orgAppRole) → string (ATS, role-aware landing). Callers should
+// use this helper rather than reading `app.defaultRoute` directly so
+// future role-aware apps work without touching every call site.
+export function resolveDefaultRoute(app, orgAppRole) {
+  if (!app) return null;
+  const r = app.defaultRoute;
+  return typeof r === 'function' ? r(orgAppRole) : r;
+}
 
 export function getAppById(id) {
   return APP_REGISTRY[id] || null;

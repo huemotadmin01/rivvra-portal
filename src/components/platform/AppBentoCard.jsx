@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
+import { useOrg } from '../../context/OrgContext';
+import { resolveDefaultRoute } from '../../config/apps';
 import { warmTimesheetBackend } from '../../utils/timesheetApi';
 import { Lock, Puzzle, ArrowRight } from 'lucide-react';
 import BrandMark, { hasBrandMark } from './BrandMarks';
@@ -16,6 +18,7 @@ const colorConfig = {
 function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 'tile', accent }) {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
+  const { getAppRole } = useOrg();
   const [hovered, setHovered] = useState(false);
   const [clicked, setClicked] = useState(false);
   const isActive = app.status === 'active' && !locked;
@@ -27,7 +30,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
   const handleClick = () => {
     if (!isActive) return;
     setClicked(true);
-    setTimeout(() => navigate(orgPath(app.defaultRoute)), 200);
+    setTimeout(() => navigate(orgPath(resolveDefaultRoute(app, getAppRole(app.id)))), 200);
   };
 
   const renderMark = (size) => {

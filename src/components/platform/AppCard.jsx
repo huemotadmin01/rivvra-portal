@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
+import { useOrg } from '../../context/OrgContext';
+import { resolveDefaultRoute } from '../../config/apps';
 import { warmTimesheetBackend } from '../../utils/timesheetApi';
 import { Lock, Puzzle } from 'lucide-react';
 
@@ -40,6 +42,7 @@ const colorConfig = {
 function AppCard({ app, index = 0, locked = false, badge = null }) {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
+  const { getAppRole } = useOrg();
   const [hovered, setHovered] = useState(false);
   const [clicked, setClicked] = useState(false);
   const isActive = app.status === 'active' && !locked;
@@ -49,7 +52,7 @@ function AppCard({ app, index = 0, locked = false, badge = null }) {
     if (!isActive) return;
     setClicked(true);
     setTimeout(() => {
-      navigate(orgPath(app.defaultRoute));
+      navigate(orgPath(resolveDefaultRoute(app, getAppRole(app.id))));
     }, 200);
   };
 

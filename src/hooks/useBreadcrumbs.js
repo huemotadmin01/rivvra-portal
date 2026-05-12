@@ -42,10 +42,15 @@ export function useBreadcrumbs() {
     };
     flattenItems(sidebarItems);
 
-    // First crumb: app name linking to its default route
+    // First crumb: app name linking to its default route. Use the
+    // resolver so role-aware defaults (e.g. ATS Admin → Reporting,
+    // Recruiter → Pipeline) work here too.
+    const resolvedDefault = typeof currentApp.defaultRoute === 'function'
+      ? currentApp.defaultRoute(orgAppRole)
+      : currentApp.defaultRoute;
     const breadcrumbs = [{
       label: currentApp.name,
-      path: orgPath(currentApp.defaultRoute || currentApp.basePath),
+      path: orgPath(resolvedDefault || currentApp.basePath),
     }];
 
     // Decompose path segments after the app basePath
