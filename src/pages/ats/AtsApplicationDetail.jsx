@@ -2020,13 +2020,12 @@ export default function AtsApplicationDetail() {
         setEditOfferOnly(false);
         setShowHireModal(false);
         if (targetId) {
-          try {
-            await atsApi.moveStage(orgSlug, applicationId, targetId);
-            showToast('Stage updated');
-          } catch (retryErr) {
-            // Should be rare — gate just passed. Surface anything left.
-            showToast(retryErr.message || 'Stage move failed after saving offer', 'error');
-          }
+          // 2026-05-12: route the retry through handleMoveStage so a
+          // subsequent gate failure opens the next modal automatically
+          // instead of dead-ending in a toast. Was: atsApi.moveStage
+          // direct → 400 with requiresInterview just rendered as a
+          // generic toast, recruiter had to click Move again.
+          await handleMoveStage(targetId);
         }
         // Q24+race-fix (2026-05-10): await the refetch so React state is
         // current before the user's next click. Without this, clicking
@@ -2073,16 +2072,10 @@ export default function AtsApplicationDetail() {
       await atsApi.uploadAttachment(orgSlug, applicationId, file, false, missingAttachment.slug);
       showToast(`${missingAttachment.label} uploaded`);
       setPendingAttachmentMove(null);
-      try {
-        await atsApi.moveStage(orgSlug, applicationId, stageId);
-        showToast('Stage updated');
-      } catch (retryErr) {
-        // Should be rare — gate just passed. If a different gate now
-        // trips (e.g. Offer Proposal also needs the offer subdoc),
-        // the original handleMoveStage error-routing logic catches
-        // it and opens the right modal next.
-        showToast(retryErr.message || 'Stage move failed after upload', 'error');
-      }
+      // 2026-05-12: route the retry through handleMoveStage so the
+      // next gate failure (e.g. requiresInterview) opens its modal
+      // automatically. handleMoveStage handles its own errors.
+      await handleMoveStage(stageId);
       fetchApplication();
     } catch (err) {
       showToast(err.message || 'Upload failed', 'error');
@@ -2132,12 +2125,9 @@ export default function AtsApplicationDetail() {
       // entry points from InterviewRoundCard pass stageId:null and just
       // want the slot saved without advancing the pipeline.
       if (stageId) {
-        try {
-          await atsApi.moveStage(orgSlug, applicationId, stageId);
-          showToast('Stage updated');
-        } catch (retryErr) {
-          showToast(retryErr.message || 'Stage move failed after scheduling', 'error');
-        }
+        // 2026-05-12: route through handleMoveStage so the next gate
+        // failure (e.g. requiresOffer at L1) opens its modal automatically.
+        await handleMoveStage(stageId);
       }
       await fetchApplication();
     } catch (err) {
@@ -2179,15 +2169,12 @@ export default function AtsApplicationDetail() {
       // passes stageId:null. Skip the stage retry — the recruiter just
       // wants the result saved.
       if (stageId) {
-        try {
-          await atsApi.moveStage(orgSlug, applicationId, stageId);
-          showToast('Stage updated');
-        } catch (retryErr) {
-          // Q30-A: if user kept Hold (didn't change to Proceed), the
-          // gate fires again. Surface the gate's message rather than a
-          // generic "failed" so the recruiter knows what's wrong.
-          showToast(retryErr.message || 'Stage move failed after saving result', 'error');
-        }
+        // 2026-05-12: route through handleMoveStage so the next gate
+        // failure (e.g. requiresInterview for the round being entered)
+        // opens its modal automatically. Q30-A behavior is preserved:
+        // if the user kept Hold (didn't flip to Proceed), the result
+        // gate fires again and re-opens the result modal.
+        await handleMoveStage(stageId);
       }
       await fetchApplication();
     } catch (err) {
