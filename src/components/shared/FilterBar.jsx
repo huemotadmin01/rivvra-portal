@@ -279,6 +279,78 @@ export function FilterChip({ type = 'select', paramKey, label, options = [], pla
 }
 
 // ---------------------------------------------------------------------------
+// MoreFiltersPopover — chip-style trigger that opens a popover containing
+// additional FilterChip children. Used by list pages with > 5 filters to
+// keep the chip row short on common filters and tuck the long tail behind
+// a single "More filters (N)" button.
+//
+// 2026-05-12 ATS audit Q6 = B: top 4-5 filters stay as visible chips;
+// the rest go in here. Activity badge counts how many filters inside
+// the popover are currently set.
+// ---------------------------------------------------------------------------
+export function MoreFiltersPopover({ paramKeys = [], children, label = 'More filters' }) {
+  const [searchParams] = useSearchParams();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  // Active = any of the param keys we own has a value set.
+  const activeCount = paramKeys.filter((k) => {
+    const v = searchParams.get(k);
+    return v != null && v !== '';
+  }).length;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+          activeCount > 0
+            ? 'bg-rivvra-500/15 text-rivvra-300 border-rivvra-500/30'
+            : 'bg-dark-800 text-dark-400 border-dark-600 hover:text-dark-200'
+        }`}
+      >
+        <Filter size={12} />
+        <span>{label}{activeCount > 0 ? ` (${activeCount})` : ''}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 min-w-[260px] max-w-[360px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 p-3 space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GroupByChip — chip-style dropdown that writes ?groupBy=<key> to the URL.
+// Pages render their grouped output by reading the `groupBy` query param
+// (via useFilterParams) and switching between flat and grouped renderers.
+//
+// 2026-05-12 ATS audit Q4 = B (Candidates multi-skill grouping = candidate
+// appears in every skill group). Each page decides what to do with the
+// groupBy value; this chip is just the URL bridge.
+// ---------------------------------------------------------------------------
+export function GroupByChip({ options = [], paramKey = 'groupBy', label = 'Group by' }) {
+  return (
+    <FilterChip
+      type="select"
+      paramKey={paramKey}
+      label={label}
+      options={options}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ArchivedToggle — convenience wrapper around a 2-segment chip for the
 // platform-wide Active/Archived split.
 // ---------------------------------------------------------------------------

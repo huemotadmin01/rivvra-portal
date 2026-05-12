@@ -19,6 +19,41 @@ import {
 // across AtsApplications, AtsJobDetail, AtsCandidateDetail so the same
 // stage renders in the same colour everywhere (audit P1 #12).
 
+/* ── Feedback Badge ───────────────────────────────────────────────────────
+ * 2026-05-12 audit: normalises interview-result display across structured
+ * (l1Result.recommendation) and legacy (l1Feedback free-text) records.
+ * Huemot's Odoo data uses "Selected" / "Rejected" / "Hold" — the importer
+ * normalisation handles those at migration time (5-import-data.js), but
+ * this badge also display-normalises any record that escaped the mapper
+ * so live data renders cleanly without a re-run. */
+const LEGACY_FEEDBACK_NORMALISE = {
+  selected: 'Proceed',
+  accepted: 'Proceed',
+  proceed: 'Proceed',
+  hold: 'Awaited',
+  awaited: 'Awaited',
+  rejected: 'Reject',
+  reject: 'Reject',
+};
+function FeedbackBadge({ result, legacy }) {
+  // Structured wins; fall back to normalised legacy.
+  let rec = result?.recommendation;
+  if (!rec && legacy && typeof legacy === 'string') {
+    rec = LEGACY_FEEDBACK_NORMALISE[legacy.trim().toLowerCase()] || null;
+  }
+  if (!rec) return <span className="text-dark-500">—</span>;
+  const cls = rec === 'Proceed'
+    ? 'bg-emerald-500/10 text-emerald-400'
+    : rec === 'Awaited'
+    ? 'bg-amber-500/10 text-amber-400'
+    : 'bg-red-500/10 text-red-400';
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`} title={legacy || ''}>
+      {rec}
+    </span>
+  );
+}
+
 /* ── Evaluation Stars (read-only) ─────────────────────────────────────── */
 function EvalStars({ value = 0, max = 3 }) {
   return (
@@ -792,18 +827,17 @@ export default function AtsApplications() {
                         {formatDate(app.appliedOn)}
                       </td>
 
-                      {/* L1 Feedback */}
-                      <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                        <span className="truncate block max-w-[120px]" title={app.l1Feedback || ''}>
-                          {app.l1Feedback || '\u2014'}
-                        </span>
+                      {/* L1 Feedback \u2014 prefer structured l1Result.recommendation
+                          (Proceed / Awaited / Reject), fall back to the legacy
+                          free-text l1Feedback for any record whose Odoo value
+                          didn't normalize (e.g. "Selected" \u2192 "Proceed").
+                          2026-05-12 audit fix. */}
+                      <td className="px-4 py-3 text-xs hidden xl:table-cell">
+                        <FeedbackBadge result={app.l1Result} legacy={app.l1Feedback} />
                       </td>
-
                       {/* L2 Feedback */}
-                      <td className="px-4 py-3 text-dark-400 text-xs hidden xl:table-cell">
-                        <span className="truncate block max-w-[120px]" title={app.l2Feedback || ''}>
-                          {app.l2Feedback || '\u2014'}
-                        </span>
+                      <td className="px-4 py-3 text-xs hidden xl:table-cell">
+                        <FeedbackBadge result={app.l2Result} legacy={app.l2Feedback} />
                       </td>
                     </tr>
                   ))}
