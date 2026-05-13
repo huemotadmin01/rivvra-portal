@@ -155,7 +155,6 @@ const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
 const CrmOpportunityNew = lazy(() => import('./pages/crm/CrmOpportunityNew'));
-const CrmReporting = lazy(() => import('./pages/crm/CrmReporting'));
 const CrmConfigStages = lazy(() => import('./pages/crm/CrmConfigStages'));
 const CrmConfigTags = lazy(() => import('./pages/crm/CrmConfigTags'));
 const CrmConfigLostReasons = lazy(() => import('./pages/crm/CrmConfigLostReasons'));
@@ -270,6 +269,24 @@ function OrgOutreachSettingsRedirect() {
 function CrmConfigRedirect() {
   const { slug } = useParams();
   return <Navigate to={`/org/${slug}/crm/config/stages`} replace />;
+}
+
+// 2026-05-14: CRM Reporting merged into Dashboard. Old URL kept as a
+// redirect so existing bookmarks and email links survive. The page now
+// renders its analytical sections inline (admin/lead-gated).
+function CrmReportingRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/crm/dashboard`} replace />;
+}
+
+// 2026-05-14: bare /org/:slug/crm lands role-aware via the app's
+// defaultRoute resolver — Admin/Lead → /crm/dashboard, others →
+// /crm/pipeline. Mirrors the ATS pattern wired the same day.
+function CrmIndexRedirect() {
+  const { slug } = useParams();
+  const { getAppRole } = useOrg();
+  const target = resolveDefaultRoute(getAppById('crm'), getAppRole('crm'));
+  return <Navigate to={`/org/${slug}${target || '/crm/pipeline'}`} replace />;
 }
 
 // Helper: redirect old /incentive/settings (relocated into the global
@@ -480,14 +497,14 @@ function App() {
 
               {/* CRM app routes — gated by crm access */}
               <Route element={<AppAccessGate appId="crm" />}>
+                <Route path="/org/:slug/crm" element={<CrmIndexRedirect />} />
                 <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><CrmDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><CrmOpportunities /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><CrmOpportunityNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><CrmOpportunityDetail /></ErrorBoundary>} />
-                <Route element={<AppRoleGate appId="crm" requiredRole="admin" allowTeamLead />}>
-                  <Route path="/org/:slug/crm/reporting" element={<ErrorBoundary><CrmReporting /></ErrorBoundary>} />
-                </Route>
+                {/* 2026-05-14: Reporting merged into Dashboard — keep old path redirecting */}
+                <Route path="/org/:slug/crm/reporting" element={<CrmReportingRedirect />} />
                 <Route element={<AppRoleGate appId="crm" requiredRole="admin" />}>
                   <Route path="/org/:slug/crm/config" element={<CrmConfigRedirect />} />
                   <Route path="/org/:slug/crm/config/stages" element={<ErrorBoundary><CrmConfigStages /></ErrorBoundary>} />

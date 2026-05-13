@@ -326,7 +326,12 @@ export const APP_REGISTRY = {
     color: 'emerald',
     basePath: '/crm',
     status: 'active',
-    defaultRoute: '/crm/pipeline',
+    // 2026-05-14: role-aware landing mirrors the ATS pattern (admin/team-lead
+    // monitor metrics, salespeople work the pipeline). Reporting page merged
+    // into Dashboard same day, so Dashboard is now the manager landing.
+    defaultRoute: (orgAppRole) => (
+      (orgAppRole === 'admin' || orgAppRole === 'team_lead') ? '/crm/dashboard' : '/crm/pipeline'
+    ),
     derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'emerald' },
@@ -336,15 +341,13 @@ export const APP_REGISTRY = {
     ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
-      const isTeamLead = orgAppRole === 'team_lead' || user?.role === 'team_lead';
-      const isAdminOrLead = isAdmin || isTeamLead;
+      // 2026-05-14: Reporting sidebar item removed — its sections now live
+      // inline on /crm/dashboard, gated to admin / team-lead with the same
+      // check the old standalone route had.
       return [
         { type: 'item', path: '/crm/dashboard', label: 'Dashboard', icon: Home },
         { type: 'item', path: '/crm/pipeline', label: 'Pipeline', icon: Kanban },
         { type: 'item', path: '/crm/opportunities', label: 'Opportunities', icon: Briefcase },
-        ...(isAdminOrLead ? [
-          { type: 'item', path: '/crm/reporting', label: 'Reporting', icon: BarChart3 },
-        ] : []),
         ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,
