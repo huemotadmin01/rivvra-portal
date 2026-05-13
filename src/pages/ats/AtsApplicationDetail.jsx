@@ -634,14 +634,6 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                     >
                       Revise
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setSignedOfferDocId('')}
-                      className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors"
-                      title="Detach the back-link without archiving — low-level escape hatch"
-                    >
-                      Disconnect
-                    </button>
                   </div>
                 </div>
                 {signError && <p className="text-[11px] text-red-400 mt-2">{signError}</p>}
