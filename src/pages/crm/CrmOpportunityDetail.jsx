@@ -17,8 +17,17 @@ import {
   ExternalLink, Unlink, Archive, ArchiveRestore, MoreHorizontal,
 } from 'lucide-react';
 
-function StageBar({ stages, currentStageId, isLost, stageHistory = [], onStageClick }) {
-  const currentIdx = stages.findIndex(s => s._id === currentStageId);
+function StageBar({ stages, currentStageId, isLost, isWon, stageHistory = [], onStageClick }) {
+  // Hide isWonStage-flagged stages from the linear chip row — Won is a
+  // terminal state shown via the Won/Lost buttons below the row, not a
+  // step in the pipeline. Imported Odoo stages with is_won=true would
+  // otherwise appear mid-flow.
+  const visibleStages = useMemo(() => stages.filter(s => !s.isWonStage), [stages]);
+  const currentIdx = visibleStages.findIndex(s => s._id === currentStageId);
+  // If the opp has graduated to a won stage (or its current stage is one
+  // we filtered out), every visible chip is conceptually behind it.
+  const treatAllAsPast = isWon || (!!currentStageId && currentIdx === -1
+    && stages.some(s => s._id === currentStageId && s.isWonStage));
   const enteredAtByStage = useMemo(() => {
     const map = {};
     for (const sh of stageHistory) {
@@ -29,12 +38,12 @@ function StageBar({ stages, currentStageId, isLost, stageHistory = [], onStageCl
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      {stages.map((s, i) => {
+      {visibleStages.map((s, i) => {
         const isActive = s._id === currentStageId;
-        const isPast = i < currentIdx;
+        const isPast = treatAllAsPast || i < currentIdx;
         let colorClass = 'bg-dark-700 text-dark-400 border-dark-600';
         if (isLost) colorClass = isActive ? 'bg-red-500/20 text-red-400 border-red-500/30' : isPast ? 'bg-dark-600 text-dark-400 border-dark-500' : 'bg-dark-700 text-dark-500 border-dark-600';
-        else if (isActive) colorClass = s.isWonStage ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-rivvra-500/20 text-rivvra-400 border-rivvra-500/30';
+        else if (isActive) colorClass = 'bg-rivvra-500/20 text-rivvra-400 border-rivvra-500/30';
         else if (isPast) colorClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
 
         const enteredAt = enteredAtByStage[s._id];
@@ -382,6 +391,7 @@ export default function CrmOpportunityDetail() {
           stages={stages}
           currentStageId={opp.stageId}
           isLost={opp.isLost}
+          isWon={opp.isWon || !!opp.wonAt}
           stageHistory={opp.stageHistory || []}
           onStageClick={canEdit ? handleStageChange : () => {}}
         />

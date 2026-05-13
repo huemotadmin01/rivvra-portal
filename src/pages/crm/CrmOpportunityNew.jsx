@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
@@ -7,18 +7,19 @@ import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { ChevronLeft, Loader2, User, Building2, Briefcase } from 'lucide-react';
+import { ChevronLeft, Loader2, User, Briefcase, Mail, Phone, Building2, UserCheck } from 'lucide-react';
 
 /**
- * CrmOpportunityNew — routed create flow for CRM opportunities. Mirrors
- * the minimal "+" form locked 2026-05-07: identity fields only (POC,
- * company, email/phone, client type), with the opportunity name auto-
- * derived from the contact. Expected Role / Revenue / Requirement Type
- * / Stage all fill in on the record page after creation.
+ * CrmOpportunityNew — minimal routed create flow.
  *
- * Replaces the in-place CreateModal previously triggered from
- * CrmPipeline + CrmOpportunities — every "New Opportunity" CTA now
- * navigates here per the modal-to-route rule.
+ * Picks an existing contact, derives Company / Email / Phone / Salesperson
+ * from that contact (read-only preview), and posts a single field —
+ * contactId — to the API. Net-new contacts go through Outreach → Lead →
+ * Convert; this form does not create contacts inline.
+ *
+ * Salesperson resolution happens server-side
+ * (contact → company → creator) and the preview here mirrors that
+ * order so the user sees the same value before submit.
  */
 export default function CrmOpportunityNew() {
   const { orgSlug: slug } = useOrg();
@@ -26,18 +27,16 @@ export default function CrmOpportunityNew() {
   const navigate = useNavigate();
   usePageTitle('New Opportunity');
 
-  const [form, setForm] = useState({
-    contactId: '', contactName: '', contactCompanyId: '', companyName: '',
-    contactEmail: '', contactPhone: '',
-    clientType: 'new',
-  });
+  const [contactId, setContactId] = useState('');
+  const [oppName, setOppName] = useState('');
+  const [oppNameDirty, setOppNameDirty] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [individualContacts, setIndividualContacts] = useState([]);
   const [companyContacts, setCompanyContacts] = useState([]);
 
   useEffect(() => {
     if (!slug) return;
-    contactsApi.list(slug, { type: 'individual', limit: 200 })
+    contactsApi.list(slug, { type: 'individual', limit: 500 })
       .then((res) => { if (res.success) setIndividualContacts(res.contacts || []); })
       .catch(() => {});
     contactsApi.listCompanies(slug)
@@ -45,47 +44,57 @@ export default function CrmOpportunityNew() {
       .catch(() => {});
   }, [slug]);
 
-  // POC dropdown options ("Company, Contact Name" — Odoo convention).
-  const pocOptions = individualContacts.map((c) => ({
-    _id: c._id,
-    name: c.parentCompanyName ? `${c.parentCompanyName}, ${c.name}` : c.name,
-  }));
+  const companiesById = useMemo(() => {
+    const map = new Map();
+    for (const c of companyContacts) map.set(String(c._id), c);
+    return map;
+  }, [companyContacts]);
 
-  const handlePocChange = (id, displayName) => {
-    if (id) {
-      const contact = individualContacts.find((c) => c._id === id);
-      setForm((f) => ({
-        ...f,
-        contactId: id,
-        contactName: contact?.name || displayName,
-        contactCompanyId: contact?.parentCompanyId || '',
-        companyName: contact?.parentCompanyName || '',
-        contactEmail: contact?.email || f.contactEmail,
-        contactPhone: contact?.phone || f.contactPhone,
-      }));
+  const selectedContact = useMemo(
+    () => individualContacts.find((c) => c._id === contactId) || null,
+    [individualContacts, contactId]
+  );
+
+  const parentCompany = useMemo(() => {
+    if (!selectedContact?.parentCompanyId) return null;
+    return companiesById.get(String(selectedContact.parentCompanyId)) || null;
+  }, [selectedContact, companiesById]);
+
+  const resolvedSalesperson = useMemo(() => {
+    return (
+      selectedContact?.salespersonName ||
+      parentCompany?.salespersonName ||
+      'You (no salesperson on contact or company)'
+    );
+  }, [selectedContact, parentCompany]);
+
+  const pocOptions = useMemo(
+    () => individualContacts.map((c) => ({
+      _id: c._id,
+      name: c.parentCompanyName ? `${c.parentCompanyName}, ${c.name}` : c.name,
+    })),
+    [individualContacts]
+  );
+
+  // Auto-fill opportunity name from the selected contact, but stop once
+  // the user edits it manually so we don't clobber their input.
+  useEffect(() => {
+    if (oppNameDirty) return;
+    if (selectedContact) {
+      setOppName(`${selectedContact.name}'s opportunity`);
     } else {
-      setForm((f) => ({ ...f, contactId: '', contactName: displayName, contactCompanyId: '', companyName: '' }));
+      setOppName('');
     }
-  };
+  }, [selectedContact, oppNameDirty]);
 
-  const pocDisplayValue = form.contactId
-    ? (form.companyName ? `${form.companyName}, ${form.contactName}` : form.contactName)
-    : form.contactName;
-
-  const handleCompanyChange = (id, name) => {
-    setForm((f) => ({ ...f, contactCompanyId: id, companyName: name }));
-  };
-
-  const isCreatingNew = !form.contactId && form.contactName.trim();
-  const canSubmit = form.contactName.trim() && (!isCreatingNew || form.companyName.trim());
+  const canSubmit = Boolean(contactId) && !submitting;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const baseName = form.contactName.trim() || 'New';
-      const payload = { ...form, name: `${baseName}'s opportunity` };
+      const payload = { contactId, name: oppName.trim() || undefined };
       const res = await crmApi.createOpportunity(slug, payload);
       if (res?.success) {
         addToast('Opportunity created', 'success');
@@ -114,98 +123,76 @@ export default function CrmOpportunityNew() {
       <div>
         <h1 className="text-2xl font-bold text-white">New Opportunity</h1>
         <p className="text-dark-400 text-sm mt-1">
-          Pick an existing contact or type a new one. Other fields fill in on the record page.
+          Pick an existing customer contact. For net-new customers, use{' '}
+          <a
+            href={`/org/${slug}/outreach`}
+            className="text-rivvra-400 hover:text-rivvra-300 underline-offset-2 hover:underline"
+          >
+            Outreach
+          </a>{' '}
+          to qualify the lead and convert to an opportunity.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-5">
         <SectionCard title="Customer" icon={User}>
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-start">
-            <span className="text-dark-400 text-sm pt-1.5">Customer's POC *</span>
+          <div className="space-y-3 py-2">
             <div>
+              <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-1.5">
+                Customer's POC *
+              </label>
               <ComboSelect
-                value={form.contactId}
-                displayValue={pocDisplayValue}
+                value={contactId}
+                displayValue={
+                  selectedContact
+                    ? (selectedContact.parentCompanyName
+                        ? `${selectedContact.parentCompanyName}, ${selectedContact.name}`
+                        : selectedContact.name)
+                    : ''
+                }
                 options={pocOptions}
-                onChange={handlePocChange}
+                onChange={(id) => setContactId(id || '')}
                 placeholder="Search by company or contact name…"
+                allowCreate={false}
               />
-              {form.contactId && form.companyName && (
-                <p className="mt-1 text-[11px] text-dark-500 flex items-center gap-1">
-                  <Building2 size={11} /> {form.companyName} · <User size={11} /> {form.contactName}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {isCreatingNew && (
-            <div className="mt-3 bg-dark-900/50 border border-dark-700 rounded-lg p-4 space-y-3">
-              <p className="text-[10px] text-dark-500 uppercase tracking-wider font-medium">
-                New contact details
+              <p className="mt-1.5 text-[11px] text-dark-500">
+                Only existing contacts can be picked here.
               </p>
-
-              <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-                <span className="text-dark-400 text-sm">Contact Name</span>
-                <input
-                  value={form.contactName}
-                  onChange={(e) => setForm({ ...form, contactName: e.target.value })}
-                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                  placeholder="Full name"
-                />
-              </div>
-
-              <div className="grid grid-cols-[140px_1fr] gap-2 items-start">
-                <span className="text-dark-400 text-sm pt-1.5">Company *</span>
-                <ComboSelect
-                  value={form.contactCompanyId}
-                  displayValue={form.companyName}
-                  options={companyContacts}
-                  onChange={handleCompanyChange}
-                  placeholder="Search or type company name"
-                />
-              </div>
-
-              <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-                <span className="text-dark-400 text-sm">Email</span>
-                <input
-                  type="email"
-                  value={form.contactEmail}
-                  onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
-                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                  placeholder="email@company.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-                <span className="text-dark-400 text-sm">Phone</span>
-                <input
-                  value={form.contactPhone}
-                  onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
-                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-                  placeholder="+91…"
-                />
-              </div>
             </div>
-          )}
+
+            {selectedContact && (
+              <div className="bg-dark-900/50 border border-dark-700 rounded-lg p-4 space-y-2.5">
+                <p className="text-[10px] text-dark-500 uppercase tracking-wider font-medium">
+                  Auto-filled from contact
+                </p>
+                <PreviewRow icon={Building2} label="Company" value={parentCompany?.name || selectedContact.parentCompanyName || '—'} />
+                <PreviewRow icon={Mail} label="Email" value={selectedContact.email || '—'} />
+                <PreviewRow icon={Phone} label="Phone" value={selectedContact.phone || selectedContact.mobile || '—'} />
+                <PreviewRow icon={UserCheck} label="Salesperson" value={resolvedSalesperson} />
+              </div>
+            )}
+          </div>
         </SectionCard>
 
-        <div className="mt-5">
-          <SectionCard title="Opportunity" icon={Briefcase}>
-            <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-              <span className="text-dark-400 text-sm">Client Type</span>
-              <select
-                value={form.clientType}
-                onChange={(e) => setForm({ ...form, clientType: e.target.value })}
-                className="bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
-              >
-                <option value="new">New Client</option>
-                <option value="existing">Existing Client</option>
-              </select>
-            </div>
-          </SectionCard>
-        </div>
+        <SectionCard title="Opportunity" icon={Briefcase}>
+          <div className="py-2">
+            <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-1.5">
+              Opportunity Name
+            </label>
+            <input
+              value={oppName}
+              onChange={(e) => { setOppName(e.target.value); setOppNameDirty(true); }}
+              disabled={!selectedContact}
+              placeholder={selectedContact ? '' : 'Pick a contact above to auto-fill'}
+              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none disabled:opacity-50"
+            />
+            <p className="mt-1.5 text-[11px] text-dark-500">
+              You can fine-tune stage, revenue, role, and other details on the record page after creating.
+            </p>
+          </div>
+        </SectionCard>
 
-        <div className="flex items-center justify-end gap-2 mt-6">
+        <div className="flex items-center justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -215,7 +202,7 @@ export default function CrmOpportunityNew() {
           </button>
           <button
             type="submit"
-            disabled={submitting || !canSubmit}
+            disabled={!canSubmit}
             className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2"
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
@@ -223,6 +210,16 @@ export default function CrmOpportunityNew() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function PreviewRow({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-center gap-2.5 text-sm">
+      <Icon size={13} className="text-dark-500 shrink-0" />
+      <span className="text-dark-400 w-24 shrink-0">{label}</span>
+      <span className="text-dark-100 truncate">{value}</span>
     </div>
   );
 }

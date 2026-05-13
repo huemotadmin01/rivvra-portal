@@ -47,6 +47,16 @@ const crmApi = {
   convertLead(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/crm/convert-lead`, { method: 'POST', body: JSON.stringify(data) });
   },
+  // Preflight: returns { companyMatch, contactMatch } so the Outreach
+  // export modal can warn the user when the company / POC already
+  // exists in CRM (and which salesperson the new opp will be owned by).
+  preflightConvertLead(orgSlug, { email, contactName, companyName } = {}) {
+    const qs = new URLSearchParams();
+    if (email) qs.set('email', email);
+    if (contactName) qs.set('contactName', contactName);
+    if (companyName) qs.set('companyName', companyName);
+    return api.request(`/api/org/${orgSlug}/crm/convert-lead/preflight?${qs.toString()}`);
+  },
   updateOpportunity(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },

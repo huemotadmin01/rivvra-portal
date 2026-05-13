@@ -32,6 +32,10 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   const [duplicateOpps, setDuplicateOpps] = useState([]);
   const [reassigning, setReassigning] = useState(false);
   const [checkingDup, setCheckingDup] = useState(false);
+  // Preflight result for CRM record-existence: { companyMatch, contactMatch }
+  // Drives the soft-warn banner shown above the form fields — never blocks
+  // submit, just transparency on what will happen on convert.
+  const [preflight, setPreflight] = useState({ companyMatch: null, contactMatch: null });
 
   // Reset state when modal opens with a new lead
   useEffect(() => {
@@ -54,6 +58,7 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
       setDuplicateOpps([]);
       setReassigning(false);
       setCheckingDup(false);
+      setPreflight({ companyMatch: null, contactMatch: null });
 
       // Check if already exported (Odoo)
       if (lead.linkedinUrl && user?.email) {
@@ -69,6 +74,36 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
       }
     }
   }, [isOpen, lead, user?.email]);
+
+  // Debounced preflight: tells us if the company / POC already exists in
+  // CRM. Only relevant for the Rivvra path. Fires whenever the user
+  // changes name, company, or email; the latest field values win.
+  useEffect(() => {
+    if (!isOpen || destination !== 'rivvra') return;
+    if (!orgSlug) return;
+    const co = company.trim();
+    const em = email.trim();
+    const nm = name.trim();
+    if (!co && !em && !nm) {
+      setPreflight({ companyMatch: null, contactMatch: null });
+      return;
+    }
+    const t = setTimeout(() => {
+      crmApi.preflightConvertLead(orgSlug, {
+        email: em || undefined,
+        contactName: nm || undefined,
+        companyName: co || undefined,
+      }).then(res => {
+        if (res?.success) {
+          setPreflight({
+            companyMatch: res.companyMatch || null,
+            contactMatch: res.contactMatch || null,
+          });
+        }
+      }).catch(() => {});
+    }, 350);
+    return () => clearTimeout(t);
+  }, [isOpen, destination, orgSlug, company, email, name]);
 
   if (!isOpen || !lead) return null;
 
@@ -181,7 +216,12 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   const leadOwnerId = lead?.userId || null;
   const leadOwnerName = lead?.ownerName || lead?.sourcedBy || lead?.userEmail || null;
   const currentUserId = user?._id || user?.id || null;
-  const isCrossOwner = !!(leadOwnerId && currentUserId && String(leadOwnerId) !== String(currentUserId));
+  // When the CRM company or POC already exists, the new opp will be owned
+  // by that account's salesperson (account-owner-first resolver), not by
+  // the lead owner. In that case, suppress the "reassign lead to me first"
+  // nudge — reassigning the lead won't change the opp ownership anymore.
+  const hasAccountOwner = !!(preflight.contactMatch?.salespersonId || preflight.companyMatch?.salespersonId);
+  const isCrossOwner = !hasAccountOwner && !!(leadOwnerId && currentUserId && String(leadOwnerId) !== String(currentUserId));
 
   // ── Rivvra CRM Export Handler ──
   // Two-phase: pre-flight checks for an existing opportunity; if found,
@@ -373,6 +413,46 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
                 <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                   <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <span className="text-sm text-amber-300">This lead was already exported. A new opportunity will be created.</span>
+                </div>
+              )}
+
+              {/* CRM preflight banner — surfaces when the company or POC
+                  already exists in CRM. Soft warn only — conversion still
+                  proceeds, reusing the existing records and assigning the
+                  new opp to the account-owner. */}
+              {(preflight.contactMatch || preflight.companyMatch) && (
+                <div className="mb-4 px-3 py-2.5 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-400" />
+                    <div className="text-xs leading-relaxed text-amber-200/90">
+                      {preflight.contactMatch ? (
+                        <>
+                          <span className="font-medium text-amber-300">
+                            {preflight.contactMatch.name}
+                          </span>
+                          {preflight.contactMatch.parentCompanyName && (
+                            <> from <span className="font-medium text-amber-300">{preflight.contactMatch.parentCompanyName}</span></>
+                          )}
+                          {' '}is already a CRM contact. The new opportunity will be linked to the existing record
+                          {preflight.contactMatch.salespersonName && (
+                            <>, owned by <span className="font-medium text-amber-300">{preflight.contactMatch.salespersonName}</span></>
+                          )}
+                          .
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium text-amber-300">{preflight.companyMatch.name}</span>
+                          {' '}is already a CRM customer. The new opportunity will be assigned to{' '}
+                          {preflight.companyMatch.salespersonName ? (
+                            <span className="font-medium text-amber-300">{preflight.companyMatch.salespersonName}</span>
+                          ) : (
+                            <span>the account owner</span>
+                          )}
+                          .
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 

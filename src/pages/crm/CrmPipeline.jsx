@@ -347,7 +347,7 @@ export default function CrmPipeline() {
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-3">
           <div className="flex gap-3 h-full">
-            {kanban.map(col => (
+            {kanban.filter(col => !col.stage?.isWonStage).map(col => (
               <SortableContext key={col.stage._id} items={[col.stage._id]}>
                 <KanbanColumn
                   stage={col.stage}
