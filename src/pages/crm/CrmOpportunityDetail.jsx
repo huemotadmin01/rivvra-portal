@@ -627,15 +627,17 @@ export default function CrmOpportunityDetail() {
             <ErrorWrap field="expectedRole">
               <InlineField label="Expected Role" field="expectedRole" value={opp.expectedRole} editable={canEdit} onSave={saveField} placeholder="e.g. Java Developer" />
             </ErrorWrap>
-            <InlineField
-              label="Requirement Type"
-              field="requirementType"
-              value={opp.requirementType}
-              type="select"
-              options={requirementOptions}
-              editable={canEdit}
-              onSave={saveField}
-            />
+            <ErrorWrap field="requirementType">
+              <InlineField
+                label="Requirement Type"
+                field="requirementType"
+                value={opp.requirementType}
+                type="select"
+                options={requirementOptions}
+                editable={canEdit}
+                onSave={saveField}
+              />
+            </ErrorWrap>
             <ErrorWrap field="expectedRevenue">
               <InlineField
                 label={`Expected Revenue (${currencyCode})`}
