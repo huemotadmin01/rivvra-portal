@@ -70,6 +70,17 @@ const atsApi = {
     });
   },
 
+  // Explicit state transition that runs the 8-field gate server-side
+  // and fires ats_job_approval_request. The salesperson clicks Submit
+  // (or Resubmit after a rejection) — the same endpoint handles both.
+  // On 400, response carries { missing: [...field labels] } so the
+  // banner can echo what's still empty.
+  submitJobForApproval(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/submit-for-approval`, {
+      method: 'POST',
+    });
+  },
+
   deleteJob(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/ats/jobs/${id}`, {
       method: 'DELETE',

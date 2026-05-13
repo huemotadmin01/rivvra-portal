@@ -12,9 +12,9 @@
  *   className string   — extra classes on the outer wrapper
  *   children ReactNode — card body
  */
-export default function SectionCard({ title, icon: Icon, action, className = '', children }) {
+export default function SectionCard({ id, title, icon: Icon, action, className = '', children }) {
   return (
-    <div className={`card p-5 ${className}`}>
+    <div id={id} className={`card p-5 ${className}`}>
       {(title || action) && (
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">

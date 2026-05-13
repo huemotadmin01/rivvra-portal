@@ -21,7 +21,7 @@ import {
   Loader2, Star, ChevronDown, ChevronLeft,
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
-  CheckCircle2, Clock, XCircle,
+  CheckCircle2, Clock, XCircle, AlertTriangle,
 } from 'lucide-react';
 
 /* ── Job-status pill ─────────────────────────────────────────────────────
@@ -111,6 +111,118 @@ function ChangeStatusDropdown({ currentStatus, isOpen, onToggle, onSelect }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ── ApprovalSubmitBanner ───────────────────────────────────────────────
+ * Pre-submit checklist UI for a draft or rejected job. Locked 2026-05-13:
+ *   • shows the missing-required-fields list as clickable jump-links
+ *   • shows the previous rejection comment when status === 'rejected'
+ *   • the primary CTA is the same button relabelled per state — Submit /
+ *     Resubmit — and stays disabled until the gate is clean
+ *
+ * The checklist labels come from the server's validateJobReadyForApproval
+ * helper so there's one source of truth. FIELD_TO_CARD maps each label
+ * back to the SectionCard id so the jump-link scroll lands the user
+ * roughly on the right field. */
+const FIELD_TO_CARD = {
+  'Job Title':           'card-overview',
+  'Department':          'card-overview',
+  'Employment Type':     'card-overview',
+  'Is Client Role':      'card-staffing',
+  'Client Name':         'card-staffing',
+  'Client Budget':       'card-staffing',
+  'Required Experience': 'card-staffing',
+  'Job Description':     'card-description',
+};
+function ApprovalSubmitBanner({
+  status, approverName, approverComment, missing, approverAssigned,
+  scrollToCard, onSubmit, submitting,
+}) {
+  const isRejected = status === 'rejected';
+  const blocked = missing.length > 0 || !approverAssigned;
+
+  // Tone: amber for draft, red-tinted for rejected. Same layout otherwise.
+  const tone = isRejected
+    ? { border: 'border-red-500/30', bg: 'bg-red-500/5', accent: 'text-red-200', muted: 'text-red-100/70', chipBorder: 'border-red-500/30' }
+    : { border: 'border-amber-500/30', bg: 'bg-amber-500/5', accent: 'text-amber-200', muted: 'text-amber-100/70', chipBorder: 'border-amber-500/30' };
+
+  return (
+    <div className={`rounded-lg border ${tone.border} ${tone.bg} px-4 py-3.5`}>
+      <div className="flex items-start gap-3">
+        {isRejected
+          ? <XCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+          : <AlertTriangle size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />}
+        <div className="flex-1 min-w-0">
+          <div className={`text-sm font-medium ${tone.accent}`}>
+            {isRejected ? 'Position rejected — needs rework' : 'Draft — not yet submitted for approval'}
+          </div>
+
+          {isRejected && approverComment && (
+            <div className={`mt-1.5 text-[13px] ${tone.muted}`}>
+              {approverName && <>Rejected by <span className={tone.accent}>{approverName}</span>: </>}
+              <em>{approverComment}</em>
+            </div>
+          )}
+          {isRejected && !approverComment && (
+            <div className={`mt-1.5 text-[13px] ${tone.muted}`}>
+              {approverName && <>Rejected by <span className={tone.accent}>{approverName}</span>. </>}
+              No comment provided.
+            </div>
+          )}
+
+          {blocked ? (
+            <div className={`mt-2.5 text-[13px] ${tone.muted}`}>
+              {missing.length > 0 && (
+                <>
+                  <span>Fill the required fields before {isRejected ? 'resubmitting' : 'submitting'}:</span>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {missing.map((field) => (
+                      <button
+                        key={field}
+                        type="button"
+                        onClick={() => scrollToCard(FIELD_TO_CARD[field])}
+                        className={`px-2 py-1 text-[11px] rounded-md bg-dark-800/60 border ${tone.chipBorder} ${tone.accent} hover:bg-dark-800 transition-colors`}
+                      >
+                        {field}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {!approverAssigned && (
+                <div className={`${missing.length > 0 ? 'mt-2' : ''}`}>
+                  Assign an <strong>Approver</strong> in the People card to enable the {isRejected ? 'Resubmit' : 'Submit'} button.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={`mt-1.5 text-[13px] ${tone.muted}`}>
+              {isRejected
+                ? <>All required fields are filled. Click <strong>Resubmit for Approval</strong> to send <span className={tone.accent}>{approverName}</span> a fresh request.</>
+                : <>All required fields are filled. Click <strong>Submit for Approval</strong> to send <span className={tone.accent}>{approverName}</span> a request.</>}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={blocked || submitting}
+          title={blocked ? 'Fill the required fields and assign an approver first' : ''}
+          className={`flex-shrink-0 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+            blocked || submitting
+              ? 'bg-dark-800 text-dark-500 cursor-not-allowed border border-dark-700'
+              : isRejected
+                ? 'bg-amber-500 text-dark-950 hover:bg-amber-400'
+                : 'bg-emerald-500 text-dark-950 hover:bg-emerald-400'
+          }`}
+        >
+          {submitting && <Loader2 size={12} className="animate-spin" />}
+          {isRejected ? 'Resubmit for Approval' : 'Submit for Approval'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -292,6 +404,11 @@ export default function AtsJobDetail() {
   const companyCurrency = currentCompany?.currency || 'INR';
 
   const [job, setJob] = useState(null);
+  // Server-computed list of required-field labels still missing on the
+  // job. Drives the pre-submit checklist banner. Refreshes on every
+  // job fetch and after every inline-field save.
+  const [missingApprovalFields, setMissingApprovalFields] = useState([]);
+  const [submittingApproval, setSubmittingApproval] = useState(false);
   // Bumped after any save that the server may turn into an audit /
   // email_sent activity row (people reassignments, approval decisions
   // etc.). Forces ActivityPanel to refetch so the new row shows up
@@ -371,7 +488,10 @@ export default function AtsJobDetail() {
     setLoading(true);
     try {
       const res = await atsApi.getJob(orgSlug, jobId);
-      if (res.success) setJob(res.job);
+      if (res.success) {
+        setJob(res.job);
+        setMissingApprovalFields(Array.isArray(res.missingApprovalFields) ? res.missingApprovalFields : []);
+      }
     } catch (err) {
       console.error('Failed to load job:', err);
       showToast('Failed to load job position', 'error');
@@ -473,12 +593,69 @@ export default function AtsJobDetail() {
     const res = await atsApi.updateJob(orgSlug, jobId, { [field]: coerced });
     if (res?.job) setJob(res.job);
     else setJob((prev) => ({ ...prev, [field]: coerced }));
+    if (Array.isArray(res?.missingApprovalFields)) {
+      setMissingApprovalFields(res.missingApprovalFields);
+    }
+    // The whitelisted-edit auto-reapproval (clientBudget / employmentType /
+    // isClientRole / clientName on an approved job) records a system event
+    // and may fire the request email. Refresh the activity panel to surface
+    // both without a manual reload.
+    if (res?.triggeredReapproval) {
+      showToast('Approval reset — change requires re-approval', 'info');
+      setActivityRefreshKey(k => k + 1);
+      setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
+    }
   };
 
   // savePerson — atomic update of an id + denormalized name pair (e.g.
   // recruiterId + recruiterName). Saving the name alongside the id keeps
   // list views reading the row without an extra lookup; saving them in
   // the same PUT means a refresh never shows id-without-name flicker.
+  // Jump from a checklist chip to the SectionCard containing the missing
+  // field. Card-level scroll is good-enough for v1 — drilling down to
+  // the specific field within each card can come later if recruiters
+  // ask for it. Briefly highlights the card so the user knows where to
+  // look.
+  const scrollToCard = (cardId) => {
+    if (!cardId) return;
+    const el = document.getElementById(cardId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-amber-400/40', 'transition-all');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400/40'), 1600);
+  };
+
+  // Submit / Resubmit for Approval — explicit state transition.
+  // Server enforces the 8-field gate + approver-assigned precondition;
+  // on 400 we surface what's missing so the salesperson can fix it.
+  const handleSubmitForApproval = async () => {
+    if (submittingApproval) return;
+    setSubmittingApproval(true);
+    try {
+      const res = await atsApi.submitJobForApproval(orgSlug, jobId);
+      if (res?.success) {
+        const wasRejected = job?.approvalStatus === 'rejected';
+        if (res.job) setJob(res.job);
+        setMissingApprovalFields([]);
+        setActivityRefreshKey(k => k + 1);
+        setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
+        showToast(wasRejected ? 'Resubmitted for approval' : 'Submitted for approval', 'success');
+      } else {
+        // Server returns { missing: [...] } on the 400 path — sync it
+        // so the banner reflects the latest server view instead of
+        // whatever was cached from the previous GET.
+        if (Array.isArray(res?.missing)) setMissingApprovalFields(res.missing);
+        showToast(res?.error || 'Failed to submit for approval', 'error');
+      }
+    } catch (err) {
+      const payload = err?.payload || err?.body;
+      if (payload && Array.isArray(payload.missing)) setMissingApprovalFields(payload.missing);
+      showToast(payload?.error || err?.message || 'Failed to submit for approval', 'error');
+    } finally {
+      setSubmittingApproval(false);
+    }
+  };
+
   const savePerson = async (idField, nameField, id, name) => {
     try {
       const res = await atsApi.updateJob(orgSlug, jobId, {
@@ -487,12 +664,14 @@ export default function AtsJobDetail() {
       });
       if (res?.job) setJob(res.job);
       else setJob((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
-      // Refresh the activity panel twice — once immediately to pick up
-      // the synchronous audit event (e.g. "Approver assigned"), and again
-      // after ~2s to catch the fire-and-forget email_sent row when an
-      // approver-assignment triggers ats_job_approval_request.
+      if (Array.isArray(res?.missingApprovalFields)) {
+        setMissingApprovalFields(res.missingApprovalFields);
+      }
+      // Refresh the activity panel once — the synchronous audit row
+      // ("Approver assigned" etc.) lands inside the PUT handler so it's
+      // there immediately. Approval-request email no longer fires on
+      // assignment alone (Q1=B); it's gated behind Submit-for-Approval.
       setActivityRefreshKey(k => k + 1);
-      setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
     } catch (err) {
       showToast(err.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
     }
@@ -706,10 +885,28 @@ export default function AtsJobDetail() {
       </div>
 
       {/* ─── Approval-state banner ───────────────────────────────────────
-          Surfaces *why* New Application is missing/disabled. Pending and
-          rejected positions cannot accept candidates (server enforces with
-          403 JOB_NOT_APPROVED); this banner makes the gate visible up-top
-          rather than leaving the recruiter wondering where the CTA went. */}
+          Surfaces *why* New Application is missing/disabled and what the
+          salesperson needs to do next. Locked 2026-05-13:
+            • status null/undefined → Draft banner with checklist + Submit
+            • status 'pending'      → Awaiting-approver banner (read-only)
+            • status 'rejected'     → Rejection banner with comment +
+                                       checklist (if still missing) +
+                                       Resubmit button
+            • status 'approved'     → no banner (or it dismisses itself)
+          The checklist + Submit pattern is unified across draft and
+          rejected so the rework loop uses the same UI. */}
+      {!job.archived && (!job.approvalStatus || job.approvalStatus === 'rejected') && (
+        <ApprovalSubmitBanner
+          status={job.approvalStatus}
+          approverName={job.approverName}
+          approverComment={job.approverComment}
+          missing={missingApprovalFields}
+          approverAssigned={!!job.approverId}
+          scrollToCard={scrollToCard}
+          onSubmit={handleSubmitForApproval}
+          submitting={submittingApproval}
+        />
+      )}
       {!job.archived && job.approvalStatus === 'pending' && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
           <Clock size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
@@ -717,21 +914,8 @@ export default function AtsJobDetail() {
             <div className="font-medium text-amber-200">Pending approval</div>
             <div className="text-amber-100/70 mt-0.5">
               {job.approverName
-                ? <>Applications can be added only after <span className="text-amber-200">{job.approverName}</span> approves this position.</>
-                : <>Assign an Approver in the <strong>People</strong> card to start the approval flow. Applications are blocked until approved.</>}
-            </div>
-          </div>
-        </div>
-      )}
-      {!job.archived && job.approvalStatus === 'rejected' && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-start gap-3">
-          <XCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-red-100/90">
-            <div className="font-medium text-red-200">Position rejected</div>
-            <div className="text-red-100/70 mt-0.5">
-              {job.approverName && <>Rejected by <span className="text-red-200">{job.approverName}</span>. </>}
-              {job.approverComment ? <>Reason: <em>{job.approverComment}</em></> : <>No reason provided.</>}
-              {' '}Applications cannot be added until the position is re-submitted and approved.
+                ? <>Awaiting <span className="text-amber-200">{job.approverName}</span>'s decision. Applications are blocked until approved.</>
+                : <>Awaiting decision. Applications are blocked until approved.</>}
             </div>
           </div>
         </div>
@@ -744,7 +928,7 @@ export default function AtsJobDetail() {
           {/* Top sub-grid: Overview + Staffing & Compensation side-by-side
               on md+ so the two short cards fill the row. Stacks below md. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <SectionCard title="Overview" icon={Briefcase}>
+          <SectionCard id="card-overview" title="Overview" icon={Briefcase}>
             <InlineField label="Position Name" field="name" value={job.name} editable={canEdit} onSave={saveField} required />
             <InlineField
               label="Department"
@@ -779,7 +963,7 @@ export default function AtsJobDetail() {
             <InlineField label="Hired" field="hiredCount" value={job.hiredCount ?? 0} editable={false} />
           </SectionCard>
 
-          <SectionCard title="Staffing & Compensation" icon={MapPin}>
+          <SectionCard id="card-staffing" title="Staffing & Compensation" icon={MapPin}>
             <InlineField
               label="Required Exp."
               field="requiredExperience"
@@ -850,7 +1034,7 @@ export default function AtsJobDetail() {
           </SectionCard>
           </div>{/* /sub-grid */}
 
-          <SectionCard title="Description" icon={FileText}>
+          <SectionCard id="card-description" title="Description" icon={FileText}>
             <DescriptionTabs
               internal={job.description}
               publicDesc={job.websiteDescription}
