@@ -6,7 +6,6 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
-import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -414,6 +413,14 @@ export default function AtsJobDetail() {
   // etc.). Forces ActivityPanel to refetch so the new row shows up
   // without a manual page reload.
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
+  // Picklist sources fetched on mount. Both are platform-shared lists:
+  //   • departments — canonical from /employee/departments (Q2 locked
+  //     2026-05-13). Single source across Employee + ATS + CRM.
+  //   • employmentTypes — per-org picklist from /ats/config/employment-types
+  //     (Q1 locked 2026-05-13). Replaces the previously-hardcoded list
+  //     and lets each org curate values.
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [employmentTypeOptions, setEmploymentTypeOptions] = useState([]);
   usePageTitle(job?.name);
   const [loading, setLoading] = useState(true);
 
@@ -525,6 +532,30 @@ export default function AtsJobDetail() {
   }, [orgSlug, jobId, appsPage]);
 
   useEffect(() => { fetchJob(); }, [fetchJob]);
+
+  // Load Department + Employment Type picklists once per orgSlug. Both
+  // are scoped to the current org/company via the existing endpoints.
+  useEffect(() => {
+    if (!orgSlug) return;
+    employeeApi.listDepartments(orgSlug)
+      .then(res => {
+        if (res?.success && Array.isArray(res.departments)) {
+          const opts = res.departments
+            .filter(d => d.isActive !== false)
+            .map(d => ({ value: d.name, label: d.name }));
+          setDepartmentOptions(opts);
+        }
+      })
+      .catch(() => {});
+    atsApi.listConfig(orgSlug, 'employment-types')
+      .then(res => {
+        if (res?.success) {
+          const items = res.items || res.employmentTypes || [];
+          setEmploymentTypeOptions(items.map(i => ({ value: i.name || i.value, label: i.name || i.label })));
+        }
+      })
+      .catch(() => {});
+  }, [orgSlug]);
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
   // Resolve current user → employee _id once per org. Same pattern as
@@ -934,9 +965,11 @@ export default function AtsJobDetail() {
               label="Department"
               field="department"
               value={job.department}
+              type="select"
+              options={departmentOptions}
               editable={canEdit}
               onSave={saveField}
-              placeholder="e.g. Engineering"
+              placeholder={departmentOptions.length ? 'Pick department' : 'No departments — add one in Employee → Departments'}
               displayValue={
                 job.department ? (
                   <Link
@@ -954,10 +987,10 @@ export default function AtsJobDetail() {
               field="employmentType"
               value={job.employmentType}
               type="select"
-              options={ATS_EMPLOYMENT_TYPE_KEYS.map((k) => ({ value: k, label: k }))}
+              options={employmentTypeOptions}
               editable={canEdit}
               onSave={saveField}
-              placeholder="Pick employment type"
+              placeholder={employmentTypeOptions.length ? 'Pick employment type' : 'No types — add in ATS Configuration'}
             />
             <InlineField label="Expected Hires" field="expectedHires" value={job.expectedHires ?? 1} editable={canEdit} onSave={saveField} />
             <InlineField label="Hired" field="hiredCount" value={job.hiredCount ?? 0} editable={false} />

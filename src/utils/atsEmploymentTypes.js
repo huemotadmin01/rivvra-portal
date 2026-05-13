@@ -19,13 +19,23 @@
 //   salaryLabel  → human label rendered next to the salary input.
 // =========================================================================
 
+// Salary-metadata map keyed by canonical employment-type name. The
+// list of names itself comes from the per-org picklist at
+// /ats/config/employment-types (Q1 locked 2026-05-13 = DB-backed + 4
+// canonical entries). This map provides salary-unit defaults for the
+// offer modal; unknown names fall back to ATS_EMPLOYMENT_TYPE_FALLBACK.
+//
+// 2026-05-13 rename: "Contract" → "External Consultant" (Odoo importer
+// maps Contract → External Consultant).
 export const ATS_EMPLOYMENT_TYPES = {
-  'Contract':            { employeeKey: 'external_consultant', salaryUnit: 'per_day', salaryLabel: 'Day rate' },
-  'Full-Time':           { employeeKey: 'confirmed',           salaryUnit: 'lpa',     salaryLabel: 'Annual CTC (LPA)' },
-  'Internal Consultant': { employeeKey: 'internal_consultant', salaryUnit: 'lpa',     salaryLabel: 'Annual CTC (LPA)' },
+  'External Consultant': { employeeKey: 'external_consultant', salaryUnit: 'per_day',   salaryLabel: 'Day rate' },
+  'Full-Time':           { employeeKey: 'confirmed',           salaryUnit: 'lpa',       salaryLabel: 'Annual CTC (LPA)' },
+  'Internal Consultant': { employeeKey: 'internal_consultant', salaryUnit: 'lpa',       salaryLabel: 'Annual CTC (LPA)' },
+  'Intern':              { employeeKey: 'intern',              salaryUnit: 'per_month', salaryLabel: 'Monthly stipend' },
 };
 
 export const ATS_EMPLOYMENT_TYPE_KEYS = Object.keys(ATS_EMPLOYMENT_TYPES);
+export const ATS_EMPLOYMENT_TYPE_FALLBACK = { employeeKey: 'confirmed', salaryUnit: 'lpa', salaryLabel: 'Annual salary (LPA)' };
 
 // What kind of input the offer modal should render for a given salary
 // unit. Used both for the input's own placeholder and to interpret the
@@ -41,7 +51,5 @@ export const SALARY_UNIT_INPUT = {
 // a safe fallback (LPA) for legacy values not in the picklist so the
 // modal still renders something rather than crashing.
 export function getEmploymentTypeMeta(employmentType) {
-  const meta = ATS_EMPLOYMENT_TYPES[employmentType];
-  if (meta) return meta;
-  return { employeeKey: 'confirmed', salaryUnit: 'lpa', salaryLabel: 'Annual salary (LPA)' };
+  return ATS_EMPLOYMENT_TYPES[employmentType] || ATS_EMPLOYMENT_TYPE_FALLBACK;
 }
