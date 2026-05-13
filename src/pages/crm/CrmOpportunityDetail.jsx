@@ -118,16 +118,19 @@ export default function CrmOpportunityDetail() {
     setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
   }, []);
 
+  // Mount-only: pull opp + stages in parallel. Lost reasons are
+  // deferred to when the Lost modal opens (saved ~1 GET on every page
+  // load for the common case where nobody marks lost). stages list is
+  // cached for the page's lifetime — it doesn't change in response to
+  // anything the user can do here.
   const fetchAll = useCallback(async () => {
     try {
-      const [oppRes, stagesRes, reasonsRes] = await Promise.all([
+      const [oppRes, stagesRes] = await Promise.all([
         crmApi.getOpportunity(slug, opportunityId),
         crmApi.listStages(slug),
-        crmApi.listLostReasons(slug),
       ]);
       if (oppRes.success) setOpp(oppRes.opportunity);
       if (stagesRes.success) setStages(stagesRes.stages || []);
-      if (reasonsRes.success) setLostReasons(reasonsRes.reasons || []);
     } catch {
       addToast('Failed to load opportunity', 'error');
     } finally {
@@ -135,7 +138,31 @@ export default function CrmOpportunityDetail() {
     }
   }, [slug, opportunityId]);
 
+  // Targeted refetch used by action handlers. Drops the stages /
+  // reasons round-trips since neither changes in response to user
+  // actions on this page. Halves the post-action network load.
+  const fetchOpp = useCallback(async () => {
+    try {
+      const oppRes = await crmApi.getOpportunity(slug, opportunityId);
+      if (oppRes.success) setOpp(oppRes.opportunity);
+    } catch {
+      // Non-fatal: the optimistic update already flipped local state;
+      // the next mount will pick up the canonical server view.
+    }
+  }, [slug, opportunityId]);
+
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Lazy-load lost reasons only when the Lost modal is about to open.
+  // Most opp views never mark Lost, so pre-fetching this list on every
+  // page mount was wasted load. Refetches when re-opened only if the
+  // list is still empty (cheap idempotent guard).
+  useEffect(() => {
+    if (!showLostModal || lostReasons.length > 0) return;
+    crmApi.listLostReasons(slug)
+      .then((res) => { if (res?.success) setLostReasons(res.reasons || []); })
+      .catch(() => {});
+  }, [showLostModal, lostReasons.length, slug]);
 
   const clearErrorField = (field) => {
     setErrorFields(prev => {
@@ -167,9 +194,16 @@ export default function CrmOpportunityDetail() {
   };
 
   const performStageChange = async (stageId) => {
+    // Optimistic update — flip the chip locally before the round-trip
+    // so the user sees the change instantly. Roll back if the server
+    // rejects. Won-stage moves come back with extra denorms (wonAt,
+    // jobCreated, isWon, relatedJobId) so we still refetch the opp
+    // after the response — but only the opp, not stages/reasons.
+    const previousStageId = opp?.stageId;
+    setOpp(prev => prev ? { ...prev, stageId } : prev);
     try {
       const res = await crmApi.moveStage(slug, opportunityId, stageId);
-      await fetchAll();
+      fetchOpp();
       bumpActivities();
       if (res.jobCreated) {
         addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
@@ -179,6 +213,7 @@ export default function CrmOpportunityDetail() {
         addToast('Stage updated', 'success');
       }
     } catch {
+      setOpp(prev => prev ? { ...prev, stageId: previousStageId } : prev);
       addToast('Failed to move stage', 'error');
     }
   };
@@ -211,7 +246,7 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.markLost(slug, opportunityId, reasonId);
       setShowLostModal(false);
-      fetchAll();
+      fetchOpp();
       bumpActivities();
       addToast('Marked as Lost', 'success');
     } catch {
@@ -222,7 +257,7 @@ export default function CrmOpportunityDetail() {
   const handleRestore = async () => {
     try {
       await crmApi.restore(slug, opportunityId);
-      fetchAll();
+      fetchOpp();
       bumpActivities();
       addToast('Restored', 'success');
     } catch {
@@ -251,7 +286,7 @@ export default function CrmOpportunityDetail() {
     try {
       const res = await crmApi.convertToJob(slug, opportunityId);
       if (res.success) {
-        fetchAll();
+        fetchOpp();
         bumpActivities();
         addToast(`Job Position "${res.jobName}" created!`, 'success');
       }
@@ -280,7 +315,7 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.detachJob(slug, opportunityId);
       setShowDetachModal(false);
-      fetchAll();
+      fetchOpp();
       bumpActivities();
       addToast('Detached from Job Position', 'success');
     } catch {
@@ -306,7 +341,7 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.archiveOpportunity(slug, opportunityId, { cascade });
       setShowArchiveModal(false);
-      fetchAll();
+      fetchOpp();
       bumpActivities();
       addToast(cascade ? 'Archived (with linked Job)' : 'Archived', 'success');
     } catch {
@@ -319,7 +354,7 @@ export default function CrmOpportunityDetail() {
   const handleUnarchive = async () => {
     try {
       await crmApi.unarchiveOpportunity(slug, opportunityId);
-      fetchAll();
+      fetchOpp();
       bumpActivities();
       addToast('Unarchived', 'success');
     } catch {
