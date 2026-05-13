@@ -5,6 +5,9 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { formatMoney } from '../../utils/currency';
+import FilterBar, {
+  FilterChip, MoreFiltersPopover, useFilterParams,
+} from '../../components/shared/FilterBar';
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors,
@@ -13,10 +16,19 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  Plus, Search, ChevronDown, Star, Building2,
+  Plus, Star, Building2,
   Trophy, GripVertical, Loader2,
   IndianRupee,
 } from 'lucide-react';
+
+const REQUIREMENT_TYPE_OPTIONS = [
+  { value: 'Staff Augmentation', label: 'Staff Augmentation' },
+  { value: 'Project Based', label: 'Project Based' },
+  { value: 'Full-time Hire', label: 'Full-time Hire' },
+];
+
+const PIPELINE_FILTER_KEYS = ['search', 'salespersonId', 'source', 'requirementType', 'tagId', 'mine'];
+const PIPELINE_MORE_KEYS = ['tagId'];
 
 // ── Star Rating ──────────────────────────────────────────────────────────
 function EvalStars({ value = 0, onChange, size = 14 }) {
@@ -30,41 +42,6 @@ function EvalStars({ value = 0, onChange, size = 14 }) {
           onClick={e => { e.stopPropagation(); onChange?.(i === value ? 0 : i); }}
         />
       ))}
-    </div>
-  );
-}
-
-// ── Filter Dropdown ──────────────────────────────────────────────────────
-function FilterChip({ label, value, options, onChange }) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find(o => o.value === value);
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-colors ${
-          value ? 'border-rivvra-500/50 bg-rivvra-500/10 text-rivvra-400' : 'border-dark-600 bg-dark-800 text-dark-300 hover:border-dark-500'
-        }`}
-      >
-        {selected?.label || label}
-        <ChevronDown size={12} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-50 bg-dark-800 border border-dark-600 rounded-lg shadow-xl py-1 min-w-[160px]">
-            <button onClick={() => { onChange(''); setOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs text-dark-300 hover:bg-dark-700">
-              All
-            </button>
-            {options.map(o => (
-              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-dark-700 ${o.value === value ? 'text-rivvra-400' : 'text-dark-200'}`}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -189,11 +166,13 @@ export default function CrmPipeline() {
   const { addToast } = useToast();
   const navigate = useNavigate();
 
+  const filterParams = useFilterParams(PIPELINE_FILTER_KEYS);
+
   const [kanban, setKanban] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [salespersonId, setSalespersonId] = useState('');
   const [salespersons, setSalespersons] = useState([]);
+  const [sources, setSources] = useState([]);
+  const [tags, setTags] = useState([]);
   // showCreate / CreateModal removed — creation now routes to /crm/opportunities/new
   const [activeId, setActiveId] = useState(null);
   const [activeOpp, setActiveOpp] = useState(null);
@@ -204,10 +183,7 @@ export default function CrmPipeline() {
     setLoading(true);
     setKanban([]);
     try {
-      const params = {};
-      if (search) params.search = search;
-      if (salespersonId) params.salespersonId = salespersonId;
-      const res = await crmApi.getKanban(slug, params);
+      const res = await crmApi.getKanban(slug, filterParams);
       if (res.success) setKanban(res.kanban || []);
     } catch (err) {
       addToast('Failed to load pipeline', 'error');
@@ -215,16 +191,16 @@ export default function CrmPipeline() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, currentCompany?._id, search, salespersonId]);
+  }, [slug, currentCompany?._id, JSON.stringify(filterParams)]);
 
   useEffect(() => { fetchKanban(); }, [fetchKanban]);
 
   useEffect(() => {
-    setSalespersons([]);
-    crmApi.listSalespersons(slug).then(res => {
-      if (res.success) setSalespersons(res.salespersons || []);
-    }).catch(() => {});
-  }, [slug, currentCompany?._id]);
+    if (!slug) return;
+    crmApi.listSalespersons(slug).then(res => { if (res.success) setSalespersons(res.salespersons || []); }).catch(() => {});
+    crmApi.listSources(slug).then(res => { if (res.success) setSources(res.sources || []); }).catch(() => {});
+    crmApi.listTags(slug).then(res => { if (res.success) setTags(res.tags || []); }).catch(() => {});
+  }, [slug]);
 
   // ── DnD handlers ──
   const handleDragStart = (event) => {
@@ -317,30 +293,45 @@ export default function CrmPipeline() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-dark-800">
-        <div className="flex items-center gap-3">
+      <div className="px-4 py-3 border-b border-dark-800 space-y-2">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-dark-100">Pipeline</h1>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500" />
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="pl-8 pr-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 focus:border-rivvra-500 focus:outline-none w-48"
-            />
-          </div>
-          <FilterChip
-            label="Salesperson"
-            value={salespersonId}
-            options={salespersons.map(s => ({ value: s._id, label: s.name || 'Unknown' }))}
-            onChange={setSalespersonId}
-          />
+          <button
+            onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors"
+          >
+            <Plus size={14} /> New Opportunity
+          </button>
         </div>
-        <button
-          onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors"
-        >
-          <Plus size={14} /> New Opportunity
-        </button>
+        <FilterBar searchPlaceholder="Search pipeline…">
+          <FilterChip type="boolean" paramKey="mine" label="My deals" />
+          <FilterChip
+            type="select"
+            paramKey="salespersonId"
+            label="Salesperson"
+            options={salespersons.map(s => ({ value: s._id, label: s.name || 'Unknown' }))}
+          />
+          <FilterChip
+            type="select"
+            paramKey="source"
+            label="Source"
+            options={sources.map(s => ({ value: s, label: s }))}
+          />
+          <FilterChip
+            type="select"
+            paramKey="requirementType"
+            label="Requirement"
+            options={REQUIREMENT_TYPE_OPTIONS}
+          />
+          <MoreFiltersPopover paramKeys={PIPELINE_MORE_KEYS}>
+            <FilterChip
+              type="select"
+              paramKey="tagId"
+              label="Tag"
+              options={tags.map(t => ({ value: t._id, label: t.name }))}
+            />
+          </MoreFiltersPopover>
+        </FilterBar>
       </div>
 
       {/* Kanban Board */}

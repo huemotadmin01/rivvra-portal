@@ -140,6 +140,11 @@ const crmApi = {
     return api.request(`/api/org/${orgSlug}/crm/salespersons`);
   },
 
+  // ---------- SOURCES (distinct values from opp docs) ----------
+  listSources(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/sources`);
+  },
+
   // ---------- DASHBOARD ----------
   getDashboard(orgSlug) {
     return api.request(`/api/org/${orgSlug}/crm/dashboard`);
