@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -176,6 +176,12 @@ export default function CrmPipeline() {
   // showCreate / CreateModal removed — creation now routes to /crm/opportunities/new
   const [activeId, setActiveId] = useState(null);
   const [activeOpp, setActiveOpp] = useState(null);
+  // 2026-05-14: in-flight guard for stage moves. Without this, a second
+  // drag landing while the first move's Won-conversion refetch is still
+  // pending would interleave optimistic state with the refetch and the
+  // card would flicker into a wrong column. Ref instead of state so the
+  // gate evaluates immediately without waiting for a re-render.
+  const movingRef = useRef(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -216,6 +222,13 @@ export default function CrmPipeline() {
     setActiveId(null);
     setActiveOpp(null);
     if (!over || active.id === over.id) return;
+    // Drop the move if another one is still in flight — the refetch
+    // from the in-flight call would clobber this optimistic update
+    // anyway, and silently failing is worse than telling the user.
+    if (movingRef.current) {
+      addToast('Hold on — finishing the last move first.', 'info');
+      return;
+    }
 
     // Find destination stage
     let destStageId = null;
@@ -262,17 +275,20 @@ export default function CrmPipeline() {
       return next;
     });
 
+    movingRef.current = true;
     try {
       const res = await crmApi.moveStage(slug, active.id, destStageId);
       if (res.jobCreated) {
-        fetchKanban();
+        await fetchKanban();
         addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
       } else if (res.isWonStage) {
         addToast('Opportunity marked as Won!', 'success');
       }
     } catch {
       addToast('Failed to move', 'error');
-      fetchKanban();
+      await fetchKanban();
+    } finally {
+      movingRef.current = false;
     }
   };
 
