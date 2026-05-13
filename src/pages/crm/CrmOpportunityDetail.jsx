@@ -88,6 +88,11 @@ export default function CrmOpportunityDetail() {
   const navigate = useNavigate();
 
   const [opp, setOpp] = useState(null);
+  // Bumped after any save that the server may turn into an audit /
+  // email_sent activity row. Forces ActivityPanel to refetch so the
+  // new row appears without a manual page reload. Same pattern shipped
+  // for AtsJobDetail on 2026-05-13.
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
   usePageTitle(opp?.name);
   const [stages, setStages] = useState([]);
   const [lostReasons, setLostReasons] = useState([]);
@@ -104,6 +109,14 @@ export default function CrmOpportunityDetail() {
   const [showStageDetachModal, setShowStageDetachModal] = useState(null);
   const [errorFields, setErrorFields] = useState(new Set());
   const fieldRefs = useRef({});
+
+  // Bump twice — immediate (sync audit rows like stage_change,
+  // field_change) + after ~2s (async fire-and-forget rows like
+  // email_sent that the server records after the response returns).
+  const bumpActivities = useCallback(() => {
+    setActivityRefreshKey(k => k + 1);
+    setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
+  }, []);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -150,12 +163,14 @@ export default function CrmOpportunityDetail() {
     await crmApi.updateOpportunity(slug, opportunityId, { [field]: coerced });
     setOpp(prev => ({ ...prev, [field]: coerced }));
     clearErrorField(field);
+    bumpActivities();
   };
 
   const performStageChange = async (stageId) => {
     try {
       const res = await crmApi.moveStage(slug, opportunityId, stageId);
       await fetchAll();
+      bumpActivities();
       if (res.jobCreated) {
         addToast(`Won! Job Position "${res.jobCreated.jobName}" created in ATS`, 'success');
       } else if (res.isWonStage) {
@@ -197,6 +212,7 @@ export default function CrmOpportunityDetail() {
       await crmApi.markLost(slug, opportunityId, reasonId);
       setShowLostModal(false);
       fetchAll();
+      bumpActivities();
       addToast('Marked as Lost', 'success');
     } catch {
       addToast('Failed', 'error');
@@ -207,6 +223,7 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.restore(slug, opportunityId);
       fetchAll();
+      bumpActivities();
       addToast('Restored', 'success');
     } catch {
       addToast('Failed', 'error');
@@ -235,6 +252,7 @@ export default function CrmOpportunityDetail() {
       const res = await crmApi.convertToJob(slug, opportunityId);
       if (res.success) {
         fetchAll();
+        bumpActivities();
         addToast(`Job Position "${res.jobName}" created!`, 'success');
       }
     } catch (err) {
@@ -263,6 +281,7 @@ export default function CrmOpportunityDetail() {
       await crmApi.detachJob(slug, opportunityId);
       setShowDetachModal(false);
       fetchAll();
+      bumpActivities();
       addToast('Detached from Job Position', 'success');
     } catch {
       addToast('Failed to detach', 'error');
@@ -288,6 +307,7 @@ export default function CrmOpportunityDetail() {
       await crmApi.archiveOpportunity(slug, opportunityId, { cascade });
       setShowArchiveModal(false);
       fetchAll();
+      bumpActivities();
       addToast(cascade ? 'Archived (with linked Job)' : 'Archived', 'success');
     } catch {
       addToast('Failed to archive', 'error');
@@ -300,6 +320,7 @@ export default function CrmOpportunityDetail() {
     try {
       await crmApi.unarchiveOpportunity(slug, opportunityId);
       fetchAll();
+      bumpActivities();
       addToast('Unarchived', 'success');
     } catch {
       addToast('Failed to unarchive', 'error');
@@ -640,7 +661,7 @@ export default function CrmOpportunityDetail() {
             />
           )}
 
-          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} />
+          <ActivityPanel orgSlug={slug} entityType="crm_opportunity" entityId={opportunityId} refreshKey={activityRefreshKey} />
         </div>
       </div>
 
