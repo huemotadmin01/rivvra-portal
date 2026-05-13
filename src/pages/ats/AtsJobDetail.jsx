@@ -701,11 +701,14 @@ export default function AtsJobDetail() {
       if (Array.isArray(res?.missingApprovalFields)) {
         setMissingApprovalFields(res.missingApprovalFields);
       }
-      // Refresh the activity panel once — the synchronous audit row
-      // ("Approver assigned" etc.) lands inside the PUT handler so it's
-      // there immediately. Approval-request email no longer fires on
-      // assignment alone (Q1=B); it's gated behind Submit-for-Approval.
+      // Refresh the activity panel twice — once immediately to catch
+      // the synchronous audit row (e.g. "Approver assigned"), again
+      // after ~2s to catch the fire-and-forget email_sent row that the
+      // server emits when assigning a new approver on a status=pending
+      // job (Resend round-trip takes ~1-2s; the immediate bump misses
+      // it without this second pass).
       setActivityRefreshKey(k => k + 1);
+      setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
     } catch (err) {
       showToast(err.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
     }
