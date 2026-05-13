@@ -126,14 +126,17 @@ function ChangeStatusDropdown({ currentStatus, isOpen, onToggle, onSelect }) {
  * back to the SectionCard id so the jump-link scroll lands the user
  * roughly on the right field. */
 const FIELD_TO_CARD = {
-  'Job Title':           'card-overview',
-  'Department':          'card-overview',
-  'Employment Type':     'card-overview',
-  'Is Client Role':      'card-staffing',
-  'Client Name':         'card-staffing',
-  'Client Budget':       'card-staffing',
-  'Required Experience': 'card-staffing',
-  'Job Description':     'card-description',
+  'Job Title':            'card-overview',
+  'Department':           'card-overview',
+  'Employment Type':      'card-overview',
+  'Is Client Role':       'card-staffing',
+  'Client Name':          'card-staffing',
+  'Client Budget':        'card-staffing',
+  'Candidate Max Budget': 'card-staffing',
+  'Client Hiring Mode':   'card-staffing',
+  'Work Location':        'card-staffing',
+  'Required Experience':  'card-staffing',
+  'Job Description':      'card-description',
 };
 function ApprovalSubmitBanner({
   status, approverName, approverComment, missing, approverAssigned,
@@ -1008,7 +1011,7 @@ export default function AtsJobDetail() {
               displayValue={requiredExpDisplay || undefined}
             />
             <InlineField
-              label="Hiring Mode"
+              label="Client Hiring Mode"
               field="hiringMode"
               value={job.hiringMode}
               type="select"
