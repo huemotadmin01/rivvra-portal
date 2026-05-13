@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../utils/formatCurrency';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import SkillsPicker from '../../components/ats/SkillsPicker';
@@ -943,8 +944,32 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
   const [billable, setBillable] = useState(false);
   const [designation, setDesignation] = useState(defaultDesignation);
   const [department, setDepartment] = useState('');
+  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [employeeCode, setEmployeeCode] = useState('');
   const [errors, setErrors] = useState({});
+
+  // 2026-05-13: load active departments so HR picks from the canonical
+  // picklist. Previously this was a free-text input; a typo wrote a
+  // dangling name into employee.department (which the employee module
+  // expects to be a departments _id ref).
+  useEffect(() => {
+    if (!show || !orgSlug) return;
+    let cancelled = false;
+    employeeApi.listDepartments(orgSlug)
+      .then((res) => {
+        if (cancelled) return;
+        const opts = (res?.departments || [])
+          .filter((d) => d.isActive !== false)
+          .map((d) => ({ value: d.name, label: d.name }));
+        setDepartmentOptions(opts);
+      })
+      .catch(() => { if (!cancelled) setDepartmentOptions([]); });
+    return () => { cancelled = true; };
+  }, [show, orgSlug]);
+
+  // Pre-fill department from the job's department if it matches an
+  // active picklist entry; otherwise leave blank (HR must pick).
+  const jobDepartmentName = application?.jobDepartment || '';
 
   useEffect(() => {
     if (show) {
@@ -959,6 +984,15 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
       setErrors({});
     }
   }, [show, defaultCompanyId, defaultDesignation]);
+
+  // Apply the job-department prefill only once the picklist has loaded
+  // so we don't pre-select a name that isn't in the list.
+  useEffect(() => {
+    if (!show || !jobDepartmentName || departmentOptions.length === 0) return;
+    if (departmentOptions.some((o) => o.value === jobDepartmentName)) {
+      setDepartment((curr) => curr || jobDepartmentName);
+    }
+  }, [show, jobDepartmentName, departmentOptions]);
 
   if (!show) return null;
 
@@ -1117,14 +1151,19 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
               </div>
 
               <div className="col-span-2 sm:col-span-1">
-                <FieldLabel hint="inherits from job if blank">Department</FieldLabel>
-                <input
-                  type="text"
+                <FieldLabel hint={departmentOptions.length ? 'inherits from job if available' : 'No departments — add one in Employee → Departments'}>Department</FieldLabel>
+                <select
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  placeholder="e.g. IT, Recruitment, Sales"
                   className="input-field"
-                />
+                  disabled={departmentOptions.length === 0}
+                >
+                  <option value="">— Unassigned —</option>
+                  {departmentOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {errors.department && <p className="text-xs text-red-400 mt-1">{errors.department}</p>}
               </div>
             </div>
           </FormSection>
