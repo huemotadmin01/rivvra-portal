@@ -27,17 +27,31 @@ export default function CrmOpportunityNew() {
   usePageTitle('New Opportunity');
 
   const [contactId, setContactId] = useState('');
+  // Sticky picked contact — survives list refetches when the user types
+  // a new search and the previously-picked record falls out of results.
+  const [pickedContact, setPickedContact] = useState(null);
   const [oppName, setOppName] = useState('');
   const [oppNameDirty, setOppNameDirty] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [individualContacts, setIndividualContacts] = useState([]);
   const [companyContacts, setCompanyContacts] = useState([]);
+  const [contactSearch, setContactSearch] = useState('');
+
+  // 2026-05-14: contacts now refetch on every typed query (debounced
+  // inside ComboSelect) instead of a one-shot pre-load of the first
+  // 500. Pre-load was a hard cap — tenants with more contacts saw the
+  // tail of their list silently disappear from the picker.
+  useEffect(() => {
+    if (!slug) return;
+    const params = { type: 'individual', limit: 50 };
+    if (contactSearch) params.search = contactSearch;
+    contactsApi.list(slug, params)
+      .then((res) => { if (res.success) setIndividualContacts(res.contacts || []); })
+      .catch(() => {});
+  }, [slug, contactSearch]);
 
   useEffect(() => {
     if (!slug) return;
-    contactsApi.list(slug, { type: 'individual', limit: 500 })
-      .then((res) => { if (res.success) setIndividualContacts(res.contacts || []); })
-      .catch(() => {});
     contactsApi.listCompanies(slug)
       .then((res) => { if (res.success) setCompanyContacts(res.companies || []); })
       .catch(() => {});
@@ -50,8 +64,8 @@ export default function CrmOpportunityNew() {
   }, [companyContacts]);
 
   const selectedContact = useMemo(
-    () => individualContacts.find((c) => c._id === contactId) || null,
-    [individualContacts, contactId]
+    () => pickedContact || individualContacts.find((c) => c._id === contactId) || null,
+    [pickedContact, individualContacts, contactId]
   );
 
   const parentCompany = useMemo(() => {
@@ -150,7 +164,15 @@ export default function CrmOpportunityNew() {
                   : ''
               }
               options={pocOptions}
-              onChange={(id) => setContactId(id || '')}
+              onChange={(id) => {
+                setContactId(id || '');
+                // Pin the picked contact so a subsequent search refetch
+                // can't make the preview disappear.
+                const found = individualContacts.find((c) => c._id === id) || null;
+                if (found) setPickedContact(found);
+                if (!id) setPickedContact(null);
+              }}
+              onSearch={(q) => setContactSearch(q)}
               placeholder="Search by company or contact name…"
               disableCreate
             />

@@ -18,7 +18,6 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   Plus, Star, Building2,
   Trophy, GripVertical, Loader2,
-  IndianRupee,
 } from 'lucide-react';
 
 const REQUIREMENT_TYPE_OPTIONS = [
@@ -31,15 +30,20 @@ const PIPELINE_FILTER_KEYS = ['search', 'salespersonId', 'source', 'requirementT
 const PIPELINE_MORE_KEYS = ['tagId'];
 
 // ── Star Rating ──────────────────────────────────────────────────────────
+// 2026-05-14: only render the click affordance + handler when an
+// onChange is wired. KanbanCard passes the stars as a read-only summary;
+// the old version showed `cursor-pointer` and ate clicks that did
+// nothing, which made users think the rating was editable from Kanban.
 function EvalStars({ value = 0, onChange, size = 14 }) {
+  const interactive = typeof onChange === 'function';
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3].map(i => (
         <Star
           key={i}
           size={size}
-          className={`cursor-pointer transition-colors ${i <= value ? 'text-amber-400 fill-amber-400' : 'text-dark-600'}`}
-          onClick={e => { e.stopPropagation(); onChange?.(i === value ? 0 : i); }}
+          className={`transition-colors ${interactive ? 'cursor-pointer' : ''} ${i <= value ? 'text-amber-400 fill-amber-400' : 'text-dark-600'}`}
+          onClick={interactive ? (e => { e.stopPropagation(); onChange(i === value ? 0 : i); }) : undefined}
         />
       ))}
     </div>
@@ -47,7 +51,7 @@ function EvalStars({ value = 0, onChange, size = 14 }) {
 }
 
 // ── Kanban Card ──────────────────────────────────────────────────────────
-function KanbanCard({ opp, onClick }) {
+function KanbanCard({ opp, currency, onClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: opp._id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
@@ -86,8 +90,8 @@ function KanbanCard({ opp, onClick }) {
               AtsApplicationDetail and the Expected Revenue em-dash on
               CrmOpportunityDetail. */}
           {Number(opp.expectedRevenue) > 0 && (
-            <span className="text-xs text-amber-400 flex items-center gap-0.5">
-              <IndianRupee size={10} /> {opp.expectedRevenue}
+            <span className="text-xs text-amber-400">
+              {formatMoney(opp.expectedRevenue, opp.currency || currency)}
             </span>
           )}
           <EvalStars value={opp.evaluation || 0} size={10} />
@@ -128,7 +132,8 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
             <h3 className="text-xs font-semibold text-dark-200 uppercase tracking-wider">{stage.name}</h3>
             <span className="text-[10px] bg-dark-700 text-dark-400 rounded-full px-1.5 py-0.5">{totalCount}</span>
           </div>
-          {stage.isWonStage && <Trophy size={12} className="text-amber-400" />}
+          {/* 2026-05-14: Won-stage trophy removed — kanban filters won
+              columns out (auto-convert to ATS), so this branch was dead. */}
         </div>
         {totalRevenue > 0 && (
           <p className="text-[10px] text-emerald-400 mt-0.5">
@@ -139,7 +144,7 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
       <div className="flex-1 overflow-y-auto bg-dark-900/50 border-x border-b border-dark-700 rounded-b-lg p-2 space-y-2">
         <SortableContext items={items} strategy={verticalListSortingStrategy}>
           {opportunities.map(opp => (
-            <KanbanCard key={opp._id} opp={opp} onClick={onCardClick} />
+            <KanbanCard key={opp._id} opp={opp} currency={currency} onClick={onCardClick} />
           ))}
         </SortableContext>
         {totalCount > opportunities.length && (

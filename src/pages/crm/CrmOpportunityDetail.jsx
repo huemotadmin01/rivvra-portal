@@ -321,14 +321,30 @@ export default function CrmOpportunityDetail() {
   };
 
   const handleConvert = async () => {
+    // 2026-05-14: preflight kept drifting behind the server's Won-gate.
+    // Server requires expectedRole + expectedRevenue + requirementType,
+    // and explicitly blocks 'Project Based' opps from converting (they're
+    // not a hire-and-place model). Match all three checks here so the
+    // recruiter sees the same error before the network round-trip.
     const missing = [];
     if (!opp.expectedRole?.trim()) missing.push('expectedRole');
     if (!opp.expectedRevenue) missing.push('expectedRevenue');
+    if (!opp.requirementType?.toString().trim()) missing.push('requirementType');
     if (missing.length > 0) {
       setErrorFields(new Set(missing));
-      const labels = { expectedRole: 'Expected Role', expectedRevenue: 'Expected Revenue' };
+      const labels = {
+        expectedRole: 'Expected Role',
+        expectedRevenue: 'Expected Revenue',
+        requirementType: 'Requirement Type',
+      };
       addToast(`Missing required field: ${labels[missing[0]]}`, 'error');
       focusFieldEditor(missing[0]);
+      return;
+    }
+    if (opp.requirementType === 'Project Based') {
+      addToast('Project Based opportunities can\'t convert to a hire job — change Requirement Type first.', 'error');
+      setErrorFields(new Set(['requirementType']));
+      focusFieldEditor('requirementType');
       return;
     }
     setConverting(true);
@@ -703,12 +719,23 @@ export default function CrmOpportunityDetail() {
                   currentValue={opp.salespersonId}
                   currentName={opp.salespersonName}
                   onSelect={async (id, name) => {
+                    // 2026-05-14: salespersonId stores employees._id per
+                    // the People-fields rule. EmployeeLookup hands back
+                    // an employee id by contract, but the defensive guard
+                    // (id must be a 24-char hex / valid ObjectId or null)
+                    // catches any future regression that would write a
+                    // portal_user._id or a name string instead.
+                    const safeId = id == null || id === '' ? null : id;
+                    if (safeId && !/^[a-f0-9]{24}$/i.test(String(safeId))) {
+                      addToast('Picked salesperson id looks invalid — refusing to save.', 'error');
+                      return;
+                    }
                     try {
                       await crmApi.updateOpportunity(slug, opportunityId, {
-                        salespersonId: id || null,
+                        salespersonId: safeId,
                         salespersonName: name || null,
                       });
-                      setOpp(prev => ({ ...prev, salespersonId: id || null, salespersonName: name || null }));
+                      setOpp(prev => ({ ...prev, salespersonId: safeId, salespersonName: name || null }));
                       addToast('Salesperson updated', 'success');
                     } catch {
                       addToast('Failed to update salesperson', 'error');

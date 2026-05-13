@@ -130,6 +130,21 @@ export default function CrmConfigStages() {
     }
   };
 
+  // 2026-05-14: trash icon in the list used to open the Edit modal,
+  // which was misleading (audit P1 #1). Inline confirm + direct delete
+  // matches the user's actual intent for a one-click trash press.
+  const handleInlineDelete = async (stage) => {
+    if (!stage?._id) return;
+    if (!confirm(`Delete stage "${stage.name}"? Opportunities on this stage will need to be reassigned first.`)) return;
+    try {
+      await crmApi.deleteStage(orgSlug, stage._id);
+      fetchStages();
+      addToast('Stage deleted', 'success');
+    } catch (err) {
+      addToast(err.message || 'Cannot delete stage', 'error');
+    }
+  };
+
   // ── Reset to defaults ─────────────────────────────────────────────────
   const handleResetDefaults = async () => {
     if (!confirm('This will replace all stages with the defaults (Initial Contact → Converted to Job). Existing opportunities will be moved to Initial Contact. Continue?')) return;
@@ -271,13 +286,7 @@ export default function CrmConfigStages() {
                     <Edit3 size={14} />
                   </button>
                   <button
-                    onClick={() => {
-                      setEditingStage(stage);
-                      setFormName(stage.name);
-                      setFormIsWon(!!stage.isWonStage);
-                      setFormError('');
-                      setModalOpen(true);
-                    }}
+                    onClick={() => handleInlineDelete(stage)}
                     className="p-1.5 rounded-md text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors"
                     title="Delete stage"
                   >
@@ -343,8 +352,10 @@ export default function CrmConfigStages() {
               )}
             </div>
 
-            {/* Is Won Stage toggle */}
-            {editingStage && (
+            {/* Is Won Stage toggle. 2026-05-14: shown on both Create
+                and Edit (was edit-only, which forced the recruiter to
+                save the stage and re-open it to mark it as Won). */}
+            {(
               <div className="mb-6">
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="text-sm font-medium text-dark-300">

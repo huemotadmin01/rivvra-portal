@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
-import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import { formatMoney } from '../../utils/currency';
@@ -57,7 +56,6 @@ function PipelineBar({ data, currency }) {
 export default function CrmDashboard() {
   const { orgSlug: slug, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
-  const { user } = useAuth();
   const { addToast } = useToast();
   const currency = currentCompany?.currency || 'INR';
   const navigate = useNavigate();
@@ -67,8 +65,11 @@ export default function CrmDashboard() {
   // 2026-05-14: CRM Reporting page merged into Dashboard. The analytical
   // section (win/loss/conversion rates, salesperson performance) renders
   // only for admin or team-lead — same gate the old Reporting route had.
+  // The per-app role check is the canonical source; the user.role global
+  // fallback the merge initially included was inconsistent with how other
+  // pages compute this and could over-grant across tenants.
   const crmRole = getAppRole('crm');
-  const isAdminOrLead = crmRole === 'admin' || crmRole === 'team_lead' || user?.role === 'team_lead';
+  const isAdminOrLead = crmRole === 'admin' || crmRole === 'team_lead';
 
   useEffect(() => {
     setLoading(true);
@@ -179,7 +180,7 @@ export default function CrmDashboard() {
                   a.type === 'email' ? 'bg-amber-500/10 text-amber-400' :
                   'bg-dark-700 text-dark-400'
                 }`}>
-                  {a.type?.[0]?.toUpperCase()}
+                  {a.type?.[0]?.toUpperCase() || '•'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-dark-200 truncate">{a.summary || a.note || 'Activity'}</p>

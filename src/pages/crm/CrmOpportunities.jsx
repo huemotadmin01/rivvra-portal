@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
-import { useAuth } from '../../context/AuthContext';
 import crmApi from '../../utils/crmApi';
 import { downloadFile } from '../../utils/download';
 import { formatMoney } from '../../utils/currency';
@@ -97,13 +96,13 @@ const GROUP_BY_OPTIONS = [
 
 const FILTER_PARAM_KEYS = [
   'search', 'stageId', 'salespersonId', 'source', 'requirementType',
-  'isLost', 'isConverted', 'evaluation', 'clientType', 'medium', 'campaign',
+  'isLost', 'isConverted', 'evaluation', 'clientType',
   'tagId', 'expectedClosingFrom', 'expectedClosingTo',
   'expectedRevenueFrom', 'expectedRevenueTo', 'mine', 'archived', 'groupBy',
 ];
 
 const MORE_FILTER_KEYS = [
-  'tagId', 'clientType', 'evaluation', 'isConverted', 'medium', 'campaign',
+  'tagId', 'clientType', 'evaluation', 'isConverted',
   'expectedClosingFrom', 'expectedClosingTo', 'expectedRevenueFrom', 'expectedRevenueTo',
 ];
 
@@ -111,7 +110,6 @@ export default function CrmOpportunities() {
   const { orgSlug: slug } = useOrg();
   const { currentCompany } = useCompany();
   const { addToast } = useToast();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Filter state lives in the URL — bookmarkable + refresh-safe.
@@ -304,11 +302,7 @@ export default function CrmOpportunities() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
           <FilterBar searchPlaceholder="Search opportunities…">
-            <FilterChip
-              type="boolean"
-              paramKey="mine"
-              label={user?.name ? 'My deals' : 'My deals'}
-            />
+            <FilterChip type="boolean" paramKey="mine" label="My deals" />
             <FilterChip
               type="select"
               paramKey="salespersonId"
@@ -374,20 +368,10 @@ export default function CrmOpportunities() {
                 toKey="expectedRevenueTo"
                 label="Revenue"
               />
-              <FilterChip
-                type="select"
-                paramKey="medium"
-                label="Medium"
-                options={[]}
-                placeholder="No values captured yet"
-              />
-              <FilterChip
-                type="select"
-                paramKey="campaign"
-                label="Campaign"
-                options={[]}
-                placeholder="No values captured yet"
-              />
+              {/* 2026-05-14: Medium / Campaign chips removed — there's
+                  no picklist source for either field yet, so they
+                  rendered as permanently empty selects. Will return as
+                  real chips once we capture marketing attribution. */}
             </MoreFiltersPopover>
             <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
             <GroupByChip options={GROUP_BY_OPTIONS} />

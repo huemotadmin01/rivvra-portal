@@ -22,12 +22,20 @@ import { ChevronDown } from 'lucide-react';
  *                   Job Position → Client should only reference contacts
  *                   that already live in the contacts app, not silently
  *                   fork unmatched names into orphan strings).
+ *  - onSearch(query): optional — fires on every keystroke (debounced
+ *                   250 ms inside). When provided, the consumer is
+ *                   expected to refetch `options` from the server based
+ *                   on `query`; client-side filtering still runs over
+ *                   the returned set so partial overlap is fine. Use
+ *                   when the option universe is bigger than the
+ *                   pre-load limit (e.g. CRM contacts, 2026-05-14
+ *                   audit P1 #7 — pre-loading 500 silently truncated).
  *
  * 2026-05-08: dropdown portal-anchored to document.body so it can escape
  * narrow parent cards (e.g. Job Position → Client card was clipping the
  * full company list). Position recomputed on scroll/resize while open.
  */
-export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, createLabel = 'Create', placeholder, disabled, disableCreate = false }) {
+export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, onSearch, createLabel = 'Create', placeholder, disabled, disableCreate = false }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(displayValue || '');
   const [coords, setCoords] = useState(null); // { left, top, width }
@@ -48,6 +56,15 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
 
   // Sync display value when prop changes
   useEffect(() => { setInputValue(displayValue || ''); }, [displayValue]);
+
+  // Debounced onSearch fan-out. Skipped when no onSearch is wired (the
+  // common case — most ComboSelect consumers pass a static options array
+  // and the in-memory filter at line 70 is enough).
+  useEffect(() => {
+    if (!onSearch) return;
+    const id = setTimeout(() => onSearch(inputValue.trim()), 250);
+    return () => clearTimeout(id);
+  }, [inputValue, onSearch]);
 
   // Recompute portal position on open + on scroll/resize while open.
   // useLayoutEffect avoids a flicker between "no coords" and "positioned".
