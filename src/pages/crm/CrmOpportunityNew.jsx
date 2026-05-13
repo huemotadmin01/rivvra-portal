@@ -5,9 +5,8 @@ import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
-import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { ChevronLeft, Loader2, User, Briefcase, Mail, Phone, Building2, UserCheck } from 'lucide-react';
+import { ChevronLeft, Loader2, Mail, Phone, Building2, UserCheck, Sparkles } from 'lucide-react';
 
 /**
  * CrmOpportunityNew — minimal routed create flow.
@@ -112,17 +111,17 @@ export default function CrmOpportunityNew() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-2xl mx-auto space-y-6">
+    <div className="p-6 md:p-8 max-w-xl mx-auto">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
+        className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors mb-6"
       >
         <ChevronLeft size={16} /> Back
       </button>
 
-      <div>
-        <h1 className="text-2xl font-bold text-white">New Opportunity</h1>
-        <p className="text-dark-400 text-sm mt-1">
+      <div className="mb-6">
+        <h1 className="text-[22px] font-semibold text-white tracking-tight">New Opportunity</h1>
+        <p className="text-dark-400 text-[13px] mt-1.5 leading-relaxed">
           Pick an existing customer contact. For net-new customers, use{' '}
           <a
             href={`/org/${slug}/outreach`}
@@ -130,53 +129,55 @@ export default function CrmOpportunityNew() {
           >
             Outreach
           </a>{' '}
-          to qualify the lead and convert to an opportunity.
+          to qualify the lead first.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <SectionCard title="Customer" icon={User}>
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-1.5">
-                Customer's POC *
-              </label>
-              <ComboSelect
-                value={contactId}
-                displayValue={
-                  selectedContact
-                    ? (selectedContact.parentCompanyName
-                        ? `${selectedContact.parentCompanyName}, ${selectedContact.name}`
-                        : selectedContact.name)
-                    : ''
-                }
-                options={pocOptions}
-                onChange={(id) => setContactId(id || '')}
-                placeholder="Search by company or contact name…"
-                allowCreate={false}
-              />
-              <p className="mt-1.5 text-[11px] text-dark-500">
-                Only existing contacts can be picked here.
-              </p>
-            </div>
+      <form onSubmit={handleSubmit}>
+        <div className="card p-5 space-y-5">
+          {/* POC picker */}
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-2">
+              Customer's POC <span className="text-rivvra-400">*</span>
+            </label>
+            <ComboSelect
+              value={contactId}
+              displayValue={
+                selectedContact
+                  ? (selectedContact.parentCompanyName
+                      ? `${selectedContact.parentCompanyName}, ${selectedContact.name}`
+                      : selectedContact.name)
+                  : ''
+              }
+              options={pocOptions}
+              onChange={(id) => setContactId(id || '')}
+              placeholder="Search by company or contact name…"
+              disableCreate
+            />
+          </div>
 
-            {selectedContact && (
-              <div className="bg-dark-900/50 border border-dark-700 rounded-lg p-4 space-y-2.5">
-                <p className="text-[10px] text-dark-500 uppercase tracking-wider font-medium">
-                  Auto-filled from contact
-                </p>
+          {/* Preview card — appears after picking. Tighter, no decorative
+              header; the auto-filled label moves to a small chip in the
+              corner so the card feels like a continuation of the form,
+              not a separate panel. */}
+          {selectedContact && (
+            <div className="relative bg-dark-900/60 border border-dark-700/80 rounded-xl px-4 py-3.5">
+              <span className="absolute -top-2 left-3 px-1.5 bg-dark-850 text-[9px] uppercase tracking-wider text-dark-500 font-semibold flex items-center gap-1">
+                <Sparkles size={9} className="text-rivvra-400/70" />
+                Auto-filled
+              </span>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
                 <PreviewRow icon={Building2} label="Company" value={parentCompany?.name || selectedContact.parentCompanyName || '—'} />
+                <PreviewRow icon={UserCheck} label="Salesperson" value={resolvedSalesperson} />
                 <PreviewRow icon={Mail} label="Email" value={selectedContact.email || '—'} />
                 <PreviewRow icon={Phone} label="Phone" value={selectedContact.phone || selectedContact.mobile || '—'} />
-                <PreviewRow icon={UserCheck} label="Salesperson" value={resolvedSalesperson} />
-              </div>
-            )}
-          </div>
-        </SectionCard>
+              </dl>
+            </div>
+          )}
 
-        <SectionCard title="Opportunity" icon={Briefcase}>
-          <div className="py-2">
-            <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-1.5">
+          {/* Opportunity name */}
+          <div className="pt-1">
+            <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-2">
               Opportunity Name
             </label>
             <input
@@ -184,15 +185,15 @@ export default function CrmOpportunityNew() {
               onChange={(e) => { setOppName(e.target.value); setOppNameDirty(true); }}
               disabled={!selectedContact}
               placeholder={selectedContact ? '' : 'Pick a contact above to auto-fill'}
-              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none disabled:opacity-50"
+              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2.5 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             />
-            <p className="mt-1.5 text-[11px] text-dark-500">
-              You can fine-tune stage, revenue, role, and other details on the record page after creating.
+            <p className="mt-2 text-[11px] text-dark-500 leading-relaxed">
+              Fine-tune stage, revenue, role, and other details on the record page after creating.
             </p>
           </div>
-        </SectionCard>
+        </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2">
+        <div className="flex items-center justify-end gap-2 mt-5">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -203,7 +204,7 @@ export default function CrmOpportunityNew() {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="px-4 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 flex items-center gap-2"
+            className="px-5 py-2 text-sm font-medium bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
             Create Opportunity
@@ -216,10 +217,12 @@ export default function CrmOpportunityNew() {
 
 function PreviewRow({ icon: Icon, label, value }) {
   return (
-    <div className="flex items-center gap-2.5 text-sm">
-      <Icon size={13} className="text-dark-500 shrink-0" />
-      <span className="text-dark-400 w-24 shrink-0">{label}</span>
-      <span className="text-dark-100 truncate">{value}</span>
+    <div className="flex items-start gap-2 min-w-0">
+      <Icon size={13} className="text-dark-500 shrink-0 mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <dt className="text-[10px] uppercase tracking-wider text-dark-500 font-medium">{label}</dt>
+        <dd className="text-[13px] text-dark-100 truncate mt-0.5">{value}</dd>
+      </div>
     </div>
   );
 }
