@@ -353,7 +353,11 @@ function ActivityForm({ mode, onSubmit, onCancel }) {
  * @param {string} entityType  - 'employee' | 'crm_opportunity' | 'crm_contact' | 'ats_application' | 'ats_job'
  * @param {string} entityId    - The entity's _id
  */
-export default function ActivityPanel({ orgSlug, entityType, entityId }) {
+// `refreshKey` is an optional counter — when the parent increments it,
+// the panel re-fetches. Used to surface server-side async events (e.g.
+// email_sent rows recorded after a fire-and-forget send completes)
+// without waiting for a manual page reload.
+export default function ActivityPanel({ orgSlug, entityType, entityId, refreshKey = 0 }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formMode, setFormMode] = useState(null); // null | 'note' | 'activity'
@@ -385,7 +389,7 @@ export default function ActivityPanel({ orgSlug, entityType, entityId }) {
     }
   };
 
-  useEffect(() => { fetchActivities(); }, [orgSlug, entityType, entityId]);
+  useEffect(() => { fetchActivities(); }, [orgSlug, entityType, entityId, refreshKey]);
 
   // Scroll-to + highlight when navigated from My Activities dropdown
   useEffect(() => {

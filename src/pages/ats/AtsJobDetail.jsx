@@ -292,6 +292,11 @@ export default function AtsJobDetail() {
   const companyCurrency = currentCompany?.currency || 'INR';
 
   const [job, setJob] = useState(null);
+  // Bumped after any save that the server may turn into an audit /
+  // email_sent activity row (people reassignments, approval decisions
+  // etc.). Forces ActivityPanel to refetch so the new row shows up
+  // without a manual page reload.
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
   usePageTitle(job?.name);
   const [loading, setLoading] = useState(true);
 
@@ -435,6 +440,12 @@ export default function AtsJobDetail() {
       });
       if (res?.job) setJob(res.job);
       else setJob((prev) => ({ ...prev, approvalStatus: decision, approverComment: approvalDraftComment || null }));
+      // Decision triggers ats_job_approved / ats_job_rejected emails
+      // server-side via fire-and-forget. Surface the resulting audit +
+      // email_sent rows without a manual reload, same pattern as
+      // savePerson.
+      setActivityRefreshKey(k => k + 1);
+      setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
       showToast(decision === 'approved' ? 'Position approved' : 'Position rejected', 'success');
     } catch (err) {
       showToast(err.message || 'Failed to submit decision', 'error');
@@ -476,6 +487,12 @@ export default function AtsJobDetail() {
       });
       if (res?.job) setJob(res.job);
       else setJob((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
+      // Refresh the activity panel twice — once immediately to pick up
+      // the synchronous audit event (e.g. "Approver assigned"), and again
+      // after ~2s to catch the fire-and-forget email_sent row when an
+      // approver-assignment triggers ats_job_approval_request.
+      setActivityRefreshKey(k => k + 1);
+      setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
     } catch (err) {
       showToast(err.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
     }
@@ -1226,7 +1243,7 @@ export default function AtsJobDetail() {
 
           {/* Activities — sits at the bottom of the right column so the
               feed can grow vertically without bounding the main flow. */}
-          <ActivityPanel orgSlug={orgSlug} entityType="ats_job" entityId={jobId} />
+          <ActivityPanel orgSlug={orgSlug} entityType="ats_job" entityId={jobId} refreshKey={activityRefreshKey} />
         </div>
       </div>
 
