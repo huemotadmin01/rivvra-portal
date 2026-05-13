@@ -474,6 +474,15 @@ const atsApi = {
     if (kind) formData.append('kind', kind);
     return api.uploadFile(`/api/org/${orgSlug}/ats/applications/${applicationId}/attachments`, formData);
   },
+  // Clone an attachment row onto a different application (shares the
+  // underlying Cloudinary asset). Used by the New Application page when
+  // a recruiter reuses the candidate's resume-on-file.
+  cloneAttachment(orgSlug, applicationId, sourceAttachmentId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/attachments/clone`, {
+      method: 'POST',
+      body: JSON.stringify({ sourceAttachmentId }),
+    });
+  },
   toggleResume(orgSlug, attachmentId) {
     return api.request(`/api/org/${orgSlug}/ats/attachments/${attachmentId}/resume`, {
       method: 'PUT',

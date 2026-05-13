@@ -93,6 +93,14 @@ export default function AtsApplicationNew() {
   const [existingResume, setExistingResume] = useState(null); // { fileName, url, ... } | null
   const [loadingResume, setLoadingResume] = useState(false);
   const [resumeOverride, setResumeOverride] = useState(false); // true if user uploaded a new resume despite existing one
+  // 2026-05-13: recruiter must explicitly opt in to reusing the candidate's
+  // resume-on-file. Silent auto-satisfaction was attaching the wrong file
+  // to fresh applications.
+  const [resumeConfirmed, setResumeConfirmed] = useState(false);
+  // Pre-flight duplicate-application banner (same candidate + same job,
+  // not yet hired/refused). Server-side 409 is the source of truth; this
+  // is a UX nicety to catch it before the recruiter fills the form.
+  const [existingAppOnThisJob, setExistingAppOnThisJob] = useState(null); // { _id, stageName, appliedOn } | null
   const resumeInputRef = useRef(null);
   const RESUME_MAX_BYTES = 10 * 1024 * 1024;
   const RESUME_ACCEPTED_EXT = ['pdf', 'doc', 'docx'];
@@ -180,20 +188,34 @@ export default function AtsApplicationNew() {
     if (!orgSlug || !form.candidateId) {
       setInheritedSkills([]);
       setExistingResume(null);
+      setResumeConfirmed(false);
+      setExistingAppOnThisJob(null);
       return;
     }
     let cancelled = false;
     setLoadingInherited(true);
     setLoadingResume(true);
+    setResumeConfirmed(false);
+    setExistingAppOnThisJob(null);
     (async () => {
       try {
-        const [skillsRes, resumeRes] = await Promise.all([
+        const [skillsRes, resumeRes, dupRes] = await Promise.all([
           atsApi.listCandidateSkills(orgSlug, form.candidateId).catch(() => null),
           atsApi.getCandidateResume(orgSlug, form.candidateId).catch(() => null),
+          jobId
+            ? atsApi.listApplications(orgSlug, {
+              jobPositionId: jobId,
+              candidateId: form.candidateId,
+              applicationStatus: 'ongoing',
+              limit: 1,
+            }).catch(() => null)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
         setInheritedSkills(skillsRes?.candidateSkills || skillsRes?.skills || []);
         setExistingResume(resumeRes?.resume || null);
+        const dupApp = (dupRes?.applications || [])[0] || null;
+        setExistingAppOnThisJob(dupApp);
       } finally {
         if (!cancelled) {
           setLoadingInherited(false);
@@ -202,7 +224,7 @@ export default function AtsApplicationNew() {
       }
     })();
     return () => { cancelled = true; };
-  }, [orgSlug, form.candidateId]);
+  }, [orgSlug, form.candidateId, jobId]);
 
   // ── Candidate typeahead behavior ─────────────────────────────────────
   const searchCandidates = useCallback(async (q) => {
@@ -410,8 +432,13 @@ export default function AtsApplicationNew() {
   const hasRecruiter = !!form.recruiterId;
   const totalSkills = pickedSkills.length + inheritedSkills.length;
   const hasSkill = totalSkills >= 1;
-  const hasResume = !!resumeFile || !!existingResume;
-  const canSubmit = !!trimmedName && hasContact && hasRecruiter && hasSkill && hasResume && !saving && !loadingJob && !!job;
+  // Resume gate: a freshly uploaded file always counts. A reused resume
+  // only counts after the recruiter explicitly confirms it (was silently
+  // attaching prior-application files before 2026-05-13).
+  const hasResume = !!resumeFile || (!!existingResume && resumeConfirmed);
+  const blockedByDuplicate = !!existingAppOnThisJob;
+  const canSubmit = !!trimmedName && hasContact && hasRecruiter && hasSkill && hasResume
+    && !blockedByDuplicate && !saving && !loadingJob && !!job;
 
   // ── Submit ───────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
@@ -474,13 +501,24 @@ export default function AtsApplicationNew() {
         showToast(`Application created but skills failed: ${skillFailures.join(', ')}`, 'warning');
       }
 
-      // Step 4: upload resume if recruiter chose one (skip when relying
-      // on existingResume satisfying the gate)
+      // Step 4: attach the resume. Two paths:
+      //   a) recruiter uploaded a new file → upload as a fresh attachment
+      //   b) recruiter reused candidate's resume-on-file → clone the
+      //      attachment row onto this application (shares the Cloudinary
+      //      asset; delete is refcount-aware on the API side).
+      // Before 2026-05-13 path (b) did nothing, leaving the new application
+      // without any resume attachment of its own.
       if (resumeFile) {
         try {
           await atsApi.uploadAttachment(orgSlug, newAppId, resumeFile, true);
         } catch (err) {
           showToast('Application created, but resume upload failed — retry from the application page.', 'warning');
+        }
+      } else if (existingResume && resumeConfirmed) {
+        try {
+          await atsApi.cloneAttachment(orgSlug, newAppId, existingResume._id);
+        } catch (err) {
+          showToast('Application created, but reusing the resume on file failed — upload from the application page.', 'warning');
         }
       }
 
@@ -494,6 +532,16 @@ export default function AtsApplicationNew() {
       if (err?.code === 'JOB_NOT_APPROVED' || err?.response?.data?.code === 'JOB_NOT_APPROVED') {
         showToast(err?.message || 'This position is no longer approved for new applications.', 'error');
         navigate(orgPath(`/ats/jobs/${jobId}`), { replace: true });
+        return;
+      }
+      // 2026-05-13: server-side duplicate-application guard (409). The
+      // pre-flight banner usually catches this, but a race is possible if
+      // someone else creates the same application while the form is open.
+      const dupCode = err?.code || err?.response?.data?.code;
+      const dupAppId = err?.applicationId || err?.response?.data?.applicationId;
+      if (dupCode === 'DUPLICATE_APPLICATION') {
+        showToast(err?.message || 'This candidate already has an active application on this job.', 'error');
+        if (dupAppId) navigate(orgPath(`/ats/applications/${dupAppId}`), { replace: true });
         return;
       }
       showToast(err?.message || 'Failed to create application', 'error');
@@ -598,6 +646,21 @@ export default function AtsApplicationNew() {
                       </span>
                     )}
                   </div>
+                  {existingAppOnThisJob && (
+                    <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                      <div className="font-medium mb-0.5">Already applied to this job</div>
+                      <div className="text-amber-200/80">
+                        {(form.candidateName || 'This candidate').trim()} has an active application here. Creating another would be a duplicate.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigate(orgPath(`/ats/applications/${existingAppOnThisJob._id}`))}
+                        className="mt-1.5 text-amber-100 underline underline-offset-2 hover:text-white"
+                      >
+                        Open existing application →
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -770,21 +833,41 @@ export default function AtsApplicationNew() {
                 {form.candidateId && loadingResume ? (
                   <div className="text-xs text-dark-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Looking up candidate's resume…</div>
                 ) : existingResume && !resumeFile ? (
-                  <div className="bg-dark-900/40 border border-dark-700 rounded-lg p-4 flex items-center justify-between gap-3">
+                  <div className={`bg-dark-900/40 border rounded-lg p-4 flex items-center justify-between gap-3 ${resumeConfirmed ? 'border-emerald-500/40' : 'border-amber-500/30'}`}>
                     <div className="flex items-center gap-3 min-w-0">
-                      <FileCheck2 size={18} className="text-emerald-400 flex-shrink-0" />
+                      <FileCheck2 size={18} className={`flex-shrink-0 ${resumeConfirmed ? 'text-emerald-400' : 'text-amber-300'}`} />
                       <div className="min-w-0">
                         <div className="text-sm text-white truncate">{existingResume.fileName}</div>
-                        <div className="text-[11px] text-dark-500">Resume on file — this satisfies the requirement.</div>
+                        <div className="text-[11px] text-dark-500">
+                          Resume on file
+                          {existingResume.createdAt
+                            ? ` · uploaded ${new Date(existingResume.createdAt).toLocaleDateString()}`
+                            : ''}
+                          {' · '}
+                          {resumeConfirmed
+                            ? <span className="text-emerald-300">will be attached to this application</span>
+                            : <span className="text-amber-200">confirm to reuse, or upload a new file</span>}
+                        </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => resumeInputRef.current?.click()}
-                      className="text-xs text-rivvra-300 hover:text-rivvra-200 flex-shrink-0"
-                    >
-                      Upload new
-                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!resumeConfirmed && (
+                        <button
+                          type="button"
+                          onClick={() => setResumeConfirmed(true)}
+                          className="text-xs px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                        >
+                          Use this resume
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => resumeInputRef.current?.click()}
+                        className="text-xs text-rivvra-300 hover:text-rivvra-200"
+                      >
+                        Upload new
+                      </button>
+                    </div>
                   </div>
                 ) : resumeFile ? (
                   <div className="bg-dark-900/40 border border-dark-700 rounded-lg p-4 flex items-center justify-between gap-3">
