@@ -369,10 +369,13 @@ export const APP_REGISTRY = {
     basePath: '/ats',
     status: 'active',
     // 2026-05-12 audit: ATS landing page is role-aware. Admin lands on
-    // Reporting (they monitor throughput / hires); Recruiter lands on
+    // Dashboard (they monitor throughput / hires); Recruiter lands on
     // Pipeline (they work, not read). Matches Greenhouse / Lever / Workable.
     // Other apps keep static string defaults — only ATS needs the split today.
-    defaultRoute: (orgAppRole) => (orgAppRole === 'admin' ? '/ats/reporting' : '/ats/pipeline'),
+    // 2026-05-14: path renamed from /ats/reporting (label "Reporting") to
+    // /ats/dashboard ("Dashboard") to match the page's actual role-aware
+    // landing intent. Old path 301-redirects in App.jsx.
+    defaultRoute: (orgAppRole) => (orgAppRole === 'admin' ? '/ats/dashboard' : '/ats/pipeline'),
     derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'purple' },
@@ -388,7 +391,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/ats/candidates', label: 'Candidates', icon: Users },
         { type: 'item', path: '/ats/my-approvals', label: 'My Approvals', icon: CheckCircle2 },
         ...(isAdmin ? [
-          { type: 'item', path: '/ats/reporting', label: 'Reporting', icon: BarChart3 },
+          { type: 'item', path: '/ats/dashboard', label: 'Dashboard', icon: BarChart3 },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [

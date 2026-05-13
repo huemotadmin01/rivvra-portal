@@ -10,6 +10,8 @@ import PlatformLayout from './components/platform/PlatformLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import OrgRedirect from './components/OrgRedirect';
 import AppAccessGate from './components/AppAccessGate';
+import { useOrg } from './context/OrgContext';
+import { resolveDefaultRoute, getAppById } from './config/apps';
 import AppRoleGate from './components/AppRoleGate';
 import ESSCompanyGate from './components/ESSCompanyGate';
 import CountryGate from './components/CountryGate';
@@ -277,6 +279,26 @@ function IncentiveSettingsRedirect() {
   return <Navigate to={`/org/${slug}/settings/incentive`} replace />;
 }
 
+// 2026-05-14: ATS "Reporting" renamed to "Dashboard" (page is a role-aware
+// landing, not a static report). Old URL kept as a redirect so existing
+// bookmarks, email links, and external references survive.
+function AtsReportingRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/org/${slug}/ats/dashboard`} replace />;
+}
+
+// 2026-05-14: bare /org/:slug/ats now lands role-aware via the app's
+// defaultRoute resolver — Admin → /ats/dashboard, everyone else →
+// /ats/pipeline. Previously this URL 404'd; users had to land via the
+// app launcher card. resolveDefaultRoute already lives in config/apps.jsx
+// (was wired through AppCard + breadcrumbs); this is the third consumer.
+function AtsIndexRedirect() {
+  const { slug } = useParams();
+  const { getAppRole } = useOrg();
+  const target = resolveDefaultRoute(getAppById('ats'), getAppRole('ats'));
+  return <Navigate to={`/org/${slug}${target || '/ats/pipeline'}`} replace />;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -476,6 +498,7 @@ function App() {
 
               {/* ATS app routes — gated by ats access */}
               <Route element={<AppAccessGate appId="ats" />}>
+                <Route path="/org/:slug/ats" element={<AtsIndexRedirect />} />
                 <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><AtsPipeline /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><AtsApplications /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><AtsApplicationDetail /></ErrorBoundary>} />
@@ -487,7 +510,9 @@ function App() {
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><AtsMyApprovals /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
-                  <Route path="/org/:slug/ats/reporting" element={<ErrorBoundary><AtsReporting /></ErrorBoundary>} />
+                  <Route path="/org/:slug/ats/dashboard" element={<ErrorBoundary><AtsReporting /></ErrorBoundary>} />
+                  {/* 2026-05-14: keep old path redirecting so bookmarks survive */}
+                  <Route path="/org/:slug/ats/reporting" element={<AtsReportingRedirect />} />
                   <Route path="/org/:slug/ats/config" element={<ErrorBoundary><AtsConfig /></ErrorBoundary>} />
                 </Route>
               </Route>
