@@ -1948,27 +1948,15 @@ export default function AtsApplicationDetail() {
         });
         return;
       }
-      // P0.2 hard-gate handling. When the API blocks a transition into
-      // Offer Proposal / Offer Signed because the offer subdoc is
-      // missing fields, open the HireModal in 'offer' mode pre-filled
-      // with whatever offer data already exists. The modal's submit
-      // flow saves the offer via /offer, then we re-fire this same
-      // stage transition. When blocked because the user clicked the
-      // Hired chip directly, point them at the Hire button instead.
+      // 2026-05-13: stage chips navigate the pipeline; offer creation is
+      // a structured side-effect action that belongs on the dedicated
+      // header Offer button — same convention as Hire (below). Was:
+      // auto-opening the HireModal in 'offer' mode mid-stage-move,
+      // which trained recruiters to expect side-effect modals on stage
+      // clicks and made "Save and continue" on the HR result modal
+      // cascade unexpectedly into an offer popup.
       if (err?.requiresOffer) {
-        const stage = stages.find((s) => s._id === stageId);
-        setPendingStageMove({
-          stageId,
-          stageName: err.targetStageName || stage?.name || 'next stage',
-          requireSignedDoc: err.requiresSignedDoc === true,
-          // Phase-1 / Q23 (2026-05-10): the API tells us which level of
-          // the offer subdoc is needed at this gate ('salary' at L1,
-          // 'full' at Offer Proposal, 'signed' at Offer Signed). The
-          // modal uses this to hide irrelevant fields and pick the
-          // right title / submit label.
-          offerLevel: err.offerLevel || 'full',
-        });
-        setShowHireModal(true);
+        showToast('Click the Offer button (top right) to capture the offer details first.', 'warning');
         return;
       }
       if (err?.requiresHire) {
