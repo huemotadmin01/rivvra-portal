@@ -193,6 +193,19 @@ export default function CrmOpportunityDetail() {
     bumpActivities();
   };
 
+  // Won-stage precondition check (mirrors server, locked 2026-05-13).
+  // Returns the list of human-readable missing field labels — empty
+  // means good to go. Pre-validating client-side gives the user
+  // instant feedback without paying the optimistic-then-rollback
+  // round-trip + flicker when fields are blank.
+  const missingWonFields = (o) => {
+    const missing = [];
+    if (!o?.expectedRole?.toString().trim()) missing.push('Expected Role');
+    if (o?.expectedRevenue == null || o?.expectedRevenue === '') missing.push('Expected Revenue');
+    if (!o?.requirementType?.toString().trim()) missing.push('Requirement Type');
+    return missing;
+  };
+
   const performStageChange = async (stageId) => {
     // Optimistic update — flip the chip locally before the round-trip
     // so the user sees the change instantly. Roll back if the server
@@ -212,9 +225,25 @@ export default function CrmOpportunityDetail() {
       } else {
         addToast('Stage updated', 'success');
       }
-    } catch {
+    } catch (err) {
       setOpp(prev => prev ? { ...prev, stageId: previousStageId } : prev);
-      addToast('Failed to move stage', 'error');
+      // Server's Won-gate (WON_FIELDS_MISSING / WON_PROJECT_BASED)
+      // returns a human-readable error string; bubble it through so
+      // the user knows what to fill. Tag the missing fields visually
+      // by pushing them into errorFields so InlineField shows the
+      // error border.
+      const payload = err?.payload || err?.body;
+      const missing = Array.isArray(payload?.missing) ? payload.missing : [];
+      if (missing.length) {
+        const fieldKeyByLabel = {
+          'Expected Role': 'expectedRole',
+          'Expected Revenue': 'expectedRevenue',
+          'Requirement Type': 'requirementType',
+        };
+        setErrorFields(new Set(missing.map(l => fieldKeyByLabel[l]).filter(Boolean)));
+        focusFieldEditor(fieldKeyByLabel[missing[0]]);
+      }
+      addToast(payload?.error || err?.message || 'Failed to move stage', 'error');
     }
   };
 
@@ -229,6 +258,26 @@ export default function CrmOpportunityDetail() {
     ) {
       setShowStageDetachModal(stageId);
       return;
+    }
+    // Pre-validate the Won gate before the optimistic update so the
+    // user gets immediate feedback (no flicker).
+    if (targetStage?.isWonStage && !opp?.isConverted) {
+      const missing = missingWonFields(opp);
+      if (missing.length) {
+        const fieldKeyByLabel = {
+          'Expected Role': 'expectedRole',
+          'Expected Revenue': 'expectedRevenue',
+          'Requirement Type': 'requirementType',
+        };
+        setErrorFields(new Set(missing.map(l => fieldKeyByLabel[l]).filter(Boolean)));
+        focusFieldEditor(fieldKeyByLabel[missing[0]]);
+        addToast(`Fill before Won: ${missing.join(', ')}`, 'error');
+        return;
+      }
+      if (opp?.requirementType === 'Project Based') {
+        addToast('Project Based opportunities can\'t be converted to a Job Position.', 'error');
+        return;
+      }
     }
     performStageChange(stageId);
   };
