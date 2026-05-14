@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import {
   Loader2, BarChart3, Users, UserCheck, Clock,
-  ShieldAlert, FileBarChart, RefreshCw, Download, ChevronDown,
+  FileBarChart, RefreshCw, Download, ChevronDown,
   AlertTriangle, MessageSquareWarning, Hourglass, ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -127,17 +127,27 @@ function rangeToDates(key) {
   return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
 }
 
-/* ── Stat Card ────────────────────────────────────────────────────────── */
-function StatCard({ label, value, icon: Icon, iconColor }) {
+/* ── Stat Card ────────────────────────────────────────────────────────────
+ * 2026-05-14: restyled to match the CRM Dashboard KPICard pattern —
+ * tinted full-card background instead of a dark card with a tinted
+ * icon badge. Keeps font sizes / padding aligned across the two
+ * dashboards so they read as the same family. */
+function StatCard({ label, value, icon: Icon, color = 'dark' }) {
+  const colorMap = {
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    amber:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    red:     'bg-red-500/10 text-red-400 border-red-500/20',
+    purple:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    blue:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    dark:    'bg-dark-800 text-dark-200 border-dark-700',
+  };
   return (
-    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`p-2 rounded-lg ${iconColor}`}>
-          <Icon size={20} />
-        </div>
-        <span className="text-sm text-dark-400">{label}</span>
+    <div className={`rounded-xl border p-4 ${colorMap[color]}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs opacity-70">{label}</span>
+        <Icon size={16} className="opacity-50" />
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="text-2xl font-bold">{value}</p>
     </div>
   );
 }
@@ -147,27 +157,27 @@ function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
   const maxVal = Math.max(...data.map((d) => d[valueKey]), 1);
 
   return (
-    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-      <h3 className="text-lg font-semibold text-white mb-5">{title}</h3>
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-3">{title}</h3>
 
       {data.length === 0 ? (
-        <p className="text-dark-500 text-sm text-center py-6">No data yet</p>
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {data.map((item, i) => {
             const pct = Math.round((item[valueKey] / maxVal) * 100);
             return (
               <div key={i} className="flex items-center gap-3">
-                <span className="text-sm text-dark-300 w-32 shrink-0 truncate" title={item[labelKey] || 'Unknown'}>
+                <span className="text-xs text-dark-300 w-28 shrink-0 truncate" title={item[labelKey] || 'Unknown'}>
                   {item[labelKey] && String(item[labelKey]).trim() ? item[labelKey] : <span className="italic text-dark-500">Unknown</span>}
                 </span>
-                <div className="flex-1 bg-dark-800 rounded-full h-6 overflow-hidden">
+                <div className="flex-1 bg-dark-800 rounded-full h-5 overflow-hidden">
                   <div
                     className={`${barColor} h-full rounded-full transition-all duration-500`}
-                    style={{ width: `${pct}%`, minWidth: item[valueKey] > 0 ? '1.5rem' : 0 }}
+                    style={{ width: `${pct}%`, minWidth: item[valueKey] > 0 ? '1.25rem' : 0 }}
                   />
                 </div>
-                <span className="text-sm font-medium text-dark-300 w-10 text-right shrink-0">
+                <span className="text-xs font-medium text-dark-300 w-8 text-right shrink-0">
                   {item[valueKey]}
                 </span>
               </div>
@@ -215,12 +225,12 @@ function RecruitmentFunnel({ data }) {
   const maxVal = Math.max(...passed, 1);
 
   return (
-    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-      <h3 className="text-lg font-semibold text-white mb-1">Recruitment Funnel</h3>
-      <p className="text-dark-500 text-xs mb-5">Applicants currently at or past each stage</p>
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Recruitment Funnel</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Applicants currently at or past each stage</p>
 
       {ordered.length === 0 ? (
-        <p className="text-dark-500 text-sm text-center py-6">No data yet</p>
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
       ) : (
         <div className="space-y-1">
           {ordered.map((stage, i) => {
@@ -234,30 +244,30 @@ function RecruitmentFunnel({ data }) {
             return (
               <div key={stage.stageId || i}>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-dark-300 w-36 shrink-0 truncate" title={stage.stageName}>
+                  <span className="text-xs text-dark-300 w-32 shrink-0 truncate" title={stage.stageName}>
                     {stage.stageName}
                   </span>
-                  <div className="flex-1 bg-dark-800 rounded-full h-6 overflow-hidden">
+                  <div className="flex-1 bg-dark-800 rounded-full h-5 overflow-hidden">
                     <div
                       className="bg-rivvra-500 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, minWidth: count > 0 ? '1.5rem' : 0 }}
+                      style={{ width: `${pct}%`, minWidth: count > 0 ? '1.25rem' : 0 }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-dark-200 w-10 text-right shrink-0">
+                  <span className="text-xs font-medium text-dark-200 w-8 text-right shrink-0">
                     {count}
                   </span>
                 </div>
                 {!isLast && (
-                  <div className="flex items-center gap-3 pl-36">
-                    <div className="flex-1 flex items-center gap-2 py-1 text-xs text-dark-500">
-                      <ChevronDown size={12} />
+                  <div className="flex items-center gap-3 pl-32">
+                    <div className="flex-1 flex items-center gap-2 py-1 text-[11px] text-dark-500">
+                      <ChevronDown size={10} />
                       <span>
                         {conv === null
                           ? <span className="italic">—</span>
                           : <><span className={conv >= 50 ? 'text-emerald-400' : conv >= 25 ? 'text-amber-400' : 'text-red-400'}>{conv}%</span> progressed to {ordered[i + 1].stageName}</>}
                       </span>
                     </div>
-                    <span className="w-10" />
+                    <span className="w-8" />
                   </div>
                 )}
               </div>
@@ -277,21 +287,21 @@ function RecruiterTable({ data, totalApplications }) {
   const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
 
   return (
-    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-      <h3 className="text-lg font-semibold text-white mb-5">Applications by Recruiter</h3>
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-3">Applications by Recruiter</h3>
 
       {sorted.length === 0 ? (
-        <p className="text-dark-500 text-sm text-center py-6">No data yet</p>
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="text-dark-400 border-b border-dark-800">
-                <th className="text-left py-2 pr-4 font-medium">Recruiter</th>
-                <th className="text-right py-2 px-4 font-medium">Applications</th>
-                <th className="text-right py-2 px-4 font-medium">Hired</th>
-                <th className="text-right py-2 px-4 font-medium">Conversion</th>
-                <th className="text-right py-2 pl-4 font-medium">% of Total</th>
+              <tr className="text-dark-400 border-b border-dark-700">
+                <th className="text-left py-2 pr-3 font-medium uppercase text-[10px] tracking-wider">Recruiter</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Apps</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Hired</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Conversion</th>
+                <th className="text-right py-2 pl-3 font-medium uppercase text-[10px] tracking-wider">% of Total</th>
               </tr>
             </thead>
             <tbody>
@@ -310,12 +320,12 @@ function RecruiterTable({ data, totalApplications }) {
                   ? 'text-amber-400'
                   : 'text-dark-400';
                 return (
-                  <tr key={i} className="border-b border-dark-800/50 last:border-0">
-                    <td className="py-3 pr-4 text-dark-200">{r.recruiterName}</td>
-                    <td className="py-3 px-4 text-right text-dark-300">{r.count}</td>
-                    <td className="py-3 px-4 text-right text-dark-300">{r.hired ?? 0}</td>
-                    <td className={`py-3 px-4 text-right font-medium ${convColor}`}>{convText}</td>
-                    <td className="py-3 pl-4 text-right text-dark-400">{pct}%</td>
+                  <tr key={i} className="border-b border-dark-700/50 last:border-0">
+                    <td className="py-2 pr-3 text-dark-200">{r.recruiterName}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{r.count}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{r.hired ?? 0}</td>
+                    <td className={`py-2 px-3 text-right font-medium ${convColor}`}>{convText}</td>
+                    <td className="py-2 pl-3 text-right text-dark-400">{pct}%</td>
                   </tr>
                 );
               })}
@@ -341,20 +351,20 @@ function OfferAcceptanceCard({ data }) {
     : rate >= 40 ? 'text-amber-400'
     : 'text-red-400';
   return (
-    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-      <h3 className="text-lg font-semibold text-white mb-1">Offer Acceptance</h3>
-      <p className="text-dark-500 text-xs mb-5">Accepted ÷ offered in this window</p>
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Offer Acceptance</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Accepted ÷ offered in this window</p>
       {proposed === 0 ? (
-        <p className="text-sm text-dark-500 text-center py-6">No offers extended yet</p>
+        <p className="text-xs text-dark-600 text-center py-4">No offers extended yet</p>
       ) : (
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className={`text-4xl font-bold ${rateColor}`}>{rate == null ? '—' : `${rate}%`}</p>
-            <p className="text-xs text-dark-500 mt-2">
+            <p className={`text-2xl font-bold ${rateColor}`}>{rate == null ? '—' : `${rate}%`}</p>
+            <p className="text-[11px] text-dark-500 mt-1">
               {accepted} accepted of {proposed} offered
             </p>
           </div>
-          <div className="text-right text-xs text-dark-400 space-y-1">
+          <div className="text-right text-[11px] text-dark-400 space-y-0.5">
             <div><span className="text-emerald-400 font-medium">{accepted}</span> Accepted</div>
             <div><span className="text-dark-300 font-medium">{proposed - accepted}</span> Pending / declined</div>
           </div>
@@ -379,23 +389,23 @@ function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, render
   const visible = list.slice(0, 5);
   const overflow = list.length > 5;
   return (
-    <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-      <div className="flex items-start justify-between mb-4 gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`p-2 rounded-lg shrink-0 ${iconColor}`}>
-            <Icon size={18} />
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`p-1.5 rounded-lg shrink-0 ${iconColor}`}>
+            <Icon size={14} />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-white truncate">{title}</h3>
-            <p className="text-xs text-dark-500">{thresholdLabel}</p>
+            <h3 className="text-sm font-semibold text-dark-200 truncate">{title}</h3>
+            <p className="text-[11px] text-dark-500">{thresholdLabel}</p>
           </div>
         </div>
-        <span className={`text-2xl font-bold ${list.length > 0 ? 'text-amber-400' : 'text-dark-500'}`}>
+        <span className={`text-xl font-bold ${list.length > 0 ? 'text-amber-400' : 'text-dark-500'}`}>
           {list.length}
         </span>
       </div>
       {list.length === 0 ? (
-        <p className="text-sm text-dark-500 text-center py-4">{emptyMessage}</p>
+        <p className="text-xs text-dark-600 text-center py-4">{emptyMessage}</p>
       ) : (
         <>
           <ul className="space-y-2">
@@ -417,12 +427,16 @@ function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, render
 
 /* ── Main AtsDashboard Component ──────────────────────────────────────── */
 export default function AtsDashboard() {
-  const { currentOrg, getAppRole } = useOrg();
+  const { currentOrg } = useOrg();
   const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
 
-  const isAdmin = getAppRole('ats') === 'admin';
+  // 2026-05-14: in-page admin guard removed — /ats/dashboard is the
+  // universal ATS landing now, so blocking non-admins here breaks the
+  // landing for recruiters. The page renders whatever the API returns;
+  // any admin-only data the endpoint chooses to exclude is the API's
+  // responsibility, not the page's.
   const orgSlug = currentOrg?.slug;
 
   const [loading, setLoading] = useState(true);
@@ -456,30 +470,17 @@ export default function AtsDashboard() {
   }, [orgSlug, currentCompany?._id, rangeKey, showToast]);
 
   useEffect(() => {
-    if (isAdmin) fetchDashboard();
-  }, [isAdmin, fetchDashboard]);
-
-  // Non-admin guard
-  if (!isAdmin) {
-    return (
-      <div className="p-6">
-        <div className="flex flex-col items-center justify-center py-20 text-dark-400">
-          <ShieldAlert size={48} className="mb-4 opacity-40" />
-          <p className="text-lg">Admin access required</p>
-          <p className="text-sm text-dark-500 mt-1">Only admins can view ATS reporting.</p>
-        </div>
-      </div>
-    );
-  }
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   // Full-page loading only on the very first fetch. Subsequent fetches
   // (range change, refresh) keep the existing dashboard rendered and
   // surface progress via the small spinner inside the Refresh button.
   if (loading && !data) {
     return (
-      <div className="p-6">
+      <div className="p-4 max-w-6xl mx-auto">
         <div className="flex items-center justify-center py-20">
-          <Loader2 size={32} className="animate-spin text-rivvra-500" />
+          <Loader2 size={28} className="animate-spin text-rivvra-500" />
         </div>
       </div>
     );
@@ -488,11 +489,11 @@ export default function AtsDashboard() {
   // Empty / no data state
   if (!data) {
     return (
-      <div className="p-6">
+      <div className="p-4 max-w-6xl mx-auto">
         <div className="flex flex-col items-center justify-center py-20 text-dark-400">
-          <FileBarChart size={48} className="mb-4 opacity-40" />
-          <p className="text-lg">No data yet</p>
-          <p className="text-sm text-dark-500 mt-1">Reporting data will appear once there are applications.</p>
+          <FileBarChart size={40} className="mb-3 opacity-40" />
+          <p className="text-sm text-dark-300">No data yet</p>
+          <p className="text-xs text-dark-500 mt-1">Reporting data will appear once there are applications.</p>
         </div>
       </div>
     );
@@ -513,13 +514,10 @@ export default function AtsDashboard() {
   } = data;
 
   return (
-    <div className="p-6 bg-dark-950 min-h-full space-y-6">
+    <div className="p-4 space-y-6 max-w-6xl mx-auto">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">ATS Reporting</h1>
-          <p className="text-dark-400 text-sm mt-1">Recruitment analytics &amp; metrics</p>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-lg font-semibold text-dark-100">ATS Dashboard</h1>
         <div className="flex items-center gap-2">
           <label htmlFor="ats-reporting-range" className="sr-only">Time range</label>
           <select
@@ -530,7 +528,7 @@ export default function AtsDashboard() {
               setRangeKey(next);
               writeStoredRange(next);
             }}
-            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-dark-100 focus:border-rivvra-500 focus:outline-none"
+            className="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
           >
             {TIME_RANGE_OPTIONS.map((opt) => (
               <option key={opt.key} value={opt.key}>{opt.label}</option>
@@ -540,11 +538,11 @@ export default function AtsDashboard() {
             type="button"
             onClick={() => fetchDashboard({ silent: true })}
             disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-900 border border-dark-700 text-sm text-dark-200 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-900 border border-dark-700 text-xs text-dark-200 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-50"
             title="Refresh"
             aria-label="Refresh reporting data"
           >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
@@ -554,36 +552,21 @@ export default function AtsDashboard() {
               const dateStamp = new Date().toISOString().slice(0, 10);
               downloadCsv(buildReportingCsv(data, rangeLabel), `ats-reporting-${dateStamp}.csv`);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-900 border border-dark-700 text-sm text-dark-200 hover:text-white hover:border-dark-600 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-900 border border-dark-700 text-xs text-dark-200 hover:text-white hover:border-dark-600 transition-colors"
             title="Export to CSV"
             aria-label="Export reporting data as CSV"
           >
-            <Download size={14} />
+            <Download size={12} />
             <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </div>
 
       {/* ── Stats Cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Applications"
-          value={totalApplications}
-          icon={BarChart3}
-          iconColor="bg-blue-500/15 text-blue-400"
-        />
-        <StatCard
-          label="Total Candidates"
-          value={totalCandidates}
-          icon={Users}
-          iconColor="bg-purple-500/15 text-purple-400"
-        />
-        <StatCard
-          label="Total Hired"
-          value={hiredCount}
-          icon={UserCheck}
-          iconColor="bg-green-500/15 text-green-400"
-        />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Total Applications" value={totalApplications} icon={BarChart3} color="blue" />
+        <StatCard label="Total Candidates" value={totalCandidates} icon={Users} color="purple" />
+        <StatCard label="Total Hired" value={hiredCount} icon={UserCheck} color="emerald" />
         <StatCard
           label="Avg Time to Hire"
           value={
@@ -592,7 +575,7 @@ export default function AtsDashboard() {
               : '—'
           }
           icon={Clock}
-          iconColor="bg-amber-500/15 text-amber-400"
+          color="amber"
         />
       </div>
 
@@ -614,7 +597,7 @@ export default function AtsDashboard() {
             <li key={item.applicationId}>
               <Link
                 to={orgPath(`/ats/applications/${item.applicationId}`)}
-                className="flex items-baseline justify-between gap-2 text-sm py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+                className="flex items-baseline justify-between gap-2 text-xs py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
               >
                 <span className="text-dark-200 truncate min-w-0" title={item.candidateName}>
                   <span className="text-white">{item.candidateName}</span>
@@ -639,7 +622,7 @@ export default function AtsDashboard() {
             <li key={item.applicationId}>
               <Link
                 to={orgPath(`/ats/applications/${item.applicationId}`)}
-                className="flex items-baseline justify-between gap-2 text-sm py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+                className="flex items-baseline justify-between gap-2 text-xs py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
               >
                 <span className="text-dark-200 truncate min-w-0" title={item.candidateName}>
                   <span className="text-white">{item.candidateName}</span>
@@ -664,7 +647,7 @@ export default function AtsDashboard() {
             <li key={item.jobId}>
               <Link
                 to={orgPath(`/ats/jobs/${item.jobId}`)}
-                className="flex items-baseline justify-between gap-2 text-sm py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
+                className="flex items-baseline justify-between gap-2 text-xs py-1.5 px-2 -mx-2 rounded hover:bg-dark-800/50 transition-colors"
               >
                 <span className="text-dark-200 truncate min-w-0" title={item.jobName}>
                   <span className="text-white">{item.jobName}</span>
@@ -680,7 +663,7 @@ export default function AtsDashboard() {
       </div>
 
       {/* ── Source breakdown + Refusal reasons (Phase 3 right slot) ──── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <HorizontalBarChart
           title="Applications by Source"
           data={applicationsBySource}
@@ -698,7 +681,7 @@ export default function AtsDashboard() {
       </div>
 
       {/* ── Offer Acceptance card (Phase 3) ─────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <OfferAcceptanceCard data={offerAcceptance} />
         {/* Right slot reserved for a future "Time-to-fill by job" or
             similar — left empty rather than crammed with filler. */}
@@ -708,20 +691,20 @@ export default function AtsDashboard() {
       <RecruiterTable data={applicationsByRecruiter} totalApplications={totalApplications} />
 
       {/* ── Job Positions Summary ───────────────────────────────────────── */}
-      <div className="bg-dark-900 rounded-xl p-6 border border-dark-800">
-        <h3 className="text-lg font-semibold text-white mb-5">Job Positions Summary</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-dark-800/50 rounded-lg p-4 text-center">
+      <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+        <h3 className="text-sm font-semibold text-dark-200 mb-3">Job Positions Summary</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-dark-800/50 rounded-lg p-3 text-center">
             <p className="text-2xl font-bold text-white">{totalJobs}</p>
-            <p className="text-sm text-dark-400 mt-1">Total Jobs</p>
+            <p className="text-xs text-dark-400 mt-1">Total Jobs</p>
           </div>
-          <div className="bg-dark-800/50 rounded-lg p-4 text-center">
+          <div className="bg-dark-800/50 rounded-lg p-3 text-center">
             <p className="text-2xl font-bold text-white">{hiredCount}</p>
-            <p className="text-sm text-dark-400 mt-1">Hired</p>
+            <p className="text-xs text-dark-400 mt-1">Hired</p>
           </div>
-          <div className="bg-dark-800/50 rounded-lg p-4 text-center">
+          <div className="bg-dark-800/50 rounded-lg p-3 text-center">
             <p className="text-2xl font-bold text-amber-400">{avgTimeToHire}</p>
-            <p className="text-sm text-dark-400 mt-1">Avg Days to Hire</p>
+            <p className="text-xs text-dark-400 mt-1">Avg Days to Hire</p>
           </div>
         </div>
       </div>
