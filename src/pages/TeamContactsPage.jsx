@@ -305,7 +305,7 @@ function TeamContactsPage() {
               </div>
               <p className="text-dark-400">
                 {user?.teamName ? (
-                  <span className="text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-xs font-medium mr-1.5">{user.teamName}</span>
+                  <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs font-medium mr-1.5">{user.teamName}</span>
                 ) : effectiveRole === 'admin' ? (
                   <span className="text-rivvra-400 bg-rivvra-500/10 px-1.5 py-0.5 rounded text-xs font-medium mr-1.5">All Teams</span>
                 ) : null}
