@@ -136,7 +136,7 @@ function KanbanCardOverlay({ opp }) {
 // one. calc(100vh-260px) leaves room for the platform header + page
 // header + filter bar. Width bumped to 300px to match ATS so the cards
 // breathe a little more.
-function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency, onCardClick }) {
+function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency, onCardClick, onLoadMore }) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage._id });
   const items = opportunities.map(o => o._id);
   return (
@@ -167,9 +167,12 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
           </div>
         )}
         {totalCount > opportunities.length && (
-          <p className="text-center text-[10px] text-dark-500 py-1">
-            +{totalCount - opportunities.length} more — narrow filters to see all
-          </p>
+          <button
+            onClick={() => onLoadMore?.(stage._id)}
+            className="w-full py-2 text-xs text-dark-400 hover:text-rivvra-400 transition-colors rounded-lg hover:bg-dark-800"
+          >
+            Load more ({totalCount - opportunities.length} remaining)
+          </button>
         )}
       </div>
     </div>
@@ -319,6 +322,30 @@ export default function CrmPipeline() {
     navigate(`/org/${slug}/crm/opportunities/${opp._id}`);
   };
 
+  // 2026-05-14: load-more for stages with >20 deals. Mirrors the ATS
+  // Pipeline pattern — request kanban scoped to one stage with an
+  // offset, then append the returned cards to that column's array.
+  // Filters are forwarded unchanged so the loaded batch matches the
+  // visible filter chain.
+  const handleLoadMore = async (stageId) => {
+    if (!slug) return;
+    const col = kanban.find(c => c.stage?._id === stageId);
+    if (!col) return;
+    const currentCount = (col.opportunities || []).length;
+    try {
+      const res = await crmApi.getKanban(slug, { ...filterParams, stageId, offset: currentCount });
+      if (!res?.success) return;
+      const more = (res.kanban || []).find(s => s.stage?._id === stageId);
+      if (!more) return;
+      setKanban(prev => prev.map(c => {
+        if (c.stage?._id !== stageId) return c;
+        return { ...c, opportunities: [...(c.opportunities || []), ...(more.opportunities || [])] };
+      }));
+    } catch {
+      addToast('Failed to load more deals', 'error');
+    }
+  };
+
   const stages = kanban.map(c => c.stage);
 
   if (!slug || loading) {
@@ -406,6 +433,7 @@ export default function CrmPipeline() {
                   totalRevenue={col.totalRevenue}
                   currency={currentCompany?.currency || 'INR'}
                   onCardClick={handleCardClick}
+                  onLoadMore={handleLoadMore}
                 />
               </SortableContext>
             ))}
