@@ -37,119 +37,66 @@ function newUrlFor(journal) {
   return journal._id ? `${base}?journalId=${journal._id}` : base;
 }
 
-function JournalCard({ journal, orgPath, navigate }) {
-  const {
-    name,
-    notPaidCount = 0,
-    notPaidAmount = 0,
-    lateCount = 0,
-    lateAmount = 0,
-    bars = [],
-    currency,
-    draftCount = 0,
-    draftAmount = 0,
-    hasIrregularSequences = false,
-  } = journal;
-
+// Renders one sub-block of stats + a mini bar chart for a single currency
+// inside a journal card. A journal with one currency shows exactly one of
+// these (no header); a mixed-currency journal stacks multiple, each
+// labelled with its ISO code.
+function JournalCurrencyBlock({ row, journal, orgPath, navigate, showLabel }) {
+  const { currency, notPaidCount = 0, notPaidAmount = 0, lateCount = 0, lateAmount = 0, draftCount = 0, draftAmount = 0, bars = [] } = row;
   const hasStats = notPaidCount > 0 || lateCount > 0 || draftCount > 0;
   const maxBar = Math.max(...bars.map((b) => b.amount), 1);
-
-  const fmtAmount = (amt) =>
-    new Intl.NumberFormat('en-IN', {
+  const fmt = (amt) =>
+    new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
       style: 'currency',
       currency: currency || 'INR',
       minimumFractionDigits: 2,
-    }).format(amt);
-
-  const newPath = newUrlFor(journal);
+    }).format(amt || 0);
 
   return (
-    <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 hover:border-dark-600 transition-all group">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <h3
-          className="text-rivvra-500 font-semibold text-base cursor-pointer hover:underline leading-tight"
-          onClick={() => navigate(orgPath(listUrlFor(journal)))}
-        >
-          {name}
-        </h3>
-        <button
-          onClick={() => navigate(orgPath(newPath))}
-          className="bg-rivvra-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-rivvra-600 transition-colors shrink-0 ml-3"
-        >
-          New
-        </button>
-      </div>
-
-      {/* Stats rows */}
+    <div>
+      {showLabel && (
+        <div className="text-[10px] font-medium text-dark-400 uppercase tracking-wider mb-1.5">
+          {currency}
+        </div>
+      )}
       {hasStats && (
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start justify-between mb-3">
           <div className="space-y-1">
             {notPaidCount > 0 && (
               <div
                 className="text-sm cursor-pointer hover:underline"
-                onClick={() =>
-                  navigate(orgPath(listUrlFor(journal, { paymentStatus: 'not_paid' })))
-                }
+                onClick={() => navigate(orgPath(listUrlFor(journal, { paymentStatus: 'not_paid' })))}
               >
-                <span className="text-amber-400 font-medium">
-                  {notPaidCount} Not Paid
-                </span>
+                <span className="text-amber-400 font-medium">{notPaidCount} Not Paid</span>
               </div>
             )}
             {lateCount > 0 && (
               <div
                 className="text-sm cursor-pointer hover:underline"
-                onClick={() =>
-                  navigate(orgPath(listUrlFor(journal, { overdue: 'true' })))
-                }
+                onClick={() => navigate(orgPath(listUrlFor(journal, { overdue: 'true' })))}
               >
-                <span className="text-red-400 font-medium">
-                  {lateCount} Late
-                </span>
+                <span className="text-red-400 font-medium">{lateCount} Late</span>
               </div>
             )}
             {draftCount > 0 && (
               <div
                 className="text-sm cursor-pointer hover:underline"
-                onClick={() =>
-                  navigate(orgPath(listUrlFor(journal, { status: 'draft' })))
-                }
+                onClick={() => navigate(orgPath(listUrlFor(journal, { status: 'draft' })))}
               >
-                <span className="text-dark-300 font-medium">
-                  {draftCount} Draft
-                </span>
+                <span className="text-dark-300 font-medium">{draftCount} Draft</span>
               </div>
             )}
           </div>
           <div className="text-right space-y-1">
-            {notPaidCount > 0 && (
-              <div className="text-sm text-white font-medium">
-                {fmtAmount(notPaidAmount)}
-              </div>
-            )}
-            {lateCount > 0 && (
-              <div className="text-sm text-red-400">
-                {fmtAmount(lateAmount)}
-              </div>
-            )}
-            {draftCount > 0 && (
-              <div className="text-sm text-dark-400">
-                {fmtAmount(draftAmount)}
-              </div>
-            )}
+            {notPaidCount > 0 && <div className="text-sm text-white font-medium">{fmt(notPaidAmount)}</div>}
+            {lateCount > 0 && <div className="text-sm text-red-400">{fmt(lateAmount)}</div>}
+            {draftCount > 0 && <div className="text-sm text-dark-400">{fmt(draftAmount)}</div>}
           </div>
         </div>
       )}
 
-      {/* Irregular sequences warning */}
-      {hasIrregularSequences && (
-        <div className="text-xs text-red-400 mt-2">⚠ Irregular Sequences</div>
-      )}
-
-      {/* Mini bar chart */}
       {hasStats && bars.length > 0 && (
-        <div className="mt-3">
+        <div>
           <div className="flex items-end gap-2 mb-1" style={{ height: 64 }}>
             {bars.map((bar, i) => {
               const pct = maxBar > 0 ? bar.amount / maxBar : 0;
@@ -168,18 +115,60 @@ function JournalCard({ journal, orgPath, navigate }) {
           <div className="flex gap-1">
             {bars.map((bar, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className="text-[10px] text-dark-400 leading-tight block">
-                  {bar.label}
-                </span>
+                <span className="text-[10px] text-dark-400 leading-tight block">{bar.label}</span>
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Empty state */}
-      {!hasStats && (
+function JournalCard({ journal, orgPath, navigate }) {
+  const { name, hasIrregularSequences = false } = journal;
+  // New shape: journal.byCurrency = [{ currency, notPaidCount, ... }, ...].
+  // The API drops zero-only rows already, so any row here is real activity.
+  const rows = Array.isArray(journal.byCurrency) ? journal.byCurrency : [];
+  const newPath = newUrlFor(journal);
+  const showLabels = rows.length > 1;
+
+  return (
+    <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 hover:border-dark-600 transition-all group">
+      <div className="flex items-start justify-between mb-4">
+        <h3
+          className="text-rivvra-500 font-semibold text-base cursor-pointer hover:underline leading-tight"
+          onClick={() => navigate(orgPath(listUrlFor(journal)))}
+        >
+          {name}
+        </h3>
+        <button
+          onClick={() => navigate(orgPath(newPath))}
+          className="bg-rivvra-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-rivvra-600 transition-colors shrink-0 ml-3"
+        >
+          New
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
         <div className="text-sm text-dark-500 mt-1">No open invoices</div>
+      ) : (
+        <div className="space-y-4">
+          {rows.map((row) => (
+            <JournalCurrencyBlock
+              key={row.currency}
+              row={row}
+              journal={journal}
+              orgPath={orgPath}
+              navigate={navigate}
+              showLabel={showLabels}
+            />
+          ))}
+        </div>
+      )}
+
+      {hasIrregularSequences && (
+        <div className="text-xs text-red-400 mt-3">⚠ Irregular Sequences</div>
       )}
     </div>
   );
