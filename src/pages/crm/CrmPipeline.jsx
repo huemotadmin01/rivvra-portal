@@ -17,7 +17,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import {
   Plus, Star, Building2,
-  Trophy, GripVertical, Loader2,
+  Trophy, GripVertical, Loader2, Briefcase,
 } from 'lucide-react';
 
 const REQUIREMENT_TYPE_OPTIONS = [
@@ -51,6 +51,12 @@ function EvalStars({ value = 0, onChange, size = 14 }) {
 }
 
 // ── Kanban Card ──────────────────────────────────────────────────────────
+// 2026-05-14: drag handle promoted to the whole card (matches ATS
+// Pipeline). The old grip-on-hover affordance required the user to
+// find a 14px target before the card became draggable; now any card
+// surface accepts the drag. Click-to-navigate is preserved because
+// dnd-kit's activation constraint (distance: 5) lets a plain click
+// through without firing a drag.
 function KanbanCard({ opp, currency, onClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: opp._id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
@@ -60,7 +66,9 @@ function KanbanCard({ opp, currency, onClick }) {
       ref={setNodeRef}
       style={style}
       onClick={() => onClick(opp)}
-      className="bg-dark-800 border border-dark-700 rounded-lg p-3 cursor-pointer hover:border-dark-500 transition-colors group"
+      {...attributes}
+      {...listeners}
+      className="bg-dark-800 border border-dark-700 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-dark-500 transition-colors group"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -71,7 +79,7 @@ function KanbanCard({ opp, currency, onClick }) {
             </p>
           )}
         </div>
-        <div {...attributes} {...listeners} className="text-dark-600 hover:text-dark-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="text-dark-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <GripVertical size={14} />
         </div>
       </div>
@@ -113,7 +121,7 @@ function KanbanCard({ opp, currency, onClick }) {
 // ── Kanban Card Overlay (while dragging) ─────────────────────────────────
 function KanbanCardOverlay({ opp }) {
   return (
-    <div className="bg-dark-800 border border-rivvra-500/50 rounded-lg p-3 shadow-xl w-[260px]">
+    <div className="bg-dark-800 border border-rivvra-500/50 rounded-lg p-3 shadow-xl w-[280px]">
       <p className="text-sm font-medium text-dark-100 truncate">{opp.name}</p>
       {opp.companyName && <p className="text-xs text-dark-400 mt-0.5">{opp.companyName}</p>}
     </div>
@@ -121,19 +129,25 @@ function KanbanCardOverlay({ opp }) {
 }
 
 // ── Kanban Column ────────────────────────────────────────────────────────
+// 2026-05-14: layout parity with ATS Pipeline. Viewport-anchored
+// max-h fixes the missing vertical scroll — the old `max-h-full` never
+// constrained because `100%` only resolves against a parent with a
+// fixed height, and the flex-1 wrapper above this column doesn't have
+// one. calc(100vh-260px) leaves room for the platform header + page
+// header + filter bar. Width bumped to 300px to match ATS so the cards
+// breathe a little more.
 function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency, onCardClick }) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage._id });
   const items = opportunities.map(o => o._id);
   return (
-    <div ref={setDropRef} className={`flex-shrink-0 w-[280px] flex flex-col max-h-full ${isOver ? 'ring-1 ring-rivvra-500/40 rounded-lg' : ''}`}>
-      <div className="bg-dark-850 border border-dark-700 rounded-t-lg px-3 py-2">
+    <div
+      ref={setDropRef}
+      className={`flex-shrink-0 min-w-[300px] max-w-[300px] flex flex-col max-h-[calc(100vh-260px)] ${isOver ? 'ring-1 ring-rivvra-500/40 rounded-lg' : ''}`}
+    >
+      <div className="bg-dark-850 border border-dark-700 rounded-t-lg px-3 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold text-dark-200 uppercase tracking-wider">{stage.name}</h3>
-            <span className="text-[10px] bg-dark-700 text-dark-400 rounded-full px-1.5 py-0.5">{totalCount}</span>
-          </div>
-          {/* 2026-05-14: Won-stage trophy removed — kanban filters won
-              columns out (auto-convert to ATS), so this branch was dead. */}
+          <h3 className="text-xs font-semibold text-dark-200 uppercase tracking-wider truncate">{stage.name}</h3>
+          <span className="text-[10px] bg-dark-700 text-dark-400 rounded-full px-2 py-0.5 font-medium flex-shrink-0">{totalCount}</span>
         </div>
         {totalRevenue > 0 && (
           <p className="text-[10px] text-emerald-400 mt-0.5">
@@ -147,11 +161,15 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
             <KanbanCard key={opp._id} opp={opp} currency={currency} onClick={onCardClick} />
           ))}
         </SortableContext>
-        {totalCount > opportunities.length && (
-          <p className="text-center text-[10px] text-dark-500 py-1">+{totalCount - opportunities.length} more</p>
-        )}
         {opportunities.length === 0 && (
-          <p className="text-center text-xs text-dark-600 py-6">No opportunities</p>
+          <div className="py-8 text-center">
+            <p className="text-dark-500 text-xs">No opportunities</p>
+          </div>
+        )}
+        {totalCount > opportunities.length && (
+          <p className="text-center text-[10px] text-dark-500 py-1">
+            +{totalCount - opportunities.length} more — narrow filters to see all
+          </p>
         )}
       </div>
     </div>
@@ -305,25 +323,34 @@ export default function CrmPipeline() {
 
   if (!slug || loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 text-dark-400 animate-spin" />
       </div>
     );
   }
 
+  // 2026-05-14: parity with ATS Pipeline. Outer padding, subtitle, and
+  // a no-stages empty state were missing.
+  const visibleColumns = kanban.filter(col => !col.stage?.isWonStage);
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="p-6 md:p-8 flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-dark-800 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold text-dark-100">Pipeline</h1>
-          <button
-            onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors"
-          >
-            <Plus size={14} /> New Opportunity
-          </button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Pipeline</h1>
+          <p className="text-dark-400 text-sm mt-1">Drag and drop deals across stages</p>
         </div>
+        <button
+          onClick={() => navigate(`/org/${slug}/crm/opportunities/new`)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors flex-shrink-0"
+        >
+          <Plus size={14} /> New Opportunity
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6">
         <FilterBar searchPlaceholder="Search pipeline…">
           <FilterChip type="boolean" paramKey="mine" label="My deals" />
           <FilterChip
@@ -355,11 +382,22 @@ export default function CrmPipeline() {
         </FilterBar>
       </div>
 
-      {/* Kanban Board */}
-      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-3">
-          <div className="flex gap-3 h-full">
-            {kanban.filter(col => !col.stage?.isWonStage).map(col => (
+      {/* Kanban Board — no-stages empty state mirrors ATS so a fresh
+          tenant with no pipeline yet isn't dropped onto a blank screen. */}
+      {visibleColumns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
+            <Briefcase className="w-8 h-8 text-dark-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">No stages configured</h3>
+          <p className="text-dark-400 text-sm text-center max-w-sm">
+            Set up pipeline stages in CRM Configuration to start tracking deals.
+          </p>
+        </div>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+            {visibleColumns.map(col => (
               <SortableContext key={col.stage._id} items={[col.stage._id]}>
                 <KanbanColumn
                   stage={col.stage}
@@ -372,11 +410,11 @@ export default function CrmPipeline() {
               </SortableContext>
             ))}
           </div>
-        </div>
-        <DragOverlay>
-          {activeOpp && <KanbanCardOverlay opp={activeOpp} />}
-        </DragOverlay>
-      </DndContext>
+          <DragOverlay>
+            {activeOpp && <KanbanCardOverlay opp={activeOpp} />}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       {/* Create modal */}
       {/* New-opportunity creation now lives at /crm/opportunities/new */}
