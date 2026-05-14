@@ -108,9 +108,19 @@ export default function InvoiceAnalysis() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id]);
 
-  const revenueByPeriod = data?.byPeriod || data?.revenueByPeriod || [];
-  const topCustomers = data?.byCustomer || data?.topCustomers || [];
-  const topProducts = data?.byProduct || data?.topProducts || [];
+  // New shape: byPeriod rows each carry their own currency. byCustomer /
+  // byProduct are arrays of { currency, rows: [...] } groups. We surface the
+  // set of currencies present in any of the three sections so each section
+  // renders its own per-currency block.
+  const revenueByPeriod = Array.isArray(data?.byPeriod) ? data.byPeriod : [];
+  const customerGroups = Array.isArray(data?.byCustomer) ? data.byCustomer : [];
+  const productGroups = Array.isArray(data?.byProduct) ? data.byProduct : [];
+  const periodCurrencies = Array.from(new Set(revenueByPeriod.map((r) => r.currency || 'INR')));
+  const allCurrencies = Array.from(new Set([
+    ...periodCurrencies,
+    ...customerGroups.map((g) => g.currency),
+    ...productGroups.map((g) => g.currency),
+  ])).sort((a, b) => (a === 'INR' ? -1 : b === 'INR' ? 1 : a.localeCompare(b)));
 
   return (
     <div className="min-h-screen bg-dark-900 p-6">
@@ -181,171 +191,125 @@ export default function InvoiceAnalysis() {
           </div>
         )}
 
-        {/* Content */}
-        {!loading && !error && (
-          <>
-            {/* Revenue by Period */}
-            <ReportSection
-              icon={TrendingUp}
-              title="Revenue by Period"
-              count={revenueByPeriod.length}
-            >
-              {revenueByPeriod.length === 0 ? (
-                <EmptyState icon={TrendingUp} message="No revenue data for the selected period" />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-dark-700 text-dark-300">
-                        <th className="text-left px-5 py-3 font-medium">Year</th>
-                        <th className="text-left px-5 py-3 font-medium">Month</th>
-                        <th className="text-right px-5 py-3 font-medium">Invoice Count</th>
-                        <th className="text-right px-5 py-3 font-medium">Revenue</th>
-                        <th className="text-right px-5 py-3 font-medium">Avg Invoice</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {revenueByPeriod.map((row, i) => {
-                        const avgInvoice =
-                          row.invoiceCount > 0
-                            ? (row.revenue || 0) / row.invoiceCount
-                            : 0;
-                        return (
-                          <tr
-                            key={i}
-                            className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
-                          >
-                            <td className="px-5 py-3 text-white">{row.year}</td>
-                            <td className="px-5 py-3 text-white">
-                              {MONTH_NAMES[row.month - 1] || row.month}
-                            </td>
-                            <td className="px-5 py-3 text-right text-dark-300">
-                              {formatNumber(row.invoiceCount)}
-                            </td>
-                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">
-                              {formatCurrency(row.revenue)}
-                            </td>
-                            <td className="px-5 py-3 text-right text-blue-400">
-                              {formatCurrency(row.avgInvoice ?? avgInvoice)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-dark-800/50 font-semibold">
-                        <td className="px-5 py-3 text-white" colSpan={2}>
-                          Total
-                        </td>
-                        <td className="px-5 py-3 text-right text-dark-300">
-                          {formatNumber(
-                            revenueByPeriod.reduce((s, r) => s + (r.invoiceCount || 0), 0)
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-right text-emerald-400">
-                          {formatCurrency(
-                            revenueByPeriod.reduce((s, r) => s + (r.revenue || 0), 0)
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-right text-blue-400">
-                          {(() => {
-                            const totalRev = revenueByPeriod.reduce(
-                              (s, r) => s + (r.revenue || 0),
-                              0
-                            );
-                            const totalCount = revenueByPeriod.reduce(
-                              (s, r) => s + (r.invoiceCount || 0),
-                              0
-                            );
-                            return formatCurrency(totalCount > 0 ? totalRev / totalCount : 0);
-                          })()}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </ReportSection>
-
-            {/* Top Customers */}
-            <ReportSection icon={Users} title="Top Customers" count={topCustomers.length}>
-              {topCustomers.length === 0 ? (
-                <EmptyState icon={Users} message="No customer data for the selected period" />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-dark-700 text-dark-300">
-                        <th className="text-left px-5 py-3 font-medium w-8">#</th>
-                        <th className="text-left px-5 py-3 font-medium">Customer</th>
-                        <th className="text-right px-5 py-3 font-medium">Invoices</th>
-                        <th className="text-right px-5 py-3 font-medium">Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topCustomers.map((row, i) => (
-                        <tr
-                          key={row.customerId || i}
-                          className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
-                        >
-                          <td className="px-5 py-3 text-dark-500 text-xs">{i + 1}</td>
-                          <td className="px-5 py-3 text-white font-medium">
-                            {row.customerName || '-'}
-                          </td>
-                          <td className="px-5 py-3 text-right text-dark-300">
-                            {formatNumber(row.invoiceCount)}
-                          </td>
-                          <td className="px-5 py-3 text-right text-emerald-400 font-semibold">
-                            {formatCurrency(row.revenue)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </ReportSection>
-
-            {/* Top Products */}
-            <ReportSection icon={Package} title="Top Products" count={topProducts.length}>
-              {topProducts.length === 0 ? (
-                <EmptyState icon={Package} message="No product data for the selected period" />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-dark-700 text-dark-300">
-                        <th className="text-left px-5 py-3 font-medium w-8">#</th>
-                        <th className="text-left px-5 py-3 font-medium">Product</th>
-                        <th className="text-right px-5 py-3 font-medium">Qty Sold</th>
-                        <th className="text-right px-5 py-3 font-medium">Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topProducts.map((row, i) => (
-                        <tr
-                          key={row.productId || i}
-                          className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
-                        >
-                          <td className="px-5 py-3 text-dark-500 text-xs">{i + 1}</td>
-                          <td className="px-5 py-3 text-white font-medium">
-                            {row.productName || '-'}
-                          </td>
-                          <td className="px-5 py-3 text-right text-dark-300">
-                            {formatNumber(row.qtySold)}
-                          </td>
-                          <td className="px-5 py-3 text-right text-emerald-400 font-semibold">
-                            {formatCurrency(row.revenue)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </ReportSection>
-          </>
+        {/* Content — every section split per currency to prevent silent
+            INR+USD mashups in revenue trends, top-customer rankings, etc. */}
+        {!loading && !error && allCurrencies.length === 0 && (
+          <ReportSection icon={TrendingUp} title="Revenue by Period">
+            <EmptyState icon={TrendingUp} message="No data for the selected period" />
+          </ReportSection>
         )}
+        {!loading && !error && allCurrencies.map((cur) => {
+          const periodRows = revenueByPeriod.filter((r) => (r.currency || 'INR') === cur);
+          const customerRows = customerGroups.find((g) => g.currency === cur)?.rows || [];
+          const productRows = productGroups.find((g) => g.currency === cur)?.rows || [];
+          const totalRev = periodRows.reduce((s, r) => s + (r.revenue || 0), 0);
+          const totalCount = periodRows.reduce((s, r) => s + (r.invoiceCount || 0), 0);
+          return (
+            <div key={cur} className="space-y-4">
+              <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider">{cur}</h2>
+
+              <ReportSection icon={TrendingUp} title="Revenue by Period" count={periodRows.length}>
+                {periodRows.length === 0 ? (
+                  <EmptyState icon={TrendingUp} message={`No revenue data in ${cur}`} />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-700 text-dark-300">
+                          <th className="text-left px-5 py-3 font-medium">Year</th>
+                          <th className="text-left px-5 py-3 font-medium">Month</th>
+                          <th className="text-right px-5 py-3 font-medium">Invoice Count</th>
+                          <th className="text-right px-5 py-3 font-medium">Revenue</th>
+                          <th className="text-right px-5 py-3 font-medium">Avg Invoice</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {periodRows.map((row, i) => {
+                          const avgInvoice = row.invoiceCount > 0 ? (row.revenue || 0) / row.invoiceCount : 0;
+                          return (
+                            <tr key={`${cur}-${i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
+                              <td className="px-5 py-3 text-white">{row.year}</td>
+                              <td className="px-5 py-3 text-white">{MONTH_NAMES[row.month - 1] || row.month}</td>
+                              <td className="px-5 py-3 text-right text-dark-300">{formatNumber(row.invoiceCount)}</td>
+                              <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(row.revenue, cur)}</td>
+                              <td className="px-5 py-3 text-right text-blue-400">{formatCurrency(row.avgInvoice ?? avgInvoice, cur)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-dark-800/50 font-semibold">
+                          <td className="px-5 py-3 text-white" colSpan={2}>Total</td>
+                          <td className="px-5 py-3 text-right text-dark-300">{formatNumber(totalCount)}</td>
+                          <td className="px-5 py-3 text-right text-emerald-400">{formatCurrency(totalRev, cur)}</td>
+                          <td className="px-5 py-3 text-right text-blue-400">{formatCurrency(totalCount > 0 ? totalRev / totalCount : 0, cur)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </ReportSection>
+
+              <ReportSection icon={Users} title="Top Customers" count={customerRows.length}>
+                {customerRows.length === 0 ? (
+                  <EmptyState icon={Users} message={`No customer data in ${cur}`} />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-700 text-dark-300">
+                          <th className="text-left px-5 py-3 font-medium w-8">#</th>
+                          <th className="text-left px-5 py-3 font-medium">Customer</th>
+                          <th className="text-right px-5 py-3 font-medium">Invoices</th>
+                          <th className="text-right px-5 py-3 font-medium">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customerRows.map((row, i) => (
+                          <tr key={`${cur}-${row.customerId || i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
+                            <td className="px-5 py-3 text-dark-500 text-xs">{i + 1}</td>
+                            <td className="px-5 py-3 text-white font-medium">{row.customerName || '-'}</td>
+                            <td className="px-5 py-3 text-right text-dark-300">{formatNumber(row.invoiceCount)}</td>
+                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(row.revenue, cur)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </ReportSection>
+
+              <ReportSection icon={Package} title="Top Products" count={productRows.length}>
+                {productRows.length === 0 ? (
+                  <EmptyState icon={Package} message={`No product data in ${cur}`} />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-700 text-dark-300">
+                          <th className="text-left px-5 py-3 font-medium w-8">#</th>
+                          <th className="text-left px-5 py-3 font-medium">Product</th>
+                          <th className="text-right px-5 py-3 font-medium">Qty Sold</th>
+                          <th className="text-right px-5 py-3 font-medium">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productRows.map((row, i) => (
+                          <tr key={`${cur}-${row.productId || i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
+                            <td className="px-5 py-3 text-dark-500 text-xs">{i + 1}</td>
+                            <td className="px-5 py-3 text-white font-medium">{row.productName || '-'}</td>
+                            <td className="px-5 py-3 text-right text-dark-300">{formatNumber(row.qtySold)}</td>
+                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(row.revenue, cur)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </ReportSection>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

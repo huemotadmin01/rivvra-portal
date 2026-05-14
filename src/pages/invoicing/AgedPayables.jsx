@@ -7,11 +7,7 @@ import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, ArrowLeft, Building2 } from 'lucide-react';
 
-// ---------------------------------------------------------------------------
-// Summary Card
-// ---------------------------------------------------------------------------
-
-function AgingCard({ label, amount, color }) {
+function AgingCard({ label, amount, color, currency }) {
   const colorMap = {
     green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -19,18 +15,89 @@ function AgingCard({ label, amount, color }) {
     red: 'bg-red-500/10 text-red-400 border-red-500/20',
     blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   };
-
   return (
     <div className={`rounded-xl border p-5 ${colorMap[color] || colorMap.blue}`}>
       <span className="text-xs font-medium opacity-70 uppercase tracking-wider">{label}</span>
-      <p className="text-2xl font-bold mt-2">{formatCurrency(amount)}</p>
+      <p className="text-2xl font-bold mt-2">{formatCurrency(amount, currency)}</p>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main Component
-// ---------------------------------------------------------------------------
+function CurrencyBlock({ currency, summary, vendors, isMobile }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider">{currency}</h2>
+      <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-3 lg:grid-cols-6'}`}>
+        <AgingCard label="Current" amount={summary.current} color="green" currency={currency} />
+        <AgingCard label="1-30 Days" amount={summary.days1to30} color="amber" currency={currency} />
+        <AgingCard label="31-60 Days" amount={summary.days31to60} color="orange" currency={currency} />
+        <AgingCard label="61-90 Days" amount={summary.days61to90} color="red" currency={currency} />
+        <AgingCard label="90+ Days" amount={summary.days90plus} color="red" currency={currency} />
+        <AgingCard label="Total" amount={summary.total} color="blue" currency={currency} />
+      </div>
+
+      <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+        <div className="p-5 border-b border-dark-700 flex items-center gap-3">
+          <Building2 size={18} className="text-blue-400" />
+          <h3 className="text-lg font-semibold text-white">Vendor Breakdown</h3>
+          <span className="text-dark-300 text-sm ml-auto">
+            {vendors.length} vendor{vendors.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {vendors.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-dark-500">
+            <Building2 size={36} className="mb-3 opacity-40" />
+            <p className="text-sm">No outstanding payables in {currency}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-700 text-dark-300">
+                  <th className="text-left px-5 py-3 font-medium">Vendor Name</th>
+                  <th className="text-right px-5 py-3 font-medium text-emerald-400">Current</th>
+                  <th className="text-right px-5 py-3 font-medium text-amber-400">1-30</th>
+                  <th className="text-right px-5 py-3 font-medium text-orange-400">31-60</th>
+                  <th className="text-right px-5 py-3 font-medium text-red-400">61-90</th>
+                  <th className="text-right px-5 py-3 font-medium text-red-400">90+</th>
+                  <th className="text-right px-5 py-3 font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vendors.map((row, i) => (
+                  <tr
+                    key={`${row.vendorId || i}-${currency}`}
+                    className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
+                  >
+                    <td className="px-5 py-3 text-white font-medium">{row.vendorName || '-'}</td>
+                    <td className="px-5 py-3 text-right text-emerald-400">{formatCurrency(row.current, currency)}</td>
+                    <td className="px-5 py-3 text-right text-amber-400">{formatCurrency(row.days1to30, currency)}</td>
+                    <td className="px-5 py-3 text-right text-orange-400">{formatCurrency(row.days31to60, currency)}</td>
+                    <td className="px-5 py-3 text-right text-red-400">{formatCurrency(row.days61to90, currency)}</td>
+                    <td className="px-5 py-3 text-right text-red-400">{formatCurrency(row.days90plus, currency)}</td>
+                    <td className="px-5 py-3 text-right text-white font-semibold">{formatCurrency(row.total, currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-dark-800/50 font-semibold">
+                  <td className="px-5 py-3 text-white">Total</td>
+                  <td className="px-5 py-3 text-right text-emerald-400">{formatCurrency(summary.current, currency)}</td>
+                  <td className="px-5 py-3 text-right text-amber-400">{formatCurrency(summary.days1to30, currency)}</td>
+                  <td className="px-5 py-3 text-right text-orange-400">{formatCurrency(summary.days31to60, currency)}</td>
+                  <td className="px-5 py-3 text-right text-red-400">{formatCurrency(summary.days61to90, currency)}</td>
+                  <td className="px-5 py-3 text-right text-red-400">{formatCurrency(summary.days90plus, currency)}</td>
+                  <td className="px-5 py-3 text-right text-white">{formatCurrency(summary.total, currency)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AgedPayables() {
   const navigate = useNavigate();
@@ -47,8 +114,6 @@ export default function AgedPayables() {
     if (!orgSlug) return;
     setLoading(true);
     setError(null);
-    // Reset on company switch so the previous company's aging totals don't
-    // linger if the new fetch returns nothing.
     setData(null);
     invoicingApi
       .getAgedPayables(orgSlug)
@@ -57,7 +122,6 @@ export default function AgedPayables() {
       .finally(() => setLoading(false));
   }, [orgSlug, currentCompany?._id]);
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-dark-900 flex items-center justify-center">
@@ -66,31 +130,22 @@ export default function AgedPayables() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-dark-900 p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-400">
-            {error}
-          </div>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-400">{error}</div>
         </div>
       </div>
     );
   }
 
-  const summary = data?.summary || {};
-  const byVendor = data?.byVendor || [];
-
-  // Sort vendors by total descending
-  const sortedVendors = [...byVendor].sort(
-    (a, b) => (b.total || 0) - (a.total || 0)
-  );
+  const summaryByCurrency = Array.isArray(data?.summary?.byCurrency) ? data.summary.byCurrency : [];
+  const allVendors = Array.isArray(data?.byVendor) ? data.byVendor : [];
 
   return (
     <div className="min-h-screen bg-dark-900 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -106,102 +161,33 @@ export default function AgedPayables() {
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-3 lg:grid-cols-6'}`}>
-          <AgingCard label="Current" amount={summary.current} color="green" />
-          <AgingCard label="1-30 Days" amount={summary.days1to30} color="amber" />
-          <AgingCard label="31-60 Days" amount={summary.days31to60} color="orange" />
-          <AgingCard label="61-90 Days" amount={summary.days61to90} color="red" />
-          <AgingCard label="90+ Days" amount={summary.days90plus} color="red" />
-          <AgingCard label="Total" amount={summary.total} color="blue" />
-        </div>
-
-        {/* Vendor Breakdown Table */}
-        <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
-          <div className="p-5 border-b border-dark-700 flex items-center gap-3">
-            <Building2 size={18} className="text-blue-400" />
-            <h2 className="text-lg font-semibold text-white">Vendor Breakdown</h2>
-            <span className="text-dark-300 text-sm ml-auto">
-              {sortedVendors.length} vendor{sortedVendors.length !== 1 ? 's' : ''}
-            </span>
+        {summaryByCurrency.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-dark-500">
+            <Building2 size={48} className="mb-3 opacity-40" />
+            <p className="text-base font-medium text-dark-400">No outstanding payables</p>
           </div>
-
-          {sortedVendors.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-dark-500">
-              <Building2 size={40} className="mb-3 opacity-40" />
-              <p className="text-sm">No outstanding payables</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-dark-700 text-dark-300">
-                    <th className="text-left px-5 py-3 font-medium">Vendor Name</th>
-                    <th className="text-right px-5 py-3 font-medium text-emerald-400">Current</th>
-                    <th className="text-right px-5 py-3 font-medium text-amber-400">1-30</th>
-                    <th className="text-right px-5 py-3 font-medium text-orange-400">31-60</th>
-                    <th className="text-right px-5 py-3 font-medium text-red-400">61-90</th>
-                    <th className="text-right px-5 py-3 font-medium text-red-400">90+</th>
-                    <th className="text-right px-5 py-3 font-medium">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedVendors.map((row, i) => (
-                    <tr
-                      key={row.vendorId || i}
-                      className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
-                    >
-                      <td className="px-5 py-3 text-white font-medium">{row.vendorName || '-'}</td>
-                      <td className="px-5 py-3 text-right text-emerald-400">
-                        {formatCurrency(row.current)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-amber-400">
-                        {formatCurrency(row.days1to30)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-orange-400">
-                        {formatCurrency(row.days31to60)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-red-400">
-                        {formatCurrency(row.days61to90)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-red-400">
-                        {formatCurrency(row.days90plus)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-white font-semibold">
-                        {formatCurrency(row.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                {sortedVendors.length > 0 && (
-                  <tfoot>
-                    <tr className="bg-dark-800/50 font-semibold">
-                      <td className="px-5 py-3 text-white">Total</td>
-                      <td className="px-5 py-3 text-right text-emerald-400">
-                        {formatCurrency(summary.current)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-amber-400">
-                        {formatCurrency(summary.days1to30)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-orange-400">
-                        {formatCurrency(summary.days31to60)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-red-400">
-                        {formatCurrency(summary.days61to90)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-red-400">
-                        {formatCurrency(summary.days90plus)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-white">
-                        {formatCurrency(summary.total)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          )}
-        </div>
+        ) : (
+          summaryByCurrency.map((sumRow) => {
+            const vendorsInCurrency = allVendors
+              .map((v) => {
+                const block = (v.byCurrency || []).find((b) => b.currency === sumRow.currency);
+                return block
+                  ? { vendorId: v.vendorId, vendorName: v.vendorName, ...block }
+                  : null;
+              })
+              .filter(Boolean)
+              .sort((a, b) => (b.total || 0) - (a.total || 0));
+            return (
+              <CurrencyBlock
+                key={sumRow.currency}
+                currency={sumRow.currency}
+                summary={sumRow}
+                vendors={vendorsInCurrency}
+                isMobile={isMobile}
+              />
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -227,27 +227,44 @@ function SectionHeader({ title }) {
 // KPI strip (top-level numbers)
 // ---------------------------------------------------------------------------
 
-function KPIStrip({ kpis, currency }) {
-  const items = [
-    { label: 'Total Invoiced', value: kpis.totalInvoiced, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    { label: 'Collected', value: kpis.totalCollected, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-    { label: 'Outstanding', value: kpis.totalOutstanding, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-    { label: 'Overdue', value: kpis.totalOverdue, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+function KPIStrip({ kpis }) {
+  // Backward-compat: older API responses returned flat scalars (totalInvoiced
+  // etc.) which silently summed across currencies. New API returns
+  // kpis.byCurrency: [{ currency, totalInvoiced, ... }, ...]. Render one row
+  // per currency; an empty array still renders nothing without crashing.
+  const rows = Array.isArray(kpis?.byCurrency) ? kpis.byCurrency : [];
+  if (rows.length === 0) {
+    return <p className="text-sm text-dark-500">No invoicing activity yet.</p>;
+  }
+
+  const cells = [
+    { key: 'totalInvoiced', label: 'Total Invoiced', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+    { key: 'totalCollected', label: 'Collected', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    { key: 'totalOutstanding', label: 'Outstanding', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+    { key: 'totalOverdue', label: 'Overdue', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className={`rounded-xl border p-4 ${item.bg}`}
-        >
-          <span className="text-xs font-medium opacity-70 uppercase tracking-wider block mb-1">
-            {item.label}
-          </span>
-          <p className={`text-xl font-bold ${item.color}`}>
-            {formatCurrency(item.value || 0, currency)}
-          </p>
+    <div className="space-y-3">
+      {rows.map((row) => (
+        <div key={row.currency}>
+          {rows.length > 1 && (
+            <div className="text-xs font-medium text-dark-400 uppercase tracking-wider mb-1.5">
+              {row.currency}
+            </div>
+          )}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {cells.map((cell) => (
+              <div key={cell.key} className={`rounded-xl border p-4 ${cell.bg}`}>
+                <span className="text-xs font-medium opacity-70 uppercase tracking-wider block mb-1">
+                  {cell.label}
+                </span>
+                <p className={`text-xl font-bold ${cell.color}`}>
+                  {formatCurrency(row[cell.key] || 0, row.currency)}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -263,8 +280,6 @@ export default function InvoicingDashboard() {
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
   const navigate = useNavigate();
-  const companyCurrency = currentCompany?.currency || 'INR';
-
   const [journals, setJournals] = useState([]);
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -356,7 +371,7 @@ export default function InvoicingDashboard() {
         {kpis && (
           <div>
             <SectionHeader title="Customer Invoices Summary" />
-            <KPIStrip kpis={kpis} currency={companyCurrency} />
+            <KPIStrip kpis={kpis} />
           </div>
         )}
 
