@@ -899,37 +899,24 @@ function TeamSection({
                           )}
                         </div>
 
-                        {/* Add Members */}
-                        {eligible.length > 0 && (
-                          <div className="mb-4">
-                            <p className="text-[10px] uppercase text-dark-500 font-semibold mb-2.5 tracking-wider">Add Members</p>
-                            <div className="space-y-1 max-h-40 overflow-y-auto">
-                              {eligible.map((m) => (
-                                <div key={m.userId} className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-dark-700/40 transition-colors">
-                                  <div className="flex items-center gap-2.5 min-w-0">
-                                    {m.picture ? (
-                                      <img src={m.picture} alt="" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" referrerPolicy="no-referrer" />
-                                    ) : (
-                                      <div className="w-7 h-7 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-[10px] font-bold text-dark-400">{(m.name || m.email || '?').charAt(0).toUpperCase()}</span>
-                                      </div>
-                                    )}
-                                    <span className="text-sm text-dark-300 truncate">{m.name || m.email}</span>
-                                  </div>
-                                  <button
-                                    onClick={() => handleAddToTeam(team.id, m.userId)}
-                                    className="text-rivvra-400 hover:text-rivvra-300 text-xs font-semibold flex-shrink-0"
-                                  >
-                                    Add
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {eligible.length === 0 && (
-                          <p className="text-dark-500 text-xs mb-4">All members are assigned to teams.</p>
-                        )}
+                        {/* Add Members — searchable picker; remounts on member-count change
+                            so the input visibly clears after each successful add. */}
+                        <div className="mb-4">
+                          <p className="text-[10px] uppercase text-dark-500 font-semibold mb-2.5 tracking-wider">Add Members</p>
+                          {eligible.length > 0 ? (
+                            <ComboSelect
+                              key={`add-${team.id}-${(team.memberIds || []).length}`}
+                              value=""
+                              displayValue=""
+                              options={eligible.map((m) => ({ _id: m.userId, name: m.name || m.email }))}
+                              onChange={(id) => { if (id) handleAddToTeam(team.id, id); }}
+                              placeholder="Search and add a member..."
+                              disableCreate
+                            />
+                          ) : (
+                            <p className="text-dark-500 text-xs">All members are assigned to teams.</p>
+                          )}
+                        </div>
 
                         {/* Team Lead Selector */}
                         <div className="pt-3 border-t border-dark-700/50">
