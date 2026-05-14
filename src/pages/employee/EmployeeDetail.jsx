@@ -1658,7 +1658,7 @@ export default function EmployeeDetail() {
                     : (a.clientBillingRate || {});
                   const fmtRate = (r) => {
                     if (r.daily) return `${formatCurrency(r.daily)}/day`;
-                    if (r.hourly) return `$${Number(r.hourly).toLocaleString()}/hr`;
+                    if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`;
                     if (r.monthly) return `${formatCurrency(r.monthly)}/mo`;
                     return '\u2014';
                   };
@@ -2460,10 +2460,10 @@ export default function EmployeeDetail() {
               <p className="text-xs text-dark-500 uppercase tracking-wider font-medium mb-1">Current Rates</p>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div><span className="text-dark-400">Candidate:</span> <span className="text-white">
-                  {(() => { const r = reviseModal.currentRates?.billingRate || {}; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `$${r.hourly}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
+                  {(() => { const r = reviseModal.currentRates?.billingRate || {}; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
                 </span></div>
                 <div><span className="text-dark-400">Client:</span> <span className="text-white">
-                  {(() => { const r = reviseModal.currentRates?.clientBillingRate || {}; if (r.hourly) return `$${r.hourly}/hr`; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
+                  {(() => { const r = reviseModal.currentRates?.clientBillingRate || {}; if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
                 </span></div>
               </div>
             </div>
