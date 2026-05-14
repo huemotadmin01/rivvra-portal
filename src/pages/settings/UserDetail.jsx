@@ -22,9 +22,10 @@ import employeeApi from '../../utils/employeeApi';
 import { APP_REGISTRY } from '../../config/apps';
 import ReassignDataModal from '../../components/settings/ReassignDataModal';
 
-// Active apps with roles (exclude settings + coming_soon)
+// Active apps (exclude settings + coming_soon).
+// 2026-05-14: dropped `app.roles` filter — per-app roles aren't a thing anymore.
 const MANAGEABLE_APPS = Object.values(APP_REGISTRY).filter(
-  app => app.id !== 'settings' && app.status === 'active' && app.roles
+  app => app.id !== 'settings' && app.status === 'active'
 );
 
 // ─── Helper components ─────────────────────────────────────────────────────
@@ -199,6 +200,10 @@ export default function UserDetail() {
     setSaveError('');
   }
 
+  // 2026-05-14: per-app role is inert (org-only-role policy). We still write
+  // role='member' on enable purely so legacy backend code that may still
+  // inspect this field doesn't see `undefined` — it's overwritten/ignored
+  // by the new derivation logic.
   function updateAppAccess(appId, field, value) {
     setEditData(prev => ({
       ...prev,
@@ -209,7 +214,7 @@ export default function UserDetail() {
           [field]: value,
           ...(field === 'enabled' && !value ? { role: null } : {}),
           ...(field === 'enabled' && value && !prev.appAccess[appId]?.role
-            ? { role: APP_REGISTRY[appId]?.roles?.[APP_REGISTRY[appId].roles.length - 1]?.value || 'member' }
+            ? { role: 'member' }
             : {}),
         },
       },

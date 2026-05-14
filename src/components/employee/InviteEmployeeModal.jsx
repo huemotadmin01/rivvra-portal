@@ -3,8 +3,9 @@ import { X, Mail, UserPlus, Loader2, CheckCircle, AlertTriangle, Chrome, KeyRoun
 import { APP_REGISTRY } from '../../config/apps';
 import employeeApi from '../../utils/employeeApi';
 
+// 2026-05-14: dropped `app.roles` presence check; every app is derivedRoles now.
 const INVITABLE_APPS = Object.values(APP_REGISTRY).filter(
-  (app) => app.status === 'active' && app.roles && app.id !== 'settings'
+  (app) => app.status === 'active' && app.id !== 'settings'
 );
 
 export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, employee, orgSlug }) {
@@ -19,7 +20,7 @@ export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, emp
     INVITABLE_APPS.forEach((app) => {
       initial[app.id] = {
         enabled: app.id === 'employee' || app.id === 'timesheet',
-        role: app.roles[app.roles.length - 1]?.value || 'member',
+        role: 'member', // per-app role inert under org-only-role policy (2026-05-14)
       };
     });
     return initial;
@@ -226,18 +227,6 @@ export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, emp
                         </span>
                       </div>
 
-                      {/* Role selector — hidden for derived-role apps */}
-                      {access?.enabled && app.roles && !app.derivedRoles && (
-                        <select
-                          value={access.role}
-                          onChange={(e) => setAppRole(app.id, e.target.value)}
-                          className="text-xs bg-dark-700 border border-dark-600 rounded-lg px-2 py-1 text-dark-300 focus:outline-none focus:border-rivvra-500"
-                        >
-                          {app.roles.map((r) => (
-                            <option key={r.value} value={r.value}>{r.label}</option>
-                          ))}
-                        </select>
-                      )}
                     </div>
                   );
                 })}

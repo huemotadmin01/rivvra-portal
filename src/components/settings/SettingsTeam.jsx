@@ -32,9 +32,10 @@ import ComboSelect from '../ComboSelect';
 const NO_LEAD_OPTION = { _id: '', name: 'No lead assigned' };
 
 
-// Active apps that have roles (exclude coming_soon and settings)
+// Active apps (exclude coming_soon and settings).
+// 2026-05-14: dropped `app.roles` filter — per-app roles aren't a thing anymore.
 const MANAGEABLE_APPS = Object.values(APP_REGISTRY).filter(
-  app => app.id !== 'settings' && app.status === 'active' && app.roles
+  app => app.id !== 'settings' && app.status === 'active'
 );
 
 // App dot colors for access indicators

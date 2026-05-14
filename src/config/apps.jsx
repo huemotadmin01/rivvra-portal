@@ -20,11 +20,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/outreach/dashboard',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'rivvra' },
-      { value: 'team_lead', label: 'Team Lead', color: 'amber' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       // Admin derived from org role; team_lead from orgAppRole (org_memberships) OR legacy user.role (portal_users)
       const isAdmin = orgAppRole === 'admin';
@@ -76,11 +71,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/timesheet/dashboard',
     derivedRoles: true, // Roles derived from orgRole + manager status — no per-app assignment
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'purple' },
-      { value: 'manager', label: 'Manager', color: 'blue' },
-      { value: 'member', label: 'Employee', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const tsRole = timesheetUser?.role || 'contractor';
       const isAdmin = tsRole === 'admin';
@@ -213,9 +203,6 @@ export const APP_REGISTRY = {
     adminOnly: true,
     defaultRoute: '/payroll/pay-overview',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'amber' },
-    ],
     getSidebarItems: (_user, _timesheetUser, _orgAppRole, currentCompany) => {
       // Payroll module is currently India-specific (PF/ESI/PT/TDS, Form 16,
       // tax declarations under the IT Act). Hide every navigation entry for
@@ -256,10 +243,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/employee/dashboard',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'orange' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       return [
@@ -295,10 +278,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/contacts/list',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'cyan' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       return [
@@ -333,12 +312,6 @@ export const APP_REGISTRY = {
       (orgAppRole === 'admin' || orgAppRole === 'team_lead') ? '/crm/dashboard' : '/crm/pipeline'
     ),
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'emerald' },
-      { value: 'team_lead', label: 'Team Lead', color: 'amber' },
-      { value: 'salesperson', label: 'Salesperson', color: 'blue' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       // 2026-05-14: Reporting sidebar item removed — its sections now live
@@ -379,11 +352,6 @@ export const APP_REGISTRY = {
     // most apps in the suite land on their dashboard.
     defaultRoute: '/ats/dashboard',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'purple' },
-      { value: 'recruiter', label: 'Recruiter', color: 'blue' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       // 2026-05-14: Dashboard hoisted to the top of the sidebar and
@@ -419,10 +387,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/sign/dashboard',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'indigo' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       return [
@@ -452,10 +416,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/todo/dashboard',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'teal' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       return [
@@ -484,9 +444,6 @@ export const APP_REGISTRY = {
     adminOnly: true,
     defaultRoute: '/invoicing/dashboard',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'amber' },
-    ],
     getSidebarItems: () => [
       { type: 'item', path: '/invoicing/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { type: 'item', path: '/invoicing/invoices', label: 'Customer Invoices', icon: FileText },
@@ -528,11 +485,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/expenses',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'emerald' },
-      { value: 'team_lead', label: 'Approver', color: 'amber' },
-      { value: 'member', label: 'Submitter', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       const isTeamLead = orgAppRole === 'team_lead';
@@ -567,10 +519,6 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/incentive/my-earnings',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'fuchsia' },
-      { value: 'member', label: 'Member', color: 'dark' },
-    ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
       return [
@@ -607,9 +555,6 @@ export const APP_REGISTRY = {
     adminOnly: true,
     defaultRoute: '/knowledge-base',
     derivedRoles: true,
-    roles: [
-      { value: 'admin', label: 'Admin', color: 'sky' },
-    ],
     getSidebarItems: () => [
       { type: 'item', path: '/knowledge-base', label: 'Browse Articles', icon: BookOpen },
     ],

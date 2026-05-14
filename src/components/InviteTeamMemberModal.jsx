@@ -3,9 +3,12 @@ import { X, Mail, UserPlus, Loader2, CheckCircle, AlertTriangle, Lock } from 'lu
 import { APP_REGISTRY } from '../config/apps';
 import api from '../utils/api';
 
-// Apps that can be toggled during invite (active apps with roles, excluding settings)
+// Apps that can be toggled during invite (active, excluding settings).
+// 2026-05-14: dropped the `app.roles` presence check — every app is now
+// `derivedRoles: true` (no per-app role assignment), so we always show all
+// active apps and only flip the enabled boolean.
 const INVITABLE_APPS = Object.values(APP_REGISTRY).filter(
-  (app) => app.status === 'active' && app.roles && app.id !== 'settings'
+  (app) => app.status === 'active' && app.id !== 'settings'
 );
 
 function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlug, orgAllowedAuthMethods = ['google'] }) {
@@ -25,7 +28,7 @@ function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlu
     INVITABLE_APPS.forEach((app) => {
       initial[app.id] = {
         enabled: app.id === 'outreach', // Outreach on by default
-        role: app.roles[app.roles.length - 1]?.value || 'member', // Default to lowest role
+        role: 'member', // per-app role is inert under the org-only-role policy (2026-05-14)
       };
     });
     return initial;
@@ -98,7 +101,7 @@ function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlu
         INVITABLE_APPS.forEach((app) => {
           reset[app.id] = {
             enabled: app.id === 'outreach',
-            role: app.roles[app.roles.length - 1]?.value || 'member',
+            role: 'member', // per-app role is inert under the org-only-role policy (2026-05-14)
           };
         });
         setAppAccess(reset);
@@ -127,7 +130,7 @@ function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlu
     INVITABLE_APPS.forEach((app) => {
       reset[app.id] = {
         enabled: app.id === 'outreach',
-        role: app.roles[app.roles.length - 1]?.value || 'member',
+        role: 'member', // per-app role is inert under the org-only-role policy (2026-05-14)
       };
     });
     setAppAccess(reset);
@@ -322,18 +325,6 @@ function InviteTeamMemberModal({ isOpen, onClose, onInviteSent, licenses, orgSlu
                         </span>
                       </div>
 
-                      {/* Role selector — only when enabled; hidden for derived-role apps */}
-                      {access?.enabled && app.roles && !app.derivedRoles && (
-                        <select
-                          value={access.role}
-                          onChange={(e) => setAppRole(app.id, e.target.value)}
-                          className="text-xs bg-dark-700 border border-dark-600 rounded-lg px-2 py-1 text-dark-300 focus:outline-none focus:border-rivvra-500"
-                        >
-                          {app.roles.map((r) => (
-                            <option key={r.value} value={r.value}>{r.label}</option>
-                          ))}
-                        </select>
-                      )}
                     </div>
                   );
                 })}
