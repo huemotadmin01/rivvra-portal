@@ -1,0 +1,1655 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useOrg } from '../../context/OrgContext';
+import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
+import { useToast } from '../../context/ToastContext';
+import contactsApi from '../../utils/contactsApi';
+import crmApi from '../../utils/crmApi';
+import invoicingApi from '../../utils/invoicingApi';
+import { getAddressLocale, validateZip } from '../../utils/addressLocale';
+import ActivityPanel from '../../components/shared/ActivityPanel';
+import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import RecordMeta from '../../components/shared/RecordMeta';
+import SignRequestWidget from '../../components/shared/SignRequestWidget';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import InlineField from '../../components/shared/InlineField';
+import SectionCard from '../../components/platform/detail/SectionCard';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import {
+  Loader2, Trash2, Check, X, Plus, Archive, ArchiveRestore, MoreHorizontal,
+  Building2, User, Mail, Phone, MapPin,
+  Globe, Briefcase, Tag, FileText, Users, Receipt,
+  Upload, Download, Paperclip, Eye, Pencil,
+} from 'lucide-react';
+
+const GST_TREATMENT_OPTIONS = [
+  { value: '', label: 'Select GST Treatment' },
+  { value: 'Registered Business - Regular', label: 'Registered Business - Regular' },
+  { value: 'Registered Business - Composition', label: 'Registered Business - Composition' },
+  { value: 'Unregistered Business', label: 'Unregistered Business' },
+  { value: 'Consumer', label: 'Consumer' },
+  { value: 'Overseas', label: 'Overseas' },
+  { value: 'Special Economic Zone', label: 'Special Economic Zone' },
+  { value: 'Deemed Export', label: 'Deemed Export' },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: '', label: '-- None --' },
+  { value: 'INR', label: 'INR - Indian Rupee' },
+  { value: 'USD', label: 'USD - US Dollar' },
+  { value: 'CAD', label: 'CAD - Canadian Dollar' },
+  { value: 'EUR', label: 'EUR - Euro' },
+  { value: 'GBP', label: 'GBP - British Pound' },
+  { value: 'AED', label: 'AED - UAE Dirham' },
+  { value: 'SGD', label: 'SGD - Singapore Dollar' },
+  { value: 'AUD', label: 'AUD - Australian Dollar' },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getInitials(name) {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+function Badge({ children, className }) {
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+function NotFoundRedirect({ orgPath, showToast }) {
+  const navigate = useNavigate();
+  const firedRef = useRef(false);
+  useEffect(() => {
+    // StrictMode double-invokes effects in dev; ref-guard so the toast
+    // doesn't fire twice on the same mount.
+    if (firedRef.current) return;
+    firedRef.current = true;
+    showToast('Contact not found', 'error');
+    navigate(orgPath('/contacts/list'), { replace: true });
+  }, [navigate, orgPath, showToast]);
+  return (
+    <div className="flex items-center justify-center h-96">
+      <Loader2 size={28} className="animate-spin text-dark-400" />
+    </div>
+  );
+}
+
+// SectionCard now imported from components/platform/detail/SectionCard
+
+// ---------------------------------------------------------------------------
+// NotesEditor — full-width textarea editor (no 140px label column)
+// ---------------------------------------------------------------------------
+
+function NotesEditor({ value, editable, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value ?? '');
+
+  useEffect(() => setLocalValue(value ?? ''), [value]);
+
+  const save = () => {
+    setEditing(false);
+    if ((localValue ?? '') !== (value ?? '')) onSave(localValue);
+  };
+
+  if (!editable) {
+    return (
+      <p className="text-sm text-dark-300 whitespace-pre-wrap">
+        {value || <span className="text-dark-500 italic">No notes</span>}
+      </p>
+    );
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={save}
+        placeholder="Add internal notes about this contact..."
+        className="w-full min-h-[120px] bg-dark-800 border border-rivvra-500 rounded px-3 py-2 text-sm text-white focus:outline-none resize-y"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      className="cursor-pointer rounded px-2 py-2 -mx-2 hover:bg-dark-800/60 min-h-[48px] text-sm text-white whitespace-pre-wrap"
+    >
+      {value || <span className="text-dark-500 italic">Add internal notes about this contact...</span>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ToggleRow — inline boolean field (used for isCustomer / isSupplier)
+// ---------------------------------------------------------------------------
+
+function ToggleRow({ label, value, editable, onChange }) {
+  const handleClick = () => editable && onChange(!value);
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+      <span className="text-dark-400 text-sm">{label}</span>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!editable}
+        role="switch"
+        aria-checked={!!value}
+        className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors ${
+          value ? 'bg-rivvra-500' : 'bg-dark-700'
+        } ${editable ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${
+            value ? 'translate-x-[18px]' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TagsEditor — add/remove tags inline on the detail page
+// ---------------------------------------------------------------------------
+
+function TagsEditor({ orgSlug, tagIds, tagNames, editable, onChange }) {
+  const [available, setAvailable] = useState([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [query, setQuery] = useState('');
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!orgSlug) return;
+    let cancelled = false;
+    contactsApi.listTags(orgSlug)
+      .then((res) => { if (!cancelled && res?.success) setAvailable(res.tags || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [orgSlug]);
+
+  useEffect(() => {
+    if (!showPicker) return;
+    const handleClick = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showPicker]);
+
+  const currentIds = tagIds || [];
+  const currentNameMap = {};
+  (tagIds || []).forEach((id, i) => { currentNameMap[id] = (tagNames || [])[i] || id; });
+  available.forEach((t) => { currentNameMap[t._id] = t.name; });
+
+  const remaining = available.filter((t) => !currentIds.includes(t._id));
+  const filtered = query
+    ? remaining.filter((t) => t.name.toLowerCase().includes(query.toLowerCase()))
+    : remaining;
+
+  const addTag = (tag) => {
+    const nextIds = [...currentIds, tag._id];
+    const nextNames = [...(tagNames || []), tag.name];
+    onChange(nextIds, nextNames);
+    setShowPicker(false);
+    setQuery('');
+  };
+
+  const removeTag = (id) => {
+    const idx = currentIds.indexOf(id);
+    if (idx === -1) return;
+    const nextIds = currentIds.filter((x) => x !== id);
+    const nextNames = (tagNames || []).filter((_, i) => i !== idx);
+    onChange(nextIds, nextNames);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {currentIds.length === 0 && !editable && (
+        <p className="text-dark-500 text-sm">No tags assigned</p>
+      )}
+      {currentIds.map((id) => (
+        <span key={id} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-dark-700 text-dark-200 text-xs font-medium">
+          {currentNameMap[id] || id}
+          {editable && (
+            <button
+              type="button"
+              onClick={() => removeTag(id)}
+              className="text-dark-400 hover:text-red-400 transition-colors"
+              title="Remove tag"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </span>
+      ))}
+      {editable && (
+        <div className="relative" ref={pickerRef}>
+          <button
+            type="button"
+            onClick={() => setShowPicker((s) => !s)}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed border-dark-600 text-dark-400 hover:text-rivvra-400 hover:border-rivvra-500 text-xs transition-colors"
+          >
+            <Plus size={11} /> Add tag
+          </button>
+          {showPicker && (
+            <div className="absolute top-full left-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 overflow-hidden">
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search tags..."
+                className="w-full px-3 py-2 bg-dark-800 border-b border-dark-700 text-sm text-white placeholder:text-dark-500 focus:outline-none"
+              />
+              <div className="max-h-48 overflow-y-auto">
+                {filtered.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-dark-500">
+                    {remaining.length === 0 ? 'All tags added' : 'No matches'}
+                  </div>
+                ) : (
+                  filtered.map((t) => (
+                    <button
+                      key={t._id}
+                      type="button"
+                      onClick={() => addTag(t)}
+                      className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-dark-700 transition-colors"
+                    >
+                      {t.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// EditableField + renderLinkedValue removed — replaced by the shared
+// InlineField primitive (components/shared/InlineField). Phone/email/url
+// fields lose their inline mailto:/tel:/href anchor in read mode; users
+// click to edit and copy. Drop-in for everything else.
+
+// ---------------------------------------------------------------------------
+// Editable Name (header inline edit)
+// ---------------------------------------------------------------------------
+
+function EditableName({ value, editable, onSave, autoEdit = false, placeholder = '' }) {
+  const [editing, setEditing] = useState(autoEdit && !value);
+  const [localValue, setLocalValue] = useState(value || '');
+
+  useEffect(() => setLocalValue(value || ''), [value]);
+
+  const save = () => {
+    setEditing(false);
+    const trimmed = localValue.trim();
+    if (trimmed && trimmed !== value) onSave('name', trimmed);
+    else setLocalValue(value || '');
+  };
+
+  if (!editable || !editing) {
+    return (
+      <div
+        className={`inline-flex items-center gap-2 ${editable ? 'group cursor-pointer rounded px-1 -mx-1 hover:bg-dark-800' : ''}`}
+        onClick={() => editable && setEditing(true)}
+      >
+        <h1 className="text-2xl font-bold text-white">
+          {value || <span className="text-dark-500 italic">{placeholder || 'e.g. Company Name'}</span>}
+        </h1>
+        {editable && <Pencil size={12} className="text-dark-600 opacity-0 group-hover:opacity-100 shrink-0" />}
+      </div>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') { setLocalValue(value || ''); setEditing(false); }
+      }}
+      placeholder={placeholder || 'Contact name'}
+      className="text-2xl font-bold text-white bg-dark-800 border border-rivvra-500 rounded px-2 py-0.5 focus:outline-none w-full max-w-md placeholder:text-dark-500 placeholder:italic placeholder:font-normal"
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
+
+export default function ContactDetail() {
+  const { contactId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
+  const { orgPath } = usePlatform();
+  const { companyCountry, currentCompany } = useCompany();
+  const { showToast } = useToast();
+  const fromInvoice = searchParams.get('from') === 'invoice';
+  const fromInvoiceId = searchParams.get('invoiceId');
+
+  // Create mode: no contactId means new record (not yet saved to DB)
+  const isCreateMode = !contactId;
+  const createType = searchParams.get('type') || 'company';
+
+  const [contact, setContact] = useState(isCreateMode ? {
+    type: createType,
+    name: '',
+    email: '',
+    phone: '',
+    mobile: '',
+    website: '',
+    jobTitle: '',
+    address: { street: '', street2: '', city: '', state: '', zip: '', country: '', countryCode: '' },
+    gstTreatment: '',
+    gstin: '',
+    pan: '',
+    tan: '',
+    countryCode: companyCountry || '',
+    placeOfSupply: '',
+    defaultPaymentTermId: '',
+    defaultCurrency: '',
+    defaultProductId: '',
+    salespersonId: '',
+    isCustomer: false,
+    isSupplier: false,
+    tags: [],
+    internalNotes: '',
+  } : null);
+  const [createSaving, setCreateSaving] = useState(false);
+
+  usePageTitle(contact?.name || contact?.companyName || (isCreateMode ? 'New Contact' : ''));
+  const [childContacts, setChildContacts] = useState([]);
+  const [loading, setLoading] = useState(!isCreateMode);
+  const [notFound, setNotFound] = useState(false);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState('details');
+
+  // Attachments
+  const [attachments, setAttachments] = useState([]);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachUploading, setAttachUploading] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+
+  // Pipeline (CRM opportunities linked to this contact)
+  const [opportunities, setOpportunities] = useState([]);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+
+  // Delete modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // FK-conflict modal (populated from a 409 response on DELETE)
+  const [deleteConflict, setDeleteConflict] = useState(null);
+  // Archive modal
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivePreview, setArchivePreview] = useState(null);
+  const [archiving, setArchiving] = useState(false);
+  const [showKebab, setShowKebab] = useState(false);
+
+  // Dropdown data
+  const [salespersons, setSalespersons] = useState([]);
+  const [paymentTerms, setPaymentTerms] = useState([]);
+  const [products, setProducts] = useState([]);
+
+  // Archived = read-only across the page (Q-archive-edit, 2026-05-06).
+  // We collapse this onto `isAdmin` so every existing `editable={isAdmin}` /
+  // `isAdmin && ...` gate respects the archive state without touching every
+  // call site (this file has 24 InlineField uses).
+  const isAdminRaw = getAppRole('contacts') === 'admin';
+  const isAdmin = isAdminRaw && !contact?.archived;
+  const orgSlug = currentOrg?.slug;
+
+  // -- Fetch contact ----------------------------------------------------------
+  const fetchContact = useCallback(async () => {
+    if (!orgSlug || !contactId) return;
+    setLoading(true);
+    setNotFound(false);
+    // Reset on company switch so the previous company's contact data doesn't
+    // linger if the new fetch returns 404 (contact belongs to other company).
+    setChildContacts([]);
+
+    try {
+      const res = await contactsApi.get(orgSlug, contactId);
+      if (res.success && res.contact) {
+        setContact(res.contact);
+        setChildContacts(res.childContacts || []);
+      } else {
+        setNotFound(true);
+      }
+    } catch (err) {
+      showToast('Failed to load contact', 'error');
+      setNotFound(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgSlug, contactId, currentCompany?._id, showToast]);
+
+  useEffect(() => {
+    fetchContact();
+  }, [fetchContact]);
+
+  // Fetch dropdown data
+  useEffect(() => {
+    if (!orgSlug) return;
+    let cancelled = false;
+    // Reset on company switch so the previous company's dropdown options
+    // don't linger if the new fetch returns nothing.
+    setSalespersons([]);
+    setPaymentTerms([]);
+    setProducts([]);
+
+    contactsApi.listSalespersons(orgSlug).catch(() => ({ success: false }))
+      .then((spRes) => {
+        if (!cancelled && spRes.success) setSalespersons(spRes.salespersons || []);
+      });
+
+    invoicingApi.listPaymentTerms(orgSlug)
+      .then((res) => { if (!cancelled) setPaymentTerms(res?.paymentTerms || []); })
+      .catch(() => {});
+
+    invoicingApi.listProducts(orgSlug)
+      .then((res) => { if (!cancelled) setProducts(res?.products || []); })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [orgSlug, currentCompany?._id]);
+
+  // Fetch attachments
+  const loadAttachments = useCallback(async () => {
+    if (!orgSlug || !contactId) return;
+    setAttachLoading(true);
+    try {
+      const res = await contactsApi.listAttachments(orgSlug, contactId);
+      if (res.success) setAttachments(res.documents || []);
+    } catch {}
+    finally { setAttachLoading(false); }
+  }, [orgSlug, contactId]);
+
+  useEffect(() => { loadAttachments(); }, [loadAttachments]);
+
+  // -- Pipeline (lazy-load on tab activation) ---------------------------------
+  // Individual contacts → filter by contactId; company contacts → filter by
+  // contactCompanyId. Backend supports both query params on /crm/opportunities.
+  const loadPipeline = useCallback(async () => {
+    if (!orgSlug || !contact?._id) return;
+    setPipelineLoading(true);
+    try {
+      const params = contact.type === 'company'
+        ? { contactCompanyId: contact._id, limit: 100 }
+        : { contactId: contact._id, limit: 100 };
+      const res = await crmApi.listOpportunities(orgSlug, params);
+      if (res.success) setOpportunities(res.opportunities || []);
+    } catch {
+      showToast('Failed to load pipeline', 'error');
+    } finally {
+      setPipelineLoading(false);
+    }
+  }, [orgSlug, contact?._id, contact?.type, showToast]);
+
+  useEffect(() => {
+    if (activeTab === 'pipeline') loadPipeline();
+  }, [activeTab, loadPipeline]);
+
+  // -- Inline save handlers ---------------------------------------------------
+  const saveField = async (field, value) => {
+    if (isCreateMode) {
+      // Create mode: just update local state, no API call
+      setContact((prev) => ({ ...prev, [field]: value }));
+      return;
+    }
+    try {
+      await contactsApi.update(orgSlug, contactId, { [field]: value });
+      setContact((prev) => ({ ...prev, [field]: value }));
+      showToast('Saved');
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+    }
+  };
+
+  const saveAddressField = async (field, value) => {
+    const newAddress = { ...(contact.address || {}), [field]: value };
+    if (isCreateMode) {
+      setContact((prev) => ({ ...prev, address: newAddress }));
+      return;
+    }
+    try {
+      await contactsApi.update(orgSlug, contactId, { address: newAddress });
+      setContact((prev) => ({ ...prev, address: newAddress }));
+      showToast('Saved');
+    } catch (err) {
+      showToast(err.message || 'Failed to save', 'error');
+    }
+  };
+
+  // -- Delete handler ---------------------------------------------------------
+  // Called twice in the worst case: once without force (may return a 409 with
+  // an FK-reference breakdown), and once with force: true after the user
+  // confirms the override in the conflict modal.
+  const handleDelete = async ({ force = false } = {}) => {
+    setDeleting(true);
+    try {
+      const res = await contactsApi.delete(orgSlug, contactId, { force });
+      if (res.status === 409) {
+        // Server blocked the delete — show the reference breakdown instead
+        // of a generic toast so the user knows exactly what's in the way.
+        setDeleteConflict(res);
+        setShowDeleteModal(false);
+        setDeleting(false);
+        return;
+      }
+      if (res.success) {
+        const count = res.childrenDeleted || 0;
+        showToast(
+          contact.type === 'company' && count > 0
+            ? `Company and ${count} related contact(s) deleted`
+            : 'Contact deleted successfully',
+        );
+        navigate(orgPath('/contacts/list'), { replace: true });
+      } else {
+        showToast(res.error || 'Failed to delete', 'error');
+        setDeleting(false);
+        setShowDeleteModal(false);
+        setDeleteConflict(null);
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete contact', 'error');
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setDeleteConflict(null);
+    }
+  };
+
+  const openArchiveModal = async () => {
+    setShowArchiveModal(true);
+    setArchivePreview(null);
+    try {
+      const res = await contactsApi.archivePreview(orgSlug, contactId);
+      setArchivePreview(res || { dependencies: [] });
+    } catch {
+      setArchivePreview({ dependencies: [] });
+    }
+  };
+
+  const handleArchive = async (cascade = false) => {
+    setArchiving(true);
+    try {
+      const res = await contactsApi.archive(orgSlug, contactId, { cascade });
+      setShowArchiveModal(false);
+      setContact((c) => ({ ...c, archived: true }));
+      const cnt = res?.cascadedChildCount || 0;
+      showToast(
+        cascade && cnt > 0
+          ? `Archived (with ${cnt} contact${cnt === 1 ? '' : 's'})`
+          : 'Archived'
+      );
+    } catch (err) {
+      showToast(err?.message || 'Failed to archive', 'error');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    try {
+      await contactsApi.unarchive(orgSlug, contactId);
+      setContact((c) => ({ ...c, archived: false }));
+      showToast('Unarchived');
+    } catch (err) {
+      showToast(err?.message || 'Failed to unarchive', 'error');
+    }
+  };
+
+  // -- Loading state ----------------------------------------------------------
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 size={32} className="animate-spin text-dark-400" />
+      </div>
+    );
+  }
+
+  // -- 404 state --------------------------------------------------------------
+  if (notFound || !contact) {
+    return <NotFoundRedirect orgPath={orgPath} showToast={showToast} />;
+  }
+
+  const addr = contact.address || {};
+
+  const tabs = [
+    { id: 'details', label: 'Details' },
+    { id: 'activities', label: 'Activities' },
+    { id: 'pipeline', label: 'Pipeline' },
+    { id: 'attachments', label: 'Attachments' },
+  ];
+
+  // Helper: build salesperson options
+  const salespersonOptions = [
+    { value: '', label: 'No salesperson' },
+    ...salespersons.map((sp) => ({ value: sp._id, label: sp.name })),
+  ];
+
+  // Helper: build payment terms options
+  const paymentTermOptions = [
+    { value: '', label: '-- None --' },
+    ...paymentTerms.map((pt) => ({ value: pt._id, label: pt.name })),
+  ];
+
+  // Helper: display value for salesperson
+  const salespersonDisplayValue = contact.salespersonName || (
+    salespersons.find((sp) => sp._id === contact.salespersonId)?.name || ''
+  );
+
+  // Helper: display value for payment terms
+  const paymentTermDisplayValue = paymentTerms.find((pt) => pt._id === contact.defaultPaymentTermId)?.name || '';
+
+  // Helper: build product options
+  const productOptions = [
+    { value: '', label: '-- None --' },
+    ...products.map((p) => ({ value: p._id, label: (p.internalRef ? `[${p.internalRef}] ` : '') + p.name })),
+  ];
+
+  // Helper: display value for product
+  const productDisplayValue = (() => {
+    const p = products.find((p) => p._id === contact.defaultProductId);
+    if (!p) return '';
+    return (p.internalRef ? `[${p.internalRef}] ` : '') + p.name;
+  })();
+
+  // -- Render -----------------------------------------------------------------
+  return (
+    <div className="p-6 max-w-5xl">
+      {/* Back to Invoice link */}
+      {fromInvoice && fromInvoiceId && (
+        <button
+          onClick={() => navigate(orgPath(`/invoicing/invoices/${fromInvoiceId}`))}
+          className="flex items-center gap-1.5 text-sm text-rivvra-500 hover:text-rivvra-400 mb-4 transition-colors"
+        >
+          <span>&larr;</span> Back to Invoice
+        </button>
+      )}
+
+      {/* Header Card */}
+      <div className="card p-6 mb-6">
+        <div className="flex items-start gap-5">
+          {/* Avatar */}
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 ${
+            contact.type === 'company' ? 'bg-blue-500/20' : 'bg-orange-500/20'
+          }`}>
+            {contact.type === 'company' ? (
+              <Building2 size={32} className="text-blue-400" />
+            ) : (
+              <span className="text-2xl font-bold text-orange-400">
+                {getInitials(contact.name)}
+              </span>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <EditableName
+                  value={contact.title ? `${contact.title} ${contact.name}` : contact.name}
+                  editable={isAdmin || isCreateMode}
+                  autoEdit={isCreateMode}
+                  placeholder={contact.type === 'company' ? 'e.g. Lumber Inc' : 'e.g. John Doe'}
+                  onSave={(_, val) => {
+                    saveField('name', val.replace(/^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|Prof\.)\s*/i, '').trim() || val);
+                  }}
+                />
+                {contact.jobTitle && (
+                  <p className="text-dark-400 mt-0.5">{contact.jobTitle}</p>
+                )}
+                {contact.archived && (
+                  <div className="mt-2">
+                    <span className="text-xs bg-dark-700 text-dark-300 rounded-full px-2 py-0.5 border border-dark-600 inline-flex items-center gap-1">
+                      <Archive size={11} /> ARCHIVED
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  {isCreateMode ? (
+                    <div className="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setContact(prev => ({ ...prev, type: 'individual' }))}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${contact.type === 'individual' ? 'bg-emerald-500/20 text-emerald-400' : 'text-dark-400 hover:text-white'}`}
+                      >
+                        <User size={11} className="inline mr-1" />Individual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContact(prev => ({ ...prev, type: 'company' }))}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${contact.type === 'company' ? 'bg-blue-500/20 text-blue-400' : 'text-dark-400 hover:text-white'}`}
+                      >
+                        <Building2 size={11} className="inline mr-1" />Company
+                      </button>
+                    </div>
+                  ) : (
+                    <Badge className={
+                      contact.type === 'company'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'bg-emerald-500/10 text-emerald-400'
+                    }>
+                      {contact.type === 'company' ? 'Company' : 'Individual'}
+                    </Badge>
+                  )}
+                  {contact.isCustomer && (
+                    <Badge className="bg-purple-500/10 text-purple-400">Customer</Badge>
+                  )}
+                  {contact.isSupplier && (
+                    <Badge className="bg-amber-500/10 text-amber-400">Supplier</Badge>
+                  )}
+                  {(contact.tagNames || []).map((tag, i) => (
+                    <Badge key={i} className="bg-dark-700 text-dark-300">{tag}</Badge>
+                  ))}
+                </div>
+                {!isCreateMode && (contact.email || contact.phone || contact.mobile || contact.website) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                    {contact.email && (
+                      <a
+                        href={`mailto:${contact.email}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dark-800 border border-dark-700 text-xs text-dark-300 hover:text-rivvra-400 hover:border-rivvra-500/50 transition-colors"
+                        title={contact.email}
+                      >
+                        <Mail size={12} /> Email
+                      </a>
+                    )}
+                    {(contact.phone || contact.mobile) && (
+                      <a
+                        href={`tel:${contact.phone || contact.mobile}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dark-800 border border-dark-700 text-xs text-dark-300 hover:text-rivvra-400 hover:border-rivvra-500/50 transition-colors"
+                        title={contact.phone || contact.mobile}
+                      >
+                        <Phone size={12} /> Call
+                      </a>
+                    )}
+                    {contact.website && (
+                      <a
+                        href={/^https?:\/\//i.test(contact.website) ? contact.website : `https://${contact.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dark-800 border border-dark-700 text-xs text-dark-300 hover:text-rivvra-400 hover:border-rivvra-500/50 transition-colors"
+                        title={contact.website}
+                      >
+                        <Globe size={12} /> Website
+                      </a>
+                    )}
+                  </div>
+                )}
+                {!isCreateMode && (
+                  <RecordMeta
+                    className="mt-3"
+                    createdAt={contact.createdAt}
+                    createdByName={contact.createdByName}
+                    updatedAt={contact.updatedAt}
+                    updatedByName={contact.updatedByName}
+                  />
+                )}
+              </div>
+
+              {/* Action buttons */}
+              {isCreateMode ? (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      if (!contact.name?.trim()) {
+                        showToast('Contact name is required', 'error');
+                        return;
+                      }
+                      setCreateSaving(true);
+                      try {
+                        const res = await contactsApi.create(orgSlug, contact);
+                        if (res?.contact?._id) {
+                          showToast('Contact created');
+                          navigate(orgPath(`/contacts/${res.contact._id}`), { replace: true });
+                        }
+                      } catch (err) {
+                        showToast(err.message || 'Failed to create contact', 'error');
+                      } finally {
+                        setCreateSaving(false);
+                      }
+                    }}
+                    disabled={createSaving}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {createSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    Save
+                  </button>
+                  <button
+                    onClick={() => navigate(orgPath('/contacts/list'))}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white text-sm transition-colors"
+                  >
+                    Discard
+                  </button>
+                </div>
+              ) : isAdminRaw && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {contact.archived ? (
+                    <button
+                      onClick={handleUnarchive}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-sm font-medium"
+                    >
+                      <ArchiveRestore size={14} /> Unarchive
+                    </button>
+                  ) : (
+                    <button
+                      onClick={openArchiveModal}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-dark-300 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 text-sm transition-colors"
+                    >
+                      <Archive size={14} />
+                      Archive
+                    </button>
+                  )}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowKebab((o) => !o)}
+                      className="p-2 rounded-lg text-dark-500 hover:text-dark-300 hover:bg-dark-800 transition-colors"
+                      aria-label="More actions"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                    {showKebab && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+                        <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                          {isOrgAdmin ? (
+                            <button
+                              onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
+                              className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                            >
+                              <Trash2 size={12} />
+                              <div className="flex-1">
+                                <div className="font-medium">Delete permanently</div>
+                                <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-6 border-b border-dark-700">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
+              activeTab === tab.id
+                ? 'text-rivvra-400'
+                : 'text-dark-400 hover:text-white'
+            }`}
+          >
+            {tab.label}
+            {activeTab === tab.id && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-rivvra-500 rounded-full" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Details Tab */}
+      {activeTab === 'details' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Contact Information */}
+            <SectionCard title="Contact Information" icon={Mail}>
+              <InlineField label="Email" value={contact.email} field="email" type="email" editable={isAdmin} onSave={saveField} placeholder="Add email" />
+              <InlineField label="Phone" value={contact.phone} field="phone" type="phone" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
+              <InlineField label="Mobile" value={contact.mobile} field="mobile" type="phone" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
+              <InlineField label="Website" value={contact.website} field="website" type="url" editable={isAdmin} onSave={saveField} placeholder="Add website" />
+            </SectionCard>
+
+            {/* Company / Work Details */}
+            <SectionCard
+              title={contact.type === 'company' ? 'Company Details' : 'Work Details'}
+              icon={contact.type === 'company' ? Building2 : Briefcase}
+            >
+              {contact.type === 'individual' ? (
+                <>
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Type</span>
+                    <span className="text-white text-sm">
+                      <Badge className="bg-emerald-500/10 text-emerald-400">Individual</Badge>
+                    </span>
+                  </div>
+                  <InlineField label="Job Title" value={contact.jobTitle} field="jobTitle" editable={isAdmin} onSave={saveField} placeholder="Add job title" />
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Company</span>
+                    <span className="text-white text-sm">
+                      {contact.parentCompanyName ? (
+                        <Link
+                          to={orgPath(`/contacts/${contact.parentCompanyId}`)}
+                          className="text-rivvra-400 hover:underline"
+                        >
+                          {contact.parentCompanyName}
+                        </Link>
+                      ) : '\u2014'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Type</span>
+                    <span className="text-white text-sm">
+                      <Badge className="bg-blue-500/10 text-blue-400">Company</Badge>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                    <span className="text-dark-400 text-sm">Employees</span>
+                    <span className="text-white text-sm">
+                      {childContacts.length > 0 ? `${childContacts.length} contact(s)` : '\u2014'}
+                    </span>
+                  </div>
+                </>
+              )}
+            </SectionCard>
+
+            {/* Billing Address — country-aware labels + soft zip warn via
+                utils/addressLocale (driven by the contact's own country,
+                not the company switcher). Country is rendered first so
+                the rest of the rows re-label before the user types. */}
+            {(() => {
+              const billingLocale = getAddressLocale(addr.country);
+              return (
+                <SectionCard title="Billing Address" icon={MapPin}>
+                  <InlineField label="Country" value={addr.country} field="country" editable={isAdmin} onSave={saveAddressField} placeholder="Add country" />
+                  <InlineField label={billingLocale.street1Label} value={addr.street} field="street" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.street1Placeholder || 'Add street'} />
+                  <InlineField label={billingLocale.street2Label} value={addr.street2} field="street2" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.street2Placeholder || 'Apt, Suite, Floor'} />
+                  <InlineField label={billingLocale.cityLabel} value={addr.city} field="city" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.cityPlaceholder || 'Add city'} />
+                  <InlineField label={billingLocale.stateLabel} value={addr.state} field="state" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.statePlaceholder || 'Add state'} />
+                  <InlineField label={billingLocale.zipLabel} value={addr.zip} field="zip" editable={isAdmin} onSave={saveAddressField}
+                    placeholder={billingLocale.zipPlaceholder || 'Add postal code'}
+                    warn={validateZip(addr.zip, addr.country)} />
+                </SectionCard>
+              );
+            })()}
+
+            {/* Classification */}
+            <SectionCard title="Classification" icon={Users}>
+              <EmployeeLookup
+                orgSlug={orgSlug}
+                currentValue={contact.salespersonId}
+                currentName={salespersonDisplayValue}
+                editable={isAdmin || isCreateMode}
+                onSelect={(id, name) => {
+                  saveField('salespersonId', id);
+                  setContact(prev => ({ ...prev, salespersonId: id, salespersonName: name }));
+                }}
+              />
+              <InlineField
+                label="Product"
+                value={productDisplayValue}
+                field="defaultProductId"
+                type="select"
+                options={productOptions}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val)}
+                placeholder="Select default product"
+              />
+              <ToggleRow
+                label="Customer"
+                value={!!contact.isCustomer}
+                editable={isAdmin}
+                onChange={(val) => saveField('isCustomer', val)}
+              />
+              <ToggleRow
+                label="Supplier"
+                value={!!contact.isSupplier}
+                editable={isAdmin}
+                onChange={(val) => saveField('isSupplier', val)}
+              />
+            </SectionCard>
+
+            {/* Tax Information — country-aware fields */}
+            <SectionCard title="Tax Information" icon={Receipt}>
+              {/* India-specific fields */}
+              {companyCountry === 'IN' && (
+                <>
+                  <InlineField
+                    label="GST Treatment"
+                    value={contact.gstTreatment}
+                    field="gstTreatment"
+                    type="select"
+                    options={GST_TREATMENT_OPTIONS}
+                    editable={isAdmin}
+                    onSave={saveField}
+                  />
+                  <InlineField
+                    label="GSTIN"
+                    value={contact.gstin}
+                    field="gstin"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="29AALCR0152L1Z2"
+                    maxLength={15}
+                    transform={(v) => v.toUpperCase()}
+                  />
+                  <InlineField
+                    label="PAN"
+                    value={contact.pan}
+                    field="pan"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="AALCR0152L"
+                    maxLength={10}
+                    transform={(v) => v.toUpperCase()}
+                  />
+                  <InlineField
+                    label="TAN"
+                    value={contact.tan}
+                    field="tan"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="BLRR12345A"
+                    maxLength={10}
+                    transform={(v) => v.toUpperCase()}
+                  />
+                  <InlineField
+                    label="Place of Supply"
+                    value={contact.placeOfSupply}
+                    field="placeOfSupply"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="e.g. Karnataka (KA)"
+                  />
+                </>
+              )}
+              {/* US-specific fields */}
+              {companyCountry === 'US' && (
+                <>
+                  <InlineField
+                    label="Tax ID (EIN)"
+                    value={contact.taxId || contact.gstin}
+                    field="taxId"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="XX-XXXXXXX"
+                  />
+                  <InlineField
+                    label="State"
+                    value={contact.placeOfSupply || contact.address?.state}
+                    field="placeOfSupply"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="e.g. California"
+                  />
+                </>
+              )}
+              {/* Canada-specific fields */}
+              {companyCountry === 'CA' && (
+                <>
+                  <InlineField
+                    label="GST/HST Number"
+                    value={contact.taxId || contact.gstin}
+                    field="taxId"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="123456789 RT0001"
+                  />
+                  <InlineField
+                    label="Province"
+                    value={contact.placeOfSupply || contact.address?.state}
+                    field="placeOfSupply"
+                    editable={isAdmin}
+                    onSave={saveField}
+                    placeholder="e.g. Ontario"
+                  />
+                </>
+              )}
+              {/* Common fields for all countries */}
+              <InlineField
+                label="Country Code"
+                value={contact.countryCode}
+                field="countryCode"
+                editable={isAdmin}
+                onSave={saveField}
+                placeholder={companyCountry || 'IN'}
+              />
+              <InlineField
+                label="Payment Terms"
+                value={paymentTermDisplayValue}
+                field="defaultPaymentTermId"
+                type="select"
+                options={paymentTermOptions}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val || null)}
+              />
+              <InlineField
+                label="Default Currency"
+                value={contact.defaultCurrency}
+                field="defaultCurrency"
+                type="select"
+                options={CURRENCY_OPTIONS}
+                editable={isAdmin}
+                onSave={(field, val) => saveField(field, val || null)}
+              />
+            </SectionCard>
+
+            {/* Tags */}
+            <SectionCard title="Tags" icon={Tag}>
+              <TagsEditor
+                orgSlug={orgSlug}
+                tagIds={contact.tags || []}
+                tagNames={contact.tagNames || []}
+                editable={isAdmin}
+                onChange={(nextIds, nextNames) => {
+                  setContact((prev) => ({ ...prev, tags: nextIds, tagNames: nextNames }));
+                  if (!isCreateMode) {
+                    contactsApi.update(orgSlug, contactId, { tags: nextIds })
+                      .then(() => showToast('Tags updated'))
+                      .catch((err) => showToast(err.message || 'Failed to save tags', 'error'));
+                  }
+                }}
+              />
+            </SectionCard>
+          </div>
+
+          {/* Child Contacts (for companies) */}
+          {contact.type === 'company' && childContacts.length > 0 && (
+            <div className="card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Users size={14} className="text-blue-400" />
+                </div>
+                <h3 className="text-white font-semibold">Contacts at {contact.name}</h3>
+                <span className="ml-auto text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-medium">
+                  {childContacts.length}
+                </span>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-dark-700/60">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-dark-800/40 border-b border-dark-700/60">
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Name</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Job Title</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Email</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-dark-400 uppercase tracking-wider">Phone</th>
+                      {isAdmin && <th className="w-10 px-2"></th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800/70">
+                    {childContacts.map((child) => (
+                      <tr key={child._id} className="group hover:bg-dark-800/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link
+                            to={orgPath(`/contacts/${child._id}`)}
+                            className="flex items-center gap-3 min-w-0"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0 text-[11px] font-semibold text-orange-400">
+                              {getInitials(child.name)}
+                            </div>
+                            <span className="text-sm font-medium text-white group-hover:text-rivvra-400 transition-colors truncate">
+                              {child.name}
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-dark-300">
+                          {child.jobTitle ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-dark-800 text-dark-200 text-xs font-medium">
+                              {child.jobTitle}
+                            </span>
+                          ) : (
+                            <span className="text-dark-600">{'\u2014'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {child.email ? (
+                            <a href={`mailto:${child.email}`} className="text-dark-300 hover:text-rivvra-400 transition-colors">
+                              {child.email}
+                            </a>
+                          ) : (
+                            <span className="text-dark-600">{'\u2014'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {child.phone ? (
+                            <a href={`tel:${child.phone}`} className="text-dark-300 hover:text-rivvra-400 transition-colors">
+                              {child.phone}
+                            </a>
+                          ) : (
+                            <span className="text-dark-600">{'\u2014'}</span>
+                          )}
+                        </td>
+                        {isAdmin && (
+                          <td className="px-2 py-3 text-right">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!confirm(`Delete contact "${child.name}"?`)) return;
+                                try {
+                                  const res = await contactsApi.delete(orgSlug, child._id);
+                                  if (res.status === 409) {
+                                    showToast('Contact has linked records and can\u2019t be deleted here. Open the contact to review.', 'error');
+                                    return;
+                                  }
+                                  if (res.success) {
+                                    showToast('Contact deleted');
+                                    setChildContacts((prev) => prev.filter((c) => c._id !== child._id));
+                                  } else {
+                                    showToast(res.error || 'Failed to delete', 'error');
+                                  }
+                                } catch (err) {
+                                  showToast(err?.message || 'Failed to delete', 'error');
+                                }
+                              }}
+                              className="p-1.5 rounded-lg text-dark-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                              title="Delete contact"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Internal Notes */}
+          <SectionCard title="Internal Notes" icon={FileText}>
+            <NotesEditor
+              value={contact.internalNotes}
+              editable={isAdmin}
+              onSave={(val) => saveField('internalNotes', val)}
+            />
+          </SectionCard>
+        </div>
+      )}
+
+      {/* Activities Tab */}
+      {activeTab === 'activities' && (
+        <>
+          <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} />
+          <div className="mt-4">
+            <SignRequestWidget
+              orgSlug={orgSlug}
+              linkedModel="contact"
+              linkedId={contactId}
+              prefillData={{ name: contact?.name || '', email: contact?.email || '', phone: contact?.phone || '', company: contact?.parentCompanyName || '' }}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Pipeline Tab — CRM opportunities linked to this contact */}
+      {activeTab === 'pipeline' && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Briefcase size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Pipeline</h3>
+            <span className="ml-auto text-xs bg-dark-700 text-dark-300 px-2 py-0.5 rounded-full font-medium">
+              {pipelineLoading ? '…' : `${opportunities.length} deal${opportunities.length !== 1 ? 's' : ''}`}
+            </span>
+          </div>
+
+          {pipelineLoading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-dark-500" /></div>
+          ) : opportunities.length === 0 ? (
+            <p className="text-sm text-dark-500 text-center py-4">No deals with this contact yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {opportunities.map((opp) => {
+                const stagePill = opp.isLost
+                  ? <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/15 text-red-400 border border-red-500/20">Lost</span>
+                  : opp.wonAt
+                    ? <span className="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">Won</span>
+                    : <span className="px-2 py-0.5 text-[10px] rounded-full bg-dark-700 text-dark-300 border border-dark-600">{opp.stageName || 'Unknown'}</span>;
+                return (
+                  <div
+                    key={opp._id}
+                    onClick={() => navigate(`/org/${orgSlug}/crm/opportunities/${opp._id}`)}
+                    className="flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer bg-dark-800/60 border border-dark-700/50 hover:bg-dark-800"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-sm text-white font-medium truncate">{opp.name}</span>
+                        {stagePill}
+                        {opp.isConverted && (
+                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Converted</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-dark-400 flex-wrap">
+                        {opp.expectedRevenue ? <span>₹{Number(opp.expectedRevenue).toLocaleString('en-IN')}</span> : null}
+                        {opp.expectedRole ? <span>· {opp.expectedRole}</span> : null}
+                        {opp.salespersonName ? <span>· {opp.salespersonName}</span> : null}
+                        {opp.updatedAt && (
+                          <span className="text-dark-500">· {new Date(opp.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Attachments Tab */}
+      {activeTab === 'attachments' && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Paperclip size={16} className="text-dark-400" />
+            <h3 className="text-white font-semibold">Attachments</h3>
+            <span className="ml-auto text-xs bg-dark-700 text-dark-300 px-2 py-0.5 rounded-full font-medium">
+              {attachments.length} file{attachments.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {/* Upload area */}
+          <div className="mb-4">
+            <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-dark-600 rounded-xl text-sm text-dark-400 hover:border-rivvra-500 hover:text-rivvra-400 transition-colors cursor-pointer">
+              {attachUploading ? (
+                <><Loader2 size={16} className="animate-spin" /> Uploading...</>
+              ) : (
+                <><Upload size={16} /> Click to upload a file</>
+              )}
+              <input type="file" className="hidden" disabled={attachUploading} onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setAttachUploading(true);
+                try {
+                  await contactsApi.uploadAttachment(orgSlug, contactId, file);
+                  showToast('File uploaded');
+                  await loadAttachments();
+                } catch (err) {
+                  showToast(err.message || 'Upload failed', 'error');
+                } finally {
+                  setAttachUploading(false);
+                  e.target.value = '';
+                }
+              }} />
+            </label>
+          </div>
+
+          {/* File list + Preview */}
+          {attachLoading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-dark-500" /></div>
+          ) : attachments.length === 0 ? (
+            <p className="text-sm text-dark-500 text-center py-4">No attachments yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {attachments.map(doc => {
+                const isImage = doc.mimeType?.startsWith('image/');
+                const isPdf = doc.mimeType === 'application/pdf';
+                const isPreviewable = isImage || isPdf;
+                const sizeKb = doc.size ? `${(doc.size / 1024).toFixed(0)} KB` : '';
+                return (
+                  <div key={doc._id}
+                    onClick={() => isPreviewable ? setPreviewDoc(doc) : (() => {
+                      const url = contactsApi.getAttachmentUrl(orgSlug, contactId, doc._id);
+                      const token = localStorage.getItem('rivvra_token');
+                      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+                        .then(r => r.blob()).then(blob => {
+                          const a = document.createElement('a');
+                          a.href = URL.createObjectURL(blob); a.download = doc.filename; a.click();
+                        }).catch(() => showToast('Download failed', 'error'));
+                    })()}
+                    className="flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer bg-dark-800/60 border border-dark-700/50 hover:bg-dark-800">
+                    <div className="w-10 h-10 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
+                      {isImage ? <Eye size={16} className="text-blue-400" /> : isPdf ? <FileText size={16} className="text-red-400" /> : <Paperclip size={16} className="text-dark-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{doc.filename}</p>
+                      <p className="text-xs text-dark-500">{sizeKb}{doc.uploadedAt ? ` \u00b7 ${new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {isPreviewable && (
+                        <span className="p-1.5 rounded-lg text-dark-400 hover:text-rivvra-400 hover:bg-rivvra-500/10 transition-colors" title="Preview">
+                          <Eye size={14} />
+                        </span>
+                      )}
+                      <button onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm('Delete this attachment?')) return;
+                        try {
+                          await contactsApi.deleteAttachment(orgSlug, contactId, doc._id);
+                          showToast('Attachment deleted');
+                          await loadAttachments();
+                        } catch { showToast('Delete failed', 'error'); }
+                      }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {previewDoc && (
+            <DocumentPreviewModal
+              filename={previewDoc.filename}
+              mimeType={previewDoc.mimeType}
+              fetchUrl={contactsApi.getAttachmentUrl(orgSlug, contactId, previewDoc._id)}
+              onClose={() => setPreviewDoc(null)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Archive Confirmation Modal — soft cascade with explicit user choice */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+              <Archive size={16} /> Archive {contact.type === 'company' ? 'Company' : 'Contact'}
+            </h2>
+            <p className="text-sm text-dark-400 mb-3">
+              Archive <span className="text-white font-medium">{contact.name}</span>? Hidden from list views, can be restored at any time.
+            </p>
+            {archivePreview === null ? (
+              <div className="text-xs text-dark-500 mb-4 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Checking linked records…</div>
+            ) : archivePreview.dependencies?.length > 0 ? (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-300 font-medium mb-2">Linked records:</p>
+                <ul className="space-y-1 text-xs text-dark-200">
+                  {archivePreview.dependencies.map((d, i) => (
+                    <li key={i} className="flex items-center gap-1.5">
+                      <span>{d.label}</span>
+                      {d.informational && <span className="text-[10px] text-dark-500">(won't be archived)</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleArchive(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                Archive {contact.type === 'company' ? 'company' : 'contact'} only
+              </button>
+              {contact.type === 'company' && archivePreview?.dependencies?.find(d => d.type === 'contacts_individual') && (
+                <button
+                  onClick={() => handleArchive(true)}
+                  disabled={archiving}
+                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                  Archive company + child contacts
+                </button>
+              )}
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                disabled={archiving}
+                className="w-full px-3 py-2 text-sm text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-2">Delete {contact.type === 'company' ? 'Company' : 'Contact'}</h2>
+            <p className="text-xs text-dark-400 mb-1">
+              Are you sure you want to permanently delete <span className="text-dark-200 font-medium">{contact.name}</span>?
+            </p>
+            {contact.type === 'company' && childContacts.length > 0 && (
+              <p className="text-xs text-red-400/80 mb-1">
+                This will also delete {childContacts.length} related individual contact{childContacts.length !== 1 ? 's' : ''}.
+              </p>
+            )}
+            <p className="text-xs text-dark-500 mb-5">This action cannot be undone.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete()} disabled={deleting}
+                className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FK-reference conflict modal — shown when the server returns 409. */}
+      {deleteConflict && (
+        <DeleteConflictModal
+          contact={contact}
+          conflict={deleteConflict}
+          deleting={deleting}
+          onCancel={() => { setDeleteConflict(null); setDeleting(false); }}
+          onForceDelete={() => handleDelete({ force: true })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DeleteConflictModal — lists FK references that are blocking the delete.
+// Shown when DELETE returns 409 with a { references, samples } payload.
+// ---------------------------------------------------------------------------
+
+const REFERENCE_LABELS = {
+  invoices: 'Invoices',
+  creditNotes: 'Credit notes',
+  followUpLogs: 'Follow-up logs',
+  crmOpportunitiesByContact: 'CRM opportunities (as contact)',
+  crmOpportunitiesByCompany: 'CRM opportunities (as company)',
+  incentiveRecords: 'Incentive records',
+  childContacts: 'Child contacts',
+  employeeAssignments: 'Employee assignments',
+  tsClients: 'Timesheet client records',
+  timesheets: 'Timesheets',
+};
+
+function DeleteConflictModal({ contact, conflict, deleting, onCancel, onForceDelete }) {
+  const refs = conflict.references || {};
+  const samples = conflict.samples || {};
+  const rows = Object.entries(refs).filter(([, n]) => n > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-sm font-semibold text-dark-100 mb-2">
+          Can&apos;t delete {contact.name}
+        </h2>
+        <p className="text-xs text-dark-400 mb-3">
+          This contact is referenced by {conflict.totalRefs || 0} other record{(conflict.totalRefs || 0) === 1 ? '' : 's'}.
+          Remove or reassign them first, or choose Force delete to proceed anyway (this will leave orphaned records).
+        </p>
+
+        <div className="bg-dark-900 border border-dark-700 rounded-lg divide-y divide-dark-700 mb-3">
+          {rows.map(([key, count]) => (
+            <div key={key} className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs text-dark-300">{REFERENCE_LABELS[key] || key}</span>
+              <span className="text-xs font-medium text-red-400">{count}</span>
+            </div>
+          ))}
+        </div>
+
+        {samples.invoices?.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[11px] uppercase tracking-wide text-dark-500 mb-1">Sample invoices</p>
+            <ul className="text-xs text-dark-300 space-y-0.5 pl-3">
+              {samples.invoices.map((inv) => (
+                <li key={inv._id} className="list-disc">
+                  {inv.invoiceNumber || inv._id}
+                  {inv.type === 'credit_note' ? ' (credit note)' : ''}
+                  {inv.status ? ` — ${inv.status}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {samples.childContacts?.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[11px] uppercase tracking-wide text-dark-500 mb-1">Sample child contacts</p>
+            <ul className="text-xs text-dark-300 space-y-0.5 pl-3">
+              {samples.childContacts.map((c) => (
+                <li key={c._id} className="list-disc">{c.name}{c.email ? ` — ${c.email}` : ''}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button onClick={onCancel}
+            className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onForceDelete} disabled={deleting}
+            className="flex-1 px-3 py-2 text-xs text-white bg-red-500 rounded-lg hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+            {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            Force delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

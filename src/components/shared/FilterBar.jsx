@@ -1,0 +1,466 @@
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, X, ChevronDown, Filter, Check, Layers } from 'lucide-react';
+
+/**
+ * FilterBar — shared list-page filter shell.
+ *
+ * Composition pattern (locked 2026-05-06): each list page imports this shell
+ * and composes its own <FilterChip> children. State syncs to URL query
+ * params so views are bookmarkable / shareable / refresh-safe.
+ *
+ * Mobile (<640px): chips collapse into a single "Filters (N)" button that
+ * opens a bottom-sheet with the same chip set.
+ *
+ * Usage:
+ *   const filterParams = useFilterParams(['stageId', 'salespersonId', ...]);
+ *   <FilterBar searchKey="search">
+ *     <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
+ *     <FilterChip type="boolean" paramKey="isLost" label="Lost" />
+ *     <ArchivedToggle activeCount={…} archivedCount={…} />
+ *   </FilterBar>
+ */
+
+// ---------------------------------------------------------------------------
+// Hook: read all known filter params from the URL into a stable object.
+// Page components pass this object straight to their list API.
+// ---------------------------------------------------------------------------
+export function useFilterParams(keys = []) {
+  const [searchParams] = useSearchParams();
+  const out = {};
+  for (const k of keys) {
+    const v = searchParams.get(k);
+    if (v != null && v !== '') out[k] = v;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: set/clear a single param while preserving the rest.
+// ---------------------------------------------------------------------------
+function useUpdateParam() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  return (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value == null || value === '' || value === false) {
+      next.delete(key);
+    } else {
+      next.set(key, String(value));
+    }
+    // Reset page param whenever any other filter changes.
+    if (key !== 'page') next.delete('page');
+    setSearchParams(next, { replace: false });
+  };
+}
+
+// ---------------------------------------------------------------------------
+// FilterBar shell — search box + chip row on desktop, collapsed sheet on mobile.
+// ---------------------------------------------------------------------------
+export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'Search…', children }) {
+  const [searchParams] = useSearchParams();
+  const updateParam = useUpdateParam();
+  const [searchValue, setSearchValue] = useState(searchParams.get(searchKey) || '');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const debounceRef = useRef(null);
+
+  // Sync local input to URL — debounced so typing doesn't slam the API.
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      updateParam(searchKey, searchValue);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue]);
+
+  // Re-sync if URL changes externally (e.g. user clicks back).
+  useEffect(() => {
+    const urlVal = searchParams.get(searchKey) || '';
+    if (urlVal !== searchValue) setSearchValue(urlVal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get(searchKey)]);
+
+  // 2026-05-13 audit Q1 = D: count active filter params for the
+  // visual badge + "Clear all" affordance. groupBy is a view-mode
+  // control, not a filter — exclude it from both the count and the
+  // clear-all action so changing the view doesn't reset filters and
+  // vice versa.
+  const activeChipCount = Array.from(searchParams.entries()).filter(([k, v]) =>
+    k !== searchKey && k !== 'page' && k !== 'groupBy' && k !== 'sort' && k !== 'dir' && v
+  ).length;
+
+  const clearAll = () => {
+    const next = new URLSearchParams();
+    // Preserve search, groupBy, and sort/dir — only filters get nuked.
+    if (searchValue) next.set(searchKey, searchValue);
+    const groupBy = searchParams.get('groupBy');
+    if (groupBy) next.set('groupBy', groupBy);
+    const sort = searchParams.get('sort');
+    const dir = searchParams.get('dir');
+    if (sort) next.set('sort', sort);
+    if (dir) next.set('dir', dir);
+    window.history.replaceState({}, '', window.location.pathname + (next.toString() ? '?' + next.toString() : ''));
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500" />
+          <input
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-8 pr-3 py-1.5 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Desktop chip row */}
+        <div className="hidden sm:flex items-center gap-2 flex-wrap">
+          {children}
+          {/* 2026-05-13 audit Q1 = D: Clear-all becomes a chip-style
+              button when 2+ filters are active (more visible than the
+              old underlined text link). Hidden when 0-1 filters set
+              since clearing a single chip is faster from its own X. */}
+          {activeChipCount >= 2 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+              title={`Clear ${activeChipCount} active filters`}
+            >
+              <X size={12} />
+              Clear all
+              <span className="text-[10px] text-red-400/80">({activeChipCount})</span>
+            </button>
+          )}
+        </div>
+
+        {/* Mobile: single "Filters (N)" button */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="sm:hidden flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-600 rounded-lg text-dark-200"
+        >
+          <Filter size={13} /> Filters{activeChipCount > 0 ? ` (${activeChipCount})` : ''}
+        </button>
+      </div>
+
+      {/* Mobile bottom-sheet */}
+      {mobileOpen && (
+        <div className="sm:hidden fixed inset-0 z-50 flex items-end" onClick={() => setMobileOpen(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative w-full bg-dark-900 border-t border-dark-700 rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-dark-100">Filters</h3>
+              <button onClick={() => setMobileOpen(false)} className="text-dark-400 hover:text-dark-200"><X size={18} /></button>
+            </div>
+            <div className="space-y-3">
+              {children}
+            </div>
+            <div className="flex gap-2 mt-5">
+              {activeChipCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { clearAll(); setMobileOpen(false); }}
+                  className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-800 border border-dark-600 rounded-lg hover:bg-dark-700"
+                >
+                  Clear all
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="flex-1 px-3 py-2 text-xs text-white bg-rivvra-500 rounded-lg hover:bg-rivvra-600"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FilterChip — typed primitive used inside a FilterBar.
+// ---------------------------------------------------------------------------
+/**
+ * Props:
+ *   type      — 'select' | 'boolean' | 'segmented'
+ *   paramKey  — URL param key to read/write
+ *   label     — display label
+ *   options   — for 'select' / 'segmented': [{ value, label, count? }]
+ *   placeholder — for 'select': empty-state label
+ */
+export function FilterChip({ type = 'select', paramKey, label, options = [], placeholder, searchable = false }) {
+  const [searchParams] = useSearchParams();
+  const updateParam = useUpdateParam();
+  const value = searchParams.get(paramKey) || '';
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef(null);
+  // 2026-05-13: auto-enable search for any select chip with >5 options
+  // (was >10 — too high; the Jobs Client filter with exactly 10 entries
+  // missed it). Caller can also pass searchable={true} explicitly.
+  const isSearchable = searchable || (type === 'select' && options.length > 5);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  // Reset the search query when the panel closes.
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
+
+  if (type === 'segmented') {
+    return (
+      <div className="inline-flex items-center bg-dark-800 border border-dark-600 rounded-lg overflow-hidden">
+        {options.map((o, i) => {
+          const isActive = (value || options[0].value) === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => updateParam(paramKey, o.value === options[0].value ? '' : o.value)}
+              className={`px-3 py-1.5 text-xs ${isActive ? 'bg-rivvra-500/20 text-rivvra-300' : 'text-dark-400 hover:text-dark-200'} ${i > 0 ? 'border-l border-dark-600' : ''}`}
+            >
+              {o.label}{o.count != null ? ` ${o.count}` : ''}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (type === 'boolean') {
+    const isActive = value === 'true' || value === '1';
+    return (
+      <button
+        type="button"
+        onClick={() => updateParam(paramKey, isActive ? '' : 'true')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+          isActive
+            ? 'bg-rivvra-500/15 text-rivvra-300 border-rivvra-500/30'
+            : 'bg-dark-800 text-dark-400 border-dark-600 hover:text-dark-200'
+        }`}
+      >
+        {isActive && <Check size={12} />}
+        {label}
+      </button>
+    );
+  }
+
+  // type === 'select'
+  const selected = options.find(o => String(o.value) === value);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+          value
+            ? 'bg-rivvra-500/15 text-rivvra-300 border-rivvra-500/30'
+            : 'bg-dark-800 text-dark-400 border-dark-600 hover:text-dark-200'
+        }`}
+      >
+        <span>{label}{selected ? `: ${selected.label}` : ''}</span>
+        {value && (
+          <X
+            size={12}
+            className="hover:text-red-400"
+            onClick={(e) => { e.stopPropagation(); updateParam(paramKey, ''); }}
+          />
+        )}
+        {!value && <ChevronDown size={12} />}
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 min-w-[220px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 flex flex-col max-h-80">
+          {isSearchable && (
+            <div className="p-2 border-b border-dark-700">
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={placeholder || `Search ${label?.toLowerCase() || 'options'}…`}
+                className="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+              />
+            </div>
+          )}
+          <div className="overflow-y-auto">
+            {(() => {
+              const q = query.trim().toLowerCase();
+              const filtered = q ? options.filter((o) => String(o.label || '').toLowerCase().includes(q)) : options;
+              if (filtered.length === 0) {
+                return <div className="px-3 py-2 text-xs text-dark-500">{q ? 'No matches' : (placeholder || 'No options')}</div>;
+              }
+              return filtered.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => { updateParam(paramKey, o.value); setOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-dark-700 ${
+                    String(o.value) === value ? 'text-rivvra-300' : 'text-dark-200'
+                  }`}
+                >
+                  <span className="truncate pr-2">{o.label}</span>
+                  {String(o.value) === value && <Check size={12} className="text-rivvra-400 shrink-0" />}
+                </button>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MoreFiltersPopover — chip-style trigger that opens a popover containing
+// additional FilterChip children. Used by list pages with > 5 filters to
+// keep the chip row short on common filters and tuck the long tail behind
+// a single "More filters (N)" button.
+//
+// 2026-05-12 ATS audit Q6 = B: top 4-5 filters stay as visible chips;
+// the rest go in here. Activity badge counts how many filters inside
+// the popover are currently set.
+// ---------------------------------------------------------------------------
+export function MoreFiltersPopover({ paramKeys = [], children, label = 'More filters' }) {
+  const [searchParams] = useSearchParams();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  // Active = any of the param keys we own has a value set.
+  const activeCount = paramKeys.filter((k) => {
+    const v = searchParams.get(k);
+    return v != null && v !== '';
+  }).length;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+          activeCount > 0
+            ? 'bg-rivvra-500/15 text-rivvra-300 border-rivvra-500/30'
+            : 'bg-dark-800 text-dark-400 border-dark-600 hover:text-dark-200'
+        }`}
+      >
+        <Filter size={12} />
+        <span>{label}{activeCount > 0 ? ` (${activeCount})` : ''}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 min-w-[260px] max-w-[360px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 p-3 space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GroupByChip — chip-style dropdown that writes ?groupBy=<key> to the URL.
+// Pages render their grouped output by reading the `groupBy` query param
+// (via useFilterParams) and switching between flat and grouped renderers.
+//
+// 2026-05-13 audit Q2 = A: distinct icon + neutral palette so users see
+// group-by isn't just another filter. Renders the Layers icon to the left
+// of the label and uses a violet-tinted active state to differentiate
+// from the rivvra-green of filter chips.
+// ---------------------------------------------------------------------------
+export function GroupByChip({ options = [], paramKey = 'groupBy', label = 'Group by' }) {
+  const [searchParams] = useSearchParams();
+  const updateParam = useUpdateParam();
+  const value = searchParams.get(paramKey) || '';
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const selected = options.find((o) => String(o.value) === value);
+  const isActive = Boolean(value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+          isActive
+            ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+            : 'bg-dark-900 text-dark-300 border-dark-700 hover:text-dark-200 hover:border-dark-600'
+        }`}
+      >
+        <Layers size={12} className={isActive ? 'text-violet-300' : 'text-dark-500'} />
+        <span>{label}{selected && selected.value ? `: ${selected.label}` : ''}</span>
+        {isActive && (
+          <X
+            size={12}
+            className="hover:text-red-400"
+            onClick={(e) => { e.stopPropagation(); updateParam(paramKey, ''); }}
+          />
+        )}
+        {!isActive && <ChevronDown size={12} />}
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 min-w-[200px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 py-1">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { updateParam(paramKey, o.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-dark-700 ${
+                String(o.value) === value ? 'text-violet-300' : 'text-dark-200'
+              }`}
+            >
+              <span>{o.label}</span>
+              {String(o.value) === value && <Check size={12} className="text-violet-400" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ArchivedToggle — convenience wrapper around a 2-segment chip for the
+// platform-wide Active/Archived split.
+// ---------------------------------------------------------------------------
+export function ArchivedToggle({ activeCount, archivedCount }) {
+  return (
+    <FilterChip
+      type="segmented"
+      paramKey="archived"
+      label="Archive"
+      options={[
+        { value: '', label: `Active${activeCount != null ? ` ${activeCount}` : ''}` },
+        { value: '1', label: `Archived${archivedCount != null ? ` ${archivedCount}` : ''}` },
+      ]}
+    />
+  );
+}

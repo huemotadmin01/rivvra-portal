@@ -1,0 +1,255 @@
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
+import { Pencil, Search, X } from 'lucide-react';
+import contactsApi from '../../utils/contactsApi';
+
+/**
+ * Searchable employee lookup. Backed by /contacts/salespersons which returns
+ * active employees scoped to the current company. Use for any "person" field
+ * (salesperson, account owner, etc.).
+ *
+ * Props:
+ *   orgSlug      — current org slug
+ *   currentValue — selected employee _id (string | null)
+ *   currentName  — display name to show when not editing
+ *   onSelect     — (id, name) => void; called with ('', '') for "no selection"
+ *   editable     — when false, renders read-only
+ *   placeholder  — search input placeholder
+ *   variant      — 'row' (label + value, default) | 'inline' (just the value cell)
+ *   label        — label text (used by 'row' variant)
+ *   allowClear   — show "No selection" option (default true)
+ *   linkTo       — optional fn(id) => path. When provided + value set, the
+ *                  display-mode name renders as a Link to that path. Click
+ *                  on the name navigates; click the pencil icon (or empty
+ *                  cell) still enters edit mode. Used for People fields
+ *                  that hyperlink to /employee/:id.
+ */
+export default function EmployeeLookup({
+  orgSlug,
+  currentValue,
+  currentName,
+  onSelect,
+  editable = true,
+  placeholder = 'Search employees…',
+  variant = 'row',
+  label = 'Salesperson',
+  allowClear = true,
+  linkTo = null,
+}) {
+  const [editing, setEditing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  // Whether the currentValue resolves to an active employee — gates the
+  // hyperlink in display mode. Probed once per id change. Avoids 404s for
+  // legacy ids (e.g. "HR Team" portal_user with no employee record).
+  const [linkable, setLinkable] = useState(false);
+  // Anchor rect for the portal-rendered dropdown. Recomputed when editing
+  // opens (and on scroll/resize) so the dropdown floats below its input
+  // even though the DOM lives at document.body to escape sidebar cards'
+  // backdrop-blur stacking contexts (which clip a regular absolute popup).
+  const [anchorRect, setAnchorRect] = useState(null);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+  const searchTimer = useRef(null);
+
+  useEffect(() => {
+    if (!linkTo || !currentValue) { setLinkable(false); return; }
+    let cancelled = false;
+    contactsApi.probeSalesperson(orgSlug, currentValue)
+      .then((res) => { if (!cancelled) setLinkable(!!res?.salespersons?.length); })
+      .catch(() => { if (!cancelled) setLinkable(false); });
+    return () => { cancelled = true; };
+  }, [orgSlug, currentValue, linkTo]);
+
+  const doSearch = async (q) => {
+    try {
+      setLoading(true);
+      const res = await contactsApi.listSalespersons(orgSlug, q);
+      setResults(res?.salespersons || []);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      doSearch('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const handleClick = (e) => {
+      // Click outside both the input container AND the portaled dropdown.
+      // Portal nodes are tagged data-employee-lookup-dropdown so we can
+      // recognise them as part of "inside" without ref plumbing.
+      if (containerRef.current && containerRef.current.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-employee-lookup-dropdown]')) return;
+      setEditing(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [editing]);
+
+  // Track the input's bounding rect so the portaled dropdown can float
+  // below it. Re-measures on edit-open, window resize, and scroll.
+  useEffect(() => {
+    if (!editing) return;
+    const measure = () => {
+      const node = inputRef.current;
+      if (!node) return;
+      const r = node.getBoundingClientRect();
+      setAnchorRect({ top: r.bottom, left: r.left, width: r.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [editing]);
+
+  const handleChange = (e) => {
+    setQuery(e.target.value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => doSearch(e.target.value), 250);
+  };
+
+  const pick = (id, name) => {
+    onSelect?.(id, name);
+    setEditing(false);
+    setQuery('');
+  };
+
+  const dropdown = anchorRect ? createPortal(
+    <div
+      data-employee-lookup-dropdown
+      style={{
+        position: 'fixed',
+        top: anchorRect.top + 4,
+        left: anchorRect.left,
+        width: anchorRect.width,
+        zIndex: 1000,
+      }}
+      className="bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-56 overflow-y-auto"
+    >
+      {allowClear && (
+        <button
+          type="button"
+          onClick={() => pick('', '')}
+          className="w-full text-left px-3 py-2 text-xs text-dark-400 hover:bg-dark-700 border-b border-dark-700/50 flex items-center gap-1.5"
+        >
+          <X size={11} /> No selection
+        </button>
+      )}
+      {loading && <div className="px-3 py-2 text-xs text-dark-500">Searching…</div>}
+      {!loading && results.length === 0 && (
+        <div className="px-3 py-2 text-xs text-dark-500">No employees found</div>
+      )}
+      {results.map((emp) => (
+        <button
+          key={emp._id}
+          type="button"
+          onClick={() => pick(emp._id, emp.name)}
+          className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0"
+        >
+          <div className="text-xs text-white">{emp.name}</div>
+          {emp.designation && <div className="text-[10px] text-dark-400">{emp.designation}</div>}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  ) : null;
+
+  if (variant === 'inline') {
+    if (!editing) {
+      return (
+        <span
+          className={`inline-flex items-center gap-1 ${editable ? 'cursor-pointer hover:text-rivvra-300 group' : ''}`}
+          onClick={() => editable && setEditing(true)}
+        >
+          <span className="truncate" title={currentName || 'Unassigned'}>
+            {currentName || <span className="text-dark-500 italic">Unassigned</span>}
+          </span>
+          {editable && <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100" />}
+        </span>
+      );
+    }
+    return (
+      <div ref={containerRef} className="relative w-full">
+        <div className="flex items-center gap-1">
+          <Search size={11} className="text-dark-500 absolute left-2 top-1/2 -translate-y-1/2" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleChange}
+            placeholder={placeholder}
+            className="w-full bg-dark-900 border border-rivvra-500 rounded pl-7 pr-2 py-1 text-xs text-white focus:outline-none"
+            onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
+          />
+        </div>
+        {dropdown}
+      </div>
+    );
+  }
+
+  // variant === 'row'
+  if (!editing) {
+    const linkPath = linkTo && currentValue && linkable ? linkTo(currentValue) : null;
+    // When a hyperlink is rendered, the name needs to navigate on click
+    // while the rest of the row should still enter edit mode. Stop the
+    // anchor click from bubbling so the row's onClick doesn't fire too.
+    return (
+      <div
+        className={`grid grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
+        onClick={() => editable && setEditing(true)}
+      >
+        <span className="text-dark-400 text-sm">{label}</span>
+        <div className="flex items-center gap-1.5">
+          {currentName ? (
+            linkPath ? (
+              <Link
+                to={linkPath}
+                onClick={(e) => e.stopPropagation()}
+                className="text-rivvra-300 hover:text-rivvra-200 hover:underline text-sm truncate"
+              >
+                {currentName}
+              </Link>
+            ) : (
+              <span className="text-white text-sm">{currentName}</span>
+            )
+          ) : (
+            <span className="text-dark-500 text-sm">—</span>
+          )}
+          {editable && <Pencil size={10} className="text-dark-600 opacity-0 group-hover:opacity-100" />}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="grid grid-cols-[140px_1fr] gap-2 py-2">
+      <span className="text-dark-400 text-sm pt-1">{label}</span>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          placeholder={placeholder}
+          className="w-full bg-dark-800 border border-rivvra-500 rounded px-2 py-1 text-sm text-white focus:outline-none"
+          onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
+        />
+        {dropdown}
+      </div>
+    </div>
+  );
+}

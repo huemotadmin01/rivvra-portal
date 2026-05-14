@@ -469,10 +469,7 @@ export default function UserDetail() {
                   <Badge className="bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20">You</Badge>
                 )}
                 {member.teamName && (
-                  <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20">{member.teamName}</Badge>
-                )}
-                {member.recruitmentTeamName && (
-                  <Badge className="bg-purple-500/10 text-purple-400 border border-purple-500/20">{member.recruitmentTeamName}</Badge>
+                  <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20">{member.teamName}</Badge>
                 )}
               </div>
             </div>
