@@ -415,8 +415,8 @@ function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, render
   );
 }
 
-/* ── Main AtsReporting Component ──────────────────────────────────────── */
-export default function AtsReporting() {
+/* ── Main AtsDashboard Component ──────────────────────────────────────── */
+export default function AtsDashboard() {
   const { currentOrg, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();

@@ -371,14 +371,13 @@ export const APP_REGISTRY = {
     color: 'purple',
     basePath: '/ats',
     status: 'active',
-    // 2026-05-12 audit: ATS landing page is role-aware. Admin lands on
-    // Dashboard (they monitor throughput / hires); Recruiter lands on
-    // Pipeline (they work, not read). Matches Greenhouse / Lever / Workable.
-    // Other apps keep static string defaults — only ATS needs the split today.
-    // 2026-05-14: path renamed from /ats/reporting (label "Reporting") to
-    // /ats/dashboard ("Dashboard") to match the page's actual role-aware
-    // landing intent. Old path 301-redirects in App.jsx.
-    defaultRoute: (orgAppRole) => (orgAppRole === 'admin' ? '/ats/dashboard' : '/ats/pipeline'),
+    // 2026-05-14 (later that day): Dashboard becomes the universal
+    // landing for everyone, not just admins. Recruiters see the same
+    // funnel/conversion KPIs the design doc carved out for them.
+    // Earlier role-aware split (admin → dashboard, others → pipeline)
+    // reverted at the user's request — keeps ATS consistent with how
+    // most apps in the suite land on their dashboard.
+    defaultRoute: '/ats/dashboard',
     derivedRoles: true,
     roles: [
       { value: 'admin', label: 'Admin', color: 'purple' },
@@ -387,14 +386,17 @@ export const APP_REGISTRY = {
     ],
     getSidebarItems: (user, timesheetUser, orgAppRole) => {
       const isAdmin = orgAppRole === 'admin';
+      // 2026-05-14: Dashboard hoisted to the top of the sidebar and
+      // visible to everyone — it's the landing now. Configuration stays
+      // admin-only.
       return [
+        { type: 'item', path: '/ats/dashboard', label: 'Dashboard', icon: BarChart3 },
         { type: 'item', path: '/ats/pipeline', label: 'Pipeline', icon: Kanban },
         { type: 'item', path: '/ats/applications', label: 'Applications', icon: FileText },
         { type: 'item', path: '/ats/jobs', label: 'Job Positions', icon: Briefcase },
         { type: 'item', path: '/ats/candidates', label: 'Candidates', icon: Users },
         { type: 'item', path: '/ats/my-approvals', label: 'My Approvals', icon: CheckCircle2 },
         ...(isAdmin ? [
-          { type: 'item', path: '/ats/dashboard', label: 'Dashboard', icon: BarChart3 },
           {
             type: 'group', label: 'Configuration', icon: Settings,
             children: [

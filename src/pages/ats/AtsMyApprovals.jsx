@@ -21,7 +21,7 @@ function ApprovalPill({ status }) {
   );
 }
 
-/* ── Hours-since helper (mirrors AtsReporting alert card) ─────────────── */
+/* ── Hours-since helper (mirrors AtsDashboard alert card) ─────────────── */
 function hoursSince(iso) {
   if (!iso) return null;
   const ms = Date.now() - new Date(iso).getTime();
