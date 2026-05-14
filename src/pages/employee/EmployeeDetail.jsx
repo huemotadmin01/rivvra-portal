@@ -2176,18 +2176,28 @@ export default function EmployeeDetail() {
               </div>
 
               {/* Project */}
-              <div>
-                <label className="block text-sm text-dark-400 mb-1">
-                  Project <span className="text-red-400">*</span>
-                </label>
-                <ComboSelect
-                  value={editAssignment.projectId}
-                  displayValue={editAssignment.projectName}
-                  options={tsProjects}
-                  onChange={(id, name) => setEditAssignment(prev => ({ ...prev, projectId: id, projectName: name }))}
-                  placeholder="Select or create project"
-                />
-              </div>
+              {isNewAssignment ? (
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">
+                    Project <span className="text-red-400">*</span>
+                  </label>
+                  <ComboSelect
+                    value={editAssignment.projectId}
+                    displayValue={editAssignment.projectName}
+                    options={tsProjects}
+                    onChange={(id, name) => setEditAssignment(prev => ({ ...prev, projectId: id, projectName: name }))}
+                    placeholder="Select or create project"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">Project</label>
+                  <div className="text-white text-sm">
+                    {editAssignment.projectName || '—'}
+                    <span className="ml-2 text-[11px] text-amber-300/90">Read-only — project is the timesheet anchor. To switch projects, mark this assignment Ended and add a new one.</span>
+                  </div>
+                </div>
+              )}
 
               {/* Candidate + Client Billing Rate */}
               {isNewAssignment ? (
