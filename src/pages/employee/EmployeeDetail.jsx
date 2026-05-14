@@ -1743,7 +1743,7 @@ export default function EmployeeDetail() {
                               {[...a.rateHistory].reverse().map((entry, hIdx) => {
                                 const effDate = formatDateUTC(entry.effectiveDate) || '—';
                                 const endDate = formatDateUTC(entry.endDate) || 'Current';
-                                const fmtR = (r) => { if (!r) return '—'; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `$${r.hourly}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; };
+                                const fmtR = (r) => { if (!r) return '—'; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; };
                                 return (
                                   <div key={hIdx} className="flex items-start gap-3 text-xs">
                                     <span className="text-dark-500 whitespace-nowrap">{effDate} → {endDate}</span>
@@ -2189,62 +2189,90 @@ export default function EmployeeDetail() {
                 />
               </div>
 
-              {/* Candidate Billing Rate */}
-              <div>
-                <label className="block text-sm text-dark-400 mb-1.5">Candidate Billing Rate</label>
-                <div className="grid grid-cols-3 gap-2">
+              {/* Candidate + Client Billing Rate */}
+              {isNewAssignment ? (
+                <>
                   <div>
-                    <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
-                    <input type="number" min="0" step="0.01" value={editAssignment.billingRate.daily}
-                      onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
-                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                      placeholder="0" />
+                    <label className="block text-sm text-dark-400 mb-1.5">Candidate Billing Rate</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
+                        <input type="number" min="0" step="0.01" value={editAssignment.billingRate.daily}
+                          onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
+                          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Hourly (₹)</span>
+                        <input type="number" min="0" step="0.01" value={editAssignment.billingRate.hourly}
+                          onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
+                          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
+                        <input type="number" min="0" step="0.01" value={editAssignment.billingRate.monthly}
+                          onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
+                          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                          placeholder="0" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-dark-500 mt-1">Pick one cadence — the others clear automatically. After saving, use Revise Rate to change.</p>
                   </div>
-                  <div>
-                    <span className="text-xs text-dark-500 mb-0.5 block">Hourly ($)</span>
-                    <input type="number" min="0" step="0.01" value={editAssignment.billingRate.hourly}
-                      onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
-                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                      placeholder="0" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
-                    <input type="number" min="0" step="0.01" value={editAssignment.billingRate.monthly}
-                      onChange={e => setEditAssignment(prev => ({ ...prev, billingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
-                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                      placeholder="0" />
-                  </div>
-                </div>
-                <p className="text-xs text-dark-500 mt-1">Pick one cadence — the others clear automatically.</p>
-              </div>
 
-              {/* Client Billing Rate */}
-              <div>
-                <label className="block text-sm text-dark-400 mb-1.5">Client Billing Rate</label>
-                <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
-                    <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.daily}
-                      onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
-                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                      placeholder="0" />
+                    <label className="block text-sm text-dark-400 mb-1.5">Client Billing Rate</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
+                        <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.daily}
+                          onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
+                          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Hourly (₹)</span>
+                        <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.hourly}
+                          onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
+                          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
+                        <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.monthly}
+                          onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
+                          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                          placeholder="0" />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs text-dark-500 mb-0.5 block">Hourly ($)</span>
-                    <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.hourly}
-                      onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
-                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                      placeholder="0" />
+                </>
+              ) : (() => {
+                const fmtR = (r) => {
+                  if (!r) return '—';
+                  if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`;
+                  if (r.hourly)  return `₹${Number(r.hourly).toLocaleString()}/hr`;
+                  if (r.daily)   return `₹${Number(r.daily).toLocaleString()}/day`;
+                  return '—';
+                };
+                return (
+                  <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <div className="text-dark-500 mb-0.5">Candidate Billing Rate</div>
+                        <div className="text-white">{fmtR(editAssignment.billingRate)}</div>
+                      </div>
+                      <div>
+                        <div className="text-dark-500 mb-0.5">Client Billing Rate</div>
+                        <div className="text-white">{fmtR(editAssignment.clientBillingRate)}</div>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-amber-300/90 mt-2 leading-snug">
+                      Rates are read-only here to keep an audit trail. To change rates with a mid-month effective date and revision history, close this dialog and click <span className="font-medium">Revise Rate</span> on the assignment row.
+                    </p>
                   </div>
-                  <div>
-                    <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
-                    <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.monthly}
-                      onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
-                      className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                      placeholder="0" />
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Dates + Status row */}
               <div className="grid grid-cols-3 gap-3">
@@ -2430,7 +2458,7 @@ export default function EmployeeDetail() {
             <div className="mb-4">
               <label className="block text-sm font-medium text-dark-300 mb-2">New Candidate Rate</label>
               <div className="grid grid-cols-3 gap-2">
-                {[['daily', '₹'], ['hourly', '$'], ['monthly', '₹']].map(([key, symbol]) => (
+                {[['daily', '₹'], ['hourly', '₹'], ['monthly', '₹']].map(([key, symbol]) => (
                   <div key={key}>
                     <span className="text-xs text-dark-500 capitalize">{key}</span>
                     <div className="relative mt-1">
@@ -2446,7 +2474,7 @@ export default function EmployeeDetail() {
             <div className="mb-4">
               <label className="block text-sm font-medium text-dark-300 mb-2">New Client Billing Rate</label>
               <div className="grid grid-cols-3 gap-2">
-                {[['daily', '₹'], ['hourly', '$'], ['monthly', '₹']].map(([key, symbol]) => (
+                {[['daily', '₹'], ['hourly', '₹'], ['monthly', '₹']].map(([key, symbol]) => (
                   <div key={key}>
                     <span className="text-xs text-dark-500 capitalize">{key}</span>
                     <div className="relative mt-1">
