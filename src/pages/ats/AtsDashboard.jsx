@@ -64,6 +64,17 @@ function buildReportingCsv(data, rangeLabel) {
     lines.push(`${csvEscape(s.source)},${s.count}`);
   });
   lines.push('');
+  if (Array.isArray(data.applicationsByTeam) && data.applicationsByTeam.length > 0) {
+    lines.push('Recruitment teams performance');
+    lines.push('Team,Recruiters,Applications,Hired,Conversion %,% of Total');
+    const total = data.totalApplications || 0;
+    data.applicationsByTeam.forEach((t) => {
+      const conv = t.conversion == null ? '' : `${t.conversion}%`;
+      const pct = total > 0 ? `${((t.count / total) * 100).toFixed(1)}%` : '0.0%';
+      lines.push(`${csvEscape(t.teamName)},${t.recruiterCount ?? 0},${t.count},${t.hired ?? 0},${conv},${pct}`);
+    });
+    lines.push('');
+  }
   lines.push('Applications by recruiter');
   lines.push('Recruiter,Applications,Hired,Conversion %');
   (data.applicationsByRecruiter || []).forEach((r) => {
@@ -281,6 +292,69 @@ function RecruitmentFunnel({ data }) {
 }
 
 /* ── Recruiter Table ──────────────────────────────────────────────────── */
+/* ── Recruitment Teams Performance ────────────────────────────────────────
+ * 2026-05-14. Roll-up of Applications-by-Recruiter, grouped by each
+ * recruiter's recruitment team. Helps admins compare Team A vs Team B
+ * at a glance. Conversion uses the same 20% / 5% color thresholds as
+ * the recruiter table for visual consistency. */
+function TeamPerformanceTable({ data, totalApplications }) {
+  const sorted = useMemo(() => [...data].sort((a, b) => b.count - a.count), [data]);
+
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Recruitment Teams Performance</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Applications rolled up by recruiter's recruitment team</p>
+
+      {sorted.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No team data yet</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-dark-400 border-b border-dark-700">
+                <th className="text-left py-2 pr-3 font-medium uppercase text-[10px] tracking-wider">Team</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Recruiters</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Apps</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Hired</th>
+                <th className="text-right py-2 px-3 font-medium uppercase text-[10px] tracking-wider">Conversion</th>
+                <th className="text-right py-2 pl-3 font-medium uppercase text-[10px] tracking-wider">% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((t) => {
+                const pct = totalApplications > 0
+                  ? ((t.count / totalApplications) * 100).toFixed(1)
+                  : '0.0';
+                const convText = t.conversion == null ? '—' : `${t.conversion}%`;
+                const convColor = t.conversion == null
+                  ? 'text-dark-500'
+                  : t.conversion >= 20
+                  ? 'text-emerald-400'
+                  : t.conversion >= 5
+                  ? 'text-amber-400'
+                  : 'text-dark-400';
+                const isUnassigned = !t.teamId;
+                return (
+                  <tr key={t.teamId || '__unassigned__'} className="border-b border-dark-700/50 last:border-0">
+                    <td className={`py-2 pr-3 ${isUnassigned ? 'text-dark-500 italic' : 'text-dark-200'}`}>
+                      {t.teamName}
+                    </td>
+                    <td className="py-2 px-3 text-right text-dark-300">{t.recruiterCount}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{t.count}</td>
+                    <td className="py-2 px-3 text-right text-dark-300">{t.hired ?? 0}</td>
+                    <td className={`py-2 px-3 text-right font-medium ${convColor}`}>{convText}</td>
+                    <td className="py-2 pl-3 text-right text-dark-400">{pct}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecruiterTable({ data, totalApplications }) {
   // Sort descending by application count, memoised so we don't re-sort
   // on every parent re-render (the table doesn't own this state).
@@ -504,6 +578,7 @@ export default function AtsDashboard() {
     applicationsByStage = [],
     applicationsBySource = [],
     applicationsByRecruiter = [],
+    applicationsByTeam = [],
     totalJobs = 0,
     totalApplications = 0,
     totalCandidates = 0,
@@ -690,6 +765,9 @@ export default function AtsDashboard() {
         {/* Right slot reserved for a future "Time-to-fill by job" or
             similar — left empty rather than crammed with filler. */}
       </div>
+
+      {/* ── Recruitment Teams Performance ──────────────────────────────── */}
+      <TeamPerformanceTable data={applicationsByTeam} totalApplications={totalApplications} />
 
       {/* ── Recruiter Table ─────────────────────────────────────────────── */}
       <RecruiterTable data={applicationsByRecruiter} totalApplications={totalApplications} />
