@@ -9,6 +9,7 @@ import {
   Briefcase, Trophy, XCircle, ArrowRight,
   Clock, Loader2, Calendar, BarChart3,
 } from 'lucide-react';
+import MyTeamWidget from '../../components/shared/MyTeamWidget';
 
 function KPICard({ label, value, icon: Icon, color = 'dark', subtitle }) {
   const colorMap = {
@@ -196,6 +197,9 @@ export default function CrmDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ─── My Sales Team (lead-only; hides itself for admins/members) ─── */}
+      <MyTeamWidget type="crm" currency={data?.currency} />
 
       {/* ─── Team Performance (admin / team-lead only) ─────────────────────
           Merged 2026-05-14 from the old /crm/reporting page. Same data

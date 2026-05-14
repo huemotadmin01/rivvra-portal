@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
+import MyTeamWidget from '../../components/shared/MyTeamWidget';
 
 /* ── Sticky range preference ──────────────────────────────────────────────
  * 2026-05-12 Phase 1 (audit Q8 = D). Per-user, per-device. Default = 30d
@@ -582,6 +583,9 @@ export default function AtsDashboard() {
       {/* ── Funnel (Phase 1) — replaces the old Applications-by-Stage
           horizontal bar; shows same data plus cumulative + conversion %. */}
       <RecruitmentFunnel data={applicationsByStage} />
+
+      {/* ── My Recruitment Team (lead-only; hides for admins/members) ──── */}
+      <MyTeamWidget type="ats" />
 
       {/* ── Pipeline health alerts (Phase 2) ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

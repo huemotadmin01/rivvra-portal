@@ -940,6 +940,16 @@ class ApiClient {
     });
   }
 
+  // My Team widget — per-app per-member performance for the caller's team.
+  // Returns { success, members: [] } for admins / non-leads (widget hides).
+  async getCrmMyTeam(slug) {
+    return this.request(`/api/org/${slug}/crm/my-team`);
+  }
+
+  async getAtsMyTeam(slug) {
+    return this.request(`/api/org/${slug}/ats/my-team`);
+  }
+
   // Team Member Rate Limits (admin only)
   async getMemberRateLimits() {
     return this.request('/api/teams/members/rate-limits');
