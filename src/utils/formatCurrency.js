@@ -26,4 +26,19 @@ export function formatCurrency(amount, currency = 'INR') {
   }).format(num);
 }
 
+// Returns just the currency symbol (e.g. '₹', '$', '€'). Falls back to the
+// ISO code if Intl can't resolve a symbol for the locale (rare).
+export function currencySymbol(currency = 'INR') {
+  const cur = currency || 'INR';
+  try {
+    const parts = new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: cur,
+    }).formatToParts(0);
+    return parts.find(p => p.type === 'currency')?.value || cur;
+  } catch {
+    return cur;
+  }
+}
+
 export default formatCurrency;

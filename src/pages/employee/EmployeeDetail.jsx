@@ -14,6 +14,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
 import { formatDateUTC, toDateInputValue, todayStr } from '../../utils/dateUtils';
+import { currencySymbol as currencySymbolOf } from '../../utils/formatCurrency';
 import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import {
   Building2,
@@ -391,7 +392,7 @@ export default function EmployeeDetail() {
       employeeApi.getTimesheetOptions(currentOrg.slug)
         .then(res => {
           if (res.success) {
-            setTsClients((res.clients || []).map(c => ({ _id: c._id, name: c.name })));
+            setTsClients((res.clients || []).map(c => ({ _id: c._id, name: c.name, defaultCurrency: c.defaultCurrency || null })));
             setTsProjects((res.projects || []).map(p => ({ _id: p._id, name: p.name })));
           }
         })
@@ -467,6 +468,7 @@ export default function EmployeeDetail() {
       projectName: a.projectName || '',
       billingRate: { daily: br.daily || '', hourly: br.hourly || '', monthly: br.monthly || '' },
       clientBillingRate: { daily: cbr.daily || '', hourly: cbr.hourly || '', monthly: cbr.monthly || '' },
+      clientBillingCurrency: a.clientBillingCurrency || 'INR',
       startDate: toDateInputValue(a.startDate),
       endDate: toDateInputValue(a.endDate),
       status: a.status || 'active',
@@ -506,6 +508,7 @@ export default function EmployeeDetail() {
         clientId: a.clientId || '', clientName: a.clientName || '',
         projectId: a.projectId || '', projectName: a.projectName || '',
         billingRate: a.billingRate || {}, clientBillingRate: a.clientBillingRate || {},
+        clientBillingCurrency: a.clientBillingCurrency || 'INR',
         startDate: a.startDate || '', endDate: a.endDate || '',
         status: a.status || 'active', paidLeavePerMonth: a.paidLeavePerMonth ?? 0,
         rateHistory: Array.isArray(a.rateHistory) ? a.rateHistory : [],
@@ -542,6 +545,7 @@ export default function EmployeeDetail() {
       clientId: '', clientName: '', projectId: '', projectName: '',
       billingRate: { daily: '', hourly: '', monthly: '' },
       clientBillingRate: { daily: '', hourly: '', monthly: '' },
+      clientBillingCurrency: 'INR',
       paidLeavePerMonth: 0,
       startDate: todayStr(),
       endDate: '',
@@ -1662,6 +1666,13 @@ export default function EmployeeDetail() {
                     if (r.monthly) return `${formatCurrency(r.monthly)}/mo`;
                     return '\u2014';
                   };
+                  const clientSym = currencySymbolOf(a.clientBillingCurrency || 'INR');
+                  const fmtClientRate = (r) => {
+                    if (r.daily) return `${clientSym}${Number(r.daily).toLocaleString()}/day`;
+                    if (r.hourly) return `${clientSym}${Number(r.hourly).toLocaleString()}/hr`;
+                    if (r.monthly) return `${clientSym}${Number(r.monthly).toLocaleString()}/mo`;
+                    return '\u2014';
+                  };
                   return (<>
                     <tr key={i} className="hover:bg-dark-800/30 transition-colors group">
                       <td className="px-3 py-2.5 text-sm">
@@ -1675,7 +1686,7 @@ export default function EmployeeDetail() {
                       </td>
                       <td className="px-3 py-2.5 text-sm text-white">{a.projectName || '\u2014'}</td>
                       <td className="px-3 py-2.5 text-sm text-white text-right">{fmtRate(br)}</td>
-                      <td className="px-3 py-2.5 text-sm text-white text-right">{fmtRate(cbr)}</td>
+                      <td className="px-3 py-2.5 text-sm text-white text-right">{fmtClientRate(cbr)}</td>
                       <td className="px-3 py-2.5 text-sm text-dark-300">{formatDate(a.startDate)}</td>
                       <td className="px-3 py-2.5 text-sm text-dark-300">{formatDate(a.endDate) || '\u2014'}</td>
                       <td className="px-3 py-2.5 text-center">
@@ -1744,11 +1755,13 @@ export default function EmployeeDetail() {
                                 const effDate = formatDateUTC(entry.effectiveDate) || '—';
                                 const endDate = formatDateUTC(entry.endDate) || 'Current';
                                 const fmtR = (r) => { if (!r) return '—'; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; };
+                                const histClientSym = currencySymbolOf(a.clientBillingCurrency || 'INR');
+                                const fmtRC = (r) => { if (!r) return '—'; if (r.monthly) return `${histClientSym}${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `${histClientSym}${Number(r.hourly).toLocaleString()}/hr`; if (r.daily) return `${histClientSym}${Number(r.daily).toLocaleString()}/day`; return '—'; };
                                 return (
                                   <div key={hIdx} className="flex items-start gap-3 text-xs">
                                     <span className="text-dark-500 whitespace-nowrap">{effDate} → {endDate}</span>
                                     <span className="text-dark-300">Candidate: <span className="text-white">{fmtR(entry.billingRate)}</span></span>
-                                    <span className="text-dark-300">Client: <span className="text-white">{fmtR(entry.clientBillingRate)}</span></span>
+                                    <span className="text-dark-300">Client: <span className="text-white">{fmtRC(entry.clientBillingRate)}</span></span>
                                     {entry.reason && <span className="text-dark-500 italic">"{entry.reason}"</span>}
                                   </div>
                                 );
@@ -2168,7 +2181,15 @@ export default function EmployeeDetail() {
                   value={editAssignment.clientId}
                   displayValue={editAssignment.clientName}
                   options={tsClients}
-                  onChange={(id, name) => setEditAssignment(prev => ({ ...prev, clientId: id, clientName: name }))}
+                  onChange={(id, name) => {
+                    const picked = tsClients.find(c => c._id === id);
+                    setEditAssignment(prev => ({
+                      ...prev,
+                      clientId: id,
+                      clientName: name,
+                      clientBillingCurrency: picked?.defaultCurrency || 'INR',
+                    }));
+                  }}
                   onCreateNew={(typed) => setQuickAddClient({ name: typed })}
                   createLabel="Add new client"
                   placeholder="Select or add new client"
@@ -2231,24 +2252,24 @@ export default function EmployeeDetail() {
                   </div>
 
                   <div>
-                    <label className="block text-sm text-dark-400 mb-1.5">Client Billing Rate</label>
+                    <label className="block text-sm text-dark-400 mb-1.5">Client Billing Rate <span className="text-xs text-dark-500">({editAssignment.clientBillingCurrency || 'INR'})</span></label>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <span className="text-xs text-dark-500 mb-0.5 block">Daily (₹)</span>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Daily ({currencySymbolOf(editAssignment.clientBillingCurrency || 'INR')})</span>
                         <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.daily}
                           onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: e.target.value, hourly: '', monthly: '' } }))}
                           className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                           placeholder="0" />
                       </div>
                       <div>
-                        <span className="text-xs text-dark-500 mb-0.5 block">Hourly (₹)</span>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Hourly ({currencySymbolOf(editAssignment.clientBillingCurrency || 'INR')})</span>
                         <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.hourly}
                           onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: e.target.value, monthly: '' } }))}
                           className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                           placeholder="0" />
                       </div>
                       <div>
-                        <span className="text-xs text-dark-500 mb-0.5 block">Monthly (₹)</span>
+                        <span className="text-xs text-dark-500 mb-0.5 block">Monthly ({currencySymbolOf(editAssignment.clientBillingCurrency || 'INR')})</span>
                         <input type="number" min="0" step="0.01" value={editAssignment.clientBillingRate.monthly}
                           onChange={e => setEditAssignment(prev => ({ ...prev, clientBillingRate: { daily: '', hourly: '', monthly: e.target.value } }))}
                           className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
@@ -2265,6 +2286,14 @@ export default function EmployeeDetail() {
                   if (r.daily)   return `₹${Number(r.daily).toLocaleString()}/day`;
                   return '—';
                 };
+                const cSym = currencySymbolOf(editAssignment.clientBillingCurrency || 'INR');
+                const fmtRC = (r) => {
+                  if (!r) return '—';
+                  if (r.monthly) return `${cSym}${Number(r.monthly).toLocaleString()}/mo`;
+                  if (r.hourly)  return `${cSym}${Number(r.hourly).toLocaleString()}/hr`;
+                  if (r.daily)   return `${cSym}${Number(r.daily).toLocaleString()}/day`;
+                  return '—';
+                };
                 return (
                   <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
                     <div className="grid grid-cols-2 gap-3 text-xs">
@@ -2274,7 +2303,7 @@ export default function EmployeeDetail() {
                       </div>
                       <div>
                         <div className="text-dark-500 mb-0.5">Client Billing Rate</div>
-                        <div className="text-white">{fmtR(editAssignment.clientBillingRate)}</div>
+                        <div className="text-white">{fmtRC(editAssignment.clientBillingRate)}</div>
                       </div>
                     </div>
                     <p className="text-[11px] text-amber-300/90 mt-2 leading-snug">
@@ -2463,7 +2492,7 @@ export default function EmployeeDetail() {
                   {(() => { const r = reviseModal.currentRates?.billingRate || {}; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
                 </span></div>
                 <div><span className="text-dark-400">Client:</span> <span className="text-white">
-                  {(() => { const r = reviseModal.currentRates?.clientBillingRate || {}; if (r.hourly) return `₹${Number(r.hourly).toLocaleString()}/hr`; if (r.monthly) return `₹${Number(r.monthly).toLocaleString()}/mo`; if (r.daily) return `₹${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
+                  {(() => { const r = reviseModal.currentRates?.clientBillingRate || {}; const sym = currencySymbolOf(reviseModal.currentRates?.clientBillingCurrency || 'INR'); if (r.hourly) return `${sym}${Number(r.hourly).toLocaleString()}/hr`; if (r.monthly) return `${sym}${Number(r.monthly).toLocaleString()}/mo`; if (r.daily) return `${sym}${Number(r.daily).toLocaleString()}/day`; return '—'; })()}
                 </span></div>
               </div>
             </div>
@@ -2492,9 +2521,9 @@ export default function EmployeeDetail() {
 
             {/* New Client Billing Rate */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-dark-300 mb-2">New Client Billing Rate</label>
+              <label className="block text-sm font-medium text-dark-300 mb-2">New Client Billing Rate <span className="text-xs text-dark-500">({reviseModal.currentRates?.clientBillingCurrency || 'INR'})</span></label>
               <div className="grid grid-cols-3 gap-2">
-                {[['daily', '₹'], ['hourly', '₹'], ['monthly', '₹']].map(([key, symbol]) => (
+                {(() => { const sym = currencySymbolOf(reviseModal.currentRates?.clientBillingCurrency || 'INR'); return [['daily', sym], ['hourly', sym], ['monthly', sym]]; })().map(([key, symbol]) => (
                   <div key={key}>
                     <span className="text-xs text-dark-500 capitalize">{key}</span>
                     <div className="relative mt-1">
