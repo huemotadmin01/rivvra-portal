@@ -25,6 +25,11 @@ import {
 import api from '../../utils/api';
 import { APP_REGISTRY } from '../../config/apps';
 import InviteTeamMemberModal from '../InviteTeamMemberModal';
+import ComboSelect from '../ComboSelect';
+
+// Sentinel option representing "no team lead" in the searchable picker.
+// We use a literal "" _id so ComboSelect's onChange surfaces '' when picked.
+const NO_LEAD_OPTION = { _id: '', name: 'No lead assigned' };
 
 
 // Active apps that have roles (exclude coming_soon and settings)
@@ -742,16 +747,14 @@ function TeamSection({
               </div>
               <div>
                 <label className="block text-xs font-medium text-dark-400 mb-1.5">Team Lead (optional)</label>
-                <select
+                <ComboSelect
                   value={newLeader}
-                  onChange={(e) => setNewLeader(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-dark-900 border border-dark-600 rounded-xl text-white text-sm focus:outline-none focus:border-rivvra-500 transition-colors"
-                >
-                  <option value="">Select a team lead...</option>
-                  {eligible.map(m => (
-                    <option key={m.userId} value={m.userId}>{m.name || m.email}</option>
-                  ))}
-                </select>
+                  displayValue={(eligible.find(m => m.userId === newLeader)?.name) || (eligible.find(m => m.userId === newLeader)?.email) || ''}
+                  options={eligible.map(m => ({ _id: m.userId, name: m.name || m.email }))}
+                  onChange={(id) => setNewLeader(id || '')}
+                  placeholder="Search a team lead..."
+                  disableCreate
+                />
               </div>
               <div className="flex items-center gap-3 justify-end pt-1">
                 <button
@@ -931,16 +934,14 @@ function TeamSection({
                         {/* Team Lead Selector */}
                         <div className="pt-3 border-t border-dark-700/50">
                           <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Team Lead</label>
-                          <select
+                          <ComboSelect
                             value={team.leaderId || ''}
-                            onChange={(e) => handleUpdateTeam(team.id, { leaderId: e.target.value || null })}
-                            className="w-full px-3.5 py-2.5 bg-dark-900 border border-dark-600 rounded-xl text-white text-sm focus:outline-none focus:border-rivvra-500 transition-colors"
-                          >
-                            <option value="">No lead assigned</option>
-                            {team.members.map((m) => (
-                              <option key={m.id} value={m.id}>{m.name || m.email}</option>
-                            ))}
-                          </select>
+                            displayValue={team.leaderName || ''}
+                            options={[NO_LEAD_OPTION, ...team.members.map((m) => ({ _id: m.id, name: m.name || m.email }))]}
+                            onChange={(id) => handleUpdateTeam(team.id, { leaderId: id || null })}
+                            placeholder="Search a team lead..."
+                            disableCreate
+                          />
                           <p className="text-[10px] text-dark-500 mt-1.5">{leadHint}</p>
                         </div>
                       </div>
