@@ -918,13 +918,19 @@ function TeamSection({
                           )}
                         </div>
 
-                        {/* Team Lead Selector */}
+                        {/* Team Lead Selector — pickable pool is current team members
+                            PLUS anyone eligible for this team type. Backend auto-adds
+                            the picked user to memberIds if not already in the team. */}
                         <div className="pt-3 border-t border-dark-700/50">
                           <label className="block text-[10px] uppercase text-dark-500 font-semibold mb-2 tracking-wider">Team Lead</label>
                           <ComboSelect
                             value={team.leaderId || ''}
                             displayValue={team.leaderName || ''}
-                            options={[NO_LEAD_OPTION, ...team.members.map((m) => ({ _id: m.id, name: m.name || m.email }))]}
+                            options={[
+                              NO_LEAD_OPTION,
+                              ...team.members.map((m) => ({ _id: m.id, name: m.name || m.email })),
+                              ...eligible.map((m) => ({ _id: m.userId, name: m.name || m.email })),
+                            ]}
                             onChange={(id) => handleUpdateTeam(team.id, { leaderId: id || null })}
                             placeholder="Search a team lead..."
                             disableCreate
