@@ -2304,18 +2304,28 @@ export default function EmployeeDetail() {
               )}
 
               {/* Paid Leave */}
-              <div>
-                <label className="block text-sm text-dark-400 mb-1">Paid Leave / Month</label>
-                <input type="number" min="0" max="3" step="0.5" value={editAssignment.paidLeavePerMonth}
-                  onChange={e => {
-                    const v = e.target.value;
-                    const n = v === '' ? 0 : Math.min(3, Math.max(0, Number(v)));
-                    setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: Number.isFinite(n) ? n : 0 }));
-                  }}
-                  className="w-32 bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
-                  placeholder="0" />
-                <span className="ml-2 text-xs text-dark-500">Up to 3 days</span>
-              </div>
+              {isNewAssignment ? (
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">Paid Leave / Month</label>
+                  <input type="number" min="0" max="3" step="0.5" value={editAssignment.paidLeavePerMonth}
+                    onChange={e => {
+                      const v = e.target.value;
+                      const n = v === '' ? 0 : Math.min(3, Math.max(0, Number(v)));
+                      setEditAssignment(prev => ({ ...prev, paidLeavePerMonth: Number.isFinite(n) ? n : 0 }));
+                    }}
+                    className="w-32 bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                    placeholder="0" />
+                  <span className="ml-2 text-xs text-dark-500">Up to 3 days. After saving, use Revise Rate to change.</span>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm text-dark-400 mb-1">Paid Leave / Month</label>
+                  <div className="text-white text-sm">
+                    {Number(editAssignment.paidLeavePerMonth) || 0} day{Number(editAssignment.paidLeavePerMonth) === 1 ? '' : 's'}
+                    <span className="ml-2 text-[11px] text-amber-300/90">Read-only — change via Revise Rate to preserve the audit trail.</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Documents section — only for already-saved assignments with a client */}
