@@ -38,7 +38,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
     const s = item.statutory || {};
     setForm({
       pfEnabled: s.pfEnabled ?? true,
-      pfCappedAt15K: s.pfCappedAt15K || false,
+      pfCappedAt15K: s.pfCappedAt15K ?? true,
       esiEnabled: s.esiEnabled || false,
       ptEnabled: s.ptEnabled ?? true,
       ptState: s.ptState || 'MH',
@@ -203,6 +203,11 @@ export default function StatutoryConfigPage({ embedded = false }) {
                 <label className="flex items-center gap-2 text-sm text-dark-300">
                   <input type="checkbox" checked={form.pfCappedAt15K} onChange={e => setForm(f => ({ ...f, pfCappedAt15K: e.target.checked }))} className="rounded border-dark-600" /> PF Capped at 15K
                 </label>
+                {form.pfEnabled && !form.pfCappedAt15K && (
+                  <div className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/40 rounded-md px-2 py-1.5 leading-snug">
+                    ⚠️ PF will be calculated on the full Basic salary, not capped at ₹15,000. Employer cost rises significantly. Only uncheck this if the employee was never a PF member at any prior employer AND their Basic exceeds ₹15K. Most employees should stay capped.
+                  </div>
+                )}
               </fieldset>
 
               {/* ESI Section */}
