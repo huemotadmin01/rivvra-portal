@@ -907,10 +907,10 @@ class ApiClient {
     return this.request('/api/teams');
   }
 
-  async createTeam(name, leaderId = null) {
+  async createTeam(name, leaderId = null, type = 'sales') {
     return this.request('/api/teams', {
       method: 'POST',
-      body: JSON.stringify({ name, leaderId }),
+      body: JSON.stringify({ name, leaderId, type }),
     });
   }
 
