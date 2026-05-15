@@ -1362,7 +1362,9 @@ export default function InvoiceDetail() {
     const totals = {};
     for (const line of lines || []) {
       let entries = [];
+      let fromRichTaxes = false;
       if (Array.isArray(line.taxes) && line.taxes.length > 0 && typeof line.taxes[0] === 'object') {
+        fromRichTaxes = true;
         entries = line.taxes.map(t => ({
           name: t.name || '',
           rate: Number(t.rate) || 0,
@@ -1390,7 +1392,12 @@ export default function InvoiceDetail() {
       const discPct = Number(line.discount) || 0;
       const taxable = qty * price * (1 - discPct / 100);
 
-      const lineTaxAmount = line.taxAmount != null
+      // Only trust stored line.taxAmount for rich (Odoo-imported) lines where it
+      // travels alongside line.taxes. For native taxIds-driven lines, recompute
+      // from live rates so signed lines (e.g. negative adjustments) stay
+      // sign-consistent with the Taxable Value rollup. Stored taxAmount can be
+      // stale or zero if taxes were edited after the last server recompute.
+      const lineTaxAmount = (fromRichTaxes && line.taxAmount != null)
         ? Number(line.taxAmount) || 0
         : entries.reduce((s, e) => {
             if (e.inclusive) return s + (taxable - taxable / (1 + e.rate / 100));
