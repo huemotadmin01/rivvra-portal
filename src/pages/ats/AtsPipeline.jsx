@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -125,7 +125,11 @@ function EvalStars({ value = 0, max = 3, onChange }) {
 }
 
 /* ── Kanban Card (draggable) ──────────────────────────────────────────── */
-function KanbanCard({ application, onClick }) {
+// 2026-05-17 health-check E.1: wrap card + column in React.memo. With N
+// stages × M cards each parent state change (filter, search, drag) used to
+// re-render every card and re-run dnd-kit's useSortable. Memo cuts the work
+// to only the card whose props actually changed.
+function KanbanCardInner({ application, onClick }) {
   const {
     attributes,
     listeners,
@@ -164,6 +168,9 @@ function KanbanCard({ application, onClick }) {
         <div
           {...attributes}
           {...listeners}
+          role="button"
+          aria-label="Drag to reorder"
+          tabIndex={-1}
           className="mt-0.5 text-dark-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
         >
           <GripVertical size={14} />
@@ -172,10 +179,22 @@ function KanbanCard({ application, onClick }) {
           <p className="text-white font-medium text-sm truncate flex items-center gap-1.5">
             {application.candidateName || 'Unnamed'}
             {application.kanbanState === 'done' && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block flex-shrink-0" />
+              <span
+                className="w-2 h-2 rounded-full bg-emerald-400 inline-block flex-shrink-0"
+                aria-label="Done"
+                title="Done"
+              >
+                <span className="sr-only">Done</span>
+              </span>
             )}
             {application.kanbanState === 'blocked' && (
-              <span className="w-2 h-2 rounded-full bg-red-400 inline-block flex-shrink-0" />
+              <span
+                className="w-2 h-2 rounded-full bg-red-400 inline-block flex-shrink-0"
+                aria-label="Blocked"
+                title="Blocked"
+              >
+                <span className="sr-only">Blocked</span>
+              </span>
             )}
           </p>
           {application.jobName && (
@@ -214,6 +233,11 @@ function KanbanCard({ application, onClick }) {
   );
 }
 
+// 2026-05-17 health-check E.1: memoize. Card re-renders only when its
+// own application or onClick reference changes — drag of any sibling no
+// longer trips a sortable-rehydrate on every other card.
+const KanbanCard = memo(KanbanCardInner);
+
 /* ── Kanban Card Overlay (shown while dragging) ───────────────────────── */
 function KanbanCardOverlay({ application }) {
   const formatDate = (dateStr) => {
@@ -247,7 +271,10 @@ function KanbanCardOverlay({ application }) {
 }
 
 /* ── Kanban Column ────────────────────────────────────────────────────── */
-function KanbanColumn({ stage, applications, totalCount, onCardClick, onLoadMore }) {
+// 2026-05-17 health-check E.1: memoized below. Re-renders only when its
+// stage/applications array identity changes — sibling-column drag activity
+// no longer ripples through every column.
+function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoadMore }) {
   const ids = applications.map((a) => a._id);
   const hasMore = totalCount > applications.length;
 
@@ -287,6 +314,7 @@ function KanbanColumn({ stage, applications, totalCount, onCardClick, onLoadMore
     </div>
   );
 }
+const KanbanColumn = memo(KanbanColumnInner);
 
 /* ── New Application Modal ────────────────────────────────────────────── */
 const EMPTY_APP = {

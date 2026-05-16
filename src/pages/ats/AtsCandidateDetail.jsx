@@ -216,7 +216,10 @@ export default function AtsCandidateDetail() {
             <p className="text-dark-400 text-sm">
               {candidate.applicationCount || 0} application{candidate.applicationCount === 1 ? '' : 's'}
               {candidate.evaluation > 0 && (
-                <span className="ml-2 text-amber-400">{'★'.repeat(candidate.evaluation)}</span>
+                // 2026-05-17 health-check E.2: clamp evaluation to 0..3.
+                // A corrupt value used to print a long star strip and
+                // wrap the header line.
+                <span className="ml-2 text-amber-400">{'★'.repeat(Math.max(0, Math.min(3, Number(candidate.evaluation) || 0)))}</span>
               )}
             </p>
           </div>
@@ -342,7 +345,7 @@ export default function AtsCandidateDetail() {
               editable={canEdit}
               onSave={saveField}
               displayValue={candidate.evaluation > 0
-                ? <span className="text-amber-400">{'★'.repeat(candidate.evaluation)}</span>
+                ? <span className="text-amber-400">{'★'.repeat(Math.max(0, Math.min(3, Number(candidate.evaluation) || 0)))}</span>
                 : undefined}
             />
           </SectionCard>

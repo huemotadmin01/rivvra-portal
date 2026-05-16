@@ -1633,8 +1633,11 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-dark-300 mb-2">Recommendation <span className="text-red-400">*</span></label>
-            <div className="grid grid-cols-3 gap-2">
+            <label id="interview-rec-label" className="block text-sm font-medium text-dark-300 mb-2">Recommendation <span className="text-red-400">*</span></label>
+            {/* 2026-05-17 health-check E.1: three mutually-exclusive
+                buttons get role=radiogroup so screen readers announce
+                "1 of 3" and arrow keys work as expected. */}
+            <div role="radiogroup" aria-labelledby="interview-rec-label" className="grid grid-cols-3 gap-2">
               {[
                 // 2026-05-17 health-check P0: explicit class strings instead
                 // of `bg-${tone}-500/15` template literals. Tailwind's JIT
@@ -1648,6 +1651,8 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
                 <button
                   key={val}
                   type="button"
+                  role="radio"
+                  aria-checked={recommendation === val}
                   onClick={() => setRecommendation(val)}
                   className={`flex flex-col items-start text-left rounded-lg border px-3 py-2.5 transition-colors ${
                     recommendation === val
@@ -2479,19 +2484,23 @@ export default function AtsApplicationDetail() {
                 Archive
               </button>
             )}
-            <div className="relative">
-              <button
-                onClick={() => setShowKebab((o) => !o)}
-                className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800"
-                aria-label="More actions"
-              >
-                <MoreHorizontal size={16} />
-              </button>
-              {showKebab && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
-                    {isOrgAdmin ? (
+            {/* 2026-05-17 health-check E.2: only render the kebab when
+                there's at least one action inside. Non-admins used to see
+                an empty menu with "No admin actions available" italic
+                placeholder — pure noise. Now it's hidden entirely. */}
+            {isOrgAdmin && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowKebab((o) => !o)}
+                  className="p-1.5 text-dark-500 hover:text-dark-300 rounded-lg hover:bg-dark-800 focus:outline-none focus:ring-2 focus:ring-rivvra-500/40"
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {showKebab && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
+                    <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
                       <button
                         onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
                         className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
@@ -2502,13 +2511,11 @@ export default function AtsApplicationDetail() {
                           <div className="text-[10px] text-dark-500 mt-0.5">Cannot be recovered. Use Archive instead.</div>
                         </div>
                       </button>
-                    ) : (
-                      <div className="px-3 py-2 text-[11px] text-dark-500 italic">No admin actions available.</div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
