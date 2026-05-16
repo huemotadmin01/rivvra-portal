@@ -359,6 +359,11 @@ export default function AtsApplications() {
   const filterParams = useFilterParams([
     'search', 'stageId', 'jobId', 'recruiter', 'archived',
     'source', 'employmentType', 'applicationStatus', 'groupBy', 'sort', 'dir',
+    // 2026-05-16: hiredOnly + refusedOnly let the dashboard's KPI tiles
+    // and funnel bars deep-link straight into the filtered list. Without
+    // these in the allow-list, useFilterParams stripped them off the URL
+    // and the API call landed unfiltered.
+    'hiredOnly', 'refusedOnly',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   const page = parseInt(searchParams.get('page') || '1', 10);

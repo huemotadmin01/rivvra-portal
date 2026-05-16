@@ -8,7 +8,7 @@ import {
   FileBarChart, RefreshCw, Download, ChevronDown,
   AlertTriangle, MessageSquareWarning, Hourglass, ArrowRight,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import MyTeamWidget from '../../components/shared/MyTeamWidget';
 
@@ -176,7 +176,7 @@ const DONUT_PALETTE = [
   '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#8b5cf6',
   '#22d3ee', '#fbbf24',
 ];
-function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', centerLabel }) {
+function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', centerLabel, onSliceClick }) {
   const total = data.reduce((s, d) => s + (d[valueKey] || 0), 0);
   if (total === 0) {
     return (
@@ -230,8 +230,16 @@ function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', cente
           {data.slice(0, 12).map((d, i) => {
             const v = d[valueKey] || 0;
             const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
+            const Row = onSliceClick ? 'button' : 'li';
+            const rowProps = onSliceClick
+              ? { type: 'button', onClick: () => onSliceClick(d) }
+              : {};
             return (
-              <li key={i} className="flex items-center gap-2 min-w-0">
+              <Row
+                key={i}
+                {...rowProps}
+                className={`flex items-center gap-2 min-w-0 w-full text-left ${onSliceClick ? 'hover:bg-dark-800 rounded px-1 -mx-1 transition-colors cursor-pointer' : ''}`}
+              >
                 <span
                   className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ background: d.color || DONUT_PALETTE[i % DONUT_PALETTE.length] }}
@@ -239,11 +247,93 @@ function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', cente
                 <span className="text-dark-300 truncate flex-1" title={d[labelKey]}>{d[labelKey] || 'Unknown'}</span>
                 <span className="text-dark-400 shrink-0">{v}</span>
                 <span className="text-dark-500 shrink-0 w-10 text-right">{pct}%</span>
-              </li>
+              </Row>
             );
           })}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/* ── SubmissionsTable (2026-05-16) ────────────────────────────────────────
+ * Odoo-parity table for "Today's Submissions" and "Last Working Day
+ * Submissions". Renders Candidate / Job / Recruiter / Account Owner /
+ * Stage columns, grouped by recruitmentTeamName with a subheader per
+ * team. Each row is a Link to the application detail. */
+function SubmissionsTable({ title, subtitle, rows, orgSlug, emptyText = 'No submissions' }) {
+  const grouped = useMemo(() => {
+    const m = new Map();
+    for (const r of rows) {
+      const key = r.teamName || 'Unassigned';
+      if (!m.has(key)) m.set(key, []);
+      m.get(key).push(r);
+    }
+    return Array.from(m.entries()).sort(([a], [b]) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    });
+  }, [rows]);
+
+  return (
+    <div className="bg-dark-850 rounded-xl border border-dark-700 overflow-hidden">
+      <div className="p-4 pb-2">
+        <h3 className="text-sm font-semibold text-dark-200">{title}</h3>
+        {subtitle && <p className="text-[11px] text-dark-500">{subtitle}</p>}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-8">{emptyText}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          {grouped.map(([teamName, teamRows]) => (
+            <div key={teamName} className="border-t border-dark-800">
+              <div className="px-3 py-1.5 bg-dark-900/60 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-dark-300 uppercase tracking-wide">
+                  {teamName}
+                </span>
+                <span className="text-[11px] text-dark-500">{teamRows.length}</span>
+              </div>
+              <table className="w-full text-[11px]">
+                <thead className="text-dark-400">
+                  <tr className="border-b border-dark-800">
+                    <th className="text-left font-medium px-3 py-1.5">Candidate</th>
+                    <th className="text-left font-medium px-3 py-1.5 hidden md:table-cell">Job Position</th>
+                    <th className="text-left font-medium px-3 py-1.5 hidden lg:table-cell">Recruiter</th>
+                    <th className="text-left font-medium px-3 py-1.5 hidden lg:table-cell">Account Owner</th>
+                    <th className="text-left font-medium px-3 py-1.5">Stage</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-800">
+                  {teamRows.map((a) => (
+                    <tr key={a._id} className="hover:bg-dark-800/50">
+                      <td className="px-3 py-1.5 max-w-[180px]">
+                        <Link
+                          to={`/org/${orgSlug}/ats/applications/${a._id}`}
+                          className="text-dark-100 hover:text-rivvra-300 truncate block"
+                          title={a.candidateName}
+                        >
+                          {a.candidateName || 'Unknown'}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-1.5 text-dark-300 truncate max-w-[200px] hidden md:table-cell" title={a.jobName}>
+                        {a.jobName || '—'}
+                      </td>
+                      <td className="px-3 py-1.5 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={a.recruiterName}>
+                        {a.recruiterName || '—'}
+                      </td>
+                      <td className="px-3 py-1.5 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={a.accountOwnerName}>
+                        {a.accountOwnerName || '—'}
+                      </td>
+                      <td className="px-3 py-1.5 text-dark-300 whitespace-nowrap">{a.stageName || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -369,7 +459,7 @@ function HorizontalBarChart({ title, data, labelKey, valueKey, barColor }) {
  * Cumulative answers the question recruiters actually ask — "how many
  * have we kept through this gate?"
  */
-function RecruitmentFunnel({ data }) {
+function RecruitmentFunnel({ data, onStageClick }) {
   // Only stages with a known sequence; sort ascending. Stages with null
   // sequence (e.g. archived or oddly imported) drop out of the funnel.
   const ordered = useMemo(() => {
@@ -408,9 +498,16 @@ function RecruitmentFunnel({ data }) {
             const conv = !isLast && passed[i] > 0
               ? Math.round((passed[i + 1] / passed[i]) * 100)
               : null;
+            const Row = onStageClick ? 'button' : 'div';
+            const rowProps = onStageClick
+              ? { type: 'button', onClick: () => onStageClick(stage) }
+              : {};
             return (
               <div key={stage.stageId || i}>
-                <div className="flex items-center gap-3">
+                <Row
+                  {...rowProps}
+                  className={`flex items-center gap-3 w-full text-left ${onStageClick ? 'hover:bg-dark-800/50 rounded -mx-1 px-1 py-0.5 transition-colors cursor-pointer' : ''}`}
+                >
                   <span className="text-xs text-dark-300 w-32 shrink-0 truncate" title={stage.stageName}>
                     {stage.stageName}
                   </span>
@@ -423,7 +520,7 @@ function RecruitmentFunnel({ data }) {
                   <span className="text-xs font-medium text-dark-200 w-8 text-right shrink-0">
                     {count}
                   </span>
-                </div>
+                </Row>
                 {!isLast && (
                   <div className="flex items-center gap-3 pl-32">
                     <div className="flex-1 flex items-center gap-2 py-1 text-[11px] text-dark-500">
@@ -668,6 +765,7 @@ export default function AtsDashboard() {
   // any admin-only data the endpoint chooses to exclude is the API's
   // responsibility, not the page's.
   const orgSlug = currentOrg?.slug;
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -702,25 +800,6 @@ export default function AtsDashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
-
-  // 2026-05-16: extract todaySubmissions before the early returns so the
-  // useMemo below is called on every render — moving a hook past a
-  // conditional return triggers React minified error #310 (hook order
-  // mismatch between renders).
-  const todaySubmissionsForGrouping = data?.todaySubmissions || [];
-  const submissionsByTeam = useMemo(() => {
-    const groups = new Map();
-    for (const sub of todaySubmissionsForGrouping) {
-      const key = sub.teamName || 'Unassigned';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(sub);
-    }
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === 'Unassigned') return 1;
-      if (b === 'Unassigned') return -1;
-      return a.localeCompare(b);
-    });
-  }, [todaySubmissionsForGrouping]);
 
   // Full-page loading only on the very first fetch. Subsequent fetches
   // (range change, refresh) keep the existing dashboard rendered and
@@ -769,6 +848,7 @@ export default function AtsDashboard() {
     timeInStage = [],
     todaySubmissions = [],
     openJobsList = [],
+    lastWorkingDaySubmissions = [],
   } = data;
 
   return (
@@ -867,78 +947,66 @@ export default function AtsDashboard() {
         />
       </div>
 
-      {/* ── Funnel (Phase 1) — replaces the old Applications-by-Stage
-          horizontal bar; shows same data plus cumulative + conversion %. */}
-      <RecruitmentFunnel data={applicationsByStage} />
+      {/* ── Funnel — bars now navigate to Applications filtered by stage. */}
+      <RecruitmentFunnel
+        data={applicationsByStage}
+        onStageClick={(s) => {
+          if (s.stageId) navigate(`/org/${orgSlug}/ats/applications?stageId=${s.stageId}`);
+        }}
+      />
 
       {/* ── Two-donut row: Apps by Recruiter + Jobs by Client ──────────────
-          Mirrors the Odoo Recruitment dashboard pair (large+small donut)
-          but with interactive legend and percentages. */}
+          Mirrors the Odoo Recruitment dashboard pair (large+small donut).
+          Slice click navigates to the matching filtered list. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DonutChart
           title="Applications by Recruiter"
           data={applicationsByRecruiter.slice(0, 12).map((r) => ({
             label: r.recruiterName || r.recruiterId || 'Unknown',
             value: r.count,
+            recruiterId: r.recruiterId,
           }))}
           centerLabel="apps in range"
+          onSliceClick={(d) => {
+            if (d.recruiterId) navigate(`/org/${orgSlug}/ats/applications?recruiter=${d.recruiterId}`);
+          }}
         />
         <DonutChart
           title="Open Jobs by Client"
           data={jobsByClient.map((r) => ({ label: r.client, value: r.count }))}
           centerLabel="open jobs"
+          onSliceClick={(d) => {
+            if (d.label && d.label !== 'Others' && d.label !== 'Internal / No Client') {
+              navigate(`/org/${orgSlug}/ats/jobs?status=open&clientName=${encodeURIComponent(d.label)}`);
+            } else {
+              navigate(`/org/${orgSlug}/ats/jobs?status=open`);
+            }
+          }}
         />
       </div>
 
-      {/* ── Time-in-Stage heatmap + Today's submissions (by team) ─────────
-          Today's Submissions is split into one sub-panel per team to
-          match the Odoo dashboard's "Today's Submissions (Team-A)" /
-          "(Team-B)" layout. Recruiters land here as their team only;
-          admins see every team in sequence. */}
+      {/* ── Time-in-Stage heatmap (full width on small screens) ─────────── */}
+      <TimeInStageCard data={timeInStage} />
+
+      {/* ── Submissions tables: Today + Last Working Day ──────────────────
+          Two-column on lg+, stacked below. Each table groups rows by
+          recruitment team (Team-A / Team-B subheaders), matching the
+          Odoo Recruitment dashboard layout. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TimeInStageCard data={timeInStage} />
-        <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-dark-200">Today's Submissions</h3>
-            <Link
-              to={`/org/${orgSlug}/ats/applications`}
-              className="text-[11px] text-rivvra-400 hover:text-rivvra-300 flex items-center gap-0.5"
-            >
-              View all <ArrowRight size={11} />
-            </Link>
-          </div>
-          {todaySubmissions.length === 0 ? (
-            <p className="text-dark-600 text-xs text-center py-8">No new submissions today</p>
-          ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {submissionsByTeam.map(([teamName, rows]) => (
-                <div key={teamName}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h4 className="text-[11px] font-semibold text-dark-300 uppercase tracking-wide">
-                      {teamName} <span className="text-dark-500 ml-1 normal-case font-normal">({rows.length})</span>
-                    </h4>
-                  </div>
-                  <div className="space-y-1">
-                    {rows.slice(0, 10).map((a) => (
-                      <Link
-                        key={a._id}
-                        to={`/org/${orgSlug}/ats/applications/${a._id}`}
-                        className="flex items-center gap-2 text-[11px] py-1 px-2 rounded hover:bg-dark-800 transition-colors"
-                      >
-                        <span className="text-dark-200 truncate flex-1" title={a.candidateName}>{a.candidateName || 'Unknown'}</span>
-                        <span className="text-dark-500 truncate w-28 hidden sm:inline" title={a.recruiterName}>{a.recruiterName || ''}</span>
-                        <span className="text-dark-400 shrink-0 text-[10px] uppercase tracking-wide">{a.stageName || '—'}</span>
-                      </Link>
-                    ))}
-                    {rows.length > 10 && (
-                      <p className="text-[10px] text-dark-500 pl-2">+ {rows.length - 10} more</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <SubmissionsTable
+          title="Today's Submissions"
+          subtitle="New applications submitted today, grouped by team"
+          rows={todaySubmissions}
+          orgSlug={orgSlug}
+          emptyText="No new submissions today"
+        />
+        <SubmissionsTable
+          title="Last Working Day Submissions"
+          subtitle="Previous working day's submissions for follow-up"
+          rows={lastWorkingDaySubmissions}
+          orgSlug={orgSlug}
+          emptyText="No submissions on the last working day"
+        />
       </div>
 
       {/* ── Active Job Positions table (2026-05-16) ──────────────────────
