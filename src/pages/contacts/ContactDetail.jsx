@@ -1011,6 +1011,7 @@ export default function ContactDetail() {
                 currentValue={contact.salespersonId}
                 currentName={salespersonDisplayValue}
                 editable={isAdmin || isCreateMode}
+                linkTo={(id) => orgPath(`/employee/${id}`)}
                 onSelect={(id, name) => {
                   saveField('salespersonId', id);
                   setContact(prev => ({ ...prev, salespersonId: id, salespersonName: name }));
