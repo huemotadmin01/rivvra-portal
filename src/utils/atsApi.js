@@ -38,6 +38,14 @@ const atsApi = {
   },
 
   // ── Job Positions ─────────────────────────────────────────────────────
+  // 2026-05-17 health-check F.3: facets endpoint for the Jobs list's
+  // Department + Client filter chips. Returns distinct values across the
+  // full active/archived slice, not just the page-1 jobs.
+  getJobFacets(orgSlug, { archived } = {}) {
+    const qs = archived === '1' ? '?archived=1' : '';
+    return api.request(`/api/org/${orgSlug}/ats/jobs/facets${qs}`);
+  },
+
   listJobs(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))

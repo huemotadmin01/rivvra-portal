@@ -479,10 +479,13 @@ export default function AtsJobPositions() {
   const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [departments, setDepartments] = useState([]);
-  const [showModal, setShowModal] = useState(false);
+  // 2026-05-17 health-check F.3: legacy `departments` state removed —
+  // facetDepartments (loaded from /jobs/facets) is the canonical source
+  // for the filter chip now.
 
-  const debounceRef = useRef(null);
+  // 2026-05-17 health-check F.1: removed dead showModal + debounceRef.
+  // The NewJobModal mount is gone (creation lives at /ats/jobs/new); the
+  // debounce ref was declared but FilterBar owns its own search debounce.
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
@@ -526,9 +529,8 @@ export default function AtsJobPositions() {
         setJobs(res.jobs || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
-        const deptSet = new Set();
-        (res.jobs || []).forEach((j) => { if (j.department) deptSet.add(j.department); });
-        setDepartments([...deptSet].sort());
+        // 2026-05-17 health-check F.3: page-distinct departments removed
+        // — facet endpoint owns this now.
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;
@@ -553,9 +555,27 @@ export default function AtsJobPositions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined })]);
 
+  // 2026-05-17 health-check F.3: load department + client distinct
+  // values across the WHOLE jobs slice (not just page 1). Previously the
+  // chips were built from `jobs` which only had the current page's rows
+  // — pagination silently changed the dropdown contents. /jobs/facets
+  // returns the canonical distinct sets for both fields. Refetched when
+  // the company switches or the archived view toggles, since the facet
+  // set differs per scope.
+  const [facetDepartments, setFacetDepartments] = useState([]);
+  const [facetClients, setFacetClients] = useState([]);
   useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
+    if (!orgSlug) return undefined;
+    const controller = new AbortController();
+    atsApi.getJobFacets(orgSlug, { archived: filterParams.archived === '1' ? '1' : undefined })
+      .then((res) => {
+        if (controller.signal.aborted || !res?.success) return;
+        setFacetDepartments(res.departments || []);
+        setFacetClients(res.clients || []);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [orgSlug, currentCompany?._id, filterParams.archived]);
 
   // Filter options
   const statusOptions = [
@@ -564,15 +584,16 @@ export default function AtsJobPositions() {
     { value: 'closed', label: 'Closed' },
   ];
   const departmentOptions = useMemo(
-    () => departments.map((d) => ({ value: d, label: d })),
-    [departments],
+    () => facetDepartments.map((d) => ({ value: d.value, label: d.value })),
+    [facetDepartments],
   );
-  // Derive client list from the loaded jobs (denorm'd clientName field).
-  // Sorted alphabetically. Same pattern as departmentOptions.
-  const clientOptions = useMemo(() => {
-    const unique = new Set(jobs.map((j) => j.clientName).filter(Boolean));
-    return [...unique].sort().map((n) => ({ value: n, label: n }));
-  }, [jobs]);
+  // 2026-05-17 health-check F.3: clients now come from /jobs/facets, not
+  // from the current page's `jobs` array. The legacy fall-back to
+  // page-1 distinct values is kept commented for traceability.
+  const clientOptions = useMemo(
+    () => facetClients.map((c) => ({ value: c.value, label: c.value })),
+    [facetClients],
+  );
 
   // ── Grouped data (Phase 1: client / status / department) ─────────────
   const groupedJobs = useMemo(() => {
@@ -877,13 +898,10 @@ export default function AtsJobPositions() {
         </>
       )}
 
-      {/* New Job Modal */}
-      <NewJobModal
-        show={showModal}
-        onClose={() => setShowModal(false)}
-        onSaved={() => { setPage(1); fetchJobs(); }}
-        orgSlug={orgSlug}
-      />
+      {/* 2026-05-17 health-check F.1: NewJobModal mount removed. The
+          header "+ New Job" button is gone; new jobs are created via the
+          standalone /ats/jobs/new route. The mount stayed dead in this
+          file pulling in the chunk on every list render. */}
     </div>
   );
 }

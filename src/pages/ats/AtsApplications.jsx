@@ -385,13 +385,14 @@ export default function AtsApplications() {
   const [sources, setSources] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
 
-  const [showModal, setShowModal] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // The ?action=new deep-link used to auto-open the modal on this list,
-  // but creation now happens at the routed page /ats/jobs/:id/applications/new
-  // off the Job Position detail. Old links that still hit this URL just
-  // show the list; the modal stays unmounted.
+  // 2026-05-17 health-check F.1: NewApplicationModal mount + showModal
+  // state removed. Creation now happens at the routed page
+  // /ats/jobs/:id/applications/new off the Job Position detail. The
+  // legacy ?action=new deep-link auto-open was already disabled; the
+  // modal itself stayed mounted (always closed) which still pulled in
+  // the chunk on every list render.
 
   // Bulk actions — selection + action-bar dropdowns
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -402,7 +403,9 @@ export default function AtsApplications() {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [refuseReasons, setRefuseReasons] = useState([]);
 
-  const debounceRef = useRef(null);
+  // 2026-05-17 health-check F.1: debounceRef removed — FilterBar owns
+  // its own search debounce now, so this ref was declared but never
+  // assigned, and the cleanup at the bottom of the page was a no-op.
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
@@ -509,10 +512,6 @@ export default function AtsApplications() {
     setSelectedIds(new Set());
     setBulkAction(null);
   }, [JSON.stringify(filterParams), page]);
-
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
 
   // ── Bulk selection helpers ────────────────────────────────────────────
   const allVisibleIds = applications.map(a => a._id);
@@ -1054,27 +1053,6 @@ export default function AtsApplications() {
           )}
         </>
       )}
-
-      {/* New Application Modal */}
-      <NewApplicationModal
-        show={showModal}
-        onClose={() => {
-          setShowModal(false);
-          // Strip the deep-link params so a refresh doesn't re-pop the modal.
-          if (searchParams.get('action') === 'new') {
-            const np = new URLSearchParams(searchParams);
-            np.delete('action');
-            np.delete('jobId');
-            setSearchParams(np, { replace: true });
-          }
-        }}
-        onSaved={() => { setPage(1); fetchApplications(); }}
-        orgSlug={orgSlug}
-        jobs={jobs}
-        stages={stages}
-        recruiters={recruiters}
-        prefillJobId={searchParams.get('jobId') || ''}
-      />
 
       <ConfirmDialog
         open={!!confirmDialog}
