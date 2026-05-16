@@ -882,7 +882,7 @@ export default function AtsJobPositions() {
       <NewJobModal
         show={showModal}
         onClose={() => setShowModal(false)}
-        onSaved={() => fetchJobs({ page: 1 })}
+        onSaved={() => { setPage(1); fetchJobs(); }}
         orgSlug={orgSlug}
       />
     </div>

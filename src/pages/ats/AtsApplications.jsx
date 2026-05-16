@@ -416,12 +416,18 @@ export default function AtsApplications() {
     setTotal(0);
     setTotalPages(1);
     try {
+      // 2026-05-17 health-check P0: hard-coded sort/order used to come
+      // AFTER `...filterParams`, overriding the URL's sort + dir params
+      // that SortableHeader writes. Sortable column headers therefore
+      // didn't actually sort. Move the defaults BEFORE the spread so
+      // user-driven sort + dir from filterParams take precedence; the
+      // server-side param is `dir` not `order` (matches API contract).
       const res = await atsApi.listApplications(orgSlug, {
         page,
         limit: 25,
-        ...filterParams,
         sort: 'appliedOn',
-        order: 'desc',
+        dir: 'desc',
+        ...filterParams,
       });
       if (res.success) {
         setApplications(res.applications || []);
@@ -1051,7 +1057,7 @@ export default function AtsApplications() {
             setSearchParams(np, { replace: true });
           }
         }}
-        onSaved={() => fetchApplications({ page: 1 })}
+        onSaved={() => { setPage(1); fetchApplications(); }}
         orgSlug={orgSlug}
         jobs={jobs}
         stages={stages}

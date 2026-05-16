@@ -1609,17 +1609,22 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
             <label className="block text-sm font-medium text-dark-300 mb-2">Recommendation <span className="text-red-400">*</span></label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { val: 'Proceed', tone: 'emerald', hint: 'Advance to next stage' },
-                { val: 'Awaited', tone: 'amber',   hint: 'Pause — undecided' },
-                { val: 'Reject',  tone: 'red',     hint: 'Decline — refuse' },
-              ].map(({ val, tone, hint }) => (
+                // 2026-05-17 health-check P0: explicit class strings instead
+                // of `bg-${tone}-500/15` template literals. Tailwind's JIT
+                // can only safelist class names it can see at build time;
+                // dynamic templates silently produce un-styled buttons in
+                // the production build (selected state didn't highlight).
+                { val: 'Proceed', selected: 'bg-emerald-500/15 border-emerald-500/50 text-emerald-200', hint: 'Advance to next stage' },
+                { val: 'Awaited', selected: 'bg-amber-500/15 border-amber-500/50 text-amber-200',       hint: 'Pause — undecided' },
+                { val: 'Reject',  selected: 'bg-red-500/15 border-red-500/50 text-red-200',             hint: 'Decline — refuse' },
+              ].map(({ val, selected, hint }) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => setRecommendation(val)}
                   className={`flex flex-col items-start text-left rounded-lg border px-3 py-2.5 transition-colors ${
                     recommendation === val
-                      ? `bg-${tone}-500/15 border-${tone}-500/50 text-${tone}-200`
+                      ? selected
                       : 'bg-dark-900/40 border-dark-700 text-dark-300 hover:border-dark-600'
                   }`}
                 >
