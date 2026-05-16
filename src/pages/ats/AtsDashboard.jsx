@@ -829,6 +829,7 @@ export default function AtsDashboard() {
 
   const {
     applicationsByStage = [],
+    applicationsByStageActive = [],
     applicationsBySource = [],
     applicationsByRecruiter = [],
     applicationsByTeam = [],
@@ -935,7 +936,18 @@ export default function AtsDashboard() {
           subtitle={`Proposal ${offerActive.proposal} · Signed ${offerActive.signed}`}
           icon={Clock}
           color="amber"
-          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing`}
+          to={(() => {
+            // Resolve Offer Proposal + Offer Signed stage IDs from the
+            // funnel data so the deep-link filters to JUST those two
+            // stages (not all ongoing apps). API accepts comma-separated
+            // stageId list — single equality if only one is found.
+            const ids = applicationsByStage
+              .filter((s) => s.stageName === 'Offer Proposal' || s.stageName === 'Offer Signed')
+              .map((s) => s.stageId)
+              .filter(Boolean);
+            const stageQ = ids.length > 0 ? `&stageId=${ids.join(',')}` : '';
+            return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}`;
+          })()}
         />
         <KpiTile
           label="Open Jobs"
@@ -947,11 +959,12 @@ export default function AtsDashboard() {
         />
       </div>
 
-      {/* ── Funnel — bars now navigate to Applications filtered by stage. */}
+      {/* ── Funnel — active pipeline only (refused + archived excluded).
+          Bars navigate to Applications filtered by stage + ongoing-only. */}
       <RecruitmentFunnel
-        data={applicationsByStage}
+        data={applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage}
         onStageClick={(s) => {
-          if (s.stageId) navigate(`/org/${orgSlug}/ats/applications?stageId=${s.stageId}`);
+          if (s.stageId) navigate(`/org/${orgSlug}/ats/applications?stageId=${s.stageId}&applicationStatus=ongoing`);
         }}
       />
 
