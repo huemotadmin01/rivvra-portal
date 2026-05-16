@@ -703,6 +703,25 @@ export default function AtsDashboard() {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  // 2026-05-16: extract todaySubmissions before the early returns so the
+  // useMemo below is called on every render — moving a hook past a
+  // conditional return triggers React minified error #310 (hook order
+  // mismatch between renders).
+  const todaySubmissionsForGrouping = data?.todaySubmissions || [];
+  const submissionsByTeam = useMemo(() => {
+    const groups = new Map();
+    for (const sub of todaySubmissionsForGrouping) {
+      const key = sub.teamName || 'Unassigned';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(sub);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    });
+  }, [todaySubmissionsForGrouping]);
+
   // Full-page loading only on the very first fetch. Subsequent fetches
   // (range change, refresh) keep the existing dashboard rendered and
   // surface progress via the small spinner inside the Refresh button.
@@ -751,22 +770,6 @@ export default function AtsDashboard() {
     todaySubmissions = [],
     openJobsList = [],
   } = data;
-
-  // 2026-05-16: group today's submissions by team for the Odoo-parity
-  // multi-table layout. Teams come pre-enriched on each row by the API.
-  const submissionsByTeam = useMemo(() => {
-    const groups = new Map();
-    for (const sub of todaySubmissions) {
-      const key = sub.teamName || 'Unassigned';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(sub);
-    }
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === 'Unassigned') return 1;
-      if (b === 'Unassigned') return -1;
-      return a.localeCompare(b);
-    });
-  }, [todaySubmissions]);
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
