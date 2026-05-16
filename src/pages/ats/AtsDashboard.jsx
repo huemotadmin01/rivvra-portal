@@ -139,6 +139,161 @@ function rangeToDates(key) {
   return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
 }
 
+/* ── KPI Tile (2026-05-16 redesign) ───────────────────────────────────────
+ * Extension of StatCard with a clickable Link wrapper and a subtitle line
+ * for secondary context (e.g. "avg 18 days to hire" under the Hired count).
+ * Use for the headline 4-tile row. */
+function KpiTile({ label, value, subtitle, icon: Icon, color = 'dark', to }) {
+  const colorMap = {
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15',
+    amber:   'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/15',
+    red:     'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/15',
+    purple:  'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/15',
+    blue:    'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/15',
+    dark:    'bg-dark-800 text-dark-200 border-dark-700 hover:bg-dark-750',
+  };
+  const Wrap = to ? Link : 'div';
+  const wrapProps = to ? { to } : {};
+  return (
+    <Wrap {...wrapProps} className={`block rounded-xl border p-4 transition-colors ${colorMap[color]}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs opacity-70">{label}</span>
+        <Icon size={16} className="opacity-50" />
+      </div>
+      <p className="text-2xl font-bold">{value}</p>
+      {subtitle && <p className="text-[11px] opacity-60 mt-1 truncate" title={subtitle}>{subtitle}</p>}
+    </Wrap>
+  );
+}
+
+/* ── Donut Chart (pure SVG, no deps) ──────────────────────────────────────
+ * Renders a donut from `data: [{label, value, color?}]` plus a center label.
+ * Used for the two recruitment-dashboard donuts (Apps by Recruiter, Jobs
+ * by Client). Colors come from a fixed palette so charts stay readable
+ * even when the labels shift. */
+const DONUT_PALETTE = [
+  '#10b981', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444',
+  '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#8b5cf6',
+  '#22d3ee', '#fbbf24',
+];
+function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', centerLabel }) {
+  const total = data.reduce((s, d) => s + (d[valueKey] || 0), 0);
+  if (total === 0) {
+    return (
+      <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+        <h3 className="text-sm font-semibold text-dark-200 mb-3">{title}</h3>
+        <p className="text-dark-600 text-xs text-center py-12">No data yet</p>
+      </div>
+    );
+  }
+  const r = 70, cx = 90, cy = 90, stroke = 24;
+  const C = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-3">{title}</h3>
+      <div className="flex items-center gap-4">
+        <div className="relative shrink-0">
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1f2937" strokeWidth={stroke} />
+            {data.map((d, i) => {
+              const v = d[valueKey] || 0;
+              if (v === 0) return null;
+              const len = (v / total) * C;
+              const dasharray = `${len} ${C - len}`;
+              const dashoffset = -offset;
+              offset += len;
+              return (
+                <circle
+                  key={i}
+                  cx={cx} cy={cy} r={r}
+                  fill="none"
+                  stroke={d.color || DONUT_PALETTE[i % DONUT_PALETTE.length]}
+                  strokeWidth={stroke}
+                  strokeDasharray={dasharray}
+                  strokeDashoffset={dashoffset}
+                  transform={`rotate(-90 ${cx} ${cy})`}
+                />
+              );
+            })}
+            <text x={cx} y={cy - 4} textAnchor="middle" className="fill-dark-100" style={{ fontSize: 22, fontWeight: 700 }}>
+              {total}
+            </text>
+            {centerLabel && (
+              <text x={cx} y={cy + 14} textAnchor="middle" className="fill-dark-400" style={{ fontSize: 10 }}>
+                {centerLabel}
+              </text>
+            )}
+          </svg>
+        </div>
+        <ul className="flex-1 space-y-1 text-[11px] min-w-0">
+          {data.slice(0, 12).map((d, i) => {
+            const v = d[valueKey] || 0;
+            const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
+            return (
+              <li key={i} className="flex items-center gap-2 min-w-0">
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: d.color || DONUT_PALETTE[i % DONUT_PALETTE.length] }}
+                />
+                <span className="text-dark-300 truncate flex-1" title={d[labelKey]}>{d[labelKey] || 'Unknown'}</span>
+                <span className="text-dark-400 shrink-0">{v}</span>
+                <span className="text-dark-500 shrink-0 w-10 text-right">{pct}%</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/* ── Time-in-Stage card (2026-05-16) ──────────────────────────────────────
+ * Average dwell time per stage for non-archived apps in the current
+ * window. Surfaces bottlenecks: e.g. "L2 Interview avg 8.7d" tells you
+ * which stage is silently eating cycle time. Uses a horizontal bar
+ * normalised against the worst-offender stage. */
+function TimeInStageCard({ data }) {
+  const ordered = useMemo(() => {
+    return [...data]
+      .filter((s) => Number.isFinite(s.sequence))
+      .sort((a, b) => a.sequence - b.sequence);
+  }, [data]);
+  const maxDays = Math.max(...ordered.map((s) => s.avgDays || 0), 1);
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <h3 className="text-sm font-semibold text-dark-200 mb-0.5">Time in Stage</h3>
+      <p className="text-dark-500 text-[11px] mb-3">Avg days apps sit in each stage — flags bottlenecks</p>
+      {ordered.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No data yet</p>
+      ) : (
+        <div className="space-y-1.5">
+          {ordered.map((stage) => {
+            const days = stage.avgDays || 0;
+            const pct = (days / maxDays) * 100;
+            const hot = days >= 7;
+            return (
+              <div key={stage.stageId} className="flex items-center gap-3">
+                <span className="text-xs text-dark-300 w-28 shrink-0 truncate" title={stage.stageName}>{stage.stageName}</span>
+                <div className="flex-1 bg-dark-800 rounded-full h-4 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${hot ? 'bg-amber-500/70' : 'bg-blue-500/60'}`}
+                    style={{ width: `${pct}%`, minWidth: days > 0 ? '0.5rem' : 0 }}
+                  />
+                </div>
+                <span className="text-[11px] font-medium text-dark-300 w-14 text-right shrink-0">
+                  {days.toFixed(1)}d
+                </span>
+                <span className="text-[10px] text-dark-500 w-10 text-right shrink-0">n={stage.sampleSize}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Stat Card ────────────────────────────────────────────────────────────
  * 2026-05-14: restyled to match the CRM Dashboard KPICard pattern —
  * tinted full-card background instead of a dark card with a tinted
@@ -587,6 +742,13 @@ export default function AtsDashboard() {
     alerts = {},
     offerAcceptance = null,
     refusalReasons = [],
+    // 2026-05-16 redesign: new KPI tiles + advanced cards.
+    activePipelineCount = 0,
+    offerActive = { total: 0, proposal: 0, signed: 0 },
+    openJobsCount = 0,
+    jobsByClient = [],
+    timeInStage = [],
+    todaySubmissions = [],
   } = data;
 
   return (
@@ -638,26 +800,108 @@ export default function AtsDashboard() {
         </div>
       </div>
 
-      {/* ── Stats Cards ─────────────────────────────────────────────────── */}
+      {/* ── Stats Cards (2026-05-16 redesign) ──────────────────────────────
+          Action-oriented headline KPIs:
+            1. Active Pipeline — work in flight (not refused/archived/hired)
+            2. Hired — windowed by the range picker, with avgTimeToHire
+            3. Offer Active — proposal + signed split out as subtitle
+            4. Open Jobs — what we're actively recruiting for
+          Each tile is clickable and routes to the matching filtered list
+          on the Applications / Jobs page. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total Applications" value={totalApplications} icon={BarChart3} color="blue" />
-        <StatCard label="Total Candidates" value={totalCandidates} icon={Users} color="purple" />
-        <StatCard label="Total Hired" value={hiredCount} icon={UserCheck} color="emerald" />
-        <StatCard
-          label="Avg Time to Hire"
-          value={
+        <KpiTile
+          label="Active Pipeline"
+          value={activePipelineCount}
+          subtitle={`${totalApplications} total apps in range`}
+          icon={BarChart3}
+          color="blue"
+          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing`}
+        />
+        <KpiTile
+          label="Hired"
+          value={hiredCount}
+          subtitle={
             Number.isFinite(Number(avgTimeToHire)) && Number(avgTimeToHire) > 0
-              ? `${avgTimeToHire} days`
-              : '—'
+              ? `avg ${avgTimeToHire} days to hire`
+              : 'avg time to hire —'
           }
+          icon={UserCheck}
+          color="emerald"
+          to={`/org/${orgSlug}/ats/applications?hiredOnly=1`}
+        />
+        <KpiTile
+          label="Offer Active"
+          value={offerActive.total}
+          subtitle={`Proposal ${offerActive.proposal} · Signed ${offerActive.signed}`}
           icon={Clock}
           color="amber"
+          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing`}
+        />
+        <KpiTile
+          label="Open Jobs"
+          value={openJobsCount}
+          subtitle={`${totalCandidates} candidates in pool`}
+          icon={Users}
+          color="purple"
+          to={`/org/${orgSlug}/ats/jobs?status=open`}
         />
       </div>
 
       {/* ── Funnel (Phase 1) — replaces the old Applications-by-Stage
           horizontal bar; shows same data plus cumulative + conversion %. */}
       <RecruitmentFunnel data={applicationsByStage} />
+
+      {/* ── Two-donut row: Apps by Recruiter + Jobs by Client ──────────────
+          Mirrors the Odoo Recruitment dashboard pair (large+small donut)
+          but with interactive legend and percentages. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <DonutChart
+          title="Applications by Recruiter"
+          data={applicationsByRecruiter.slice(0, 12).map((r) => ({
+            label: r.recruiterName || r.recruiterId || 'Unknown',
+            value: r.count,
+          }))}
+          centerLabel="apps in range"
+        />
+        <DonutChart
+          title="Open Jobs by Client"
+          data={jobsByClient.map((r) => ({ label: r.client, value: r.count }))}
+          centerLabel="open jobs"
+        />
+      </div>
+
+      {/* ── Time-in-Stage heatmap + Today's submissions ─────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TimeInStageCard data={timeInStage} />
+        <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-dark-200">Today's Submissions</h3>
+            <Link
+              to={`/org/${orgSlug}/ats/applications`}
+              className="text-[11px] text-rivvra-400 hover:text-rivvra-300 flex items-center gap-0.5"
+            >
+              View all <ArrowRight size={11} />
+            </Link>
+          </div>
+          {todaySubmissions.length === 0 ? (
+            <p className="text-dark-600 text-xs text-center py-8">No new submissions today</p>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {todaySubmissions.slice(0, 10).map((a) => (
+                <Link
+                  key={a._id}
+                  to={`/org/${orgSlug}/ats/applications/${a._id}`}
+                  className="flex items-center gap-2 text-[11px] py-1.5 px-2 rounded hover:bg-dark-800 transition-colors"
+                >
+                  <span className="text-dark-200 truncate flex-1" title={a.candidateName}>{a.candidateName || 'Unknown'}</span>
+                  <span className="text-dark-500 truncate w-32 hidden sm:inline" title={a.recruiterName}>{a.recruiterName || ''}</span>
+                  <span className="text-dark-400 shrink-0 text-[10px] uppercase tracking-wide">{a.stageName || '—'}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── My Recruitment Team (lead-only; hides for admins/members) ──── */}
       <MyTeamWidget type="ats" />
