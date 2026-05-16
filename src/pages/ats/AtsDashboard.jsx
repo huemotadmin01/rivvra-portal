@@ -749,7 +749,24 @@ export default function AtsDashboard() {
     jobsByClient = [],
     timeInStage = [],
     todaySubmissions = [],
+    openJobsList = [],
   } = data;
+
+  // 2026-05-16: group today's submissions by team for the Odoo-parity
+  // multi-table layout. Teams come pre-enriched on each row by the API.
+  const submissionsByTeam = useMemo(() => {
+    const groups = new Map();
+    for (const sub of todaySubmissions) {
+      const key = sub.teamName || 'Unassigned';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(sub);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    });
+  }, [todaySubmissions]);
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
@@ -870,7 +887,11 @@ export default function AtsDashboard() {
         />
       </div>
 
-      {/* ── Time-in-Stage heatmap + Today's submissions ─────────────────── */}
+      {/* ── Time-in-Stage heatmap + Today's submissions (by team) ─────────
+          Today's Submissions is split into one sub-panel per team to
+          match the Odoo dashboard's "Today's Submissions (Team-A)" /
+          "(Team-B)" layout. Recruiters land here as their team only;
+          admins see every team in sequence. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TimeInStageCard data={timeInStage} />
         <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
@@ -886,21 +907,100 @@ export default function AtsDashboard() {
           {todaySubmissions.length === 0 ? (
             <p className="text-dark-600 text-xs text-center py-8">No new submissions today</p>
           ) : (
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
-              {todaySubmissions.slice(0, 10).map((a) => (
-                <Link
-                  key={a._id}
-                  to={`/org/${orgSlug}/ats/applications/${a._id}`}
-                  className="flex items-center gap-2 text-[11px] py-1.5 px-2 rounded hover:bg-dark-800 transition-colors"
-                >
-                  <span className="text-dark-200 truncate flex-1" title={a.candidateName}>{a.candidateName || 'Unknown'}</span>
-                  <span className="text-dark-500 truncate w-32 hidden sm:inline" title={a.recruiterName}>{a.recruiterName || ''}</span>
-                  <span className="text-dark-400 shrink-0 text-[10px] uppercase tracking-wide">{a.stageName || '—'}</span>
-                </Link>
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {submissionsByTeam.map(([teamName, rows]) => (
+                <div key={teamName}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h4 className="text-[11px] font-semibold text-dark-300 uppercase tracking-wide">
+                      {teamName} <span className="text-dark-500 ml-1 normal-case font-normal">({rows.length})</span>
+                    </h4>
+                  </div>
+                  <div className="space-y-1">
+                    {rows.slice(0, 10).map((a) => (
+                      <Link
+                        key={a._id}
+                        to={`/org/${orgSlug}/ats/applications/${a._id}`}
+                        className="flex items-center gap-2 text-[11px] py-1 px-2 rounded hover:bg-dark-800 transition-colors"
+                      >
+                        <span className="text-dark-200 truncate flex-1" title={a.candidateName}>{a.candidateName || 'Unknown'}</span>
+                        <span className="text-dark-500 truncate w-28 hidden sm:inline" title={a.recruiterName}>{a.recruiterName || ''}</span>
+                        <span className="text-dark-400 shrink-0 text-[10px] uppercase tracking-wide">{a.stageName || '—'}</span>
+                      </Link>
+                    ))}
+                    {rows.length > 10 && (
+                      <p className="text-[10px] text-dark-500 pl-2">+ {rows.length - 10} more</p>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Active Job Positions table (2026-05-16) ──────────────────────
+          Mirrors Odoo's bottom-right table. One row per open job, with
+          Client / Location / Budget / Target / Hires / Apps. Each row
+          links to the job detail page. */}
+      <div className="bg-dark-850 rounded-xl border border-dark-700 overflow-hidden">
+        <div className="flex items-center justify-between p-4 pb-2">
+          <div>
+            <h3 className="text-sm font-semibold text-dark-200">Active Job Positions</h3>
+            <p className="text-[11px] text-dark-500">Open jobs sorted by application volume</p>
+          </div>
+          <Link
+            to={`/org/${orgSlug}/ats/jobs?status=open`}
+            className="text-[11px] text-rivvra-400 hover:text-rivvra-300 flex items-center gap-0.5"
+          >
+            View all <ArrowRight size={11} />
+          </Link>
+        </div>
+        {openJobsList.length === 0 ? (
+          <p className="text-dark-600 text-xs text-center py-8">No open jobs</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead className="bg-dark-900/60 text-dark-400">
+                <tr>
+                  <th className="text-left font-medium px-3 py-2">Job</th>
+                  <th className="text-left font-medium px-3 py-2 hidden md:table-cell">Client</th>
+                  <th className="text-left font-medium px-3 py-2 hidden lg:table-cell">Location</th>
+                  <th className="text-right font-medium px-3 py-2 hidden md:table-cell">Budget</th>
+                  <th className="text-right font-medium px-3 py-2">Target</th>
+                  <th className="text-right font-medium px-3 py-2">Hires</th>
+                  <th className="text-right font-medium px-3 py-2">Apps</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {openJobsList.slice(0, 25).map((j) => (
+                  <tr key={j._id} className="hover:bg-dark-800/50">
+                    <td className="px-3 py-2 max-w-xs">
+                      <Link
+                        to={`/org/${orgSlug}/ats/jobs/${j._id}`}
+                        className="text-dark-100 hover:text-rivvra-300 truncate block"
+                        title={j.name}
+                      >
+                        {j.name}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 text-dark-300 truncate max-w-[200px] hidden md:table-cell" title={j.clientName}>{j.clientName || '—'}</td>
+                    <td className="px-3 py-2 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={j.clientJobLocation || j.location}>{j.clientJobLocation || j.location || '—'}</td>
+                    <td className="px-3 py-2 text-right text-dark-300 hidden md:table-cell">
+                      {Number.isFinite(Number(j.clientBudget)) && Number(j.clientBudget) > 0 ? j.clientBudget : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right text-dark-300">{j.expectedHires || 1}</td>
+                    <td className="px-3 py-2 text-right">
+                      <span className={(j.hiredCount || 0) >= (j.expectedHires || 1) ? 'text-emerald-400 font-medium' : 'text-dark-300'}>
+                        {j.hiredCount || 0}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right text-dark-100 font-medium">{j.applicationCount || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* ── My Recruitment Team (lead-only; hides for admins/members) ──── */}
