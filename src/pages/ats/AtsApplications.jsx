@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
 import DensityToggle from '../../components/shared/DensityToggle';
@@ -396,6 +397,9 @@ export default function AtsApplications() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkAction, setBulkAction] = useState(null); // null | 'stage' | 'refuse'
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  // 2026-05-17 health-check D.2: styled confirm modal state. Replaces
+  // window.confirm() which can't be themed and steals focus uglyly.
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [refuseReasons, setRefuseReasons] = useState([]);
 
   const debounceRef = useRef(null);
@@ -411,23 +415,22 @@ export default function AtsApplications() {
   // ── Fetch applications ─────────────────────────────────────────────────
   const fetchApplications = useCallback(async () => {
     if (!orgSlug) return;
+    // 2026-05-17 health-check D.1: keep prior list visible while
+    // refetching — pages no longer blank-flash between filter changes.
+    // The api util auto-cancels the previous in-flight request keyed by
+    // _requestKey so race-stale results can't overwrite a newer fetch.
     setLoading(true);
-    setApplications([]);
-    setTotal(0);
-    setTotalPages(1);
     try {
       // 2026-05-17 health-check P0: hard-coded sort/order used to come
       // AFTER `...filterParams`, overriding the URL's sort + dir params
-      // that SortableHeader writes. Sortable column headers therefore
-      // didn't actually sort. Move the defaults BEFORE the spread so
-      // user-driven sort + dir from filterParams take precedence; the
-      // server-side param is `dir` not `order` (matches API contract).
+      // that SortableHeader writes. Move the defaults BEFORE the spread.
       const res = await atsApi.listApplications(orgSlug, {
         page,
         limit: 25,
         sort: 'appliedOn',
         dir: 'desc',
         ...filterParams,
+        _requestKey: 'ats:applications:list',
       });
       if (res.success) {
         setApplications(res.applications || []);
@@ -435,9 +438,11 @@ export default function AtsApplications() {
         setTotalPages(res.totalPages || 1);
       }
     } catch (err) {
+      // AbortError fires when the api util cancels this fetch in favour
+      // of a newer one — don't toast or clear state on it.
+      if (err?.name === 'AbortError') return;
       console.error('Failed to load applications:', err);
       showToast('Failed to load applications', 'error');
-      setApplications([]);
     } finally {
       setLoading(false);
     }
@@ -563,25 +568,31 @@ export default function AtsApplications() {
 
   const handleBulkRefuse = async (refuseReasonId) => {
     if (!orgSlug || selectedIds.size === 0) return;
-    if (!window.confirm(`Refuse ${selectedIds.size} application${selectedIds.size === 1 ? '' : 's'}? This won't email the candidates.`)) {
-      return;
-    }
-    setBulkSubmitting(true);
-    try {
-      const ids = Array.from(selectedIds);
-      const res = await atsApi.bulkRefuse(orgSlug, ids, refuseReasonId);
-      if (res?.success) {
-        showToast(`Refused ${res.modified} application${res.modified === 1 ? '' : 's'}`);
-        clearSelection();
-        await fetchApplications();
-      } else {
-        showToast(res?.error || 'Bulk refuse failed', 'error');
-      }
-    } catch (err) {
-      showToast(err?.message || 'Bulk refuse failed', 'error');
-    } finally {
-      setBulkSubmitting(false);
-    }
+    const n = selectedIds.size;
+    setConfirmDialog({
+      title: `Refuse ${n} application${n === 1 ? '' : 's'}?`,
+      message: 'No emails will be sent to the candidates. Already-hired and already-refused applications in your selection are skipped automatically.',
+      confirmLabel: `Refuse ${n}`,
+      danger: true,
+      action: async () => {
+        setBulkSubmitting(true);
+        try {
+          const ids = Array.from(selectedIds);
+          const res = await atsApi.bulkRefuse(orgSlug, ids, refuseReasonId);
+          if (res?.success) {
+            showToast(`Refused ${res.modified} application${res.modified === 1 ? '' : 's'}`);
+            clearSelection();
+            await fetchApplications();
+          } else {
+            showToast(res?.error || 'Bulk refuse failed', 'error');
+          }
+        } catch (err) {
+          showToast(err?.message || 'Bulk refuse failed', 'error');
+        } finally {
+          setBulkSubmitting(false);
+        }
+      },
+    });
   };
 
   // Mirrors fetchApplications' filter chain so the export matches the
@@ -1063,6 +1074,20 @@ export default function AtsApplications() {
         stages={stages}
         recruiters={recruiters}
         prefillJobId={searchParams.get('jobId') || ''}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        danger={confirmDialog?.danger}
+        busy={bulkSubmitting}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={async () => {
+          await confirmDialog?.action?.();
+          setConfirmDialog(null);
+        }}
       />
     </div>
   );

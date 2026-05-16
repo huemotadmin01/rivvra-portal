@@ -38,11 +38,11 @@ const atsApi = {
   },
 
   // ── Job Positions ─────────────────────────────────────────────────────
-  listJobs(orgSlug, params = {}) {
+  listJobs(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/ats/jobs${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/ats/jobs${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
 
   getJob(orgSlug, id) {
@@ -101,18 +101,22 @@ const atsApi = {
   },
 
   // ── Applications ──────────────────────────────────────────────────────
-  listApplications(orgSlug, params = {}) {
+  // 2026-05-17 health-check: _requestKey is stripped from query string and
+  // forwarded to api.request for dedup — rapid filter typing / page changes
+  // automatically abort the previous list request so we don't race-render
+  // stale results.
+  listApplications(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/ats/applications${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/ats/applications${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
 
-  getKanban(orgSlug, params = {}) {
+  getKanban(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/ats/applications/kanban${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/ats/applications/kanban${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
 
   getApplication(orgSlug, id) {
@@ -336,11 +340,11 @@ const atsApi = {
   },
 
   // ── Candidates ────────────────────────────────────────────────────────
-  listCandidates(orgSlug, params = {}) {
+  listCandidates(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/ats/candidates${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/ats/candidates${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
 
   getCandidate(orgSlug, id) {

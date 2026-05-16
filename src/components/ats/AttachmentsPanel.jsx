@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import DocumentPreviewModal from '../shared/DocumentPreviewModal';
+import ConfirmDialog from '../shared/ConfirmDialog';
 import {
   Upload, File, FileText, Image, Trash2, Loader2, Download,
   Star, Eye, Paperclip,
@@ -51,6 +52,9 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
+  // 2026-05-17 health-check D.2: styled confirm for attachment delete.
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const fetchAttachments = useCallback(async () => {
     if (!orgSlug || !applicationId) return;
@@ -97,8 +101,11 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     }
   };
 
-  const handleDelete = async (att) => {
-    if (!window.confirm(`Delete "${att.fileName}"? This cannot be undone.`)) return;
+  const handleDelete = (att) => {
+    setConfirmDelete(att);
+  };
+  const performDelete = async (att) => {
+    setConfirmBusy(true);
     try {
       const res = await atsApi.deleteAttachment(orgSlug, att._id);
       if (!res.success) { showToast(res.error || 'Failed to delete attachment', 'error'); return; }
@@ -106,6 +113,8 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
       fetchAttachments();
     } catch (err) {
       showToast(err.message || 'Failed to delete', 'error');
+    } finally {
+      setConfirmBusy(false);
     }
   };
 
@@ -268,6 +277,20 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
           onClose={() => setPreviewDoc(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete attachment?"
+        message={confirmDelete ? `Delete "${confirmDelete.fileName}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        danger
+        busy={confirmBusy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={async () => {
+          if (confirmDelete) await performDelete(confirmDelete);
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

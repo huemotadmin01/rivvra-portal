@@ -166,6 +166,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const [signTemplates, setSignTemplates] = useState([]);
   const [signLoading, setSignLoading] = useState(false);
   const [signError, setSignError] = useState('');
+  // 2026-05-17 health-check D.2: two-stage confirm for envelope disconnect.
+  const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [signTemplateId, setSignTemplateId] = useState('');
   const [directorName, setDirectorName] = useState('');
   const [directorEmail, setDirectorEmail] = useState('');
@@ -653,25 +655,50 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!application?._id) return;
-                      const ok = window.confirm('Disconnect this envelope from the offer? The sign request itself isn’t cancelled — cancel it from the Sign module separately if needed. You can then resend with corrected details.');
-                      if (!ok) return;
-                      try {
-                        await atsApi.disconnectOfferEnvelope(orgSlug, application._id);
-                        if (typeof onRefresh === 'function') {
-                          try { await onRefresh(); } catch { /* ignore */ }
-                        }
-                      } catch (err) {
-                        setSignError(err?.message || 'Failed to disconnect envelope');
-                      }
-                    }}
-                    className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors flex-shrink-0"
-                  >
-                    Disconnect
-                  </button>
+                  {/* 2026-05-17 health-check D.2: window.confirm replaced
+                      with an inline two-stage button. Nesting a second
+                      modal inside HireModal would have layered-z + focus
+                      conflicts; the two-stage pattern keeps the diff
+                      small and the destructive action behind a clear
+                      second click. */}
+                  {disconnectConfirm ? (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!application?._id) return;
+                          setDisconnectConfirm(false);
+                          try {
+                            await atsApi.disconnectOfferEnvelope(orgSlug, application._id);
+                            if (typeof onRefresh === 'function') {
+                              try { await onRefresh(); } catch { /* ignore */ }
+                            }
+                          } catch (err) {
+                            setSignError(err?.message || 'Failed to disconnect envelope');
+                          }
+                        }}
+                        className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors"
+                      >
+                        Confirm disconnect
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDisconnectConfirm(false)}
+                        className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDisconnectConfirm(true)}
+                      title="Disconnects the envelope from the offer. The Sign request itself isn't cancelled — cancel it from the Sign module separately if needed."
+                      className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors flex-shrink-0"
+                    >
+                      Disconnect
+                    </button>
+                  )}
                 </div>
                 <p className="text-[11px] text-dark-500 mt-2">
                   Once both Director and Candidate sign in the Sign module, this offer will mark itself as signed automatically and the Offer Signed stage gate will pass.

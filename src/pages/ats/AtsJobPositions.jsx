@@ -515,26 +515,25 @@ export default function AtsJobPositions() {
   // ── Fetch jobs ─────────────────────────────────────────────────────────
   const fetchJobs = useCallback(async () => {
     if (!orgSlug) return;
+    // 2026-05-17 health-check D.1: don't blank prior view; dedup via
+    // _requestKey so rapid filter typing auto-aborts stale requests.
     setLoading(true);
-    setJobs([]);
-    setTotal(0);
-    setTotalPages(1);
     try {
-      const res = await atsApi.listJobs(orgSlug, { page, ...filterParams });
+      const res = await atsApi.listJobs(orgSlug, {
+        page, ...filterParams, _requestKey: 'ats:jobs:list',
+      });
       if (res.success) {
         setJobs(res.jobs || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
-
-        // Build departments list from job data (per-company switches reset).
         const deptSet = new Set();
         (res.jobs || []).forEach((j) => { if (j.department) deptSet.add(j.department); });
         setDepartments([...deptSet].sort());
       }
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       console.error('Failed to load jobs:', err);
       showToast('Failed to load job positions', 'error');
-      setJobs([]);
     } finally {
       setLoading(false);
     }

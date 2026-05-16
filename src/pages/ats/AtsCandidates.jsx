@@ -64,21 +64,21 @@ export default function AtsCandidates() {
   // ── Fetch candidates ──────────────────────────────────────────────────
   const fetchCandidates = useCallback(async () => {
     if (!orgSlug) return;
+    // 2026-05-17 health-check D.1: keep prior view; dedup via _requestKey.
     setLoading(true);
-    setCandidates([]);
-    setTotal(0);
-    setTotalPages(1);
     try {
-      const res = await atsApi.listCandidates(orgSlug, { page, ...filterParams });
+      const res = await atsApi.listCandidates(orgSlug, {
+        page, ...filterParams, _requestKey: 'ats:candidates:list',
+      });
       if (res.success) {
         setCandidates(res.candidates || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
       }
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       console.error('Failed to load candidates:', err);
       showToast('Failed to load candidates', 'error');
-      setCandidates([]);
     } finally {
       setLoading(false);
     }

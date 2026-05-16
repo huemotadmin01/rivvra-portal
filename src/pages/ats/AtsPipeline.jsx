@@ -616,21 +616,24 @@ export default function AtsPipeline() {
   // ── Fetch kanban data ──────────────────────────────────────────────────
   const fetchKanban = useCallback(async (params = {}) => {
     if (!orgSlug) return;
+    // 2026-05-17 health-check D.1: keep prior kanban visible while
+    // refetching — search-debounced typing no longer blanks every column
+    // mid-keystroke. Dedup via _requestKey auto-aborts stale fetches.
     setLoading(true);
-    setColumns([]);
     try {
       const res = await atsApi.getKanban(orgSlug, {
         search: params.search !== undefined ? params.search : search,
         jobId: params.jobId !== undefined ? params.jobId : jobFilter,
         recruiter: params.recruiter !== undefined ? params.recruiter : recruiterFilter,
+        _requestKey: 'ats:kanban',
       });
       if (res.success) {
         setColumns(res.kanban || []);
       }
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       console.error('Failed to load pipeline:', err);
       showToast('Failed to load pipeline', 'error');
-      setColumns([]);
     } finally {
       setLoading(false);
     }
