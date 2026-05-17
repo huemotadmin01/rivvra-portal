@@ -9,6 +9,7 @@ import crmApi from '../../utils/crmApi';
 import invoicingApi from '../../utils/invoicingApi';
 import { getAddressLocale, validateZip } from '../../utils/addressLocale';
 import { formatCurrency } from '../../utils/formatCurrency';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -410,6 +411,10 @@ export default function ContactDetail() {
   const [archivePreview, setArchivePreview] = useState(null);
   const [archiving, setArchiving] = useState(false);
   const [showKebab, setShowKebab] = useState(false);
+  // 2026-05-17 CONTACTS-D: styled confirm in place of window.confirm for
+  // child-contact and attachment deletes. Single page-level dialog routed via
+  // confirmDelete = { kind: 'child'|'attachment', item, busy }.
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   // Dropdown data
   const [salespersons, setSalespersons] = useState([]);
@@ -1260,24 +1265,9 @@ export default function ContactDetail() {
                         {isAdmin && (
                           <td className="px-2 py-3 text-right">
                             <button
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation();
-                                if (!confirm(`Delete contact "${child.name}"?`)) return;
-                                try {
-                                  const res = await contactsApi.delete(orgSlug, child._id);
-                                  if (res.status === 409) {
-                                    showToast('Contact has linked records and can\u2019t be deleted here. Open the contact to review.', 'error');
-                                    return;
-                                  }
-                                  if (res.success) {
-                                    showToast('Contact deleted');
-                                    setChildContacts((prev) => prev.filter((c) => c._id !== child._id));
-                                  } else {
-                                    showToast(res.error || 'Failed to delete', 'error');
-                                  }
-                                } catch (err) {
-                                  showToast(err?.message || 'Failed to delete', 'error');
-                                }
+                                setConfirmDelete({ kind: 'child', item: child });
                               }}
                               className="p-1.5 rounded-lg text-dark-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
                               title="Delete contact"
@@ -1459,14 +1449,9 @@ export default function ContactDetail() {
                           <Eye size={14} />
                         </span>
                       )}
-                      <button onClick={async (e) => {
+                      <button onClick={(e) => {
                         e.stopPropagation();
-                        if (!confirm('Delete this attachment?')) return;
-                        try {
-                          await contactsApi.deleteAttachment(orgSlug, contactId, doc._id);
-                          showToast('Attachment deleted');
-                          await loadAttachments();
-                        } catch { showToast('Delete failed', 'error'); }
+                        setConfirmDelete({ kind: 'attachment', item: doc });
                       }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
                         <Trash2 size={14} />
                       </button>
@@ -1583,6 +1568,52 @@ export default function ContactDetail() {
           onForceDelete={() => handleDelete({ force: true })}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={
+          confirmDelete?.kind === 'child' ? 'Delete contact?'
+            : confirmDelete?.kind === 'attachment' ? 'Delete attachment?'
+            : ''
+        }
+        message={
+          confirmDelete?.kind === 'child'
+            ? `Delete contact "${confirmDelete.item?.name}"? This cannot be undone.`
+            : confirmDelete?.kind === 'attachment'
+            ? `Delete "${confirmDelete.item?.filename}"? This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          setConfirmDelete((p) => p && { ...p, busy: true });
+          try {
+            if (confirmDelete.kind === 'child') {
+              const child = confirmDelete.item;
+              const res = await contactsApi.delete(orgSlug, child._id);
+              if (res.status === 409) {
+                showToast('Contact has linked records and can’t be deleted here. Open the contact to review.', 'error');
+              } else if (res.success) {
+                showToast('Contact deleted');
+                setChildContacts((prev) => prev.filter((c) => c._id !== child._id));
+              } else {
+                showToast(res.error || 'Failed to delete', 'error');
+              }
+            } else if (confirmDelete.kind === 'attachment') {
+              await contactsApi.deleteAttachment(orgSlug, contactId, confirmDelete.item._id);
+              showToast('Attachment deleted');
+              await loadAttachments();
+            }
+          } catch (err) {
+            showToast(err?.message || 'Failed to delete', 'error');
+          } finally {
+            setConfirmDelete(null);
+          }
+        }}
+      />
     </div>
   );
 }

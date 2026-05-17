@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import { Plus, Edit2, X, Loader2, Tag, Trash2 } from 'lucide-react';
 import { PageSkeleton, HeaderSkeleton, ConfigSkeleton } from '../../components/Skeletons';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 
 const EMPTY_FORM = { name: '' };
 
@@ -19,6 +20,8 @@ export default function ContactsConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // 2026-05-17 CONTACTS-D: styled confirm in place of window.confirm.
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -104,12 +107,18 @@ export default function ContactsConfig() {
   };
 
   // ── Delete ──────────────────────────────────────────────────────────
-  const handleDelete = async () => {
+  // 2026-05-17 CONTACTS-D: window.confirm replaced with ConfirmDialog —
+  // the native confirm steals focus, can't be themed, and doesn't
+  // honour the dark theme. handleDelete now just opens the dialog;
+  // performDelete actually deletes.
+  const handleDelete = () => {
     if (!editingTag) return;
-    if (!window.confirm(`Delete tag "${editingTag.name}"? This cannot be undone.`)) return;
+    setConfirmDelete(editingTag);
+  };
+  const performDelete = async (tag) => {
     try {
       setDeleting(true);
-      const res = await contactsApi.deleteTag(orgSlug, editingTag._id);
+      const res = await contactsApi.deleteTag(orgSlug, tag._id);
       if (res.success) {
         showToast('Tag deleted');
         closeModal();
@@ -119,6 +128,7 @@ export default function ContactsConfig() {
       showToast(err.message || 'Failed to delete tag', 'error');
     } finally {
       setDeleting(false);
+      setConfirmDelete(null);
     }
   };
 
@@ -238,6 +248,7 @@ export default function ContactsConfig() {
               </h3>
               <button
                 onClick={closeModal}
+                aria-label="Close"
                 className="text-dark-400 hover:text-white transition-colors"
               >
                 <X size={20} />
@@ -301,6 +312,19 @@ export default function ContactsConfig() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete tag?"
+        message={confirmDelete ? `Delete "${confirmDelete.name}"? This cannot be undone. Any contacts currently using this tag will keep the value but no new contacts can pick it.` : ''}
+        confirmLabel="Delete"
+        danger
+        busy={deleting}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={async () => {
+          if (confirmDelete) await performDelete(confirmDelete);
+        }}
+      />
     </div>
   );
 }
