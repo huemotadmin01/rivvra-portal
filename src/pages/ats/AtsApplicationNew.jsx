@@ -796,6 +796,9 @@ export default function AtsApplicationNew() {
 
                 {/* Add skill row */}
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+                  {/* 2026-05-17 health-check G.3: declared as a combobox
+                      so AT announce "combobox, expanded/collapsed" and
+                      can address the listbox via aria-controls. */}
                   <div ref={skillContainerRef} className="relative">
                     <Search size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
@@ -803,6 +806,11 @@ export default function AtsApplicationNew() {
                       type="text"
                       value={skillQuery}
                       placeholder="Search or create a skill…"
+                      aria-label="Search or create a skill"
+                      role="combobox"
+                      aria-expanded={skillDropdownOpen}
+                      aria-controls="skill-picker-listbox"
+                      aria-autocomplete="list"
                       onFocus={() => setSkillDropdownOpen(true)}
                       onChange={(e) => {
                         setSkillQuery(e.target.value);
@@ -1159,6 +1167,9 @@ export default function AtsApplicationNew() {
       {skillDropdownOpen && skillAnchorRect && createPortal(
         <div
           data-skill-typeahead
+          id="skill-picker-listbox"
+          role="listbox"
+          aria-label="Skill suggestions"
           style={{ position: 'fixed', top: skillAnchorRect.top + 4, left: skillAnchorRect.left, width: skillAnchorRect.width, zIndex: 1000 }}
           className="bg-dark-800 border border-dark-600 rounded-lg shadow-2xl max-h-64 overflow-y-auto"
         >

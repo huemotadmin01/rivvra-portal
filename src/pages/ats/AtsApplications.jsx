@@ -89,264 +89,10 @@ function EvalStars({ value = 0, max = 3 }) {
   );
 }
 
-/* ── New Application Modal ────────────────────────────────────────────── */
-const EMPTY_APP = {
-  candidateName: '',
-  candidateEmail: '',
-  candidatePhone: '',
-  linkedinProfile: '',
-  jobId: '',
-  stageId: '',
-  recruiter: '',
-  employmentType: '',
-  source: '',
-  evaluation: 0,
-};
-
-function NewApplicationModal({ show, onClose, onSaved, orgSlug, jobs, stages, recruiters, prefillJobId = '' }) {
-  const modalRef = useRef(null);
-  const { showToast } = useToast();
-  const [form, setForm] = useState(EMPTY_APP);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (show) {
-      setForm({
-        ...EMPTY_APP,
-        jobId: prefillJobId || '',
-        stageId: stages.length > 0 ? stages[0]._id : '',
-      });
-      setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
-    }
-  }, [show, stages, prefillJobId]);
-
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleEvalChange = (val) => {
-    setForm((prev) => ({ ...prev, evaluation: val === prev.evaluation ? 0 : val }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.candidateName.trim()) return;
-
-    try {
-      setSaving(true);
-      const payload = {
-        candidateName: form.candidateName.trim(),
-        email: form.candidateEmail.trim(),
-        phone: form.candidatePhone.trim(),
-        linkedinProfile: form.linkedinProfile.trim(),
-        jobPositionId: form.jobId || undefined,
-        stageId: form.stageId || undefined,
-        recruiterId: form.recruiter || undefined,
-        employmentType: form.employmentType.trim(),
-        source: form.source.trim(),
-        evaluation: form.evaluation,
-      };
-      const res = await atsApi.createApplication(orgSlug, payload);
-      if (res.success) {
-        showToast('Application created');
-        onSaved();
-        onClose();
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to create application', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!show) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="app-modal-title"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg my-8"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h3 id="app-modal-title" className="text-lg font-semibold text-white">
-            New Application
-          </h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Candidate Name */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Candidate Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={form.candidateName}
-              onChange={(e) => handleChange('candidateName', e.target.value)}
-              placeholder="e.g. John Doe"
-              className="input-field"
-            />
-          </div>
-
-          {/* Email & Phone */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Email</label>
-              <input
-                type="email"
-                value={form.candidateEmail}
-                onChange={(e) => handleChange('candidateEmail', e.target.value)}
-                placeholder="john@example.com"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Phone</label>
-              <input
-                type="text"
-                value={form.candidatePhone}
-                onChange={(e) => handleChange('candidatePhone', e.target.value)}
-                placeholder="+1 555-0100"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* LinkedIn */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">LinkedIn Profile</label>
-            <input
-              type="url"
-              value={form.linkedinProfile}
-              onChange={(e) => handleChange('linkedinProfile', e.target.value)}
-              placeholder="https://linkedin.com/in/..."
-              className="input-field"
-            />
-          </div>
-
-          {/* Job Position & Stage */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Job Position</label>
-              <select
-                value={form.jobId}
-                onChange={(e) => handleChange('jobId', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select position...</option>
-                {jobs.map((j) => (
-                  <option key={j._id} value={j._id}>{j.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Stage</label>
-              <select
-                value={form.stageId}
-                onChange={(e) => handleChange('stageId', e.target.value)}
-                className="input-field"
-              >
-                {stages.map((s) => (
-                  <option key={s._id} value={s._id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Recruiter & Employment Type */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Recruiter</label>
-              <select
-                value={form.recruiter}
-                onChange={(e) => handleChange('recruiter', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select recruiter...</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Employment Type</label>
-              <input
-                type="text"
-                value={form.employmentType}
-                onChange={(e) => handleChange('employmentType', e.target.value)}
-                placeholder="e.g. Full-time"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Source & Evaluation */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Source</label>
-              <input
-                type="text"
-                value={form.source}
-                onChange={(e) => handleChange('source', e.target.value)}
-                placeholder="e.g. LinkedIn, Referral"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Evaluation</label>
-              <div className="flex items-center gap-1 h-[42px]">
-                {[1, 2, 3].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => handleEvalChange(v)}
-                    className="cursor-pointer"
-                  >
-                    <Star
-                      size={16}
-                      className={v <= form.evaluation ? 'text-amber-400 fill-amber-400' : 'text-dark-600'}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {saving && <Loader2 size={16} className="animate-spin" />}
-              Create Application
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
+/* New Application Modal removed 2026-05-17 health-check G.1 — creation
+   lives at the routed page /ats/jobs/:id/applications/new. The 240-line
+   inline function (and its EMPTY_APP scaffold) was unreferenced after
+   the route migration. */
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsApplications() {
   const { currentOrg, getAppRole } = useOrg();
@@ -517,6 +263,18 @@ export default function AtsApplications() {
   const allVisibleIds = applications.map(a => a._id);
   const allOnPageSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
   const someOnPageSelected = allVisibleIds.some(id => selectedIds.has(id));
+
+  // 2026-05-17 health-check G.2: indeterminate is a DOM property, not an
+  // attribute — React can't set it via JSX. Old code wrote it via an
+  // inline `ref={(el) => ...}` that ran every render. useRef + useEffect
+  // is the idiomatic pattern and runs only when the input identity is
+  // stable, syncing on each indeterminate-state change.
+  const selectAllCheckboxRef = useRef(null);
+  useEffect(() => {
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = !allOnPageSelected && someOnPageSelected;
+    }
+  }, [allOnPageSelected, someOnPageSelected]);
 
   const toggleSelectOne = (id) => {
     setSelectedIds((prev) => {
@@ -853,9 +611,13 @@ export default function AtsApplications() {
                       <input
                         type="checkbox"
                         checked={allOnPageSelected}
-                        ref={(el) => { if (el) el.indeterminate = !allOnPageSelected && someOnPageSelected; }}
+                        ref={selectAllCheckboxRef}
                         onChange={toggleSelectAllOnPage}
                         aria-label="Select all on this page"
+                        aria-checked={
+                          allOnPageSelected ? 'true'
+                          : someOnPageSelected ? 'mixed' : 'false'
+                        }
                         className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 cursor-pointer"
                       />
                     </th>

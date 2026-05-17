@@ -258,7 +258,11 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   };
-  const today = ymdLocal(new Date());
+  // 2026-05-17 health-check G.2: useMemo. `today` was recomputed every
+  // render and used as a useEffect dep below, causing a fresh state
+  // re-init on every parent re-render. Memo gives stable identity for
+  // the lifetime of the modal mount.
+  const today = useMemo(() => ymdLocal(new Date()), []);
   const initJoining = initialOffer?.joiningDate
     ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10)
     : today;
