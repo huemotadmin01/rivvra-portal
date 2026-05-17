@@ -44,28 +44,38 @@ export default function AtsMyApprovals() {
   const [pending, setPending] = useState([]);
   const [decided, setDecided] = useState([]);
   const [loading, setLoading] = useState(true);
+  // 2026-05-17 health-check H.3: surface truncation when the API totals
+  // exceed what we pulled in the first page. Previously a org with >50
+  // approved jobs silently lost rows past the limit; recruiters had no
+  // way to see them. Now we show "showing N of M" + a quick toggle to
+  // pull the full list (limit raised to 500).
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [decidedTotal, setDecidedTotal] = useState(0);
+  const [showFull, setShowFull] = useState(false);
 
   const fetchLists = useCallback(async () => {
     if (!orgSlug) return;
     setLoading(true);
     try {
+      const cap = showFull ? 500 : 100;
       const [pRes, aRes, rRes] = await Promise.all([
-        atsApi.listJobs(orgSlug, { approverId: 'me', approvalStatus: 'pending', limit: 100 }),
-        atsApi.listJobs(orgSlug, { approverId: 'me', approvalStatus: 'approved', limit: 50, sort: 'updatedAt', dir: 'desc' }),
-        atsApi.listJobs(orgSlug, { approverId: 'me', approvalStatus: 'rejected', limit: 50, sort: 'updatedAt', dir: 'desc' }),
+        atsApi.listJobs(orgSlug, { approverId: 'me', approvalStatus: 'pending', limit: cap }),
+        atsApi.listJobs(orgSlug, { approverId: 'me', approvalStatus: 'approved', limit: cap, sort: 'updatedAt', dir: 'desc' }),
+        atsApi.listJobs(orgSlug, { approverId: 'me', approvalStatus: 'rejected', limit: cap, sort: 'updatedAt', dir: 'desc' }),
       ]);
       setPending(pRes?.jobs || pRes?.data || []);
+      setPendingTotal(pRes?.total ?? (pRes?.jobs || pRes?.data || []).length);
       const a = aRes?.jobs || aRes?.data || [];
       const r = rRes?.jobs || rRes?.data || [];
-      // Merge approved + rejected, newest first by updatedAt.
       const merged = [...a, ...r].sort((x, y) => new Date(y.updatedAt || 0) - new Date(x.updatedAt || 0));
       setDecided(merged);
+      setDecidedTotal((aRes?.total ?? a.length) + (rRes?.total ?? r.length));
     } catch (err) {
       console.error('Failed to load My Approvals:', err);
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, showFull]);
 
   useEffect(() => { fetchLists(); }, [fetchLists]);
 
@@ -155,6 +165,26 @@ export default function AtsMyApprovals() {
               </tbody>
             </table>
           </div>
+          {/* 2026-05-17 health-check H.3: truncation footer. Show "N of M"
+              + a Show all toggle if the API total exceeds the loaded rows. */}
+          {(() => {
+            const total = tab === 'pending' ? pendingTotal : decidedTotal;
+            const shown = rows.length;
+            if (total <= shown) return null;
+            return (
+              <div className="flex items-center justify-between px-4 py-2 text-[11px] text-dark-400 border-t border-dark-800 bg-dark-900/40">
+                <span>Showing first {shown} of {total}.</span>
+                <button
+                  type="button"
+                  onClick={() => setShowFull(true)}
+                  disabled={showFull}
+                  className="text-rivvra-400 hover:text-rivvra-300 disabled:opacity-40"
+                >
+                  {showFull ? 'Loading…' : 'Show all'}
+                </button>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

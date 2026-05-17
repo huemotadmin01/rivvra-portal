@@ -276,6 +276,23 @@ export default function AtsApplications() {
     }
   }, [allOnPageSelected, someOnPageSelected]);
 
+  // 2026-05-17 health-check H.2: outside-click close for the bulk
+  // action dropdowns. Without this, clicking the table or the page
+  // background left "Move to Stage" / "Refuse" panels open until the
+  // user clicked the toggle button again — every other dropdown in
+  // the portal closes on outside-click (FilterChip / kebab menus).
+  const bulkBarRef = useRef(null);
+  useEffect(() => {
+    if (!bulkAction) return undefined;
+    const handler = (e) => {
+      if (bulkBarRef.current && !bulkBarRef.current.contains(e.target)) {
+        setBulkAction(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [bulkAction]);
+
   const toggleSelectOne = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -506,23 +523,38 @@ export default function AtsApplications() {
           <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
         </div>
       ) : applications.length === 0 ? (
+        // 2026-05-17 health-check H.2: when filters are active and the
+        // result-set is empty, give the user a one-click "Clear filters"
+        // affordance instead of leaving them to wipe each chip manually.
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
             <Users className="w-8 h-8 text-dark-500" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No applications found</h3>
-          <p className="text-dark-400 text-sm text-center max-w-sm">
+          <p className="text-dark-400 text-sm text-center max-w-sm mb-4">
             {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Create your first application or use the Pipeline view to add candidates.'}
           </p>
+          {Object.values(filterParams).some(Boolean) && (
+            <button
+              type="button"
+              onClick={() => setSearchParams(new URLSearchParams())}
+              className="text-xs text-rivvra-400 hover:text-rivvra-300 underline underline-offset-2"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       ) : (
         <>
           {/* Bulk action bar — appears when one or more rows are selected.
               Sits above the table so it's clearly tied to the list. */}
           {selectedIds.size > 0 && (
-            <div className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30">
+            <div
+              ref={bulkBarRef}
+              className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30"
+            >
               <span className="text-sm text-white font-medium">
                 {selectedIds.size} selected
               </span>
