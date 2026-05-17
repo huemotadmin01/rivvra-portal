@@ -25,6 +25,67 @@ const GROUP_BY_OPTIONS = [
 
 // EMPTY_CANDIDATE + NewCandidateModal removed — creation now routes to /ats/candidates/new
 
+// 2026-05-18: "Matched on" chips. Renders only when the user has a
+// search active AND the search term hits one of the candidate's skill
+// names (not the candidate's own name/email — that case doesn't need
+// extra context). The matching substring inside each skill chip gets
+// highlighted so the user can see why each row qualified.
+function MatchedSkills({ candidate, search }) {
+  const term = (search || '').trim();
+  if (!term) return null;
+  const skills = Array.isArray(candidate.skills) ? candidate.skills : [];
+  if (skills.length === 0) return null;
+  // Skip when the row already matched on name/email — no need to also
+  // explain via skills, the row is "obviously" relevant.
+  const lowerTerm = term.toLowerCase();
+  const nameHit  = (candidate.name  || '').toLowerCase().includes(lowerTerm);
+  const emailHit = (candidate.email || '').toLowerCase().includes(lowerTerm);
+  if (nameHit || emailHit) return null;
+  // Find skills whose name contains the term (case-insensitive).
+  const matched = [];
+  const seen = new Set();
+  for (const s of skills) {
+    const n = (s.skillName || '').trim();
+    if (!n) continue;
+    if (!n.toLowerCase().includes(lowerTerm)) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matched.push(n);
+    if (matched.length >= 4) break;
+  }
+  if (matched.length === 0) return null;
+
+  // Highlight the matching substring inside each chip.
+  const renderHighlighted = (text) => {
+    const i = text.toLowerCase().indexOf(lowerTerm);
+    if (i < 0) return text;
+    return (
+      <>
+        {text.slice(0, i)}
+        <span className="text-rivvra-300 underline underline-offset-2">
+          {text.slice(i, i + term.length)}
+        </span>
+        {text.slice(i + term.length)}
+      </>
+    );
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-1">
+      <span className="text-[10px] text-dark-500 uppercase tracking-wide">Matched</span>
+      {matched.map((name) => (
+        <span
+          key={name}
+          className="text-[10px] px-1.5 py-0.5 rounded-full bg-rivvra-500/10 text-rivvra-300 border border-rivvra-500/20"
+        >
+          {renderHighlighted(name)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsCandidates() {
@@ -74,9 +135,14 @@ export default function AtsCandidates() {
       // groups aren't fragmented or undercounted. Before this, the
       // default limit of 25 meant Group by Manager on 2172 candidates
       // only grouped the first 25 — making counts look wildly wrong.
+      // 2026-05-18: ask API to attach skill rows whenever the user is
+      // searching, so we can render "Matched on: <skill>" chips under
+      // each candidate. The API already understands withSkills=1.
+      const searchActive = !!(filterParams.search && filterParams.search.trim());
       const res = await atsApi.listCandidates(orgSlug, {
         page: isGrouped ? 1 : page,
         ...(isGrouped ? { limit: 5000 } : {}),
+        ...(searchActive ? { withSkills: '1' } : {}),
         ...filterParams,
         _requestKey: 'ats:candidates:list',
       });
@@ -318,6 +384,14 @@ export default function AtsCandidates() {
                               {candidate.currentTitle && (
                                 <p className="text-dark-500 text-xs truncate">{candidate.currentTitle}</p>
                               )}
+                              {/* 2026-05-18: when the search matched on a
+                                  skill (not name/email), surface which
+                                  skills matched so the row's relevance is
+                                  obvious. Only renders when searching. */}
+                              <MatchedSkills
+                                candidate={candidate}
+                                search={filterParams.search}
+                              />
                             </div>
                           </div>
                         </td>
