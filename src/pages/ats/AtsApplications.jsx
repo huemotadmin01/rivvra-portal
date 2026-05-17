@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -715,7 +715,11 @@ export default function AtsApplications() {
                           className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 cursor-pointer"
                         />
                       </td>
-                      {/* Candidate */}
+                      {/* Candidate. 2026-05-17 Phase N: inner Link to
+                          the candidate when candidateId is present. The
+                          row's onClick still navigates to the application
+                          detail; stopPropagation makes the inner Link win
+                          when the user clicks the name directly. */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
@@ -724,7 +728,17 @@ export default function AtsApplications() {
                             </span>
                           </div>
                           <div className="min-w-0">
-                            <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
+                            {app.candidateId ? (
+                              <Link
+                                to={orgPath(`/ats/candidates/${app.candidateId}`)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-white font-medium truncate block hover:text-rivvra-300 hover:underline"
+                              >
+                                {app.candidateName || 'Unnamed'}
+                              </Link>
+                            ) : (
+                              <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -736,9 +750,19 @@ export default function AtsApplications() {
                         </span>
                       </td>
 
-                      {/* Job Position */}
+                      {/* Job Position. Phase N: inner Link. */}
                       <td className="px-4 py-3 text-dark-300 hidden sm:table-cell">
-                        {app.jobName || app.jobId?.name || '\u2014'}
+                        {app.jobPositionId && app.jobName ? (
+                          <Link
+                            to={orgPath(`/ats/jobs/${app.jobPositionId}`)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-rivvra-300 hover:underline"
+                          >
+                            {app.jobName}
+                          </Link>
+                        ) : (
+                          app.jobName || '\u2014'
+                        )}
                       </td>
 
                       {/* Stage */}
@@ -746,9 +770,22 @@ export default function AtsApplications() {
                         <StageBadge stageName={app.stageName || app.stageId?.name} />
                       </td>
 
-                      {/* Recruiter */}
+                      {/* Recruiter. Phase N: conditional Link to employee
+                          when recruiterId resolves (post-migration some
+                          rows have name without a Rivvra employee id \u2014
+                          fall back to plain text in that case). */}
                       <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                        {app.recruiterName || '\u2014'}
+                        {app.recruiterId && app.recruiterName ? (
+                          <Link
+                            to={orgPath(`/employee/${app.recruiterId}`)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-rivvra-300 hover:underline"
+                          >
+                            {app.recruiterName}
+                          </Link>
+                        ) : (
+                          app.recruiterName || '\u2014'
+                        )}
                       </td>
 
                       {/* Evaluation */}

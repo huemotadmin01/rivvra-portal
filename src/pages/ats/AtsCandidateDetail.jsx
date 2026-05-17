@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -313,7 +313,23 @@ export default function AtsCandidateDetail() {
                           onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
                           className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                         >
-                          <td className="px-4 py-3 text-white">{app.jobName || '—'}</td>
+                          {/* 2026-05-17 Phase N: inner Link to the job when
+                              jobPositionId is present. Row's onClick still
+                              navigates to the application; stopPropagation
+                              makes the inner Link win on direct click. */}
+                          <td className="px-4 py-3 text-white">
+                            {app.jobPositionId && app.jobName ? (
+                              <Link
+                                to={orgPath(`/ats/jobs/${app.jobPositionId}`)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-rivvra-300 hover:underline"
+                              >
+                                {app.jobName}
+                              </Link>
+                            ) : (
+                              app.jobName || '—'
+                            )}
+                          </td>
                           <td className="px-4 py-3"><StageBadge stageName={app.stageName} /></td>
                           <td className="px-4 py-3 text-dark-400 text-xs hidden md:table-cell">{formatDate(app.createdAt || app.appliedOn)}</td>
                         </tr>

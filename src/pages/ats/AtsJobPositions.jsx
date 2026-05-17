@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -798,14 +798,38 @@ export default function AtsJobPositions() {
                         <ApprovalBadge status={job.approvalStatus} />
                       </td>
 
-                      {/* Recruiter */}
+                      {/* Recruiter. 2026-05-17 Phase N: conditional inner
+                          Link to employee when recruiterId resolves. Some
+                          migrated rows have name without a Rivvra employee
+                          id \u2014 fall back to plain text in that case. */}
                       <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                        {job.recruiterName || '\u2014'}
+                        {job.recruiterId && job.recruiterName ? (
+                          <Link
+                            to={orgPath(`/employee/${job.recruiterId}`)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-rivvra-300 hover:underline"
+                          >
+                            {job.recruiterName}
+                          </Link>
+                        ) : (
+                          job.recruiterName || '\u2014'
+                        )}
                       </td>
 
-                      {/* Client */}
+                      {/* Client. Phase N: inner Link to the contact when
+                          clientContactId is present. */}
                       <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                        {job.clientName || '\u2014'}
+                        {job.clientContactId && job.clientName ? (
+                          <Link
+                            to={orgPath(`/contacts/${job.clientContactId}`)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-rivvra-300 hover:underline"
+                          >
+                            {job.clientName}
+                          </Link>
+                        ) : (
+                          job.clientName || '\u2014'
+                        )}
                       </td>
 
                       {/* Published */}

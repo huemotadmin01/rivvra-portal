@@ -1280,6 +1280,18 @@ export default function AtsJobDetail() {
               linkTo={(id) => orgPath(`/employee/${id}`)}
               onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
             />
+            {/* 2026-05-17 Phase N P1: Account Manager surfaced. The
+                create form captured accountManagerId but no page showed
+                it after — value was write-only and unreachable. */}
+            <EmployeeLookup
+              orgSlug={orgSlug}
+              label="Account Manager"
+              currentValue={job.accountManagerId}
+              currentName={job.accountManagerName}
+              editable={canEdit}
+              linkTo={(id) => orgPath(`/employee/${id}`)}
+              onSelect={(id, name) => savePerson('accountManagerId', 'accountManagerName', id, name)}
+            />
             <EmployeeLookup
               orgSlug={orgSlug}
               label="Approver"

@@ -2661,12 +2661,23 @@ export default function AtsApplicationDetail() {
                 propagates to every linked application. */}
             <InlineField label="Client Role" field="isClientRole" value={!!application.isClientRole} type="toggle" editable={false} />
             {/* Client Name — read-only mirror of the linked Job Position.
-                Edit it on the Job page and it propagates to every app. */}
+                Edit it on the Job page and it propagates to every app.
+                2026-05-17 Phase N: link to the contact when
+                clientContactId is denormed from the job. Mirrors the
+                Job-detail page's pattern. */}
             <InlineField
               label="Client Name"
               field="clientName"
               value={application.clientName}
               editable={false}
+              displayValue={application.clientContactId && application.clientName ? (
+                <Link
+                  to={orgPath(`/contacts/${application.clientContactId}`)}
+                  className="text-rivvra-300 hover:text-rivvra-200 hover:underline"
+                >
+                  {application.clientName}
+                </Link>
+              ) : undefined}
             />
           </SectionCard>
 
@@ -2753,6 +2764,7 @@ export default function AtsApplicationDetail() {
                 isClientRole={application.isClientRole === true}
                 onEditSchedule={openInterviewScheduleModal}
                 onEditResult={openInterviewResultModal}
+                orgPath={orgPath}
               />
               <InterviewRoundCard
                 label="L2"
@@ -2766,6 +2778,7 @@ export default function AtsApplicationDetail() {
                 isClientRole={application.isClientRole === true}
                 onEditSchedule={openInterviewScheduleModal}
                 onEditResult={openInterviewResultModal}
+                orgPath={orgPath}
               />
               <InterviewRoundCard
                 label="HR"
@@ -2779,6 +2792,7 @@ export default function AtsApplicationDetail() {
                 isClientRole={false}
                 onEditSchedule={openInterviewScheduleModal}
                 onEditResult={openInterviewResultModal}
+                orgPath={orgPath}
               />
             </div>
             <div className="border-t border-dark-700 my-3" />
@@ -2960,6 +2974,9 @@ function InterviewRoundCard({
   isClientRole = false,
   onEditSchedule,        // (level, existingSlot, isClientRole) => void
   onEditResult,          // (level, existingResult) => void
+  // 2026-05-17 Phase N: orgPath passed from parent so we can build the
+  // /employee/:id link for the interviewer when the slot has an id.
+  orgPath,
 }) {
   const slot = application[interviewField];
   const isSlotObject = slot != null && typeof slot === 'object';
@@ -2983,6 +3000,8 @@ function InterviewRoundCard({
   })();
 
   const interviewerName = isSlotObject ? (slot.interviewerName || '') : '';
+  // 2026-05-17 Phase N: surface interviewerId so we can link to /employee.
+  const interviewerId = isSlotObject ? (slot.interviewerId || '') : '';
   const mode = isSlotObject ? (slot.mode || '') : '';
   const meetingLink = isSlotObject ? (slot.meetingLink || '') : '';
   const durationMin = isSlotObject ? (slot.durationMinutes || null) : null;
@@ -3080,7 +3099,19 @@ function InterviewRoundCard({
           {interviewerName ? (
             <div className="flex items-start gap-2">
               <User size={12} className="text-dark-500 mt-0.5 flex-shrink-0" />
-              <span className="text-dark-200 truncate">{interviewerName}</span>
+              {/* 2026-05-17 Phase N: Link to /employee when slot carries
+                  interviewerId. Falls back to plain text when migrated
+                  records have only the name. */}
+              {interviewerId && orgPath ? (
+                <Link
+                  to={orgPath(`/employee/${interviewerId}`)}
+                  className="text-dark-200 truncate hover:text-rivvra-300 hover:underline"
+                >
+                  {interviewerName}
+                </Link>
+              ) : (
+                <span className="text-dark-200 truncate">{interviewerName}</span>
+              )}
             </div>
           ) : null}
           {mode || meetingLink ? (
