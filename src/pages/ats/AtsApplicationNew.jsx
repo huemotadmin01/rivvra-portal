@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams, useBlocker } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -336,21 +336,13 @@ export default function AtsApplicationNew() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty, saving]);
 
-  // 2026-05-17 health-check E.2: also block SPA navigation. beforeunload
-  // only fires on tab close / hard refresh / external nav — clicking a
-  // sidebar link or the browser Back button used to silently discard the
-  // form. useBlocker (RR v6.4+) intercepts client-side navigations so we
-  // can prompt the recruiter before losing the in-progress application.
-  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    isDirty && !saving && currentLocation.pathname !== nextLocation.pathname
-  );
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      const ok = window.confirm('You have unsaved changes. Leave this page and discard them?');
-      if (ok) blocker.proceed();
-      else blocker.reset();
-    }
-  }, [blocker]);
+  // 2026-05-17 health-check E.2 reverted (2026-05-17): useBlocker
+  // requires React Router's Data Router API (createBrowserRouter); this
+  // app uses the legacy <BrowserRouter> declarative API, so useBlocker
+  // throws "useBlocker must be used within a data router" the moment
+  // the form re-renders. Beforeunload (above) still catches tab close /
+  // hard refresh / external nav. Full SPA-nav block needs a migration
+  // to the data router — out of scope for this fix.
 
   const pickExistingCandidate = (cand) => {
     setForm((p) => ({
