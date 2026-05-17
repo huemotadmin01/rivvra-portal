@@ -245,9 +245,15 @@ export default function AtsApplications() {
       // derived from "neither archived nor hired/refused"), inject
       // applicationStatus=ongoing so hired/refused/archived don't bleed
       // into the headline count.
+      // 2026-05-17 ATS-APP-LIFECYCLE: when groupBy is active, pull the
+      // full filtered set in one shot (cap 500, matches API ceiling) so
+      // groups aren't fragmented across pages. Bug before this: the
+      // hard-coded limit:25 meant Group-By Stage on a 153-app set only
+      // grouped the first 25 — "New: 23, L1: 1, IQ: 1, total: 153" left
+      // 128 apps invisible.
       const listParams = {
-        page,
-        limit: 25,
+        page: isGrouped ? 1 : page,
+        limit: isGrouped ? 500 : 25,
         sort: 'appliedOn',
         dir: 'desc',
         ...filterParams,
