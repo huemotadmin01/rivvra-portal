@@ -359,5 +359,26 @@ function formatDisplayValue(val, type, maskFn, options) {
     const opt = options.find(o => String(o.value) === String(val));
     return opt?.label || val;
   }
+  // 2026-05-17: type='url' rendered as plain text before. Users would
+  // see "https://linkedin.com/in/foo" and have to copy-paste to open
+  // it. Render as a clickable <a> in read mode. Auto-prepend https://
+  // for legacy values that were stored without a protocol (some Odoo
+  // imports carry "linkedin.com/in/x"). rel=noopener noreferrer
+  // protects against tab-napping on a new-tab open.
+  if (type === 'url') {
+    const raw = String(val).trim();
+    const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-rivvra-300 hover:text-rivvra-200 hover:underline break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {raw}
+      </a>
+    );
+  }
   return String(val);
 }
