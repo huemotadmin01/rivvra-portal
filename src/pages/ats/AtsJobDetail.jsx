@@ -1280,18 +1280,13 @@ export default function AtsJobDetail() {
               linkTo={(id) => orgPath(`/employee/${id}`)}
               onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
             />
-            {/* 2026-05-17 Phase N P1: Account Manager surfaced. The
-                create form captured accountManagerId but no page showed
-                it after — value was write-only and unreachable. */}
-            <EmployeeLookup
-              orgSlug={orgSlug}
-              label="Account Manager"
-              currentValue={job.accountManagerId}
-              currentName={job.accountManagerName}
-              editable={canEdit}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
-              onSelect={(id, name) => savePerson('accountManagerId', 'accountManagerName', id, name)}
-            />
+            {/* 2026-05-17 Phase N added Account Manager here; removed
+                same day per user feedback — Huemot's workflow uses
+                Account Owner as the salesperson field, and Account
+                Manager was a redundant slot that confused recruiters.
+                The field is still captured in the create form for
+                backward-compat with imported data; we just don't
+                surface it for editing on the detail page. */}
             <EmployeeLookup
               orgSlug={orgSlug}
               label="Approver"

@@ -95,7 +95,6 @@ const EMPTY_JOB = {
   maxBudget: '',
   hiringMode: '',
   accountOwnerId: '',
-  accountManagerId: '',
 };
 
 const EXPERIENCE_OPTIONS = [
@@ -172,7 +171,6 @@ function NewJobModal({ show, onClose, onSaved, orgSlug }) {
         maxBudget: form.maxBudget ? Number(form.maxBudget) : undefined,
         hiringMode: form.hiringMode,
         accountOwnerId: form.accountOwnerId || undefined,
-        accountManagerId: form.accountManagerId || undefined,
       };
       const res = await atsApi.createJob(orgSlug, payload);
       if (res.success) {
@@ -388,34 +386,21 @@ function NewJobModal({ show, onClose, onSaved, orgSlug }) {
             </div>
           </div>
 
-          {/* Account Owner & Account Manager */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Account Owner</label>
-              <select
-                value={form.accountOwnerId}
-                onChange={(e) => handleChange('accountOwnerId', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select Account Owner</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name || r.email}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Account Manager</label>
-              <select
-                value={form.accountManagerId}
-                onChange={(e) => handleChange('accountManagerId', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select Account Manager</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name || r.email}</option>
-                ))}
-              </select>
-            </div>
+          {/* Account Owner. 2026-05-17: Account Manager removed per
+              user feedback — Huemot's workflow uses Account Owner as
+              the salesperson field; the second slot was redundant. */}
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Account Owner</label>
+            <select
+              value={form.accountOwnerId}
+              onChange={(e) => handleChange('accountOwnerId', e.target.value)}
+              className="input-field"
+            >
+              <option value="">Select Account Owner</option>
+              {recruiters.map((r) => (
+                <option key={r._id} value={r._id}>{r.name || r.email}</option>
+              ))}
+            </select>
           </div>
 
           {/* Description */}
