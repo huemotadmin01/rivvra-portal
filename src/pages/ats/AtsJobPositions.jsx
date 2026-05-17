@@ -472,7 +472,9 @@ export default function AtsJobPositions() {
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  // 2026-05-17 Phase L: harden page-param parsing (see AtsApplications).
+  const pageRaw = parseInt(searchParams.get('page') || '1', 10);
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
 
   const [jobs, setJobs] = useState([]);
   const [total, setTotal] = useState(0);
@@ -543,6 +545,14 @@ export default function AtsJobPositions() {
   }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
+
+  // 2026-05-17 Phase L: page-clamp guard (see AtsApplications for rationale).
+  useEffect(() => {
+    if (!loading && totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, totalPages, page]);
 
   // Archived count for the segmented Active/Archived chip.
   useEffect(() => {
@@ -847,7 +857,7 @@ export default function AtsJobPositions() {
           {!isGrouped && totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
-                Showing {pageStart}\u2013{pageEnd} of {total}
+                Showing {pageStart}–{pageEnd} of {total}
               </p>
               <div className="flex items-center gap-1">
                 <button

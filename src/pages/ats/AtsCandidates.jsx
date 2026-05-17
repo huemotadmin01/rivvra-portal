@@ -37,7 +37,9 @@ export default function AtsCandidates() {
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParams = useFilterParams(['search', 'archived', 'hasActiveApps', 'managerId', 'groupBy', 'sort', 'dir']);
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  // 2026-05-17 Phase L: harden page-param parsing (see AtsApplications).
+  const pageRaw = parseInt(searchParams.get('page') || '1', 10);
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
   const { density, setDensity, cellPadding } = useDensity('ats:candidates');
@@ -86,6 +88,14 @@ export default function AtsCandidates() {
   }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
+
+  // 2026-05-17 Phase L: page-clamp guard (see AtsApplications for rationale).
+  useEffect(() => {
+    if (!loading && totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, totalPages, page]);
 
   // Fetch recruiters once for the Manager filter chip + group-by labels.
   // Same list the rest of ATS uses for People-field pickers.

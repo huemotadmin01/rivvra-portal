@@ -113,7 +113,11 @@ export default function AtsApplications() {
     'hiredOnly', 'refusedOnly',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  // 2026-05-17 Phase L: harden page-param parsing. parseInt('abc') returns
+  // NaN, which broke prev-button disabled state and page-clamp comparisons.
+  // Clamp to >= 1 and default to 1 on NaN / negative input.
+  const pageRaw = parseInt(searchParams.get('page') || '1', 10);
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
 
@@ -197,6 +201,17 @@ export default function AtsApplications() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
+
+  // 2026-05-17 Phase L: page-clamp guard. When data shrinks (filter change
+  // wipes most rows, company switch hits a smaller tenant, last-page row
+  // gets archived) the URL still carries the old page number and the user
+  // sees an empty list. This auto-rewinds them to the last real page.
+  useEffect(() => {
+    if (!loading && totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, totalPages, page]);
 
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
@@ -797,7 +812,9 @@ export default function AtsApplications() {
           {!isGrouped && totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
-                Showing {pageStart}\u2013{pageEnd} of {total}
+                {/* 2026-05-17 Phase L: literal "\u2013" was rendering as backslash-u text
+                    in production JSX (escape not interpreted in JSX children). */}
+                Showing {pageStart}–{pageEnd} of {total}
               </p>
               <div className="flex items-center gap-1">
                 <button
