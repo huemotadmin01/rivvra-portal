@@ -225,16 +225,28 @@ export default function AtsCandidates() {
           <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
         </div>
       ) : candidates.length === 0 ? (
+        // 2026-05-17 Phase M.2: when filters are active, give a
+        // one-click "Clear all filters" affordance instead of leaving
+        // the user to wipe each chip manually. Mirrors AtsApplications.
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
             <Users className="w-8 h-8 text-dark-500" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No candidates found</h3>
-          <p className="text-dark-400 text-sm text-center max-w-sm">
+          <p className="text-dark-400 text-sm text-center max-w-sm mb-4">
             {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Candidates will appear here when applications are created.'}
           </p>
+          {Object.values(filterParams).some(Boolean) && (
+            <button
+              type="button"
+              onClick={() => setSearchParams(new URLSearchParams())}
+              className="text-xs text-rivvra-400 hover:text-rivvra-300 underline underline-offset-2"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -262,10 +274,21 @@ export default function AtsCandidates() {
                     // wrap the row stream in collapsible group sections.
                     // Same cells, same widths \u2014 only adds the header rows.
                     const renderRow = (candidate, keySuffix = '') => (
+                      // 2026-05-17 Phase M.3: keyboard + a11y for the
+                      // navigable row (same pattern as AtsApplications).
                       <tr
                         key={`${candidate._id}${keySuffix}`}
                         onClick={() => navigate(orgPath(`/ats/candidates/${candidate._id}`))}
-                        className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            navigate(orgPath(`/ats/candidates/${candidate._id}`));
+                          }
+                        }}
+                        tabIndex={0}
+                        role="link"
+                        aria-label={`Open candidate: ${candidate.name || 'Unknown'}`}
+                        className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40 ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">

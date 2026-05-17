@@ -686,10 +686,23 @@ export default function AtsApplications() {
                 <tbody>
                   {(() => {
                   const renderRow = (app, keySuffix = '') => (
+                    // 2026-05-17 Phase M.3: tr behaves like a button
+                    // (onClick navigates). Adds role + aria-label so
+                    // screen readers announce it as an actionable
+                    // application row instead of a generic table row.
                     <tr
                       key={`${app._id}${keySuffix}`}
                       onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
-                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''} ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(orgPath(`/ats/applications/${app._id}`));
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Open application: ${app.candidateName || 'Unknown'}${app.jobName ? ` for ${app.jobName}` : ''}`}
+                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40 ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''} ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                     >
                       {/* Bulk-select checkbox — stop click bubbling so the
                           row's onClick navigation doesn't fire. */}

@@ -693,16 +693,28 @@ export default function AtsJobPositions() {
           <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
         </div>
       ) : jobs.length === 0 ? (
+        // 2026-05-17 Phase M.2: filter-active empty state gets a
+        // "Clear all filters" affordance. Same pattern as Applications
+        // + Candidates.
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
             <Briefcase className="w-8 h-8 text-dark-500" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No job positions found</h3>
-          <p className="text-dark-400 text-sm text-center max-w-sm">
+          <p className="text-dark-400 text-sm text-center max-w-sm mb-4">
             {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Job positions are created from CRM opportunities once they\'re won. Open an opportunity in CRM and use Convert to Job Position to add one here.'}
           </p>
+          {Object.values(filterParams).some(Boolean) && (
+            <button
+              type="button"
+              onClick={() => setSearchParams(new URLSearchParams())}
+              className="text-xs text-rivvra-400 hover:text-rivvra-300 underline underline-offset-2"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -730,10 +742,21 @@ export default function AtsJobPositions() {
                 <tbody>
                   {(() => {
                   const renderRow = (job, keySuffix = '') => (
+                    // 2026-05-17 Phase M.3: keyboard + a11y for the
+                    // navigable row (same pattern as AtsApplications).
                     <tr
                       key={`${job._id}${keySuffix}`}
                       onClick={() => navigate(orgPath(`/ats/jobs/${job._id}`))}
-                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(orgPath(`/ats/jobs/${job._id}`));
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Open job: ${job.name || 'Unknown'}${job.clientName ? ` for ${job.clientName}` : ''}`}
+                      className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40 ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                     >
                       {/* Name */}
                       <td className="px-4 py-3">
