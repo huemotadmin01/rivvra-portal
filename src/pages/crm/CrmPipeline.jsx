@@ -136,9 +136,12 @@ function KanbanCardOverlay({ opp }) {
 // one. calc(100vh-260px) leaves room for the platform header + page
 // header + filter bar. Width bumped to 300px to match ATS so the cards
 // breathe a little more.
-function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency, onCardClick, onLoadMore }) {
+function KanbanColumn({ stage, opportunities, totalCount, revenueByCurrency, currency, onCardClick, onLoadMore }) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage._id });
   const items = opportunities.map(o => o._id);
+  // 2026-05-17 CRM-B: per-currency revenue. Filter zero-totals so
+  // we don't paint "₹0" lines on stages whose only currency is empty.
+  const nonZeroRevenue = (revenueByCurrency || []).filter((r) => (r.total || 0) > 0);
   return (
     <div
       ref={setDropRef}
@@ -149,10 +152,16 @@ function KanbanColumn({ stage, opportunities, totalCount, totalRevenue, currency
           <h3 className="text-xs font-semibold text-dark-200 uppercase tracking-wider truncate">{stage.name}</h3>
           <span className="text-[10px] bg-dark-700 text-dark-400 rounded-full px-2 py-0.5 font-medium flex-shrink-0">{totalCount}</span>
         </div>
-        {totalRevenue > 0 && (
-          <p className="text-[10px] text-emerald-400 mt-0.5">
-            {formatMoney(totalRevenue, currency)}
-          </p>
+        {nonZeroRevenue.length > 0 && (
+          <div className="mt-0.5 space-y-0">
+            {nonZeroRevenue.map((r, i) => (
+              <p key={`${r.currency}-${i}`} className="text-[10px] text-emerald-400 leading-tight" title={r.currency === '(unspecified)' ? 'No currency on record' : r.currency}>
+                {r.currency === '(unspecified)'
+                  ? `~ ${formatMoney(r.total, 'INR').replace(/^₹/, '')}`
+                  : formatMoney(r.total, r.currency)}
+              </p>
+            ))}
+          </div>
         )}
       </div>
       <div className="flex-1 overflow-y-auto bg-dark-900/50 border-x border-b border-dark-700 rounded-b-lg p-2 space-y-2">
@@ -430,7 +439,7 @@ export default function CrmPipeline() {
                   stage={col.stage}
                   opportunities={col.opportunities}
                   totalCount={col.totalCount}
-                  totalRevenue={col.totalRevenue}
+                  revenueByCurrency={col.revenueByCurrency}
                   currency={currentCompany?.currency || 'INR'}
                   onCardClick={handleCardClick}
                   onLoadMore={handleLoadMore}

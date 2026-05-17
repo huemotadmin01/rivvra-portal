@@ -32,7 +32,25 @@ function KPICard({ label, value, icon: Icon, color = 'dark', subtitle }) {
   );
 }
 
-function PipelineBar({ data, currency }) {
+// 2026-05-17 CRM-B: per-currency revenue renderer. Multi-company tenants
+// (Huemot India + Inc + PSA + Canada) have mixed-currency pipelines;
+// rendering a single number with one symbol was misleading. Show one
+// line per currency. Empty list → em-dash.
+function RevenueByCurrency({ rows, className = '' }) {
+  const nonZero = (rows || []).filter(r => (r.total || 0) > 0);
+  if (nonZero.length === 0) return <span className={`text-[10px] text-dark-600 ${className}`}>—</span>;
+  return (
+    <div className={`flex flex-col items-end gap-0.5 ${className}`}>
+      {nonZero.map((r, i) => (
+        <span key={`${r.currency}-${i}`} className="text-[10px] text-dark-500 whitespace-nowrap" title={r.currency === '(unspecified)' ? 'No currency on record' : r.currency}>
+          {r.currency === '(unspecified)' ? formatMoney(r.total, 'INR').replace(/^₹/, '~') : formatMoney(r.total, r.currency)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PipelineBar({ data }) {
   const maxCount = Math.max(...data.map(d => d.count), 1);
   return (
     <div className="space-y-2">
@@ -47,7 +65,7 @@ function PipelineBar({ data, currency }) {
               {d.count > 0 && <span className="text-[10px] text-white font-medium">{d.count}</span>}
             </div>
           </div>
-          <span className="text-[10px] text-dark-500 w-16">{formatMoney(d.revenue || 0, currency)}</span>
+          <RevenueByCurrency rows={d.revenueByCurrency} className="w-24" />
         </div>
       ))}
     </div>
@@ -95,7 +113,19 @@ export default function CrmDashboard() {
   const winRate = data.total > 0 ? ((data.won / data.total) * 100).toFixed(1) : 0;
   const lossRate = data.total > 0 ? ((data.lost / data.total) * 100).toFixed(1) : 0;
   const conversionRate = data.total > 0 ? ((data.converted / data.total) * 100).toFixed(1) : 0;
-  const totalRevenue = (data.byStage || []).reduce((sum, s) => sum + (s.revenue || 0), 0);
+  // 2026-05-17 CRM-B: per-currency aggregation. The legacy totalRevenue
+  // collapsed every currency into one scalar. Build a single
+  // currency → total map from every stage's revenueByCurrency rows.
+  const totalRevenueByCurrency = (() => {
+    const acc = new Map();
+    for (const s of data.byStage || []) {
+      for (const r of s.revenueByCurrency || []) {
+        if (!r.currency) continue;
+        acc.set(r.currency, (acc.get(r.currency) || 0) + (r.total || 0));
+      }
+    }
+    return Array.from(acc, ([currency, total]) => ({ currency, total }));
+  })();
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
@@ -118,7 +148,7 @@ export default function CrmDashboard() {
               View Pipeline <ArrowRight size={12} />
             </button>
           </div>
-          <PipelineBar data={data.byStage || []} currency={currency} />
+          <PipelineBar data={data.byStage || []} />
         </div>
 
         {/* By Salesperson */}
@@ -232,7 +262,22 @@ export default function CrmDashboard() {
             </div>
             <div className="bg-dark-850 border border-dark-700 rounded-xl p-4">
               <p className="text-[10px] text-dark-500 uppercase">Pipeline Value</p>
-              <p className="text-xl font-bold text-dark-100">{formatMoney(totalRevenue, currency)}</p>
+              {/* 2026-05-17 CRM-B: per-currency. Mixed pipelines used
+                  to be summed with a single currency symbol that picked
+                  the company default — INR even for opps in USD. */}
+              {totalRevenueByCurrency.length === 0 ? (
+                <p className="text-xl font-bold text-dark-500">—</p>
+              ) : (
+                <div className="space-y-0.5">
+                  {totalRevenueByCurrency.map((r) => (
+                    <p key={r.currency} className="text-xl font-bold text-dark-100" title={r.currency}>
+                      {r.currency === '(unspecified)'
+                        ? `~ ${formatMoney(r.total, 'INR').replace(/^₹/, '')}`
+                        : formatMoney(r.total, r.currency)}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
