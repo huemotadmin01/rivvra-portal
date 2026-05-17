@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   AlertTriangle, Plus, Trash2, Edit3, Loader2, Search, X,
 } from 'lucide-react';
@@ -20,6 +21,11 @@ export default function CrmConfigLostReasons() {
   const [formName, setFormName] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  // 2026-05-17 CRM-A.2: the inline trash icon used to call openEdit(reason)
+  // — clicking it opened the Edit modal instead of deleting. Real bug. Add
+  // a styled confirm dialog and a dedicated inline-delete handler.
+  const [confirmInlineDelete, setConfirmInlineDelete] = useState(null);
+  const [inlineDeleting, setInlineDeleting] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
   const fetchReasons = useCallback(async () => {
@@ -97,6 +103,24 @@ export default function CrmConfigLostReasons() {
     } catch (err) {
       setSaving(false);
       addToast(err.message || 'Failed to save', 'error');
+    }
+  };
+
+  // 2026-05-17 CRM-A.2: inline-delete from the row's trash icon.
+  // Distinct from handleDelete (which deletes the reason currently
+  // open in the Edit modal). Called by the confirm dialog only.
+  const handleInlineDelete = async (reason) => {
+    if (!reason?._id) return;
+    setInlineDeleting(true);
+    try {
+      await crmApi.deleteLostReason(orgSlug, reason._id);
+      setConfirmInlineDelete(null);
+      fetchReasons();
+      addToast('Lost reason deleted', 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to delete', 'error');
+    } finally {
+      setInlineDeleting(false);
     }
   };
 
@@ -210,9 +234,10 @@ export default function CrmConfigLostReasons() {
                         <Edit3 size={14} />
                       </button>
                       <button
-                        onClick={() => openEdit(reason)}
+                        onClick={() => setConfirmInlineDelete(reason)}
                         className="p-1.5 text-dark-500 hover:text-red-400 rounded transition-colors"
                         title="Delete"
+                        aria-label={`Delete ${reason.name}`}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -304,6 +329,19 @@ export default function CrmConfigLostReasons() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmInlineDelete}
+        title="Delete lost reason?"
+        message={confirmInlineDelete ? `Delete "${confirmInlineDelete.name}"? Any opportunities currently tagged with this reason will keep the tag, but no new opportunities can use it.` : ''}
+        confirmLabel="Delete"
+        danger
+        busy={inlineDeleting}
+        onCancel={() => setConfirmInlineDelete(null)}
+        onConfirm={async () => {
+          if (confirmInlineDelete) await handleInlineDelete(confirmInlineDelete);
+        }}
+      />
     </div>
   );
 }
