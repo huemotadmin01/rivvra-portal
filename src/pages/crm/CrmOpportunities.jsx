@@ -7,7 +7,7 @@ import crmApi from '../../utils/crmApi';
 import { downloadFile } from '../../utils/download';
 import { formatMoney } from '../../utils/currency';
 import FilterBar, {
-  FilterChip, ArchivedToggle, MoreFiltersPopover, GroupByChip, useFilterParams,
+  FilterChip, MoreFiltersPopover, GroupByChip, useFilterParams,
 } from '../../components/shared/FilterBar';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import {
@@ -19,6 +19,50 @@ function StageBadge({ name, isWon, isLost }) {
   if (isLost) return <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/15 text-red-400 border border-red-500/20">Lost</span>;
   if (isWon) return <span className="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">Won</span>;
   return <span className="px-2 py-0.5 text-[10px] rounded-full bg-dark-700 text-dark-300 border border-dark-600">{name}</span>;
+}
+
+// 2026-05-17 CRM-OPP-LIFECYCLE: 4-segment chip on the Opportunities list.
+// "Open" matches the API's status=active macro (not lost, no wonAt). The
+// platform-wide ArchivedToggle convention conflates "not archived" with
+// "active" — for CRM, "Active" naturally means open pipeline, so we use
+// explicit lifecycle states here. Counts come from a parallel fetch of all
+// four variants so a salesperson can see the won/lost split at a glance.
+function LifecycleToggle({ lifecycle, counts, onChange }) {
+  const segments = [
+    { key: 'open',     label: 'Open',     dot: 'bg-rivvra-400' },
+    { key: 'won',      label: 'Won',      dot: 'bg-amber-400'  },
+    { key: 'lost',     label: 'Lost',     dot: 'bg-red-400'    },
+    { key: 'archived', label: 'Archived', dot: 'bg-dark-400'   },
+  ];
+  return (
+    <div className="inline-flex items-center bg-dark-800 border border-dark-700 rounded-full p-0.5 gap-0.5">
+      {segments.map(seg => {
+        const active = lifecycle === seg.key;
+        const count = counts[seg.key];
+        return (
+          <button
+            key={seg.key}
+            type="button"
+            onClick={() => onChange(seg.key)}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              active
+                ? 'bg-dark-700 text-white'
+                : 'text-dark-400 hover:text-white hover:bg-dark-700/50'
+            }`}
+            aria-pressed={active}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${seg.dot}`} />
+            {seg.label}
+            {count != null && (
+              <span className={`text-[10px] ${active ? 'text-dark-300' : 'text-dark-500'}`}>
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function EvalStars({ value = 0 }) {
@@ -45,10 +89,9 @@ const EVALUATION_OPTIONS = [
   { value: '2', label: '★★☆' },
   { value: '3', label: '★★★' },
 ];
-const STATUS_OPTIONS = [
-  { value: 'false', label: 'Active' },
-  { value: 'true', label: 'Lost' },
-];
+// 2026-05-17 CRM-OPP-LIFECYCLE: STATUS_OPTIONS removed — the Active/Lost
+// chip was subsumed by the new lifecycle segmented toggle (Open / Won /
+// Lost / Archived). Stage filter still covers per-stage filtering.
 const CONVERTED_OPTIONS = [
   { value: 'true', label: 'Converted' },
   { value: 'false', label: 'Not converted' },
@@ -127,9 +170,34 @@ export default function CrmOpportunities() {
   const sortDir = searchParams.get('sortDir') || 'desc';
   const groupBy = searchParams.get('groupBy') || '';
 
+  // 2026-05-17 CRM-OPP-LIFECYCLE: derive the active lifecycle segment from
+  // the URL. Default landing = 'open' (truly active deals only). Dashboard
+  // KPI tiles already deep-link with ?status=active|won|lost so this is a
+  // pure portal-side derivation; no API change.
+  const lifecycle = (() => {
+    if (filterParams.archived === '1' || filterParams.archived === 'true') return 'archived';
+    if (filterParams.status === 'won') return 'won';
+    if (filterParams.status === 'lost') return 'lost';
+    return 'open';
+  })();
+
+  const setLifecycle = (next) => {
+    const np = new URLSearchParams(searchParams);
+    np.delete('page');
+    np.delete('archived');
+    np.delete('status');
+    np.delete('isLost'); // legacy param no longer needed
+    if (next === 'archived') np.set('archived', '1');
+    else if (next === 'won') np.set('status', 'won');
+    else if (next === 'lost') np.set('status', 'lost');
+    // 'open' = no params (default)
+    setSearchParams(np);
+  };
+
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
-  const [archivedCount, setArchivedCount] = useState(null);
+  // Per-segment counts shown inline on the lifecycle toggle.
+  const [counts, setCounts] = useState({ open: null, won: null, lost: null, archived: null });
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState([]);
   const [salespersons, setSalespersons] = useState([]);
@@ -168,6 +236,11 @@ export default function CrmOpportunities() {
       };
       // groupBy is a view-mode control, not an API filter.
       delete params.groupBy;
+      // 2026-05-17 CRM-OPP-LIFECYCLE: default landing = Open. If the URL has
+      // no status / archived params (lifecycle === 'open'), inject
+      // status=active so Won/Lost/Archived deals are excluded from the
+      // headline count + visible rows.
+      if (lifecycle === 'open' && !params.status) params.status = 'active';
       const res = await crmApi.listOpportunities(slug, params);
       if (res.success) {
         setData(res.opportunities || []);
@@ -180,21 +253,42 @@ export default function CrmOpportunities() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, currentCompany?._id, page, effectiveLimit, sortBy, sortDir, groupBy, JSON.stringify(filterParams)]);
+  }, [slug, currentCompany?._id, page, effectiveLimit, sortBy, sortDir, groupBy, lifecycle, JSON.stringify(filterParams)]);
 
-  // Load archived count for the segmented Active/Archived chip — same filter
-  // shape, just flipped. Refreshes whenever the active list refreshes.
+  // 2026-05-17 CRM-OPP-LIFECYCLE: fetch counts for all four lifecycle
+  // segments in parallel so each chip shows its own number. Base filter
+  // (search / stage / salesperson / etc) is preserved across all four —
+  // only the lifecycle clause differs. Refreshes whenever non-lifecycle
+  // filters change.
   useEffect(() => {
     if (!slug) return;
-    const controller = new AbortController();
-    const archivedParams = { ...filterParams, archived: '1', limit: 1, page: 1 };
-    delete archivedParams.groupBy;
-    crmApi.listOpportunities(slug, archivedParams)
-      .then(res => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
-      .catch(() => {});
-    return () => controller.abort();
+    let cancelled = false;
+    const baseParams = { ...filterParams, limit: 1, page: 1 };
+    delete baseParams.groupBy;
+    delete baseParams.archived;
+    delete baseParams.status;
+    delete baseParams.isLost;
+
+    const variants = {
+      open: { ...baseParams, status: 'active' },
+      won: { ...baseParams, status: 'won' },
+      lost: { ...baseParams, status: 'lost' },
+      archived: { ...baseParams, archived: '1' },
+    };
+
+    Promise.all(
+      Object.entries(variants).map(([k, p]) =>
+        crmApi.listOpportunities(slug, p)
+          .then(res => [k, res?.success ? (res.total || 0) : null])
+          .catch(() => [k, null])
+      )
+    ).then(entries => {
+      if (cancelled) return;
+      setCounts(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, JSON.stringify({ ...filterParams, archived: undefined, groupBy: undefined })]);
+  }, [slug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined, status: undefined, isLost: undefined, groupBy: undefined })]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -235,6 +329,9 @@ export default function CrmOpportunities() {
     try {
       const params = new URLSearchParams();
       Object.entries(filterParams).forEach(([k, v]) => { if (v && k !== 'groupBy') params.set(k, v); });
+      // Mirror fetchData's lifecycle injection so CSV from the default
+      // Open view doesn't include Won / Lost / Archived rows.
+      if (lifecycle === 'open' && !params.get('status')) params.set('status', 'active');
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(
@@ -391,12 +488,6 @@ export default function CrmOpportunities() {
               label="Requirement"
               options={REQUIREMENT_TYPE_OPTIONS}
             />
-            <FilterChip
-              type="select"
-              paramKey="isLost"
-              label="Status"
-              options={STATUS_OPTIONS}
-            />
             <MoreFiltersPopover paramKeys={MORE_FILTER_KEYS}>
               <FilterChip
                 type="select"
@@ -437,7 +528,7 @@ export default function CrmOpportunities() {
                   rendered as permanently empty selects. Will return as
                   real chips once we capture marketing attribution. */}
             </MoreFiltersPopover>
-            <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+            <LifecycleToggle lifecycle={lifecycle} counts={counts} onChange={setLifecycle} />
             <GroupByChip options={GROUP_BY_OPTIONS} />
           </FilterBar>
         </div>
