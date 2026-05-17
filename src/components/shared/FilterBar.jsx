@@ -105,16 +105,32 @@ export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'S
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
+      {/* 2026-05-17 CRM-OPP-LIFECYCLE: search box was being squeezed below
+          legibility when chips overflowed onto the same row with a narrow
+          sidebar layout. Put search on its own row on small screens and
+          give it a sensible min-width so it can never collapse below
+          ~240px. Larger text + padding so it doesn't look like a
+          throwaway sub-control. */}
+      <div className="flex flex-wrap items-center gap-2">
         {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500" />
+        <div className="relative flex-1 min-w-[240px] sm:max-w-sm">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
           <input
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-8 pr-3 py-1.5 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+            className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-9 pr-8 py-2 text-sm text-dark-100 placeholder-dark-500 focus:border-rivvra-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500/30 transition-colors"
           />
+          {searchValue && (
+            <button
+              type="button"
+              onClick={() => setSearchValue('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-dark-500 hover:text-white hover:bg-dark-700 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Desktop chip row */}
