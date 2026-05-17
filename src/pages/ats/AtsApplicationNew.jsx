@@ -202,11 +202,16 @@ export default function AtsApplicationNew() {
         const [skillsRes, resumeRes, dupRes] = await Promise.all([
           atsApi.listCandidateSkills(orgSlug, form.candidateId).catch(() => null),
           atsApi.getCandidateResume(orgSlug, form.candidateId).catch(() => null),
+          // 2026-05-17 health-check I.3: drop the applicationStatus=ongoing
+          // filter so we also catch already-hired apps for the same job.
+          // Hiring twice into the same role is a data-entry error and the
+          // banner now flags it explicitly. We also drop the archived
+          // exclusion by default so a stale archived dup is surfaced too;
+          // banner copy differentiates state.
           jobId
             ? atsApi.listApplications(orgSlug, {
               jobPositionId: jobId,
               candidateId: form.candidateId,
-              applicationStatus: 'ongoing',
               limit: 1,
             }).catch(() => null)
             : Promise.resolve(null),
@@ -663,19 +668,47 @@ export default function AtsApplicationNew() {
                     )}
                   </div>
                   {existingAppOnThisJob && (
-                    <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                      <div className="font-medium mb-0.5">Already applied to this job</div>
-                      <div className="text-amber-200/80">
-                        {(form.candidateName || 'This candidate').trim()} has an active application here. Creating another would be a duplicate.
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => navigate(orgPath(`/ats/applications/${existingAppOnThisJob._id}`))}
-                        className="mt-1.5 text-amber-100 underline underline-offset-2 hover:text-white"
-                      >
-                        Open existing application →
-                      </button>
-                    </div>
+                    // 2026-05-17 health-check I.3: differentiated banners
+                    // for hired / refused / ongoing duplicates. The hired
+                    // case is the worst-of-the-three because creating a
+                    // second app for someone already onboarded is almost
+                    // always a data-entry mistake.
+                    (() => {
+                      const status = existingAppOnThisJob.applicationStatus || 'ongoing';
+                      const cfg = status === 'hired'
+                        ? {
+                            border: 'border-red-500/40 bg-red-500/10 text-red-200',
+                            buttonCls: 'text-red-100',
+                            title: 'Already hired into this role',
+                            body: `${(form.candidateName || 'This candidate').trim()} is already hired for this job. Creating another application is almost certainly a mistake.`,
+                          }
+                        : status === 'refused'
+                        ? {
+                            border: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+                            buttonCls: 'text-amber-100',
+                            title: 'Previously refused for this job',
+                            body: `${(form.candidateName || 'This candidate').trim()} was already refused for this role. Consider unrefusing the existing application instead of creating a new one.`,
+                          }
+                        : {
+                            border: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+                            buttonCls: 'text-amber-100',
+                            title: 'Already applied to this job',
+                            body: `${(form.candidateName || 'This candidate').trim()} has an active application here. Creating another would be a duplicate.`,
+                          };
+                      return (
+                        <div className={`mt-2 rounded-lg border p-3 text-xs ${cfg.border}`}>
+                          <div className="font-medium mb-0.5">{cfg.title}</div>
+                          <div className="opacity-80">{cfg.body}</div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(orgPath(`/ats/applications/${existingAppOnThisJob._id}`))}
+                            className={`mt-1.5 underline underline-offset-2 hover:text-white ${cfg.buttonCls}`}
+                          >
+                            Open existing application →
+                          </button>
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
 

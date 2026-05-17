@@ -3,6 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Loader2, BarChart3, Users, UserCheck, Clock,
   FileBarChart, RefreshCw, Download, ChevronDown,
@@ -1070,7 +1071,13 @@ export default function AtsDashboard() {
                     <td className="px-3 py-2 text-dark-300 truncate max-w-[200px] hidden md:table-cell" title={j.clientName}>{j.clientName || '—'}</td>
                     <td className="px-3 py-2 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={j.clientJobLocation || j.location}>{j.clientJobLocation || j.location || '—'}</td>
                     <td className="px-3 py-2 text-right text-dark-300 hidden md:table-cell">
-                      {Number.isFinite(Number(j.clientBudget)) && Number(j.clientBudget) > 0 ? j.clientBudget : '—'}
+                      {/* 2026-05-17 health-check I.2: format with the
+                          company's currency to match AtsJobDetail; raw
+                          number had no symbol and made "1.8" ambiguous
+                          (LPA? thousands? actual rupees?). */}
+                      {Number.isFinite(Number(j.clientBudget)) && Number(j.clientBudget) > 0
+                        ? formatCurrency(j.clientBudget, currentCompany?.currency || 'INR')
+                        : '—'}
                     </td>
                     <td className="px-3 py-2 text-right text-dark-300">{j.expectedHires || 1}</td>
                     <td className="px-3 py-2 text-right">

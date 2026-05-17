@@ -214,7 +214,12 @@ export default function AtsCandidateDetail() {
               )}
             </div>
             <p className="text-dark-400 text-sm">
-              {candidate.applicationCount || 0} application{candidate.applicationCount === 1 ? '' : 's'}
+              {/* 2026-05-17 health-check I.2: use applications.length so
+                  the header count matches the Applications section below
+                  it. candidate.applicationCount is a denorm that can
+                  drift on archive cascade and emails-change edge cases;
+                  the fresh listApplications result is authoritative. */}
+              {applications.length} application{applications.length === 1 ? '' : 's'}
               {candidate.evaluation > 0 && (
                 // 2026-05-17 health-check E.2: clamp evaluation to 0..3.
                 // A corrupt value used to print a long star strip and
