@@ -351,8 +351,16 @@ export default function CrmDashboard() {
         </div>
       </div>
 
-      {/* ─── My Sales Team (lead-only; hides itself for admins/members) ─── */}
-      <MyTeamWidget type="crm" currency={data?.currency} />
+      {/* ─── My Sales Team (lead-only; hides itself for admins/members) ───
+          2026-05-18: range-aware — when the dashboard picker changes, the
+          widget refetches and the "Won in …" column header updates. */}
+      <MyTeamWidget
+        type="crm"
+        currency={data?.currency}
+        dateFrom={rangeToDates(rangeKey).dateFrom}
+        dateTo={rangeToDates(rangeKey).dateTo}
+        rangeLabel={TIME_RANGE_OPTIONS.find(o => o.key === rangeKey)?.label}
+      />
 
       {/* ─── Team Performance (admin / team-lead only) ─────────────────────
           Merged 2026-05-14 from the old /crm/reporting page. Same data

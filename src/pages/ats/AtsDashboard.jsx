@@ -1122,8 +1122,15 @@ export default function AtsDashboard() {
         )}
       </div>
 
-      {/* ── My Recruitment Team (lead-only; hides for admins/members) ──── */}
-      <MyTeamWidget type="ats" />
+      {/* ── My Recruitment Team (lead-only; hides for admins/members) ────
+          2026-05-18: range-aware — "Hired in …" column updates when the
+          dashboard picker changes. */}
+      <MyTeamWidget
+        type="ats"
+        dateFrom={rangeToDates(rangeKey).dateFrom}
+        dateTo={rangeToDates(rangeKey).dateTo}
+        rangeLabel={TIME_RANGE_OPTIONS.find(o => o.key === rangeKey)?.label}
+      />
 
       {/* ── Pipeline health alerts (Phase 2) ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

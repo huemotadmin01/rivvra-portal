@@ -942,12 +942,20 @@ class ApiClient {
 
   // My Team widget — per-app per-member performance for the caller's team.
   // Returns { success, members: [] } for admins / non-leads (widget hides).
-  async getCrmMyTeam(slug) {
-    return this.request(`/api/org/${slug}/crm/my-team`);
+  // 2026-05-18: optional date-range so the widget's "Won/Hired in <range>"
+  // column reflects the dashboard's range picker.
+  async getCrmMyTeam(slug, params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),
+    ).toString();
+    return this.request(`/api/org/${slug}/crm/my-team${qs ? '?' + qs : ''}`);
   }
 
-  async getAtsMyTeam(slug) {
-    return this.request(`/api/org/${slug}/ats/my-team`);
+  async getAtsMyTeam(slug, params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),
+    ).toString();
+    return this.request(`/api/org/${slug}/ats/my-team${qs ? '?' + qs : ''}`);
   }
 
   // Team Member Rate Limits (admin only)
