@@ -118,7 +118,10 @@ export default function CrmOpportunities() {
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParams = useFilterParams(FILTER_PARAM_KEYS);
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  // 2026-05-17 CRM-D: NaN-safe page parse. parseInt('abc') returned NaN,
+  // breaking prev-button disabled state and page-clamp comparisons.
+  const pageRaw = parseInt(searchParams.get('page') || '1', 10);
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
   const limit = 25;
   const sortBy = searchParams.get('sortBy') || 'updatedAt';
   const sortDir = searchParams.get('sortDir') || 'desc';
@@ -149,6 +152,10 @@ export default function CrmOpportunities() {
   const effectiveLimit = groupBy ? 200 : limit;
 
   const fetchData = useCallback(async () => {
+    // 2026-05-17 CRM-D: keep prior rows visible while refetching — no more
+    // blank-flash on every filter keystroke. The api util's _requestKey
+    // dedup cancels stale in-flight requests so race-late responses can't
+    // overwrite a newer fetch.
     setLoading(true);
     try {
       const params = {
@@ -157,6 +164,7 @@ export default function CrmOpportunities() {
         sortBy,
         sortDir,
         ...filterParams,
+        _requestKey: 'crm:opportunities:list',
       };
       // groupBy is a view-mode control, not an API filter.
       delete params.groupBy;
@@ -165,7 +173,8 @@ export default function CrmOpportunities() {
         setData(res.opportunities || []);
         setTotal(res.total || 0);
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       addToast('Failed to load opportunities', 'error');
     } finally {
       setLoading(false);
@@ -188,6 +197,19 @@ export default function CrmOpportunities() {
   }, [slug, JSON.stringify({ ...filterParams, archived: undefined, groupBy: undefined })]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // 2026-05-17 CRM-D: page-clamp guard. When data shrinks (filter
+  // wipes most rows, company switch, last-page row archived) the URL
+  // still carries the old page=N param and the list shows empty.
+  // Auto-rewind to the last real page. Computed totalPages here so it
+  // matches the in-component value.
+  const totalPagesForClamp = Math.max(1, Math.ceil(total / limit));
+  useEffect(() => {
+    if (!loading && total > 0 && page > totalPagesForClamp) {
+      setPage(totalPagesForClamp);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, total, page, totalPagesForClamp]);
 
   // Picklist loads — fired once per org (the chip option lists rarely change).
   useEffect(() => {
@@ -258,10 +280,21 @@ export default function CrmOpportunities() {
   }, [groupBy, data, stagesById]);
 
   const renderRow = (opp) => (
+    // 2026-05-17 CRM-D: per-row a11y. <tr> behaves like a link; expose
+    // role+aria+keyboard so screen readers and keyboard users can use it.
     <tr
       key={opp._id}
       onClick={() => navigate(`/org/${slug}/crm/opportunities/${opp._id}`)}
-      className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(`/org/${slug}/crm/opportunities/${opp._id}`);
+        }
+      }}
+      tabIndex={0}
+      role="link"
+      aria-label={`Open opportunity: ${opp.name || 'Untitled'}${opp.companyName ? ` for ${opp.companyName}` : ''}`}
+      className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40"
     >
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-2">
@@ -455,7 +488,22 @@ export default function CrmOpportunities() {
                 );
               })}
               {data.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-12 text-dark-500 text-sm">No opportunities found</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-dark-500 text-sm">
+                  {/* 2026-05-17 CRM-D: clear-filters affordance when
+                      the empty state was filter-induced. */}
+                  <div className="flex flex-col items-center gap-3">
+                    <span>No opportunities found</span>
+                    {Object.values(filterParams).some(Boolean) && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchParams(new URLSearchParams())}
+                        className="text-xs text-rivvra-400 hover:text-rivvra-300 underline underline-offset-2"
+                      >
+                        Clear all filters
+                      </button>
+                    )}
+                  </div>
+                </td></tr>
               )}
             </tbody>
           </table>

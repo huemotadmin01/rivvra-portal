@@ -26,20 +26,24 @@ const crmApi = {
   },
 
   // ---------- OPPORTUNITIES ----------
-  listOpportunities(orgSlug, params = {}) {
+  // 2026-05-17 CRM-D: _requestKey is stripped from query string and
+  // forwarded to api.request for dedup — rapid filter typing auto-aborts
+  // the previous list request so race-stale results can't overwrite a
+  // newer fetch. Same pattern as ATS list methods.
+  listOpportunities(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/crm/opportunities${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/crm/opportunities${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
   getOpportunity(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities/${id}`);
   },
-  getKanban(orgSlug, params = {}) {
+  getKanban(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/crm/opportunities/kanban${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/crm/opportunities/kanban${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
   createOpportunity(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/crm/opportunities`, { method: 'POST', body: JSON.stringify(data) });

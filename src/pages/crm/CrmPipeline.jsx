@@ -221,12 +221,19 @@ export default function CrmPipeline() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const fetchKanban = useCallback(async () => {
+    // 2026-05-17 CRM-D: keep prior kanban visible while refetching.
+    // setKanban([]) used to wipe the board on every keystroke past
+    // the search debounce. _requestKey dedup auto-aborts stale
+    // requests so race-late responses can't overwrite a newer fetch.
     setLoading(true);
-    setKanban([]);
     try {
-      const res = await crmApi.getKanban(slug, filterParams);
+      const res = await crmApi.getKanban(slug, {
+        ...filterParams,
+        _requestKey: 'crm:kanban',
+      });
       if (res.success) setKanban(res.kanban || []);
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       addToast('Failed to load pipeline', 'error');
     } finally {
       setLoading(false);
