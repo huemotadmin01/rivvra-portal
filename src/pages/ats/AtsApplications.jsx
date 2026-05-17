@@ -253,7 +253,7 @@ export default function AtsApplications() {
       // 128 apps invisible.
       const listParams = {
         page: isGrouped ? 1 : page,
-        limit: isGrouped ? 500 : 25,
+        limit: isGrouped ? 5000 : 25,
         sort: 'appliedOn',
         dir: 'desc',
         ...filterParams,

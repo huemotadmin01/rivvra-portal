@@ -69,8 +69,16 @@ export default function AtsCandidates() {
     // 2026-05-17 health-check D.1: keep prior view; dedup via _requestKey.
     setLoading(true);
     try {
+      // 2026-05-17 ATS-CAND-GROUP-FETCH: when groupBy is active, pull the
+      // full filtered set in one shot (cap 5000, matches API ceiling) so
+      // groups aren't fragmented or undercounted. Before this, the
+      // default limit of 25 meant Group by Manager on 2172 candidates
+      // only grouped the first 25 — making counts look wildly wrong.
       const res = await atsApi.listCandidates(orgSlug, {
-        page, ...filterParams, _requestKey: 'ats:candidates:list',
+        page: isGrouped ? 1 : page,
+        ...(isGrouped ? { limit: 5000 } : {}),
+        ...filterParams,
+        _requestKey: 'ats:candidates:list',
       });
       if (res.success) {
         setCandidates(res.candidates || []);
@@ -85,7 +93,7 @@ export default function AtsCandidates() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
+  }, [orgSlug, currentCompany?._id, page, isGrouped, JSON.stringify(filterParams), showToast]);
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 

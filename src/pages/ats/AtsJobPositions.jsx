@@ -523,8 +523,17 @@ export default function AtsJobPositions() {
     // _requestKey so rapid filter typing auto-aborts stale requests.
     setLoading(true);
     try {
+      // 2026-05-17 ATS-JOBS-GROUP-FETCH: when groupBy is active, pull the
+      // full filtered set in one shot (cap 5000, matches API ceiling) so
+      // groups aren't fragmented or undercounted. Default landing now
+      // groups by Status, so this path is the common case — without
+      // limit:5000 the 812-job tenant would show only the first 25 in
+      // grouped buckets.
       const res = await atsApi.listJobs(orgSlug, {
-        page, ...filterParams, _requestKey: 'ats:jobs:list',
+        page: isGrouped ? 1 : page,
+        ...(isGrouped ? { limit: 5000 } : {}),
+        ...filterParams,
+        _requestKey: 'ats:jobs:list',
       });
       if (res.success) {
         setJobs(res.jobs || []);
@@ -541,7 +550,7 @@ export default function AtsJobPositions() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
+  }, [orgSlug, currentCompany?._id, page, isGrouped, JSON.stringify(filterParams), showToast]);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
