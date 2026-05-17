@@ -138,12 +138,20 @@ export default function AtsCandidates() {
         }];
       }
       if (groupBy === 'skill') {
+        // 2026-05-17 ATS-CAND-GROUP-SKILL: key by skillName, not skillId.
+        // Huemot's imported candidate-skill rows have skillId set but
+        // skillName missing on many rows — keying on id produced a
+        // separate "Unknown skill" bucket per id (UI showed 9+ groups
+        // all labeled the same). Collapse all unnamed rows into one
+        // __unknown__ bucket so the user gets one Unknown group plus
+        // one bucket per real skill name.
         const skills = Array.isArray(cand.skills) ? cand.skills : [];
-        if (skills.length === 0) return [{ key: '__unknown__', label: 'No skills captured' }];
-        return skills.map((s) => ({
-          key: s.skillId || s.skillName || '__unknown__',
-          label: s.skillName || 'Unknown skill',
-        }));
+        if (skills.length === 0) return [{ key: '__no_skills__', label: 'No skills captured' }];
+        return skills.map((s) => {
+          const name = (s.skillName || '').trim();
+          if (!name) return { key: '__unknown__', label: 'Unknown skill' };
+          return { key: name.toLowerCase(), label: name };
+        });
       }
       return [];
     };
