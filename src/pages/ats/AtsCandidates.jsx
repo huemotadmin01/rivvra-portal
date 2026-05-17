@@ -228,7 +228,7 @@ export default function AtsCandidates() {
       </div>
 
       {/* Filters — URL-driven via shared FilterBar */}
-      <FilterBar searchPlaceholder="Search by name or email…">
+      <FilterBar searchPlaceholder="Search by name, email, or skill…">
         <FilterChip type="boolean" paramKey="hasActiveApps" label="Has applications" />
         <FilterChip type="select" paramKey="managerId" label="Manager" options={managerOptions} placeholder="No managers" />
         <GroupByChip options={GROUP_BY_OPTIONS} />
