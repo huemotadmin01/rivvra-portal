@@ -48,6 +48,12 @@ const CURRENCY_OPTIONS = [
   { value: 'AUD', label: 'AUD - Australian Dollar' },
 ];
 
+// 2026-05-17 CONTACTS-D: module-scoped cache for the Pipeline tab so flipping
+// away and back, or navigating between contacts, doesn't re-hit the CRM list
+// endpoint. 5-min TTL matches the rest of the platform.
+const pipelineCache = new Map(); // key: `${orgSlug}:${contactId}` → { data, ts }
+const PIPELINE_TTL_MS = 5 * 60 * 1000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -500,15 +506,28 @@ export default function ContactDetail() {
   // -- Pipeline (lazy-load on tab activation) ---------------------------------
   // Individual contacts → filter by contactId; company contacts → filter by
   // contactCompanyId. Backend supports both query params on /crm/opportunities.
-  const loadPipeline = useCallback(async () => {
+  // 2026-05-17 CONTACTS-D: 5-min in-memory cache by contact._id so tab-flips
+  // and back-nav don't re-hit /crm/opportunities. Cleared when this contact's
+  // record is saved or when the inline edits would change linkage.
+  const loadPipeline = useCallback(async ({ force = false } = {}) => {
     if (!orgSlug || !contact?._id) return;
+    const cacheKey = `${orgSlug}:${contact._id}`;
+    const cached = pipelineCache.get(cacheKey);
+    if (!force && cached && Date.now() - cached.ts < PIPELINE_TTL_MS) {
+      setOpportunities(cached.data);
+      return;
+    }
     setPipelineLoading(true);
     try {
       const params = contact.type === 'company'
         ? { contactCompanyId: contact._id, limit: 100 }
         : { contactId: contact._id, limit: 100 };
       const res = await crmApi.listOpportunities(orgSlug, params);
-      if (res.success) setOpportunities(res.opportunities || []);
+      if (res.success) {
+        const data = res.opportunities || [];
+        setOpportunities(data);
+        pipelineCache.set(cacheKey, { data, ts: Date.now() });
+      }
     } catch {
       showToast('Failed to load pipeline', 'error');
     } finally {

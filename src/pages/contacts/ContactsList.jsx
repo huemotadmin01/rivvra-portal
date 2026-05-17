@@ -10,10 +10,34 @@ import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../co
 import {
   Plus, Users, Building2,
   ChevronLeft, ChevronRight, Download, Loader2,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeletons';
 
 const PAGE_SIZE = 25;
+
+// 2026-05-17 CONTACTS-D: clickable header that flips asc/desc on the active
+// column or switches to the new column (defaults to asc).
+function SortableTh({ label, sortKey, activeSortKey, sortDir, onSort, className = '' }) {
+  const isActive = activeSortKey === sortKey;
+  const Icon = !isActive ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <th
+      scope="col"
+      aria-sort={isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={`text-left px-4 py-3 text-dark-400 font-medium ${className}`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="flex items-center gap-1.5 hover:text-white transition-colors"
+      >
+        {label}
+        <Icon size={12} className={isActive ? 'text-rivvra-400' : 'text-dark-500'} />
+      </button>
+    </th>
+  );
+}
 
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function ContactsList({ filterType }) {
@@ -30,6 +54,24 @@ export default function ContactsList({ filterType }) {
   // values returned NaN, which broke prev-button disabled state.
   const pageRaw = parseInt(searchParams.get('page') || '1', 10);
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
+
+  // 2026-05-17 CONTACTS-D: sortable headers. Sort lives in the URL so it's
+  // bookmarkable + survives refresh. Whitelist mirrors API.
+  const SORTABLE_KEYS = ['name', 'email', 'type', 'createdAt'];
+  const sortParam = searchParams.get('sort') || 'name';
+  const sortDir = sortParam.startsWith('-') ? 'desc' : 'asc';
+  const sortKey = sortParam.replace(/^-/, '');
+  const activeSortKey = SORTABLE_KEYS.includes(sortKey) ? sortKey : 'name';
+  const setSort = (key) => {
+    const np = new URLSearchParams(searchParams);
+    if (activeSortKey === key) {
+      np.set('sort', sortDir === 'asc' ? `-${key}` : key);
+    } else {
+      np.set('sort', key);
+    }
+    np.delete('page');
+    setSearchParams(np);
+  };
 
   // When the route is locked to a specific contact type (Companies / Individuals),
   // the prop wins over any URL `type` param.
@@ -90,6 +132,7 @@ export default function ContactsList({ filterType }) {
         limit: PAGE_SIZE,
         ...filterParams,
         type: effectiveType,
+        sort: sortDir === 'desc' ? `-${activeSortKey}` : activeSortKey,
         _requestKey: 'contacts:list',
       });
       if (res.success) {
@@ -105,7 +148,7 @@ export default function ContactsList({ filterType }) {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), effectiveType, showToast]);
+  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), effectiveType, activeSortKey, sortDir, showToast]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -253,10 +296,10 @@ export default function ContactsList({ filterType }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-dark-700">
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium">Name</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
+                    <SortableTh label="Name" sortKey="name" activeSortKey={activeSortKey} sortDir={sortDir} onSort={setSort} />
+                    <SortableTh label="Email" sortKey="email" activeSortKey={activeSortKey} sortDir={sortDir} onSort={setSort} className="hidden md:table-cell" />
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Phone</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Type</th>
+                    <SortableTh label="Type" sortKey="type" activeSortKey={activeSortKey} sortDir={sortDir} onSort={setSort} className="hidden sm:table-cell" />
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Company</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Salesperson</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">City</th>
