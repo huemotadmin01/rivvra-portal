@@ -439,7 +439,11 @@ export default function CrmOpportunities() {
     </tr>
   );
 
-  if (!slug || loading) {
+  // 2026-05-17 CRM-OPP-LIFECYCLE: only show the full-page spinner on the
+  // very first load (no data yet). Subsequent refetches (pagination, filter
+  // change, lifecycle switch) keep the previous rows + chips + pagination
+  // mounted so the UI doesn't flash to a spinner — matches CRM-D's intent.
+  if (!slug || (loading && data.length === 0 && total === 0)) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;
   }
 
