@@ -456,6 +456,20 @@ export default function AtsJobPositions() {
   const { density, setDensity } = useDensity('ats:jobs');
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
+
+  // 2026-05-17 ATS-JOBS-DEFAULT-GROUP: Job Positions defaults to Group by
+  // Status — every user gets the Open / On Hold / Closed buckets at first
+  // glance, which matches how recruiters scan their pipeline. Applied on
+  // mount only, so the user can still pick a different grouping or clear
+  // it for the rest of the session.
+  useEffect(() => {
+    if (!searchParams.has('groupBy')) {
+      const np = new URLSearchParams(searchParams);
+      np.set('groupBy', 'status');
+      setSearchParams(np, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
   // 2026-05-17 Phase L: harden page-param parsing (see AtsApplications).
   const pageRaw = parseInt(searchParams.get('page') || '1', 10);
