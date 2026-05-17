@@ -461,6 +461,11 @@ export default function AtsJobDetail() {
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
+  // 2026-05-18 RBAC two-tier: anyone with ATS access is a "recruiter" and
+  // can do daily work (create candidates + applications, run interviews,
+  // upload attachments, etc.). Only admins manage Job Positions / config /
+  // offer compensation. See ats.js middleware (atsAdmin vs atsAccess).
+  const canRecruit = !!getAppRole('ats');
   const orgSlug = currentOrg?.slug;
   const canEdit = isAdmin && !job?.archived;
   const isAssignedApprover = !!(myEmployeeId && job?.approverId && String(job.approverId) === String(myEmployeeId));
@@ -809,7 +814,9 @@ export default function AtsJobDetail() {
   // for sourcing — the API will reject POST /applications with 403
   // JOB_NOT_APPROVED, so we hide the CTA at the UI layer for clarity.
   const isApproved = job.approvalStatus === 'approved';
-  const canCreateApplication = isAdmin && !job.archived && isApproved && (statusKey === 'open' || statusKey === 'on_hold');
+  // 2026-05-18: recruiters (not just admins) can create applications.
+  // API allows POST /applications for any ATS access role.
+  const canCreateApplication = canRecruit && !job.archived && isApproved && (statusKey === 'open' || statusKey === 'on_hold');
   const fmtBudget = (v) => (v == null || v === '' ? null : formatCurrency(v, companyCurrency));
   const hiringModeFull = HIRING_MODE_FULL[job.hiringMode] || job.hiringMode;
   // Odoo imports arrive as "7-8" / "5+" without a unit suffix; the

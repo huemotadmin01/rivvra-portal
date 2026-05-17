@@ -59,7 +59,10 @@ export default function AtsCandidateDetail() {
   usePageTitle(candidate?.name);
 
   const isAdmin = getAppRole('ats') === 'admin';
-  const canEdit = isAdmin && !candidate?.archived;
+  // 2026-05-18 RBAC two-tier: any ATS user can edit candidates + archive.
+  // Delete remains admin-only and is gated separately in the kebab menu.
+  const canRecruit = !!getAppRole('ats');
+  const canEdit = canRecruit && !candidate?.archived;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -230,15 +233,19 @@ export default function AtsCandidateDetail() {
           </div>
         </div>
 
-        {isAdmin && (
+        {/* 2026-05-18 RBAC: Archive available to all recruiters; Unarchive
+            stays admin-only (reversing an archive is a recovery action). */}
+        {canRecruit && (
           <div className="flex items-center gap-2 flex-wrap">
             {candidate.archived ? (
-              <button
-                onClick={handleUnarchive}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
-              >
-                <ArchiveRestore size={14} /> Unarchive
-              </button>
+              isAdmin && (
+                <button
+                  onClick={handleUnarchive}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                >
+                  <ArchiveRestore size={14} /> Unarchive
+                </button>
+              )
             ) : (
               <button
                 onClick={openArchiveModal}

@@ -117,6 +117,8 @@ export default function AtsCandidates() {
   const debounceRef = useRef(null);
   const orgSlug = currentOrg?.slug;
   const isAdmin = getAppRole('ats') === 'admin';
+  // 2026-05-18 RBAC two-tier: any ATS user can add candidates.
+  const canRecruit = !!getAppRole('ats');
 
   const setPage = (next) => {
     const np = new URLSearchParams(searchParams);
@@ -282,7 +284,7 @@ export default function AtsCandidates() {
         </div>
         <div className="flex items-center gap-2">
           <DensityToggle density={density} onChange={setDensity} />
-          {isAdmin && (
+          {canRecruit && (
           <button
             onClick={() => navigate(orgPath('/ats/candidates/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors text-sm font-medium"

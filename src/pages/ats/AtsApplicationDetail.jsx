@@ -1827,17 +1827,22 @@ export default function AtsApplicationDetail() {
   const [deleting, setDeleting] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
+  // 2026-05-18 RBAC two-tier: any ATS user can edit applications, skills,
+  // attachments, run interviews, refuse, advance stages. Admin retains
+  // exclusive control over offer compensation (extend/revise/envelope)
+  // and delete.
+  const canRecruit = !!getAppRole('ats');
   const orgSlug = currentOrg?.slug;
   // Canonical status field on ats_applications is `applicationStatus`
   // ('ongoing' | 'hired' | 'refused'). Tolerate the legacy `status` alias
   // in case any caller still emits it, but prefer the canonical one.
   const appStatus = application?.applicationStatus || application?.status;
   const isTerminal = appStatus === 'hired' || appStatus === 'refused';
-  const canEdit = isAdmin && !application?.archived && !isTerminal;
+  const canEdit = canRecruit && !application?.archived && !isTerminal;
   // People fields stay editable on `refused` apps too — only `hired` locks
   // them, since changing the recruiter on a closed-loss record is a normal
   // attribution correction. Mirrors the user request 2026-05-10.
-  const canEditPeople = isAdmin && !application?.archived && appStatus !== 'hired';
+  const canEditPeople = canRecruit && !application?.archived && appStatus !== 'hired';
 
   // ── Fetch application ─────────────────────────────────────────────────
   const fetchApplication = useCallback(async () => {
@@ -2411,7 +2416,11 @@ export default function AtsApplicationDetail() {
         </div>
 
         {/* Action buttons */}
-        {isAdmin && (
+        {/* 2026-05-18 RBAC two-tier: recruiters get the daily action bar
+            (move stage, refuse, hire, archive). Admin-only buttons (Offer,
+            Restore/un-refuse, Unarchive, Create Employee, Delete kebab)
+            are gated individually inside. */}
+        {canRecruit && (
           <div className="flex items-center gap-2 flex-wrap">
             {canEdit && (
               <>
@@ -2422,7 +2431,7 @@ export default function AtsApplicationDetail() {
                   onToggle={() => setShowMoveDropdown((p) => !p)}
                   onSelect={handleMoveStage}
                 />
-                {application?.offer?.offeredCTC && (
+                {isAdmin && application?.offer?.offeredCTC && (
                   <button
                     onClick={() => { setEditOfferOnly(true); setShowHireModal(true); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
@@ -2445,7 +2454,7 @@ export default function AtsApplicationDetail() {
                 </button>
               </>
             )}
-            {application.hireDate && !application.employeeId && (
+            {isAdmin && application.hireDate && !application.employeeId && (
               <button
                 onClick={() => setShowCreateEmpDrawer(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
@@ -2462,7 +2471,7 @@ export default function AtsApplicationDetail() {
                 <ExternalLink size={14} /> Employee
               </button>
             )}
-            {(application.applicationStatus === 'refused' || application.refused) && !application.archived && (
+            {isAdmin && (application.applicationStatus === 'refused' || application.refused) && !application.archived && (
               <button
                 onClick={() => setShowUnrefuseDialog(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
@@ -2472,12 +2481,14 @@ export default function AtsApplicationDetail() {
               </button>
             )}
             {application.archived ? (
-              <button
-                onClick={handleUnarchiveApp}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
-              >
-                <ArchiveRestore size={14} /> Unarchive
-              </button>
+              isAdmin && (
+                <button
+                  onClick={handleUnarchiveApp}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                >
+                  <ArchiveRestore size={14} /> Unarchive
+                </button>
+              )
             ) : (
               <button
                 onClick={handleArchiveApp}
@@ -2713,14 +2724,14 @@ export default function AtsApplicationDetail() {
 
           <SectionCard title="Skills" icon={Award}>
             {application.candidateId ? (
-              <SkillsPicker orgSlug={orgSlug} candidateId={application.candidateId} readOnly={!isAdmin} />
+              <SkillsPicker orgSlug={orgSlug} candidateId={application.candidateId} readOnly={!canRecruit} />
             ) : (
               <p className="text-dark-500 text-sm py-2">No candidate linked.</p>
             )}
           </SectionCard>
 
           <SectionCard title="Attachments" icon={FileSignature}>
-            <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!isAdmin} />
+            <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!canRecruit} />
           </SectionCard>
 
           {/* SignRequestWidget brings its own card styling, header, list,
