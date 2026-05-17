@@ -150,8 +150,12 @@ const crmApi = {
   },
 
   // ---------- DASHBOARD ----------
-  getDashboard(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/crm/dashboard`);
+  // 2026-05-18: optional date-range window. Mirrors atsApi.getDashboard.
+  getDashboard(orgSlug, params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),
+    ).toString();
+    return api.request(`/api/org/${orgSlug}/crm/dashboard${qs ? '?' + qs : ''}`);
   },
 
   // ---------- CONFIG ----------

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -7,7 +7,7 @@ import crmApi from '../../utils/crmApi';
 import { formatMoney } from '../../utils/currency';
 import {
   Briefcase, Trophy, XCircle, ArrowRight,
-  Clock, Loader2, Calendar, BarChart3,
+  Clock, Loader2, Calendar, BarChart3, RefreshCw,
 } from 'lucide-react';
 import MyTeamWidget from '../../components/shared/MyTeamWidget';
 
@@ -80,6 +80,40 @@ function PipelineBar({ data }) {
   );
 }
 
+// 2026-05-18: time-range filter — same shape as AtsDashboard so the two
+// dashboards behave consistently. Default = 30d, sticky per-user via
+// localStorage. The window applies server-side via ?dateFrom=&dateTo=.
+const CRM_RANGE_STORAGE_KEY = 'rivvra:crm-reporting-range';
+const TIME_RANGE_OPTIONS = [
+  { key: 'all', label: 'All time' },
+  { key: '7d',  label: 'Last 7 days',  days: 7 },
+  { key: '30d', label: 'Last 30 days', days: 30 },
+  { key: '90d', label: 'Last 90 days', days: 90 },
+  { key: 'ytd', label: 'Year to date' },
+];
+function readStoredRange() {
+  try {
+    const stored = localStorage.getItem(CRM_RANGE_STORAGE_KEY);
+    if (stored && TIME_RANGE_OPTIONS.some(o => o.key === stored)) return stored;
+  } catch (_) { /* localStorage blocked */ }
+  return '30d';
+}
+function writeStoredRange(key) {
+  try { localStorage.setItem(CRM_RANGE_STORAGE_KEY, key); } catch (_) {}
+}
+function rangeToDates(key) {
+  if (key === 'all') return { dateFrom: null, dateTo: null };
+  const now = new Date();
+  if (key === 'ytd') {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    return { dateFrom: yearStart.toISOString(), dateTo: now.toISOString() };
+  }
+  const opt = TIME_RANGE_OPTIONS.find(o => o.key === key);
+  if (!opt?.days) return { dateFrom: null, dateTo: null };
+  const from = new Date(now.getTime() - opt.days * 24 * 60 * 60 * 1000);
+  return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
+}
+
 export default function CrmDashboard() {
   const { orgSlug: slug, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
@@ -88,6 +122,8 @@ export default function CrmDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [rangeKey, setRangeKey] = useState(() => readStoredRange());
 
   // 2026-05-14: CRM Reporting page merged into Dashboard. The analytical
   // section (win/loss/conversion rates, salesperson performance) renders
@@ -98,18 +134,29 @@ export default function CrmDashboard() {
   const crmRole = getAppRole('crm');
   const isAdminOrLead = crmRole === 'admin' || crmRole === 'team_lead';
 
-  useEffect(() => {
-    setLoading(true);
-    crmApi.getDashboard(slug).then(res => {
+  const fetchDashboard = useCallback(async ({ silent = false } = {}) => {
+    if (!slug) return;
+    // Full-page spinner only on first load. Range change / refresh keeps
+    // the existing dashboard rendered with a small spinner in the action
+    // bar — matches AtsDashboard.
+    if (silent || data) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const res = await crmApi.getDashboard(slug, rangeToDates(rangeKey));
       if (res.success) setData(res);
-    }).catch(() => addToast('Failed to load dashboard', 'error'))
-      .finally(() => setLoading(false));
-    // currentCompany?._id is included so a company switch refreshes
-    // the dashboard — backend filters by req.companyId server-side.
+      else addToast(res?.error || 'Failed to load dashboard', 'error');
+    } catch (err) {
+      addToast(err?.message || 'Failed to load dashboard', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, currentCompany?._id]);
+  }, [slug, currentCompany?._id, rangeKey]);
 
-  if (loading) {
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+  if (loading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-dark-400 animate-spin" /></div>;
   }
 
@@ -137,34 +184,65 @@ export default function CrmDashboard() {
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-lg font-semibold text-dark-100">CRM Dashboard</h1>
-        {/* 2026-05-18: data-scope badge (mirrors AtsDashboard). The API
-            auto-scopes via applyCrmTeamScope — admin sees everything,
-            sales team leads see their team, regular salespeople see
-            only their own pipeline. */}
-        {data?.scope && (
-          <p className="text-[11px] text-dark-500 mt-0.5">
-            {data.scope.mode === 'all' && (
-              <span className="inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Showing everything (admin view)
-              </span>
-            )}
-            {data.scope.mode === 'team' && (
-              <span className="inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                Showing your team ({data.scope.employeeCount} salesperson{data.scope.employeeCount === 1 ? '' : 's'})
-              </span>
-            )}
-            {data.scope.mode === 'self' && (
-              <span className="inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                Showing your own data only
-              </span>
-            )}
-          </p>
-        )}
+      {/* ── Header — title + scope badge on the left, range picker on the right ── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-dark-100">CRM Dashboard</h1>
+          {/* 2026-05-18: data-scope badge (mirrors AtsDashboard). */}
+          {data?.scope && (
+            <p className="text-[11px] text-dark-500 mt-0.5">
+              {data.scope.mode === 'all' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Showing everything (admin view)
+                </span>
+              )}
+              {data.scope.mode === 'team' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  Showing your team ({data.scope.employeeCount} salesperson{data.scope.employeeCount === 1 ? '' : 's'})
+                </span>
+              )}
+              {data.scope.mode === 'self' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Showing your own data only
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+        {/* 2026-05-18: time-range picker. Sticky per-user via localStorage.
+            Applies server-side to opportunity createdAt + wonAt; recent /
+            upcoming activities are intentionally unbounded. */}
+        <div className="flex items-center gap-2">
+          <label htmlFor="crm-reporting-range" className="sr-only">Time range</label>
+          <select
+            id="crm-reporting-range"
+            value={rangeKey}
+            onChange={(e) => {
+              const next = e.target.value;
+              setRangeKey(next);
+              writeStoredRange(next);
+            }}
+            className="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-dark-100 focus:border-rivvra-500 focus:outline-none"
+          >
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => fetchDashboard({ silent: true })}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-900 border border-dark-700 text-xs text-dark-200 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-50"
+            title="Refresh"
+            aria-label="Refresh dashboard"
+          >
+            {refreshing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
