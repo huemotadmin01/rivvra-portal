@@ -129,7 +129,7 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
           <div ref={modalRef} role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-white">{editingItem ? 'Edit Skill Type' : 'Add Skill Type'}</h3>
-              <button onClick={closeModal} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+              <button onClick={closeModal} aria-label="Close" className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave} className="space-y-4">
               <div>

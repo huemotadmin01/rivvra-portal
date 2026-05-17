@@ -88,7 +88,7 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving }) {
       <div role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-semibold text-white">Refuse Application</h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
         </div>
         <div className="space-y-4">
           <div>
@@ -527,7 +527,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
               <p className="text-xs text-dark-400 mt-0.5">{headerSub}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0 -mr-1"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors flex-shrink-0 -mr-1"><X size={20} /></button>
         </div>
 
         <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
@@ -1254,7 +1254,7 @@ function BackwardMoveReasonModal({ show, onClose, onConfirm, saving, fromStage, 
                 : 'Backward stage moves require an audit reason'}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
         </div>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {BACKWARD_REASON_QUICK_PICKS.map((r) => (
@@ -1352,7 +1352,7 @@ function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageNa
               {' '}<span className="text-rivvra-300">{missingAttachment.label}</span>
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
         </div>
 
         <label className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
@@ -1474,7 +1474,7 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
                 : 'Capture interview details'}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -1632,7 +1632,7 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
                   : 'Capture the interview outcome'}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
         </div>
 
         <div className="space-y-4">
