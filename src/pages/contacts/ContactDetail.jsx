@@ -8,6 +8,7 @@ import contactsApi from '../../utils/contactsApi';
 import crmApi from '../../utils/crmApi';
 import invoicingApi from '../../utils/invoicingApi';
 import { getAddressLocale, validateZip } from '../../utils/addressLocale';
+import { formatCurrency } from '../../utils/formatCurrency';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -932,6 +933,11 @@ export default function ContactDetail() {
               <InlineField label="Phone" value={contact.phone} field="phone" type="phone" editable={isAdmin} onSave={saveField} placeholder="Add phone" />
               <InlineField label="Mobile" value={contact.mobile} field="mobile" type="phone" editable={isAdmin} onSave={saveField} placeholder="Add mobile" />
               <InlineField label="Website" value={contact.website} field="website" type="url" editable={isAdmin} onSave={saveField} placeholder="Add website" />
+              {/* 2026-05-17 CONTACTS-B: LinkedIn was never surfaced on the
+                  detail page even though the API persists `linkedinUrl`.
+                  Today's InlineField type='url' hyperlink fix means this
+                  row also renders as a clickable link. */}
+              <InlineField label="LinkedIn" value={contact.linkedinUrl} field="linkedinUrl" type="url" editable={isAdmin} onSave={saveField} placeholder="Add LinkedIn URL" />
             </SectionCard>
 
             {/* Company / Work Details */}
@@ -1340,7 +1346,10 @@ export default function ContactDetail() {
                 return (
                   <div
                     key={opp._id}
-                    onClick={() => navigate(`/org/${orgSlug}/crm/opportunities/${opp._id}`)}
+                    // 2026-05-17 CONTACTS-B: use orgPath() so the route
+                    // survives any future platform-prefix change (every
+                    // other CRM nav in the app already does).
+                    onClick={() => navigate(orgPath(`/crm/opportunities/${opp._id}`))}
                     className="flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer bg-dark-800/60 border border-dark-700/50 hover:bg-dark-800"
                   >
                     <div className="flex-1 min-w-0">
@@ -1352,7 +1361,15 @@ export default function ContactDetail() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-dark-400 flex-wrap">
-                        {opp.expectedRevenue ? <span>₹{Number(opp.expectedRevenue).toLocaleString('en-IN')}</span> : null}
+                        {/* 2026-05-17 CONTACTS-B: per-currency. Hard-coded
+                            ₹ + en-IN locale violated invoicing_multi_currency
+                            memory rule — a USD opp on a Huemot Inc contact
+                            rendered "₹100" instead of "$100". Use the opp's
+                            own currency, falling back to the contact's
+                            defaultCurrency, then INR last. */}
+                        {opp.expectedRevenue ? (
+                          <span>{formatCurrency(opp.expectedRevenue, opp.currency || contact.defaultCurrency || 'INR')}</span>
+                        ) : null}
                         {opp.expectedRole ? <span>· {opp.expectedRole}</span> : null}
                         {opp.salespersonName ? <span>· {opp.salespersonName}</span> : null}
                         {opp.updatedAt && (

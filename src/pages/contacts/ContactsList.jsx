@@ -26,7 +26,10 @@ export default function ContactsList({ filterType }) {
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParams = useFilterParams(['search', 'type', 'tag', 'salesperson', 'archived']);
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  // 2026-05-17 CONTACTS-B: NaN-safe page parse. parseInt('abc') / negative
+  // values returned NaN, which broke prev-button disabled state.
+  const pageRaw = parseInt(searchParams.get('page') || '1', 10);
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
 
   // When the route is locked to a specific contact type (Companies / Individuals),
   // the prop wins over any URL `type` param.
@@ -76,16 +79,18 @@ export default function ContactsList({ filterType }) {
   // ── Fetch contacts ──────────────────────────────────────────────────
   const fetchContacts = useCallback(async () => {
     if (!orgSlug) return;
+    // 2026-05-17 CONTACTS-B: keep prior list visible while refetching — no
+    // more blank-flash on filter keystrokes. _requestKey dedup auto-aborts
+    // stale in-flight requests so race-late responses can't overwrite a
+    // newer fetch.
     setLoading(true);
-    setContacts([]);
-    setTotal(0);
-    setTotalPages(1);
     try {
       const res = await contactsApi.list(orgSlug, {
         page,
         limit: PAGE_SIZE,
         ...filterParams,
         type: effectiveType,
+        _requestKey: 'contacts:list',
       });
       if (res.success) {
         setContacts(res.contacts || []);
@@ -93,9 +98,9 @@ export default function ContactsList({ filterType }) {
         setTotalPages(res.totalPages || 1);
       }
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       console.error('Failed to load contacts:', err);
       showToast('Failed to load contacts', 'error');
-      setContacts([]);
     } finally {
       setLoading(false);
     }
@@ -103,6 +108,16 @@ export default function ContactsList({ filterType }) {
   }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), effectiveType, showToast]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
+
+  // 2026-05-17 CONTACTS-B: page-clamp guard. When data shrinks (filter
+  // wipes most rows, company switch, last-page row archived) the URL
+  // still carries old page=N and the list shows empty. Auto-rewind.
+  useEffect(() => {
+    if (!loading && totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, totalPages, page]);
 
   // Archived count for the segmented Active/Archived chip — refreshes when
   // any non-archive filter changes.
@@ -208,16 +223,27 @@ export default function ContactsList({ filterType }) {
       {loading ? (
         <div className="animate-pulse"><TableSkeleton rows={8} cols={5} /></div>
       ) : contacts.length === 0 ? (
+        // 2026-05-17 CONTACTS-B: Clear-filters affordance on filter-induced
+        // empty state. Mirrors ATS / CRM pattern.
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
             <Users className="w-8 h-8 text-dark-500" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">No contacts found</h3>
-          <p className="text-dark-400 text-sm text-center max-w-sm">
+          <p className="text-dark-400 text-sm text-center max-w-sm mb-4">
             {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
               : 'Add your first contact to get started.'}
           </p>
+          {Object.values(filterParams).some(Boolean) && (
+            <button
+              type="button"
+              onClick={() => setSearchParams(new URLSearchParams())}
+              className="text-xs text-rivvra-400 hover:text-rivvra-300 underline underline-offset-2"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -239,10 +265,23 @@ export default function ContactsList({ filterType }) {
                 </thead>
                 <tbody>
                   {contacts.map((contact) => (
+                    // 2026-05-17 CONTACTS-B: per-row a11y. <tr> behaves
+                    // like a link; expose role+aria+keyboard so screen
+                    // readers and keyboard users can use it. Same pattern
+                    // shipped for ATS / CRM in earlier phases.
                     <tr
                       key={contact._id}
                       onClick={() => navigate(orgPath(`/contacts/${contact._id}`))}
-                      className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(orgPath(`/contacts/${contact._id}`));
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Open contact: ${contact.name || 'Unnamed'}${contact.type === 'company' ? ' (company)' : ''}`}
+                      className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40"
                     >
                       {/* Name */}
                       <td className="px-4 py-3">

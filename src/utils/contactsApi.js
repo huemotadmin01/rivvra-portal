@@ -6,11 +6,15 @@ import api, { getActiveCompanyId } from './api';
 
 const contactsApi = {
   // ── Contacts ──────────────────────────────────────────────────────────
-  list(orgSlug, params = {}) {
+  // 2026-05-17 CONTACTS-B: _requestKey forwarded to api.request for dedup
+  // — rapid filter typing auto-aborts the previous list request so stale
+  // responses can't overwrite a newer fetch. Same pattern as ATS/CRM list
+  // methods.
+  list(orgSlug, { _requestKey, ...params } = {}) {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
     ).toString();
-    return api.request(`/api/org/${orgSlug}/contacts${qs ? '?' + qs : ''}`);
+    return api.request(`/api/org/${orgSlug}/contacts${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
 
   get(orgSlug, id) {
