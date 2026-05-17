@@ -861,7 +861,11 @@ export default function AtsJobDetail() {
               Overview below). Header stays clean. */}
         </div>
 
-        {isAdmin && (
+        {/* 2026-05-18 RBAC: header action bar — render the container for
+            any recruiter when at least one button qualifies. New Application
+            is recruiter-allowed; Change Status, Archive, Delete stay
+            admin-only and are gated individually inside. */}
+        {(canCreateApplication || isAdmin) && (
           <div className="flex items-center gap-2 flex-wrap">
             {/* Q13-D: + New Application + Change Status as primary actions */}
             {canCreateApplication && (
@@ -872,7 +876,7 @@ export default function AtsJobDetail() {
                 <Plus size={14} /> New Application
               </button>
             )}
-            {!job.archived && (
+            {isAdmin && !job.archived && (
               <ChangeStatusDropdown
                 currentStatus={statusKey}
                 isOpen={showStatusDropdown}
@@ -880,7 +884,9 @@ export default function AtsJobDetail() {
                 onSelect={handleChangeStatus}
               />
             )}
-            {/* Overflow — Archive lives here (Q13-D) */}
+            {/* Overflow — Archive lives here (Q13-D). Admin-only since
+                archive/unarchive/delete are all admin actions. */}
+            {isAdmin && (
             <div className="relative">
               <button
                 onClick={() => setShowKebab((o) => !o)}
@@ -924,6 +930,7 @@ export default function AtsJobDetail() {
                 </>
               )}
             </div>
+            )}
           </div>
         )}
       </div>

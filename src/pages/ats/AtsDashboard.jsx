@@ -856,8 +856,36 @@ export default function AtsDashboard() {
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-lg font-semibold text-dark-100">ATS Dashboard</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-dark-100">ATS Dashboard</h1>
+          {/* 2026-05-18: data-scope badge. The API auto-scopes by role
+              (admin → all; team lead → team; recruiter → self). Surface
+              that scope explicitly so a recruiter doesn't think their
+              numbers represent the whole org. */}
+          {data?.scope && (
+            <p className="text-[11px] text-dark-500 mt-0.5">
+              {data.scope.mode === 'all' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Showing everything (admin view)
+                </span>
+              )}
+              {data.scope.mode === 'team' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  Showing your team ({data.scope.employeeCount} recruiter{data.scope.employeeCount === 1 ? '' : 's'})
+                </span>
+              )}
+              {data.scope.mode === 'self' && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Showing your own data only
+                </span>
+              )}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <label htmlFor="ats-reporting-range" className="sr-only">Time range</label>
           <select
