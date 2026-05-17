@@ -6,7 +6,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import { downloadFile } from '../../utils/download';
-import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, useFilterParams } from '../../components/shared/FilterBar';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
@@ -21,12 +21,9 @@ const APP_GROUP_BY_OPTIONS = [
   { value: 'job', label: 'Job Position' },
 ];
 
-const APP_STATUS_OPTIONS = [
-  { value: '', label: 'All' },
-  { value: 'ongoing', label: 'Ongoing' },
-  { value: 'hired', label: 'Hired' },
-  { value: 'refused', label: 'Refused' },
-];
+// 2026-05-17 ATS-APP-LIFECYCLE: APP_STATUS_OPTIONS removed — the Status
+// filter chip was subsumed by the new lifecycle segmented toggle
+// (Ongoing / Hired / Refused / Archived).
 import StageBadge from '../../components/ats/StageBadge';
 import {
   Plus, Loader2, Users,
@@ -55,6 +52,48 @@ const LEGACY_FEEDBACK_NORMALISE = {
   rejected: 'Reject',
   reject: 'Reject',
 };
+// 2026-05-17 ATS-APP-LIFECYCLE: 4-segment chip on the Applications list.
+// The platform-wide ArchivedToggle convention conflates "not archived"
+// with "active" — for ATS, "Active 2702" lumped together ongoing + hired
+// + refused, which made counts look wildly off. Use explicit lifecycle
+// states instead. Counts come from a parallel fetch of all four variants
+// so the hired/refused split is visible at a glance.
+function LifecycleToggle({ lifecycle, counts, onChange }) {
+  const segments = [
+    { key: 'ongoing',  label: 'Ongoing',  dot: 'bg-rivvra-400' },
+    { key: 'hired',    label: 'Hired',    dot: 'bg-emerald-400' },
+    { key: 'refused',  label: 'Refused',  dot: 'bg-red-400' },
+    { key: 'archived', label: 'Archived', dot: 'bg-dark-400' },
+  ];
+  return (
+    <div className="inline-flex items-center bg-dark-800 border border-dark-700 rounded-full p-0.5 gap-0.5">
+      {segments.map(seg => {
+        const active = lifecycle === seg.key;
+        const count = counts[seg.key];
+        return (
+          <button
+            key={seg.key}
+            type="button"
+            onClick={() => onChange(seg.key)}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              active ? 'bg-dark-700 text-white' : 'text-dark-400 hover:text-white hover:bg-dark-700/50'
+            }`}
+            aria-pressed={active}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${seg.dot}`} />
+            {seg.label}
+            {count != null && (
+              <span className={`text-[10px] ${active ? 'text-dark-300' : 'text-dark-500'}`}>
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FeedbackBadge({ result, legacy }) {
   // Structured wins; fall back to normalised legacy.
   let rec = result?.recommendation;
@@ -121,9 +160,33 @@ export default function AtsApplications() {
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
 
+  // 2026-05-17 ATS-APP-LIFECYCLE: derive the active lifecycle segment from
+  // URL. Default landing = 'ongoing' so the headline count reflects deals
+  // actually in-flight, not refused/hired/archived together.
+  const lifecycle = (() => {
+    if (filterParams.archived === '1' || filterParams.archived === 'true') return 'archived';
+    if (filterParams.applicationStatus === 'hired' || filterParams.hiredOnly === '1' || filterParams.hiredOnly === 'true') return 'hired';
+    if (filterParams.applicationStatus === 'refused' || filterParams.refusedOnly === '1' || filterParams.refusedOnly === 'true') return 'refused';
+    return 'ongoing';
+  })();
+
+  const setLifecycle = (next) => {
+    const np = new URLSearchParams(searchParams);
+    np.delete('page');
+    np.delete('archived');
+    np.delete('applicationStatus');
+    np.delete('hiredOnly');
+    np.delete('refusedOnly');
+    if (next === 'archived') np.set('archived', '1');
+    else if (next === 'hired') np.set('applicationStatus', 'hired');
+    else if (next === 'refused') np.set('applicationStatus', 'refused');
+    else if (next === 'ongoing') np.set('applicationStatus', 'ongoing');
+    setSearchParams(np);
+  };
+
   const [applications, setApplications] = useState([]);
   const [total, setTotal] = useState(0);
-  const [archivedCount, setArchivedCount] = useState(null);
+  const [counts, setCounts] = useState({ ongoing: null, hired: null, refused: null, archived: null });
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
@@ -177,14 +240,23 @@ export default function AtsApplications() {
       // 2026-05-17 health-check P0: hard-coded sort/order used to come
       // AFTER `...filterParams`, overriding the URL's sort + dir params
       // that SortableHeader writes. Move the defaults BEFORE the spread.
-      const res = await atsApi.listApplications(orgSlug, {
+      // 2026-05-17 ATS-APP-LIFECYCLE: default landing = Ongoing. If the
+      // URL has no lifecycle params yet (lifecycle === 'ongoing' was
+      // derived from "neither archived nor hired/refused"), inject
+      // applicationStatus=ongoing so hired/refused/archived don't bleed
+      // into the headline count.
+      const listParams = {
         page,
         limit: 25,
         sort: 'appliedOn',
         dir: 'desc',
         ...filterParams,
         _requestKey: 'ats:applications:list',
-      });
+      };
+      if (lifecycle === 'ongoing' && !listParams.applicationStatus) {
+        listParams.applicationStatus = 'ongoing';
+      }
+      const res = await atsApi.listApplications(orgSlug, listParams);
       if (res.success) {
         setApplications(res.applications || []);
         setTotal(res.total || 0);
@@ -200,7 +272,7 @@ export default function AtsApplications() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), showToast]);
+  }, [orgSlug, currentCompany?._id, page, lifecycle, JSON.stringify(filterParams), showToast]);
 
   // 2026-05-17 Phase L: page-clamp guard. When data shrinks (filter change
   // wipes most rows, company switch hits a smaller tenant, last-page row
@@ -243,16 +315,40 @@ export default function AtsApplications() {
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
-  // Archived count for the segmented Active/Archived chip.
+  // 2026-05-17 ATS-APP-LIFECYCLE: parallel fetch of all four lifecycle
+  // segment counts so each chip shows its own number. Base filter
+  // (search / stage / job / recruiter / source / employmentType) is
+  // preserved across all four — only the lifecycle clause differs.
   useEffect(() => {
     if (!orgSlug) return;
-    const controller = new AbortController();
-    atsApi.listApplications(orgSlug, { ...filterParams, archived: '1', limit: 1, page: 1 })
-      .then((res) => { if (!controller.signal.aborted && res.success) setArchivedCount(res.total || 0); })
-      .catch(() => {});
-    return () => controller.abort();
+    let cancelled = false;
+    const baseParams = { ...filterParams, limit: 1, page: 1 };
+    delete baseParams.archived;
+    delete baseParams.applicationStatus;
+    delete baseParams.hiredOnly;
+    delete baseParams.refusedOnly;
+    delete baseParams.groupBy;
+
+    const variants = {
+      ongoing:  { ...baseParams, applicationStatus: 'ongoing' },
+      hired:    { ...baseParams, applicationStatus: 'hired' },
+      refused:  { ...baseParams, applicationStatus: 'refused' },
+      archived: { ...baseParams, archived: '1' },
+    };
+
+    Promise.all(
+      Object.entries(variants).map(([k, p]) =>
+        atsApi.listApplications(orgSlug, p)
+          .then(res => [k, res?.success ? (res.total || 0) : null])
+          .catch(() => [k, null])
+      )
+    ).then(entries => {
+      if (cancelled) return;
+      setCounts(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined })]);
+  }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined, applicationStatus: undefined, hiredOnly: undefined, refusedOnly: undefined, groupBy: undefined })]);
 
   // Fetch refuse reasons once per (org, company) — used by the bulk-refuse
   // action bar's reason picker. Cheap; small set per org.
@@ -394,6 +490,12 @@ export default function AtsApplications() {
     try {
       const params = new URLSearchParams();
       Object.entries(filterParams).forEach(([k, v]) => { if (v) params.set(k, v); });
+      // Mirror fetchApplications' lifecycle injection so a CSV exported
+      // from the default Ongoing view doesn't include Hired / Refused /
+      // Archived rows.
+      if (lifecycle === 'ongoing' && !params.get('applicationStatus')) {
+        params.set('applicationStatus', 'ongoing');
+      }
       const qs = params.toString();
       const today = new Date().toISOString().slice(0, 10);
       await downloadFile(
@@ -509,13 +611,12 @@ export default function AtsApplications() {
             <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
             <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
             <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
-            <FilterChip type="select" paramKey="applicationStatus" label="Status" options={APP_STATUS_OPTIONS} />
             <GroupByChip options={APP_GROUP_BY_OPTIONS} />
             <MoreFiltersPopover paramKeys={['source', 'employmentType']}>
               <FilterChip type="select" paramKey="source" label="Source" options={sourceOptions} placeholder="No sources" />
               <FilterChip type="select" paramKey="employmentType" label="Employment Type" options={employmentTypeOptions} placeholder="No types" />
             </MoreFiltersPopover>
-            <ArchivedToggle activeCount={filterParams.archived ? null : total} archivedCount={archivedCount} />
+            <LifecycleToggle lifecycle={lifecycle} counts={counts} onChange={setLifecycle} />
           </FilterBar>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
