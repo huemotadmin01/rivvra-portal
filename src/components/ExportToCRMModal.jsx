@@ -227,20 +227,27 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={handleClose} />
-        <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl">
-          <button onClick={handleClose} className="absolute top-4 right-4 p-1 text-dark-400 hover:text-white transition-colors z-10">
-            <X className="w-5 h-5" />
-          </button>
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-xl bg-rivvra-500/10 flex items-center justify-center">
-                <Upload className="w-6 h-6 text-rivvra-400" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">Export to CRM</h2>
-                <p className="text-dark-400 text-sm">Create an opportunity from this contact</p>
-              </div>
+        {/* 2026-05-17 OUTREACH-EXPORT: cap card at 90vh and make the body
+            scrollable. Sticky header keeps title + close button anchored;
+            sticky footer keeps the action buttons visible while the user
+            scrolls through the fields. */}
+        <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+          {/* Sticky header */}
+          <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-dark-700/60 flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
+              <Upload className="w-6 h-6 text-rivvra-400" />
             </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-white">Export to CRM</h2>
+              <p className="text-dark-400 text-sm">Create an opportunity from this contact</p>
+            </div>
+            <button onClick={handleClose} aria-label="Close" className="p-1 text-dark-400 hover:text-white transition-colors flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="px-6 py-5 overflow-y-auto flex-1">
 
             {/* Already converted warning */}
             {lead.outreachStatus === 'converted' && (
@@ -366,7 +373,7 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
             </div>
 
             {/* Requirement Type */}
-            <div className="mb-6">
+            <div>
               <label className="block text-sm font-medium text-dark-300 mb-1.5">
                 Requirement Type <span className="text-red-400">*</span>
               </label>
@@ -383,43 +390,43 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
                 <option value="Full-time Hire">Full-time Hire</option>
               </select>
             </div>
-
-            {/* Actions */}
-            {(() => {
-              const formInvalid = !name.trim() || !company.trim() || !contactTitle.trim() || !requirementType;
-              const busy = checkingDup || reassigning;
-              return (
-                <div className="space-y-2">
-                  <div className="flex gap-3">
-                    <button onClick={handleClose} disabled={busy}
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 text-white font-medium hover:bg-dark-700 transition-colors disabled:opacity-50">
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleRivvraExportClick}
-                      disabled={formInvalid || busy}
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-rivvra-500 text-dark-950 font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {checkingDup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
-                      {isCrossOwner
-                        ? `Export — assign to ${leadOwnerName?.split(' ')[0] || 'owner'}`
-                        : 'Create Opportunity'}
-                    </button>
-                  </div>
-                  {isCrossOwner && (
-                    <button
-                      onClick={handleReassignAndExport}
-                      disabled={formInvalid || busy}
-                      className="w-full px-4 py-2 rounded-xl bg-dark-800 border border-blue-500/30 text-blue-300 font-medium text-sm hover:bg-blue-500/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {reassigning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
-                      Reassign to me, then export
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
           </div>
+
+          {/* Sticky footer — action buttons always visible */}
+          {(() => {
+            const formInvalid = !name.trim() || !company.trim() || !contactTitle.trim() || !requirementType;
+            const busy = checkingDup || reassigning;
+            return (
+              <div className="px-6 py-4 border-t border-dark-700/60 bg-dark-900 rounded-b-2xl flex-shrink-0 space-y-2">
+                <div className="flex gap-3">
+                  <button onClick={handleClose} disabled={busy}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 text-white font-medium hover:bg-dark-700 transition-colors disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRivvraExportClick}
+                    disabled={formInvalid || busy}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-rivvra-500 text-dark-950 font-semibold hover:bg-rivvra-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {checkingDup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Briefcase className="w-4 h-4" />}
+                    {isCrossOwner
+                      ? `Export — assign to ${leadOwnerName?.split(' ')[0] || 'owner'}`
+                      : 'Create Opportunity'}
+                  </button>
+                </div>
+                {isCrossOwner && (
+                  <button
+                    onClick={handleReassignAndExport}
+                    disabled={formInvalid || busy}
+                    className="w-full px-4 py-2 rounded-xl bg-dark-800 border border-blue-500/30 text-blue-300 font-medium text-sm hover:bg-blue-500/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {reassigning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                    Reassign to me, then export
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
