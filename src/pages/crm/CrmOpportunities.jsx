@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -99,6 +99,9 @@ const FILTER_PARAM_KEYS = [
   'isLost', 'isConverted', 'evaluation', 'clientType',
   'tagId', 'expectedClosingFrom', 'expectedClosingTo',
   'expectedRevenueFrom', 'expectedRevenueTo', 'mine', 'archived', 'groupBy',
+  // 2026-05-17 CRM-C: status macro (active / won / lost) used by the
+  // dashboard's deep-linked KPI tiles.
+  'status',
 ];
 
 const MORE_FILTER_KEYS = [
@@ -266,14 +269,42 @@ export default function CrmOpportunities() {
           {opp.isConverted && <Trophy size={11} className="text-amber-400" />}
         </div>
       </td>
-      <td className="px-3 py-2.5 text-xs text-dark-300">{opp.companyName || '—'}</td>
+      {/* 2026-05-17 CRM-C: Company column — inner Link to the contact
+          (company) when contactCompanyId is present, with stopPropagation
+          so the row's onClick still wins on non-name clicks. */}
+      <td className="px-3 py-2.5 text-xs text-dark-300">
+        {opp.contactCompanyId && opp.companyName ? (
+          <Link
+            to={`/org/${slug}/contacts/${opp.contactCompanyId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="hover:text-rivvra-300 hover:underline"
+          >
+            {opp.companyName}
+          </Link>
+        ) : (
+          opp.companyName || '—'
+        )}
+      </td>
       <td className="px-3 py-2.5">
         <StageBadge name={opp.stageName} isWon={!!opp.wonAt && !opp.isLost} isLost={opp.isLost} />
       </td>
       <td className="px-3 py-2.5 text-xs text-emerald-400">{opp.expectedRole || '—'}</td>
       <td className="px-3 py-2.5 text-xs text-dark-300">{Number(opp.expectedRevenue) > 0 ? formatMoney(opp.expectedRevenue, opp.currency) : '—'}</td>
       <td className="px-3 py-2.5"><EvalStars value={opp.evaluation} /></td>
-      <td className="px-3 py-2.5 text-xs text-dark-300">{opp.salespersonName || '—'}</td>
+      {/* CRM-C: Salesperson column — inner Link to employee. */}
+      <td className="px-3 py-2.5 text-xs text-dark-300">
+        {opp.salespersonId && opp.salespersonName ? (
+          <Link
+            to={`/org/${slug}/employee/${opp.salespersonId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="hover:text-rivvra-300 hover:underline"
+          >
+            {opp.salespersonName}
+          </Link>
+        ) : (
+          opp.salespersonName || '—'
+        )}
+      </td>
       <td className="px-3 py-2.5 text-xs text-dark-500">{new Date(opp.updatedAt).toLocaleDateString()}</td>
     </tr>
   );

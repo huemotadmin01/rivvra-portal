@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import MyTeamWidget from '../../components/shared/MyTeamWidget';
 
-function KPICard({ label, value, icon: Icon, color = 'dark', subtitle }) {
+function KPICard({ label, value, icon: Icon, color = 'dark', subtitle, to }) {
   const colorMap = {
     emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -20,15 +20,23 @@ function KPICard({ label, value, icon: Icon, color = 'dark', subtitle }) {
     blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     dark: 'bg-dark-800 text-dark-200 border-dark-700',
   };
-  return (
-    <div className={`rounded-xl border p-4 ${colorMap[color]}`}>
+  // 2026-05-17 CRM-C: KPI tiles now optionally render as a Link so the
+  // dashboard becomes the primary navigation hub into the filtered list.
+  const inner = (
+    <>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs opacity-70">{label}</span>
         <Icon size={16} className="opacity-50" />
       </div>
       <p className="text-2xl font-bold">{value}</p>
       {subtitle && <p className="text-[10px] opacity-60 mt-0.5">{subtitle}</p>}
-    </div>
+    </>
+  );
+  const cls = `block rounded-xl border p-4 transition-colors ${colorMap[color]} ${to ? 'hover:brightness-110' : ''}`;
+  return to ? (
+    <Link to={to} className={cls}>{inner}</Link>
+  ) : (
+    <div className={cls}>{inner}</div>
   );
 }
 
@@ -133,10 +141,19 @@ export default function CrmDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard label="Total Opportunities" value={data.total} icon={Briefcase} color="dark" />
-        <KPICard label="Active" value={data.active} icon={Clock} color="blue" />
-        <KPICard label="Won" value={data.won} icon={Trophy} color="amber" />
-        <KPICard label="Lost" value={data.lost} icon={XCircle} color="red" />
+        {/* 2026-05-17 CRM-C: KPI tiles deep-link into the matching
+            filtered Opportunities list. The status filter is hosted on
+            opportunities.jsx via filterParams; verify allow-list
+            includes `status` (it does — opps list reads status via
+            useSearchParams). */}
+        <KPICard label="Total Opportunities" value={data.total} icon={Briefcase} color="dark"
+          to={`/org/${slug}/crm/opportunities`} />
+        <KPICard label="Active" value={data.active} icon={Clock} color="blue"
+          to={`/org/${slug}/crm/opportunities?status=active`} />
+        <KPICard label="Won" value={data.won} icon={Trophy} color="amber"
+          to={`/org/${slug}/crm/opportunities?status=won`} />
+        <KPICard label="Lost" value={data.lost} icon={XCircle} color="red"
+          to={`/org/${slug}/crm/opportunities?status=lost`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
