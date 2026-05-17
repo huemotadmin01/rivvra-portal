@@ -137,7 +137,35 @@ export default function CrmDashboard() {
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
-      <h1 className="text-lg font-semibold text-dark-100">CRM Dashboard</h1>
+      <div>
+        <h1 className="text-lg font-semibold text-dark-100">CRM Dashboard</h1>
+        {/* 2026-05-18: data-scope badge (mirrors AtsDashboard). The API
+            auto-scopes via applyCrmTeamScope — admin sees everything,
+            sales team leads see their team, regular salespeople see
+            only their own pipeline. */}
+        {data?.scope && (
+          <p className="text-[11px] text-dark-500 mt-0.5">
+            {data.scope.mode === 'all' && (
+              <span className="inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Showing everything (admin view)
+              </span>
+            )}
+            {data.scope.mode === 'team' && (
+              <span className="inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                Showing your team ({data.scope.employeeCount} salesperson{data.scope.employeeCount === 1 ? '' : 's'})
+              </span>
+            )}
+            {data.scope.mode === 'self' && (
+              <span className="inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Showing your own data only
+              </span>
+            )}
+          </p>
+        )}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
