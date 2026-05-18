@@ -73,25 +73,27 @@ export function useBreadcrumbs() {
       // real list instead of the default URL-derived path.
       const pathOverride = getDetailPathOverride(builtPath);
 
+      const isObjectId = /^[a-f0-9]{24}$/.test(segments[i]);
       if (label) {
         breadcrumbs.push({
           label,
           path: isLast ? null : orgPath(pathOverride || builtPath),
         });
-      } else if (isLast) {
-        // Final segment with no label yet. ObjectIds without a detail label
-        // are uninformative ("..."), so skip them — the page H1 carries the
-        // record name. Non-ObjectId terminal segments still get a humanised
-        // label so they appear in the trail.
-        const isObjectId = /^[a-f0-9]{24}$/.test(segments[i]);
-        if (!isObjectId) {
-          breadcrumbs.push({
-            label: segments[i].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            path: null,
-          });
-        }
+      } else if (!isObjectId) {
+        // Segment with no registered label and not an ObjectId. Humanise
+        // and render — links for the terminal crumb stay null; intermediate
+        // segments render as plain text since their URL may not have a real
+        // route (e.g. /ats/jobs/:jobId/applications is a virtual segment of
+        // /ats/jobs/:jobId/applications/new and would 404 if linked).
+        breadcrumbs.push({
+          label: segments[i].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          path: null,
+        });
       }
-      // Skip intermediate unknown segments
+      // Intermediate ObjectId without a dynamic label is uninformative
+      // ("a1b2..."), so we skip it entirely. Pages that want the parent
+      // record name to appear here should call setDetailLabel with the
+      // record name for that path (see usePageTitle).
     }
 
     return breadcrumbs;

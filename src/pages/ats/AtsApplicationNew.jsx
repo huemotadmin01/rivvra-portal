@@ -37,7 +37,7 @@ export default function AtsApplicationNew() {
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  usePageTitle('New Application');
+  usePageTitle('New Application', { [`/ats/jobs/${jobId}`]: job?.name });
 
   const orgSlug = currentOrg?.slug;
 
