@@ -1849,7 +1849,14 @@ export default function AtsApplicationDetail() {
       .catch(() => {});
   }, [orgSlug]);
   const isMine = !!(application?.recruiterId && myEmployeeId && String(application.recruiterId) === String(myEmployeeId));
-  const canActOnThis = isAdmin || isMine;
+  // canWrite is the server's verdict (admin / team-lead-for-this-recruiter /
+  // member-owns-it). Falls back to the legacy admin-or-mine check when the
+  // server response predates the field — so old API + new portal still works
+  // for the most common pre-team-lead case. Team leads only became editors
+  // for their team's applications via the canWrite flag.
+  const canActOnThis = typeof application?.canWrite === 'boolean'
+    ? application.canWrite
+    : (isAdmin || isMine);
 
   // Canonical status field on ats_applications is `applicationStatus`
   // ('ongoing' | 'hired' | 'refused'). Tolerate the legacy `status` alias
@@ -1892,6 +1899,15 @@ export default function AtsApplicationDetail() {
           accountOwnerName: res.accountOwnerName || a.accountOwnerName || null,
           accountManagerName: res.accountManagerName || a.accountManagerName || null,
           submittedByName: res.submittedByName || a.submittedByName || null,
+          createdByName: res.createdByName || a.createdByName || null,
+          updatedByName: res.updatedByName || a.updatedByName || null,
+          // 2026-05-18 PM: server-computed write permission. Mirrors the
+          // team-scope rule used by every write endpoint (admin → always,
+          // team lead → recruiter on their team, member → only own).
+          // Defaulting to false here would lock out everyone if the field
+          // is missing; default to true (the legacy behavior) so a server
+          // without the field falls back to client-side isMine + isAdmin.
+          canWrite: typeof res.canWrite === 'boolean' ? res.canWrite : undefined,
         };
         setApplication(merged);
       }
