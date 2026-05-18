@@ -501,18 +501,24 @@ export default function AtsJobPositions() {
   // focus on actively-hiring roles by default; Closed / On Hold are
   // accessible by clearing the chip or picking from the dropdown.
   //
-  // Uses `replace: true` so we don't pollute history. If the user
-  // clears the Status chip explicitly (URL has no `status`), the
-  // default re-applies on next mount — that's intentional: it matches
-  // a recruiter's day-to-day workflow rather than treating "show all"
-  // as a sticky preference. To make their choice sticky, they pick a
-  // specific status (Open / On Hold / Closed) which the URL preserves.
+  // 2026-05-18 PM: also default approvalStatus=approved. Pending /
+  // rejected jobs aren't yet sourceable so they're noise on the daily
+  // landing. Same opt-out rule as status — clearing the chip reapplies
+  // on next mount; picking a specific value (pending/rejected) sticks.
+  //
+  // Uses `replace: true` so we don't pollute history.
   useEffect(() => {
+    let mutated = false;
+    const np = new URLSearchParams(searchParams);
     if (!searchParams.has('status')) {
-      const np = new URLSearchParams(searchParams);
       np.set('status', 'open');
-      setSearchParams(np, { replace: true });
+      mutated = true;
     }
+    if (!searchParams.has('approvalStatus')) {
+      np.set('approvalStatus', 'approved');
+      mutated = true;
+    }
+    if (mutated) setSearchParams(np, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
