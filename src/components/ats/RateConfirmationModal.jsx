@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, FileSignature, X } from 'lucide-react';
 import atsApi from '../../utils/atsApi';
 import signApi from '../../utils/signApi';
@@ -38,14 +38,12 @@ export default function RateConfirmationModal({
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [unit, setUnit] = useState('per_day');
-  const [startDate, setStartDate] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
   const jobTitle = application?.jobName || application?.jobPositionName || '';
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   // Prefill fields each time the modal opens.
   useEffect(() => {
@@ -55,9 +53,6 @@ export default function RateConfirmationModal({
     setAmount(initialOfferCtc.amount ? String(initialOfferCtc.amount) : '');
     setCurrency(initialOfferCtc.currency || 'INR');
     setUnit(initialOfferCtc.unit || 'per_day');
-    setStartDate(application?.offer?.joiningDate
-      ? new Date(application.offer.joiningDate).toISOString().slice(0, 10)
-      : '');
     setSubject(`Rate Confirmation — ${application?.candidateName || 'Candidate'}${jobTitle ? ` · ${jobTitle}` : ''}`);
     setMessage(
       `Hi ${(application?.candidateName || '').split(/\s+/)[0] || 'there'},\n\n`
@@ -138,7 +133,6 @@ export default function RateConfirmationModal({
         amount: amt,
         currency,
         unit,
-        startDate: startDate || undefined,
       });
 
       if (typeof onSent === 'function') onSent();
@@ -241,17 +235,6 @@ export default function RateConfirmationModal({
                 {SALARY_UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-dark-300 mb-1 block">Start date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              min={today}
-              className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
-            />
           </div>
 
           <div>
