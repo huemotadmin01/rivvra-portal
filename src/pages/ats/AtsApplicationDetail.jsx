@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -11,6 +12,7 @@ import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
+import RateConfirmationModal from '../../components/ats/RateConfirmationModal';
 import InlineField from '../../components/shared/InlineField';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -1751,6 +1753,7 @@ const EVAL_OPTIONS = [
 export default function AtsApplicationDetail() {
   const { applicationId } = useParams();
   const { currentOrg, getAppRole, isOrgAdmin } = useOrg();
+  const { user: authUser } = useAuth();
   const { currentCompany, companies } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
@@ -1819,6 +1822,7 @@ export default function AtsApplicationDetail() {
   // employee records (bug B2).
   const [showCreateEmpDrawer, setShowCreateEmpDrawer] = useState(false);
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+  const [showRateConfirmationModal, setShowRateConfirmationModal] = useState(false);
   const [actionSaving, setActionSaving] = useState(false);
   const [creatingEmployee, setCreatingEmployee] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -2458,6 +2462,27 @@ export default function AtsApplicationDetail() {
                   onToggle={() => setShowMoveDropdown((p) => !p)}
                   onSelect={handleMoveStage}
                 />
+                {/* 2026-05-18 PM: Send Rate Confirmation — for External
+                    Consultant client-role applications only. Sits to the
+                    LEFT of the Offer button per Priyanshu's spec. Uses the
+                    "Candidate Rate & Terms Confirmation- Individual
+                    Contractor" Sign template; recruiter signs first, then
+                    candidate. Re-send is allowed; the application records
+                    only the most recent envelope. */}
+                {application?.employmentType === 'External Consultant'
+                  && application?.isClientRole === true
+                  && !application?.archived && (
+                  <button
+                    onClick={() => setShowRateConfirmationModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
+                    title={application?.rateConfirmation?.envelopeId
+                      ? 'Re-send the Rate & Terms Confirmation envelope to the candidate'
+                      : 'Send the Rate & Terms Confirmation envelope to the candidate for signature'}
+                  >
+                    <FileSignature size={14} />
+                    {application?.rateConfirmation?.envelopeId ? 'Re-send Rate Confirmation' : 'Send Rate Confirmation'}
+                  </button>
+                )}
                 {isAdmin && application?.offer?.offeredCTC && (
                   <button
                     onClick={() => { setEditOfferOnly(true); setShowHireModal(true); }}
@@ -2927,6 +2952,15 @@ export default function AtsApplicationDetail() {
         busy={unrefuseSaving}
         onCancel={() => { if (!unrefuseSaving) setShowUnrefuseDialog(false); }}
         onConfirm={handleUnrefuseConfirm}
+      />
+      <RateConfirmationModal
+        show={showRateConfirmationModal}
+        onClose={() => setShowRateConfirmationModal(false)}
+        orgSlug={orgSlug}
+        application={application}
+        recruiterName={authUser?.name || ''}
+        recruiterEmail={authUser?.email || ''}
+        onSent={() => { setShowRateConfirmationModal(false); fetchApplication(); }}
       />
       <HireModal
         show={showHireModal}

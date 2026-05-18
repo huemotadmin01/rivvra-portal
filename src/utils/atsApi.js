@@ -277,6 +277,18 @@ const atsApi = {
     });
   },
 
+  // 2026-05-18 PM: record a Rate Confirmation Sign envelope on the
+  // application. The envelope itself is created via POST /sign/requests;
+  // this records the metadata (envelopeId + terms) on the application
+  // doc and gates by External Consultant + isClientRole + team-scope.
+  // payload: { envelopeId, amount, currency, unit, startDate? }
+  recordRateConfirmation(orgSlug, applicationId, payload) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/rate-confirmation`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   // 2026-05-11: detach the in-flight envelope from the offer subdoc
   // (clears offer.signEnvelopeId + signEnvelopeSentAt). Used by the
   // Offer Details modal's Disconnect button when the recruiter needs
