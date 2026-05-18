@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -62,7 +63,20 @@ export default function AtsCandidateDetail() {
   // 2026-05-18 RBAC two-tier: any ATS user can edit candidates + archive.
   // Delete remains admin-only and is gated separately in the kebab menu.
   const canRecruit = !!getAppRole('ats');
-  const canEdit = canRecruit && !candidate?.archived;
+
+  // 2026-05-18 PM: read-all opened for candidates. Writes still gated to
+  // managerId === me OR admin. Mirrors AtsApplicationDetail's isMine.
+  const [myEmployeeId, setMyEmployeeId] = useState(null);
+  useEffect(() => {
+    if (!slug) return;
+    employeeApi.getMyProfile(slug)
+      .then((res) => { if (res?.success && res.employee) setMyEmployeeId(res.employee._id); })
+      .catch(() => {});
+  }, [slug]);
+  const isMine = !!(candidate?.managerId && myEmployeeId && String(candidate.managerId) === String(myEmployeeId));
+  const canActOnThis = isAdmin || isMine;
+  const canEdit = canRecruit && canActOnThis && !candidate?.archived;
+  const isViewOnly = !!(canRecruit && candidate && !canActOnThis);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -215,6 +229,14 @@ export default function AtsCandidateDetail() {
                   <Archive size={11} /> ARCHIVED
                 </span>
               )}
+              {isViewOnly && (
+                <span
+                  className="text-xs bg-amber-500/10 text-amber-300 rounded-full px-2 py-0.5 border border-amber-500/30"
+                  title="You can view this candidate but only the assigned manager or an admin can edit."
+                >
+                  View only
+                </span>
+              )}
             </div>
             <p className="text-dark-400 text-sm">
               {/* 2026-05-17 health-check I.2: use applications.length so
@@ -234,8 +256,9 @@ export default function AtsCandidateDetail() {
         </div>
 
         {/* 2026-05-18 RBAC: Archive available to all recruiters; Unarchive
-            stays admin-only (reversing an archive is a recovery action). */}
-        {canRecruit && (
+            stays admin-only. 2026-05-18 PM: action bar hidden entirely for
+            non-managers (matches the read-all + manager-write gate). */}
+        {canRecruit && canActOnThis && (
           <div className="flex items-center gap-2 flex-wrap">
             {candidate.archived ? (
               isAdmin && (
