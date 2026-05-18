@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
-import { formatMoney, currencySymbol } from '../../utils/currency';
+import { formatMoney, currencySymbol, SUPPORTED_CURRENCIES } from '../../utils/currency';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
@@ -469,6 +469,13 @@ export default function CrmOpportunityDetail() {
     { value: 'new', label: 'New' },
     { value: 'existing', label: 'Existing' },
   ];
+  // Currency override picker. Defaulted at create from the contact /
+  // company / org chain; salesperson can change here. Label shows the
+  // symbol so the dropdown reads "USD ($)" not just "USD".
+  const currencyOptions = SUPPORTED_CURRENCIES.map(code => ({
+    value: code,
+    label: `${code} (${currencySymbol(code).trim() || code})`,
+  }));
 
   // Wraps an InlineField with a red error highlight when its key is in
   // errorFields — used by the Convert preflight to flag missing fields.
@@ -654,6 +661,15 @@ export default function CrmOpportunityDetail() {
                 onSave={saveField}
               />
             </ErrorWrap>
+            <InlineField
+              label="Currency"
+              field="currency"
+              value={opp.currency || currencyCode}
+              type="select"
+              options={currencyOptions}
+              editable={canEdit}
+              onSave={saveField}
+            />
             <ErrorWrap field="expectedRevenue">
               <InlineField
                 label={`Expected Revenue (${currencyCode})`}

@@ -42,6 +42,12 @@ const CURRENCY_LOCALES = {
   AED: 'en-AE',
 };
 
+// ISO codes the platform actively supports. Kept in sync with the
+// SUPPORTED_CURRENCIES list on the API side (crm.js) — change both
+// together. Exported so currency-pickers across the portal share one
+// source of truth instead of redeclaring inline ['INR','USD',…] arrays.
+export const SUPPORTED_CURRENCIES = Object.keys(CURRENCY_SYMBOLS);
+
 export function currencySymbol(code) {
   if (!code) return '₹';
   return CURRENCY_SYMBOLS[code] || `${code} `;
