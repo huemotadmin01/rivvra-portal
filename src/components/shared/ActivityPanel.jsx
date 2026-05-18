@@ -46,6 +46,7 @@ const SYSTEM_ACTION_LABELS = {
   stage_auto_advance:   'Stage',
   rate_confirmation_sent: 'Rate Confirmation',
   team_notice_fanout:   'Team announcement',
+  interview_invite_sent: 'Interview invite',
 };
 
 // Email-event row (Q1+Q2 locked 2026-05-11). One row per send, all
