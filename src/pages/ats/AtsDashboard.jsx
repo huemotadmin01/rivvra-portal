@@ -306,29 +306,39 @@ function SubmissionsTable({ title, subtitle, rows, orgSlug, emptyText = 'No subm
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-800">
-                  {teamRows.map((a) => (
-                    <tr key={a._id} className="hover:bg-dark-800/50">
-                      <td className="px-3 py-1.5 max-w-[180px]">
-                        <Link
-                          to={`/org/${orgSlug}/ats/applications/${a._id}`}
-                          className="text-dark-100 hover:text-rivvra-300 truncate block"
-                          title={a.candidateName}
-                        >
-                          {a.candidateName || 'Unknown'}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-1.5 text-dark-300 truncate max-w-[200px] hidden md:table-cell" title={a.jobName}>
-                        {a.jobName || '—'}
-                      </td>
-                      <td className="px-3 py-1.5 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={a.recruiterName}>
-                        {a.recruiterName || '—'}
-                      </td>
-                      <td className="px-3 py-1.5 text-dark-400 truncate max-w-[140px] hidden lg:table-cell" title={a.accountOwnerName}>
-                        {a.accountOwnerName || '—'}
-                      </td>
-                      <td className="px-3 py-1.5 text-dark-300 whitespace-nowrap">{a.stageName || '—'}</td>
-                    </tr>
-                  ))}
+                  {teamRows.map((a) => {
+                    // 2026-05-18: paint refused rows red so the recruiter
+                    // can scan today's submissions and spot which leads
+                    // already bounced without opening each card. Honors
+                    // both applicationStatus (canonical) and the legacy
+                    // refused boolean for any pre-rename rows.
+                    const isRefused = a.applicationStatus === 'refused' || a.refused === true;
+                    return (
+                      <tr key={a._id} className={`hover:bg-dark-800/50 ${isRefused ? 'bg-red-500/[0.06]' : ''}`}>
+                        <td className="px-3 py-1.5 max-w-[180px]">
+                          <Link
+                            to={`/org/${orgSlug}/ats/applications/${a._id}`}
+                            className={`truncate block hover:text-rivvra-300 ${isRefused ? 'text-red-300' : 'text-dark-100'}`}
+                            title={a.candidateName}
+                          >
+                            {a.candidateName || 'Unknown'}
+                          </Link>
+                        </td>
+                        <td className={`px-3 py-1.5 truncate max-w-[200px] hidden md:table-cell ${isRefused ? 'text-red-300/80' : 'text-dark-300'}`} title={a.jobName}>
+                          {a.jobName || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 truncate max-w-[140px] hidden lg:table-cell ${isRefused ? 'text-red-300/70' : 'text-dark-400'}`} title={a.recruiterName}>
+                          {a.recruiterName || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 truncate max-w-[140px] hidden lg:table-cell ${isRefused ? 'text-red-300/70' : 'text-dark-400'}`} title={a.accountOwnerName}>
+                          {a.accountOwnerName || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 whitespace-nowrap ${isRefused ? 'text-red-300' : 'text-dark-300'}`}>
+                          {isRefused ? 'Refused' : (a.stageName || '—')}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
