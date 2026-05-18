@@ -809,6 +809,7 @@ export default function AtsApplications() {
                       tabIndex={0}
                       role="link"
                       aria-label={`Open application: ${app.candidateName || 'Unknown'}${app.jobName ? ` for ${app.jobName}` : ''}`}
+                      data-refused={(app.applicationStatus === 'refused' || app.refused) ? 'true' : undefined}
                       className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40 ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''} ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                     >
                       {/* Bulk-select checkbox — stop click bubbling so the
@@ -826,11 +827,13 @@ export default function AtsApplications() {
                           the candidate when candidateId is present. The
                           row's onClick still navigates to the application
                           detail; stopPropagation makes the inner Link win
-                          when the user clicks the name directly. */}
+                          when the user clicks the name directly.
+                          2026-05-18: refused rows render the name in red
+                          for Odoo-parity visual scan. */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
-                            <span className="text-rivvra-400 text-xs font-semibold">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${(app.applicationStatus === 'refused' || app.refused) ? 'bg-red-500/10' : 'bg-rivvra-500/10'}`}>
+                            <span className={`text-xs font-semibold ${(app.applicationStatus === 'refused' || app.refused) ? 'text-red-400' : 'text-rivvra-400'}`}>
                               {(app.candidateName || '?')[0].toUpperCase()}
                             </span>
                           </div>
@@ -839,12 +842,12 @@ export default function AtsApplications() {
                               <Link
                                 to={orgPath(`/ats/candidates/${app.candidateId}`)}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-white font-medium truncate block hover:text-rivvra-300 hover:underline"
+                                className={`font-medium truncate block hover:underline ${(app.applicationStatus === 'refused' || app.refused) ? 'text-red-400 hover:text-red-300' : 'text-white hover:text-rivvra-300'}`}
                               >
                                 {app.candidateName || 'Unnamed'}
                               </Link>
                             ) : (
-                              <p className="text-white font-medium truncate">{app.candidateName || 'Unnamed'}</p>
+                              <p className={`font-medium truncate ${(app.applicationStatus === 'refused' || app.refused) ? 'text-red-400' : 'text-white'}`}>{app.candidateName || 'Unnamed'}</p>
                             )}
                           </div>
                         </div>

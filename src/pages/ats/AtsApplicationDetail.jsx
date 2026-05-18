@@ -2471,7 +2471,7 @@ export default function AtsApplicationDetail() {
                 <ExternalLink size={14} /> Employee
               </button>
             )}
-            {isAdmin && (application.applicationStatus === 'refused' || application.refused) && !application.archived && (
+            {(application.applicationStatus === 'refused' || application.refused) && !application.archived && (
               <button
                 onClick={() => setShowUnrefuseDialog(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
