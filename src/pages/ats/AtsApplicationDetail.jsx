@@ -2055,7 +2055,10 @@ export default function AtsApplicationDetail() {
       // clicks and made "Save and continue" on the HR result modal
       // cascade unexpectedly into an offer popup.
       if (err?.requiresOffer) {
-        showToast('Click the Offer button (top right) to capture the offer details first.', 'warning');
+        showToast(isAdmin
+          ? 'Click "Capture Offer" (top right) to capture the salary-proposed details first.'
+          : 'This application needs the salary-proposed details captured first. Ask an admin to click "Capture Offer" on this page.',
+          'warning');
         return;
       }
       if (err?.requiresHire) {
@@ -2483,13 +2486,21 @@ export default function AtsApplicationDetail() {
                     {application?.rateConfirmation?.envelopeId ? 'Re-send Rate Confirmation' : 'Send Rate Confirmation'}
                   </button>
                 )}
-                {isAdmin && application?.offer?.offeredCTC && (
+                {/* Offer button — admin-only. Visible on every non-terminal
+                    application (even before offer.offeredCTC is set) so admins
+                    can satisfy the L1 salary-proposed gate on Odoo-migrated
+                    records and any fresh application. Label flips to "Capture
+                    Offer" when no offer exists yet (2026-05-18 PM). */}
+                {isAdmin && (
                   <button
                     onClick={() => { setEditOfferOnly(true); setShowHireModal(true); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
-                    title="View, edit, or revise the captured offer"
+                    title={application?.offer?.offeredCTC
+                      ? 'View, edit, or revise the captured offer'
+                      : 'Capture salary proposed + offer details (required to move to L1)'}
                   >
-                    <FileSignature size={14} /> Offer
+                    <FileSignature size={14} />
+                    {application?.offer?.offeredCTC ? 'Offer' : 'Capture Offer'}
                   </button>
                 )}
                 <button
