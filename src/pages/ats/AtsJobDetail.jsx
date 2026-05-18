@@ -467,7 +467,11 @@ export default function AtsJobDetail() {
   // offer compensation. See ats.js middleware (atsAdmin vs atsAccess).
   const canRecruit = !!getAppRole('ats');
   const orgSlug = currentOrg?.slug;
-  const canEdit = isAdmin && !job?.archived;
+  // 2026-05-18: writer gate widened to include the job's Account Owner so a
+  // salesperson can fill out and submit their own Draft. Server mirrors this
+  // in ensureJobWriter (ats.js); change both together.
+  const isAccountOwner = !!(myEmployeeId && job?.accountOwnerId && String(job.accountOwnerId) === String(myEmployeeId));
+  const canEdit = (isAdmin || isAccountOwner) && !job?.archived;
   const isAssignedApprover = !!(myEmployeeId && job?.approverId && String(job.approverId) === String(myEmployeeId));
   // Mirrors the server rule (PUT /jobs/:id): no approval writes are
   // possible until an approver is assigned, even for org admin.
@@ -865,7 +869,7 @@ export default function AtsJobDetail() {
             any recruiter when at least one button qualifies. New Application
             is recruiter-allowed; Change Status, Archive, Delete stay
             admin-only and are gated individually inside. */}
-        {(canCreateApplication || isAdmin) && (
+        {(canCreateApplication || isAdmin || isAccountOwner) && (
           <div className="flex items-center gap-2 flex-wrap">
             {/* Q13-D: + New Application + Change Status as primary actions */}
             {canCreateApplication && (
@@ -876,7 +880,7 @@ export default function AtsJobDetail() {
                 <Plus size={14} /> New Application
               </button>
             )}
-            {isAdmin && !job.archived && (
+            {(isAdmin || isAccountOwner) && !job.archived && (
               <ChangeStatusDropdown
                 currentStatus={statusKey}
                 isOpen={showStatusDropdown}
