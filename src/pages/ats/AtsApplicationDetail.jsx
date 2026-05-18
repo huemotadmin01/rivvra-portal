@@ -2055,10 +2055,16 @@ export default function AtsApplicationDetail() {
       // clicks and made "Save and continue" on the HR result modal
       // cascade unexpectedly into an offer popup.
       if (err?.requiresOffer) {
-        showToast(isAdmin
-          ? 'Click "Capture Offer" (top right) to capture the salary-proposed details first.'
-          : 'This application needs the salary-proposed details captured first. Ask an admin to click "Capture Offer" on this page.',
-          'warning');
+        // 2026-05-18 PM: L1 gate now accepts the inline Salary Proposed
+        // field in the Compensation section (no modal needed). Offer
+        // Proposal + Hire gates still require structured offer.offeredCTC,
+        // captured via the admin Offer button.
+        const msg = err.offerLevel === 'salary'
+          ? 'Please fill the Salary Proposed field in the Compensation section below before moving to this stage.'
+          : isAdmin
+            ? 'Click "Capture Offer" (top right) to capture the offer details first.'
+            : 'This application needs offer details captured first. Ask an admin to click "Capture Offer" on this page.';
+        showToast(msg, 'warning');
         return;
       }
       if (err?.requiresHire) {
