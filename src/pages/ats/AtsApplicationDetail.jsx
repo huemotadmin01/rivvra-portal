@@ -2404,6 +2404,15 @@ export default function AtsApplicationDetail() {
 
   const currentStageId = application.stageId?._id || application.stageId;
   const currentStageName = application.stageName || application.stageId?.name || 'Unknown';
+  // 2026-05-18 PM: the Capture Offer / Offer button only appears from the
+  // Offer Proposal stage onwards. Match by sequence so renamed stages still
+  // gate correctly — find the earliest Offer Proposal stage in the org's
+  // configured stages and compare the current stage's sequence against it.
+  const OFFER_PROPOSAL_NAMES = new Set(['offer proposal', 'offer extended', 'offer rolled out', 'offer']);
+  const offerProposalStage = stages.find((s) => OFFER_PROPOSAL_NAMES.has((s.name || '').toLowerCase().trim()));
+  const currentStage = stages.find((s) => s._id === currentStageId);
+  const isAtOrPastOfferProposal = !!(offerProposalStage && currentStage
+    && Number(currentStage.sequence ?? 0) >= Number(offerProposalStage.sequence ?? Infinity));
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -2492,18 +2501,18 @@ export default function AtsApplicationDetail() {
                     {application?.rateConfirmation?.envelopeId ? 'Re-send Rate Confirmation' : 'Send Rate Confirmation'}
                   </button>
                 )}
-                {/* Offer button — admin-only. Visible on every non-terminal
-                    application (even before offer.offeredCTC is set) so admins
-                    can satisfy the L1 salary-proposed gate on Odoo-migrated
-                    records and any fresh application. Label flips to "Capture
-                    Offer" when no offer exists yet (2026-05-18 PM). */}
-                {isAdmin && (
+                {/* Offer button — admin-only. 2026-05-18 PM: only visible
+                    from Offer Proposal stage onwards. Earlier stages use the
+                    inline Compensation field on the page for salary capture
+                    (L1 gate accepts that). Label flips between "Capture Offer"
+                    (no offer subdoc yet) and "Offer" (edit existing). */}
+                {isAdmin && isAtOrPastOfferProposal && (
                   <button
                     onClick={() => { setEditOfferOnly(true); setShowHireModal(true); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
                     title={application?.offer?.offeredCTC
                       ? 'View, edit, or revise the captured offer'
-                      : 'Capture salary proposed + offer details (required to move to L1)'}
+                      : 'Capture offer details (joining date, notice, probation, etc.)'}
                   >
                     <FileSignature size={14} />
                     {application?.offer?.offeredCTC ? 'Offer' : 'Capture Offer'}
