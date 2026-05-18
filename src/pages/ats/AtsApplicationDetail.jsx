@@ -1833,16 +1833,34 @@ export default function AtsApplicationDetail() {
   // and delete.
   const canRecruit = !!getAppRole('ats');
   const orgSlug = currentOrg?.slug;
+
+  // Current user's employee _id — recruiters can now READ any application
+  // org-wide (2026-05-18 PM), but writes stay team-scoped: only the
+  // assigned recruiter (or admin) sees Edit/Refuse/Hire/Move buttons.
+  const [myEmployeeId, setMyEmployeeId] = useState(null);
+  useEffect(() => {
+    if (!orgSlug) return;
+    employeeApi.getMyProfile(orgSlug)
+      .then((res) => { if (res?.success && res.employee) setMyEmployeeId(res.employee._id); })
+      .catch(() => {});
+  }, [orgSlug]);
+  const isMine = !!(application?.recruiterId && myEmployeeId && String(application.recruiterId) === String(myEmployeeId));
+  const canActOnThis = isAdmin || isMine;
+
   // Canonical status field on ats_applications is `applicationStatus`
   // ('ongoing' | 'hired' | 'refused'). Tolerate the legacy `status` alias
   // in case any caller still emits it, but prefer the canonical one.
   const appStatus = application?.applicationStatus || application?.status;
   const isTerminal = appStatus === 'hired' || appStatus === 'refused';
-  const canEdit = canRecruit && !application?.archived && !isTerminal;
+  const canEdit = canRecruit && canActOnThis && !application?.archived && !isTerminal;
   // People fields stay editable on `refused` apps too — only `hired` locks
   // them, since changing the recruiter on a closed-loss record is a normal
   // attribution correction. Mirrors the user request 2026-05-10.
-  const canEditPeople = canRecruit && !application?.archived && appStatus !== 'hired';
+  const canEditPeople = canRecruit && canActOnThis && !application?.archived && appStatus !== 'hired';
+  // View-only mode: caller has ATS access and the app loaded, but they're
+  // not the assigned recruiter and not an admin. Surfaced as a pill so
+  // they understand why action buttons are missing.
+  const isViewOnly = !!(canRecruit && application && !canActOnThis);
 
   // ── Fetch application ─────────────────────────────────────────────────
   const fetchApplication = useCallback(async () => {
@@ -2409,6 +2427,14 @@ export default function AtsApplicationDetail() {
               state={application.kanbanState || 'normal'}
               onClick={canEdit ? handleToggleKanban : undefined}
             />
+            {isViewOnly && (
+              <span
+                className="text-xs bg-amber-500/10 text-amber-300 rounded-full px-2 py-0.5 border border-amber-500/30 flex items-center gap-1"
+                title="You can view this application but only the assigned recruiter or an admin can edit it."
+              >
+                View only
+              </span>
+            )}
           </div>
           <p className="text-dark-400 text-sm">
             {application.jobName || application.jobId?.name || 'No position assigned'}
@@ -2418,9 +2444,10 @@ export default function AtsApplicationDetail() {
         {/* Action buttons */}
         {/* 2026-05-18 RBAC two-tier: recruiters get the daily action bar
             (move stage, refuse, hire, archive). Admin-only buttons (Offer,
-            Restore/un-refuse, Unarchive, Create Employee, Delete kebab)
-            are gated individually inside. */}
-        {canRecruit && (
+            Unarchive, Create Employee, Delete kebab) are gated individually
+            inside. 2026-05-18 PM: with read-all opened up, the action bar
+            is hidden entirely for non-owners — they see View Only pill instead. */}
+        {canRecruit && canActOnThis && (
           <div className="flex items-center gap-2 flex-wrap">
             {canEdit && (
               <>

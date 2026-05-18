@@ -5,6 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, useFilterParams } from '../../components/shared/FilterBar';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -222,6 +223,18 @@ export default function AtsApplications() {
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
+  // 2026-05-18 PM: with read-all opened up the list shows applications
+  // owned by anyone in the org. Bulk checkboxes are disabled on rows the
+  // caller doesn't own (writes still team-scoped server-side).
+  const [myEmployeeId, setMyEmployeeId] = useState(null);
+  useEffect(() => {
+    if (!orgSlug) return;
+    employeeApi.getMyProfile(orgSlug)
+      .then((res) => { if (res?.success && res.employee) setMyEmployeeId(res.employee._id); })
+      .catch(() => {});
+  }, [orgSlug]);
+  const canActOnApp = (app) => isAdmin || (app?.recruiterId && myEmployeeId && String(app.recruiterId) === String(myEmployeeId));
+
   const setPage = (next) => {
     const np = new URLSearchParams(searchParams);
     if (next > 1) np.set('page', String(next)); else np.delete('page');
@@ -377,7 +390,10 @@ export default function AtsApplications() {
   }, [JSON.stringify(filterParams), page]);
 
   // ── Bulk selection helpers ────────────────────────────────────────────
-  const allVisibleIds = applications.map(a => a._id);
+  // 2026-05-18 PM: only rows the caller can act on are eligible for bulk
+  // select — "select all" no longer ticks unowned rows (whose checkboxes
+  // are disabled), so the select-all state mirrors only those.
+  const allVisibleIds = applications.filter(a => canActOnApp(a)).map(a => a._id);
   const allOnPageSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
   const someOnPageSelected = allVisibleIds.some(id => selectedIds.has(id));
 
@@ -813,15 +829,24 @@ export default function AtsApplications() {
                       className={`border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors focus:outline-none focus:bg-dark-800/70 focus:ring-1 focus:ring-rivvra-500/40 ${selectedIds.has(app._id) ? 'bg-rivvra-500/5' : ''} ${density === 'compact' ? '[&>td]:py-1.5' : '[&>td]:py-3'}`}
                     >
                       {/* Bulk-select checkbox — stop click bubbling so the
-                          row's onClick navigation doesn't fire. */}
+                          row's onClick navigation doesn't fire.
+                          2026-05-18 PM: disabled when caller doesn't own
+                          the row (writes are team-scoped server-side). */}
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(app._id)}
-                          onChange={() => toggleSelectOne(app._id)}
-                          aria-label={`Select ${app.candidateName || 'application'}`}
-                          className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 cursor-pointer"
-                        />
+                        {(() => {
+                          const editable = canActOnApp(app);
+                          return (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(app._id)}
+                              onChange={() => editable && toggleSelectOne(app._id)}
+                              disabled={!editable}
+                              aria-label={`Select ${app.candidateName || 'application'}`}
+                              title={editable ? '' : 'Only the assigned recruiter or an admin can act on this application'}
+                              className={`w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500/30 ${editable ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}
+                            />
+                          );
+                        })()}
                       </td>
                       {/* Candidate. 2026-05-17 Phase N: inner Link to
                           the candidate when candidateId is present. The
