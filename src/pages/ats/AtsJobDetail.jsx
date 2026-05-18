@@ -1137,6 +1137,7 @@ export default function AtsJobDetail() {
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Candidate</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Email</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium">Stage</th>
+                          <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
                           <th className="text-center px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Evaluation</th>
                           <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Applied</th>
@@ -1150,6 +1151,13 @@ export default function AtsJobDetail() {
                           // portal_user id — the link will 404 until the
                           // backfill (or a re-save) runs.
                           const recId = app.recruiter || app.recruiterId;
+                          // 2026-05-18 PM: surface lifecycle Status (Active /
+                          // Hired / Refused) as its own column + tint the
+                          // candidate name red for refused rows, matching the
+                          // Applications list view.
+                          const appStatus = app.applicationStatus || app.status;
+                          const isRefused = appStatus === 'refused' || !!app.refused;
+                          const isHired = appStatus === 'hired' || !!app.hireDate;
                           return (
                             <tr
                               key={app._id}
@@ -1163,15 +1171,15 @@ export default function AtsJobDetail() {
                                       to={orgPath(`/ats/candidates/${app.candidateId}`)}
                                       onClick={(e) => e.stopPropagation()}
                                       title="Open candidate profile"
-                                      className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0 hover:bg-rivvra-500/20 transition-colors"
+                                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isRefused ? 'bg-red-500/10 hover:bg-red-500/20' : 'bg-rivvra-500/10 hover:bg-rivvra-500/20'}`}
                                     >
-                                      <span className="text-rivvra-400 text-xs font-semibold">
+                                      <span className={`text-xs font-semibold ${isRefused ? 'text-red-400' : 'text-rivvra-400'}`}>
                                         {(app.candidateName || '?')[0].toUpperCase()}
                                       </span>
                                     </Link>
                                   ) : (
-                                    <div className="w-8 h-8 rounded-full bg-rivvra-500/10 flex items-center justify-center flex-shrink-0">
-                                      <span className="text-rivvra-400 text-xs font-semibold">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isRefused ? 'bg-red-500/10' : 'bg-rivvra-500/10'}`}>
+                                      <span className={`text-xs font-semibold ${isRefused ? 'text-red-400' : 'text-rivvra-400'}`}>
                                         {(app.candidateName || '?')[0].toUpperCase()}
                                       </span>
                                     </div>
@@ -1179,7 +1187,7 @@ export default function AtsJobDetail() {
                                   <Link
                                     to={orgPath(`/ats/applications/${app._id}`)}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="text-white font-medium truncate hover:text-rivvra-300 hover:underline"
+                                    className={`font-medium truncate hover:underline ${isRefused ? 'text-red-400 hover:text-red-300' : 'text-white hover:text-rivvra-300'}`}
                                   >
                                     {app.candidateName || 'Unnamed'}
                                   </Link>
@@ -1190,6 +1198,15 @@ export default function AtsJobDetail() {
                               </td>
                               <td className="px-4 py-3">
                                 <StageBadge stageName={app.stageName || app.stageId?.name} />
+                              </td>
+                              <td className="px-4 py-3">
+                                {isRefused ? (
+                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Refused</span>
+                                ) : isHired ? (
+                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Hired</span>
+                                ) : (
+                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-rivvra-500/10 text-rivvra-300 border border-rivvra-500/20">Active</span>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
                                 {recId && app.recruiterName ? (
