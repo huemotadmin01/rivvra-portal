@@ -457,19 +457,6 @@ export default function AtsJobPositions() {
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
 
-  // 2026-05-17 ATS-JOBS-DEFAULT-GROUP: Job Positions defaults to Group by
-  // Status — every user gets the Open / On Hold / Closed buckets at first
-  // glance, which matches how recruiters scan their pipeline. Applied on
-  // mount only, so the user can still pick a different grouping or clear
-  // it for the rest of the session.
-  useEffect(() => {
-    if (!searchParams.has('groupBy')) {
-      const np = new URLSearchParams(searchParams);
-      np.set('groupBy', 'status');
-      setSearchParams(np, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
   // 2026-05-17 Phase L: harden page-param parsing (see AtsApplications).
   const pageRaw = parseInt(searchParams.get('page') || '1', 10);
@@ -496,17 +483,21 @@ export default function AtsJobPositions() {
     setSearchParams(np);
   };
 
-  // 2026-05-13: default the Job Positions list to status=open when the
-  // user lands with no status filter in the URL. Recruiters want to
-  // focus on actively-hiring roles by default; Closed / On Hold are
-  // accessible by clearing the chip or picking from the dropdown.
+  // Apply the three landing defaults atomically (status / approvalStatus /
+  // groupBy). Each default is opt-in only when the URL didn't already
+  // specify the key — so clearing a chip reapplies the default on next
+  // mount, but picking a specific value sticks across reloads.
   //
-  // 2026-05-18 PM: also default approvalStatus=approved. Pending /
-  // rejected jobs aren't yet sourceable so they're noise on the daily
-  // landing. Same opt-out rule as status — clearing the chip reapplies
-  // on next mount; picking a specific value (pending/rejected) sticks.
+  // 2026-05-18 PM: merged what were three separate mount effects into one
+  // pass. Each effect was building its `np` from the same pre-mutation
+  // `searchParams` snapshot and calling setSearchParams independently,
+  // so the second update to flush overwrote the first — a race that
+  // showed up as the bare /ats/jobs URL sometimes loading with only
+  // groupBy or only status applied, depending on React's flush order.
+  // One effect + one setSearchParams call eliminates the race.
   //
-  // Uses `replace: true` so we don't pollute history.
+  // History entry uses `replace: true` so the default-application
+  // doesn't pollute back-button history.
   useEffect(() => {
     let mutated = false;
     const np = new URLSearchParams(searchParams);
@@ -516,6 +507,10 @@ export default function AtsJobPositions() {
     }
     if (!searchParams.has('approvalStatus')) {
       np.set('approvalStatus', 'approved');
+      mutated = true;
+    }
+    if (!searchParams.has('groupBy')) {
+      np.set('groupBy', 'status');
       mutated = true;
     }
     if (mutated) setSearchParams(np, { replace: true });
