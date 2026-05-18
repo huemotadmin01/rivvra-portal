@@ -44,6 +44,7 @@ const SYSTEM_ACTION_LABELS = {
   offer_revised:        'Offer revised',
   offer_envelope_disconnected: 'Envelope disconnected',
   stage_auto_advance:   'Stage',
+  rate_confirmation_sent: 'Rate Confirmation',
 };
 
 // Email-event row (Q1+Q2 locked 2026-05-11). One row per send, all
