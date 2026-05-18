@@ -5,6 +5,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
@@ -59,6 +60,24 @@ export default function AtsApplicationNew() {
     email: false, phone: false, linkedin: false,
   });
   const [recruiterOverridden, setRecruiterOverridden] = useState(false);
+
+  // 2026-05-18 PM: prefill recruiter with the logged-in user's employee.
+  // The job no longer dictates this (HR Team shared inbox was hiding the
+  // real recruiter). Admins can still pick someone else via the lookup.
+  useEffect(() => {
+    if (!orgSlug || recruiterOverridden || form.recruiterId) return;
+    employeeApi.getMyProfile(orgSlug)
+      .then((res) => {
+        if (res?.success && res.employee && !recruiterOverridden) {
+          setForm((p) => p.recruiterId ? p : {
+            ...p,
+            recruiterId: res.employee._id,
+            recruiterName: res.employee.fullName || res.employee.name || '',
+          });
+        }
+      })
+      .catch(() => {});
+  }, [orgSlug, recruiterOverridden, form.recruiterId]);
 
   // Candidate typeahead state
   const [candQuery, setCandQuery] = useState('');
@@ -145,10 +164,14 @@ export default function AtsApplicationNew() {
           return;
         }
         setJob(j);
+        // 2026-05-18 PM: recruiter no longer inherited from the job. All
+        // jobs were defaulting to the shared HR Team employee, which left
+        // creators with View-only access to their own new application and
+        // muddled the audit trail. We now default to the logged-in user's
+        // employee (resolved below via /employees/me) so the creator owns
+        // the application immediately. Employment type still inherited.
         setForm((p) => ({
           ...p,
-          recruiterId: j.recruiterId || null,
-          recruiterName: j.recruiterName || '',
           employmentType: j.employmentType || '',
         }));
       } catch (err) {
@@ -973,8 +996,11 @@ export default function AtsApplicationNew() {
                   <label className="flex items-center gap-2 text-xs font-medium text-dark-300 mb-1.5">
                     Recruiter <span className="text-red-400">*</span>
                     {!recruiterOverridden && form.recruiterId && (
-                      <span className="text-[9px] uppercase tracking-wider bg-rivvra-500/10 text-rivvra-300 px-1.5 py-0.5 rounded">
-                        inherited
+                      <span
+                        className="text-[9px] uppercase tracking-wider bg-rivvra-500/10 text-rivvra-300 px-1.5 py-0.5 rounded"
+                        title="Defaulted to you. You'll be the recruiter on this application unless you pick someone else."
+                      >
+                        you
                       </span>
                     )}
                   </label>
