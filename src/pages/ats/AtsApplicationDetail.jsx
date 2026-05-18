@@ -158,6 +158,17 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const fullOfferRequired = mode === 'hire' || offerLevel !== 'salary';
   const signedDocRequiredEffective = (mode === 'offer' && offerLevel === 'signed') || requireSignedDoc;
 
+  // 2026-05-18: detect applications that arrived at Offer Signed via an
+  // external flow (Odoo import, manual stage move with no Rivvra envelope).
+  // By the time an app is at this stage, the signature is — by definition —
+  // already done. Showing a "pick a template / send for signature" form
+  // here was confusing recruiters into thinking they had to start a fresh
+  // envelope before hitting Hire. Mirrors the API's OFFER_SIGNED_STAGE_NAMES
+  // set (ats.js). Keep the lists in sync.
+  const OFFER_SIGNED_STAGE_NAMES = new Set(['offer signed', 'offer accepted']);
+  const currentStageNorm = String(application?.stageName || '').trim().toLowerCase();
+  const alreadyAtOfferSigned = OFFER_SIGNED_STAGE_NAMES.has(currentStageNorm);
+
   // Phase-1 / Q11+Q12 (2026-05-10): Sign integration. The offer letter
   // is sent for e-signature via the existing Sign module. Director slot
   // pre-fills from the application's internal-company signatory metadata
@@ -623,7 +634,22 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
               </div>
             </div>
 
-            {signedOfferDocId ? (
+            {alreadyAtOfferSigned && !signedOfferDocId && !application?.offer?.signEnvelopeId ? (
+              /* State 0: app reached Offer Signed via an external flow
+                 (Odoo import, manual stage move) with no Rivvra envelope
+                 attached. By definition the signature is already done —
+                 don't prompt for a fresh envelope. Surface this as a
+                 read-only info card so the recruiter knows the section
+                 is intentionally skipped, not broken. */
+              <div className="rounded-md border border-dark-700 bg-dark-900/40 p-3">
+                <div className="text-sm text-dark-200 font-medium flex items-center gap-1.5">
+                  <FileSignature size={14} /> Signed before reaching Rivvra
+                </div>
+                <p className="text-[11px] text-dark-400 mt-1 leading-relaxed">
+                  This application is already at <span className="text-dark-200">{application?.stageName}</span>, so the offer was signed before it was tracked in Rivvra (imported / manual move). No new envelope is needed — proceed to Hire.
+                </p>
+              </div>
+            ) : signedOfferDocId ? (
               /* State 1: envelope completed — back-link wrote signedOfferDocId */
               <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
                 <div className="flex items-start justify-between gap-3">
