@@ -122,19 +122,39 @@ export default function RateConfirmationModal({
     [rateTemplates, templateId],
   );
 
-  // Ordered, unique roles from the selected template's placement order.
+  // Ordered, unique roles from the selected template.
+  //
+  // Rate Confirmation policy (2026-05-19): recruiter-shaped roles ALWAYS
+  // sign first, then candidate-shaped roles, then anything else. The
+  // template's signItems order is intentionally overridden so a new
+  // template that placed Candidate fields above Recruiter fields on
+  // the PDF (e.g. "Client's Hiring Mode: Full Time Hire") still sends
+  // the envelope to the recruiter for the first signature. Stable sort
+  // preserves relative order within each kind for templates that have
+  // multiple recruiters / candidates.
   const orderedRoles = useMemo(() => {
     if (!selectedTemplate) return [];
     const seen = new Set();
-    const out = [];
+    const raw = [];
     for (const item of (selectedTemplate.signItems || [])) {
       const rid = item?.roleId ? String(item.roleId) : '';
       if (!rid || seen.has(rid)) continue;
       seen.add(rid);
       const role = rolesById[rid];
-      out.push({ roleId: rid, roleName: role?.name || 'Signer' });
+      raw.push({ roleId: rid, roleName: role?.name || 'Signer' });
     }
-    return out;
+    const kindWeight = (name) => {
+      if (RECRUITER_ROLE_REGEX.test(name)) return 0;
+      if (CANDIDATE_ROLE_REGEX.test(name)) return 1;
+      return 2;
+    };
+    // Preserve original index as tiebreaker so the sort stays stable
+    // (Array.prototype.sort is stable in modern JS engines, but being
+    // explicit keeps the intent obvious to future readers).
+    return raw
+      .map((r, idx) => ({ ...r, _idx: idx, _w: kindWeight(r.roleName) }))
+      .sort((a, b) => (a._w - b._w) || (a._idx - b._idx))
+      .map(({ _idx, _w, ...rest }) => rest); // eslint-disable-line no-unused-vars
   }, [selectedTemplate, rolesById]);
 
   // ── Reset when the modal opens for a different application ───────────
