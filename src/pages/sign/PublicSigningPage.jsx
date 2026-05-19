@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
+// Bundle the pdfjs worker locally — see SignRequestDetail.jsx for the Safari
+// module-worker story this replaces.
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import SignatureCanvas from 'react-signature-canvas';
 import signApi from '../../utils/signApi';
 import { todayStr } from '../../utils/dateUtils';
@@ -12,8 +15,7 @@ import {
   ArrowRight, ArrowDown, Download,
 } from 'lucide-react';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // ── Field type metadata ─────────────────────────────────────────────────────
 const FIELD_META = {
@@ -653,15 +655,24 @@ function PdfPageWithFields({
         if (isSignatureType) {
           const fieldId = item._id || item.id;
           const hash = isFilled ? (signatureHashes?.[fieldId] || '') : '';
+          // Enforce a 44px minimum touch target on the unfilled placeholder —
+          // iOS Safari drops taps on sub-44px boxes overlaying PDF content,
+          // which left mobile signers tapping fields with no response. Filled
+          // state keeps the template-defined height so the flattened PDF
+          // signature lands where the template author placed it.
+          const unfilledHeight = Math.max(height, 44);
           return (
             <div
               key={fieldId}
               data-field-id={fieldId}
               className="absolute cursor-pointer rounded transition-all overflow-hidden"
               style={{
-                left, top, width, height: isFilled ? height + 20 : height,
+                left, top, width,
+                height: isFilled ? height + 20 : unfilledHeight,
                 border: isFilled ? '2px dashed #d4a0a0' : undefined,
                 backgroundColor: isFilled ? '#ffffff' : undefined,
+                scrollMarginTop: 120,
+                scrollMarginBottom: 100,
               }}
               onClick={() => onOpenSignaturePad(fieldId, item.type)}
             >
@@ -694,7 +705,7 @@ function PdfPageWithFields({
               className={`absolute rounded transition-all flex items-center justify-center ${
                 isFilled ? '' : isRequired ? '' : ''
               }`}
-              style={{ left, top, width, height }}
+              style={{ left, top, width, height, scrollMarginTop: 120, scrollMarginBottom: 100 }}
             >
               <InlineFieldInput
                 item={item}
@@ -735,7 +746,7 @@ function PdfPageWithFields({
                       ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer'
                       : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer'
             }`}
-            style={{ left, top, width, height: visualHeight }}
+            style={{ left, top, width, height: visualHeight, scrollMarginTop: 120, scrollMarginBottom: 100 }}
             onClick={() => {
               if (!isActive) setActiveFieldId(item._id || item.id);
             }}
@@ -1201,11 +1212,23 @@ export default function PublicSigningPage() {
   // ── Submit ───────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (submitting) return;
-    // If not all required filled, show validation and scroll to first missing
+    // If not all required filled, show validation and scroll to first missing.
+    // Name the first missing required field + page so the candidate knows
+    // where to look — generic "complete all required fields" left mobile
+    // users stuck with no way to find the off-screen field.
     if (!allRequiredFilled) {
       setShowValidation(true);
-      scrollToNextField(null); // scroll to first unfilled
-      showToast('Please complete all required fields before submitting', 'warning');
+      const firstMissing = requiredItems
+        .filter((item) => !isFilledValue(values[item._id || item.id]))
+        .sort((a, b) => ((a.page || 0) - (b.page || 0)) || ((a.posY || 0) - (b.posY || 0)))[0];
+      scrollToNextField(null);
+      if (firstMissing) {
+        const meta = FIELD_META[firstMissing.type] || FIELD_META.text;
+        const label = firstMissing.label || meta.label;
+        showToast(`Missing: "${label}" on page ${(firstMissing.page || 0) + 1}`, 'warning');
+      } else {
+        showToast('Please complete all required fields before submitting', 'warning');
+      }
       return;
     }
 
@@ -1573,9 +1596,12 @@ export default function PublicSigningPage() {
         );
       })()}
 
-      {/* ── Click to Start Banner ──────────────────────────────────────── */}
+      {/* ── Click to Start Banner ────────────────────────────────────────
+          Non-sticky on mobile so it scrolls out of the way and never sits on
+          top of the first signature field on short viewports. Desktop keeps
+          the sticky pinned banner. */}
       {!hasStarted && pdfDoc && (
-        <div className="sticky top-[57px] z-20 flex justify-center py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-md">
+        <div className="relative sm:sticky sm:top-[57px] z-20 flex justify-center py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-md">
           <button
             onClick={handleClickToStart}
             className="flex items-center gap-2 px-6 py-2.5 bg-white text-indigo-700 font-semibold text-sm rounded-full shadow-lg hover:shadow-xl hover:bg-indigo-50 transition-all"
@@ -1627,7 +1653,7 @@ export default function PublicSigningPage() {
           clicks the progress indicator. Lets them see every field's fill
           state and jump straight to it. */}
       {showFieldsList && (
-        <div className="hidden sm:block fixed bottom-16 left-1/2 -translate-x-1/2 z-40 w-80 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl">
+        <div className="fixed bottom-16 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-80 z-40 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl">
           <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">All fields</span>
             <button onClick={() => setShowFieldsList(false)} className="text-gray-400 hover:text-gray-600">
@@ -1752,25 +1778,25 @@ export default function PublicSigningPage() {
             )}
             <button
               onClick={() => setShowFieldsList((v) => !v)}
-              className="hidden sm:flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               title="See all fields and jump"
             >
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${allRequiredFilled ? 'bg-green-500' : 'bg-amber-400'}`} />
-                <span>
+                <span className="hidden sm:inline">
                   {filledTotalCount} of {totalFieldCount} field{totalFieldCount !== 1 ? 's' : ''}
                 </span>
+                <span className="sm:hidden text-xs">
+                  {filledTotalCount}/{totalFieldCount}
+                </span>
               </div>
-              <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className="hidden sm:block w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-indigo-600 rounded-full transition-all duration-300"
                   style={{ width: totalFieldCount > 0 ? `${(filledTotalCount / totalFieldCount) * 100}%` : '0%' }}
                 />
               </div>
             </button>
-            <div className="sm:hidden text-xs text-gray-500">
-              {filledTotalCount}/{totalFieldCount}
-            </div>
           </div>
 
           {/* Right: Submit */}

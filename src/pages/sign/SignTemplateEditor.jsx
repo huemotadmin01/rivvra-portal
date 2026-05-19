@@ -16,6 +16,7 @@ import { useToast } from '../../context/ToastContext';
 import { usePlatform } from '../../context/PlatformContext';
 import signApi from '../../utils/signApi';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Save,
@@ -47,10 +48,7 @@ import {
 import { EditorSkeleton } from '../../components/Skeletons';
 import TagPicker from '../../components/sign/TagPicker';
 
-// ---------------------------------------------------------------------------
-// PDF.js worker setup — use CDN for the matching version
-// ---------------------------------------------------------------------------
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -6,6 +6,10 @@ import { useToast } from '../../context/ToastContext';
 import signApi from '../../utils/signApi';
 import { API_BASE_URL } from '../../utils/config';
 import * as pdfjsLib from 'pdfjs-dist';
+// Bundle the pdfjs worker locally. The previous jsDelivr `.mjs` URL required
+// Safari ≥16.4 module-worker support; older Safari silently fell back to a
+// deadlocking fake worker and the document spinner ran forever.
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
   Loader2, FileText, XCircle, Bell,
@@ -17,8 +21,7 @@ import {
 import { formatDateUTC } from '../../utils/dateUtils';
 import RecordMeta from '../../components/shared/RecordMeta';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
@@ -162,7 +165,14 @@ function InlinePdfViewer({ fetchUrl, token }) {
     setPdfDoc(null);
     setCurrentPage(1);
 
+    // Race getDocument against a timeout so an unreachable worker (or any
+    // pdfjs internal deadlock) surfaces as a visible error instead of an
+    // infinite spinner — same pattern PublicSigningPage already uses.
+    const PDF_LOAD_TIMEOUT_MS = 30000;
+
     async function load() {
+      let loadingTask;
+      let timeoutId;
       try {
         const resp = await fetch(fetchUrl, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -170,12 +180,24 @@ function InlinePdfViewer({ fetchUrl, token }) {
         if (!resp.ok) throw new Error('Failed to fetch PDF');
         const arrayBuffer = await resp.arrayBuffer();
         if (cancelled) return;
-        const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('PDF load timed out')), PDF_LOAD_TIMEOUT_MS);
+        });
+        const doc = await Promise.race([loadingTask.promise, timeoutPromise]);
+        clearTimeout(timeoutId);
         if (cancelled) return;
         setPdfDoc(doc);
         setNumPages(doc.numPages);
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Failed to load PDF');
+        clearTimeout(timeoutId);
+        try { loadingTask?.destroy(); } catch { /* ignore */ }
+        if (!cancelled) {
+          const isTimeout = err?.message === 'PDF load timed out';
+          setError(isTimeout
+            ? 'The document is taking too long to load. Please refresh the page.'
+            : (err.message || 'Failed to load PDF'));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
