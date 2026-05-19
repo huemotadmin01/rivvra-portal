@@ -32,7 +32,8 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(null); // { title, message, action, danger? }
-  const [previewUrl, setPreviewUrl] = useState(null); // signed Cloudinary URL while modal open
+  const [previewUrl, setPreviewUrl] = useState(null); // signed Cloudinary URL — only useful for images
+  const [previewFetchUrl, setPreviewFetchUrl] = useState(null); // API stream URL (proxy) — required for PDFs to bypass Cloudinary X-Frame-Options
   const replaceFileInput = useRef(null);
 
   const load = useCallback(async () => {
@@ -81,8 +82,12 @@ export default function DocumentDetail() {
   async function handlePreview() {
     setBusy(true);
     try {
+      // For images we can hand the signed Cloudinary URL straight to <img>;
+      // for everything else (PDF/Office/etc.) Cloudinary blocks iframe
+      // embedding, so route through the API stream endpoint instead.
       const data = await fetchSignedUrl('preview');
       setPreviewUrl(data.url);
+      setPreviewFetchUrl(documentsApi.streamUrl(orgSlug, id));
     } catch (e) {
       toast({ title: 'Preview failed', description: e.message, variant: 'error' });
     } finally {
@@ -318,7 +323,8 @@ export default function DocumentDetail() {
           filename={cv.originalFilename || doc.name}
           mimeType={cv.mimeType}
           directUrl={previewUrl}
-          onClose={() => setPreviewUrl(null)}
+          fetchUrl={previewFetchUrl}
+          onClose={() => { setPreviewUrl(null); setPreviewFetchUrl(null); }}
         />
       )}
     </div>

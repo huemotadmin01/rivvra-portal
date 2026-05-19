@@ -4,6 +4,7 @@
  * X-Company-Id header that api.js attaches automatically.
  */
 import api from './api';
+import { API_BASE_URL } from './config';
 
 const base = (slug) => `/api/org/${slug}/documents`;
 
@@ -83,6 +84,12 @@ const documentsApi = {
   },
   previewUrl(slug, id, versionIndex) {
     return api.request(`${base(slug)}/${id}/preview${qs({ versionIndex })}`);
+  },
+  // Absolute URL to the API stream endpoint, suitable for handing to the
+  // shared DocumentPreviewModal as `fetchUrl` (modal attaches Bearer token).
+  streamUrl(slug, id, versionIndex) {
+    const qsStr = qs({ versionIndex });
+    return `${API_BASE_URL}${base(slug)}/${id}/stream${qsStr}`;
   },
 };
 
