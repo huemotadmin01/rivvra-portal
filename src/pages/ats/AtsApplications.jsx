@@ -29,8 +29,8 @@ const APP_GROUP_BY_OPTIONS = [
 import StageBadge from '../../components/ats/StageBadge';
 import {
   Plus, Loader2, Users,
-  ChevronLeft, ChevronRight, ChevronDown, X,
-  Star, Mail, Calendar, Download, ArrowRight, XCircle,
+  ChevronLeft, ChevronRight, X,
+  Star, Mail, Calendar, Download, XCircle,
 } from 'lucide-react';
 
 /* ── Stage badge helper ──────────────────────────────────────────────── */
@@ -216,7 +216,6 @@ export default function AtsApplications() {
 
   // Bulk actions — selection + action-bar dropdowns
   const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [bulkAction, setBulkAction] = useState(null); // null | 'stage'
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [showBulkRefuseModal, setShowBulkRefuseModal] = useState(false);
   // 2026-05-17 health-check D.2: styled confirm modal state. Replaces
@@ -451,23 +450,6 @@ export default function AtsApplications() {
     }
   }, [allOnPageSelected, someOnPageSelected]);
 
-  // 2026-05-17 health-check H.2: outside-click close for the bulk
-  // action dropdowns. Without this, clicking the table or the page
-  // background left "Move to Stage" / "Refuse" panels open until the
-  // user clicked the toggle button again — every other dropdown in
-  // the portal closes on outside-click (FilterChip / kebab menus).
-  const bulkBarRef = useRef(null);
-  useEffect(() => {
-    if (!bulkAction) return undefined;
-    const handler = (e) => {
-      if (bulkBarRef.current && !bulkBarRef.current.contains(e.target)) {
-        setBulkAction(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [bulkAction]);
-
   const toggleSelectOne = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -491,51 +473,6 @@ export default function AtsApplications() {
 
   const clearSelection = () => {
     setSelectedIds(new Set());
-    setBulkAction(null);
-  };
-
-  const handleBulkMove = async (targetStageId) => {
-    if (!orgSlug || selectedIds.size === 0 || !targetStageId) return;
-    setBulkSubmitting(true);
-    try {
-      const ids = Array.from(selectedIds);
-      const res = await atsApi.bulkMoveStage(orgSlug, ids, targetStageId);
-      if (res?.success) {
-        const stageName = stages.find(s => s._id === targetStageId)?.name || 'stage';
-        const blocked = Array.isArray(res.blocked) ? res.blocked : [];
-        if (blocked.length > 0) {
-          // 2026-05-19: the Rate Confirmation stage gate also fires per-app
-          // on bulk moves. Surface the count + most common reason instead of
-          // silently dropping them.
-          const codeCounts = blocked.reduce((acc, b) => {
-            acc[b.code || 'OTHER'] = (acc[b.code || 'OTHER'] || 0) + 1;
-            return acc;
-          }, {});
-          const topCode = Object.entries(codeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
-          const codeLabel = {
-            RATE_CONFIRMATION_MISSING: 'no Rate Confirmation sent',
-            RATE_CONFIRMATION_PENDING: 'Rate Confirmation still awaiting signatures',
-            RATE_CONFIRMATION_DECLINED: 'Rate Confirmation was declined',
-            RATE_CONFIRMATION_CANCELLED: 'Rate Confirmation was cancelled',
-            RATE_CONFIRMATION_EXPIRED: 'Rate Confirmation expired',
-          }[topCode] || 'Rate Confirmation not signed';
-          showToast(
-            `Moved ${res.modified}; ${blocked.length} blocked (${codeLabel}). Open each application to send / re-sign.`,
-            res.modified > 0 ? 'warning' : 'error',
-          );
-        } else {
-          showToast(`Moved ${res.modified} application${res.modified === 1 ? '' : 's'} to ${stageName}`);
-        }
-        clearSelection();
-        await fetchApplications();
-      } else {
-        showToast(res?.error || 'Bulk move failed', 'error');
-      }
-    } catch (err) {
-      showToast(err?.message || 'Bulk move failed', 'error');
-    } finally {
-      setBulkSubmitting(false);
-    }
   };
 
   const handleBulkRefuse = async ({ refuseReasonId, sendEmail }) => {
@@ -749,10 +686,7 @@ export default function AtsApplications() {
           {/* Bulk action bar — appears when one or more rows are selected.
               Sits above the table so it's clearly tied to the list. */}
           {selectedIds.size > 0 && (
-            <div
-              ref={bulkBarRef}
-              className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30"
-            >
+            <div className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30">
               <span className="text-sm text-white font-medium">
                 {selectedIds.size} selected
               </span>
@@ -765,35 +699,12 @@ export default function AtsApplications() {
               </button>
 
               <div className="ml-auto flex items-center gap-2 flex-wrap">
-                {/* Move to Stage */}
-                <div className="relative">
-                  <button
-                    onClick={() => setBulkAction(bulkAction === 'stage' ? null : 'stage')}
-                    disabled={bulkSubmitting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-dark-700 hover:text-white disabled:opacity-40"
-                  >
-                    {bulkSubmitting ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
-                    Move to Stage
-                    <ChevronDown size={12} />
-                  </button>
-                  {bulkAction === 'stage' && (
-                    <div className="absolute right-0 mt-1 w-56 max-w-[calc(100vw-2rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
-                      {stages.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-dark-500">No stages configured</div>
-                      ) : stages.map((s) => (
-                        <button
-                          key={s._id}
-                          onClick={() => { setBulkAction(null); handleBulkMove(s._id); }}
-                          className="w-full text-left px-3 py-2 text-xs text-dark-200 hover:bg-dark-700 hover:text-white transition-colors"
-                        >
-                          {s.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Refuse — opens the shared RefuseModal in bulk mode */}
+                {/* Refuse — opens the shared RefuseModal in bulk mode.
+                    Bulk Move-to-Stage was removed pending gate-aware
+                    preflight (gates that collect per-app data — Offer
+                    Proposal, Offer Signed, Hire — can't be satisfied
+                    from a bulk dropdown). Move stages per-application
+                    via the detail page for now. */}
                 <button
                   onClick={() => setShowBulkRefuseModal(true)}
                   disabled={bulkSubmitting}
