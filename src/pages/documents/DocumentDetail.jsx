@@ -32,8 +32,7 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(null); // { title, message, action, danger? }
-  const [previewUrl, setPreviewUrl] = useState(null); // signed Cloudinary URL — only useful for images
-  const [previewFetchUrl, setPreviewFetchUrl] = useState(null); // API stream URL (proxy) — required for PDFs to bypass Cloudinary X-Frame-Options
+  const [previewUrl, setPreviewUrl] = useState(null); // signed Cloudinary URL — only set for images, the shared modal renders them
   const replaceFileInput = useRef(null);
 
   const load = useCallback(async () => {
@@ -82,12 +81,18 @@ export default function DocumentDetail() {
   async function handlePreview() {
     setBusy(true);
     try {
-      // For images we can hand the signed Cloudinary URL straight to <img>;
-      // for everything else (PDF/Office/etc.) Cloudinary blocks iframe
-      // embedding, so route through the API stream endpoint instead.
       const data = await fetchSignedUrl('preview');
-      setPreviewUrl(data.url);
-      setPreviewFetchUrl(documentsApi.streamUrl(orgSlug, id));
+      // Images render reliably inside the shared modal via <img src>.
+      // PDFs and Office docs hit a Chrome quirk where iframe-loaded blob
+      // URLs only load the PDF embedder CSS — the viewer plugin never
+      // instantiates inside the iframe body. Falling back to a new tab
+      // for those formats sidesteps it entirely; Chrome's built-in PDF
+      // viewer works perfectly as a top-level navigation.
+      if (cv?.mimeType?.startsWith('image/')) {
+        setPreviewUrl(data.url);
+      } else {
+        window.open(data.url, '_blank', 'noopener');
+      }
     } catch (e) {
       toast({ title: 'Preview failed', description: e.message, variant: 'error' });
     } finally {
@@ -323,8 +328,7 @@ export default function DocumentDetail() {
           filename={cv.originalFilename || doc.name}
           mimeType={cv.mimeType}
           directUrl={previewUrl}
-          fetchUrl={previewFetchUrl}
-          onClose={() => { setPreviewUrl(null); setPreviewFetchUrl(null); }}
+          onClose={() => setPreviewUrl(null)}
         />
       )}
     </div>
