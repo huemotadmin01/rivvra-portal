@@ -79,21 +79,31 @@ export default function DocumentDetail() {
   }
 
   async function handlePreview() {
+    // Images render reliably inside the shared modal via <img src>.
+    // PDFs / Office docs hit a Chrome quirk where iframe-loaded blob URLs
+    // only ever load the PDF embedder CSS — the viewer plugin never
+    // instantiates inside the iframe body. Falling back to a new tab
+    // sidesteps it; Chrome's native PDF viewer works perfectly as a
+    // top-level navigation.
+    const isImage = cv?.mimeType?.startsWith('image/');
+    // For the new-tab path we open the tab synchronously inside the user
+    // gesture (popup-blockers reject window.open if it happens after an
+    // await), then point it at the signed URL once we have it.
+    const popup = isImage ? null : window.open('about:blank', '_blank', 'noopener,noreferrer');
+
     setBusy(true);
     try {
       const data = await fetchSignedUrl('preview');
-      // Images render reliably inside the shared modal via <img src>.
-      // PDFs and Office docs hit a Chrome quirk where iframe-loaded blob
-      // URLs only load the PDF embedder CSS — the viewer plugin never
-      // instantiates inside the iframe body. Falling back to a new tab
-      // for those formats sidesteps it entirely; Chrome's built-in PDF
-      // viewer works perfectly as a top-level navigation.
-      if (cv?.mimeType?.startsWith('image/')) {
+      if (isImage) {
         setPreviewUrl(data.url);
+      } else if (popup && !popup.closed) {
+        popup.location.href = data.url;
       } else {
-        window.open(data.url, '_blank', 'noopener');
+        // Popup blocker won — let the user know rather than failing silently.
+        toast({ title: 'Pop-up blocked', description: 'Allow pop-ups for rivvra.com to preview PDFs, or use Download.', variant: 'error' });
       }
     } catch (e) {
+      if (popup && !popup.closed) popup.close();
       toast({ title: 'Preview failed', description: e.message, variant: 'error' });
     } finally {
       setBusy(false);
