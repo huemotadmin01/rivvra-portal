@@ -534,6 +534,11 @@ export default function AtsJobPositions() {
     // 2026-05-17 health-check D.1: don't blank prior view; dedup via
     // _requestKey so rapid filter typing auto-aborts stale requests.
     setLoading(true);
+    // 2026-05-19: aborted-flag so the finally below skips setLoading
+    // (false) when the fetch is cancelled by a newer one — JS finally
+    // runs even when catch returns. Without this, every aborted fetch
+    // flashes the empty-state for one frame.
+    let aborted = false;
     try {
       // 2026-05-17 ATS-JOBS-GROUP-FETCH: when groupBy is active, pull the
       // full filtered set in one shot (cap 5000, matches API ceiling) so
@@ -555,11 +560,11 @@ export default function AtsJobPositions() {
         // — facet endpoint owns this now.
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load jobs:', err);
       showToast('Failed to load job positions', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, page, isGrouped, JSON.stringify(filterParams), showToast]);

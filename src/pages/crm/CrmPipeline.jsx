@@ -226,6 +226,9 @@ export default function CrmPipeline() {
     // the search debounce. _requestKey dedup auto-aborts stale
     // requests so race-late responses can't overwrite a newer fetch.
     setLoading(true);
+    // 2026-05-19: aborted-flag so finally skips setLoading(false) when
+    // cancelled by a newer fetch.
+    let aborted = false;
     try {
       const res = await crmApi.getKanban(slug, {
         ...filterParams,
@@ -233,10 +236,10 @@ export default function CrmPipeline() {
       });
       if (res.success) setKanban(res.kanban || []);
     } catch (err) {
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       addToast('Failed to load pipeline', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, currentCompany?._id, JSON.stringify(filterParams)]);

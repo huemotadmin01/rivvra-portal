@@ -126,6 +126,9 @@ export default function ContactsList({ filterType }) {
     // stale in-flight requests so race-late responses can't overwrite a
     // newer fetch.
     setLoading(true);
+    // 2026-05-19: aborted-flag so finally skips setLoading(false) when
+    // cancelled by a newer fetch.
+    let aborted = false;
     try {
       const res = await contactsApi.list(orgSlug, {
         page,
@@ -141,11 +144,11 @@ export default function ContactsList({ filterType }) {
         setTotalPages(res.totalPages || 1);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load contacts:', err);
       showToast('Failed to load contacts', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, page, JSON.stringify(filterParams), effectiveType, activeSortKey, sortDir, showToast]);

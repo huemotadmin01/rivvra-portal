@@ -225,6 +225,9 @@ export default function CrmOpportunities() {
     // dedup cancels stale in-flight requests so race-late responses can't
     // overwrite a newer fetch.
     setLoading(true);
+    // 2026-05-19: aborted-flag so finally skips setLoading(false) when
+    // cancelled by a newer fetch.
+    let aborted = false;
     try {
       const params = {
         page: groupBy ? 1 : page,
@@ -247,10 +250,10 @@ export default function CrmOpportunities() {
         setTotal(res.total || 0);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       addToast('Failed to load opportunities', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, currentCompany?._id, page, effectiveLimit, sortBy, sortDir, groupBy, lifecycle, JSON.stringify(filterParams)]);

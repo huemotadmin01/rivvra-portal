@@ -648,6 +648,9 @@ export default function AtsPipeline() {
     // refetching — search-debounced typing no longer blanks every column
     // mid-keystroke. Dedup via _requestKey auto-aborts stale fetches.
     setLoading(true);
+    // 2026-05-19: aborted-flag so finally skips setLoading(false) when
+    // cancelled by a newer fetch.
+    let aborted = false;
     try {
       const res = await atsApi.getKanban(orgSlug, {
         search: params.search !== undefined ? params.search : search,
@@ -659,11 +662,11 @@ export default function AtsPipeline() {
         setColumns(res.kanban || []);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load pipeline:', err);
       showToast('Failed to load pipeline', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, search, jobFilter, recruiterFilter, showToast]);

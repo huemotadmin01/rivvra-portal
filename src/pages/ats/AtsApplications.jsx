@@ -282,6 +282,13 @@ export default function AtsApplications() {
     // The api util auto-cancels the previous in-flight request keyed by
     // _requestKey so race-stale results can't overwrite a newer fetch.
     setLoading(true);
+    // 2026-05-19: track aborted-by-newer-fetch so the finally below
+    // can skip setLoading(false). JS `finally` runs even when `catch`
+    // returns early, so without this guard, every aborted fetch
+    // briefly drops loading=false between fetch1 aborting and fetch2
+    // setting it true again — which flashes the empty-state for a
+    // frame on tab-switches + filter changes.
+    let aborted = false;
     try {
       // 2026-05-17 health-check P0: hard-coded sort/order used to come
       // AFTER `...filterParams`, overriding the URL's sort + dir params
@@ -317,11 +324,11 @@ export default function AtsApplications() {
     } catch (err) {
       // AbortError fires when the api util cancels this fetch in favour
       // of a newer one — don't toast or clear state on it.
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load applications:', err);
       showToast('Failed to load applications', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, page, lifecycle, JSON.stringify(filterParams), showToast]);

@@ -131,6 +131,10 @@ export default function AtsCandidates() {
     if (!orgSlug) return;
     // 2026-05-17 health-check D.1: keep prior view; dedup via _requestKey.
     setLoading(true);
+    // 2026-05-19: aborted-flag so finally skips setLoading(false) when
+    // cancelled by a newer fetch — otherwise the empty-state flashes
+    // for a frame on filter changes / tab-switches.
+    let aborted = false;
     try {
       // 2026-05-17 ATS-CAND-GROUP-FETCH: when groupBy is active, pull the
       // full filtered set in one shot (cap 5000, matches API ceiling) so
@@ -154,11 +158,11 @@ export default function AtsCandidates() {
         setTotalPages(res.totalPages || 1);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
+      if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load candidates:', err);
       showToast('Failed to load candidates', 'error');
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, page, isGrouped, JSON.stringify(filterParams), showToast]);
