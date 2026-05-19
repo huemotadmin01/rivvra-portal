@@ -2024,6 +2024,27 @@ export default function AtsApplicationDetail() {
       if (pendingBackwardMove) setPendingBackwardMove(null);
       fetchApplication();
     } catch (err) {
+      // 2026-05-19: Rate Confirmation gate fires before every other check
+      // on forward moves. Toast keyed to the specific code, then auto-open
+      // the Send Rate Confirmation modal so the recruiter can act in one click.
+      if (err?.requiresRateConfirmation) {
+        const codeMessages = {
+          RATE_CONFIRMATION_MISSING: 'Send a Rate Confirmation and wait for both parties to sign before moving forward.',
+          RATE_CONFIRMATION_PENDING: 'Rate Confirmation is awaiting signatures — wait for both parties to sign before moving forward.',
+          RATE_CONFIRMATION_DECLINED: 'The previous Rate Confirmation was declined. Send a new one and wait for both parties to sign.',
+          RATE_CONFIRMATION_CANCELLED: 'The previous Rate Confirmation was cancelled. Send a new one and wait for both parties to sign.',
+          RATE_CONFIRMATION_EXPIRED: 'The previous Rate Confirmation expired. Send a new one and wait for both parties to sign.',
+        };
+        showToast(codeMessages[err.code] || err.message || 'Rate Confirmation must be fully signed before moving forward.', 'warning');
+        // Auto-open the modal for MISSING / DECLINED / CANCELLED / EXPIRED
+        // (recruiter needs to act). For PENDING we just inform — the
+        // envelope is already in flight, opening the modal would imply
+        // they should re-send.
+        if (err.code !== 'RATE_CONFIRMATION_PENDING') {
+          setShowRateConfirmationModal(true);
+        }
+        return;
+      }
       // Phase-1 / Q13: skip-ahead is rejected with the immediate next
       // stage's name so we can guide the user instead of showing a raw
       // error string.
@@ -2522,16 +2543,13 @@ export default function AtsApplicationDetail() {
                   onToggle={() => setShowMoveDropdown((p) => !p)}
                   onSelect={handleMoveStage}
                 />
-                {/* 2026-05-18 PM: Send Rate Confirmation — for External
-                    Consultant client-role applications only. Sits to the
-                    LEFT of the Offer button per Priyanshu's spec. Uses the
-                    "Candidate Rate & Terms Confirmation- Individual
-                    Contractor" Sign template; recruiter signs first, then
-                    candidate. Re-send is allowed; the application records
-                    only the most recent envelope. */}
-                {application?.employmentType === 'External Consultant'
-                  && application?.isClientRole === true
-                  && !application?.archived && (
+                {/* 2026-05-19: Send Rate Confirmation — required on every
+                    employment type now that forward stage moves are gated on
+                    a fully-signed envelope. Picks a Sign template tagged
+                    "Rate Confirmation"; signers are auto-set from the
+                    template's roles. Re-send is allowed; the application
+                    records only the most recent envelope reference. */}
+                {!application?.archived && (
                   <button
                     onClick={() => setShowRateConfirmationModal(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"

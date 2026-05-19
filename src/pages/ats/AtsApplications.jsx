@@ -500,7 +500,30 @@ export default function AtsApplications() {
       const res = await atsApi.bulkMoveStage(orgSlug, ids, targetStageId);
       if (res?.success) {
         const stageName = stages.find(s => s._id === targetStageId)?.name || 'stage';
-        showToast(`Moved ${res.modified} application${res.modified === 1 ? '' : 's'} to ${stageName}`);
+        const blocked = Array.isArray(res.blocked) ? res.blocked : [];
+        if (blocked.length > 0) {
+          // 2026-05-19: the Rate Confirmation stage gate also fires per-app
+          // on bulk moves. Surface the count + most common reason instead of
+          // silently dropping them.
+          const codeCounts = blocked.reduce((acc, b) => {
+            acc[b.code || 'OTHER'] = (acc[b.code || 'OTHER'] || 0) + 1;
+            return acc;
+          }, {});
+          const topCode = Object.entries(codeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+          const codeLabel = {
+            RATE_CONFIRMATION_MISSING: 'no Rate Confirmation sent',
+            RATE_CONFIRMATION_PENDING: 'Rate Confirmation still awaiting signatures',
+            RATE_CONFIRMATION_DECLINED: 'Rate Confirmation was declined',
+            RATE_CONFIRMATION_CANCELLED: 'Rate Confirmation was cancelled',
+            RATE_CONFIRMATION_EXPIRED: 'Rate Confirmation expired',
+          }[topCode] || 'Rate Confirmation not signed';
+          showToast(
+            `Moved ${res.modified}; ${blocked.length} blocked (${codeLabel}). Open each application to send / re-sign.`,
+            res.modified > 0 ? 'warning' : 'error',
+          );
+        } else {
+          showToast(`Moved ${res.modified} application${res.modified === 1 ? '' : 's'} to ${stageName}`);
+        }
         clearSelection();
         await fetchApplications();
       } else {

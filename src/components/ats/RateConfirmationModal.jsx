@@ -385,6 +385,22 @@ export default function RateConfirmationModal({
             />
           )}
 
+          {/* Warn before re-sending after a prior signed envelope.
+              Sending again will replace the active envelope reference and
+              re-block every forward stage move until the new one is fully
+              signed by both parties. */}
+          {isResend && (priorEnvelope?.state === 'signed' || priorEnvelope?.state === 'completed') && (
+            <div className="flex items-start gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <div>
+                <div className="font-medium">The previous Rate Confirmation is already fully signed.</div>
+                <div className="text-amber-200/80 mt-0.5">
+                  Sending a new one replaces the active envelope. Forward stage moves on this application will be blocked again until the new envelope is signed by both parties.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Loading skeleton */}
           {loading && <Skeleton />}
 
