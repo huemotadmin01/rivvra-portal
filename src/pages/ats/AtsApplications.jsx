@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -140,6 +140,7 @@ export default function AtsApplications() {
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -244,6 +245,34 @@ export default function AtsApplications() {
     if (next > 1) np.set('page', String(next)); else np.delete('page');
     setSearchParams(np);
   };
+
+  // 2026-05-19: default groupBy=stage on the Ongoing lifecycle. Mirrors
+  // the Job Positions landing-default pattern — gives recruiters the
+  // stage buckets out of the box without touching anything. Two guards:
+  //   1. Only applies when URL has no groupBy yet (so clearing the chip
+  //      sticks until the user reloads / re-enters the route).
+  //   2. Only applies on the Ongoing lifecycle (hired/refused/archived
+  //      collapse to one giant bucket — grouping there is noise).
+  // Keyed on location.pathname so the default re-applies on route entry
+  // (matches the 2026-05-19 Job Positions fix; before that, empty-deps
+  // didn't reliably fire on tab-switch re-mount for one user). Within-
+  // route filter clicks leave pathname stable, so this won't stomp a
+  // user's cleared chip mid-session.
+  useEffect(() => {
+    if (searchParams.has('groupBy')) return;
+    // Lifecycle inference — must match the lifecycle derivation at the
+    // top of this component so the two stay consistent.
+    const isArchived = searchParams.get('archived') === '1' || searchParams.get('archived') === 'true';
+    const isHired = searchParams.get('applicationStatus') === 'hired'
+      || searchParams.get('hiredOnly') === '1' || searchParams.get('hiredOnly') === 'true';
+    const isRefused = searchParams.get('applicationStatus') === 'refused'
+      || searchParams.get('refusedOnly') === '1' || searchParams.get('refusedOnly') === 'true';
+    if (isArchived || isHired || isRefused) return;
+    const np = new URLSearchParams(searchParams);
+    np.set('groupBy', 'stage');
+    setSearchParams(np, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // ── Fetch applications ─────────────────────────────────────────────────
   const fetchApplications = useCallback(async () => {
