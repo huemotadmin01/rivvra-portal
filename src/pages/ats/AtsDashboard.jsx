@@ -998,6 +998,52 @@ export default function AtsDashboard() {
         />
       </div>
 
+      {/* ── Per-stage KPI tiles (2026-05-19) ─────────────────────────────────
+          Mid-funnel snapshot — count of applications currently sitting at
+          each of these 5 stages, filtered by the same createdAt date range
+          as the headline tiles above. Sourced from applicationsByStageActive
+          (server-windowed, hired/refused/archived already excluded).
+          Each tile deep-links to the Applications list filtered by stage +
+          ongoing status, so a recruiter clicking "L1 Interview" sees just
+          those 9 candidates. */}
+      {applicationsByStageActive.length > 0 && (() => {
+        const stageTile = (name) => {
+          const s = applicationsByStageActive.find((x) => x.stageName === name);
+          return {
+            count: s?.count || 0,
+            stageId: s?.stageId || null,
+          };
+        };
+        const tiles = [
+          { name: 'L1 Interview',         color: 'blue',    icon: BarChart3 },
+          { name: 'L2 Interview',         color: 'blue',    icon: BarChart3 },
+          { name: 'Documents Collection', color: 'purple',  icon: Users },
+          { name: 'HR Discussion',        color: 'amber',   icon: Clock },
+          { name: 'Offer Signed',         color: 'emerald', icon: UserCheck },
+        ];
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {tiles.map(({ name, color, icon }) => {
+              const t = stageTile(name);
+              const to = t.stageId
+                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageId}&applicationStatus=ongoing`
+                : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing`;
+              return (
+                <KpiTile
+                  key={name}
+                  label={name}
+                  value={t.count}
+                  subtitle="currently at this stage"
+                  icon={icon}
+                  color={color}
+                  to={to}
+                />
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* ── Funnel — active pipeline only (refused + archived excluded).
           Bars navigate to Applications filtered by stage + ongoing-only. */}
       <RecruitmentFunnel
