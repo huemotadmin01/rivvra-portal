@@ -62,9 +62,26 @@ export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'S
   const [searchValue, setSearchValue] = useState(searchParams.get(searchKey) || '');
   const [mobileOpen, setMobileOpen] = useState(false);
   const debounceRef = useRef(null);
+  // 2026-05-19: track whether the next debounced-sync should actually
+  // write. Every useEffect fires once on mount regardless of dep
+  // values. Before this guard, that mount-fire scheduled a 300ms
+  // timeout whose captured updateParam closed over the at-mount
+  // searchParams (empty). When a parent's mount effect wrote default
+  // filters (e.g. AtsJobPositions adds status=open / approvalStatus
+  // /groupBy 65ms in), the FilterBar timeout fired ~235ms later with
+  // its stale closure and STOMPED those defaults back to a clean URL.
+  // Tab-switch repro: defaults flashed for ~1s on Job Positions then
+  // disappeared. Skipping the very first effect-fire eliminates the
+  // race; user-typed changes still re-fire the effect with fresh
+  // closures, so the debounce-write still works for its intended use.
+  const skipNextSyncRef = useRef(true);
 
   // Sync local input to URL — debounced so typing doesn't slam the API.
   useEffect(() => {
+    if (skipNextSyncRef.current) {
+      skipNextSyncRef.current = false;
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       updateParam(searchKey, searchValue);
