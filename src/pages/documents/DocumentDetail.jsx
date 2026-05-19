@@ -3,9 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import documentsApi from '../../utils/documentsApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import RecordMeta from '../../components/shared/RecordMeta';
+import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import {
   Loader2, ArrowLeft, Download, Upload, Archive, ArchiveRestore,
-  Trash2, RotateCcw, FileText, History, Tag as TagIcon, Folder,
+  Trash2, RotateCcw, FileText, History, Tag as TagIcon, Folder, Eye,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -28,6 +31,8 @@ export default function DocumentDetail() {
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(null); // { title, message, action, danger? }
+  const [previewUrl, setPreviewUrl] = useState(null); // signed Cloudinary URL while modal open
   const replaceFileInput = useRef(null);
 
   const load = useCallback(async () => {
@@ -53,12 +58,19 @@ export default function DocumentDetail() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function fetchSignedUrl(kind, versionIndex) {
+    const r = kind === 'preview'
+      ? await documentsApi.previewUrl(orgSlug, id, versionIndex)
+      : await documentsApi.downloadUrl(orgSlug, id, versionIndex);
+    if (!r.success) throw new Error(r.error || 'Failed to sign URL');
+    return r.data;
+  }
+
   async function handleDownload(versionIndex) {
     setBusy(true);
     try {
-      const r = await documentsApi.downloadUrl(orgSlug, id, versionIndex);
-      if (!r.success) throw new Error(r.error || 'Failed');
-      window.open(r.data.url, '_blank', 'noopener');
+      const data = await fetchSignedUrl('download', versionIndex);
+      window.open(data.url, '_blank', 'noopener');
     } catch (e) {
       toast({ title: 'Download failed', description: e.message, variant: 'error' });
     } finally {
@@ -69,9 +81,8 @@ export default function DocumentDetail() {
   async function handlePreview() {
     setBusy(true);
     try {
-      const r = await documentsApi.previewUrl(orgSlug, id);
-      if (!r.success) throw new Error(r.error || 'Failed');
-      window.open(r.data.url, '_blank', 'noopener');
+      const data = await fetchSignedUrl('preview');
+      setPreviewUrl(data.url);
     } catch (e) {
       toast({ title: 'Preview failed', description: e.message, variant: 'error' });
     } finally {
@@ -96,19 +107,18 @@ export default function DocumentDetail() {
     }
   }
 
-  async function handleRestore(idx) {
-    if (!confirm(`Restore version v${doc.versions.length - idx} as the current one? The current version will move into history.`)) return;
-    setBusy(true);
-    try {
-      const r = await documentsApi.restoreVersion(orgSlug, id, idx);
-      if (!r.success) throw new Error(r.error || 'Failed');
-      setDoc(r.data);
-      toast({ title: 'Version restored', variant: 'success' });
-    } catch (e) {
-      toast({ title: 'Restore failed', description: e.message, variant: 'error' });
-    } finally {
-      setBusy(false);
-    }
+  function askRestoreVersion(idx) {
+    setConfirm({
+      title: 'Restore this version?',
+      message: `v${doc.versions.length - idx} will become the current version, and the current version will move into history. You can swap them again later.`,
+      confirmLabel: 'Restore',
+      action: async () => {
+        const r = await documentsApi.restoreVersion(orgSlug, id, idx);
+        if (!r.success) throw new Error(r.error || 'Failed');
+        setDoc(r.data);
+        toast({ title: 'Version restored', variant: 'success' });
+      },
+    });
   }
 
   async function handleArchive() {
@@ -124,19 +134,19 @@ export default function DocumentDetail() {
     }
   }
 
-  async function handleDelete() {
-    if (!confirm('Delete this document permanently? This also purges every version from storage. This cannot be undone.')) return;
-    setBusy(true);
-    try {
-      const r = await documentsApi.destroy(orgSlug, id);
-      if (!r.success) throw new Error(r.error || 'Failed');
-      toast({ title: 'Deleted', variant: 'success' });
-      navigate(`/org/${orgSlug}/documents`);
-    } catch (e) {
-      toast({ title: 'Delete failed', description: e.message, variant: 'error' });
-    } finally {
-      setBusy(false);
-    }
+  function askDelete() {
+    setConfirm({
+      title: 'Delete this document permanently?',
+      message: `"${doc.name}" and every version of it will be removed from Cloudinary and Mongo. This cannot be undone — consider archiving instead.`,
+      confirmLabel: 'Delete permanently',
+      danger: true,
+      action: async () => {
+        const r = await documentsApi.destroy(orgSlug, id);
+        if (!r.success) throw new Error(r.error || 'Failed');
+        toast({ title: 'Deleted', variant: 'success' });
+        navigate(`/org/${orgSlug}/documents`);
+      },
+    });
   }
 
   async function handleMetadataUpdate(updates) {
@@ -179,10 +189,16 @@ export default function DocumentDetail() {
               <span>{cv?.mimeType}</span>
               {doc.archived && <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] uppercase tracking-wider">Archived</span>}
             </div>
+            <RecordMeta
+              className="mt-3"
+              compact
+              createdAt={doc.createdAt}
+              updatedAt={doc.updatedAt}
+            />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={handlePreview} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 hover:bg-dark-700 text-dark-100 inline-flex items-center gap-1.5">
-              Preview
+              <Eye className="w-4 h-4" /> Preview
             </button>
             <button onClick={() => handleDownload()} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-rivvra-500 hover:bg-rivvra-600 text-white inline-flex items-center gap-1.5">
               <Download className="w-4 h-4" /> Download
@@ -251,7 +267,7 @@ export default function DocumentDetail() {
                 label={`v${totalVersions - 1 - idx}`}
                 v={v}
                 onDownload={() => handleDownload(idx)}
-                onRestore={isAdmin ? () => handleRestore(idx) : null}
+                onRestore={isAdmin ? () => askRestoreVersion(idx) : null}
               />
             ))}
           </div>
@@ -268,12 +284,43 @@ export default function DocumentDetail() {
               {doc.archived ? <><ArchiveRestore className="w-4 h-4" /> Unarchive</> : <><Archive className="w-4 h-4" /> Archive</>}
             </button>
             <div className="flex-1" />
-            <button onClick={handleDelete} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 inline-flex items-center gap-1.5">
+            <button onClick={askDelete} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 inline-flex items-center gap-1.5">
               <Trash2 className="w-4 h-4" /> Delete permanently
             </button>
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title}
+        message={confirm?.message}
+        confirmLabel={confirm?.confirmLabel}
+        danger={confirm?.danger}
+        busy={busy}
+        onCancel={() => setConfirm(null)}
+        onConfirm={async () => {
+          if (!confirm) return;
+          setBusy(true);
+          try {
+            await confirm.action();
+            setConfirm(null);
+          } catch (e) {
+            toast({ title: 'Action failed', description: e.message, variant: 'error' });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+
+      {previewUrl && cv && (
+        <DocumentPreviewModal
+          filename={cv.originalFilename || doc.name}
+          mimeType={cv.mimeType}
+          directUrl={previewUrl}
+          onClose={() => setPreviewUrl(null)}
+        />
+      )}
     </div>
   );
 }

@@ -5,10 +5,13 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import documentsApi from '../../utils/documentsApi';
 import UploadDocumentModal from '../../components/documents/UploadDocumentModal';
+import FilterBar, {
+  FilterChip, GroupByChip, ArchivedToggle, useFilterParams,
+} from '../../components/shared/FilterBar';
 import {
-  Loader2, FolderOpen, Folder, Upload, Search, Plus, Settings,
-  FileText, Image as ImageIcon, FileArchive, Archive, ArchiveRestore,
-  Tag as TagIcon, X,
+  Loader2, FolderOpen, Folder, Upload, Settings,
+  FileText, Image as ImageIcon, FileArchive,
+  Tag as TagIcon,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -26,12 +29,43 @@ function formatSize(n) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+const GROUP_OPTIONS = [
+  { value: '', label: 'No grouping' },
+  { value: 'folder', label: 'Folder' },
+  { value: 'mimeType', label: 'File type' },
+  { value: 'uploadedMonth', label: 'Uploaded month' },
+];
+
+function groupKeyFor(doc, groupBy, foldersById) {
+  if (groupBy === 'folder') {
+    const f = foldersById.get(String(doc.folderId));
+    return f?.name || '(no folder)';
+  }
+  if (groupBy === 'mimeType') {
+    const m = doc.currentVersion?.mimeType || 'unknown';
+    if (m.startsWith('image/')) return 'Images';
+    if (m === 'application/pdf') return 'PDF';
+    if (m.includes('word') || m.includes('document')) return 'Word docs';
+    if (m.includes('sheet') || m.includes('excel') || m.includes('csv')) return 'Spreadsheets';
+    if (m.includes('zip')) return 'Archives';
+    return m;
+  }
+  if (groupBy === 'uploadedMonth') {
+    const iso = doc.currentVersion?.uploadedAt || doc.updatedAt;
+    if (!iso) return '(unknown)';
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+  return null;
+}
+
 export default function DocumentsList() {
   const navigate = useNavigate();
   const { orgSlug, getAppRole } = useOrg();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useFilterParams(['search', 'tag', 'archived', 'groupBy']);
 
   const isAdmin = getAppRole('documents') === 'admin';
 
@@ -40,23 +74,23 @@ export default function DocumentsList() {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [archivedCount, setArchivedCount] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
 
+  // Folder navigation stays a sidebar concern, not a FilterBar chip — keep
+  // the `?folder=` param but read it directly.
   const folderIdParam = searchParams.get('folder') || '';
-  const tagFilter = searchParams.get('tag') || '';
-  const q = searchParams.get('q') || '';
-  const includeArchived = searchParams.get('archived') === '1';
-
-  // If the URL points at a folder that no longer exists for this company
-  // (e.g. it was deleted, or the user switched companies), silently fall
-  // back to "All documents" rather than rendering an empty pane.
   const folderId = folderIdParam && folders.some((f) => String(f._id) === folderIdParam)
     ? folderIdParam
     : '';
+  const tagFilter = filters.tag || '';
+  const q = filters.search || '';
+  const includeArchived = filters.archived === '1';
+  const groupBy = filters.groupBy || '';
 
-  const updateParam = useCallback((key, value) => {
+  const updateFolder = useCallback((value) => {
     const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value); else next.delete(key);
+    if (value) next.set('folder', value); else next.delete('folder');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -95,19 +129,58 @@ export default function DocumentsList() {
     }
   }, [orgSlug, currentCompany, folderId, tagFilter, q, includeArchived, toast]);
 
+  // Lightweight archived-count probe so ArchivedToggle shows the right badge.
+  // Fires once per (company, filter) combo, not on every keystroke.
+  useEffect(() => {
+    if (!orgSlug || !currentCompany) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await documentsApi.list(orgSlug, {
+          folderId: folderId || undefined,
+          tagIds: tagFilter || undefined,
+          q: q || undefined,
+          includeArchived: 'true',
+          limit: 1,
+        });
+        if (cancelled || !r.success) return;
+        // The list endpoint returns `total` for the (archived-included) filter;
+        // subtract the active total to get the archived-only count.
+        // Cheap enough — single Mongo countDocuments behind the scenes.
+        setArchivedCount(Math.max(0, (r.total || 0) - (includeArchived ? 0 : total)));
+      } catch {/* non-fatal */}
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, currentCompany, folderId, tagFilter, q, total, includeArchived]);
+
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
   useEffect(() => { loadDocs(); }, [loadDocs]);
 
-  // Auto-clear stale `?folder=` param once the folder list is loaded and we
-  // can confirm the URL value doesn't match any folder for this company.
+  // Auto-clear stale ?folder=
   useEffect(() => {
-    if (!folders.length) return;
-    if (!folderIdParam) return;
+    if (!folders.length || !folderIdParam) return;
     const exists = folders.some((f) => String(f._id) === folderIdParam);
-    if (!exists) updateParam('folder', '');
-  }, [folders, folderIdParam, updateParam]);
+    if (!exists) updateFolder('');
+  }, [folders, folderIdParam, updateFolder]);
 
   const tagsById = useMemo(() => new Map(tags.map((t) => [String(t._id), t])), [tags]);
+  const foldersById = useMemo(() => new Map(folders.map((f) => [String(f._id), f])), [folders]);
+
+  const tagOptions = useMemo(
+    () => tags.filter((t) => !t.archived).map((t) => ({ value: String(t._id), label: t.name })),
+    [tags],
+  );
+
+  const grouped = useMemo(() => {
+    if (!groupBy) return null;
+    const map = new Map();
+    for (const d of docs) {
+      const k = groupKeyFor(d, groupBy, foldersById) || '(uncategorized)';
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(d);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [docs, groupBy, foldersById]);
 
   if (!currentCompany) {
     return (
@@ -130,7 +203,7 @@ export default function DocumentsList() {
           )}
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
-          <button onClick={() => updateParam('folder', '')}
+          <button onClick={() => updateFolder('')}
             className={`w-full flex items-center gap-2 px-4 py-1.5 text-sm transition ${!folderId ? 'bg-rivvra-500/10 text-rivvra-300' : 'text-dark-300 hover:bg-dark-800'}`}>
             <FolderOpen className="w-4 h-4" /> All documents
           </button>
@@ -140,7 +213,7 @@ export default function DocumentsList() {
             </div>
           )}
           {folders.map((f) => (
-            <button key={f._id} onClick={() => updateParam('folder', f._id)}
+            <button key={f._id} onClick={() => updateFolder(f._id)}
               className={`w-full flex items-center gap-2 px-4 py-1.5 text-sm transition ${folderId === String(f._id) ? 'bg-rivvra-500/10 text-rivvra-300' : 'text-dark-300 hover:bg-dark-800'}`}>
               <Folder className="w-4 h-4" /> <span className="truncate">{f.name}</span>
             </button>
@@ -150,48 +223,33 @@ export default function DocumentsList() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="px-6 py-4 border-b border-dark-800 flex items-center gap-3">
-          <div className="flex-1 relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-            <input
-              defaultValue={q}
-              onKeyDown={(e) => { if (e.key === 'Enter') updateParam('q', e.target.value); }}
-              placeholder="Search by name, description, filename…"
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-dark-900 border border-dark-800 text-dark-100 text-sm"
-            />
+        <header className="px-6 py-3 border-b border-dark-800 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <FilterBar searchPlaceholder="Search by name, description, filename…">
+              {tagOptions.length > 0 && (
+                <FilterChip
+                  type="select"
+                  paramKey="tag"
+                  label="Tag"
+                  options={tagOptions}
+                  placeholder="All tags"
+                />
+              )}
+              <GroupByChip options={GROUP_OPTIONS} />
+              <ArchivedToggle activeCount={includeArchived ? null : total} archivedCount={archivedCount} />
+            </FilterBar>
           </div>
-          <label className="text-sm text-dark-300 inline-flex items-center gap-1.5 cursor-pointer">
-            <input type="checkbox" checked={includeArchived} onChange={(e) => updateParam('archived', e.target.checked ? '1' : '')} />
-            Show archived
-          </label>
           {isAdmin && (
-            <>
+            <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => navigate(`/org/${orgSlug}/documents/manage/tags`)} className="px-3 py-2 rounded-lg text-sm text-dark-300 hover:text-dark-100 hover:bg-dark-800 inline-flex items-center gap-1.5">
                 <TagIcon className="w-4 h-4" /> Manage tags
               </button>
               <button onClick={() => setShowUpload(true)} className="px-3 py-2 rounded-lg text-sm bg-rivvra-500 hover:bg-rivvra-600 text-white font-medium inline-flex items-center gap-1.5">
                 <Upload className="w-4 h-4" /> Upload
               </button>
-            </>
+            </div>
           )}
         </header>
-
-        {/* Tag filter chips */}
-        {tags.length > 0 && (
-          <div className="px-6 py-2 border-b border-dark-800 flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-dark-500 mr-1">Tag:</span>
-            <button onClick={() => updateParam('tag', '')}
-              className={`px-2.5 py-1 rounded-full text-xs border ${!tagFilter ? 'bg-rivvra-500/10 border-rivvra-500/40 text-rivvra-300' : 'bg-dark-900 border-dark-800 text-dark-300 hover:text-dark-100'}`}>
-              All
-            </button>
-            {tags.map((t) => (
-              <button key={t._id} onClick={() => updateParam('tag', String(t._id))}
-                className={`px-2.5 py-1 rounded-full text-xs border ${tagFilter === String(t._id) ? 'bg-rivvra-500/10 border-rivvra-500/40 text-rivvra-300' : 'bg-dark-900 border-dark-800 text-dark-300 hover:text-dark-100'}`}>
-                {t.name}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* List */}
         <section className="flex-1 overflow-y-auto px-6 py-4">
@@ -203,46 +261,19 @@ export default function DocumentsList() {
               <p className="text-sm">No documents{folderId ? ' in this folder' : ''} yet.</p>
               {isAdmin && <p className="text-xs mt-1 text-dark-500">Use Upload to add one.</p>}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {docs.map((d) => {
-                const Icon = fileIcon(d.currentVersion?.mimeType);
-                return (
-                  <button key={d._id}
-                    onClick={() => navigate(`/org/${orgSlug}/documents/${d._id}`)}
-                    className={`text-left flex items-start gap-3 p-3 rounded-lg border bg-dark-900 hover:bg-dark-800 transition ${d.archived ? 'border-amber-500/30 opacity-70' : 'border-dark-800'}`}>
-                    <Icon className="w-5 h-5 mt-0.5 text-dark-400 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium text-dark-100 truncate">{d.name}</h3>
-                        {d.archived && <span className="text-[10px] uppercase tracking-wider text-amber-400">Archived</span>}
-                      </div>
-                      <div className="text-xs text-dark-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span>{formatSize(d.currentVersion?.size)}</span>
-                        <span>·</span>
-                        <span>{formatDateUTC(d.currentVersion?.uploadedAt || d.updatedAt)}</span>
-                        {(d.versions?.length || 0) > 0 && (
-                          <>
-                            <span>·</span>
-                            <span>{(d.versions.length || 0) + 1} versions</span>
-                          </>
-                        )}
-                      </div>
-                      {d.tagIds?.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {d.tagIds.slice(0, 4).map((tid) => {
-                            const t = tagsById.get(String(tid));
-                            if (!t) return null;
-                            return <span key={tid} className="px-1.5 py-0.5 rounded text-[10px] bg-dark-800 text-dark-300 border border-dark-700">{t.name}</span>;
-                          })}
-                          {d.tagIds.length > 4 && <span className="text-[10px] text-dark-500">+{d.tagIds.length - 4}</span>}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+          ) : grouped ? (
+            <div className="space-y-6">
+              {grouped.map(([groupName, groupDocs]) => (
+                <section key={groupName}>
+                  <h3 className="text-[11px] uppercase tracking-wider text-dark-500 mb-2 pl-1">
+                    {groupName} <span className="text-dark-600">· {groupDocs.length}</span>
+                  </h3>
+                  <DocsGrid docs={groupDocs} tagsById={tagsById} onOpen={(d) => navigate(`/org/${orgSlug}/documents/${d._id}`)} />
+                </section>
+              ))}
             </div>
+          ) : (
+            <DocsGrid docs={docs} tagsById={tagsById} onOpen={(d) => navigate(`/org/${orgSlug}/documents/${d._id}`)} />
           )}
           {!loading && total > docs.length && (
             <p className="mt-4 text-center text-xs text-dark-500">Showing first {docs.length} of {total}. Narrow the filter to see more.</p>
@@ -259,6 +290,50 @@ export default function DocumentsList() {
           onUploaded={() => loadDocs()}
         />
       )}
+    </div>
+  );
+}
+
+function DocsGrid({ docs, tagsById, onOpen }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {docs.map((d) => {
+        const Icon = fileIcon(d.currentVersion?.mimeType);
+        return (
+          <button key={d._id}
+            onClick={() => onOpen(d)}
+            className={`text-left flex items-start gap-3 p-3 rounded-lg border bg-dark-900 hover:bg-dark-800 transition ${d.archived ? 'border-amber-500/30 opacity-70' : 'border-dark-800'}`}>
+            <Icon className="w-5 h-5 mt-0.5 text-dark-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-dark-100 truncate">{d.name}</h3>
+                {d.archived && <span className="text-[10px] uppercase tracking-wider text-amber-400">Archived</span>}
+              </div>
+              <div className="text-xs text-dark-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>{formatSize(d.currentVersion?.size)}</span>
+                <span>·</span>
+                <span>{formatDateUTC(d.currentVersion?.uploadedAt || d.updatedAt)}</span>
+                {(d.versions?.length || 0) > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{(d.versions.length || 0) + 1} versions</span>
+                  </>
+                )}
+              </div>
+              {d.tagIds?.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {d.tagIds.slice(0, 4).map((tid) => {
+                    const t = tagsById.get(String(tid));
+                    if (!t) return null;
+                    return <span key={tid} className="px-1.5 py-0.5 rounded text-[10px] bg-dark-800 text-dark-300 border border-dark-700">{t.name}</span>;
+                  })}
+                  {d.tagIds.length > 4 && <span className="text-[10px] text-dark-500">+{d.tagIds.length - 4}</span>}
+                </div>
+              )}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
