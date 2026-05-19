@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Eye, Download, X, Loader2 } from 'lucide-react';
+import { FileText, Eye, Download, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 /**
  * Shared document preview modal — displays PDFs and images in a large centered popup.
@@ -10,14 +10,17 @@ import { FileText, Eye, Download, X, Loader2 } from 'lucide-react';
  *  - mimeType: string (e.g. 'application/pdf', 'image/png')
  *  - fetchUrl: string — auth-fetched URL (Bearer token added automatically)
  *  - directUrl: string — publicly-accessible URL (e.g. Cloudinary)
+ *  - pdfRenderer: 'iframe' | 'canvas' (default 'iframe'). 'canvas' uses
+ *    PDF.js to render pages to a canvas, sidestepping Chrome's
+ *    iframe-blob-PDF quirks. Recommended for any caller using fetchUrl
+ *    backed by a proxy/blob path.
  *  - onClose: () => void
  *
  * For images: directUrl is used directly (Cloudinary allows <img> cross-origin).
- * For PDFs: fetchUrl is always preferred (proxied through our API) because
- * Cloudinary blocks iframe embedding via X-Frame-Options. Falls back to directUrl
- * only if fetchUrl is not provided.
+ * For PDFs (iframe mode): fetchUrl is always preferred (proxied through our API)
+ * because Cloudinary blocks iframe embedding via X-Frame-Options.
  */
-export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, directUrl, onClose }) {
+export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, directUrl, pdfRenderer = 'iframe', onClose }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -25,6 +28,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
 
   const isImage = mimeType?.startsWith('image/');
   const isPdf = mimeType === 'application/pdf';
+  const useCanvas = isPdf && pdfRenderer === 'canvas';
 
   const fetchAsBlob = useCallback((url, headers = {}) => {
     setLoading(true);
@@ -56,17 +60,19 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
   useEffect(() => {
     let cleanup = null;
 
+    if (useCanvas) {
+      // PdfCanvasViewer handles its own loading from fetchUrl/directUrl.
+      setLoading(false);
+      return undefined;
+    }
+
     if (directUrl && isImage) {
-      // Images work fine with direct Cloudinary URLs
       setBlobUrl(directUrl);
       setLoading(false);
     } else if (fetchUrl) {
-      // For PDFs (and when fetchUrl is available), always use the proxy
-      // because Cloudinary blocks iframe embedding via X-Frame-Options
       const token = localStorage.getItem('rivvra_token');
       cleanup = fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
     } else if (directUrl) {
-      // Fallback: use directUrl if no fetchUrl (images already handled above)
       setBlobUrl(directUrl);
       setLoading(false);
       setTriedDirect(true);
@@ -76,23 +82,38 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
     }
 
     return () => { if (cleanup) cleanup(); };
-  }, [fetchUrl, directUrl, fetchAsBlob, isImage]);
+  }, [fetchUrl, directUrl, fetchAsBlob, isImage, useCanvas]);
 
-  // Fallback: if direct URL iframe fails, try fetching via proxy
   const handleIframeError = useCallback(() => {
     if (triedDirect && fetchUrl) {
-      // Direct URL failed — fall back to proxy fetch
       const token = localStorage.getItem('rivvra_token');
       fetchAsBlob(fetchUrl, token ? { Authorization: `Bearer ${token}` } : {});
-      setTriedDirect(false); // prevent infinite loop
+      setTriedDirect(false);
     } else {
       setError(true);
     }
   }, [triedDirect, fetchUrl, fetchAsBlob]);
 
   const handleDownload = () => {
+    if (useCanvas) {
+      // Canvas mode: open via fetchUrl with auth, or directUrl as a last resort.
+      if (fetchUrl) {
+        const token = localStorage.getItem('rivvra_token');
+        fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          .then((r) => r.blob())
+          .then((b) => {
+            const u = URL.createObjectURL(b);
+            const a = document.createElement('a');
+            a.href = u; a.download = filename || 'document'; a.click();
+            setTimeout(() => URL.revokeObjectURL(u), 5000);
+          })
+          .catch(() => directUrl && window.open(directUrl, '_blank'));
+        return;
+      }
+      if (directUrl) window.open(directUrl, '_blank');
+      return;
+    }
     if (!blobUrl) return;
-    // For direct URLs, open in new tab (can't trigger download cross-origin)
     if (directUrl && blobUrl === directUrl) {
       window.open(directUrl, '_blank');
       return;
@@ -122,7 +143,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
             <p className="text-sm text-white font-medium truncate">{filename}</p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {blobUrl && (
+            {(blobUrl || useCanvas) && (
               <button
                 onClick={handleDownload}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
@@ -143,7 +164,9 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
 
         {/* Preview content */}
         <div className="flex-1 bg-dark-900/50 flex items-center justify-center overflow-hidden">
-          {loading ? (
+          {useCanvas ? (
+            <PdfCanvasViewer fetchUrl={fetchUrl} directUrl={directUrl} onError={() => setError(true)} />
+          ) : loading ? (
             <Loader2 size={28} className="animate-spin text-dark-500" />
           ) : error ? (
             <div className="text-center">
@@ -162,13 +185,6 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
           ) : isImage ? (
             <img src={blobUrl} alt={filename} className="max-w-full max-h-full object-contain p-4" />
           ) : isPdf ? (
-            // <object> instantiates the browser's PDF plugin directly. Chrome
-            // has a long-standing quirk where iframe-loaded blob: URLs with
-            // application/pdf only load the embedder's CSS without ever
-            // instantiating the viewer plugin (observed 2026-05-19 on Documents
-            // app with 300+ KB PDFs). <object> doesn't hit that pipeline and
-            // renders reliably; the nested <iframe> stays as a legacy fallback
-            // for any browser that can't render PDFs via <object>.
             <object data={blobUrl} type="application/pdf" className="w-full h-full" aria-label={filename}>
               <iframe
                 src={blobUrl}
@@ -184,5 +200,133 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
       </div>
     </div>,
     document.body
+  );
+}
+
+// PDF.js-based viewer. Used when `pdfRenderer="canvas"` — sidesteps Chrome's
+// iframe-blob-PDF rendering quirks by drawing every page to a canvas. Worker
+// is bundled via Vite's ?url asset import so we don't need a CDN.
+function PdfCanvasViewer({ fetchUrl, directUrl, onError }) {
+  const containerRef = useRef(null);
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [numPages, setNumPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [errMsg, setErrMsg] = useState('');
+  const canvasRef = useRef(null);
+
+  // Load PDF.js + the document.
+  useEffect(() => {
+    let cancelled = false;
+    let task = null;
+    let timeoutId;
+    const LOAD_TIMEOUT_MS = 30000;
+
+    (async () => {
+      try {
+        const pdfjsLib = await import('pdfjs-dist');
+        const { default: workerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
+        let data;
+        if (fetchUrl) {
+          const token = localStorage.getItem('rivvra_token');
+          const resp = await fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          data = await resp.arrayBuffer();
+        } else if (directUrl) {
+          const resp = await fetch(directUrl);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          data = await resp.arrayBuffer();
+        } else {
+          throw new Error('No URL provided');
+        }
+        if (cancelled) return;
+
+        task = pdfjsLib.getDocument({ data });
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('PDF load timed out')), LOAD_TIMEOUT_MS);
+        });
+        const doc = await Promise.race([task.promise, timeoutPromise]);
+        clearTimeout(timeoutId);
+        if (cancelled) return;
+        setPdfDoc(doc);
+        setNumPages(doc.numPages);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        try { task?.destroy(); } catch {/* ignore */}
+        if (!cancelled) {
+          const msg = err?.message === 'PDF load timed out'
+            ? 'PDF took too long to load — try Download instead.'
+            : (err?.message || 'Failed to load PDF');
+          setErrMsg(msg);
+          onError?.();
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; clearTimeout(timeoutId); try { task?.destroy(); } catch {/* */} };
+  }, [fetchUrl, directUrl, onError]);
+
+  // Render the current page to canvas.
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const page = await pdfDoc.getPage(currentPage);
+        if (cancelled) return;
+        const containerWidth = containerRef.current?.clientWidth || 800;
+        const unscaled = page.getViewport({ scale: 1 });
+        const scale = Math.min((containerWidth - 32) / unscaled.width, 2);
+        const viewport = page.getViewport({ scale });
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      } catch (err) {
+        console.error('[PdfCanvasViewer] render failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pdfDoc, currentPage]);
+
+  if (loading) {
+    return <Loader2 size={28} className="animate-spin text-dark-500" />;
+  }
+  if (errMsg) {
+    return <p className="text-dark-500 text-sm px-6 text-center">{errMsg}</p>;
+  }
+
+  return (
+    <div ref={containerRef} className="w-full h-full flex flex-col">
+      <div className="flex-1 overflow-auto flex items-start justify-center py-4">
+        <canvas ref={canvasRef} className="shadow-lg bg-white" />
+      </div>
+      {numPages > 1 && (
+        <div className="flex items-center justify-center gap-3 px-4 py-2 border-t border-dark-700/50 bg-dark-900/60">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="p-1.5 rounded text-dark-300 hover:text-white hover:bg-dark-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Previous page"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-xs text-dark-300 tabular-nums">Page {currentPage} of {numPages}</span>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+            disabled={currentPage >= numPages}
+            className="p-1.5 rounded text-dark-300 hover:text-white hover:bg-dark-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Next page"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

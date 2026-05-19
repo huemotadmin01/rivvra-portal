@@ -326,6 +326,7 @@ export default function DocumentDetail() {
           mimeType={cv.mimeType}
           directUrl={previewUrl}
           fetchUrl={previewFetchUrl}
+          pdfRenderer="canvas"
           onClose={() => { setPreviewUrl(null); setPreviewFetchUrl(null); }}
         />
       )}
