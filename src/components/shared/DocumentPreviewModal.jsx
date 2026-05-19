@@ -162,12 +162,21 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
           ) : isImage ? (
             <img src={blobUrl} alt={filename} className="max-w-full max-h-full object-contain p-4" />
           ) : isPdf ? (
-            <iframe
-              src={blobUrl}
-              className="w-full h-full"
-              title={filename}
-              onError={handleIframeError}
-            />
+            // <object> instantiates the browser's PDF plugin directly. Chrome
+            // has a long-standing quirk where iframe-loaded blob: URLs with
+            // application/pdf only load the embedder's CSS without ever
+            // instantiating the viewer plugin (observed 2026-05-19 on Documents
+            // app with 300+ KB PDFs). <object> doesn't hit that pipeline and
+            // renders reliably; the nested <iframe> stays as a legacy fallback
+            // for any browser that can't render PDFs via <object>.
+            <object data={blobUrl} type="application/pdf" className="w-full h-full" aria-label={filename}>
+              <iframe
+                src={blobUrl}
+                className="w-full h-full"
+                title={filename}
+                onError={handleIframeError}
+              />
+            </object>
           ) : (
             <p className="text-dark-500 text-sm">Preview not available for this file type</p>
           )}
