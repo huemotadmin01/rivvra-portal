@@ -119,7 +119,7 @@ function ReasonCombobox({ reasons, value, onChange, disabled }) {
               className="flex-1 bg-transparent text-sm text-white placeholder-dark-500 focus:outline-none"
             />
           </div>
-          <div className="max-h-56 overflow-y-auto py-1">
+          <div className="max-h-72 overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <div className="px-3 py-4 text-center text-sm text-dark-500">No matching reasons</div>
             ) : (
@@ -176,10 +176,10 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving, application, c
         role="dialog"
         aria-modal="true"
         aria-labelledby="refuse-modal-title"
-        className="bg-dark-800 rounded-xl border border-dark-700 w-full max-w-lg shadow-2xl overflow-hidden"
+        className="bg-dark-800 rounded-xl border border-dark-700 w-full max-w-lg shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-dark-700">
+        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-dark-700 rounded-t-xl">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center shrink-0">
               <XCircle size={18} className="text-red-400" />
@@ -256,7 +256,7 @@ function RefuseModal({ show, onClose, onConfirm, reasons, saving, application, c
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 bg-dark-900/40 border-t border-dark-700">
+        <div className="flex items-center justify-end gap-2 px-6 py-4 bg-dark-900/40 border-t border-dark-700 rounded-b-xl">
           <button
             type="button"
             onClick={onClose}
