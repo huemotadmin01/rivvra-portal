@@ -625,7 +625,7 @@ function PdfPageWithFields({
               // padding) so we don't erase surrounding document text.
               <div
                 className="w-full h-full flex items-end font-medium pb-0.5"
-                style={{ fontSize: Math.min(Math.max(height * 0.5, 12), 16), lineHeight: 1.1 }}
+                style={{ fontSize: Math.min(Math.max(Math.max(height, 36) * 0.5, 12), 16), lineHeight: 1.1 }}
               >
                 <span className="bg-white text-gray-800 px-1 truncate max-w-full">
                   {displayDate}
