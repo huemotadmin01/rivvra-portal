@@ -151,6 +151,10 @@ export default function AtsApplications() {
     // these in the allow-list, useFilterParams stripped them off the URL
     // and the API call landed unfiltered.
     'hiredOnly', 'refusedOnly',
+    // 2026-05-19: mine=1 / team=1 narrow the list to match the dashboard's
+    // data scope. Dashboard tiles add the matching one for non-admin
+    // recruiters so clicking through doesn't widen the view.
+    'mine', 'team',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   // 2026-05-17 Phase L: harden page-param parsing. parseInt('abc') returns

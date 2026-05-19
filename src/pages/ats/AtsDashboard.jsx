@@ -863,6 +863,15 @@ export default function AtsDashboard() {
     lastWorkingDaySubmissions = [],
   } = data;
 
+  // 2026-05-19: deep-link scope suffix. Dashboard data is scoped by
+  // role (admin/team/self) on the server; tile clicks must carry the
+  // same scope into the Applications list so a recruiter doesn't widen
+  // org-wide on a click. data.scope.mode is the source of truth.
+  const scopeMode = data?.scope?.mode;
+  const scopeQuery = scopeMode === 'self' ? '&mine=1'
+    : scopeMode === 'team' ? '&team=1'
+    : '';
+
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
       {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -947,7 +956,15 @@ export default function AtsDashboard() {
             3. Offer Active — proposal + signed split out as subtitle
             4. Open Jobs — what we're actively recruiting for
           Each tile is clickable and routes to the matching filtered list
-          on the Applications / Jobs page. */}
+          on the Applications / Jobs page.
+
+          2026-05-19: dashboard tiles must deep-link with the same scope
+          the dashboard is rendering (admin / team / self). Without this,
+          a recruiter seeing "L1: 1" (self scope) clicks through and lands
+          on the org-wide list of 9 — confusing and a data-leak across
+          team boundaries. scopeQuery resolves to '' for admin, '&team=1'
+          for team-lead, '&mine=1' for member. The list endpoint
+          interprets these per backend ats.js. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiTile
           label="Active Pipeline"
@@ -955,7 +972,7 @@ export default function AtsDashboard() {
           subtitle={`${totalApplications} total apps in range`}
           icon={BarChart3}
           color="blue"
-          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing`}
+          to={`/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`}
         />
         <KpiTile
           label="Hired"
@@ -967,7 +984,7 @@ export default function AtsDashboard() {
           }
           icon={UserCheck}
           color="emerald"
-          to={`/org/${orgSlug}/ats/applications?hiredOnly=1`}
+          to={`/org/${orgSlug}/ats/applications?hiredOnly=1${scopeQuery}`}
         />
         <KpiTile
           label="Offer Active"
@@ -985,7 +1002,7 @@ export default function AtsDashboard() {
               .map((s) => s.stageId)
               .filter(Boolean);
             const stageQ = ids.length > 0 ? `&stageId=${ids.join(',')}` : '';
-            return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}`;
+            return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}${scopeQuery}`;
           })()}
         />
         <KpiTile
@@ -1026,8 +1043,8 @@ export default function AtsDashboard() {
             {tiles.map(({ name, color, icon }) => {
               const t = stageTile(name);
               const to = t.stageId
-                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageId}&applicationStatus=ongoing`
-                : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing`;
+                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageId}&applicationStatus=ongoing${scopeQuery}`
+                : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`;
               return (
                 <KpiTile
                   key={name}
@@ -1049,7 +1066,7 @@ export default function AtsDashboard() {
       <RecruitmentFunnel
         data={applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage}
         onStageClick={(s) => {
-          if (s.stageId) navigate(`/org/${orgSlug}/ats/applications?stageId=${s.stageId}&applicationStatus=ongoing`);
+          if (s.stageId) navigate(`/org/${orgSlug}/ats/applications?stageId=${s.stageId}&applicationStatus=ongoing${scopeQuery}`);
         }}
       />
 
@@ -1197,7 +1214,7 @@ export default function AtsDashboard() {
           thresholdLabel={`> ${alerts.stale?.threshold ?? 14} days in same stage`}
           items={alerts.stale?.items || []}
           emptyMessage="No stale applications."
-          viewAllPath={orgPath('/ats/applications')}
+          viewAllPath={orgPath(`/ats/applications${scopeQuery ? `?${scopeQuery.slice(1)}` : ''}`)}
           renderItem={(item) => (
             <li key={item.applicationId}>
               <Link
@@ -1222,7 +1239,7 @@ export default function AtsDashboard() {
           thresholdLabel={`> ${alerts.awaiting?.threshold ?? 3} days since interview`}
           items={alerts.awaiting?.items || []}
           emptyMessage="No outstanding results."
-          viewAllPath={orgPath('/ats/applications')}
+          viewAllPath={orgPath(`/ats/applications${scopeQuery ? `?${scopeQuery.slice(1)}` : ''}`)}
           renderItem={(item) => (
             <li key={item.applicationId}>
               <Link
