@@ -104,9 +104,18 @@ export default function RateConfirmationModal({
   const jobTitle = application?.jobName || application?.jobPositionName || '';
 
   // ── Filter templates by the "Rate Confirmation" tag ──────────────────
-  const rateTemplates = useMemo(() => templates.filter((t) =>
-    Array.isArray(t.tags) && t.tags.some((tag) => TAG_REGEX.test(tag?.name || ''))
-  ), [templates]);
+  // Surface the "Individual Contractor" template first since it's the
+  // most-frequently-used rate-confirmation flow.
+  const rateTemplates = useMemo(() => {
+    const matched = templates.filter((t) =>
+      Array.isArray(t.tags) && t.tags.some((tag) => TAG_REGEX.test(tag?.name || ''))
+    );
+    return matched.slice().sort((a, b) => {
+      const ai = /individual\s*contractor/i.test(a?.name || '') ? 0 : 1;
+      const bi = /individual\s*contractor/i.test(b?.name || '') ? 0 : 1;
+      return ai - bi;
+    });
+  }, [templates]);
 
   const selectedTemplate = useMemo(
     () => rateTemplates.find((t) => String(t._id) === templateId),
