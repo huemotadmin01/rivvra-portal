@@ -537,6 +537,7 @@ function PdfPageWithFields({
   previousValues = {},
   previousSignatureHashes = {},
   allSignItems = [],
+  highlightedFieldId = null,
 }) {
   const canvasRef = useRef(null);
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
@@ -625,7 +626,7 @@ function PdfPageWithFields({
               // padding) so we don't erase surrounding document text.
               <div
                 className="w-full h-full flex items-end font-medium pb-0.5"
-                style={{ fontSize: Math.min(Math.max(Math.max(height, 36) * 0.5, 12), 16), lineHeight: 1.1 }}
+                style={{ fontSize: Math.min(Math.max(Math.max(height, 36) * 0.55, 14), 20), lineHeight: 1.1 }}
               >
                 <span className="bg-white text-gray-800 px-1 truncate max-w-full">
                   {displayDate}
@@ -642,8 +643,17 @@ function PdfPageWithFields({
         const isActive = activeFieldId === (item._id || item.id);
         const isSignatureType = item.type === 'signature' || item.type === 'initials';
         const isRequired = item.required !== false; // Default to required
+        const isHighlighted = highlightedFieldId === (item._id || item.id);
         const meta = FIELD_META[item.type] || FIELD_META.text;
         const Icon = meta.icon;
+        const Callout = isHighlighted ? (
+          <div
+            className="absolute left-0 -top-7 px-2 py-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded shadow-md whitespace-nowrap pointer-events-none animate-bounce z-10"
+          >
+            ↓ Fill this field
+          </div>
+        ) : null;
+        const highlightRing = isHighlighted ? 'ring-4 ring-yellow-400 ring-offset-2 animate-pulse' : '';
 
         // Position & size from item (fractions 0–1 of page dimensions)
         const left = (item.posX ?? item.x ?? 0) * pageDims.width;
@@ -665,7 +675,7 @@ function PdfPageWithFields({
             <div
               key={fieldId}
               data-field-id={fieldId}
-              className="absolute cursor-pointer rounded transition-all overflow-hidden"
+              className={`absolute cursor-pointer rounded transition-all overflow-visible ${highlightRing}`}
               style={{
                 left, top, width,
                 height: isFilled ? height + 20 : unfilledHeight,
@@ -676,6 +686,7 @@ function PdfPageWithFields({
               }}
               onClick={() => onOpenSignaturePad(fieldId, item.type)}
             >
+              {Callout}
               {isFilled ? (
                 <SignatureStamp src={fieldValue} hash={hash} alt={item.type} />
               ) : (
@@ -702,11 +713,10 @@ function PdfPageWithFields({
             <div
               key={item._id || item.id}
               data-field-id={item._id || item.id}
-              className={`absolute rounded transition-all flex items-center justify-center ${
-                isFilled ? '' : isRequired ? '' : ''
-              }`}
+              className={`absolute rounded transition-all flex items-center justify-center ${highlightRing}`}
               style={{ left, top, width, height, scrollMarginTop: 120, scrollMarginBottom: 100 }}
             >
+              {Callout}
               <InlineFieldInput
                 item={item}
                 value={fieldValue || false}
@@ -730,12 +740,12 @@ function PdfPageWithFields({
         // text lands on the printed underline beneath users' typical
         // "box-above-the-line" placement habit.
         const visualHeight = Math.max(height, 36);
-        const filledFontSize = Math.min(Math.max(visualHeight * 0.5, 12), 16);
+        const filledFontSize = Math.min(Math.max(visualHeight * 0.55, 14), 20);
         return (
           <div
             key={item._id || item.id}
             data-field-id={item._id || item.id}
-            className={`absolute rounded transition-all ${
+            className={`absolute rounded transition-all ${highlightRing} ${
               isActive
                 ? ''
                 : isFilled
@@ -751,6 +761,7 @@ function PdfPageWithFields({
               if (!isActive) setActiveFieldId(item._id || item.id);
             }}
           >
+            {Callout}
             {isActive ? (
               <InlineFieldInput
                 item={item}
@@ -825,6 +836,21 @@ export default function PublicSigningPage() {
   // resize events don't blow away the user's zoom preference.
   const [userZoom, setUserZoom] = useState(1);
   const [showFieldsList, setShowFieldsList] = useState(false);
+  // Transient attention highlight: when Next Field / validation scrolls the
+  // user to a pending field, glow that field for a few seconds so they can
+  // see *which* one needs attention. Cleared by a timer or by interacting
+  // with the field.
+  const [highlightedFieldId, setHighlightedFieldId] = useState(null);
+  const highlightTimerRef = useRef(null);
+  const highlightField = useCallback((fieldId) => {
+    if (!fieldId) return;
+    setHighlightedFieldId(fieldId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedFieldId(null);
+      highlightTimerRef.current = null;
+    }, 4000);
+  }, []);
 
   // Envelope state
   const [envelope, setEnvelope] = useState(null); // null = single doc
@@ -1008,6 +1034,8 @@ export default function PublicSigningPage() {
     // Treat any field interaction as "started" so the sticky CTA banner gets
     // out of the way even if the signer scrolled past it without clicking.
     setHasStarted(true);
+    // Once they're typing in the highlighted field, drop the attention ring.
+    setHighlightedFieldId((curr) => (curr === fieldId ? null : curr));
   }, [showValidation]);
 
   // ── Signature reuse prompt ───────────────────────────────────────────
@@ -1101,6 +1129,7 @@ export default function PublicSigningPage() {
         const fieldEl = containerRef.current?.querySelector(`[data-field-id="${id}"]`);
         if (fieldEl) {
           fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          highlightField(id);
           setTimeout(() => {
             if (item.type === 'signature' || item.type === 'initials') {
               handleOpenSignaturePad(id, item.type);
@@ -1115,6 +1144,7 @@ export default function PublicSigningPage() {
         const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[pageIndex];
         if (pageEl) {
           pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          highlightField(id);
           setTimeout(() => {
             if (item.type === 'signature' || item.type === 'initials') {
               handleOpenSignaturePad(id, item.type);
@@ -1127,7 +1157,7 @@ export default function PublicSigningPage() {
       }
     }
     return false; // all filled
-  }, [template?.signItems, values, handleOpenSignaturePad]);
+  }, [template?.signItems, values, handleOpenSignaturePad, highlightField]);
 
   // Download the signed PDF, retrying briefly while the backend finishes
   // sealing+uploading. Race: the success page renders the moment the
@@ -1638,6 +1668,7 @@ export default function PublicSigningPage() {
                 previousValues={previousValues}
                 previousSignatureHashes={previousSignatureHashes}
                 allSignItems={allSignItems}
+                highlightedFieldId={highlightedFieldId}
               />
             ))
           ) : (
@@ -1690,6 +1721,7 @@ export default function PublicSigningPage() {
                           fieldYWithinPage -
                           (containerRect?.height || window.innerHeight) / 3;
                         containerRef.current?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+                        highlightField(id);
                         setTimeout(() => {
                           if (item.type === 'signature' || item.type === 'initials') {
                             handleOpenSignaturePad(id, item.type);
