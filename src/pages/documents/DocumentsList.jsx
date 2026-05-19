@@ -42,10 +42,17 @@ export default function DocumentsList() {
   const [total, setTotal] = useState(0);
   const [showUpload, setShowUpload] = useState(false);
 
-  const folderId = searchParams.get('folder') || '';
+  const folderIdParam = searchParams.get('folder') || '';
   const tagFilter = searchParams.get('tag') || '';
   const q = searchParams.get('q') || '';
   const includeArchived = searchParams.get('archived') === '1';
+
+  // If the URL points at a folder that no longer exists for this company
+  // (e.g. it was deleted, or the user switched companies), silently fall
+  // back to "All documents" rather than rendering an empty pane.
+  const folderId = folderIdParam && folders.some((f) => String(f._id) === folderIdParam)
+    ? folderIdParam
+    : '';
 
   const updateParam = useCallback((key, value) => {
     const next = new URLSearchParams(searchParams);
@@ -90,6 +97,15 @@ export default function DocumentsList() {
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
   useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  // Auto-clear stale `?folder=` param once the folder list is loaded and we
+  // can confirm the URL value doesn't match any folder for this company.
+  useEffect(() => {
+    if (!folders.length) return;
+    if (!folderIdParam) return;
+    const exists = folders.some((f) => String(f._id) === folderIdParam);
+    if (!exists) updateParam('folder', '');
+  }, [folders, folderIdParam, updateParam]);
 
   const tagsById = useMemo(() => new Map(tags.map((t) => [String(t._id), t])), [tags]);
 
