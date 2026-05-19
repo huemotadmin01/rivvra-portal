@@ -43,6 +43,8 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  ArrowUp,
+  ArrowDown,
   Tag as TagIcon,
 } from 'lucide-react';
 import { EditorSkeleton } from '../../components/Skeletons';
@@ -168,6 +170,13 @@ export default function SignTemplateEditor() {
   const [roles, setRoles] = useState([]);
   const [activeRoleId, setActiveRoleId] = useState(null);
 
+  // ── Signing order ───────────────────────────────────────────────────
+  // Explicit per-template signer sequence as a list of roleId strings.
+  // When non-empty, the backend reorders the incoming signers array to
+  // match before assigning the 1-based `order` index on the envelope.
+  // Empty means "fall back to caller order" (the legacy behaviour).
+  const [signingOrder, setSigningOrder] = useState([]);
+
   // ── PDF rendering ───────────────────────────────────────────────────
   const [pdfDoc, setPdfDoc] = useState(null);
   const [pageViewports, setPageViewports] = useState([]); // { origWidth, origHeight }[]
@@ -265,6 +274,7 @@ export default function SignTemplateEditor() {
           setSignItems(loadedItems);
           savedSignItemsRef.current = JSON.stringify(loadedItems);
           setNumPages(t.numPages || 0);
+          setSigningOrder(Array.isArray(t.signingOrder) ? t.signingOrder.map((id) => String(id)) : []);
           // Tags can come back as either array of populated tag objects or
           // raw IDs depending on the route. Normalize to a list of IDs.
           const rawTags = Array.isArray(t.tags) ? t.tags : [];
@@ -476,6 +486,7 @@ export default function SignTemplateEditor() {
         signItems,
         numPages,
         tags: templateTagIds,
+        signingOrder,
       });
       if (res.success) {
         savedSignItemsRef.current = JSON.stringify(signItems);
@@ -490,7 +501,7 @@ export default function SignTemplateEditor() {
     } finally {
       if (silent) setAutoSaving(false); else setSaving(false);
     }
-  }, [orgSlug, templateId, templateName, signItems, numPages, templateTagIds, saving, showToast]);
+  }, [orgSlug, templateId, templateName, signItems, numPages, templateTagIds, signingOrder, saving, showToast]);
 
   const handleSave = useCallback(() => doSave({ silent: false }), [doSave]);
 
@@ -1054,6 +1065,44 @@ export default function SignTemplateEditor() {
   );
 
   // ────────────────────────────────────────────────────────────────────
+  // Signing order — derived from signItems + the persisted preference
+  // ────────────────────────────────────────────────────────────────────
+  // usedRoleIds is every role actually placed on the canvas, deduped in
+  // first-seen (placement) order. effectiveOrder reconciles the user's
+  // saved preference with the current placement set: declared roles keep
+  // their saved position; any newly-placed role appends at the tail; any
+  // removed role is silently dropped.
+  const usedRoleIds = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const item of signItems) {
+      const rid = item?.roleId ? String(item.roleId) : '';
+      if (!rid || seen.has(rid)) continue;
+      seen.add(rid);
+      out.push(rid);
+    }
+    return out;
+  }, [signItems]);
+
+  const effectiveOrder = useMemo(() => {
+    const used = new Set(usedRoleIds);
+    const declared = signingOrder.filter((id) => used.has(id));
+    const missing = usedRoleIds.filter((id) => !declared.includes(id));
+    return [...declared, ...missing];
+  }, [usedRoleIds, signingOrder]);
+
+  const moveSignerOrder = useCallback((roleId, direction) => {
+    setSigningOrder(() => {
+      const next = effectiveOrder.slice();
+      const idx = next.indexOf(roleId);
+      const j = idx + direction;
+      if (idx < 0 || j < 0 || j >= next.length) return effectiveOrder;
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next;
+    });
+  }, [effectiveOrder]);
+
+  // ────────────────────────────────────────────────────────────────────
   // Inline name editing
   // ────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1403,6 +1452,70 @@ export default function SignTemplateEditor() {
               </button>
             )}
           </div>
+
+          {/* Signing order — explicit per-template signer sequence. The
+              backend reorders the incoming signers array to match this
+              before assigning the 1-based `order` index on the envelope.
+              Only roles that are actually placed on the canvas show up,
+              so a template with no fields renders an empty hint. Hidden
+              in QuickSend mode (roles there come from the URL, not the
+              org-wide config — reordering doesn't apply). */}
+          {!isQuickSend && (
+            <div className="p-4 border-t border-dark-700">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                Signing order
+              </h3>
+              {effectiveOrder.length === 0 ? (
+                <p className="text-xs text-gray-500 italic">
+                  Place at least one field for each role on the PDF — used roles will appear here in signing order.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {effectiveOrder.map((rid, idx) => {
+                    const role = roles.find((r) => r._id === rid);
+                    const color = getRoleColor(rid);
+                    const isFirst = idx === 0;
+                    const isLast = idx === effectiveOrder.length - 1;
+                    return (
+                      <div
+                        key={rid}
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-dark-800/70 border border-dark-700"
+                      >
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-dark-900 border border-dark-600 text-[10px] font-semibold text-dark-200 shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="flex-1 min-w-0 truncate text-sm text-dark-100">
+                          {role?.name || 'Unknown role'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => moveSignerOrder(rid, -1)}
+                          disabled={isFirst}
+                          className="p-1 rounded-md text-dark-400 hover:text-white hover:bg-dark-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move up"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSignerOrder(rid, +1)}
+                          disabled={isLast}
+                          className="p-1 rounded-md text-dark-400 hover:text-white hover:bg-dark-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move down"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-dark-500 mt-2 leading-snug">
+                    Signer 1 receives the envelope first. The next signer is emailed automatically as soon as the previous one finishes.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Quick stats */}
           <div className="p-4 border-t border-dark-700">
