@@ -1,23 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, FileSignature, X } from 'lucide-react';
 import atsApi from '../../utils/atsApi';
 import signApi from '../../utils/signApi';
 
-const TEMPLATE_NAME = 'Candidate Rate & Terms Confirmation- Individual Contractor';
-
-const SALARY_UNITS = [
-  { value: 'per_day', label: 'per day' },
-  { value: 'per_month', label: 'per month' },
-  { value: 'lpa', label: 'LPA' },
-  { value: 'per_year', label: 'per year' },
-];
-
-const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD'];
+const TAG_REGEX = /rate\s*confirmation/i;
+// Role names matching this regex get prefilled with the logged-in recruiter's
+// identity (read-only). Anything else is treated as a candidate-style slot.
+const RECRUITER_ROLE_REGEX = /recruit|director|signatory|company|employer|consultant\s*company/i;
+const CANDIDATE_ROLE_REGEX = /candidate|contractor|consultant|individual/i;
 
 /**
- * RateConfirmationModal — sends a Sign envelope using the
- * "Candidate Rate & Terms Confirmation- Individual Contractor" template,
- * with recruiter as first signer and candidate as second. Records the
+ * RateConfirmationModal — picks a Sign template tagged "Rate Confirmation"
+ * and sends an envelope with one signer per template role. Records the
  * envelope id back onto the application via /ats/applications/:id/rate-confirmation.
  *
  * Visibility / gating is enforced by the caller — this component assumes
@@ -28,16 +22,13 @@ export default function RateConfirmationModal({
   orgSlug, application,
   recruiterName, recruiterEmail,
 }) {
-  const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [templates, setTemplates] = useState([]);
+  const [rolesById, setRolesById] = useState({});
   const [templateId, setTemplateId] = useState('');
-  const [templateError, setTemplateError] = useState('');
-
-  const initialOfferCtc = application?.offer?.offeredCTC || {};
-  const [candName, setCandName] = useState('');
-  const [candEmail, setCandEmail] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('INR');
-  const [unit, setUnit] = useState('per_day');
+  // signerSlots: [{ roleId, roleName, kind: 'recruiter'|'candidate'|'other', name, email }]
+  const [signerSlots, setSignerSlots] = useState([]);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -45,14 +36,51 @@ export default function RateConfirmationModal({
 
   const jobTitle = application?.jobName || application?.jobPositionName || '';
 
-  // Prefill fields each time the modal opens.
+  // Filter templates whose tags include something matching /rate confirmation/i.
+  const rateTemplates = useMemo(() => templates.filter((t) =>
+    Array.isArray(t.tags) && t.tags.some((tag) => TAG_REGEX.test(tag?.name || ''))
+  ), [templates]);
+
+  // Derive ordered, unique roles from a template's signItems.
+  const rolesForTemplate = (tmpl) => {
+    if (!tmpl) return [];
+    const seen = new Set();
+    const out = [];
+    for (const item of (tmpl.signItems || [])) {
+      const rid = item?.roleId ? String(item.roleId) : '';
+      if (!rid || seen.has(rid)) continue;
+      seen.add(rid);
+      const role = rolesById[rid];
+      out.push({ roleId: rid, roleName: role?.name || 'Signer', sequence: role?.sequence ?? 0 });
+    }
+    // Stable: keep first-encountered order from signItems; ignore sequence to
+    // match how the Sign signer-ordering UI displays placements left-to-right.
+    return out;
+  };
+
+  // Build initial signerSlots for a given template + role lookup.
+  const buildSlotsForTemplate = (tmpl) => {
+    const roles = rolesForTemplate(tmpl);
+    return roles.map((r) => {
+      let kind = 'other';
+      let name = '';
+      let email = '';
+      if (RECRUITER_ROLE_REGEX.test(r.roleName)) {
+        kind = 'recruiter';
+        name = recruiterName || '';
+        email = recruiterEmail || '';
+      } else if (CANDIDATE_ROLE_REGEX.test(r.roleName)) {
+        kind = 'candidate';
+        name = application?.candidateName || '';
+        email = application?.email || '';
+      }
+      return { roleId: r.roleId, roleName: r.roleName, kind, name, email };
+    });
+  };
+
+  // Reset transient state and prefill subject/message each time the modal opens.
   useEffect(() => {
     if (!show) return;
-    setCandName(application?.candidateName || '');
-    setCandEmail(application?.email || '');
-    setAmount(initialOfferCtc.amount ? String(initialOfferCtc.amount) : '');
-    setCurrency(initialOfferCtc.currency || 'INR');
-    setUnit(initialOfferCtc.unit || 'per_day');
     setSubject(`Rate Confirmation — ${application?.candidateName || 'Candidate'}${jobTitle ? ` · ${jobTitle}` : ''}`);
     setMessage(
       `Hi ${(application?.candidateName || '').split(/\s+/)[0] || 'there'},\n\n`
@@ -63,64 +91,98 @@ export default function RateConfirmationModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, application?._id]);
 
-  // Find the system template by name when the modal opens.
+  // Load templates + roles in parallel when the modal opens.
   useEffect(() => {
     if (!show || !orgSlug) return;
     let cancelled = false;
-    setLoadingTemplate(true);
-    setTemplateError('');
-    atsApi.listSignTemplates(orgSlug)
-      .then((res) => {
+    setLoading(true);
+    setLoadError('');
+    Promise.all([
+      atsApi.listSignTemplates(orgSlug),
+      signApi.listRoles(orgSlug),
+    ])
+      .then(([tplRes, roleRes]) => {
         if (cancelled) return;
-        const templates = res?.templates || res?.signTemplates || [];
-        const match = templates.find((t) => (t.name || '').trim().toLowerCase() === TEMPLATE_NAME.toLowerCase());
-        if (!match) {
-          setTemplateError(`Template "${TEMPLATE_NAME}" not found in Sign settings.`);
-          setTemplateId('');
-        } else {
-          setTemplateId(String(match._id));
-        }
+        const tpls = tplRes?.templates || tplRes?.signTemplates || [];
+        const roles = roleRes?.roles || roleRes?.signRoles || [];
+        const map = {};
+        for (const r of roles) map[String(r._id)] = r;
+        setTemplates(tpls);
+        setRolesById(map);
       })
       .catch((err) => {
-        if (!cancelled) setTemplateError(err?.message || 'Failed to load Sign templates');
+        if (!cancelled) setLoadError(err?.message || 'Failed to load Sign templates');
       })
-      .finally(() => { if (!cancelled) setLoadingTemplate(false); });
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [show, orgSlug]);
 
+  // Auto-select when exactly one template matches; clear when none.
+  useEffect(() => {
+    if (loading) return;
+    if (rateTemplates.length === 0) {
+      setTemplateId('');
+      setSignerSlots([]);
+      return;
+    }
+    // If current selection is still valid, keep it.
+    if (templateId && rateTemplates.some((t) => String(t._id) === templateId)) return;
+    const first = rateTemplates[0];
+    setTemplateId(String(first._id));
+  }, [loading, rateTemplates, templateId]);
+
+  // Rebuild signer slots whenever the chosen template (or roles map) changes.
+  useEffect(() => {
+    if (!templateId) { setSignerSlots([]); return; }
+    const tmpl = rateTemplates.find((t) => String(t._id) === templateId);
+    setSignerSlots(buildSlotsForTemplate(tmpl));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateId, rolesById, recruiterName, recruiterEmail, application?._id]);
+
   if (!show) return null;
+
+  const selectedTemplate = rateTemplates.find((t) => String(t._id) === templateId);
+  const showTemplatePicker = rateTemplates.length > 1;
+  const noTemplatesError = !loading && !loadError && rateTemplates.length === 0
+    ? 'No Sign template tagged "Rate Confirmation" was found. Tag a template in Sign settings first.'
+    : '';
 
   const messageToHtml = (text) => String(text || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>');
 
+  const updateSlot = (idx, patch) => {
+    setSignerSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  };
+
   const handleSend = async () => {
     setError('');
-    if (!templateId) { setError(templateError || 'Template not loaded'); return; }
-    if (!recruiterName?.trim() || !recruiterEmail?.trim()) {
-      setError('Your recruiter profile is missing a name/email. Update your employee record first.');
-      return;
+    if (!templateId || !selectedTemplate) { setError(noTemplatesError || loadError || 'Pick a template'); return; }
+    if (signerSlots.length === 0) { setError('Template has no signer roles configured'); return; }
+
+    for (const slot of signerSlots) {
+      if (!slot.name?.trim() || !slot.email?.trim()) {
+        setError(`${slot.roleName}: name and email are required`);
+        return;
+      }
     }
-    if (!candName.trim() || !candEmail.trim()) {
-      setError('Candidate name and email are required');
-      return;
-    }
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) { setError('Amount must be greater than 0'); return; }
-    if (!unit) { setError('Pick a unit'); return; }
 
     setSending(true);
     try {
-      const reference = `Rate Confirmation — ${candName.trim()}${jobTitle ? ` · ${jobTitle}` : ''}`;
+      const candidateSlot = signerSlots.find((s) => s.kind === 'candidate');
+      const candName = candidateSlot?.name || application?.candidateName || 'Candidate';
+      const reference = `Rate Confirmation — ${candName}${jobTitle ? ` · ${jobTitle}` : ''}`;
+
       const envelopeRes = await signApi.createRequest(orgSlug, {
         templateId,
         reference,
         subject: subject.trim() || undefined,
         message: messageToHtml(message.trim()) || undefined,
-        signers: [
-          { name: recruiterName.trim(), email: recruiterEmail.trim().toLowerCase(), roleName: 'Recruiter' },
-          { name: candName.trim(), email: candEmail.trim().toLowerCase(), roleName: 'Candidate' },
-        ],
+        signers: signerSlots.map((s) => ({
+          name: s.name.trim(),
+          email: s.email.trim().toLowerCase(),
+          roleName: s.roleName,
+        })),
         linkedModel: 'ats_application',
         linkedId: application._id,
       });
@@ -130,9 +192,6 @@ export default function RateConfirmationModal({
 
       await atsApi.recordRateConfirmation(orgSlug, application._id, {
         envelopeId: String(envelopeId),
-        amount: amt,
-        currency,
-        unit,
       });
 
       if (typeof onSent === 'function') onSent();
@@ -143,6 +202,8 @@ export default function RateConfirmationModal({
       setSending(false);
     }
   };
+
+  const sendDisabled = sending || loading || !!loadError || !templateId || signerSlots.length === 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -157,7 +218,7 @@ export default function RateConfirmationModal({
               {application?.rateConfirmation?.envelopeId ? 'Re-send Rate Confirmation' : 'Send Rate Confirmation'}
             </h2>
             <p className="text-xs text-dark-400 mt-1">
-              Uses the &ldquo;{TEMPLATE_NAME}&rdquo; Sign template. You sign first, then the candidate.
+              Uses a Sign template tagged &ldquo;Rate Confirmation&rdquo;. Signers are auto-set from the template&rsquo;s roles.
             </p>
           </div>
           <button onClick={onClose} className="text-dark-400 hover:text-white p-1 rounded">
@@ -166,76 +227,77 @@ export default function RateConfirmationModal({
         </div>
 
         <div className="p-5 space-y-4">
-          {loadingTemplate && (
+          {loading && (
             <div className="flex items-center gap-2 text-sm text-dark-400">
-              <Loader2 size={14} className="animate-spin" /> Loading Sign template…
+              <Loader2 size={14} className="animate-spin" /> Loading Sign templates…
             </div>
           )}
-          {templateError && (
+          {loadError && (
             <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-              {templateError}
+              {loadError}
+            </div>
+          )}
+          {noTemplatesError && (
+            <div className="text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              {noTemplatesError}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {showTemplatePicker && (
             <div>
-              <label className="text-xs font-medium text-dark-300 mb-1 block">Recruiter (signer 1)</label>
-              <div className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200">
-                {recruiterName || '—'}<br />
-                <span className="text-xs text-dark-400">{recruiterEmail || ''}</span>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-dark-300 mb-1 block">Candidate (signer 2)</label>
-              <input
-                type="text"
-                value={candName}
-                onChange={(e) => setCandName(e.target.value)}
-                placeholder="Candidate name"
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none mb-1"
-              />
-              <input
-                type="email"
-                value={candEmail}
-                onChange={(e) => setCandEmail(e.target.value)}
-                placeholder="candidate@example.com"
+              <label className="text-xs font-medium text-dark-300 mb-1 block">Sign template</label>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                disabled={sending}
                 className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
-              />
+              >
+                {rateTemplates.map((t) => (
+                  <option key={t._id} value={String(t._id)}>{t.name}</option>
+                ))}
+              </select>
             </div>
-          </div>
+          )}
+          {!showTemplatePicker && selectedTemplate && (
+            <div className="text-xs text-dark-400">
+              Template: <span className="text-dark-200">{selectedTemplate.name}</span>
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs font-medium text-dark-300 mb-1 block">Amount *</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
-              />
+          {signerSlots.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {signerSlots.map((slot, idx) => (
+                <div key={`${slot.roleId}-${idx}`}>
+                  <label className="text-xs font-medium text-dark-300 mb-1 block">
+                    {slot.roleName} (signer {idx + 1})
+                  </label>
+                  {slot.kind === 'recruiter' ? (
+                    <div className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200">
+                      {slot.name || '—'}<br />
+                      <span className="text-xs text-dark-400">{slot.email || ''}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={slot.name}
+                        onChange={(e) => updateSlot(idx, { name: e.target.value })}
+                        placeholder={`${slot.roleName} name`}
+                        className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none mb-1"
+                      />
+                      <input
+                        type="email"
+                        value={slot.email}
+                        onChange={(e) => updateSlot(idx, { email: e.target.value })}
+                        placeholder="email@example.com"
+                        className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
+                      />
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
-            <div>
-              <label className="text-xs font-medium text-dark-300 mb-1 block">Currency</label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
-              >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-dark-300 mb-1 block">Unit</label>
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:border-rivvra-500 focus:outline-none"
-              >
-                {SALARY_UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
-              </select>
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-dark-300 mb-1 block">Subject</label>
@@ -274,7 +336,7 @@ export default function RateConfirmationModal({
           </button>
           <button
             onClick={handleSend}
-            disabled={sending || loadingTemplate || !!templateError}
+            disabled={sendDisabled}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 disabled:opacity-50"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14} />}
