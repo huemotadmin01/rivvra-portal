@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -446,6 +446,7 @@ export default function AtsJobPositions() {
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Filter state lives in the URL — bookmarkable + refresh-safe.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -496,6 +497,16 @@ export default function AtsJobPositions() {
   // groupBy or only status applied, depending on React's flush order.
   // One effect + one setSearchParams call eliminates the race.
   //
+  // 2026-05-19: deps changed from [] to [location.pathname]. Empty deps
+  // worked on hard reload but failed when the user re-entered the route
+  // via the sidebar after visiting /ats/applications — the previous
+  // mount's effect closure had already fired and React's mount-on-
+  // remount didn't reliably re-fire it for this user. Keying on
+  // pathname makes "re-applying defaults on route entry" the
+  // semantic, which is exactly what the intent comment promises.
+  // Within-route filter changes leave pathname stable, so this won't
+  // stomp a user's cleared chip.
+  //
   // History entry uses `replace: true` so the default-application
   // doesn't pollute back-button history.
   useEffect(() => {
@@ -515,7 +526,7 @@ export default function AtsJobPositions() {
     }
     if (mutated) setSearchParams(np, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [location.pathname]);
 
   // ── Fetch jobs ─────────────────────────────────────────────────────────
   const fetchJobs = useCallback(async () => {
