@@ -251,7 +251,12 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/employee/org-chart', label: 'Org Chart', icon: Network },
         { type: 'item', path: '/employee/departments', label: 'Departments', icon: Building2 },
         ...(isAdmin ? [
-          { type: 'item', path: '/employee/add', label: 'Add Employee', icon: UserPlus },
+          // 2026-05-19: relabeled to nudge admins toward the ATS Hire →
+          // Create Employee flow as the primary hire path. This manual
+          // form stays as an escape hatch for off-ATS hires (founders,
+          // contractors, executive search). Already admin-only via the
+          // surrounding isAdmin gate.
+          { type: 'item', path: '/employee/add', label: 'Add Employee (Non-ATS)', icon: UserPlus },
           { type: 'item', path: '/employee/alumni', label: 'Alumni', icon: UserSearch },
           { type: 'item', path: '/employee/assets', label: 'Assets', icon: Package },
           { type: 'item', path: '/employee/plan-templates', label: 'Plan Templates', icon: FileText },

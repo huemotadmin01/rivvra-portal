@@ -24,7 +24,7 @@ import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import EmployeePicker from '../../components/employee/EmployeePicker';
-import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase, UserCheck, Users } from 'lucide-react';
+import { Loader2, Check, ChevronLeft, UserPlus, User, Mail, Briefcase, UserCheck, Users, Info } from 'lucide-react';
 
 const DEFAULT_EMPLOYMENT_TYPES = [
   { key: 'confirmed', label: 'Confirmed Employee' },
@@ -41,7 +41,7 @@ export default function EmployeeQuickCreate() {
   const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
 
-  usePageTitle('New Employee');
+  usePageTitle('Add Employee — Without ATS');
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -154,7 +154,7 @@ export default function EmployeeQuickCreate() {
           <div>
             <div className="inline-flex items-center gap-2 mb-1">
               <UserPlus size={18} className="text-dark-400" />
-              <h1 className="text-2xl font-bold text-white">New Employee</h1>
+              <h1 className="text-2xl font-bold text-white">Add Employee <span className="text-dark-500 font-normal text-lg">— Without ATS</span></h1>
             </div>
             <p className="text-xs text-dark-500">
               Create a minimal record now — fill in the rest on the detail page.
@@ -180,6 +180,24 @@ export default function EmployeeQuickCreate() {
             >
               Discard
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2026-05-19: nudge admins toward ATS as the primary hire path. The
+          ATS application → Hire → Create Employee flow pre-fills name,
+          email, phone, recruiter, joining date, salary, and links the
+          employee record back to the application for audit. Manual
+          adds skip all of that — useful for founders, contractors, and
+          off-ATS hires, but ATS is the path you want for tracked hires. */}
+      <div className="mb-4 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm flex items-start gap-2">
+        <Info size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
+        <div className="text-amber-100/90">
+          <div className="font-medium text-amber-200 mb-0.5">Most hires should come from the ATS.</div>
+          <div className="text-xs text-amber-100/70 leading-relaxed">
+            If this person was hired through a job application in Rivvra, open the application instead and click <strong className="text-amber-200">Hire → Create Employee</strong>. The ATS flow pre-fills name, email, phone, recruiter, joining date, and offer details, and links the employee record back to the application.
+            <br />
+            Use this manual form only for off-ATS hires — founders, executive search, or one-off contractors that didn't go through a job posting.
           </div>
         </div>
       </div>
