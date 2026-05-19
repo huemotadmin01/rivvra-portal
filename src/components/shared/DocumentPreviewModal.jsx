@@ -185,14 +185,18 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
           ) : isImage ? (
             <img src={blobUrl} alt={filename} className="max-w-full max-h-full object-contain p-4" />
           ) : isPdf ? (
-            <object data={blobUrl} type="application/pdf" className="w-full h-full" aria-label={filename}>
-              <iframe
-                src={blobUrl}
-                className="w-full h-full"
-                title={filename}
-                onError={handleIframeError}
-              />
-            </object>
+            // Default iframe rendering — kept identical to pre-2026-05-19
+            // behaviour so the 8 existing callers (Expenses / Contacts /
+            // Employee / Invoicing / ATS Attachments / Payroll / etc.)
+            // aren't affected. Callers that hit Chrome's iframe-blob-PDF
+            // quirk can opt into the canvas renderer via
+            // pdfRenderer="canvas" instead.
+            <iframe
+              src={blobUrl}
+              className="w-full h-full"
+              title={filename}
+              onError={handleIframeError}
+            />
           ) : (
             <p className="text-dark-500 text-sm">Preview not available for this file type</p>
           )}
