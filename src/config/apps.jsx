@@ -6,7 +6,7 @@ import {
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
   Shield, User, Network, Package, Calculator, BookOpen, Receipt, CreditCard, Landmark,
-  TrendingUp, Award, Percent,
+  TrendingUp, Award, Percent, FolderArchive, Folder,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -542,6 +542,33 @@ export const APP_REGISTRY = {
             children: [
               { path: '/incentive/rates', label: 'Rate Table', icon: Percent },
               { path: '/incentive/settings', label: 'Settings', icon: Settings },
+            ],
+          },
+        ] : []),
+      ];
+    },
+  },
+
+  documents: {
+    id: 'documents',
+    name: 'Documents',
+    description: 'Company document library',
+    icon: FolderArchive,
+    color: 'slate',
+    basePath: '/documents',
+    status: 'active',
+    defaultRoute: '/documents',
+    derivedRoles: true,
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/documents', label: 'All Documents', icon: FolderArchive },
+        ...(isAdmin ? [
+          {
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/documents/manage/folders', label: 'Folders', icon: Folder },
+              { path: '/documents/manage/tags', label: 'Tags', icon: Tag },
             ],
           },
         ] : []),

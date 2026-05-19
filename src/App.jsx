@@ -168,6 +168,12 @@ const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
 const SignConfig = lazy(() => import('./pages/sign/SignConfig'));
 const PublicSigningPage = lazy(() => import('./pages/sign/PublicSigningPage'));
 
+// Lazy-loaded: Documents app pages
+const DocumentsList = lazy(() => import('./pages/documents/DocumentsList'));
+const DocumentDetail = lazy(() => import('./pages/documents/DocumentDetail'));
+const DocumentsManageFolders = lazy(() => import('./pages/documents/ManageFolders'));
+const DocumentsManageTags = lazy(() => import('./pages/documents/ManageTags'));
+
 // Lazy-loaded: Invoicing app pages
 const InvoicingDashboard = lazy(() => import('./pages/invoicing/InvoicingDashboard'));
 const InvoiceList = lazy(() => import('./pages/invoicing/InvoiceList'));
@@ -547,6 +553,16 @@ function App() {
                 </Route>
               </Route>
 
+              {/* Documents app — read for any member, manage pages admin-only */}
+              <Route element={<AppAccessGate appId="documents" />}>
+                <Route path="/org/:slug/documents" element={<ErrorBoundary><DocumentsList /></ErrorBoundary>} />
+                <Route path="/org/:slug/documents/:id" element={<ErrorBoundary><DocumentDetail /></ErrorBoundary>} />
+                <Route element={<AppRoleGate appId="documents" requiredRole="admin" />}>
+                  <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><DocumentsManageFolders /></ErrorBoundary>} />
+                  <Route path="/org/:slug/documents/manage/tags" element={<ErrorBoundary><DocumentsManageTags /></ErrorBoundary>} />
+                </Route>
+              </Route>
+
               {/* To-Do app routes — gated by todo access */}
               <Route element={<AppAccessGate appId="todo" />}>
                 <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><TodoDashboard /></ErrorBoundary>} />
@@ -637,6 +653,7 @@ function App() {
             <Route path="/incentive/*" element={<OrgRedirect />} />
             <Route path="/expenses/*" element={<OrgRedirect />} />
             <Route path="/todo/*" element={<OrgRedirect />} />
+            <Route path="/documents/*" element={<OrgRedirect />} />
             <Route path="/settings" element={<OrgRedirect to="/settings" />} />
             <Route path="/settings/*" element={<OrgRedirect />} />
 
