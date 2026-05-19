@@ -9,6 +9,7 @@ import employeeApi from '../../utils/employeeApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, useFilterParams } from '../../components/shared/FilterBar';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import RefuseModal from '../../components/ats/RefuseModal';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
 import DensityToggle from '../../components/shared/DensityToggle';
@@ -215,8 +216,9 @@ export default function AtsApplications() {
 
   // Bulk actions — selection + action-bar dropdowns
   const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [bulkAction, setBulkAction] = useState(null); // null | 'stage' | 'refuse'
+  const [bulkAction, setBulkAction] = useState(null); // null | 'stage'
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [showBulkRefuseModal, setShowBulkRefuseModal] = useState(false);
   // 2026-05-17 health-check D.2: styled confirm modal state. Replaces
   // window.confirm() which can't be themed and steals focus uglyly.
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -536,33 +538,28 @@ export default function AtsApplications() {
     }
   };
 
-  const handleBulkRefuse = async (refuseReasonId) => {
+  const handleBulkRefuse = async ({ refuseReasonId, sendEmail }) => {
     if (!orgSlug || selectedIds.size === 0) return;
-    const n = selectedIds.size;
-    setConfirmDialog({
-      title: `Refuse ${n} application${n === 1 ? '' : 's'}?`,
-      message: 'No emails will be sent to the candidates. Already-hired and already-refused applications in your selection are skipped automatically.',
-      confirmLabel: `Refuse ${n}`,
-      danger: true,
-      action: async () => {
-        setBulkSubmitting(true);
-        try {
-          const ids = Array.from(selectedIds);
-          const res = await atsApi.bulkRefuse(orgSlug, ids, refuseReasonId);
-          if (res?.success) {
-            showToast(`Refused ${res.modified} application${res.modified === 1 ? '' : 's'}`);
-            clearSelection();
-            await fetchApplications();
-          } else {
-            showToast(res?.error || 'Bulk refuse failed', 'error');
-          }
-        } catch (err) {
-          showToast(err?.message || 'Bulk refuse failed', 'error');
-        } finally {
-          setBulkSubmitting(false);
-        }
-      },
-    });
+    setBulkSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await atsApi.bulkRefuse(orgSlug, ids, { refuseReasonId, sendEmail });
+      if (res?.success) {
+        const sent = res.emailsSent ?? 0;
+        const refusedMsg = `Refused ${res.modified} application${res.modified === 1 ? '' : 's'}`;
+        const emailMsg = sendEmail && sent > 0 ? ` — ${sent} email${sent === 1 ? '' : 's'} sent` : '';
+        showToast(refusedMsg + emailMsg);
+        clearSelection();
+        setShowBulkRefuseModal(false);
+        await fetchApplications();
+      } else {
+        showToast(res?.error || 'Bulk refuse failed', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Bulk refuse failed', 'error');
+    } finally {
+      setBulkSubmitting(false);
+    }
   };
 
   // Mirrors fetchApplications' filter chain so the export matches the
@@ -796,40 +793,15 @@ export default function AtsApplications() {
                   )}
                 </div>
 
-                {/* Refuse */}
-                <div className="relative">
-                  <button
-                    onClick={() => setBulkAction(bulkAction === 'refuse' ? null : 'refuse')}
-                    disabled={bulkSubmitting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-red-500/15 hover:text-red-300 hover:border-red-500/30 disabled:opacity-40"
-                  >
-                    {bulkSubmitting ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
-                    Refuse
-                    <ChevronDown size={12} />
-                  </button>
-                  {bulkAction === 'refuse' && (
-                    <div className="absolute right-0 mt-1 w-56 max-w-[calc(100vw-2rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20 max-h-72 overflow-y-auto">
-                      <button
-                        onClick={() => { setBulkAction(null); handleBulkRefuse(null); }}
-                        className="w-full text-left px-3 py-2 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors italic"
-                      >
-                        No reason specified
-                      </button>
-                      {refuseReasons.length > 0 && (
-                        <div className="border-t border-dark-700" />
-                      )}
-                      {refuseReasons.map((r) => (
-                        <button
-                          key={r._id}
-                          onClick={() => { setBulkAction(null); handleBulkRefuse(r._id); }}
-                          className="w-full text-left px-3 py-2 text-xs text-dark-200 hover:bg-dark-700 hover:text-white transition-colors"
-                        >
-                          {r.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Refuse — opens the shared RefuseModal in bulk mode */}
+                <button
+                  onClick={() => setShowBulkRefuseModal(true)}
+                  disabled={bulkSubmitting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-dark-800 border border-dark-700 rounded-lg text-dark-200 hover:bg-red-500/15 hover:text-red-300 hover:border-red-500/30 disabled:opacity-40"
+                >
+                  {bulkSubmitting ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
+                  Refuse
+                </button>
               </div>
             </div>
           )}
@@ -1114,6 +1086,16 @@ export default function AtsApplications() {
           )}
         </>
       )}
+
+      <RefuseModal
+        show={showBulkRefuseModal}
+        onClose={() => { if (!bulkSubmitting) setShowBulkRefuseModal(false); }}
+        onConfirm={handleBulkRefuse}
+        reasons={refuseReasons}
+        saving={bulkSubmitting}
+        mode="bulk"
+        applications={applications.filter((a) => selectedIds.has(a._id))}
+      />
 
       <ConfirmDialog
         open={!!confirmDialog}

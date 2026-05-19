@@ -347,10 +347,14 @@ const atsApi = {
     });
   },
 
-  bulkRefuse(orgSlug, applicationIds, refuseReasonId) {
+  bulkRefuse(orgSlug, applicationIds, { refuseReasonId, sendEmail } = {}) {
     return api.request(`/api/org/${orgSlug}/ats/applications/bulk/refuse`, {
       method: 'POST',
-      body: JSON.stringify({ applicationIds, refuseReasonId: refuseReasonId || null }),
+      body: JSON.stringify({
+        applicationIds,
+        refuseReasonId: refuseReasonId || null,
+        sendEmail: sendEmail !== false,
+      }),
     });
   },
 
