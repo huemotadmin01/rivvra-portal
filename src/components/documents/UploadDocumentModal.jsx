@@ -17,7 +17,7 @@ const ALLOWED_MIME = new Set([
   'text/csv', 'text/plain',
   'application/zip', 'application/x-zip-compressed',
 ]);
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = 50 * 1024 * 1024;
 
 export default function UploadDocumentModal({ folders, tags, defaultFolderId, onClose, onUploaded }) {
   const { orgSlug } = useOrg();
@@ -83,7 +83,7 @@ export default function UploadDocumentModal({ folders, tags, defaultFolderId, on
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label className="block text-sm text-dark-300 mb-1.5">File <span className="text-dark-500">(max 25 MB)</span></label>
+            <label className="block text-sm text-dark-300 mb-1.5">File <span className="text-dark-500">(max 50 MB)</span></label>
             <label className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-dark-700 hover:border-rivvra-500/50 cursor-pointer text-sm text-dark-300">
               <Upload className="w-4 h-4" />
               {file ? <span className="text-dark-100">{file.name} <span className="text-dark-500">({Math.round(file.size / 1024)} KB)</span></span> : <span>Choose a file…</span>}
