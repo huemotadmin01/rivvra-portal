@@ -246,13 +246,26 @@ export default function InvoiceList() {
     return <span className="text-rivvra-400 ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>;
   }
 
-  // Running totals per-currency for the visible page. Memo not needed — array is small.
+  // Running totals per-currency for the visible page. Two corrections vs a
+  // naive sum:
+  //   (1) Credit notes contribute negative `total` — they offset the
+  //       original invoice on the same currency bucket, so summing both as
+  //       positives would double-count the receivable when both rows are
+  //       in view (e.g. on the "All" tab).
+  //   (2) Reversed originals contribute 0 to `due` — the field still
+  //       carries the pre-reversal amount for audit, but the receivable
+  //       no longer exists.
   const pageTotals = invoices.reduce((acc, inv) => {
     const cur = (inv.currency || 'INR').toUpperCase();
-    if (!acc[cur]) acc[cur] = { total: 0, due: 0, count: 0 };
-    acc[cur].total += Number(inv.total) || 0;
-    acc[cur].due += Number(inv.amountDue) || 0;
+    if (!acc[cur]) acc[cur] = { total: 0, due: 0, count: 0, creditCount: 0 };
+    const isCn = inv.type === 'credit_note';
+    const isReversed = Boolean(inv.reversedByCreditNoteId);
+    const sign = isCn ? -1 : 1;
+    acc[cur].total += sign * (Number(inv.total) || 0);
+    const dueAmount = isReversed ? 0 : (Number(inv.amountDue) || 0);
+    acc[cur].due += sign * dueAmount;
     acc[cur].count += 1;
+    if (isCn) acc[cur].creditCount += 1;
     return acc;
   }, {});
   const totalsCurrencies = Object.keys(pageTotals);
@@ -284,20 +297,28 @@ export default function InvoiceList() {
 
       const res = await invoicingApi.listInvoices(orgSlug, params);
       const rows = res.invoices || res.data || [];
-      const headers = ['Number', 'Type', 'Customer', 'Date', 'Due Date', 'Currency', 'Total', 'Amount Paid', 'Amount Due', 'Status', 'Payment Status'];
-      const csv = [headers.join(',')].concat(rows.map(r => [
-        r.number || '',
-        r.type === 'credit_note' ? 'Credit Note' : 'Invoice',
-        (r.contactName || '').replace(/,/g, ' '),
-        r.date ? new Date(r.date).toISOString().slice(0, 10) : '',
-        r.dueDate ? new Date(r.dueDate).toISOString().slice(0, 10) : '',
-        r.currency || 'INR',
-        Number(r.total || 0).toFixed(2),
-        Number(r.amountPaid || 0).toFixed(2),
-        Number(r.amountDue || 0).toFixed(2),
-        r.status || '',
-        r.paymentStatus || '',
-      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))).join('\n');
+      const headers = ['Number', 'Type', 'Customer', 'Date', 'Due Date', 'Currency', 'Total', 'Amount Paid', 'Amount Due', 'Status', 'Payment Status', 'Reversed', 'Credit Note For'];
+      const csv = [headers.join(',')].concat(rows.map(r => {
+        const isReversed = !!r.reversedByCreditNoteId;
+        return [
+          r.number || '',
+          r.type === 'credit_note' ? 'Credit Note' : 'Invoice',
+          (r.contactName || '').replace(/,/g, ' '),
+          r.date ? new Date(r.date).toISOString().slice(0, 10) : '',
+          r.dueDate ? new Date(r.dueDate).toISOString().slice(0, 10) : '',
+          r.currency || 'INR',
+          Number(r.total || 0).toFixed(2),
+          Number(r.amountPaid || 0).toFixed(2),
+          // CSV mirrors the row-display semantics: a reversed receivable is
+          // not "due" anymore, so emit 0 rather than the stale pre-reversal
+          // amount the field still carries.
+          isReversed ? '0.00' : Number(r.amountDue || 0).toFixed(2),
+          r.status || '',
+          r.paymentStatus || '',
+          isReversed ? 'Yes' : 'No',
+          r.creditNoteForNumber || (r.creditNoteForId ? '(linked)' : ''),
+        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+      })).join('\n');
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -471,23 +492,33 @@ export default function InvoiceList() {
                 render: (inv) => <span className="text-dark-400">{formatDate(inv.dueDate)}</span>,
               },
               {
-                key: 'total', width: 140, minWidth: 100, align: 'right',
+                key: 'total', width: 160, minWidth: 130, align: 'right',
                 label: <button onClick={() => handleSort('total')} className="font-medium hover:text-white">Total{sortArrow('total')}</button>,
+                // Currency symbol (₹/$) from formatCurrency already identifies
+                // the currency — no need for a redundant "INR"/"USD" suffix
+                // that was eating column width and truncating large amounts.
                 render: (inv) => (
-                  <span className="text-white font-medium">
+                  <span className="text-white font-medium whitespace-nowrap tabular-nums">
                     {formatCurrency(inv.total, inv.currency)}
-                    <span className="text-[10px] text-dark-500 ml-1">{(inv.currency || 'INR').toUpperCase()}</span>
                   </span>
                 ),
               },
               {
-                key: 'amountDue', width: 140, minWidth: 100, align: 'right',
+                key: 'amountDue', width: 160, minWidth: 130, align: 'right',
                 label: 'Amount Due',
-                render: (inv) => (
-                  <span className={inv.amountDue > 0 ? 'text-amber-400 font-medium' : 'text-dark-400'}>
-                    {formatCurrency(inv.amountDue, inv.currency)}
-                  </span>
-                ),
+                render: (inv) => {
+                  // Reversed invoices have no real receivable — the stored
+                  // amountDue is the pre-reversal amount kept for audit, but
+                  // displaying it as "due" misleads the accountant.
+                  if (inv.reversedByCreditNoteId) {
+                    return <span className="text-dark-500 italic whitespace-nowrap" title="Reversed by credit note">—</span>;
+                  }
+                  return (
+                    <span className={`whitespace-nowrap tabular-nums ${inv.amountDue > 0 ? 'text-amber-400 font-medium' : 'text-dark-400'}`}>
+                      {formatCurrency(inv.amountDue, inv.currency)}
+                    </span>
+                  );
+                },
               },
               {
                 key: 'status', width: 180, minWidth: 120, sticky: 'right', align: 'center',
@@ -499,13 +530,13 @@ export default function InvoiceList() {
               <div>
                 {totalsCurrencies.length > 0 && (
                   <div className="px-4 py-2.5 border-t border-dark-700 bg-dark-800/40 flex flex-wrap items-center gap-x-6 gap-y-1">
-                    <span className="text-[11px] uppercase tracking-wider text-dark-500 font-semibold">Page totals</span>
+                    <span className="text-[11px] uppercase tracking-wider text-dark-500 font-semibold" title="Sum of visible rows on this page. Credit notes are netted out of the totals.">Page totals</span>
                     {totalsCurrencies.map(cur => (
                       <span key={cur} className="text-xs text-dark-300">
-                        <span className="text-dark-500">{cur} ({pageTotals[cur].count}):</span>{' '}
-                        <span className="text-white font-medium">{formatCurrency(pageTotals[cur].total, cur)}</span>
+                        <span className="text-dark-500">{cur} ({pageTotals[cur].count}{pageTotals[cur].creditCount ? ` − ${pageTotals[cur].creditCount} CN` : ''}):</span>{' '}
+                        <span className="text-white font-medium tabular-nums">{formatCurrency(pageTotals[cur].total, cur)}</span>
                         <span className="text-dark-500"> · due </span>
-                        <span className={pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}>{formatCurrency(pageTotals[cur].due, cur)}</span>
+                        <span className={`tabular-nums ${pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}`}>{formatCurrency(pageTotals[cur].due, cur)}</span>
                       </span>
                     ))}
                   </div>

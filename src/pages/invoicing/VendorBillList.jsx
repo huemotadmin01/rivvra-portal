@@ -733,12 +733,13 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               render: (b) => <span className="text-dark-400">{formatDate(b.dueDate)}</span>,
             },
             {
-              key: 'total', width: 150, minWidth: 100, align: 'right',
+              key: 'total', width: 160, minWidth: 130, align: 'right',
               headerRender: () => <SortHeader field="total">Total</SortHeader>,
+              // Currency symbol from formatCurrency already identifies currency —
+              // dropping the redundant suffix that was truncating wider amounts.
               render: (b) => (
-                <span className="font-medium text-white">
+                <span className="font-medium text-white whitespace-nowrap tabular-nums">
                   {formatCurrency(b.total, b.currency)}
-                  <span className="text-[10px] text-dark-500 ml-1">{(b.currency || 'INR').toUpperCase()}</span>
                 </span>
               ),
             },
@@ -756,9 +757,9 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
                   {totalsCurrencies.map(cur => (
                     <span key={cur} className="text-xs text-dark-300">
                       <span className="text-dark-500">{cur} ({pageTotals[cur].count}):</span>{' '}
-                      <span className="text-white font-medium">{formatCurrency(pageTotals[cur].total, cur)}</span>
+                      <span className="text-white font-medium tabular-nums">{formatCurrency(pageTotals[cur].total, cur)}</span>
                       <span className="text-dark-500"> · due </span>
-                      <span className={pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}>{formatCurrency(pageTotals[cur].due, cur)}</span>
+                      <span className={`tabular-nums ${pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}`}>{formatCurrency(pageTotals[cur].due, cur)}</span>
                     </span>
                   ))}
                 </div>
