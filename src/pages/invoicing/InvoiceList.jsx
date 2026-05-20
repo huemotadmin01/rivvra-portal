@@ -246,26 +246,26 @@ export default function InvoiceList() {
     return <span className="text-rivvra-400 ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>;
   }
 
-  // Running totals per-currency for the visible page. Two corrections vs a
-  // naive sum:
-  //   (1) Credit notes contribute negative `total` — they offset the
-  //       original invoice on the same currency bucket, so summing both as
-  //       positives would double-count the receivable when both rows are
-  //       in view (e.g. on the "All" tab).
-  //   (2) Reversed originals contribute 0 to `due` — the field still
-  //       carries the pre-reversal amount for audit, but the receivable
-  //       no longer exists.
+  // Running totals per-currency for the visible page. Invoices and credit
+  // notes are kept in SEPARATE buckets — auto-netting them produced
+  // mathematically broken displays when a CN was visible without its
+  // source invoice (gross dropped, due didn't, so Due > Total). The
+  // accountant sees three honest numbers (gross invoiced, credits issued,
+  // amount still owed) and can compute net = gross − credits themselves.
   const pageTotals = invoices.reduce((acc, inv) => {
     const cur = (inv.currency || 'INR').toUpperCase();
-    if (!acc[cur]) acc[cur] = { total: 0, due: 0, count: 0, creditCount: 0 };
-    const isCn = inv.type === 'credit_note';
-    const isReversed = Boolean(inv.reversedByCreditNoteId);
-    const sign = isCn ? -1 : 1;
-    acc[cur].total += sign * (Number(inv.total) || 0);
-    const dueAmount = isReversed ? 0 : (Number(inv.amountDue) || 0);
-    acc[cur].due += sign * dueAmount;
-    acc[cur].count += 1;
-    if (isCn) acc[cur].creditCount += 1;
+    if (!acc[cur]) acc[cur] = { invoiced: 0, credited: 0, due: 0, invoiceCount: 0, creditCount: 0 };
+    if (inv.type === 'credit_note') {
+      acc[cur].credited += Number(inv.total) || 0;
+      acc[cur].creditCount += 1;
+    } else {
+      acc[cur].invoiced += Number(inv.total) || 0;
+      // Reversed originals: amountDue field still carries the pre-reversal
+      // amount for audit, but no receivable exists. Treat as 0 for sums.
+      const dueAmount = inv.reversedByCreditNoteId ? 0 : (Number(inv.amountDue) || 0);
+      acc[cur].due += dueAmount;
+      acc[cur].invoiceCount += 1;
+    }
     return acc;
   }, {});
   const totalsCurrencies = Object.keys(pageTotals);
@@ -530,15 +530,30 @@ export default function InvoiceList() {
               <div>
                 {totalsCurrencies.length > 0 && (
                   <div className="px-4 py-2.5 border-t border-dark-700 bg-dark-800/40 flex flex-wrap items-center gap-x-6 gap-y-1">
-                    <span className="text-[11px] uppercase tracking-wider text-dark-500 font-semibold" title="Sum of visible rows on this page. Credit notes are netted out of the totals.">Page totals</span>
-                    {totalsCurrencies.map(cur => (
-                      <span key={cur} className="text-xs text-dark-300">
-                        <span className="text-dark-500">{cur} ({pageTotals[cur].count}{pageTotals[cur].creditCount ? ` − ${pageTotals[cur].creditCount} CN` : ''}):</span>{' '}
-                        <span className="text-white font-medium tabular-nums">{formatCurrency(pageTotals[cur].total, cur)}</span>
-                        <span className="text-dark-500"> · due </span>
-                        <span className={`tabular-nums ${pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}`}>{formatCurrency(pageTotals[cur].due, cur)}</span>
-                      </span>
-                    ))}
+                    <span className="text-[11px] uppercase tracking-wider text-dark-500 font-semibold" title="Sum of visible rows on this page. Invoices and credit notes are summed separately so the math is always self-consistent.">Page totals</span>
+                    {totalsCurrencies.map(cur => {
+                      const b = pageTotals[cur];
+                      return (
+                        <span key={cur} className="text-xs text-dark-300">
+                          <span className="text-dark-500">{cur}:</span>{' '}
+                          {b.invoiceCount > 0 && (
+                            <>
+                              <span className="text-dark-500">invoiced ({b.invoiceCount})</span>{' '}
+                              <span className="text-white font-medium tabular-nums">{formatCurrency(b.invoiced, cur)}</span>
+                              <span className="text-dark-500"> · due </span>
+                              <span className={`tabular-nums ${b.due > 0 ? 'text-amber-400' : 'text-dark-400'}`}>{formatCurrency(b.due, cur)}</span>
+                            </>
+                          )}
+                          {b.creditCount > 0 && (
+                            <>
+                              {b.invoiceCount > 0 && <span className="text-dark-600 mx-1">·</span>}
+                              <span className="text-dark-500">credited ({b.creditCount})</span>{' '}
+                              <span className="text-purple-400 tabular-nums">−{formatCurrency(b.credited, cur)}</span>
+                            </>
+                          )}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700 bg-dark-800/50">
