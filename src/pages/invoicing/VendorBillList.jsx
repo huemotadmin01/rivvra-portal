@@ -9,11 +9,15 @@ import contactsApi from '../../utils/contactsApi';
 import employeeApi from '../../utils/employeeApi';
 import EmployeePicker from '../../components/employee/EmployeePicker';
 import ResizableTable from '../../components/ResizableTable';
+import FYFilter from '../../components/shared/FYFilter';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Search, Plus, Loader2, FileText, ChevronLeft, ChevronRight,
   Calendar, X, ArrowUpDown, Building2, Upload, Sparkles, UserPlus, UserCheck,
+  Download,
 } from 'lucide-react';
+
+const PAGE_SIZES = [20, 50, 100, 200];
 
 // Tab model: separates document lifecycle (draft/cancelled) from payment status
 // (not_paid/partial/paid) and treats overdue as a derived view.
@@ -122,7 +126,18 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   // (project: name + employeeId + designation) so the page stays snappy
   // even on tenants with thousands of employees.
   const [employeeOptions, setEmployeeOptions] = useState([]);
-  const limit = 20;
+  const storageKey = isEmployeeMode ? 'invoicing.employeeBills.pageSize' : 'invoicing.vendorBills.pageSize';
+  const [pageSize, setPageSize] = useState(() => {
+    const stored = parseInt(localStorage.getItem(storageKey) || '20', 10);
+    return PAGE_SIZES.includes(stored) ? stored : 20;
+  });
+  useEffect(() => { localStorage.setItem(storageKey, String(pageSize)); }, [pageSize, storageKey]);
+  const [fy, setFy] = useState({ preset: 'all', dateFrom: null, dateTo: null });
+  const [exporting, setExporting] = useState(false);
+  // AI-extraction drop zone is collapsed by default — was always-visible above
+  // the tabs, which the accountant audit flagged as clutter on lists with no
+  // import use case.
+  const [showAiZone, setShowAiZone] = useState(false);
 
   // AI extraction state — only used on vendor-bill list (not employee bills)
   const fileInputRef = useRef(null);
@@ -143,7 +158,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     try {
       const params = {
         page,
-        limit,
+        limit: pageSize,
         type: 'vendor_bill',
         sort: sortField,
         order: sortOrder,
@@ -155,6 +170,8 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
       else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
       if (search.trim()) params.search = search.trim();
+      if (fy.dateFrom) params.dateFrom = fy.dateFrom;
+      if (fy.dateTo) params.dateTo = fy.dateTo;
       // Employee Bill picker filters — only meaningful in employee mode but
       // sending them in vendor mode is harmless (backend filters on the
       // sourceEmployeeId / approverEmployeeId fields which are null on
@@ -167,7 +184,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       const res = await invoicingApi.listBills(orgSlug, params);
       setBills(res.bills || res.data || []);
       setTotalPages(
-        res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / limit))
+        res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / pageSize))
       );
       setTotal(res.total || 0);
       if (res.statusCounts) setStatusCounts(res.statusCounts);
@@ -178,7 +195,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, currentCompany?._id, page, activeTab, search, sortField, sortOrder, isEmployeeMode, submitterEmployeeId, approverEmployeeId]);
+  }, [orgSlug, currentCompany?._id, page, activeTab, search, sortField, sortOrder, isEmployeeMode, submitterEmployeeId, approverEmployeeId, pageSize, fy.dateFrom, fy.dateTo]);
 
   useEffect(() => {
     if (orgSlug) loadBills();
@@ -187,7 +204,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [activeTab, search, submitterEmployeeId, approverEmployeeId]);
+  }, [activeTab, search, submitterEmployeeId, approverEmployeeId, fy.dateFrom, fy.dateTo, pageSize]);
 
   // Load employee pool for the picker filters once per company in employee
   // mode.  Skip in vendor mode — the pickers don't render there, so paying
@@ -376,9 +393,86 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         className="inline-flex items-center gap-1 text-xs font-medium text-dark-400 hover:text-white transition-colors"
       >
         {children}
-        <ArrowUpDown size={12} className={active ? 'text-rivvra-400' : 'text-dark-600'} />
+        {active
+          ? <span className="text-rivvra-400 text-[11px]">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          : <ArrowUpDown size={12} className="text-dark-600" />}
       </button>
     );
+  }
+
+  // Running totals per-currency for the visible page.
+  const pageTotals = bills.reduce((acc, b) => {
+    const cur = (b.currency || 'INR').toUpperCase();
+    if (!acc[cur]) acc[cur] = { total: 0, due: 0, count: 0 };
+    acc[cur].total += Number(b.total) || 0;
+    acc[cur].due += Number(b.amountDue) || 0;
+    acc[cur].count += 1;
+    return acc;
+  }, {});
+  const totalsCurrencies = Object.keys(pageTotals);
+
+  const hasActiveFilters = Boolean(activeTab || search || fy.preset !== 'all' || submitterEmployeeId || approverEmployeeId);
+
+  function clearAllFilters() {
+    setActiveTab('');
+    setSearch('');
+    setSubmitterEmployeeId('');
+    setApproverEmployeeId('');
+    setFy({ preset: 'all', dateFrom: null, dateTo: null });
+    setPage(1);
+  }
+
+  async function handleExportCSV() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const params = {
+        page: 1, limit: 5000, type: 'vendor_bill',
+        sort: sortField, order: sortOrder,
+      };
+      if (isEmployeeMode) params.journalCode = EMPLOYEE_JOURNAL_CODE;
+      else params.journalCodeExclude = EMPLOYEE_JOURNAL_CODE;
+      const tab = TABS.find(t => t.key === activeTab);
+      if (tab?.filterKind === 'status') params.status = tab.value;
+      else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
+      else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
+      if (search.trim()) params.search = search.trim();
+      if (fy.dateFrom) params.dateFrom = fy.dateFrom;
+      if (fy.dateTo) params.dateTo = fy.dateTo;
+      if (isEmployeeMode) {
+        if (submitterEmployeeId) params.submitterEmployeeId = submitterEmployeeId;
+        if (approverEmployeeId) params.approverEmployeeId = approverEmployeeId;
+      }
+      const res = await invoicingApi.listBills(orgSlug, params);
+      const rows = res.bills || res.data || [];
+      const headers = ['Number', 'Vendor', 'Reference', 'Date', 'Due Date', 'Currency', 'Total', 'Amount Paid', 'Amount Due', 'Status', 'Payment Status'];
+      const csv = [headers.join(',')].concat(rows.map(r => [
+        r.number || '',
+        (r.contactName || '').replace(/,/g, ' '),
+        (r.vendorReference || r.reference || '').replace(/,/g, ' '),
+        r.date ? new Date(r.date).toISOString().slice(0, 10) : '',
+        r.dueDate ? new Date(r.dueDate).toISOString().slice(0, 10) : '',
+        r.currency || 'INR',
+        Number(r.total || 0).toFixed(2),
+        Number(r.amountPaid || 0).toFixed(2),
+        Number(r.amountDue || 0).toFixed(2),
+        r.status || '',
+        r.paymentStatus || '',
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const ts = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `${isEmployeeMode ? 'employee-bills' : 'vendor-bills'}-${ts}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${rows.length} rows`);
+    } catch {
+      showToast('Failed to export', 'error');
+    } finally {
+      setExporting(false);
+    }
   }
 
   // Tab counts from backend aggregate — stable regardless of active tab.
@@ -408,6 +502,15 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           <p className="text-sm text-dark-400 mt-0.5">{headerSubtitle}</p>
         </div>
         <div className="flex items-center gap-2">
+          {!isEmployeeMode && !showAiZone && aiStep === 'idle' && (
+            <button
+              onClick={() => setShowAiZone(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-700 hover:border-dark-600 text-dark-300 hover:text-white text-sm font-medium transition-colors"
+              title="Extract a bill from a PDF using AI"
+            >
+              <Sparkles size={14} /> Import from PDF
+            </button>
+          )}
           <button
             onClick={() => navigate(orgPath('/invoicing/bills/new'))}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors"
@@ -417,8 +520,10 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         </div>
       </div>
 
-      {/* AI extraction drop zone (vendor bills only) */}
-      {!isEmployeeMode && (
+      {/* AI extraction drop zone (vendor bills only) — collapsed by default,
+          shown when the user clicks "Import from PDF" or while an extraction
+          is in flight (so progress stays visible across re-renders). */}
+      {!isEmployeeMode && (showAiZone || aiStep !== 'idle') && (
         <div
           onDragOver={(e) => { e.preventDefault(); if (!dragActive) setDragActive(true); }}
           onDragLeave={() => setDragActive(false)}
@@ -458,9 +563,14 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               </div>
             </div>
             {aiStep === 'idle' && (
-              <div className="shrink-0 text-xs text-dark-400 inline-flex items-center gap-1">
-                <Upload size={12} /> or click to upload
-              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowAiZone(false); }}
+                className="shrink-0 text-xs text-dark-400 hover:text-white inline-flex items-center gap-1"
+                title="Hide importer"
+              >
+                <X size={12} />
+              </button>
             )}
           </div>
         </div>
@@ -487,14 +597,14 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               onClick={() => setActiveTab(tab.key)}
               className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 isActive
-                  ? 'border-rivvra-500 text-rivvra-400'
+                  ? 'border-amber-400 text-amber-400'
                   : 'border-transparent text-dark-400 hover:text-white'
               }`}
             >
               {tab.label}
               {count != null && (
                 <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
-                  isActive ? 'bg-rivvra-500/20 text-rivvra-400' : 'bg-dark-800 text-dark-500'
+                  isActive ? 'bg-amber-500/20 text-amber-400' : 'bg-dark-800 text-dark-500'
                 }`}>
                   {count}
                 </span>
@@ -504,52 +614,66 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         })}
       </div>
 
-      {/* Search + Employee Bill picker filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search bills..."
-            className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
-          />
+      {/* Toolbar: search + FY filter + employee pickers + clear + export */}
+      <div className="flex items-end gap-3 flex-wrap">
+        <div className="flex-1 min-w-[200px] max-w-sm">
+          <label className="block text-[10px] uppercase tracking-wider text-dark-500 mb-1">Search</label>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={isEmployeeMode ? 'Search by number, employee…' : 'Search by number, vendor, reference…'}
+              className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
+            />
+          </div>
         </div>
-        {/* Submitter / Approver filters — only on /employee-bills.  Vendor
-            bills don't have these fields, so the pickers would be no-ops
-            and the controls would just clutter the toolbar. */}
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-dark-500 mb-1">Financial Year</label>
+          <FYFilter value={fy} onChange={(v) => { setFy(v); setPage(1); }} />
+        </div>
+        {/* Submitter / Approver filters — only on /employee-bills. */}
         {isEmployeeMode && (
           <>
             <div className="min-w-[200px] max-w-[260px] flex-1">
+              <label className="block text-[10px] uppercase tracking-wider text-dark-500 mb-1">Submitted by</label>
               <EmployeePicker
                 value={submitterEmployeeId}
                 employees={employeeOptions}
                 onChange={setSubmitterEmployeeId}
-                placeholder="Submitted by…"
+                placeholder="Any employee…"
               />
             </div>
             <div className="min-w-[200px] max-w-[260px] flex-1">
+              <label className="block text-[10px] uppercase tracking-wider text-dark-500 mb-1">Approved by</label>
               <EmployeePicker
                 value={approverEmployeeId}
                 employees={employeeOptions}
                 onChange={setApproverEmployeeId}
-                placeholder="Approved by…"
+                placeholder="Any approver…"
               />
             </div>
           </>
         )}
-        {(search || (isEmployeeMode && (submitterEmployeeId || approverEmployeeId))) && (
+        {hasActiveFilters && (
           <button
-            onClick={() => {
-              setSearch('');
-              setSubmitterEmployeeId('');
-              setApproverEmployeeId('');
-            }}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
+            onClick={clearAllFilters}
+            className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
+            title="Clear all filters"
           >
-            <X size={12} /> Clear
+            <X size={12} /> Clear filters
           </button>
         )}
+        <div className="flex-1" />
+        <button
+          onClick={handleExportCSV}
+          disabled={exporting || bills.length === 0}
+          className="flex items-center gap-1.5 bg-dark-850 border border-dark-700 hover:border-dark-600 rounded-lg px-3 py-2 text-sm text-white transition-colors disabled:opacity-50"
+          title="Export current view to CSV"
+        >
+          {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          Export CSV
+        </button>
       </div>
 
       {/* Table */}
@@ -609,9 +733,14 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               render: (b) => <span className="text-dark-400">{formatDate(b.dueDate)}</span>,
             },
             {
-              key: 'total', width: 140, minWidth: 100, align: 'right',
+              key: 'total', width: 150, minWidth: 100, align: 'right',
               headerRender: () => <SortHeader field="total">Total</SortHeader>,
-              render: (b) => <span className="font-medium text-white">{formatCurrency(b.total, b.currency)}</span>,
+              render: (b) => (
+                <span className="font-medium text-white">
+                  {formatCurrency(b.total, b.currency)}
+                  <span className="text-[10px] text-dark-500 ml-1">{(b.currency || 'INR').toUpperCase()}</span>
+                </span>
+              ),
             },
             {
               key: 'status', width: 180, minWidth: 120, sticky: 'right',
@@ -619,26 +748,53 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               render: (b) => <StatusChips bill={b} />,
             },
           ]}
-          footer={totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700">
-              <span className="text-xs text-dark-500">
-                Page {page} of {totalPages} ({total} bills)
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight size={16} />
-                </button>
+          footer={(
+            <div>
+              {totalsCurrencies.length > 0 && (
+                <div className="px-4 py-2.5 border-t border-dark-700 bg-dark-800/40 flex flex-wrap items-center gap-x-6 gap-y-1">
+                  <span className="text-[11px] uppercase tracking-wider text-dark-500 font-semibold">Page totals</span>
+                  {totalsCurrencies.map(cur => (
+                    <span key={cur} className="text-xs text-dark-300">
+                      <span className="text-dark-500">{cur} ({pageTotals[cur].count}):</span>{' '}
+                      <span className="text-white font-medium">{formatCurrency(pageTotals[cur].total, cur)}</span>
+                      <span className="text-dark-500"> · due </span>
+                      <span className={pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}>{formatCurrency(pageTotals[cur].due, cur)}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-dark-500">
+                    Page {page} of {totalPages} ({total.toLocaleString()} bill{total !== 1 ? 's' : ''})
+                  </span>
+                  <label className="text-xs text-dark-500 flex items-center gap-1.5">
+                    Per page:
+                    <select
+                      value={pageSize}
+                      onChange={e => { setPageSize(+e.target.value); setPage(1); }}
+                      className="bg-dark-900 border border-dark-700 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-rivvra-500"
+                    >
+                      {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           )}

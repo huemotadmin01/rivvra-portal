@@ -7,23 +7,27 @@ import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import ResizableTable from '../../components/ResizableTable';
+import FYFilter from '../../components/shared/FYFilter';
 import {
   FileText, Plus, Search, ChevronLeft, ChevronRight,
-  Loader2, Filter, Inbox,
+  Loader2, Filter, Inbox, Download, X,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+// en-IN format: "20 May 2026" — consistent with accountant tools (Tally/Zoho).
 function formatDate(dateStr) {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('en-US', {
+  return new Date(dateStr).toLocaleDateString('en-IN', {
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
     year: 'numeric',
   });
 }
+
+const PAGE_SIZES = [20, 50, 100, 200];
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -136,12 +140,22 @@ export default function InvoiceList() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => {
+    const stored = parseInt(localStorage.getItem('invoicing.customerInvoices.pageSize') || '20', 10);
+    return PAGE_SIZES.includes(stored) ? stored : 20;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState({});
   const [paymentStatusCounts, setPaymentStatusCounts] = useState({});
   const [overdueCount, setOverdueCount] = useState(0);
   const [typeCounts, setTypeCounts] = useState({});
+  const [sortField, setSortField] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [fy, setFy] = useState({ preset: 'all', dateFrom: null, dateTo: null });
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => { localStorage.setItem('invoicing.customerInvoices.pageSize', String(pageSize)); }, [pageSize]);
 
   // Debounce search input
   useEffect(() => {
@@ -166,7 +180,7 @@ export default function InvoiceList() {
     setOverdueCount(0);
     setTypeCounts({});
     try {
-      const params = { page };
+      const params = { page, limit: pageSize, sort: sortField, order: sortOrder };
       const tab = STATUS_TABS.find(t => t.key === statusFilter);
       if (tab?.filterKind === 'status') params.status = tab.value;
       else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
@@ -174,11 +188,13 @@ export default function InvoiceList() {
       else if (tab?.filterKind === 'type') params.type = tab.value;
       if (search) params.search = search;
       if (journalCode) params.journalCode = journalCode;
+      if (fy.dateFrom) params.dateFrom = fy.dateFrom;
+      if (fy.dateTo) params.dateTo = fy.dateTo;
 
       const res = await invoicingApi.listInvoices(orgSlug, params);
       if (res.success !== false) {
         setInvoices(res.invoices || res.data || []);
-        const pageLimit = res.limit || 20;
+        const pageLimit = res.limit || pageSize;
         setTotalPages(
           res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / pageLimit))
         );
@@ -193,7 +209,7 @@ export default function InvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, currentCompany?._id, statusFilter, search, page, journalCode]);
+  }, [orgSlug, currentCompany?._id, statusFilter, search, page, journalCode, pageSize, sortField, sortOrder, fy.dateFrom, fy.dateTo]);
 
   useEffect(() => {
     fetchInvoices();
@@ -217,6 +233,86 @@ export default function InvoiceList() {
     if (tab.filterKind === 'overdue') return overdueCount || null;
     if (tab.filterKind === 'type') return typeCounts[tab.value] ?? null;
     return null;
+  }
+
+  function handleSort(field) {
+    if (field === sortField) setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortOrder('desc'); }
+    setPage(1);
+  }
+
+  function sortArrow(field) {
+    if (sortField !== field) return null;
+    return <span className="text-rivvra-400 ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>;
+  }
+
+  // Running totals per-currency for the visible page. Memo not needed — array is small.
+  const pageTotals = invoices.reduce((acc, inv) => {
+    const cur = (inv.currency || 'INR').toUpperCase();
+    if (!acc[cur]) acc[cur] = { total: 0, due: 0, count: 0 };
+    acc[cur].total += Number(inv.total) || 0;
+    acc[cur].due += Number(inv.amountDue) || 0;
+    acc[cur].count += 1;
+    return acc;
+  }, {});
+  const totalsCurrencies = Object.keys(pageTotals);
+
+  const hasActiveFilters = Boolean(statusFilter || search || fy.preset !== 'all');
+  function clearFilters() {
+    setStatusFilter('');
+    setSearchInput('');
+    setSearch('');
+    setFy({ preset: 'all', dateFrom: null, dateTo: null });
+    setPage(1);
+  }
+
+  async function handleExportCSV() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      // Fetch up to 5000 rows in one shot — well above any realistic single-period filter.
+      const params = { page: 1, limit: 5000, sort: sortField, order: sortOrder };
+      const tab = STATUS_TABS.find(t => t.key === statusFilter);
+      if (tab?.filterKind === 'status') params.status = tab.value;
+      else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
+      else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
+      else if (tab?.filterKind === 'type') params.type = tab.value;
+      if (search) params.search = search;
+      if (journalCode) params.journalCode = journalCode;
+      if (fy.dateFrom) params.dateFrom = fy.dateFrom;
+      if (fy.dateTo) params.dateTo = fy.dateTo;
+
+      const res = await invoicingApi.listInvoices(orgSlug, params);
+      const rows = res.invoices || res.data || [];
+      const headers = ['Number', 'Type', 'Customer', 'Date', 'Due Date', 'Currency', 'Total', 'Amount Paid', 'Amount Due', 'Status', 'Payment Status'];
+      const csv = [headers.join(',')].concat(rows.map(r => [
+        r.number || '',
+        r.type === 'credit_note' ? 'Credit Note' : 'Invoice',
+        (r.contactName || '').replace(/,/g, ' '),
+        r.date ? new Date(r.date).toISOString().slice(0, 10) : '',
+        r.dueDate ? new Date(r.dueDate).toISOString().slice(0, 10) : '',
+        r.currency || 'INR',
+        Number(r.total || 0).toFixed(2),
+        Number(r.amountPaid || 0).toFixed(2),
+        Number(r.amountDue || 0).toFixed(2),
+        r.status || '',
+        r.paymentStatus || '',
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const ts = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `customer-invoices-${ts}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${rows.length} rows`);
+    } catch {
+      showToast('Failed to export', 'error');
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -277,18 +373,38 @@ export default function InvoiceList() {
           })}
         </div>
 
-        {/* Search */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+        {/* Toolbar: search + FY filter + clear + export */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
             <input
               type="text"
-              placeholder="Search invoices by number, customer..."
+              placeholder="Search by number, customer..."
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               className="w-full bg-dark-850 border border-dark-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-rivvra-500 focus:ring-1 focus:ring-rivvra-500/30 transition-colors"
             />
           </div>
+          <FYFilter value={fy} onChange={(v) => { setFy(v); setPage(1); }} />
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white px-2 py-2 transition-colors"
+              title="Clear all filters"
+            >
+              <X size={14} /> Clear filters
+            </button>
+          )}
+          <div className="flex-1" />
+          <button
+            onClick={handleExportCSV}
+            disabled={exporting || invoices.length === 0}
+            className="flex items-center gap-1.5 bg-dark-850 border border-dark-700 hover:border-dark-600 rounded-lg px-3 py-2 text-sm text-white transition-colors disabled:opacity-50"
+            title="Export current view to CSV"
+          >
+            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Export CSV
+          </button>
         </div>
 
         {/* Table */}
@@ -346,18 +462,23 @@ export default function InvoiceList() {
               },
               {
                 key: 'date', width: 130, minWidth: 100,
-                label: 'Date',
+                label: <button onClick={() => handleSort('date')} className="font-medium hover:text-white">Date{sortArrow('date')}</button>,
                 render: (inv) => <span className="text-dark-400">{formatDate(inv.date || inv.createdAt)}</span>,
               },
               {
                 key: 'dueDate', width: 130, minWidth: 100,
-                label: 'Due Date',
+                label: <button onClick={() => handleSort('dueDate')} className="font-medium hover:text-white">Due Date{sortArrow('dueDate')}</button>,
                 render: (inv) => <span className="text-dark-400">{formatDate(inv.dueDate)}</span>,
               },
               {
                 key: 'total', width: 140, minWidth: 100, align: 'right',
-                label: 'Total',
-                render: (inv) => <span className="text-white font-medium">{formatCurrency(inv.total, inv.currency)}</span>,
+                label: <button onClick={() => handleSort('total')} className="font-medium hover:text-white">Total{sortArrow('total')}</button>,
+                render: (inv) => (
+                  <span className="text-white font-medium">
+                    {formatCurrency(inv.total, inv.currency)}
+                    <span className="text-[10px] text-dark-500 ml-1">{(inv.currency || 'INR').toUpperCase()}</span>
+                  </span>
+                ),
               },
               {
                 key: 'amountDue', width: 140, minWidth: 100, align: 'right',
@@ -374,28 +495,55 @@ export default function InvoiceList() {
                 render: (inv) => <StatusChips invoice={inv} />,
               },
             ]}
-            footer={totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700 bg-dark-800/50">
-                <span className="text-xs text-dark-400">
-                  Page {page} of {totalPages} ({total} invoice{total !== 1 ? 's' : ''})
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft size={14} />
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page >= totalPages}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                    <ChevronRight size={14} />
-                  </button>
+            footer={(
+              <div>
+                {totalsCurrencies.length > 0 && (
+                  <div className="px-4 py-2.5 border-t border-dark-700 bg-dark-800/40 flex flex-wrap items-center gap-x-6 gap-y-1">
+                    <span className="text-[11px] uppercase tracking-wider text-dark-500 font-semibold">Page totals</span>
+                    {totalsCurrencies.map(cur => (
+                      <span key={cur} className="text-xs text-dark-300">
+                        <span className="text-dark-500">{cur} ({pageTotals[cur].count}):</span>{' '}
+                        <span className="text-white font-medium">{formatCurrency(pageTotals[cur].total, cur)}</span>
+                        <span className="text-dark-500"> · due </span>
+                        <span className={pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}>{formatCurrency(pageTotals[cur].due, cur)}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700 bg-dark-800/50">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-dark-400">
+                      Page {page} of {totalPages} ({total.toLocaleString()} invoice{total !== 1 ? 's' : ''})
+                    </span>
+                    <label className="text-xs text-dark-500 flex items-center gap-1.5">
+                      Per page:
+                      <select
+                        value={pageSize}
+                        onChange={e => { setPageSize(+e.target.value); setPage(1); }}
+                        className="bg-dark-900 border border-dark-700 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-rivvra-500"
+                      >
+                        {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={14} />
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
