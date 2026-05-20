@@ -55,6 +55,9 @@ const invoicingApi = {
   createCreditNote(orgSlug, id, data = {}) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/credit-note`, { method: 'POST', body: JSON.stringify(data) });
   },
+  markCreditNoteApplied(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/mark-applied`, { method: 'PATCH' });
+  },
   duplicateInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/duplicate`, { method: 'POST' });
   },

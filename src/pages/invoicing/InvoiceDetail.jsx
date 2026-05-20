@@ -22,7 +22,7 @@ import {
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
   AlertTriangle, Check, Info, Upload, Eye, Paperclip,
   User, Calendar, Clock, RefreshCw, BellRing, Edit3,
-  Pencil, Plus, Search, Package, ShieldCheck, Sparkles,
+  Pencil, Plus, Search, Package, ShieldCheck, Sparkles, CheckCircle2,
 } from 'lucide-react';
 
 // ── Helpers ──
@@ -1562,6 +1562,19 @@ export default function InvoiceDetail() {
 
   const handleCreateCreditNote = () => setShowCreditNoteModal(true);
 
+  const handleMarkApplied = async () => {
+    try {
+      setActionLoading('markApplied');
+      await invoicingApi.markCreditNoteApplied(orgSlug, invoiceId);
+      showToast('Credit note marked as applied');
+      fetchInvoice();
+    } catch (err) {
+      showToast(err.message || 'Failed to mark credit note as applied', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // E-Invoice: generate IRN via IRP
   const handleGenerateEInvoice = async () => {
     setEInvoiceError(null);
@@ -1976,6 +1989,9 @@ export default function InvoiceDetail() {
             {/* Posted credit note — limited actions (no Record Payment / Credit Note) */}
             {isCreditNote && isLifecyclePosted && !isCancelled && (
               <>
+                {!isFullyPaid && (
+                  <ActionBtn icon={CheckCircle2} label="Mark as Applied" onClick={handleMarkApplied} loading={actionLoading === 'markApplied'} primary />
+                )}
                 {!isVendorBill && (
                   <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
                 )}
