@@ -427,7 +427,6 @@ export default function AtsApplications() {
   // can't see and a bulk action would still hit them".
   useEffect(() => {
     setSelectedIds(new Set());
-    setBulkAction(null);
   }, [JSON.stringify(filterParams), page]);
 
   // ── Bulk selection helpers ────────────────────────────────────────────
