@@ -411,6 +411,16 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   }, {});
   const totalsCurrencies = Object.keys(pageTotals);
 
+  // Tab-aware label for the "due" figure — "Due" on All means total
+  // payable; on Overdue it's the actual past-due exposure; on Partial
+  // it's the remaining balance.
+  const dueLabel = (() => {
+    if (activeTab === 'overdue') return 'overdue';
+    if (activeTab === 'partial') return 'remaining';
+    if (activeTab === 'paid' || activeTab === 'cancelled') return null;
+    return 'outstanding';
+  })();
+
   const hasActiveFilters = Boolean(activeTab || search || fy.preset !== 'all' || submitterEmployeeId || approverEmployeeId);
 
   function clearAllFilters() {
@@ -758,8 +768,12 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
                     <span key={cur} className="text-xs text-dark-300">
                       <span className="text-dark-500">{cur} ({pageTotals[cur].count}):</span>{' '}
                       <span className="text-white font-medium tabular-nums">{formatCurrency(pageTotals[cur].total, cur)}</span>
-                      <span className="text-dark-500"> · due </span>
-                      <span className={`tabular-nums ${pageTotals[cur].due > 0 ? 'text-amber-400' : 'text-dark-400'}`}>{formatCurrency(pageTotals[cur].due, cur)}</span>
+                      {dueLabel && (
+                        <>
+                          <span className="text-dark-500"> · {dueLabel} </span>
+                          <span className={`tabular-nums ${pageTotals[cur].due > 0 ? (dueLabel === 'overdue' ? 'text-red-400' : 'text-amber-400') : 'text-dark-400'}`}>{formatCurrency(pageTotals[cur].due, cur)}</span>
+                        </>
+                      )}
                     </span>
                   ))}
                 </div>

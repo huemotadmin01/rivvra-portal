@@ -270,6 +270,17 @@ export default function InvoiceList() {
   }, {});
   const totalsCurrencies = Object.keys(pageTotals);
 
+  // Tab-aware label for the "due" figure — same number, but the word
+  // matters: "Due" on the All tab is total outstanding (not just overdue),
+  // whereas on the Overdue tab it's the actual overdue exposure. Mismatch
+  // confused the accountant during the audit.
+  const dueLabel = (() => {
+    if (statusFilter === 'overdue') return 'overdue';
+    if (statusFilter === 'partial') return 'remaining';
+    if (statusFilter === 'paid' || statusFilter === 'cancelled') return null; // hide
+    return 'outstanding';
+  })();
+
   const hasActiveFilters = Boolean(statusFilter || search || fy.preset !== 'all');
   function clearFilters() {
     setStatusFilter('');
@@ -540,8 +551,12 @@ export default function InvoiceList() {
                             <>
                               <span className="text-dark-500">invoiced ({b.invoiceCount})</span>{' '}
                               <span className="text-white font-medium tabular-nums">{formatCurrency(b.invoiced, cur)}</span>
-                              <span className="text-dark-500"> · due </span>
-                              <span className={`tabular-nums ${b.due > 0 ? 'text-amber-400' : 'text-dark-400'}`}>{formatCurrency(b.due, cur)}</span>
+                              {dueLabel && (
+                                <>
+                                  <span className="text-dark-500"> · {dueLabel} </span>
+                                  <span className={`tabular-nums ${b.due > 0 ? (dueLabel === 'overdue' ? 'text-red-400' : 'text-amber-400') : 'text-dark-400'}`}>{formatCurrency(b.due, cur)}</span>
+                                </>
+                              )}
                             </>
                           )}
                           {b.creditCount > 0 && (
