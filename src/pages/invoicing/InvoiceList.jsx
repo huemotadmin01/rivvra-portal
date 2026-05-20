@@ -76,10 +76,19 @@ function StatusChips({ invoice }) {
 
   const isCreditNote = invoice?.type === 'credit_note';
   const isOverdue = !isCreditNote && invoice?.dueDate && new Date(invoice.dueDate) < new Date() && paymentStatus !== 'paid';
+  // Credit notes never receive payment — relabel paid/partial as Applied/Open.
+  const cnLabel = { paid: 'Applied', partial: 'Partially Applied', not_paid: 'Open' };
+  const cnStyle = { paid: 'bg-purple-500/10 text-purple-400', partial: 'bg-amber-500/10 text-amber-400', not_paid: 'bg-blue-500/10 text-blue-400' };
+  const label = isCreditNote
+    ? (cnLabel[paymentStatus] || 'Open')
+    : (paymentLabel[paymentStatus] || 'Not Paid');
+  const style = isCreditNote
+    ? (cnStyle[paymentStatus] || cnStyle.not_paid)
+    : (paymentStyles[paymentStatus] || paymentStyles.not_paid);
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStyles[paymentStatus] || paymentStyles.not_paid}`}>
-        {paymentLabel[paymentStatus] || 'Not Paid'}
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${style}`}>
+        {label}
       </span>
       {isOverdue && (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400">

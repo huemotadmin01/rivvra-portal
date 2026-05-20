@@ -2031,8 +2031,10 @@ export default function InvoiceDetail() {
               )
             )}
 
-            {/* Paid actions — no Reset to Draft (has payments) */}
-            {isFullyPaid && !isCancelled && (
+            {/* Paid actions — no Reset to Draft (has payments). Excludes
+                credit notes: their CN-specific block above already provides
+                Print/PDF, and Credit Note / Duplicate don't apply. */}
+            {isFullyPaid && !isCancelled && !isCreditNote && (
               <>
                 {!isVendorBill && (
                   <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
@@ -2108,7 +2110,11 @@ export default function InvoiceDetail() {
             {STATUS_STEPS.map((step, i) => {
               const isActive = i === stepIndex;
               const isPast = i < stepIndex;
-              const label = step.charAt(0).toUpperCase() + step.slice(1);
+              // Credit notes get "Applied" instead of "Paid" — they're offsets,
+              // not receivables; no cash actually changes hands.
+              const label = step === 'paid' && isCreditNote
+                ? 'Applied'
+                : step.charAt(0).toUpperCase() + step.slice(1);
 
               let cls = 'px-4 py-1.5 text-xs font-semibold rounded-full transition-colors ';
               if (isActive) {
@@ -2173,12 +2179,12 @@ export default function InvoiceDetail() {
 
             {/* Header card with PAID stamp */}
             <div className="bg-dark-850 border border-dark-700 rounded-xl p-6 relative overflow-hidden">
-              {/* PAID stamp overlay */}
+              {/* PAID / APPLIED stamp overlay */}
               {isFullyPaid && (
                 <div className="absolute top-6 right-[-20px] rotate-[30deg] z-10 pointer-events-none">
-                  <div className="bg-emerald-500/20 border-2 border-emerald-500/40 px-8 py-1.5 rounded">
-                    <span className="text-emerald-500 font-extrabold text-3xl tracking-widest uppercase">
-                      PAID
+                  <div className={`border-2 px-8 py-1.5 rounded ${isCreditNote ? 'bg-purple-500/20 border-purple-500/40' : 'bg-emerald-500/20 border-emerald-500/40'}`}>
+                    <span className={`font-extrabold text-3xl tracking-widest uppercase ${isCreditNote ? 'text-purple-400' : 'text-emerald-500'}`}>
+                      {isCreditNote ? 'APPLIED' : 'PAID'}
                     </span>
                   </div>
                 </div>
