@@ -28,7 +28,7 @@ import {
   PenTool, FileSignature, UserPlus, UserCheck,
   DollarSign, Mail, Building2, Hash, IdCard,
   Archive, ArchiveRestore, MoreHorizontal, Trash2,
-  MessageSquare, AlertCircle,
+  MessageSquare, AlertCircle, FileCheck, Check, ShieldOff,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
@@ -1769,6 +1769,7 @@ export default function AtsApplicationDetail() {
 
   // Modal / action UI state
   const [showRefuseModal, setShowRefuseModal] = useState(false);
+  const [showDocumentsBypassDialog, setShowDocumentsBypassDialog] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
   // editOfferOnly: opens the HireModal in 'offer' mode without any
   // pending stage move — used by the header "Offer" button so the
@@ -2097,7 +2098,53 @@ export default function AtsApplicationDetail() {
         showToast('Click the Hire button (top right) to capture offer details and mark as hired.', 'warning');
         return;
       }
+      // 2026-05-20: Documents Collection gate — forward moves out of
+      // Documents Collection require every snapshotted required document
+      // to be marked received. Toast names the pending items and scrolls
+      // to the checklist card.
+      if (err?.requiresDocuments && Array.isArray(err.pending)) {
+        const list = err.pending.length > 3
+          ? `${err.pending.slice(0, 3).join(', ')} + ${err.pending.length - 3} more`
+          : err.pending.join(', ');
+        showToast(`Documents pending: ${list}. Mark them received in the Documents Checklist below.`, 'warning');
+        setTimeout(() => {
+          document.getElementById('documents-checklist-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+        return;
+      }
       showToast(err.message || 'Failed to move stage', 'error');
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleMarkDocumentReceived = async (name, received) => {
+    try {
+      const res = await atsApi.markDocumentReceived(orgSlug, applicationId, name, received);
+      if (res?.success) {
+        showToast(received ? `Marked received: ${name}` : `Unmarked: ${name}`);
+        fetchApplication();
+      } else {
+        showToast(res?.error || 'Failed to update document', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to update document', 'error');
+    }
+  };
+
+  const handleBypassDocumentsGate = async (reason) => {
+    try {
+      setActionSaving(true);
+      const res = await atsApi.bypassDocumentsGate(orgSlug, applicationId, reason);
+      if (res?.success) {
+        showToast('Documents gate bypassed — forward moves unblocked.');
+        setShowDocumentsBypassDialog(false);
+        fetchApplication();
+      } else {
+        showToast(res?.error || 'Failed to bypass gate', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to bypass gate', 'error');
     } finally {
       setActionSaving(false);
     }
@@ -2439,6 +2486,20 @@ export default function AtsApplicationDetail() {
   const currentStage = stages.find((s) => s._id === currentStageId);
   const isAtOrPastOfferProposal = !!(offerProposalStage && currentStage
     && Number(currentStage.sequence ?? 0) >= Number(offerProposalStage.sequence ?? Infinity));
+
+  // 2026-05-20 Documents Collection gate — show the checklist card on/after
+  // entry to Documents Collection (recruiter needs to track receipt and
+  // gate the next forward move). Match by sequence so renamed stages still
+  // trigger correctly — same convention as the Offer Proposal block above.
+  const DOCS_COLLECTION_NAMES = new Set(['documents collection', 'document collection', 'documents']);
+  const docsCollectionStage = stages.find((s) => DOCS_COLLECTION_NAMES.has((s.name || '').toLowerCase().trim()));
+  const isAtOrPastDocsCollection = !!(docsCollectionStage && currentStage
+    && Number(currentStage.sequence ?? 0) >= Number(docsCollectionStage.sequence ?? Infinity));
+  const isAtDocsCollection = !!(docsCollectionStage && currentStage
+    && Number(currentStage.sequence ?? 0) === Number(docsCollectionStage.sequence ?? -1));
+  const requiredDocs = Array.isArray(application.requiredDocuments) ? application.requiredDocuments : [];
+  const receivedCount = requiredDocs.filter((d) => d.receivedAt).length;
+  const docsGateBypassed = !!application.documentsGate?.bypassedAt;
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -2831,6 +2892,96 @@ export default function AtsApplicationDetail() {
             )}
           </SectionCard>
 
+          {isAtOrPastDocsCollection && (
+            <div id="documents-checklist-card">
+              <SectionCard
+                title="Documents Checklist"
+                icon={FileCheck}
+                action={
+                  requiredDocs.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                        receivedCount === requiredDocs.length
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      }`}>
+                        {receivedCount} of {requiredDocs.length} received
+                      </span>
+                      {docsGateBypassed && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full border bg-dark-700 border-dark-600 text-dark-300 flex items-center gap-1"
+                          title={`Gate bypassed by ${application.documentsGate?.bypassedByName || 'admin'} — ${application.documentsGate?.reason || ''}`}
+                        >
+                          <ShieldOff size={11} /> Gate bypassed
+                        </span>
+                      )}
+                    </div>
+                  ) : null
+                }
+              >
+                {requiredDocs.length === 0 ? (
+                  <div className="text-sm text-dark-400 py-2">
+                    No required documents configured for this company.{' '}
+                    {isAdmin ? (
+                      <Link to={orgPath('/ats/config?tab=required_documents')} className="text-rivvra-400 hover:underline">
+                        Add them under Configuration → Picklists → Required Documents
+                      </Link>
+                    ) : (
+                      <span>Ask an admin to configure them under Configuration → Picklists → Required Documents.</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {requiredDocs.map((doc) => {
+                      const received = !!doc.receivedAt;
+                      return (
+                        <div
+                          key={doc.name}
+                          className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border transition-colors ${
+                            received
+                              ? 'bg-emerald-500/5 border-emerald-500/20'
+                              : 'bg-dark-900/40 border-dark-700'
+                          }`}
+                        >
+                          <label className={`flex items-start gap-2.5 flex-1 min-w-0 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
+                            <input
+                              type="checkbox"
+                              checked={received}
+                              disabled={!canEdit}
+                              onChange={(e) => handleMarkDocumentReceived(doc.name, e.target.checked)}
+                              className="mt-0.5 w-4 h-4 rounded border-dark-600 bg-dark-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className={`text-sm font-medium ${received ? 'text-emerald-200' : 'text-white'}`}>
+                                {doc.name}
+                              </div>
+                              {received && doc.receivedByName && (
+                                <div className="text-xs text-dark-400 mt-0.5">
+                                  Received {formatDateUTC(doc.receivedAt)} · {doc.receivedByName}
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                          {received && <Check size={14} className="text-emerald-400 shrink-0" />}
+                        </div>
+                      );
+                    })}
+                    {isAtDocsCollection && isAdmin && !docsGateBypassed && receivedCount < requiredDocs.length && (
+                      <button
+                        type="button"
+                        onClick={() => setShowDocumentsBypassDialog(true)}
+                        className="mt-2 text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1.5"
+                      >
+                        <ShieldOff size={12} />
+                        Force advance past Documents gate
+                      </button>
+                    )}
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+          )}
+
           <SectionCard title="Attachments" icon={FileSignature}>
             <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!canRecruit} />
           </SectionCard>
@@ -2984,6 +3135,27 @@ export default function AtsApplicationDetail() {
         saving={actionSaving}
         application={application}
         currentStageName={currentStageName}
+      />
+      <ReasonPromptDialog
+        open={showDocumentsBypassDialog}
+        title="Force advance past Documents gate?"
+        message={
+          <>
+            This skips the Documents Collection gate for this application — the
+            recruiter will be able to move it forward without marking every
+            required document as received.
+            {'\n\n'}
+            The reason is logged in the activity timeline for audit. Only do this
+            when you've verified the documents through another channel (email,
+            chat, in-person).
+          </>
+        }
+        reasonLabel="Reason for bypassing"
+        reasonPlaceholder='e.g. "documents verified offline by HR"'
+        confirmLabel="Bypass gate"
+        busy={actionSaving}
+        onCancel={() => { if (!actionSaving) setShowDocumentsBypassDialog(false); }}
+        onConfirm={handleBypassDocumentsGate}
       />
       <ReasonPromptDialog
         open={showUnrefuseDialog}

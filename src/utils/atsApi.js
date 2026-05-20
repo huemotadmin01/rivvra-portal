@@ -200,6 +200,21 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/email-body/${logId}`);
   },
 
+  // Documents Collection — checklist receipt + admin bypass for the
+  // forward-move gate. See ats.js → collectStageGates 'documents' branch.
+  markDocumentReceived(orgSlug, applicationId, name, received) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/documents/receive`, {
+      method: 'POST',
+      body: JSON.stringify({ name, received: !!received }),
+    });
+  },
+  bypassDocumentsGate(orgSlug, applicationId, reason) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/documents/bypass`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   // 2026-05-11: restore a refused application back to 'ongoing'.
   // Clears refused / refusedAt / refuseReasonId. Reason is required
   // and stored in the stageHistory entry for audit. Admin-only.

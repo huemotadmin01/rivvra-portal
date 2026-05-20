@@ -3,7 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import {
   Layers, Tag, Globe, ThumbsDown, GraduationCap, Briefcase,
-  Zap, Award, BarChart3, Mail,
+  Zap, Award, BarChart3, Mail, FileCheck,
 } from 'lucide-react';
 
 import ConfigSection from '../../components/ats/config/ConfigSection';
@@ -28,8 +28,9 @@ const TABS = [
   { key: 'stages',           label: 'Stages',           icon: Layers },
   { key: 'tags',             label: 'Tags',             icon: Tag },
   { key: 'sources',          label: 'Sources',          icon: Globe },
-  { key: 'refuse_reasons',   label: 'Refuse Reasons',   icon: ThumbsDown },
-  { key: 'degrees',          label: 'Degrees',          icon: GraduationCap },
+  { key: 'refuse_reasons',     label: 'Refuse Reasons',     icon: ThumbsDown },
+  { key: 'required_documents', label: 'Required Documents', icon: FileCheck },
+  { key: 'degrees',            label: 'Degrees',            icon: GraduationCap },
   { key: 'employment_types', label: 'Employment Types', icon: Briefcase },
   { key: 'skill_types',      label: 'Skill Types',      icon: Zap },
   { key: 'skills',           label: 'Skills',           icon: Award },
@@ -111,6 +112,7 @@ export default function AtsConfig() {
       {activeTab === 'tags' && <ConfigSection entity="tags" entityLabel="Tags" icon={Tag} {...sectionProps} />}
       {activeTab === 'sources' && <ConfigSection entity="sources" entityLabel="Sources" icon={Globe} {...sectionProps} />}
       {activeTab === 'refuse_reasons' && <ConfigSection entity="refuse_reasons" entityLabel="Refuse Reasons" icon={ThumbsDown} {...sectionProps} />}
+      {activeTab === 'required_documents' && <ConfigSection entity="required_documents" entityLabel="Required Documents" icon={FileCheck} {...sectionProps} />}
       {activeTab === 'degrees' && <ConfigSection entity="degrees" entityLabel="Degrees" icon={GraduationCap} {...sectionProps} />}
       {activeTab === 'employment_types' && <ConfigSection entity="employment_types" entityLabel="Employment Types" icon={Briefcase} {...sectionProps} />}
       {activeTab === 'skill_types' && <SkillTypesSection {...sectionProps} />}
