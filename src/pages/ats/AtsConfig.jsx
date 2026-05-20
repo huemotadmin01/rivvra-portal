@@ -12,6 +12,7 @@ import SkillTypesSection from '../../components/ats/config/SkillTypesSection';
 import SkillsSection from '../../components/ats/config/SkillsSection';
 import SkillLevelsSection from '../../components/ats/config/SkillLevelsSection';
 import EmailTemplatesSection from '../../components/ats/config/EmailTemplatesSection';
+import RequiredDocumentsSection from '../../components/ats/config/RequiredDocumentsSection';
 
 /**
  * AtsConfig — thin shell that URL-drives a tab strip across the 10 ATS
@@ -112,7 +113,7 @@ export default function AtsConfig() {
       {activeTab === 'tags' && <ConfigSection entity="tags" entityLabel="Tags" icon={Tag} {...sectionProps} />}
       {activeTab === 'sources' && <ConfigSection entity="sources" entityLabel="Sources" icon={Globe} {...sectionProps} />}
       {activeTab === 'refuse_reasons' && <ConfigSection entity="refuse_reasons" entityLabel="Refuse Reasons" icon={ThumbsDown} {...sectionProps} />}
-      {activeTab === 'required_documents' && <ConfigSection entity="required_documents" entityLabel="Required Documents" icon={FileCheck} {...sectionProps} />}
+      {activeTab === 'required_documents' && <RequiredDocumentsSection {...sectionProps} />}
       {activeTab === 'degrees' && <ConfigSection entity="degrees" entityLabel="Degrees" icon={GraduationCap} {...sectionProps} />}
       {activeTab === 'employment_types' && <ConfigSection entity="employment_types" entityLabel="Employment Types" icon={Briefcase} {...sectionProps} />}
       {activeTab === 'skill_types' && <SkillTypesSection {...sectionProps} />}

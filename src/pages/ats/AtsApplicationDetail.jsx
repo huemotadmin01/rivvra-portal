@@ -2498,7 +2498,11 @@ export default function AtsApplicationDetail() {
   const isAtDocsCollection = !!(docsCollectionStage && currentStage
     && Number(currentStage.sequence ?? 0) === Number(docsCollectionStage.sequence ?? -1));
   const requiredDocs = Array.isArray(application.requiredDocuments) ? application.requiredDocuments : [];
-  const receivedCount = requiredDocs.filter((d) => d.receivedAt).length;
+  // "Required" defaults to true for legacy snapshots that pre-date the
+  // flag (rows snapshotted before 2026-05-20) — only explicit false makes
+  // an item optional. Count + gate status are scoped to required items.
+  const requiredOnly = requiredDocs.filter((d) => d.required !== false);
+  const receivedCount = requiredOnly.filter((d) => d.receivedAt).length;
   const docsGateBypassed = !!application.documentsGate?.bypassedAt;
 
   return (
@@ -2901,11 +2905,11 @@ export default function AtsApplicationDetail() {
                   requiredDocs.length > 0 ? (
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                        receivedCount === requiredDocs.length
+                        receivedCount === requiredOnly.length
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                           : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
                       }`}>
-                        {receivedCount} of {requiredDocs.length} received
+                        {receivedCount} of {requiredOnly.length} required received
                       </span>
                       {docsGateBypassed && (
                         <span
@@ -2934,6 +2938,7 @@ export default function AtsApplicationDetail() {
                   <div className="space-y-1.5">
                     {requiredDocs.map((doc) => {
                       const received = !!doc.receivedAt;
+                      const isRequired = doc.required !== false;
                       return (
                         <div
                           key={doc.name}
@@ -2952,8 +2957,15 @@ export default function AtsApplicationDetail() {
                               className="mt-0.5 w-4 h-4 rounded border-dark-600 bg-dark-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 shrink-0"
                             />
                             <div className="min-w-0">
-                              <div className={`text-sm font-medium ${received ? 'text-emerald-200' : 'text-white'}`}>
-                                {doc.name}
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-medium ${received ? 'text-emerald-200' : 'text-white'}`}>
+                                  {doc.name}
+                                </span>
+                                {!isRequired && (
+                                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-dark-700 border border-dark-600 text-dark-300">
+                                    Optional
+                                  </span>
+                                )}
                               </div>
                               {received && doc.receivedByName && (
                                 <div className="text-xs text-dark-400 mt-0.5">
@@ -2966,7 +2978,7 @@ export default function AtsApplicationDetail() {
                         </div>
                       );
                     })}
-                    {isAtDocsCollection && isAdmin && !docsGateBypassed && receivedCount < requiredDocs.length && (
+                    {isAtDocsCollection && isAdmin && !docsGateBypassed && receivedCount < requiredOnly.length && (
                       <button
                         type="button"
                         onClick={() => setShowDocumentsBypassDialog(true)}
