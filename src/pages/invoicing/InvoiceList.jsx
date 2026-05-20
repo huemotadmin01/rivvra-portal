@@ -34,6 +34,8 @@ function formatDate(dateStr) {
 // `filterKind` tells the fetch code which backend param to set.
 const STATUS_TABS = [
   { key: '', label: 'All', filterKind: null },
+  { key: 'invoices', label: 'Invoices', filterKind: 'type', value: 'customer_invoice' },
+  { key: 'credit_notes', label: 'Credit Notes', filterKind: 'type', value: 'credit_note' },
   { key: 'draft', label: 'Draft', filterKind: 'status', value: 'draft' },
   { key: 'not_paid', label: 'Not Paid', filterKind: 'paymentStatus', value: 'not_paid' },
   { key: 'partial', label: 'Partial', filterKind: 'paymentStatus', value: 'partial' },
@@ -129,6 +131,7 @@ export default function InvoiceList() {
   const [statusCounts, setStatusCounts] = useState({});
   const [paymentStatusCounts, setPaymentStatusCounts] = useState({});
   const [overdueCount, setOverdueCount] = useState(0);
+  const [typeCounts, setTypeCounts] = useState({});
 
   // Debounce search input
   useEffect(() => {
@@ -151,12 +154,14 @@ export default function InvoiceList() {
     setStatusCounts({});
     setPaymentStatusCounts({});
     setOverdueCount(0);
+    setTypeCounts({});
     try {
       const params = { page };
       const tab = STATUS_TABS.find(t => t.key === statusFilter);
       if (tab?.filterKind === 'status') params.status = tab.value;
       else if (tab?.filterKind === 'paymentStatus') params.paymentStatus = tab.value;
       else if (tab?.filterKind === 'overdue') params.overdue = tab.value;
+      else if (tab?.filterKind === 'type') params.type = tab.value;
       if (search) params.search = search;
       if (journalCode) params.journalCode = journalCode;
 
@@ -171,6 +176,7 @@ export default function InvoiceList() {
         if (res.statusCounts) setStatusCounts(res.statusCounts);
         if (res.paymentStatusCounts) setPaymentStatusCounts(res.paymentStatusCounts);
         if (res.overdueCount != null) setOverdueCount(res.overdueCount);
+        if (res.typeCounts) setTypeCounts(res.typeCounts);
       }
     } catch {
       showToast('Failed to load invoices', 'error');
@@ -199,6 +205,7 @@ export default function InvoiceList() {
     if (tab.filterKind === 'status') return statusCounts[tab.value] ?? null;
     if (tab.filterKind === 'paymentStatus') return paymentStatusCounts[tab.value] ?? null;
     if (tab.filterKind === 'overdue') return overdueCount || null;
+    if (tab.filterKind === 'type') return typeCounts[tab.value] ?? null;
     return null;
   }
 
@@ -307,11 +314,18 @@ export default function InvoiceList() {
             emptyMessage="No invoices found"
             columns={[
               {
-                key: 'number', width: 200, minWidth: 120, sticky: 'left',
+                key: 'number', width: 220, minWidth: 140, sticky: 'left',
                 label: 'Number',
                 render: (inv) => (
-                  <span className={`font-medium ${inv.number ? 'text-white' : 'text-dark-500 italic'}`}>
-                    {inv.number || inv.invoiceNumber || 'Draft'}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`font-medium ${inv.number ? 'text-white' : 'text-dark-500 italic'}`}>
+                      {inv.number || inv.invoiceNumber || 'Draft'}
+                    </span>
+                    {inv.type === 'credit_note' && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                        CN
+                      </span>
+                    )}
                   </span>
                 ),
               },
