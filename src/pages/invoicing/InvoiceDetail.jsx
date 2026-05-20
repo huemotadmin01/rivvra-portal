@@ -1874,6 +1874,7 @@ export default function InvoiceDetail() {
     && !isFullyPaid
     && !isCancelled
     && !isReversed
+    && !isCreditNote
     && status !== 'draft'
   );
   const stepIndex = isFullyPaid ? 2 : isLifecyclePosted ? 1 : 0;
@@ -1980,6 +1981,10 @@ export default function InvoiceDetail() {
                 )}
                 {!isVendorBill && (
                   <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                )}
+                <ActionBtn icon={XCircle} label="Cancel" onClick={() => setShowCancelConfirm(true)} danger />
+                {(invoice.amountPaid || 0) === 0 && (
+                  <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
                 )}
               </>
             )}

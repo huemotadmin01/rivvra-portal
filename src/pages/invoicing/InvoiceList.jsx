@@ -74,7 +74,8 @@ function StatusChips({ invoice }) {
     return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400">Reversed</span>;
   }
 
-  const isOverdue = invoice?.dueDate && new Date(invoice.dueDate) < new Date() && paymentStatus !== 'paid';
+  const isCreditNote = invoice?.type === 'credit_note';
+  const isOverdue = !isCreditNote && invoice?.dueDate && new Date(invoice.dueDate) < new Date() && paymentStatus !== 'paid';
   return (
     <span className="inline-flex items-center gap-1">
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStyles[paymentStatus] || paymentStyles.not_paid}`}>
