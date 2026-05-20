@@ -28,7 +28,7 @@ import {
   PenTool, FileSignature, UserPlus, UserCheck,
   DollarSign, Mail, Building2, Hash, IdCard,
   Archive, ArchiveRestore, MoreHorizontal, Trash2,
-  MessageSquare, AlertCircle, FileCheck, Check, ShieldOff,
+  MessageSquare, AlertCircle, FileCheck, Check, ShieldOff, Upload,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
@@ -2118,9 +2118,9 @@ export default function AtsApplicationDetail() {
     }
   };
 
-  const handleMarkDocumentReceived = async (name, received) => {
+  const handleMarkDocumentReceived = async (name, received, attachmentId = null) => {
     try {
-      const res = await atsApi.markDocumentReceived(orgSlug, applicationId, name, received);
+      const res = await atsApi.markDocumentReceived(orgSlug, applicationId, name, received, attachmentId);
       if (res?.success) {
         showToast(received ? `Marked received: ${name}` : `Unmarked: ${name}`);
         fetchApplication();
@@ -2129,6 +2129,36 @@ export default function AtsApplicationDetail() {
       }
     } catch (err) {
       showToast(err?.message || 'Failed to update document', 'error');
+    }
+  };
+
+  // 2026-05-20: inline upload from the Documents Checklist row.
+  // Uploads via the regular ats_attachments endpoint (no kind tag), then
+  // links the attachment id onto the checklist row and marks received in
+  // one shot. The file also shows up in the Attachments section since
+  // it's a normal attachment record.
+  const [uploadingDoc, setUploadingDoc] = useState(null);
+  const handleUploadDocument = async (name, file) => {
+    if (!file) return;
+    try {
+      setUploadingDoc(name);
+      const up = await atsApi.uploadAttachment(orgSlug, applicationId, file);
+      const attachmentId = up?.attachment?._id || up?.data?._id || up?._id;
+      if (!up?.success || !attachmentId) {
+        showToast(up?.error || 'Upload failed', 'error');
+        return;
+      }
+      const linked = await atsApi.markDocumentReceived(orgSlug, applicationId, name, true, attachmentId);
+      if (linked?.success) {
+        showToast(`Uploaded and marked received: ${name}`);
+        fetchApplication();
+      } else {
+        showToast(linked?.error || 'Linked upload but failed to mark received', 'warning');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Upload failed', 'error');
+    } finally {
+      setUploadingDoc(null);
     }
   };
 
@@ -2896,7 +2926,7 @@ export default function AtsApplicationDetail() {
             )}
           </SectionCard>
 
-          {isAtOrPastDocsCollection && (
+          {isAtDocsCollection && (
             <div id="documents-checklist-card">
               <SectionCard
                 title="Documents Checklist"
@@ -2939,6 +2969,12 @@ export default function AtsApplicationDetail() {
                     {requiredDocs.map((doc) => {
                       const received = !!doc.receivedAt;
                       const isRequired = doc.required !== false;
+                      const isUploading = uploadingDoc === doc.name;
+                      const hasFile = !!doc.attachmentId;
+                      const fileDownloadUrl = hasFile
+                        ? atsApi.getAttachmentDownloadUrl(orgSlug, doc.attachmentId)
+                        : null;
+                      const inputId = `doc-upload-${doc.name.replace(/\W+/g, '-')}`;
                       return (
                         <div
                           key={doc.name}
@@ -2952,18 +2988,23 @@ export default function AtsApplicationDetail() {
                             <input
                               type="checkbox"
                               checked={received}
-                              disabled={!canEdit}
+                              disabled={!canEdit || isUploading}
                               onChange={(e) => handleMarkDocumentReceived(doc.name, e.target.checked)}
                               className="mt-0.5 w-4 h-4 rounded border-dark-600 bg-dark-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 shrink-0"
                             />
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className={`text-sm font-medium ${received ? 'text-emerald-200' : 'text-white'}`}>
                                   {doc.name}
                                 </span>
                                 {!isRequired && (
                                   <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-dark-700 border border-dark-600 text-dark-300">
                                     Optional
+                                  </span>
+                                )}
+                                {hasFile && (
+                                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-300">
+                                    File attached
                                   </span>
                                 )}
                               </div>
@@ -2974,7 +3015,47 @@ export default function AtsApplicationDetail() {
                               )}
                             </div>
                           </label>
-                          {received && <Check size={14} className="text-emerald-400 shrink-0" />}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {hasFile && (
+                              <a
+                                href={fileDownloadUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs px-2 py-1 rounded border border-blue-500/30 text-blue-300 hover:bg-blue-500/10 transition-colors"
+                              >
+                                View
+                              </a>
+                            )}
+                            {canEdit && (
+                              <>
+                                <label
+                                  htmlFor={inputId}
+                                  className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
+                                    isUploading
+                                      ? 'border-dark-600 text-dark-400 cursor-wait'
+                                      : 'border-dark-600 text-dark-200 hover:bg-dark-700 cursor-pointer'
+                                  }`}
+                                >
+                                  {isUploading
+                                    ? <Loader2 size={12} className="animate-spin" />
+                                    : <Upload size={12} />}
+                                  {hasFile ? 'Replace' : 'Upload'}
+                                </label>
+                                <input
+                                  id={inputId}
+                                  type="file"
+                                  className="hidden"
+                                  disabled={isUploading}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleUploadDocument(doc.name, f);
+                                    e.target.value = '';
+                                  }}
+                                />
+                              </>
+                            )}
+                            {received && !hasFile && <Check size={14} className="text-emerald-400 shrink-0" />}
+                          </div>
                         </div>
                       );
                     })}

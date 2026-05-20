@@ -202,10 +202,10 @@ const atsApi = {
 
   // Documents Collection — checklist receipt + admin bypass for the
   // forward-move gate. See ats.js → collectStageGates 'documents' branch.
-  markDocumentReceived(orgSlug, applicationId, name, received) {
+  markDocumentReceived(orgSlug, applicationId, name, received, attachmentId = null) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/documents/receive`, {
       method: 'POST',
-      body: JSON.stringify({ name, received: !!received }),
+      body: JSON.stringify({ name, received: !!received, attachmentId: attachmentId || null }),
     });
   },
   bypassDocumentsGate(orgSlug, applicationId, reason) {
