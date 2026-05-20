@@ -1865,12 +1865,15 @@ export default function InvoiceDetail() {
   const isFullyPaid = paymentStatus === 'paid' || status === 'paid';
   const isLifecyclePosted = ['posted', 'viewed', 'partial', 'overdue', 'paid'].includes(status);
   const isCancelled = status === 'cancelled';
-  const isActionablePosted = isLifecyclePosted && !isCancelled && !isFullyPaid;
+  const isReversed = Boolean(invoice.reversedByCreditNoteId);
+  const isCreditNote = invoice.type === 'credit_note';
+  const isActionablePosted = isLifecyclePosted && !isCancelled && !isFullyPaid && !isReversed && !isCreditNote;
   const isOverdue = Boolean(
     invoice.dueDate
     && new Date(invoice.dueDate) < new Date()
     && !isFullyPaid
     && !isCancelled
+    && !isReversed
     && status !== 'draft'
   );
   const stepIndex = isFullyPaid ? 2 : isLifecyclePosted ? 1 : 0;
@@ -1965,6 +1968,27 @@ export default function InvoiceDetail() {
                 <ActionBtn icon={XCircle} label="Cancel" onClick={() => setShowCancelConfirm(true)} danger />
                 {(invoice.amountPaid || 0) === 0 && (
                   <ActionBtn icon={RotateCcw} label="Reset to Draft" onClick={handleResetToDraft} loading={actionLoading === 'reset'} />
+                )}
+              </>
+            )}
+
+            {/* Posted credit note — limited actions (no Record Payment / Credit Note) */}
+            {isCreditNote && isLifecyclePosted && !isCancelled && (
+              <>
+                {!isVendorBill && (
+                  <ActionBtn icon={Send} label="Send Email" onClick={() => setShowEmailModal(true)} />
+                )}
+                {!isVendorBill && (
+                  <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
+                )}
+              </>
+            )}
+
+            {/* Reversed source invoice — read-only; only Print/PDF */}
+            {isReversed && !isCreditNote && !isCancelled && (
+              <>
+                {!isVendorBill && (
+                  <ActionBtn icon={Download} label="Print / PDF" onClick={handleDownloadPdf} loading={actionLoading === 'pdf'} />
                 )}
               </>
             )}
@@ -2090,6 +2114,14 @@ export default function InvoiceDetail() {
                 <div className="w-6 h-px mx-0.5 bg-dark-600" />
                 <span className="px-4 py-1.5 text-xs font-semibold rounded-full bg-red-500/15 text-red-400">
                   Cancelled
+                </span>
+              </div>
+            )}
+            {isReversed && !isCancelled && (
+              <div className="flex items-center">
+                <div className="w-6 h-px mx-0.5 bg-dark-600" />
+                <span className="px-4 py-1.5 text-xs font-semibold rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                  Reversed
                 </span>
               </div>
             )}
@@ -3025,6 +3057,17 @@ export default function InvoiceDetail() {
                             className="text-rivvra-500 hover:underline text-sm"
                           >
                             View Original Invoice
+                          </Link>
+                        </FormField>
+                      )}
+
+                      {invoice.reversedByCreditNoteId && (
+                        <FormField label="Reversed By">
+                          <Link
+                            to={orgPath(`/invoicing/invoices/${invoice.reversedByCreditNoteId}`)}
+                            className="text-purple-400 hover:underline text-sm"
+                          >
+                            View Credit Note
                           </Link>
                         </FormField>
                       )}
@@ -4534,7 +4577,8 @@ function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClo
         reversalDate: form.reversalDate,
         createNewInvoice: createNew,
       });
-      onSuccess(res?.invoice?._id);
+      const targetId = createNew ? res?.newInvoice?._id : res?.creditNote?._id;
+      onSuccess(targetId);
     } catch (err) {
       showToast(err.message || 'Failed to create credit note', 'error');
     } finally {

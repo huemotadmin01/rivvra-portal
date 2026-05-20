@@ -59,12 +59,17 @@ function StatusChips({ invoice }) {
     paid: 'Paid',
   };
 
+  const isReversed = Boolean(invoice?.reversedByCreditNoteId);
+
   // Draft and Cancelled override payment state for a cleaner row
   if (status === 'draft') {
     return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${lifecycleStyles.draft}`}>Draft</span>;
   }
   if (status === 'cancelled') {
     return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${lifecycleStyles.cancelled}`}>Cancelled</span>;
+  }
+  if (isReversed) {
+    return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400">Reversed</span>;
   }
 
   const isOverdue = invoice?.dueDate && new Date(invoice.dueDate) < new Date() && paymentStatus !== 'paid';

@@ -203,6 +203,8 @@ export default function InvoiceAnalysis() {
           const customerRows = customerGroups.find((g) => g.currency === cur)?.rows || [];
           const productRows = productGroups.find((g) => g.currency === cur)?.rows || [];
           const totalRev = periodRows.reduce((s, r) => s + (r.revenue || 0), 0);
+          const totalCn = periodRows.reduce((s, r) => s + (r.creditNotes || 0), 0);
+          const totalNet = periodRows.reduce((s, r) => s + (r.netRevenue ?? (r.revenue || 0) - (r.creditNotes || 0)), 0);
           const totalCount = periodRows.reduce((s, r) => s + (r.invoiceCount || 0), 0);
           return (
             <div key={cur} className="space-y-4">
@@ -220,18 +222,24 @@ export default function InvoiceAnalysis() {
                           <th className="text-left px-5 py-3 font-medium">Month</th>
                           <th className="text-right px-5 py-3 font-medium">Invoice Count</th>
                           <th className="text-right px-5 py-3 font-medium">Revenue</th>
+                          <th className="text-right px-5 py-3 font-medium">Credit Notes</th>
+                          <th className="text-right px-5 py-3 font-medium">Net Revenue</th>
                           <th className="text-right px-5 py-3 font-medium">Avg Invoice</th>
                         </tr>
                       </thead>
                       <tbody>
                         {periodRows.map((row, i) => {
                           const avgInvoice = row.invoiceCount > 0 ? (row.revenue || 0) / row.invoiceCount : 0;
+                          const cn = row.creditNotes || 0;
+                          const net = row.netRevenue ?? ((row.revenue || 0) - cn);
                           return (
                             <tr key={`${cur}-${i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                               <td className="px-5 py-3 text-white">{row.year}</td>
                               <td className="px-5 py-3 text-white">{MONTH_NAMES[row.month - 1] || row.month}</td>
                               <td className="px-5 py-3 text-right text-dark-300">{formatNumber(row.invoiceCount)}</td>
-                              <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(row.revenue, cur)}</td>
+                              <td className="px-5 py-3 text-right text-dark-300">{formatCurrency(row.revenue, cur)}</td>
+                              <td className="px-5 py-3 text-right text-purple-400">{cn ? `-${formatCurrency(cn, cur)}` : '—'}</td>
+                              <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(net, cur)}</td>
                               <td className="px-5 py-3 text-right text-blue-400">{formatCurrency(row.avgInvoice ?? avgInvoice, cur)}</td>
                             </tr>
                           );
@@ -241,7 +249,9 @@ export default function InvoiceAnalysis() {
                         <tr className="bg-dark-800/50 font-semibold">
                           <td className="px-5 py-3 text-white" colSpan={2}>Total</td>
                           <td className="px-5 py-3 text-right text-dark-300">{formatNumber(totalCount)}</td>
-                          <td className="px-5 py-3 text-right text-emerald-400">{formatCurrency(totalRev, cur)}</td>
+                          <td className="px-5 py-3 text-right text-dark-300">{formatCurrency(totalRev, cur)}</td>
+                          <td className="px-5 py-3 text-right text-purple-400">{totalCn ? `-${formatCurrency(totalCn, cur)}` : '—'}</td>
+                          <td className="px-5 py-3 text-right text-emerald-400">{formatCurrency(totalNet, cur)}</td>
                           <td className="px-5 py-3 text-right text-blue-400">{formatCurrency(totalCount > 0 ? totalRev / totalCount : 0, cur)}</td>
                         </tr>
                       </tfoot>
@@ -262,17 +272,25 @@ export default function InvoiceAnalysis() {
                           <th className="text-left px-5 py-3 font-medium">Customer</th>
                           <th className="text-right px-5 py-3 font-medium">Invoices</th>
                           <th className="text-right px-5 py-3 font-medium">Revenue</th>
+                          <th className="text-right px-5 py-3 font-medium">Credit Notes</th>
+                          <th className="text-right px-5 py-3 font-medium">Net Revenue</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {customerRows.map((row, i) => (
+                        {customerRows.map((row, i) => {
+                          const cn = row.creditNotes || 0;
+                          const net = row.netRevenue ?? ((row.revenue || 0) - cn);
+                          return (
                           <tr key={`${cur}-${row.customerId || i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                             <td className="px-5 py-3 text-dark-500 text-xs">{i + 1}</td>
                             <td className="px-5 py-3 text-white font-medium">{row.customerName || '-'}</td>
                             <td className="px-5 py-3 text-right text-dark-300">{formatNumber(row.invoiceCount)}</td>
-                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(row.revenue, cur)}</td>
+                            <td className="px-5 py-3 text-right text-dark-300">{formatCurrency(row.revenue, cur)}</td>
+                            <td className="px-5 py-3 text-right text-purple-400">{cn ? `-${formatCurrency(cn, cur)}` : '—'}</td>
+                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(net, cur)}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -291,17 +309,25 @@ export default function InvoiceAnalysis() {
                           <th className="text-left px-5 py-3 font-medium">Product</th>
                           <th className="text-right px-5 py-3 font-medium">Qty Sold</th>
                           <th className="text-right px-5 py-3 font-medium">Revenue</th>
+                          <th className="text-right px-5 py-3 font-medium">Credit Notes</th>
+                          <th className="text-right px-5 py-3 font-medium">Net Revenue</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {productRows.map((row, i) => (
+                        {productRows.map((row, i) => {
+                          const cn = row.creditNotes || 0;
+                          const net = row.netRevenue ?? ((row.revenue || 0) - cn);
+                          return (
                           <tr key={`${cur}-${row.productId || i}`} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                             <td className="px-5 py-3 text-dark-500 text-xs">{i + 1}</td>
                             <td className="px-5 py-3 text-white font-medium">{row.productName || '-'}</td>
                             <td className="px-5 py-3 text-right text-dark-300">{formatNumber(row.qtySold)}</td>
-                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(row.revenue, cur)}</td>
+                            <td className="px-5 py-3 text-right text-dark-300">{formatCurrency(row.revenue, cur)}</td>
+                            <td className="px-5 py-3 text-right text-purple-400">{cn ? `-${formatCurrency(cn, cur)}` : '—'}</td>
+                            <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{formatCurrency(net, cur)}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
