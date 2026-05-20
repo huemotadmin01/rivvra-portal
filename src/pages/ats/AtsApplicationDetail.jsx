@@ -2118,25 +2118,48 @@ export default function AtsApplicationDetail() {
     }
   };
 
+  // 2026-05-20: optimistic-update helper for the Documents Checklist.
+  // Avoids the jarring full-record refetch every time a recruiter ticks
+  // a row — the only thing that changed is the local row state.
+  const patchLocalDoc = (name, patch) => {
+    setApplication((prev) => {
+      if (!prev || !Array.isArray(prev.requiredDocuments)) return prev;
+      return {
+        ...prev,
+        requiredDocuments: prev.requiredDocuments.map((d) =>
+          d.name === name ? { ...d, ...patch } : d
+        ),
+      };
+    });
+  };
+
   const handleMarkDocumentReceived = async (name, received, attachmentId = null) => {
+    // Optimistic patch — flip the row immediately. On failure, refetch
+    // to bring the UI back in sync with the server.
+    const stamp = new Date().toISOString();
+    patchLocalDoc(name, {
+      receivedAt: received ? stamp : null,
+      receivedBy: received ? (authUser?._id || null) : null,
+      receivedByName: received ? (authUser?.name || authUser?.email || 'You') : null,
+      attachmentId: received ? (attachmentId || null) : null,
+    });
     try {
       const res = await atsApi.markDocumentReceived(orgSlug, applicationId, name, received, attachmentId);
-      if (res?.success) {
-        showToast(received ? `Marked received: ${name}` : `Unmarked: ${name}`);
-        fetchApplication();
-      } else {
+      if (!res?.success) {
         showToast(res?.error || 'Failed to update document', 'error');
+        fetchApplication();
       }
     } catch (err) {
       showToast(err?.message || 'Failed to update document', 'error');
+      fetchApplication();
     }
   };
 
   // 2026-05-20: inline upload from the Documents Checklist row.
-  // Uploads via the regular ats_attachments endpoint (no kind tag), then
-  // links the attachment id onto the checklist row and marks received in
-  // one shot. The file also shows up in the Attachments section since
-  // it's a normal attachment record.
+  // Uploads via the regular ats_attachments endpoint, then links the
+  // attachment id onto the checklist row and marks received in one shot.
+  // The file also shows up in the Attachments section since it's a
+  // normal attachment record.
   const [uploadingDoc, setUploadingDoc] = useState(null);
   const handleUploadDocument = async (name, file) => {
     if (!file) return;
@@ -2150,15 +2173,46 @@ export default function AtsApplicationDetail() {
       }
       const linked = await atsApi.markDocumentReceived(orgSlug, applicationId, name, true, attachmentId);
       if (linked?.success) {
-        showToast(`Uploaded and marked received: ${name}`);
-        fetchApplication();
+        showToast(`Uploaded: ${name}`);
+        patchLocalDoc(name, {
+          receivedAt: new Date().toISOString(),
+          receivedBy: authUser?._id || null,
+          receivedByName: authUser?.name || authUser?.email || 'You',
+          attachmentId,
+        });
       } else {
         showToast(linked?.error || 'Linked upload but failed to mark received', 'warning');
+        fetchApplication();
       }
     } catch (err) {
       showToast(err?.message || 'Upload failed', 'error');
     } finally {
       setUploadingDoc(null);
+    }
+  };
+
+  const handleRemoveDocumentFile = async (name, attachmentId) => {
+    if (!attachmentId) return;
+    // Optimistic clear.
+    patchLocalDoc(name, {
+      receivedAt: null,
+      receivedBy: null,
+      receivedByName: null,
+      attachmentId: null,
+    });
+    try {
+      // Best-effort: delete the underlying file too. If the user already
+      // removed it via the Attachments section the delete fails benignly
+      // — we still clear the link on the checklist row.
+      await atsApi.deleteAttachment(orgSlug, attachmentId).catch(() => null);
+      const res = await atsApi.markDocumentReceived(orgSlug, applicationId, name, false, null);
+      if (!res?.success) {
+        showToast(res?.error || 'Failed to remove document', 'error');
+        fetchApplication();
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to remove document', 'error');
+      fetchApplication();
     }
   };
 
@@ -2532,7 +2586,9 @@ export default function AtsApplicationDetail() {
   // flag (rows snapshotted before 2026-05-20) — only explicit false makes
   // an item optional. Count + gate status are scoped to required items.
   const requiredOnly = requiredDocs.filter((d) => d.required !== false);
-  const receivedCount = requiredOnly.filter((d) => d.receivedAt).length;
+  // A required item only counts as received when a file is attached —
+  // mirrors the server-side gate (collectStageGates 'documents' kind).
+  const receivedCount = requiredOnly.filter((d) => d.receivedAt && d.attachmentId).length;
   const docsGateBypassed = !!application.documentsGate?.bypassedAt;
 
   return (
@@ -2967,10 +3023,12 @@ export default function AtsApplicationDetail() {
                 ) : (
                   <div className="space-y-1.5">
                     {requiredDocs.map((doc) => {
-                      const received = !!doc.receivedAt;
                       const isRequired = doc.required !== false;
                       const isUploading = uploadingDoc === doc.name;
                       const hasFile = !!doc.attachmentId;
+                      // For required items, receipt = a file is attached.
+                      // For optional items, receipt can be a tick alone.
+                      const received = isRequired ? hasFile : !!doc.receivedAt;
                       const fileDownloadUrl = hasFile
                         ? atsApi.getAttachmentDownloadUrl(orgSlug, doc.attachmentId)
                         : null;
@@ -2984,14 +3042,31 @@ export default function AtsApplicationDetail() {
                               : 'bg-dark-900/40 border-dark-700'
                           }`}
                         >
-                          <label className={`flex items-start gap-2.5 flex-1 min-w-0 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-                            <input
-                              type="checkbox"
-                              checked={received}
-                              disabled={!canEdit || isUploading}
-                              onChange={(e) => handleMarkDocumentReceived(doc.name, e.target.checked)}
-                              className="mt-0.5 w-4 h-4 rounded border-dark-600 bg-dark-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 shrink-0"
-                            />
+                          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                            {/* Required rows: read-only indicator (file is the
+                                source of truth). Optional rows: interactive
+                                checkbox since recruiter can mark received
+                                without a file. */}
+                            {isRequired ? (
+                              <div
+                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                                  received
+                                    ? 'bg-emerald-500 border-emerald-500'
+                                    : 'border-dark-600 bg-dark-900'
+                                }`}
+                                aria-hidden="true"
+                              >
+                                {received && <Check size={11} className="text-white" />}
+                              </div>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={received}
+                                disabled={!canEdit || isUploading}
+                                onChange={(e) => handleMarkDocumentReceived(doc.name, e.target.checked)}
+                                className="mt-0.5 w-4 h-4 rounded border-dark-600 bg-dark-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 shrink-0 cursor-pointer"
+                              />
+                            )}
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className={`text-sm font-medium ${received ? 'text-emerald-200' : 'text-white'}`}>
@@ -3002,19 +3077,19 @@ export default function AtsApplicationDetail() {
                                     Optional
                                   </span>
                                 )}
-                                {hasFile && (
-                                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-300">
-                                    File attached
-                                  </span>
-                                )}
                               </div>
                               {received && doc.receivedByName && (
                                 <div className="text-xs text-dark-400 mt-0.5">
-                                  Received {formatDateUTC(doc.receivedAt)} · {doc.receivedByName}
+                                  {hasFile ? 'Uploaded' : 'Marked received'} {formatDateUTC(doc.receivedAt)} · {doc.receivedByName}
+                                </div>
+                              )}
+                              {isRequired && !hasFile && (
+                                <div className="text-xs text-dark-500 mt-0.5">
+                                  Upload the file to mark as received
                                 </div>
                               )}
                             </div>
-                          </label>
+                          </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {hasFile && (
                               <a
@@ -3052,9 +3127,18 @@ export default function AtsApplicationDetail() {
                                     e.target.value = '';
                                   }}
                                 />
+                                {hasFile && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveDocumentFile(doc.name, doc.attachmentId)}
+                                    className="text-xs px-2 py-1 rounded border border-red-500/30 text-red-300 hover:bg-red-500/10 transition-colors"
+                                    title="Remove file and unmark received"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
                               </>
                             )}
-                            {received && !hasFile && <Check size={14} className="text-emerald-400 shrink-0" />}
                           </div>
                         </div>
                       );
