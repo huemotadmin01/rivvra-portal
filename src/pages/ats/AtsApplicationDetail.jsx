@@ -14,6 +14,7 @@ import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import RateConfirmationModal from '../../components/ats/RateConfirmationModal';
 import RefuseModal from '../../components/ats/RefuseModal';
+import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import InlineField from '../../components/shared/InlineField';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -2161,12 +2162,14 @@ export default function AtsApplicationDetail() {
   // The file also shows up in the Attachments section since it's a
   // normal attachment record.
   const [uploadingDoc, setUploadingDoc] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const handleUploadDocument = async (name, file) => {
     if (!file) return;
     try {
       setUploadingDoc(name);
       const up = await atsApi.uploadAttachment(orgSlug, applicationId, file);
-      const attachmentId = up?.attachment?._id || up?.data?._id || up?._id;
+      const att = up?.attachment || up?.data || null;
+      const attachmentId = att?._id;
       if (!up?.success || !attachmentId) {
         showToast(up?.error || 'Upload failed', 'error');
         return;
@@ -2179,6 +2182,7 @@ export default function AtsApplicationDetail() {
           receivedBy: authUser?._id || null,
           receivedByName: authUser?.name || authUser?.email || 'You',
           attachmentId,
+          attachment: { fileName: att.fileName, mimeType: att.mimeType, url: att.url },
         });
       } else {
         showToast(linked?.error || 'Linked upload but failed to mark received', 'warning');
@@ -3029,9 +3033,7 @@ export default function AtsApplicationDetail() {
                       // For required items, receipt = a file is attached.
                       // For optional items, receipt can be a tick alone.
                       const received = isRequired ? hasFile : !!doc.receivedAt;
-                      const fileDownloadUrl = hasFile
-                        ? atsApi.getAttachmentDownloadUrl(orgSlug, doc.attachmentId)
-                        : null;
+                      const attachmentMeta = doc.attachment || null;
                       const inputId = `doc-upload-${doc.name.replace(/\W+/g, '-')}`;
                       return (
                         <div
@@ -3092,14 +3094,18 @@ export default function AtsApplicationDetail() {
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {hasFile && (
-                              <a
-                                href={fileDownloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc({
+                                  _id: doc.attachmentId,
+                                  fileName: attachmentMeta?.fileName || doc.name,
+                                  mimeType: attachmentMeta?.mimeType || '',
+                                  url: attachmentMeta?.url || null,
+                                })}
                                 className="text-xs px-2 py-1 rounded border border-blue-500/30 text-blue-300 hover:bg-blue-500/10 transition-colors"
                               >
                                 View
-                              </a>
+                              </button>
                             )}
                             {canEdit && (
                               <>
@@ -3304,6 +3310,16 @@ export default function AtsApplicationDetail() {
       </div>
 
       {/* Modals */}
+      {previewDoc && (
+        <DocumentPreviewModal
+          filename={previewDoc.fileName}
+          mimeType={previewDoc.mimeType}
+          directUrl={previewDoc.url || undefined}
+          fetchUrl={atsApi.getAttachmentDownloadUrl(orgSlug, previewDoc._id)}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
+
       <RefuseModal
         show={showRefuseModal}
         onClose={() => setShowRefuseModal(false)}
