@@ -987,21 +987,19 @@ export default function AtsDashboard() {
           to={`/org/${orgSlug}/ats/applications?hiredOnly=1${scopeQuery}`}
         />
         <KpiTile
-          label="Offer Active"
-          value={offerActive.total}
-          subtitle={`Proposal ${offerActive.proposal} · Signed ${offerActive.signed}`}
+          label="Offer Proposal"
+          value={offerActive.proposal}
+          subtitle="currently at this stage"
           icon={Clock}
           color="amber"
           to={(() => {
-            // Resolve Offer Proposal + Offer Signed stage IDs from the
-            // funnel data so the deep-link filters to JUST those two
-            // stages (not all ongoing apps). API accepts comma-separated
-            // stageId list — single equality if only one is found.
-            const ids = applicationsByStage
-              .filter((s) => s.stageName === 'Offer Proposal' || s.stageName === 'Offer Signed')
-              .map((s) => s.stageId)
-              .filter(Boolean);
-            const stageQ = ids.length > 0 ? `&stageId=${ids.join(',')}` : '';
+            // 2026-05-20: card narrowed from the Proposal+Signed rollup
+            // to just Offer Proposal. Offer Signed has its own tile in
+            // the per-stage row below, and the rollup was confusing
+            // (`Proposal 0 · Signed 1` displaying total=1 read as "1
+            // offer in proposal stage"). Deep-link to just Offer Proposal.
+            const id = applicationsByStage.find((s) => s.stageName === 'Offer Proposal')?.stageId;
+            const stageQ = id ? `&stageId=${id}` : '';
             return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}${scopeQuery}`;
           })()}
         />
