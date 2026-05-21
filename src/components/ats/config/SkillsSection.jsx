@@ -59,7 +59,12 @@ export default function SkillsSection({ orgSlug, showToast }) {
       } else {
         const res = await atsApi.createSkill(orgSlug, payload);
         if (res.success) {
-          showToast('Skill created');
+          // Server dedupe gate (2026-05-21) returns existed:true with the
+          // existing row when an admin tries to create a case-insensitive
+          // duplicate. Tell them rather than silently appearing to succeed.
+          showToast(res.existed
+            ? `"${res.skill?.name}" already exists — using existing`
+            : 'Skill created');
           closeModal(); fetchData();
         } else {
           showToast(res.error || 'Failed to create skill', 'error');

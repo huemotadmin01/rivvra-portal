@@ -144,12 +144,16 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       const res = await atsApi.createSkill(orgSlug, { name });
       const newSkill = res?.skill;
       if (!newSkill?._id) throw new Error('Create returned no skill');
-      setAllSkills((prev) => [...prev, newSkill]);
+      // Only add to the local list if it's actually new — the server's
+      // dedupe gate returns existed: true when the skill was already on file.
+      if (!res?.existed) setAllSkills((prev) => [...prev, newSkill]);
       setSelectedSkillId(newSkill._id);
       setSelectedSkillName(newSkill.name);
       setSkillQuery(newSkill.name);
       setSkillDropdownOpen(false);
-      showToast(`Created skill "${newSkill.name}"`);
+      showToast(res?.existed
+        ? `Picked existing skill "${newSkill.name}"`
+        : `Created skill "${newSkill.name}"`);
     } catch (err) {
       showToast(err.message || 'Failed to create skill', 'error');
     } finally {
