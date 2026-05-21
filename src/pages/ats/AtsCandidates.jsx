@@ -202,11 +202,19 @@ export default function AtsCandidates() {
   // groups first with Unknown last. Memoised so re-renders don't re-bucket.
   const groupedCandidates = useMemo(() => {
     if (!groupBy) return null;
+    // Resolve manager labels from the recruiters lookup as the source of
+    // truth — the per-candidate `managerName` denorm goes stale when an
+    // employee is renamed, and groupRecords keeps the FIRST record's label,
+    // so a single null-managerName candidate at the top of a group used to
+    // mislabel the whole group "Unknown manager". Lookup-first means the
+    // canonical name from /employees always wins.
+    const recruiterById = new Map(recruiters.map(r => [String(r._id || r.id), r.fullName || r.name || r.email]));
     const extractor = (cand) => {
       if (groupBy === 'manager') {
+        const lookupName = cand.managerId ? recruiterById.get(String(cand.managerId)) : null;
         return [{
           key: cand.managerId || '__unknown__',
-          label: cand.managerName || (cand.managerId ? 'Unknown manager' : 'No manager'),
+          label: lookupName || cand.managerName || (cand.managerId ? 'Unknown manager' : 'No manager'),
         }];
       }
       if (groupBy === 'skill') {
@@ -228,7 +236,7 @@ export default function AtsCandidates() {
       return [];
     };
     return sortGroupsByCount(groupRecords(candidates, extractor));
-  }, [candidates, groupBy]);
+  }, [candidates, groupBy, recruiters]);
 
   const toggleGroup = (key) => {
     setCollapsedGroups((prev) => {
