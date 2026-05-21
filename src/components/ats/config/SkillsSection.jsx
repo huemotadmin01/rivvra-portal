@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
+import ConfirmDialog from '../../shared/ConfirmDialog';
 import {
   Plus, Edit2, X, Loader2, Trash2,
   Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye,
-  ToggleLeft, ToggleRight, RotateCcw, Save,
+  ToggleLeft, ToggleRight, RotateCcw, Save, Search,
 } from 'lucide-react';
 
 export default function SkillsSection({ orgSlug, showToast }) {
@@ -18,6 +19,8 @@ export default function SkillsSection({ orgSlug, showToast }) {
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ name: '', skillTypeId: '' });
   const [filterType, setFilterType] = useState('');
+  const [search, setSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null); // skill row to delete via ConfirmDialog
 
   const fetchData = useCallback(async () => {
     if (!orgSlug) return;
@@ -76,14 +79,22 @@ export default function SkillsSection({ orgSlug, showToast }) {
     } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
   };
 
-  const handleDelete = async () => {
+  // Two-step destructive delete: open ConfirmDialog (surfacing the usage
+  // count so admin sees the blast radius) instead of window.confirm.
+  const openDeletePrompt = () => {
     if (!editingItem) return;
-    if (!window.confirm(`Delete skill "${editingItem.name}"? This cannot be undone.`)) return;
+    setConfirmDelete(editingItem);
+  };
+  const performDelete = async () => {
+    if (!confirmDelete) return;
     try {
       setDeleting(true);
-      const res = await atsApi.deleteSkill(orgSlug, editingItem._id);
+      const res = await atsApi.deleteSkill(orgSlug, confirmDelete._id);
       if (res.success) {
-        showToast('Skill deleted'); closeModal(); fetchData();
+        showToast('Skill deleted');
+        setConfirmDelete(null);
+        closeModal();
+        fetchData();
       } else {
         showToast(res.error || 'Failed to delete skill', 'error');
       }
@@ -92,18 +103,39 @@ export default function SkillsSection({ orgSlug, showToast }) {
 
   const typeMap = Object.fromEntries(skillTypes.map((t) => [t._id, t.name]));
 
+  // Client-side search filter — 338+ rows is unscannable without it.
+  // Type-filter happens server-side via the listSkills query; search
+  // is local so typing stays responsive.
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((s) => (s.name || '').toLowerCase().includes(q));
+  }, [items, search]);
+
   if (loading) return <InlineSkeleton rows={5} />;
 
   return (
     <>
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <Award size={16} className="text-dark-400" />
             <h3 className="text-white font-semibold">Skills</h3>
-            <span className="text-xs bg-dark-700 text-dark-400 px-2 py-0.5 rounded-full">{items.length}</span>
+            <span className="text-xs bg-dark-700 text-dark-400 px-2 py-0.5 rounded-full">
+              {search.trim() ? `${visibleItems.length} of ${items.length}` : items.length}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+            <div className="relative flex-1 max-w-xs">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search skills…"
+                className="input-field text-sm py-1.5 pl-8 pr-2 w-full"
+              />
+            </div>
             <select
               value={filterType}
               onChange={(e) => { setFilterType(e.target.value); }}
@@ -132,11 +164,18 @@ export default function SkillsSection({ orgSlug, showToast }) {
                 <tr className="border-b border-dark-700">
                   <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
                   <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Type</th>
+                  <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Used by</th>
                   <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
+                {visibleItems.length === 0 && search.trim() ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-dark-500">
+                      No skills match "{search}"
+                    </td>
+                  </tr>
+                ) : visibleItems.map((item) => (
                   <tr key={item._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -147,6 +186,11 @@ export default function SkillsSection({ orgSlug, showToast }) {
                     <td className="px-4 py-3">
                       <span className="text-xs bg-dark-700 text-dark-300 px-2 py-0.5 rounded-full">
                         {item.skillTypeName || typeMap[item.skillTypeId] || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`text-xs ${item.usageCount > 0 ? 'text-emerald-300' : 'text-dark-500'}`}>
+                        {item.usageCount || 0}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -187,7 +231,7 @@ export default function SkillsSection({ orgSlug, showToast }) {
               </div>
               {editingItem && (
                 <div className="pt-3 border-t border-dark-700">
-                  <button type="button" onClick={handleDelete} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
+                  <button type="button" onClick={openDeletePrompt} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
                     {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Skill
                   </button>
                 </div>
@@ -196,6 +240,35 @@ export default function SkillsSection({ orgSlug, showToast }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete this skill?"
+        message={
+          confirmDelete ? (
+            <>
+              You're about to delete <strong className="text-white">"{confirmDelete.name}"</strong>.
+              {' '}
+              {confirmDelete.usageCount > 0 ? (
+                <>
+                  This skill is currently tagged on{' '}
+                  <strong className="text-amber-300">
+                    {confirmDelete.usageCount} candidate{confirmDelete.usageCount === 1 ? '' : 's'}
+                  </strong>
+                  . Deleting it will remove the skill from all of them. This cannot be undone.
+                </>
+              ) : (
+                <>It's not currently used by any candidate, so this is safe.</>
+              )}
+            </>
+          ) : null
+        }
+        confirmLabel="Delete skill"
+        danger
+        busy={deleting}
+        onCancel={() => { if (!deleting) setConfirmDelete(null); }}
+        onConfirm={performDelete}
+      />
     </>
   );
 }
