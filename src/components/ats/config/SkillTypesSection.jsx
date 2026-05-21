@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
+import ConfirmDialog from '../../shared/ConfirmDialog';
 import {
   Plus, Edit2, X, Loader2, Trash2,
   Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye,
@@ -16,6 +17,7 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ name: '' });
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const fetchItems = useCallback(async () => {
     if (!orgSlug) return;
@@ -62,14 +64,17 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
     } catch (err) { showToast(err.message || 'Failed to save', 'error'); } finally { setSaving(false); }
   };
 
-  const handleDelete = async () => {
-    if (!editingItem) return;
-    if (!window.confirm(`Delete skill type "${editingItem.name}"? This cannot be undone.`)) return;
+  const openDeletePrompt = () => { if (editingItem) setConfirmDelete(editingItem); };
+  const performDelete = async () => {
+    if (!confirmDelete) return;
     try {
       setDeleting(true);
-      const res = await atsApi.deleteSkillType(orgSlug, editingItem._id);
+      const res = await atsApi.deleteSkillType(orgSlug, confirmDelete._id);
       if (res.success) {
-        showToast('Skill type deleted'); closeModal(); fetchItems();
+        showToast('Skill type deleted');
+        setConfirmDelete(null);
+        closeModal();
+        fetchItems();
       } else {
         showToast(res.error || 'Failed to delete skill type', 'error');
       }
@@ -103,6 +108,7 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
               <thead>
                 <tr className="border-b border-dark-700">
                   <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
+                  <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Skills</th>
                   <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
                 </tr>
               </thead>
@@ -114,6 +120,11 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
                         <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
                         <span className="text-white">{item.name}</span>
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`text-xs ${item.usageCount > 0 ? 'text-emerald-300' : 'text-dark-500'}`}>
+                        {item.usageCount || 0}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => openEdit(item)} className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"><Edit2 size={14} /></button>
@@ -146,7 +157,7 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
               </div>
               {editingItem && (
                 <div className="pt-3 border-t border-dark-700">
-                  <button type="button" onClick={handleDelete} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
+                  <button type="button" onClick={openDeletePrompt} disabled={deleting} className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2">
                     {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Skill Type
                   </button>
                 </div>
@@ -155,6 +166,35 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete this skill type?"
+        message={
+          confirmDelete ? (
+            <>
+              You're about to delete <strong className="text-white">"{confirmDelete.name}"</strong>.
+              {' '}
+              {confirmDelete.usageCount > 0 ? (
+                <>
+                  This type categorizes{' '}
+                  <strong className="text-amber-300">
+                    {confirmDelete.usageCount} skill{confirmDelete.usageCount === 1 ? '' : 's'}
+                  </strong>
+                  . Those skills will lose their type (and the candidates tagged with them keep the skill, but the category is gone). This cannot be undone.
+                </>
+              ) : (
+                <>No skills currently use this type, so this is safe.</>
+              )}
+            </>
+          ) : null
+        }
+        confirmLabel="Delete type"
+        danger
+        busy={deleting}
+        onCancel={() => { if (!deleting) setConfirmDelete(null); }}
+        onConfirm={performDelete}
+      />
     </>
   );
 }

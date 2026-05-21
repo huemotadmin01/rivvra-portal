@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
+import ConfirmDialog from '../../shared/ConfirmDialog';
 import {
   Plus, Edit2, X, Loader2, Trash2,
-  Layers, Tag,
+  Layers, Tag, Search,
 } from 'lucide-react';
 
 export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag, orgSlug, showToast }) {
@@ -16,6 +17,8 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ name: '' });
+  const [search, setSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   // Backend routes are kebab-case (`/ats/config/refuse-reasons`,
   // `/ats/config/employment-types`) but the tab key carried over from the
@@ -91,16 +94,25 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
     }
   };
 
-  const handleDelete = async () => {
+  // Two-step destructive delete: open ConfirmDialog (surfacing the usage
+  // count) instead of window.confirm. Skipped silently for entities
+  // without a usage hook — the dialog still warns generically.
+  const openDeletePrompt = () => {
     if (!editingItem) return;
-    if (!window.confirm(`Delete "${editingItem.name}"? This cannot be undone.`)) return;
+    setConfirmDelete(editingItem);
+  };
+  const performDelete = async () => {
+    if (!confirmDelete) return;
     try {
       setDeleting(true);
-      const res = await atsApi.deleteConfig(orgSlug, apiEntity, editingItem._id);
+      const res = await atsApi.deleteConfig(orgSlug, apiEntity, confirmDelete._id);
       if (res.success) {
         showToast(`${entityLabel.slice(0, -1)} deleted`);
+        setConfirmDelete(null);
         closeModal();
         fetchItems();
+      } else {
+        showToast(res.error || `Failed to delete`, 'error');
       }
     } catch (err) {
       showToast(err.message || `Failed to delete`, 'error');
@@ -108,6 +120,19 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
       setDeleting(false);
     }
   };
+
+  // Client-side search filter. Picklists are read-once-per-tab and small,
+  // so filtering locally keeps typing snappy.
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((it) => (it.name || '').toLowerCase().includes(q));
+  }, [items, search]);
+
+  // Server may or may not hydrate usageCount per entity. Show the column
+  // only when at least one row has it (avoids an empty 0 column on
+  // entities that don't have a usage hook configured).
+  const hasUsage = items.some((it) => typeof it.usageCount === 'number');
 
   if (loading) {
     return (
@@ -120,21 +145,35 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
   return (
     <>
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <TabIcon size={16} className="text-dark-400" />
             <h3 className="text-white font-semibold">{entityLabel}</h3>
             <span className="text-xs bg-dark-700 text-dark-400 px-2 py-0.5 rounded-full">
-              {items.length}
+              {search.trim() ? `${visibleItems.length} of ${items.length}` : items.length}
             </span>
           </div>
-          <button
-            onClick={openAdd}
-            className="bg-rivvra-500 text-dark-950 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors"
-          >
-            <Plus size={14} />
-            Add {entityLabel.slice(0, -1)}
-          </button>
+          <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+            {items.length > 5 && (
+              <div className="relative flex-1 max-w-xs">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={`Search ${entityLabel.toLowerCase()}…`}
+                  className="input-field text-sm py-1.5 pl-8 pr-2 w-full"
+                />
+              </div>
+            )}
+            <button
+              onClick={openAdd}
+              className="bg-rivvra-500 text-dark-950 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 transition-colors"
+            >
+              <Plus size={14} />
+              Add {entityLabel.slice(0, -1)}
+            </button>
+          </div>
         </div>
 
         {items.length === 0 ? (
@@ -151,11 +190,20 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
               <thead>
                 <tr className="border-b border-dark-700">
                   <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
+                  {hasUsage && (
+                    <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Used by</th>
+                  )}
                   <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
+                {visibleItems.length === 0 && search.trim() ? (
+                  <tr>
+                    <td colSpan={hasUsage ? 3 : 2} className="px-4 py-8 text-center text-sm text-dark-500">
+                      No {entityLabel.toLowerCase()} match "{search}"
+                    </td>
+                  </tr>
+                ) : visibleItems.map((item) => (
                   <tr key={item._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -163,6 +211,13 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
                         <span className="text-white">{item.name}</span>
                       </div>
                     </td>
+                    {hasUsage && (
+                      <td className="px-4 py-3 text-right">
+                        <span className={`text-xs ${item.usageCount > 0 ? 'text-emerald-300' : 'text-dark-500'}`}>
+                          {item.usageCount || 0}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => openEdit(item)}
@@ -239,7 +294,7 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
                 <div className="pt-3 border-t border-dark-700">
                   <button
                     type="button"
-                    onClick={handleDelete}
+                    onClick={openDeletePrompt}
                     disabled={deleting}
                     className="w-full text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg px-4 py-2 transition-colors flex items-center justify-center gap-2"
                   >
@@ -252,6 +307,37 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`Delete this ${entityLabel.slice(0, -1).toLowerCase()}?`}
+        message={
+          confirmDelete ? (
+            <>
+              You're about to delete <strong className="text-white">"{confirmDelete.name}"</strong>.
+              {' '}
+              {typeof confirmDelete.usageCount === 'number' && confirmDelete.usageCount > 0 ? (
+                <>
+                  It's currently tagged on{' '}
+                  <strong className="text-amber-300">
+                    {confirmDelete.usageCount} application{confirmDelete.usageCount === 1 ? '' : 's'}
+                  </strong>
+                  . Deleting it doesn't change those records but the tag will disappear from them. This cannot be undone.
+                </>
+              ) : typeof confirmDelete.usageCount === 'number' ? (
+                <>It's not currently used by any application, so this is safe.</>
+              ) : (
+                <>This action cannot be undone.</>
+              )}
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        busy={deleting}
+        onCancel={() => { if (!deleting) setConfirmDelete(null); }}
+        onConfirm={performDelete}
+      />
     </>
   );
 }
