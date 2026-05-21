@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import crmApi from '../../utils/crmApi';
 import contactsApi from '../../utils/contactsApi';
+import employeeApi from '../../utils/employeeApi';
 import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ChevronLeft, Loader2, Mail, Phone, Building2, UserCheck, Sparkles } from 'lucide-react';
@@ -21,7 +23,8 @@ import { ChevronLeft, Loader2, Mail, Phone, Building2, UserCheck, Sparkles } fro
  * order so the user sees the same value before submit.
  */
 export default function CrmOpportunityNew() {
-  const { orgSlug: slug } = useOrg();
+  const { orgSlug: slug, isOrgAdmin } = useOrg();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   usePageTitle('New Opportunity');
@@ -36,6 +39,10 @@ export default function CrmOpportunityNew() {
   const [individualContacts, setIndividualContacts] = useState([]);
   const [companyContacts, setCompanyContacts] = useState([]);
   const [contactSearch, setContactSearch] = useState('');
+  // Admin-only salesperson override. Non-admins always get the creator as
+  // salesperson server-side, so we don't render the picker for them.
+  const [employeeOptions, setEmployeeOptions] = useState([]);
+  const [salespersonId, setSalespersonId] = useState('');
 
   // 2026-05-14: contacts now refetch on every typed query (debounced
   // inside ComboSelect) instead of a one-shot pre-load of the first
@@ -73,13 +80,31 @@ export default function CrmOpportunityNew() {
     return companiesById.get(String(selectedContact.parentCompanyId)) || null;
   }, [selectedContact, companiesById]);
 
+  // Load active employees for the admin salesperson picker.
+  useEffect(() => {
+    if (!slug || !isOrgAdmin) return;
+    employeeApi.list(slug, { status: 'active', limit: 500 })
+      .then((res) => {
+        if (res?.success) {
+          const list = res.employees || res.data || [];
+          setEmployeeOptions(list.map((e) => ({ _id: String(e._id), name: e.fullName || e.name || e.email })));
+        }
+      })
+      .catch(() => {});
+  }, [slug, isOrgAdmin]);
+
+  // Server now defaults salesperson to the creator (not the contact's
+  // salesperson). Preview mirrors that so admins/non-admins see the same
+  // truth as the server will write. Admin can override via the picker.
+  const selectedEmployeeName = useMemo(() => {
+    if (!salespersonId) return null;
+    return employeeOptions.find((e) => e._id === salespersonId)?.name || null;
+  }, [salespersonId, employeeOptions]);
+
   const resolvedSalesperson = useMemo(() => {
-    return (
-      selectedContact?.salespersonName ||
-      parentCompany?.salespersonName ||
-      'You (no salesperson on contact or company)'
-    );
-  }, [selectedContact, parentCompany]);
+    if (isOrgAdmin && selectedEmployeeName) return selectedEmployeeName;
+    return user?.name || user?.email || 'You';
+  }, [isOrgAdmin, selectedEmployeeName, user]);
 
   const pocOptions = useMemo(
     () => individualContacts.map((c) => ({
@@ -108,6 +133,9 @@ export default function CrmOpportunityNew() {
     setSubmitting(true);
     try {
       const payload = { contactId, name: oppName.trim() || undefined };
+      // Only admins may assign on behalf of someone else. The API enforces
+      // this; we just send the field when the admin explicitly picked one.
+      if (isOrgAdmin && salespersonId) payload.salespersonId = salespersonId;
       const res = await crmApi.createOpportunity(slug, payload);
       if (res?.success) {
         addToast('Opportunity created', 'success');
@@ -177,6 +205,26 @@ export default function CrmOpportunityNew() {
               disableCreate
             />
           </div>
+
+          {/* Admin-only salesperson override. Non-admins always inherit the
+              creator (themselves) server-side, so we hide this field for
+              them rather than show a disabled control that hints at a
+              permission they don't have. */}
+          {isOrgAdmin && (
+            <div>
+              <label className="text-[11px] uppercase tracking-wider text-dark-500 font-medium block mb-2">
+                Salesperson <span className="text-dark-500 normal-case tracking-normal">(defaults to you)</span>
+              </label>
+              <ComboSelect
+                value={salespersonId}
+                displayValue={selectedEmployeeName || ''}
+                options={employeeOptions}
+                onChange={(id) => setSalespersonId(id || '')}
+                placeholder="You (creator) — pick to assign someone else"
+                disableCreate
+              />
+            </div>
+          )}
 
           {/* Preview card — appears after picking. Tighter, no decorative
               header; the auto-filled label moves to a small chip in the
