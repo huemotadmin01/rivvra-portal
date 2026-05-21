@@ -22,7 +22,8 @@ export default function SkillTypesSection({ orgSlug, showToast }) {
     try {
       setLoading(true);
       const res = await atsApi.listSkillTypes(orgSlug);
-      if (res.success) setItems(res.items || []);
+      // Server returns `{ success, skillTypes }`, not `items`.
+      if (res.success) setItems(res.skillTypes || res.items || []);
     } catch {
       showToast('Failed to load skill types', 'error');
     } finally {

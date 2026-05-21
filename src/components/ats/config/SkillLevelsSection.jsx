@@ -22,7 +22,8 @@ export default function SkillLevelsSection({ orgSlug, showToast }) {
     try {
       setLoading(true);
       const res = await atsApi.listSkillLevels(orgSlug);
-      if (res.success) setItems((res.items || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
+      // Server returns `{ success, skillLevels }`, not `items`.
+      if (res.success) setItems(((res.skillLevels || res.items || [])).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
     } catch {
       showToast('Failed to load skill levels', 'error');
     } finally {

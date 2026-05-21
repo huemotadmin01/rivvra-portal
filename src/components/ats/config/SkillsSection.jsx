@@ -27,8 +27,11 @@ export default function SkillsSection({ orgSlug, showToast }) {
         atsApi.listSkills(orgSlug, filterType ? { skillTypeId: filterType } : {}),
         atsApi.listSkillTypes(orgSlug),
       ]);
-      if (skillsRes.success) setItems(skillsRes.items || []);
-      if (typesRes.success) setSkillTypes(typesRes.items || []);
+      // Server returns `{ success, skills }` and `{ success, skillTypes }`
+      // (not `items`). Tolerate both keys defensively so this stays
+      // resilient if the response shape ever changes.
+      if (skillsRes.success) setItems(skillsRes.skills || skillsRes.items || []);
+      if (typesRes.success) setSkillTypes(typesRes.skillTypes || typesRes.items || []);
     } catch {
       showToast('Failed to load skills', 'error');
     } finally {
