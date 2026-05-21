@@ -296,7 +296,11 @@ export default function AtsCandidates() {
         </div>
         <div className="flex items-center gap-2">
           <DensityToggle density={density} onChange={setDensity} />
-          {canRecruit && (
+          {/* 2026-05-21: Add Candidate is admin-only. Candidate records
+              are shared across the org (managerId scoping happens after
+              creation); letting any recruiter create new rows produced
+              dupes and stray records owned by the wrong team. */}
+          {isAdmin && (
           <button
             onClick={() => navigate(orgPath('/ats/candidates/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors text-sm font-medium"

@@ -16,13 +16,36 @@ import { ChevronLeft, Loader2, User } from 'lucide-react';
  * users can fill in description / skills / evaluation inline.
  */
 export default function AtsCandidateNew() {
-  const { currentOrg } = useOrg();
+  const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
   usePageTitle('New Candidate');
 
   const orgSlug = currentOrg?.slug;
+  const isAdmin = getAppRole('ats') === 'admin';
+
+  // 2026-05-21: candidate creation is admin-only. Mirrors the list-page
+  // button gate so a non-admin can't reach the form by typing the URL.
+  if (!isAdmin) {
+    return (
+      <div className="p-6 md:p-8 max-w-2xl mx-auto">
+        <div className="card p-8 text-center">
+          <User size={36} className="mx-auto text-dark-500 mb-3" />
+          <h1 className="text-lg font-semibold text-white mb-1">Admin access required</h1>
+          <p className="text-sm text-dark-400 mb-4">
+            Only ATS admins can create new candidate records. Ask an admin to add the candidate, then it'll be available for you to manage.
+          </p>
+          <button
+            onClick={() => navigate(orgPath('/ats/candidates'))}
+            className="text-sm text-rivvra-400 hover:text-rivvra-300"
+          >
+            ← Back to Candidates
+          </button>
+        </div>
+      </div>
+    );
+  }
   const [form, setForm] = useState({ name: '', email: '', phone: '', mobile: '', linkedinProfile: '' });
   const [saving, setSaving] = useState(false);
 
