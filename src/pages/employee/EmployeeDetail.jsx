@@ -207,7 +207,12 @@ export default function EmployeeDetail() {
   const { showToast } = useToast();
 
   const [employee, setEmployee] = useState(null);
-  usePageTitle(employee?.name);
+  // Employee records use fullName (not name). Previous `employee?.name`
+  // never resolved, so the breadcrumb leaf was always empty — most
+  // visible on cross-entity arrivals where the trail stopped at the
+  // source ("ATS > Applications > Brijesh Shukla") with no indication
+  // of which Employee the page actually shows.
+  usePageTitle(employee?.fullName);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
