@@ -92,14 +92,34 @@ export function getBrowserTimeZone() {
 }
 
 // Manual overrides for zones where Intl returns a GMT-offset instead of the
-// short letter abbreviation users expect. Asia/Kolkata is the main offender:
-// Chrome's ICU treats IST as ambiguous (Indian / Irish / Israel Standard
-// Time) and falls back to "GMT+5:30". For business display we want the
-// familiar letter form.
+// short letter abbreviation users expect. Values are either a static string
+// (zones with no DST) or a function (date) => string for DST-aware zones.
+//
+// Why these are needed: Chrome's ICU drops the letter form when the
+// abbreviation is ambiguous across regions — IST means Indian / Irish
+// Summer / Israel Standard, BST means British Summer / Bangladesh Standard
+// — and falls back to a GMT offset. For business display the letter form
+// is what users recognise.
+function isBritishSummerTime(d) {
+  // The London zone's offset is +60 minutes during BST, 0 during GMT. Ask
+  // Intl directly instead of duplicating the BST start/end ruleset.
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London',
+      timeZoneName: 'longOffset',
+    }).formatToParts(d);
+    const offsetPart = parts.find((p) => p.type === 'timeZoneName');
+    return offsetPart?.value === 'GMT+01:00';
+  } catch {
+    return false;
+  }
+}
+
 const ZONE_ABBR_OVERRIDES = {
   'Asia/Kolkata':   'IST',
   'Asia/Calcutta':  'IST',  // legacy alias still emitted by some browsers
   'Asia/Colombo':   'IST',  // Sri Lanka shares the same standard
+  'Europe/London':  (d) => (isBritishSummerTime(d) ? 'BST' : 'GMT'),
 };
 
 /**
@@ -110,7 +130,8 @@ const ZONE_ABBR_OVERRIDES = {
 export function getZoneAbbr(date, tz) {
   const d = date instanceof Date ? date : new Date(date);
   if (isNaN(d.getTime())) return '';
-  if (ZONE_ABBR_OVERRIDES[tz]) return ZONE_ABBR_OVERRIDES[tz];
+  const override = ZONE_ABBR_OVERRIDES[tz];
+  if (override) return typeof override === 'function' ? override(d) : override;
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
