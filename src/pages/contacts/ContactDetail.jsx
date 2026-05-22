@@ -13,6 +13,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
+import { withFromContext } from '../../utils/entityDescribe';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import InlineField from '../../components/shared/InlineField';
@@ -1358,7 +1359,7 @@ export default function ContactDetail() {
                     // 2026-05-17 CONTACTS-B: use orgPath() so the route
                     // survives any future platform-prefix change (every
                     // other CRM nav in the app already does).
-                    onClick={() => navigate(orgPath(`/crm/opportunities/${opp._id}`))}
+                    onClick={() => navigate(withFromContext(orgPath(`/crm/opportunities/${opp._id}`), 'crm_contact', contactId))}
                     className="flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer bg-dark-800/60 border border-dark-700/50 hover:bg-dark-800"
                   >
                     <div className="flex-1 min-w-0">

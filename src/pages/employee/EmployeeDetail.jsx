@@ -57,6 +57,7 @@ import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import { withFromContext } from '../../utils/entityDescribe';
 import ComboSelect from '../../components/ComboSelect';
 import QuickAddClientModal from '../../components/QuickAddClientModal';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
@@ -1677,7 +1678,7 @@ export default function EmployeeDetail() {
                     <tr key={i} className="hover:bg-dark-800/30 transition-colors group">
                       <td className="px-3 py-2.5 text-sm">
                         {a.clientId ? (
-                          <Link to={orgPath(`/contacts/${a.clientId}`)} className="text-rivvra-400 hover:text-rivvra-300 hover:underline transition-colors">
+                          <Link to={withFromContext(orgPath(`/contacts/${a.clientId}`), 'employee', employeeId)} className="text-rivvra-400 hover:text-rivvra-300 hover:underline transition-colors">
                             {a.clientName || '\u2014'}
                           </Link>
                         ) : (

@@ -16,6 +16,7 @@ import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import StageBadge from '../../components/ats/StageBadge';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { withFromContext } from '../../utils/entityDescribe';
 import {
   Loader2, Star, ChevronDown, ChevronLeft,
   Briefcase, Users, FileText, Tag, Plus,
@@ -835,7 +836,7 @@ export default function AtsJobDetail() {
     : null;
 
   // Q9-A: row click handler — guard against link-cell propagation.
-  const openApp = (appId) => navigate(orgPath(`/ats/applications/${appId}`));
+  const openApp = (appId) => navigate(withFromContext(orgPath(`/ats/applications/${appId}`), 'ats_job', jobId));
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -1172,7 +1173,7 @@ export default function AtsJobDetail() {
                                 <div className="flex items-center gap-3">
                                   {app.candidateId ? (
                                     <Link
-                                      to={orgPath(`/ats/candidates/${app.candidateId}`)}
+                                      to={withFromContext(orgPath(`/ats/candidates/${app.candidateId}`), 'ats_job', jobId)}
                                       onClick={(e) => e.stopPropagation()}
                                       title="Open candidate profile"
                                       className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isRefused ? 'bg-red-500/10 hover:bg-red-500/20' : 'bg-rivvra-500/10 hover:bg-rivvra-500/20'}`}
@@ -1189,7 +1190,7 @@ export default function AtsJobDetail() {
                                     </div>
                                   )}
                                   <Link
-                                    to={orgPath(`/ats/applications/${app._id}`)}
+                                    to={withFromContext(orgPath(`/ats/applications/${app._id}`), 'ats_job', jobId)}
                                     onClick={(e) => e.stopPropagation()}
                                     className={`font-medium truncate hover:underline ${isRefused ? 'text-red-400 hover:text-red-300' : 'text-white hover:text-rivvra-300'}`}
                                   >
@@ -1215,7 +1216,7 @@ export default function AtsJobDetail() {
                               <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
                                 {recId && app.recruiterName ? (
                                   <Link
-                                    to={orgPath(`/employee/${recId}`)}
+                                    to={withFromContext(orgPath(`/employee/${recId}`), 'ats_job', jobId)}
                                     onClick={(e) => e.stopPropagation()}
                                     className="hover:text-rivvra-300 hover:underline"
                                   >
@@ -1303,7 +1304,7 @@ export default function AtsJobDetail() {
               currentValue={job.recruiterId}
               currentName={job.recruiterName}
               editable={canEdit}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
+              linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_job', jobId)}
               onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
             <EmployeeLookup
@@ -1312,7 +1313,7 @@ export default function AtsJobDetail() {
               currentValue={job.accountOwnerId}
               currentName={job.accountOwnerName}
               editable={canEdit}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
+              linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_job', jobId)}
               onSelect={(id, name) => savePerson('accountOwnerId', 'accountOwnerName', id, name)}
             />
             {/* 2026-05-17 Phase N added Account Manager here; removed
@@ -1328,7 +1329,7 @@ export default function AtsJobDetail() {
               currentValue={job.approverId}
               currentName={job.approverName}
               editable={canEdit}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
+              linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_job', jobId)}
               onSelect={(id, name) => savePerson('approverId', 'approverName', id, name)}
             />
           </SectionCard>
@@ -1430,7 +1431,7 @@ export default function AtsJobDetail() {
                   <div className="flex items-center gap-1.5 text-sm">
                     {job.clientContactId ? (
                       <Link
-                        to={orgPath(`/contacts/${job.clientContactId}`)}
+                        to={withFromContext(orgPath(`/contacts/${job.clientContactId}`), 'ats_job', jobId)}
                         className="text-rivvra-300 hover:text-rivvra-200 hover:underline truncate"
                       >
                         {job.clientName}

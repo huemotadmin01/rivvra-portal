@@ -12,6 +12,7 @@ import SectionCard from '../../components/platform/detail/SectionCard';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import StageBadge from '../../components/ats/StageBadge';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import { withFromContext } from '../../utils/entityDescribe';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
   Award, Archive, ArchiveRestore, Briefcase,
@@ -340,7 +341,7 @@ export default function AtsCandidateDetail() {
                       {applications.map((app) => (
                         <tr
                           key={app._id}
-                          onClick={() => navigate(orgPath(`/ats/applications/${app._id}`))}
+                          onClick={() => navigate(withFromContext(orgPath(`/ats/applications/${app._id}`), 'ats_candidate', candidateId))}
                           className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                         >
                           {/* 2026-05-17 Phase N: inner Link to the job when
@@ -350,7 +351,7 @@ export default function AtsCandidateDetail() {
                           <td className="px-4 py-3 text-white">
                             {app.jobPositionId && app.jobName ? (
                               <Link
-                                to={orgPath(`/ats/jobs/${app.jobPositionId}`)}
+                                to={withFromContext(orgPath(`/ats/jobs/${app.jobPositionId}`), 'ats_candidate', candidateId)}
                                 onClick={(e) => e.stopPropagation()}
                                 className="hover:text-rivvra-300 hover:underline"
                               >
@@ -381,7 +382,7 @@ export default function AtsCandidateDetail() {
               currentValue={candidate.managerId}
               currentName={candidate.managerName}
               editable={canEdit}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
+              linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_candidate', candidateId)}
               onSelect={(id, name) => savePerson('managerId', 'managerName', id, name)}
             />
           </SectionCard>
@@ -404,7 +405,7 @@ export default function AtsCandidateDetail() {
           {candidate.employeeId && (
             <SectionCard title="Hired" icon={UserCheck}>
               <button
-                onClick={() => navigate(orgPath(`/employee/${candidate.employeeId}`))}
+                onClick={() => navigate(withFromContext(orgPath(`/employee/${candidate.employeeId}`), 'ats_candidate', candidateId))}
                 className="text-left w-full text-rivvra-400 hover:text-rivvra-300 text-sm py-2 underline-offset-2 hover:underline"
               >
                 View linked employee →

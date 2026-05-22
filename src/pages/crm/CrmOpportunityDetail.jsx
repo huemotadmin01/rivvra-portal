@@ -11,6 +11,7 @@ import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { withFromContext } from '../../utils/entityDescribe';
 import {
   Building2, User, Briefcase, Trophy, FileText, Tag, MapPin,
   Trash2, Loader2, XCircle, RotateCcw,
@@ -552,7 +553,7 @@ export default function CrmOpportunityDetail() {
         {opp.isConverted && opp.relatedJobId && (
           <>
             <button
-              onClick={() => navigate(`/org/${slug}/ats/jobs/${opp.relatedJobId}`)}
+              onClick={() => navigate(withFromContext(`/org/${slug}/ats/jobs/${opp.relatedJobId}`, 'crm_opportunity', opportunityId))}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition-colors shadow-sm"
             >
               <Briefcase size={14} /> Open Job{opp.relatedJob?.name ? `: ${opp.relatedJob.name}` : ''} <ExternalLink size={12} />
@@ -622,12 +623,12 @@ export default function CrmOpportunityDetail() {
         <div className="lg:col-span-2 space-y-5">
           <SectionCard title="Contact & Company" icon={User}>
             {opp.contactId ? (
-              <LinkedRecordField label="Contact Name" to={`/org/${slug}/contacts/${opp.contactId}`} name={opp.contactName} fallback="View Contact" />
+              <LinkedRecordField label="Contact Name" to={withFromContext(`/org/${slug}/contacts/${opp.contactId}`, 'crm_opportunity', opportunityId)} name={opp.contactName} fallback="View Contact" />
             ) : (
               <InlineField label="Contact Name" field="contactName" value={opp.contactName} editable={canEdit} onSave={saveField} />
             )}
             {opp.contactCompanyId ? (
-              <LinkedRecordField label="Company" to={`/org/${slug}/contacts/${opp.contactCompanyId}`} name={opp.companyName} fallback="View Company" />
+              <LinkedRecordField label="Company" to={withFromContext(`/org/${slug}/contacts/${opp.contactCompanyId}`, 'crm_opportunity', opportunityId)} name={opp.companyName} fallback="View Company" />
             ) : (
               <InlineField label="Company" field="companyName" value={opp.companyName} editable={canEdit} onSave={saveField} />
             )}
