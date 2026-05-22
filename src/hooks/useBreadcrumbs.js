@@ -140,5 +140,11 @@ export function useBreadcrumbs() {
     }
 
     return breadcrumbs;
-  }, [location.pathname, currentApp, orgPath, user, timesheetUser, getAppRole, getDetailLabel, getDetailPathOverride]);
+  }, [
+    location.pathname, location.search,
+    currentApp, orgPath, user, timesheetUser,
+    getAppRole, isOrgAdmin,
+    getDetailLabel, getDetailPathOverride,
+    getCachedEntity,
+  ]);
 }
