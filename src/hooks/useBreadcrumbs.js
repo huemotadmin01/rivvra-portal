@@ -4,7 +4,7 @@ import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useTimesheetContext } from '../context/TimesheetContext';
-import { stripOrgPrefix } from '../config/apps';
+import { stripOrgPrefix, getAppByPath } from '../config/apps';
 import { useBreadcrumbContext } from '../context/BreadcrumbContext';
 import { parseFromContext } from '../utils/entityDescribe';
 
@@ -43,26 +43,36 @@ export function useBreadcrumbs() {
     };
     flattenItems(sidebarItems);
 
-    // First crumb: app name linking to its default route. Use the
-    // resolver so role-aware defaults (e.g. ATS Admin → Reporting,
-    // Recruiter → Pipeline) work here too.
-    const resolvedDefault = typeof currentApp.defaultRoute === 'function'
-      ? currentApp.defaultRoute(orgAppRole)
-      : currentApp.defaultRoute;
-    const breadcrumbs = [{
-      label: currentApp.name,
-      path: orgPath(resolvedDefault || currentApp.basePath),
-    }];
-
     // 2026-05-22: cross-entity "from" trail. When the URL carries
     // ?from=<type>:<id> AND useFromEntity has resolved + cached the
-    // source's metadata, splice the source's listLabel + label into
-    // the breadcrumb before the canonical current-page crumb so the
-    // recruiter sees where they came from. The receiver page is
-    // unchanged — it just renders its own usePageTitle leaf as before.
+    // source's metadata, the root crumb (app name) AND the next
+    // segments (list + source label) come from the SOURCE'S app,
+    // not the current page's app. That way a click from ATS
+    // Application → CRM Contact shows "ATS > Applications >
+    // Devansh's app > Devansh Sachan (contact)" rather than mixing
+    // CRM (current app) with ATS (source app).
     const search = new URLSearchParams(location.search);
     const parsed = parseFromContext(search.get('from'));
     const fromEntity = parsed ? getCachedEntity(parsed.type, parsed.id) : null;
+
+    // Resolve the "root" app — source's app when from-context is
+    // active, else the current page's app.
+    let rootApp = currentApp;
+    if (fromEntity?.appBasePath) {
+      const sourceApp = getAppByPath(fromEntity.appBasePath);
+      if (sourceApp) rootApp = sourceApp;
+    }
+    const rootRole = rootApp?.adminOnly && isOrgAdmin
+      ? 'admin'
+      : (rootApp?.id ? getAppRole(rootApp.id) : null);
+    const rootDefault = typeof rootApp.defaultRoute === 'function'
+      ? rootApp.defaultRoute(rootRole)
+      : rootApp.defaultRoute;
+    const breadcrumbs = [{
+      label: rootApp.name,
+      path: orgPath(rootDefault || rootApp.basePath),
+    }];
+
     if (fromEntity) {
       // Source's natural list (e.g. "Applications") as the second crumb,
       // then the source itself as the third (clickable back to it).
