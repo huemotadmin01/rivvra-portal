@@ -390,7 +390,10 @@ export default function ContactDetail() {
   } : null);
   const [createSaving, setCreateSaving] = useState(false);
 
-  usePageTitle(contact?.name || contact?.companyName || (isCreateMode ? 'New Contact' : ''));
+  // `contact.name` covers both company and individual contacts — the
+  // backend never sets `companyName` on the contact doc, so the old
+  // fallback was dead code. Kept the create-mode default.
+  usePageTitle(contact?.name || (isCreateMode ? 'New Contact' : ''));
   const [childContacts, setChildContacts] = useState([]);
   const [loading, setLoading] = useState(!isCreateMode);
   const [notFound, setNotFound] = useState(false);
