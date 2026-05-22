@@ -58,3 +58,108 @@ export function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Datetime formatting (viewer-timezone aware)
+ *
+ * Use formatDateTime for instants — anything with hour/minute precision
+ * (Sign sentAt/signedAt, invoice issuedAt, payroll cutoff, activity logs).
+ * Storage is UTC; display follows the viewer's tz so a Toronto recruiter
+ * sees Toronto time even when viewing an Indian record.
+ *
+ * Resolution order: explicit opts.timeZone → user.timezone → company.timezone
+ * → browser. Pass showZone:true on legal/audit stamps so the abbreviation
+ * (IST, EST, PST) is rendered alongside the time.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+function resolveTimeZone({ user, company, timeZone } = {}) {
+  if (timeZone) return timeZone;
+  if (user?.timezone) return user.timezone;
+  if (company?.timezone) return company.timezone;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+export function getBrowserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+// Manual overrides for zones where Intl returns a GMT-offset instead of the
+// short letter abbreviation users expect. Asia/Kolkata is the main offender:
+// Chrome's ICU treats IST as ambiguous (Indian / Irish / Israel Standard
+// Time) and falls back to "GMT+5:30". For business display we want the
+// familiar letter form.
+const ZONE_ABBR_OVERRIDES = {
+  'Asia/Kolkata':   'IST',
+  'Asia/Calcutta':  'IST',  // legacy alias still emitted by some browsers
+  'Asia/Colombo':   'IST',  // Sri Lanka shares the same standard
+};
+
+/**
+ * Get the short zone abbreviation (IST, EST, PST, …) for a given tz at a
+ * given instant. Daylight-savings aware via the date param. Falls back to
+ * whatever Intl produces (often a GMT offset) when no override applies.
+ */
+export function getZoneAbbr(date, tz) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '';
+  if (ZONE_ABBR_OVERRIDES[tz]) return ZONE_ABBR_OVERRIDES[tz];
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      timeZoneName: 'short',
+    }).formatToParts(d);
+    const part = parts.find((p) => p.type === 'timeZoneName');
+    return part?.value || '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Format a UTC instant for display in the viewer's timezone.
+ *
+ * @param {Date|string|number} val - UTC instant
+ * @param {object} opts
+ * @param {{timezone?: string}} [opts.user]      - Current user
+ * @param {{timezone?: string}} [opts.company]   - Optional company fallback
+ * @param {string}  [opts.timeZone]              - Explicit tz override (IANA)
+ * @param {boolean} [opts.showZone=false]        - Append zone abbr (legal stamps)
+ * @param {boolean} [opts.dateOnly=false]        - Render date without time
+ * @param {string}  [opts.locale='en-IN']
+ * @returns {string|null}
+ */
+export function formatDateTime(val, opts = {}) {
+  if (!val) return null;
+  const d = val instanceof Date ? val : new Date(val);
+  if (isNaN(d.getTime())) return null;
+
+  const { user, company, showZone = false, dateOnly = false, locale = 'en-IN' } = opts;
+  const tz = resolveTimeZone(opts);
+
+  const fmtOpts = {
+    timeZone: tz,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  };
+  if (!dateOnly) {
+    fmtOpts.hour = '2-digit';
+    fmtOpts.minute = '2-digit';
+    fmtOpts.hour12 = true;
+  }
+
+  let out = new Intl.DateTimeFormat(locale, fmtOpts).format(d);
+  if (showZone && !dateOnly) {
+    const abbr = getZoneAbbr(d, tz);
+    if (abbr) out = `${out} ${abbr}`;
+  }
+  return out;
+}

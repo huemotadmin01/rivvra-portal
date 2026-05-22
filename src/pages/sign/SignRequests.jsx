@@ -17,7 +17,8 @@ import {
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { formatDateUTC } from '../../utils/dateUtils';
+import { formatDateUTC, formatDateTime } from '../../utils/dateUtils';
+import { useAuth } from '../../context/AuthContext';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
@@ -1374,6 +1375,7 @@ export default function SignRequests() {
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -1706,7 +1708,7 @@ export default function SignRequests() {
     ...tags.map((t) => ({ value: t._id, label: t.name })),
   ];
 
-  const formatDate = (dateStr) => formatDateUTC(dateStr) || '\u2014';
+  const formatDate = (dateStr) => formatDateTime(dateStr, { user, dateOnly: true }) || '\u2014';
 
   const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
   const pageEnd = Math.min(page * 20, total);

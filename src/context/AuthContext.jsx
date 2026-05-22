@@ -1,6 +1,23 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { AUTH_STORAGE_KEY, USER_STORAGE_KEY } from '../utils/config';
 import api from '../utils/api';
+import { getBrowserTimeZone } from '../utils/dateUtils';
+
+// Back-fill user.timezone from the browser on first authenticated render so
+// every formatDateTime call has a non-null viewer tz. Non-blocking, best-effort.
+function backfillTimezone(user, setUser) {
+  if (!user || user.timezone) return;
+  const tz = getBrowserTimeZone();
+  if (!tz || tz === 'UTC') return;
+  api.updateProfile({ timezone: tz })
+    .then((resp) => {
+      if (resp?.success && resp.user) {
+        setUser(resp.user);
+        localStorage.setItem('rivvra_user', JSON.stringify(resp.user));
+      }
+    })
+    .catch(() => { /* silent — next login will retry */ });
+}
 
 const AuthContext = createContext(null);
 
@@ -37,6 +54,7 @@ export function AuthProvider({ children }) {
               setUser(response.user);
               localStorage.setItem('rivvra_user', JSON.stringify(response.user));
               broadcastAuthChange(response.user, storedToken);
+              backfillTimezone(response.user, setUser);
             }
           } catch (err) {
             // Token invalid, clear auth

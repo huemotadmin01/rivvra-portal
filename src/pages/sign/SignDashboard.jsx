@@ -9,7 +9,8 @@ import {
   Loader2, FileText, Send, CheckCircle2, XCircle,
   LayoutTemplate, Plus, Upload, Clock, User, Zap,
 } from 'lucide-react';
-import { formatDateUTC } from '../../utils/dateUtils';
+import { formatDateTime } from '../../utils/dateUtils';
+import { useAuth } from '../../context/AuthContext';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
@@ -52,6 +53,7 @@ export default function SignDashboard() {
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const orgSlug = currentOrg?.slug;
@@ -88,7 +90,7 @@ export default function SignDashboard() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const formatDate = (dateStr) => formatDateUTC(dateStr) || '\u2014';
+  const formatDate = (dateStr) => formatDateTime(dateStr, { user, dateOnly: true }) || '\u2014';
 
   if (loading) {
     return (

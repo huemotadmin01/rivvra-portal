@@ -9,13 +9,31 @@ import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { useCompany } from '../context/CompanyContext';
 import { API_BASE_URL } from '../utils/config';
-import { formatDateUTC } from '../utils/dateUtils';
+import { formatDateUTC, getBrowserTimeZone, formatDateTime } from '../utils/dateUtils';
 import {
   User, Shield, Trash2, AlertTriangle, Loader2, X, LogOut,
   Mail, Building2, Crown, Briefcase, Check, Lock, Settings2,
   Eye, EyeOff, CheckCircle, Camera, Phone, Smartphone, MapPin, Pencil,
-  Heart, CreditCard
+  Heart, CreditCard, Globe
 } from 'lucide-react';
+
+// Curated set of timezones — covers the 4 countries Huemot operates in plus
+// common business hubs. The browser's auto-detected zone is added at runtime
+// so users in less-common zones still see their own listed at the top.
+const TIMEZONE_OPTIONS = [
+  { value: 'Asia/Kolkata',         label: 'India — Asia/Kolkata (IST)' },
+  { value: 'America/Toronto',      label: 'Canada (East) — America/Toronto' },
+  { value: 'America/Vancouver',    label: 'Canada (West) — America/Vancouver' },
+  { value: 'America/New_York',     label: 'USA (East) — America/New_York' },
+  { value: 'America/Chicago',      label: 'USA (Central) — America/Chicago' },
+  { value: 'America/Denver',       label: 'USA (Mountain) — America/Denver' },
+  { value: 'America/Los_Angeles',  label: 'USA (Pacific) — America/Los_Angeles' },
+  { value: 'Europe/London',        label: 'UK — Europe/London' },
+  { value: 'Asia/Dubai',           label: 'UAE — Asia/Dubai' },
+  { value: 'Asia/Singapore',       label: 'Singapore — Asia/Singapore' },
+  { value: 'Australia/Sydney',     label: 'Australia (East) — Australia/Sydney' },
+  { value: 'UTC',                  label: 'UTC' },
+];
 import api from '../utils/api';
 import employeeApi from '../utils/employeeApi';
 import InlineField from '../components/shared/InlineField';
@@ -100,13 +118,22 @@ export default function MyProfilePage() {
   const [workPhone, setWorkPhone] = useState(user?.workPhone || '');
   const [workMobile, setWorkMobile] = useState(user?.workMobile || '');
   const [workLocation, setWorkLocation] = useState(user?.workLocation || '');
+  const [timezone, setTimezone] = useState(user?.timezone || '');
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsSaved, setPrefsSaved] = useState(false);
+
+  const browserTz = getBrowserTimeZone();
+  // Merge browser-detected zone into the curated list so users in unlisted
+  // zones (e.g. Asia/Manila) still see their own.
+  const tzChoices = TIMEZONE_OPTIONS.some((o) => o.value === browserTz)
+    ? TIMEZONE_OPTIONS
+    : [{ value: browserTz, label: `Detected — ${browserTz}` }, ...TIMEZONE_OPTIONS];
 
   const prefsChanged =
     workPhone !== (user?.workPhone || '') ||
     workMobile !== (user?.workMobile || '') ||
-    workLocation !== (user?.workLocation || '');
+    workLocation !== (user?.workLocation || '') ||
+    timezone !== (user?.timezone || '');
 
   const handleSavePreferences = async () => {
     setSavingPrefs(true);
@@ -116,12 +143,14 @@ export default function MyProfilePage() {
         workPhone: workPhone.trim(),
         workMobile: workMobile.trim(),
         workLocation: workLocation.trim(),
+        timezone: timezone || null,
       });
       if (res.success) {
         updateUser({
           workPhone: workPhone.trim(),
           workMobile: workMobile.trim(),
           workLocation: workLocation.trim(),
+          timezone: timezone || null,
         });
         setPrefsSaved(true);
         setTimeout(() => setPrefsSaved(false), 2000);
@@ -504,6 +533,31 @@ export default function MyProfilePage() {
                   <span className="text-white">{currentCompany?.name || '-'}</span>
                 </div>
                 <p className="text-xs text-dark-600 mt-1">Your default company. Switch companies from the header dropdown.</p>
+              </div>
+
+              {/* Timezone — drives how every datetime renders for this user.
+                  Auto-detected from the browser on first login; can be changed
+                  here to e.g. lock Toronto-time when working from elsewhere. */}
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-2">Timezone</label>
+                <div className="flex items-center gap-3 px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl">
+                  <Globe className="w-5 h-5 text-dark-500 flex-shrink-0" />
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="bg-transparent text-white w-full outline-none cursor-pointer"
+                  >
+                    <option value="" className="bg-dark-900">Use browser default ({browserTz})</option>
+                    {tzChoices.map((tz) => (
+                      <option key={tz.value} value={tz.value} className="bg-dark-900">
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-dark-600 mt-1">
+                  Sample: {formatDateTime(new Date(), { user: { timezone: timezone || browserTz }, showZone: true })}
+                </p>
               </div>
 
               {/* Read-only fields */}

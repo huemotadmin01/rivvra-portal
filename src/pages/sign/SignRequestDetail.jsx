@@ -18,7 +18,8 @@ import {
   Eye, Link as LinkIcon, ChevronLeft, ChevronRight,
   Shield, Plus, AlertCircle, MapPin, Archive, ArchiveRestore,
 } from 'lucide-react';
-import { formatDateUTC } from '../../utils/dateUtils';
+import { formatDateUTC, formatDateTime } from '../../utils/dateUtils';
+import { useAuth } from '../../context/AuthContext';
 import RecordMeta from '../../components/shared/RecordMeta';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -313,6 +314,7 @@ export default function SignRequestDetail() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const orgSlug = currentOrg?.slug;
@@ -350,7 +352,12 @@ export default function SignRequestDetail() {
     fetchRequest();
   }, [fetchRequest]);
 
-  const formatDate = (dateStr) => formatDateUTC(dateStr, { hour: '2-digit', minute: '2-digit' }) || '\u2014';
+  // Legal / audit stamps (sent, signed, completed, refused, signingDate) carry
+  // the viewer's tz abbreviation so signed PDFs and the UI agree on when an
+  // event happened. Informational stamps (viewed) skip the zone to stay quiet.
+  const formatLegal = (dateStr) => formatDateTime(dateStr, { user, showZone: true }) || '\u2014';
+  const formatLight = (dateStr) => formatDateTime(dateStr, { user }) || '\u2014';
+  // Validity is a date-only field (midnight-UTC); keep UTC to avoid \u00b11 day drift.
   const formatDateShort = (dateStr) => formatDateUTC(dateStr) || '\u2014';
 
   const handleCancel = async () => {
@@ -600,7 +607,7 @@ export default function SignRequestDetail() {
               )}
               {request.refusedAt && (
                 <p className="text-dark-500 text-[11px] mt-1.5">
-                  {formatDate(request.refusedAt)}
+                  {formatLegal(request.refusedAt)}
                 </p>
               )}
             </div>
@@ -620,11 +627,11 @@ export default function SignRequestDetail() {
                 <InfoRow icon={FileText} label="Template" value={template?.name || request.templateName} />
               </div>
               <div className="space-y-0 divide-y divide-dark-800">
-                <InfoRow icon={Send} label="Sent Date" value={formatDate(request.sentAt || request.createdAt)} />
+                <InfoRow icon={Send} label="Sent Date" value={formatLegal(request.sentAt || request.createdAt)} />
                 <InfoRow
                   icon={CheckCircle2}
                   label="Completed"
-                  value={request.state === 'signed' ? formatDate(request.completedAt || request.updatedAt) : '\u2014'}
+                  value={request.state === 'signed' ? formatLegal(request.completedAt || request.updatedAt) : '\u2014'}
                 />
                 <InfoRow icon={Clock} label="Valid Until" value={request.validity ? formatDateShort(request.validity) : 'No expiry'} />
               </div>
@@ -740,13 +747,13 @@ export default function SignRequestDetail() {
                             <StatusBadge status={signer.state || 'pending'} />
                             {signer.viewedAt && signer.state !== 'completed' && (
                               <span className="flex items-center gap-1 text-[10px] text-purple-400">
-                                <Eye size={10} /> Viewed {formatDate(signer.viewedAt)}
+                                <Eye size={10} /> Viewed {formatLight(signer.viewedAt)}
                               </span>
                             )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-dark-400 text-xs hidden lg:table-cell">
-                          {signer.signingDate ? formatDate(signer.signingDate) : '\u2014'}
+                          {signer.signingDate ? formatLegal(signer.signingDate) : '\u2014'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {request.state === 'sent' && signer.state !== 'completed' && (
@@ -827,7 +834,7 @@ export default function SignRequestDetail() {
                         {val.role ? ` (${val.role})` : ''}
                       </span>
                       <span className="text-xs text-dark-500">
-                        {val.signedAt ? formatDate(val.signedAt) : ''}
+                        {val.signedAt ? formatLegal(val.signedAt) : ''}
                       </span>
                     </div>
                     {val.fields && Object.keys(val.fields).length > 0 ? (
