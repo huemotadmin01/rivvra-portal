@@ -1,8 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { useFromEntity } from '../../hooks/useFromEntity';
 import { ChevronRight } from 'lucide-react';
 
 export default function Breadcrumbs() {
+  // 2026-05-22: mounting useFromEntity here triggers the /entity-describe
+  // fetch on any page that has ?from=<type>:<id> in its URL. The result
+  // is cached on BreadcrumbContext and read by useBreadcrumbs to morph
+  // the trail. Every page benefits with zero per-page touches.
+  useFromEntity();
   const crumbs = useBreadcrumbs();
 
   // Don't show if just the app name or no crumbs

@@ -6,6 +6,7 @@ import { useOrg } from '../context/OrgContext';
 import { useTimesheetContext } from '../context/TimesheetContext';
 import { stripOrgPrefix } from '../config/apps';
 import { useBreadcrumbContext } from '../context/BreadcrumbContext';
+import { parseFromContext } from '../utils/entityDescribe';
 
 /**
  * Builds a breadcrumb trail from the current URL + app sidebar config.
@@ -18,7 +19,7 @@ export function useBreadcrumbs() {
   const { user } = useAuth();
   const { getAppRole, isOrgAdmin } = useOrg();
   const { timesheetUser } = useTimesheetContext();
-  const { getDetailLabel, getDetailPathOverride } = useBreadcrumbContext();
+  const { getDetailLabel, getDetailPathOverride, getCachedEntity } = useBreadcrumbContext();
 
   return useMemo(() => {
     if (!currentApp) return [];
@@ -53,11 +54,37 @@ export function useBreadcrumbs() {
       path: orgPath(resolvedDefault || currentApp.basePath),
     }];
 
+    // 2026-05-22: cross-entity "from" trail. When the URL carries
+    // ?from=<type>:<id> AND useFromEntity has resolved + cached the
+    // source's metadata, splice the source's listLabel + label into
+    // the breadcrumb before the canonical current-page crumb so the
+    // recruiter sees where they came from. The receiver page is
+    // unchanged — it just renders its own usePageTitle leaf as before.
+    const search = new URLSearchParams(location.search);
+    const parsed = parseFromContext(search.get('from'));
+    const fromEntity = parsed ? getCachedEntity(parsed.type, parsed.id) : null;
+    if (fromEntity) {
+      // Source's natural list (e.g. "Applications") as the second crumb,
+      // then the source itself as the third (clickable back to it).
+      breadcrumbs.push({
+        label: fromEntity.listLabel,
+        path: orgPath(fromEntity.listPath),
+      });
+      breadcrumbs.push({
+        label: fromEntity.label,
+        path: orgPath(fromEntity.path),
+      });
+    }
+
     // Decompose path segments after the app basePath
     const remaining = appPath.slice(currentApp.basePath.length);
     const segments = remaining.split('/').filter(Boolean);
 
     let builtPath = currentApp.basePath;
+    // When a from-entity trail is active, the second crumb is already
+    // the source's listLabel — so the canonical list crumb for the
+    // current page would be redundant. Skip it on first sidebar match.
+    let skipNextSidebarMatch = !!fromEntity;
 
     for (let i = 0; i < segments.length; i++) {
       builtPath += '/' + segments[i];
@@ -67,7 +94,13 @@ export function useBreadcrumbs() {
       // the parent crumb (e.g. vendor bills showing "Vendor Bills" instead
       // of the default "Customer Invoices" for /invoicing/invoices).
       const dynamicLabel = getDetailLabel(builtPath);
-      const label = dynamicLabel || pathLabelMap[builtPath] || null;
+      const sidebarMatch = pathLabelMap[builtPath] || null;
+      if (sidebarMatch && !dynamicLabel && skipNextSidebarMatch) {
+        // Consume the skip flag; from-entity trail replaces this crumb.
+        skipNextSidebarMatch = false;
+        continue;
+      }
+      const label = dynamicLabel || sidebarMatch || null;
       // Some detail pages share a URL with another list (vendor bills live
       // under /invoicing/invoices/:id); when set, the crumb links to the
       // real list instead of the default URL-derived path.

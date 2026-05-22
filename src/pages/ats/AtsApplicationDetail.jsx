@@ -15,6 +15,7 @@ import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import RateConfirmationModal from '../../components/ats/RateConfirmationModal';
 import RefuseModal from '../../components/ats/RefuseModal';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import { withFromContext } from '../../utils/entityDescribe';
 import InlineField from '../../components/shared/InlineField';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -2737,7 +2738,7 @@ export default function AtsApplicationDetail() {
             )}
             {application.employeeId && (
               <button
-                onClick={() => navigate(`/org/${orgSlug}/employee/${application.employeeId}`)}
+                onClick={() => navigate(withFromContext(`/org/${orgSlug}/employee/${application.employeeId}`, 'ats_application', applicationId))}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
               >
                 <ExternalLink size={14} /> Employee
@@ -2892,7 +2893,7 @@ export default function AtsApplicationDetail() {
               <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
                 <span className="text-dark-400 text-sm">Profile</span>
                 <Link
-                  to={orgPath(`/ats/candidates/${application.candidateId}`)}
+                  to={withFromContext(orgPath(`/ats/candidates/${application.candidateId}`), 'ats_application', applicationId)}
                   className="text-rivvra-400 hover:text-rivvra-300 text-sm underline-offset-2 hover:underline"
                 >
                   Open candidate record →
@@ -2906,7 +2907,7 @@ export default function AtsApplicationDetail() {
               <span className="text-dark-400 text-sm">Position</span>
               {application.jobPositionId ? (
                 <Link
-                  to={orgPath(`/ats/jobs/${application.jobPositionId}`)}
+                  to={withFromContext(orgPath(`/ats/jobs/${application.jobPositionId}`), 'ats_application', applicationId)}
                   className="text-rivvra-400 hover:text-rivvra-300 text-sm underline-offset-2 hover:underline truncate"
                 >
                   {application.jobName || 'View job'} <ExternalLink size={11} className="inline ml-0.5" />
@@ -2922,7 +2923,7 @@ export default function AtsApplicationDetail() {
               currentValue={application.recruiterId}
               currentName={application.recruiterName}
               editable={canEditPeople}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
+              linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_application', applicationId)}
               onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
             {/* Account Owner — read-only mirror of the linked Job Position.
@@ -2933,7 +2934,7 @@ export default function AtsApplicationDetail() {
               currentValue={application.accountOwnerId}
               currentName={application.accountOwnerName}
               editable={false}
-              linkTo={(id) => orgPath(`/employee/${id}`)}
+              linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_application', applicationId)}
             />
             {/* Employment type is denorm from the job position and not
                 directly editable here (Phase-1 / Q22, 2026-05-10).
@@ -2955,7 +2956,7 @@ export default function AtsApplicationDetail() {
               editable={false}
               displayValue={application.clientContactId && application.clientName ? (
                 <Link
-                  to={orgPath(`/contacts/${application.clientContactId}`)}
+                  to={withFromContext(orgPath(`/contacts/${application.clientContactId}`), 'ats_application', applicationId)}
                   className="text-rivvra-300 hover:text-rivvra-200 hover:underline"
                 >
                   {application.clientName}
@@ -3608,7 +3609,7 @@ function InterviewRoundCard({
                   records have only the name. */}
               {interviewerId && orgPath ? (
                 <Link
-                  to={orgPath(`/employee/${interviewerId}`)}
+                  to={withFromContext(orgPath(`/employee/${interviewerId}`), 'ats_application', applicationId)}
                   className="text-dark-200 truncate hover:text-rivvra-300 hover:underline"
                 >
                   {interviewerName}
