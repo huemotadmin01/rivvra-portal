@@ -2679,6 +2679,22 @@ export default function AtsApplicationDetail() {
                     {application?.rateConfirmation?.envelopeId ? 'Re-send Rate Confirmation' : 'Send Rate Confirmation'}
                   </button>
                 )}
+                {/* 2026-05-22: Rate Confirmation auto-reuse badge. When the
+                    server links a previously-signed envelope (same client +
+                    30-day window), surface it inline so the recruiter
+                    knows the candidate wasn't asked to sign again. Chip
+                    links directly to the signed envelope detail page so
+                    the recruiter can view / download the PDF. */}
+                {application?.rateConfirmation?.reusedFromApplicationId && application?.rateConfirmation?.envelopeId && (
+                  <Link
+                    to={orgPath(`/sign/requests/${application.rateConfirmation.envelopeId}`)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+                    title={`View the signed Rate Confirmation${application.rateConfirmation.reusedFromJobName ? ` (reused from ${application.rateConfirmation.reusedFromJobName})` : ''}${application.rateConfirmation.signedAt ? ` — signed ${formatDateUTC(application.rateConfirmation.signedAt)}` : ''}`}
+                  >
+                    <Check size={12} />
+                    View reused Rate Confirmation
+                  </Link>
+                )}
                 {/* Offer button — admin-only. 2026-05-18 PM: only visible
                     from Offer Proposal stage onwards. Earlier stages use the
                     inline Compensation field on the page for salary capture
