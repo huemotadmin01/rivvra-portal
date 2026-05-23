@@ -19,6 +19,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { formatDateUTC, formatDateTime } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
+import SortableHeader from '../../components/shared/SortableHeader';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
@@ -1466,6 +1467,10 @@ export default function SignRequests() {
     const seq = ++fetchSeqRef.current;
     setLoading(true);
     try {
+      // Sort is URL-driven via SortableHeader. Fall back to server default
+      // (newest first by createdAt) when no column is selected.
+      const sort = searchParams.get('sort') || '';
+      const dir = searchParams.get('dir') || '';
       const res = await signApi.listRequests(orgSlug, {
         page: params.page || page,
         limit: 20,
@@ -1473,6 +1478,7 @@ export default function SignRequests() {
         state: params.status !== undefined ? params.status : statusFilter,
         templateId: params.templateId !== undefined ? params.templateId : templateFilter,
         tagId: params.tagId !== undefined ? params.tagId : tagFilter,
+        ...(sort && { sort, dir: dir || 'asc' }),
       });
       // Discard stale responses if a newer fetch has been kicked off.
       if (seq !== fetchSeqRef.current) return;
@@ -1489,7 +1495,7 @@ export default function SignRequests() {
       if (seq === fetchSeqRef.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, page, statusFilter, templateFilter, tagFilter, showToast, currentCompany?._id]);
+  }, [orgSlug, page, statusFilter, templateFilter, tagFilter, showToast, currentCompany?._id, searchParams.get('sort'), searchParams.get('dir')]);
 
   const fetchTemplates = useCallback(async () => {
     if (!orgSlug) return;
@@ -1897,10 +1903,10 @@ export default function SignRequests() {
                     </th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium">Document</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Template</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
+                    <SortableHeader column="state">Status</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden md:table-cell">Signers</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden sm:table-cell">Created</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Created By</th>
+                    <SortableHeader column="createdAt" className="hidden sm:table-cell">Created</SortableHeader>
+                    <SortableHeader column="createdByName" className="hidden xl:table-cell">Created By</SortableHeader>
                     <th className="text-right px-4 py-3 text-dark-400 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -1926,18 +1932,30 @@ export default function SignRequests() {
                             className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-indigo-500 focus:ring-1 focus:ring-indigo-500/50 cursor-pointer"
                           />
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
+                        <td className="px-4 py-3 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                               <FileText size={14} className="text-indigo-400" />
                             </div>
-                            <span className="text-white font-medium truncate max-w-[180px]">
+                            {/* 2026-05-23 Sign table UX: dropped the hard
+                                max-w-[180px] cap so the cell flexes with the
+                                viewport. `min-w-0` on the cell + flex parent
+                                lets `truncate` kick in only when the row
+                                actually overflows, and the title= attribute
+                                surfaces the full string on hover. */}
+                            <span
+                              className="text-white font-medium truncate"
+                              title={req.reference || req.name || 'Untitled'}
+                            >
                               {req.reference || req.name || 'Untitled'}
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-dark-300 hidden lg:table-cell">
-                          <span className="truncate block max-w-[150px]">
+                        <td className="px-4 py-3 text-dark-300 hidden lg:table-cell min-w-0">
+                          <span
+                            className="truncate block"
+                            title={req.templateName || req.template?.name || ''}
+                          >
                             {req.templateName || req.template?.name || '\u2014'}
                           </span>
                         </td>
@@ -1960,8 +1978,11 @@ export default function SignRequests() {
                         <td className="px-4 py-3 text-dark-400 text-xs hidden sm:table-cell">
                           {formatDate(req.createdAt)}
                         </td>
-                        <td className="px-4 py-3 hidden xl:table-cell">
-                          <span className="text-dark-300 text-xs truncate block max-w-[120px]">
+                        <td className="px-4 py-3 hidden xl:table-cell min-w-0">
+                          <span
+                            className="text-dark-300 text-xs truncate block"
+                            title={req.createdByName || req.createdBy?.name || ''}
+                          >
                             {req.createdByName || req.createdBy?.name || '\u2014'}
                           </span>
                         </td>

@@ -628,15 +628,19 @@ export default function SignTemplates() {
                       key={tpl._id}
                       className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 min-w-0">
                         <button
                           onClick={() => navigate(orgPath(`/sign/templates/${tpl._id}/edit`))}
-                          className="flex items-center gap-3 text-left group"
+                          className="flex items-center gap-3 text-left group w-full min-w-0"
+                          title={tpl.name || 'Untitled'}
                         >
                           <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                             <FileText size={14} className="text-indigo-400" />
                           </div>
-                          <span className="text-white font-medium truncate max-w-[200px] group-hover:text-indigo-400 transition-colors">
+                          {/* 2026-05-23 Sign table UX: dropped max-w-[200px]
+                              so the cell flexes; title= surfaces the full
+                              name on hover when truncate kicks in. */}
+                          <span className="text-white font-medium truncate group-hover:text-indigo-400 transition-colors">
                             {tpl.name || 'Untitled'}
                           </span>
                         </button>

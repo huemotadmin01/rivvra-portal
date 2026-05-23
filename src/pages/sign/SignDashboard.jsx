@@ -202,12 +202,18 @@ export default function SignDashboard() {
                       onClick={() => navigate(orgPath(`/sign/requests/${req._id}`))}
                       className="border-b border-dark-700/50 hover:bg-dark-800/50 cursor-pointer transition-colors"
                     >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
+                      <td className="px-4 py-3 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                             <FileText size={14} className="text-indigo-400" />
                           </div>
-                          <span className="text-white font-medium truncate max-w-[200px]">
+                          {/* 2026-05-23 Sign table UX: dropped max-w-[200px]
+                              cap; title= surfaces the full name on hover
+                              when truncate kicks in. */}
+                          <span
+                            className="text-white font-medium truncate"
+                            title={req.reference || req.name || 'Untitled'}
+                          >
                             {req.reference || req.name || 'Untitled'}
                           </span>
                         </div>
@@ -231,12 +237,15 @@ export default function SignDashboard() {
                       <td className="px-4 py-3 text-dark-400 text-xs hidden sm:table-cell">
                         {formatDate(req.createdAt)}
                       </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-dark-700 flex items-center justify-center">
+                      <td className="px-4 py-3 hidden lg:table-cell min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0">
                             <User size={12} className="text-dark-400" />
                           </div>
-                          <span className="text-dark-300 text-xs truncate max-w-[120px]">
+                          <span
+                            className="text-dark-300 text-xs truncate"
+                            title={req.createdByName || req.createdBy?.name || ''}
+                          >
                             {req.createdByName || req.createdBy?.name || '\u2014'}
                           </span>
                         </div>
