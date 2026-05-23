@@ -240,6 +240,34 @@ export default function SignTemplateEditor() {
   // throwing away their work.
   const savedSignItemsRef = useRef('');
 
+  // Single source of truth for the unsaved-changes check. Consumed by the
+  // Cancel button, the Back button, and the beforeunload guard so all three
+  // paths agree on what "dirty" means. Compare against the live signItems
+  // value via useRef-friendly stringify — no signItems closure needed.
+  const isDirty = () => {
+    if (!savedSignItemsRef.current) return false; // not yet loaded
+    return JSON.stringify(signItems) !== savedSignItemsRef.current;
+  };
+
+  // 2026-05-23 Sign health-check P0 #15: guard browser refresh / tab-close.
+  // Autosave runs on a 2.5s debounce, so anything typed in that window is
+  // gone if the user reloads. Native beforeunload prompt is jarring but
+  // it's the only path that survives a hard browser navigation; the
+  // confirm-style prompt below covers in-app navigations.
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!isDirty()) return;
+      // Spec requires both returnValue and a return value; Chrome ignores
+      // the string but still shows its own generic confirm.
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signItems]);
+
   // ── Editing name ────────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const nameInputRef = useRef(null);
@@ -1151,9 +1179,19 @@ export default function SignTemplateEditor() {
       {/* ── Header Bar ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-dark-700 bg-dark-900 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Back button + breadcrumb */}
+          {/* Back button + breadcrumb.
+              2026-05-23 Sign health-check P0 #15: the Back button used to
+              bypass the dirty guard that Cancel already has, so clicking
+              it silently discarded unsaved edits. Route both through the
+              same isDirty() check. */}
           <button
-            onClick={() => isQuickSend ? navigate(-1) : navigate(orgPath('/sign/templates'))}
+            onClick={() => {
+              if (isDirty() && !window.confirm('You have unsaved changes. Discard them and leave the editor?')) {
+                return;
+              }
+              if (isQuickSend) navigate(-1);
+              else navigate(orgPath('/sign/templates'));
+            }}
             className="flex items-center justify-center w-8 h-8 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors shrink-0"
             title={isQuickSend ? 'Back to Quick Send' : 'Back to Templates'}
           >
@@ -1252,8 +1290,7 @@ export default function SignTemplateEditor() {
               )}
               <button
                 onClick={() => {
-                  const dirty = JSON.stringify(signItems) !== savedSignItemsRef.current;
-                  if (dirty && !window.confirm('You have unsaved changes. Discard them and leave the editor?')) {
+                  if (isDirty() && !window.confirm('You have unsaved changes. Discard them and leave the editor?')) {
                     return;
                   }
                   navigate(orgPath('/sign/templates'));
