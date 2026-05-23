@@ -442,14 +442,23 @@ export default function AtsCandidateDetail() {
                 <p className="text-xs text-dark-200">
                   {archivePreview.activeApplications} active application{archivePreview.activeApplications === 1 ? '' : 's'}
                 </p>
-                <p className="text-[11px] text-dark-500 mt-2">Choose whether to archive the applications too.</p>
+                <p className="text-[11px] text-dark-500 mt-2">
+                  {/* 2026-05-23: non-admins can't archive a candidate with
+                      active applications. Mirrors the backend gate
+                      (CANDIDATE_HAS_ACTIVE_APPLICATIONS) so recruiters see
+                      the restriction up front rather than discovering it
+                      via a failed PATCH. */}
+                  {!isAdmin
+                    ? 'Only an org admin can archive a candidate with active applications. Refuse or archive the applications first, or ask an admin.'
+                    : 'Choose whether to archive the applications too.'}
+                </p>
               </div>
             ) : null}
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => handleArchive(false)}
-                disabled={archiving}
-                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                disabled={archiving || (!isAdmin && (archivePreview?.activeApplications ?? 0) > 0)}
+                className="w-full px-3 py-2 text-sm bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
                 Archive candidate only
@@ -457,8 +466,8 @@ export default function AtsCandidateDetail() {
               {archivePreview?.activeApplications > 0 && (
                 <button
                   onClick={() => handleArchive(true)}
-                  disabled={archiving}
-                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  disabled={archiving || !isAdmin}
+                  className="w-full px-3 py-2 text-sm bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg hover:bg-amber-500/35 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                 >
                   {archiving ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
                   Archive candidate + {archivePreview.activeApplications} application{archivePreview.activeApplications === 1 ? '' : 's'}
