@@ -829,6 +829,11 @@ export default function PublicSigningPage() {
   const [submitting, setSubmitting] = useState(false);
   const [refusing, setRefusing] = useState(false);
   const [showRefuseConfirm, setShowRefuseConfirm] = useState(false);
+  // 2026-05-23 Sign health-check P0 #6: capture the recipient's refusal
+  // reason. The backend has accepted req.body.reason all along, but the
+  // UI never gathered it — so every refusal was persisted with a null
+  // reason, weakening the company's dispute defence.
+  const [refuseReason, setRefuseReason] = useState('');
   const [sigPadModal, setSigPadModal] = useState({ open: false, fieldId: null, type: 'signature' });
   const [sigDataUrls, setSigDataUrls] = useState({ signature: null, initials: null });
   const [scale, setScale] = useState(1.5);
@@ -859,8 +864,20 @@ export default function PublicSigningPage() {
 
   const containerRef = useRef(null);
 
-  // Signature hash fingerprints for display
+  // Signature hash fingerprints for display, keyed per field.
   const [signatureHashes, setSignatureHashes] = useState({});
+  // 2026-05-23 Sign health-check P0 #8: parallel map keyed by signature
+  // *type* ('signature' / 'initials'). handleReuseExisting used to copy
+  // "the first hash in signatureHashes" which silently picked the wrong
+  // type when the signer had both a signature and initials — corrupting
+  // the audit trail on the sealed PDF. The per-type map lets reuse copy
+  // the correct fingerprint.
+  const [sigHashByType, setSigHashByType] = useState({});
+
+  // 2026-05-23 Sign health-check P0 #7: authoritative server timestamp
+  // returned by /sign/submit so the success screen renders the same
+  // instant that's sealed into the PDF, not the signer's local "today".
+  const [serverSignedAt, setServerSignedAt] = useState(null);
 
   // Previous signers' values (read-only display)
   const [previousValues, setPreviousValues] = useState({});
@@ -1056,12 +1073,15 @@ export default function PublicSigningPage() {
     const existing = sigDataUrls[type];
     if (existing && fieldId) {
       handleFieldChange(fieldId, existing);
-      // Copy hash too
-      const existingHash = Object.values(signatureHashes)[0] || '';
+      // 2026-05-23 Sign health-check P0 #8: copy the hash that matches
+      // *this signature type*. The old code grabbed "first hash in
+      // signatureHashes" which could easily be the wrong type when the
+      // signer had both signature + initials drawn.
+      const existingHash = sigHashByType[type] || '';
       if (existingHash) setSignatureHashes(prev => ({ ...prev, [fieldId]: existingHash }));
     }
     setSigReusePrompt({ open: false, fieldId: null, type: 'signature' });
-  }, [sigReusePrompt, sigDataUrls, handleFieldChange, signatureHashes]);
+  }, [sigReusePrompt, sigDataUrls, handleFieldChange, sigHashByType]);
 
   const handleDrawNew = useCallback(() => {
     const { fieldId, type } = sigReusePrompt;
@@ -1093,6 +1113,9 @@ export default function PublicSigningPage() {
     }
 
     setSignatureHashes((prev) => ({ ...prev, ...hashUpdates }));
+    // Remember the hash per signature type so handleReuseExisting can
+    // copy the correct fingerprint on the next field of the same type.
+    setSigHashByType((prev) => ({ ...prev, [type]: hash }));
   }, [sigPadModal, handleFieldChange, template?.signItems, values]);
 
   // ── Navigate to next unfilled field ──────────────────────────────────
@@ -1267,12 +1290,26 @@ export default function PublicSigningPage() {
     // and the optional pattern field come from the editor's per-field
     // Validation properties and let template builders enforce things like
     // "PAN: 5 letters + 4 digits + 1 letter" without writing code.
+    //
+    // 2026-05-23 Sign health-check P0 #9: the old loop bailed on any
+    // non-string value (`!v || typeof v !== 'string'`), which let an
+    // auto-filled email (signer.email was poured into a required email
+    // field at load time) skip the format check entirely if it had been
+    // edited to blank. Now we run the validators when a required field
+    // has any value at all — including string fields that came from
+    // autofill — and coerce to string defensively before regex tests.
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[+]?[0-9 ()\-.]{6,}$/;
     for (const item of signItems) {
       const id = item._id || item.id;
       const v = values[id];
-      if (!v || typeof v !== 'string') continue;
+      // Skip only when the field is unfilled. Required-field presence
+      // was already enforced by the allRequiredFilled gate above.
+      if (v == null || v === '' || v === false) continue;
+      // Non-string values (signature data URLs, checkbox booleans) have
+      // no format validators that apply; the per-type checks below all
+      // operate on strings.
+      if (typeof v !== 'string') continue;
       const trimmed = v.trim();
       const fieldName = item.label || (item.type[0].toUpperCase() + item.type.slice(1));
 
@@ -1345,10 +1382,13 @@ export default function PublicSigningPage() {
           setNumPages(0);
         }
       } else {
-        // Backend returns { success, completed } where completed=true means
-        // ALL signers (including this one) are now done — used to gate the
-        // download CTA on the success screen.
+        // Backend returns { success, completed, signedAt } where
+        // completed=true means ALL signers (including this one) are now
+        // done — used to gate the download CTA on the success screen.
+        // signedAt is the server's authoritative timestamp; we render
+        // that on the success screen so it matches the sealed PDF.
         setAllPartiesSigned(!!res?.completed);
+        if (res?.signedAt) setServerSignedAt(res.signedAt);
         setStatus('success');
       }
     } catch (err) {
@@ -1361,9 +1401,11 @@ export default function PublicSigningPage() {
 
   // ── Refuse ──────────────────────────────────────────────────────────
   const handleRefuse = async () => {
+    const reason = refuseReason.trim();
+    if (!reason) return; // Submit button is disabled in this case; defensive.
     setRefusing(true);
     try {
-      await signApi.refuseSignature(requestId, signerId, token);
+      await signApi.refuseSignature(requestId, signerId, token, reason);
       setStatus('refused');
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -1438,7 +1480,11 @@ export default function PublicSigningPage() {
   if (status === 'success') {
     const signerCount = request?.signers?.length || 0;
     const completedCount = request?.signers?.filter(s => s.state === 'completed').length || 0;
-    const signedDate = formatDisplayDate(todayStr());
+    // Prefer the server's signedAt — it matches the sealed PDF stamp.
+    // formatDisplayDate expects a YYYY-MM-DD string; coerce.
+    const signedDate = serverSignedAt
+      ? formatDisplayDate(new Date(serverSignedAt).toISOString().slice(0, 10))
+      : formatDisplayDate(todayStr());
 
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -1866,16 +1912,52 @@ export default function PublicSigningPage() {
         signerName={signer?.name || ''}
       />
 
-      {/* ── Refuse Confirm Dialog ───────────────────────────────────────── */}
-      <ConfirmDialog
-        isOpen={showRefuseConfirm}
-        onClose={() => setShowRefuseConfirm(false)}
-        onConfirm={handleRefuse}
-        title="Refuse to Sign"
-        message="Are you sure you want to refuse signing this document? The sender will be notified of your decision."
-        confirmLabel={refusing ? 'Refusing...' : 'Yes, Refuse'}
-        confirmColor="red"
-      />
+      {/* ── Refuse Modal — captures the required reason ────────────────── */}
+      {showRefuseConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Refuse to Sign</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              The sender will be notified of your decision along with the reason
+              you provide below. This action cannot be undone.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Reason for refusal <span className="text-red-600">*</span>
+            </label>
+            <textarea
+              value={refuseReason}
+              onChange={(e) => setRefuseReason(e.target.value.slice(0, 500))}
+              rows={4}
+              placeholder="e.g. I don't agree to clause 4.2 / the rate is incorrect / wrong candidate"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+              autoFocus
+              disabled={refusing}
+            />
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-xs text-gray-400">{refuseReason.length}/500</span>
+              <span className="text-xs text-gray-500">Required for legal record</span>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowRefuseConfirm(false); setRefuseReason(''); }}
+                disabled={refusing}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRefuse}
+                disabled={refusing || refuseReason.trim().length < 3}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {refusing ? 'Refusing…' : 'Refuse to Sign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Signature Reuse Prompt ──────────────────────────────────── */}
       {sigReusePrompt.open && (

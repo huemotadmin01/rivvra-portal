@@ -97,9 +97,10 @@ const signApi = {
     });
   },
 
-  refuseSignature(requestId, signerId, token) {
+  refuseSignature(requestId, signerId, token, reason = '') {
     return api.request(`/api/sign/refuse/${requestId}/${signerId}/${token}`, {
       method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   },
 
