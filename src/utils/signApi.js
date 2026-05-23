@@ -6,8 +6,12 @@ import api from './api';
 
 const signApi = {
   // ── Templates ──────────────────────────────────────────────────────
-  listTemplates(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/sign/templates`);
+  listTemplates(orgSlug, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', params.page);
+    if (params.limit) qs.set('limit', params.limit);
+    const q = qs.toString();
+    return api.request(`/api/org/${orgSlug}/sign/templates${q ? `?${q}` : ''}`);
   },
 
   getTemplate(orgSlug, id) {

@@ -1447,6 +1447,15 @@ export default function SignRequests() {
 
   const activeFilterCount = [statusFilter, templateFilter, tagFilter].filter(Boolean).length;
 
+  // Clamp page when filters shrink the result set, otherwise the table
+  // goes blank because we're sitting on a page index that no longer
+  // exists. Mirrors the guard in AtsApplications.jsx:341.
+  useEffect(() => {
+    if (!loading && totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [loading, totalPages, page]);
+
   // ── Fetch requests ─────────────────────────────────────────────────────
   // Don't clear `requests`/`total` on fetch start — the previous data stays
   // visible while we load, so changing a filter doesn't flash the table to
@@ -2009,7 +2018,7 @@ export default function SignRequests() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-dark-400 text-sm">
-                Showing {pageStart}\u2013{pageEnd} of {total}
+                Showing {pageStart}–{pageEnd} of {total}
               </p>
               <div className="flex items-center gap-1">
                 <button

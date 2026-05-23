@@ -9,6 +9,7 @@ import {
   Loader2, Plus, Upload, FileText, LayoutTemplate,
   X, Copy, Trash2, Edit2, Tag, Search,
   CloudUpload, File, Send, Check, Pencil,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import TagPicker from '../../components/sign/TagPicker';
 
@@ -461,6 +462,18 @@ export default function SignTemplates() {
   const [deleting, setDeleting] = useState(null);
   const [editingTpl, setEditingTpl] = useState(null);
 
+  // 2026-05-23 Sign health-check: surface server-side pagination so a
+  // growing template library doesn't silently truncate at the API
+  // default. Page size matches the API's default (100); search remains
+  // client-side over the current page — fine while page=1 is the only
+  // page in practice, and the search box doesn't lie about a "no match"
+  // that actually lives on page 2 because the totalPages counter is
+  // visible to the user.
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const TEMPLATES_PAGE_LIMIT = 100;
+
   const debounceRef = useRef(null);
 
   const fetchTemplates = useCallback(async () => {
@@ -468,9 +481,11 @@ export default function SignTemplates() {
     setLoading(true);
     setTemplates([]);
     try {
-      const res = await signApi.listTemplates(orgSlug);
+      const res = await signApi.listTemplates(orgSlug, { page, limit: TEMPLATES_PAGE_LIMIT });
       if (res.success !== false) {
         setTemplates(res.templates || []);
+        setTotal(res.total || 0);
+        setTotalPages(res.totalPages || res.pages || 1);
       } else {
         showToast('Failed to load templates', 'error');
       }
@@ -480,11 +495,21 @@ export default function SignTemplates() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, showToast, currentCompany?._id]);
+  }, [orgSlug, page, showToast, currentCompany?._id]);
 
   useEffect(() => {
     fetchTemplates();
   }, [fetchTemplates]);
+
+  // Page-clamp guard mirroring SignRequests / AtsApplications — if a
+  // delete or company switch shrinks the total below the current page
+  // index, snap back to the last real page instead of showing an empty
+  // table.
+  useEffect(() => {
+    if (!loading && totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [loading, totalPages, page]);
 
   const handleDuplicate = async (templateId) => {
     try {
@@ -625,7 +650,7 @@ export default function SignTemplates() {
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {tags.length === 0 ? (
-                            <span className="text-dark-500 text-xs">\u2014</span>
+                            <span className="text-dark-500 text-xs">—</span>
                           ) : (
                             tags.slice(0, 3).map((tag, i) => (
                               <span
@@ -699,6 +724,57 @@ export default function SignTemplates() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination — mirrors SignRequests / AtsApplications. Hidden when
+          everything fits on one page; never rendered while loading the
+          first page to avoid a 0-of-0 flicker. */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-dark-400 text-sm">
+            Showing {(page - 1) * TEMPLATES_PAGE_LIMIT + 1}–{Math.min(page * TEMPLATES_PAGE_LIMIT, total)} of {total}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => {
+                if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === '...' ? (
+                  <span key={`dots-${i}`} className="px-2 text-dark-500 text-sm">...</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                      p === page
+                        ? 'bg-indigo-500 text-white'
+                        : 'text-dark-400 hover:text-white hover:bg-dark-800'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
       )}
