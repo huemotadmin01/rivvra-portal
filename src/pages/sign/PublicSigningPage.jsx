@@ -594,6 +594,10 @@ function PdfPageWithFields({
         // Signature fields arrive as data: URLs; text fields as plain strings.
         const isSignatureDataUrl = val && typeof val === 'string' && val.startsWith('data:');
         const displayDate = item.type === 'date' ? formatDisplayDate(val) : val;
+        // 2026-05-23 mobile fix (matches the active-signer block below):
+        // skip the 36px floor on compact scales so read-only and active
+        // fields stack consistently and don't overlap on phones.
+        const isCompactScale = scale < 1;
 
         return (
           <div
@@ -607,7 +611,9 @@ function PdfPageWithFields({
               // active-signer's wrapping-div height so previous and current
               // values render at the same visual size and land on the
               // underline beneath.
-              height: isSignatureDataUrl ? height + 20 : Math.max(height, 36),
+              height: isSignatureDataUrl
+                ? height + (isCompactScale ? 0 : 20)
+                : (isCompactScale ? height : Math.max(height, 36)),
               border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
               backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
             }}
@@ -646,6 +652,16 @@ function PdfPageWithFields({
         const isHighlighted = highlightedFieldId === (item._id || item.id);
         const meta = FIELD_META[item.type] || FIELD_META.text;
         const Icon = meta.icon;
+        // 2026-05-23 Sign mobile fix: on small auto-fit scales (scale<1,
+        // typically mobile portrait fit-to-width), the 36/44px hard
+        // minimums below were pushing close-stacked fields into each
+        // other — three fields drawn at adjacent PDF coordinates would
+        // visually merge because each one's box had been inflated to a
+        // value larger than the PDF gap between them. On compact scales
+        // we now use the natural scaled height so adjacent fields stay
+        // visually separated; on desktop (scale >= 1) the touch-target
+        // floor still applies so tappable areas remain comfortable.
+        const isCompactScale = scale < 1;
         const Callout = isHighlighted ? (
           <div
             className="absolute left-0 -top-7 px-2 py-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded shadow-md whitespace-nowrap pointer-events-none animate-bounce z-10"
@@ -670,7 +686,11 @@ function PdfPageWithFields({
           // which left mobile signers tapping fields with no response. Filled
           // state keeps the template-defined height so the flattened PDF
           // signature lands where the template author placed it.
-          const unfilledHeight = Math.max(height, 44);
+          // 2026-05-23 mobile fix: skip the 44 floor when the PDF is rendered
+          // at a compact scale (mobile fit-to-width) so adjacent fields don't
+          // visually overlap. Mobile users pinch-zoom for precision taps;
+          // desktop still gets the comfortable touch target.
+          const unfilledHeight = isCompactScale ? height : Math.max(height, 44);
           return (
             <div
               key={fieldId}
@@ -739,7 +759,10 @@ function PdfPageWithFields({
         // rather than floating above it). The min height is calibrated so
         // text lands on the printed underline beneath users' typical
         // "box-above-the-line" placement habit.
-        const visualHeight = Math.max(height, 36);
+        // 2026-05-23 mobile fix: skip the 36 floor on compact scales so
+        // close-stacked fields (name + text + signature within a few PDF
+        // points of each other) don't visually merge on a phone.
+        const visualHeight = isCompactScale ? height : Math.max(height, 36);
         const filledFontSize = Math.min(Math.max(visualHeight * 0.55, 14), 20);
         return (
           <div
