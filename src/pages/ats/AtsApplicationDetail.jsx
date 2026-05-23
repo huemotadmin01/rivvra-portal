@@ -2762,16 +2762,26 @@ export default function AtsApplicationDetail() {
                   <ArchiveRestore size={14} /> Unarchive
                 </button>
               )
-            ) : (
-              <button
-                onClick={handleArchiveApp}
-                disabled={archiving}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30 disabled:opacity-50"
-              >
-                {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
-                Archive
-              </button>
-            )}
+            ) : (() => {
+              // 2026-05-23: mirror backend APPLICATION_NOT_TERMINAL gate.
+              // Non-admins can only archive applications that have reached
+              // a terminal outcome (refused or hired); active rows require
+              // an org admin. Button stays visible (so admins can act) but
+              // is disabled with explanatory title for blocked recruiters.
+              const isTerminal = !!application.refused || !!application.hireDate;
+              const archiveBlocked = !isAdmin && !isTerminal;
+              return (
+                <button
+                  onClick={handleArchiveApp}
+                  disabled={archiving || archiveBlocked}
+                  title={archiveBlocked ? 'Only an org admin can archive an active application. Refuse it first, or ask an admin.' : undefined}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all text-dark-300 border-transparent hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-dark-300 disabled:hover:bg-transparent disabled:hover:border-transparent"
+                >
+                  {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                  Archive
+                </button>
+              );
+            })()}
             {/* 2026-05-17 health-check E.2: only render the kebab when
                 there's at least one action inside. Non-admins used to see
                 an empty menu with "No admin actions available" italic
