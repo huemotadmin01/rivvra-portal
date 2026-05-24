@@ -780,7 +780,12 @@ export default function InvoiceDetail() {
     }
   }, [invoice?.journalCode, invoice?._id, setDetailLabel, clearDetailLabel]);
 
+  // Prefer the server-normalised companyCountryCode (added 2026-05-24 to fix
+  // the US-vendor-bill GST gate). Fall back to parsing companyCountry only
+  // when the API hasn't been redeployed yet.
   const countryCode = (() => {
+    const code = String(invoice?.companyCountryCode || '').trim().toUpperCase();
+    if (code === 'IN' || code === 'US' || code === 'CA') return code;
     const c = String(invoice?.companyCountry || '').trim().toLowerCase();
     if (['us', 'usa', 'united states', 'united states of america'].includes(c)) return 'US';
     if (['ca', 'canada'].includes(c)) return 'CA';

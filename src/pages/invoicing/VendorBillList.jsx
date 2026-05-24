@@ -833,7 +833,11 @@ function VendorChoiceModal({ extracted, orgSlug, onCancel, onDone }) {
 
   const extractedName = extracted?.vendor?.name || '';
   const extractedGstin = extracted?.vendor?.gstin || '';
-  const extractedAddress = extracted?.vendor?.address || '';
+  // Address is now a structured object (PR 2, 2026-05-24). Old extract
+  // responses still returned a plain string; the backend accepts either,
+  // so we just forward whichever shape we got.
+  const extractedAddress = extracted?.vendor?.address ?? null;
+  const extractedTaxId = extracted?.vendor?.taxId || '';
 
   useEffect(() => {
     if (mode !== 'match') return;
@@ -854,10 +858,17 @@ function VendorChoiceModal({ extracted, orgSlug, onCancel, onDone }) {
     if (!extractedName.trim()) return showToast('No vendor name extracted', 'error');
     setCreating(true);
     try {
+      // Heuristic mirrors the server-side regex in contacts.js — keeping the
+      // UI default in sync means the new contact opens in the right form
+      // layout (company vs individual) immediately, before the API echoes back.
+      const COMPANY_SUFFIX_RE = /\b(pvt|private|ltd|limited|inc|incorporated|llp|llc|pllc|plc|corp|corporation|co|company|gmbh|sa|sarl|bv|pte|ag|ab|kk|cpas?)\b\.?/i;
+      const inferredType = COMPANY_SUFFIX_RE.test(extractedName) ? 'company' : 'individual';
       const res = await contactsApi.create(orgSlug, {
         name: extractedName,
         companyName: extractedName,
+        type: inferredType,
         gstin: extractedGstin || undefined,
+        taxId: extractedTaxId || undefined,
         address: extractedAddress || undefined,
         contactType: 'vendor',
       });
@@ -921,7 +932,15 @@ function VendorChoiceModal({ extracted, orgSlug, onCancel, onDone }) {
             <div className="text-xs text-dark-400 bg-dark-900/50 rounded-lg p-3 space-y-0.5">
               <div><span className="text-dark-500">Name:</span> <span className="text-white">{extractedName || '—'}</span></div>
               {extractedGstin && <div><span className="text-dark-500">GSTIN:</span> <span className="text-white">{extractedGstin}</span></div>}
-              {extractedAddress && <div><span className="text-dark-500">Address:</span> <span className="text-white">{extractedAddress}</span></div>}
+              {extractedTaxId && <div><span className="text-dark-500">Tax ID:</span> <span className="text-white">{extractedTaxId}</span></div>}
+              {(() => {
+                if (!extractedAddress) return null;
+                const a = extractedAddress;
+                const display = typeof a === 'string'
+                  ? a
+                  : [a.street, a.street2, a.city, a.state, a.zip, a.country].filter(Boolean).join(', ');
+                return display ? <div><span className="text-dark-500">Address:</span> <span className="text-white">{display}</span></div> : null;
+              })()}
             </div>
           )}
 
