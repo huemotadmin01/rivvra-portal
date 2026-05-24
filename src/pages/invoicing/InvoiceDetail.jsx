@@ -1800,7 +1800,64 @@ export default function InvoiceDetail() {
         console.warn('Failed to attach PDF:', e);
       }
 
-      showToast('Bill updated from PDF — please verify');
+      // Fill-blanks enrichment of the linked vendor contact. Re-extract used
+      // to leave the contact untouched, so contacts created by the pre-2026-05-24
+      // India-only extract path (wrong type=individual, empty address) stayed
+      // broken even after the user re-ran extraction with the structured-output
+      // schema. Rule: only complete blank fields — never overwrite anything the
+      // user (or a later edit) has populated.
+      let contactEnriched = false;
+      const linkedContactId = invoice?.contactId || saveRes?.invoice?.contactId;
+      if (linkedContactId && extracted?.vendor) {
+        try {
+          const cRes = await contactsApi.get(orgSlug, linkedContactId);
+          const existing = cRes?.contact || cRes;
+          const ev = extracted.vendor;
+          const evName = ev?.name || existing?.name || '';
+          const COMPANY_SUFFIX_RE = /\b(pvt|private|ltd|limited|inc|incorporated|llp|llc|pllc|plc|corp|corporation|co|company|gmbh|sa|sarl|bv|pte|ag|ab|kk|cpas?)\b\.?/i;
+          const patch = {};
+
+          if (existing?.type === 'individual' && COMPANY_SUFFIX_RE.test(evName)) {
+            patch.type = 'company';
+          }
+
+          const existingAddr = existing?.address || {};
+          const addrIsEmpty = !['street','street2','city','state','zip','country','countryCode']
+            .some(k => (existingAddr[k] || '').toString().trim());
+          if (addrIsEmpty) {
+            const ea = ev?.address;
+            if (ea && typeof ea === 'object') {
+              const filled = ['street','street2','city','state','zip','country']
+                .some(k => (ea[k] || '').toString().trim());
+              if (filled) {
+                patch.address = {
+                  street:  ea.street  || '',
+                  street2: ea.street2 || '',
+                  city:    ea.city    || '',
+                  state:   ea.state   || '',
+                  zip:     ea.zip     || '',
+                  country: ea.country || '',
+                  countryCode: countryCode || existingAddr.countryCode || '',
+                };
+              }
+            }
+          }
+
+          if (!existing?.gstin && ev?.gstin) patch.gstin = ev.gstin;
+          if (!existing?.countryCode && countryCode) patch.countryCode = countryCode;
+
+          if (Object.keys(patch).length > 0) {
+            await contactsApi.update(orgSlug, linkedContactId, patch);
+            contactEnriched = true;
+          }
+        } catch (e) {
+          console.warn('Vendor contact enrichment failed:', e);
+        }
+      }
+
+      showToast(contactEnriched
+        ? 'Bill updated from PDF — vendor contact refreshed'
+        : 'Bill updated from PDF — please verify');
     } catch (err) {
       showToast(err.message || 'AI extraction failed', 'error');
     } finally {
