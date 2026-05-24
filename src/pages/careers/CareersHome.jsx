@@ -170,13 +170,16 @@ export default function CareersHome() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, amount: 0.5 }}
                     transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex items-end justify-between mb-5 pb-3 border-b border-zinc-200/70"
+                    className="flex items-center justify-between mb-5 pb-3 border-b border-zinc-200/70 gap-3"
                   >
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 mb-1">Hiring at</p>
-                      <h2 className="text-xl sm:text-2xl font-semibold text-zinc-900">{group.name || 'Other openings'}</h2>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <CompanyLogo url={group.jobs[0]?.companyLogoUrl} size={40} />
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 mb-0.5">Hiring at</p>
+                        <h2 className="text-lg sm:text-xl font-semibold text-zinc-900 truncate">{group.name || 'Other openings'}</h2>
+                      </div>
                     </div>
-                    <span className="text-sm text-zinc-500">{group.jobs.length} {group.jobs.length === 1 ? 'opening' : 'openings'}</span>
+                    <span className="text-sm text-zinc-500 flex-shrink-0">{group.jobs.length} {group.jobs.length === 1 ? 'opening' : 'openings'}</span>
                   </motion.div>
                 )}
                 <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -246,6 +249,30 @@ function OrgLogo({ org }) {
   return (
     <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center">
       <Building2 className="w-4.5 h-4.5 text-zinc-400" />
+    </div>
+  );
+}
+
+// Same logo / fallback pattern at an arbitrary size, used by section
+// headers + footers where the visual weight differs from the top-bar.
+function CompanyLogo({ url, size = 36, alt = '' }) {
+  const [errored, setErrored] = useState(false);
+  const dim = { width: size, height: size };
+  const radius = size >= 36 ? 'rounded-xl' : 'rounded-lg';
+  if (url && !errored) {
+    return (
+      <img
+        src={url}
+        alt={alt}
+        onError={() => setErrored(true)}
+        style={dim}
+        className={`${radius} object-contain bg-white border border-zinc-200/80 flex-shrink-0`}
+      />
+    );
+  }
+  return (
+    <div style={dim} className={`${radius} bg-zinc-100 flex items-center justify-center flex-shrink-0`}>
+      <Building2 className="text-zinc-400" size={Math.round(size * 0.45)} />
     </div>
   );
 }

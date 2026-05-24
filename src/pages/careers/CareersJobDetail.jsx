@@ -75,15 +75,16 @@ export default function CareersJobDetail() {
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-zinc-900 antialiased" style={{ '--accent': accent }}>
-      {/* Slim top bar */}
+      {/* Slim top bar — shows the job's specific company logo + name (the
+          entity the candidate would actually join), not the org shell. */}
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-zinc-200/60">
         <div className="max-w-6xl mx-auto px-6 sm:px-8 h-16 flex items-center justify-between">
           <Link to={`/careers/${orgSlug}`} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 transition-colors">
             <ChevronLeft size={15} /> All openings
           </Link>
           <Link to={`/careers/${orgSlug}`} className="flex items-center gap-2 group">
-            <OrgLogo org={org} />
-            <span className="hidden sm:inline text-sm font-medium text-zinc-700 group-hover:text-zinc-900 transition-colors">{org?.name}</span>
+            <CompanyLogoOrFallback url={job.companyLogoUrl || org?.logoUrl} alt={job.companyName || org?.name} />
+            <span className="hidden sm:inline text-sm font-medium text-zinc-700 group-hover:text-zinc-900 transition-colors">{job.companyName || org?.name}</span>
           </Link>
         </div>
       </header>
@@ -97,7 +98,10 @@ export default function CareersJobDetail() {
           className="mb-10 max-w-3xl"
         >
           {job.companyName && (
-            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 mb-2">{job.companyName}</p>
+            <div className="flex items-center gap-2.5 mb-3">
+              <CompanyLogoOrFallback url={job.companyLogoUrl} alt={job.companyName} size={32} />
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{job.companyName}</p>
+            </div>
           )}
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-zinc-900 leading-[1.1]">{job.name}</h1>
           <div className="mt-4 flex items-center gap-x-4 gap-y-2 flex-wrap text-sm text-zinc-600">
@@ -458,21 +462,26 @@ function Chip({ children }) {
   );
 }
 
-function OrgLogo({ org }) {
+// Generic logo with onError fallback. Used by both the top-bar (the job's
+// company) and the job-header eyebrow.
+function CompanyLogoOrFallback({ url, alt = '', size = 36 }) {
   const [errored, setErrored] = useState(false);
-  if (org?.logoUrl && !errored) {
+  const dim = { width: size, height: size };
+  const radius = size >= 36 ? 'rounded-xl' : 'rounded-lg';
+  if (url && !errored) {
     return (
       <img
-        src={org.logoUrl}
-        alt={org.name || ''}
+        src={url}
+        alt={alt}
         onError={() => setErrored(true)}
-        className="w-9 h-9 rounded-lg object-contain bg-white border border-zinc-200/80"
+        style={dim}
+        className={`${radius} object-contain bg-white border border-zinc-200/80 flex-shrink-0`}
       />
     );
   }
   return (
-    <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center">
-      <Building2 className="w-4.5 h-4.5 text-zinc-400" />
+    <div style={dim} className={`${radius} bg-zinc-100 flex items-center justify-center flex-shrink-0`}>
+      <Building2 className="text-zinc-400" size={Math.round(size * 0.45)} />
     </div>
   );
 }
