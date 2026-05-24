@@ -94,6 +94,32 @@ export default function CareersHome() {
     });
   }, [jobs, q, department, location, empType]);
 
+  // Group filtered jobs by company so multi-entity orgs get a clear visual
+  // hierarchy. When the org has jobs from only one company (or no company
+  // metadata at all), grouping collapses to a single flat list so we don't
+  // surface a useless single header.
+  const grouped = useMemo(() => {
+    const map = new Map();
+    for (const j of filtered) {
+      const key = j.companyName || '__none__';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(j);
+    }
+    const groups = Array.from(map.entries()).map(([name, items]) => ({
+      name: name === '__none__' ? null : name,
+      jobs: items,
+    }));
+    // Largest group first, then alphabetical. Unnamed group always last.
+    groups.sort((a, b) => {
+      if (a.name === null) return 1;
+      if (b.name === null) return -1;
+      if (b.jobs.length !== a.jobs.length) return b.jobs.length - a.jobs.length;
+      return a.name.localeCompare(b.name);
+    });
+    return groups;
+  }, [filtered]);
+  const showGroupHeaders = grouped.length > 1;
+
   const accent = org?.branding?.primaryColor || '#2563eb';
 
   if (loading) {
@@ -188,45 +214,65 @@ export default function CareersHome() {
             </button>
           </div>
         ) : (
-          <ul className="space-y-3">
-            {filtered.map((j) => (
-              <li key={j.publicSlug}>
-                <Link
-                  to={`/careers/${orgSlug}/jobs/${j.publicSlug}`}
-                  className="group block bg-white border border-zinc-200 rounded-xl p-5 sm:p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-base sm:text-lg font-semibold text-zinc-900 group-hover:underline truncate">
-                        {j.name}
-                      </h2>
-                      <div className="mt-2 flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-zinc-500">
-                        {j.department && <span className="inline-flex items-center gap-1.5"><Briefcase size={12} />{j.department}</span>}
-                        {j.location && <span className="inline-flex items-center gap-1.5"><MapPin size={12} />{j.location}</span>}
-                        {j.employmentType && <Chip>{j.employmentType}</Chip>}
-                        {j.hiringMode && <Chip>{j.hiringMode}</Chip>}
-                        {j.requiredExperience && <span className="text-zinc-500">{j.requiredExperience} exp</span>}
-                        {j.companyName && <span className="text-zinc-400">· {j.companyName}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {j.publishedAt && (
-                        <span className="hidden sm:inline-flex items-center gap-1 text-xs text-zinc-400">
-                          <Clock size={11} />{fmtDate(j.publishedAt)}
-                        </span>
-                      )}
-                      <span
-                        className="hidden sm:inline-flex items-center gap-1 text-sm font-medium transition-colors"
-                        style={{ color: accent }}
-                      >
-                        View <ArrowRight size={14} />
-                      </span>
-                    </div>
+          <div className="space-y-8">
+            {grouped.map((group, gi) => (
+              <section key={group.name || `unnamed-${gi}`}>
+                {showGroupHeaders && (
+                  <div className="flex items-baseline justify-between mb-3 px-1">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      {group.name || 'Other openings'}
+                    </h2>
+                    <span className="text-xs text-zinc-400">
+                      {group.jobs.length} {group.jobs.length === 1 ? 'opening' : 'openings'}
+                    </span>
                   </div>
-                </Link>
-              </li>
+                )}
+                <ul className="space-y-3">
+                  {group.jobs.map((j) => (
+                    <li key={j.publicSlug}>
+                      <Link
+                        to={`/careers/${orgSlug}/jobs/${j.publicSlug}`}
+                        className="group block bg-white border border-zinc-200 rounded-xl p-5 sm:p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-base sm:text-lg font-semibold text-zinc-900 group-hover:underline truncate">
+                              {j.name}
+                            </h3>
+                            <div className="mt-2 flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-zinc-500">
+                              {j.department && <span className="inline-flex items-center gap-1.5"><Briefcase size={12} />{j.department}</span>}
+                              {j.location && <span className="inline-flex items-center gap-1.5"><MapPin size={12} />{j.location}</span>}
+                              {j.employmentType && <Chip>{j.employmentType}</Chip>}
+                              {j.hiringMode && <Chip>{j.hiringMode}</Chip>}
+                              {j.requiredExperience && <span className="text-zinc-500">{j.requiredExperience} exp</span>}
+                              {/* Suppress the per-card company suffix when the section
+                                  header already labels the group — avoids redundant noise. */}
+                              {!showGroupHeaders && j.companyName && (
+                                <span className="text-zinc-400">· {j.companyName}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {j.publishedAt && (
+                              <span className="hidden sm:inline-flex items-center gap-1 text-xs text-zinc-400">
+                                <Clock size={11} />{fmtDate(j.publishedAt)}
+                              </span>
+                            )}
+                            <span
+                              className="hidden sm:inline-flex items-center gap-1 text-sm font-medium transition-colors"
+                              style={{ color: accent }}
+                            >
+                              View <ArrowRight size={14} />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </main>
 
