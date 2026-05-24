@@ -1136,6 +1136,18 @@ class ApiClient {
     });
   }
 
+  // ─── Careers (public job board) ─────────────────────────────────────────────
+  async getCareersSettings(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/settings/careers`);
+  }
+
+  async updateCareersSettings(orgSlug, data) {
+    return this.request(`/api/org/${orgSlug}/settings/careers`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async sendPasswordReset(orgSlug, userId) {
     return this.request(`/api/org/${orgSlug}/members/${userId}/send-password-reset`, {
       method: 'POST',

@@ -6,8 +6,218 @@
 import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
-import { Save, Loader2, AlertCircle, UserSearch, BarChart3 } from 'lucide-react';
+import { Save, Loader2, AlertCircle, UserSearch, BarChart3, Globe, Copy, ExternalLink, Check } from 'lucide-react';
 import atsApi from '../../utils/atsApi';
+import api from '../../utils/api';
+
+/**
+ * CareersCard — Public careers site toggle + branding + URL.
+ *
+ * Org admin/owner only on the server (PUT /api/org/:slug/settings/careers).
+ * The card stays visible to ATS admins so they understand why "Publish to
+ * Careers" on a job is gated; the toggle just won't save without org-admin.
+ */
+function CareersCard({ orgSlug }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const [enabled, setEnabled] = useState(false);
+  const [tagline, setTagline] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [publicUrl, setPublicUrl] = useState('');
+  const [initial, setInitial] = useState(null);
+
+  useEffect(() => {
+    if (!orgSlug) return;
+    setLoading(true);
+    api.getCareersSettings(orgSlug)
+      .then((res) => {
+        if (!res?.success) return;
+        const c = res.careers || {};
+        setEnabled(!!c.enabled);
+        setTagline(c.branding?.tagline || '');
+        setPrimaryColor(c.branding?.primaryColor || '');
+        setLogoUrl(c.branding?.logoUrl || '');
+        setPublicUrl(c.publicUrl || '');
+        setInitial({
+          enabled: !!c.enabled,
+          tagline: c.branding?.tagline || '',
+          primaryColor: c.branding?.primaryColor || '',
+          logoUrl: c.branding?.logoUrl || '',
+        });
+      })
+      .catch((err) => setError(err.message || 'Failed to load careers settings'))
+      .finally(() => setLoading(false));
+  }, [orgSlug]);
+
+  const hasChanges = initial && (
+    enabled !== initial.enabled ||
+    tagline !== initial.tagline ||
+    primaryColor !== initial.primaryColor ||
+    logoUrl !== initial.logoUrl
+  );
+  const colorValid = !primaryColor || /^#[0-9a-fA-F]{6}$/.test(primaryColor);
+
+  const handleSave = async () => {
+    if (!colorValid) { setError('Primary color must be a 6-digit hex (e.g. #2563eb).'); return; }
+    setSaving(true); setError('');
+    try {
+      const res = await api.updateCareersSettings(orgSlug, {
+        enabled,
+        branding: {
+          tagline: tagline.trim() || null,
+          primaryColor: primaryColor.trim() || null,
+          logoUrl: logoUrl.trim() || null,
+        },
+      });
+      if (res.success) {
+        const c = res.careers || {};
+        setInitial({
+          enabled: !!c.enabled,
+          tagline: c.branding?.tagline || '',
+          primaryColor: c.branding?.primaryColor || '',
+          logoUrl: c.branding?.logoUrl || '',
+        });
+        setPublicUrl(c.publicUrl || publicUrl);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        setError(res.error || 'Failed to save');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to save careers settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopyUrl = async () => {
+    if (!publicUrl) return;
+    try { await navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  };
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Globe size={18} className="text-sky-400" />
+        <h3 className="font-semibold text-white">Public Careers Site</h3>
+      </div>
+      <p className="text-xs text-dark-500 mb-4">
+        Publish Open + Approved job positions to a public careers page.
+        Applicants land in ATS with the HR Team employee as recruiter.
+      </p>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-dark-400 py-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Enable toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-dark-300">Enable Careers Site</p>
+              <p className="text-xs text-dark-500">When off, the public URL returns Not Found.</p>
+            </div>
+            <ToggleSwitch checked={enabled} onChange={setEnabled} />
+          </div>
+
+          {/* Public URL */}
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Public URL</label>
+            <p className="text-xs text-dark-500 mb-2">Paste this on your WordPress careers menu.</p>
+            <div className="flex items-stretch gap-2">
+              <div className="flex-1 flex items-center px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg min-w-0">
+                <span className="text-sm text-dark-200 truncate font-mono">{publicUrl || '—'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyUrl}
+                disabled={!publicUrl}
+                className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-40 flex items-center gap-1.5"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              {enabled && publicUrl && (
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white hover:border-dark-600 transition-colors flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-4 h-4" /> Open
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Branding */}
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Tagline (optional)</label>
+            <p className="text-xs text-dark-500 mb-2">Shown under your logo on the careers page.</p>
+            <input
+              type="text"
+              value={tagline}
+              onChange={(e) => setTagline(e.target.value.slice(0, 160))}
+              placeholder="e.g. Build what's next with us."
+              className="input-field w-full"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Primary Color (hex, optional)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+                placeholder="#2563eb"
+                className={`input-field w-40 ${colorValid ? '' : 'border-red-500/40'}`}
+              />
+              <div
+                className="w-9 h-9 rounded-lg border border-dark-700"
+                style={{ background: colorValid && primaryColor ? primaryColor : 'transparent' }}
+              />
+            </div>
+            {!colorValid && <p className="text-[11px] text-red-400 mt-1">Must be a 6-digit hex (e.g. #2563eb).</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">Logo URL (optional override)</label>
+            <p className="text-xs text-dark-500 mb-2">Leave blank to use the org logo from Org Settings.</p>
+            <input
+              type="url"
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value.slice(0, 500))}
+              placeholder="https://…"
+              className="input-field w-full"
+            />
+          </div>
+
+          <button
+            onClick={handleSave}
+            disabled={saving || !hasChanges || !colorValid}
+            className="btn-primary px-4 py-2 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <><Check className="w-4 h-4" /> Saved</> : <><Save className="w-4 h-4" /> Save Careers Settings</>}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ToggleSwitch({ checked, onChange, disabled }) {
   return (
@@ -205,6 +415,9 @@ export default function SettingsAts() {
           </div>
         </div>
       </div>
+
+      {/* Careers Site — full-width card below the two-column grid. */}
+      <CareersCard orgSlug={currentOrg?.slug} />
 
       <button onClick={handleSave} disabled={saving}
         className="btn-primary px-6 py-2.5 flex items-center gap-2 disabled:opacity-50">

@@ -168,6 +168,10 @@ const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
 const SignConfig = lazy(() => import('./pages/sign/SignConfig'));
 const PublicSigningPage = lazy(() => import('./pages/sign/PublicSigningPage'));
 
+// Lazy-loaded: Public careers (no auth)
+const CareersHome = lazy(() => import('./pages/careers/CareersHome'));
+const CareersJobDetail = lazy(() => import('./pages/careers/CareersJobDetail'));
+
 // Lazy-loaded: Documents app pages
 const DocumentsList = lazy(() => import('./pages/documents/DocumentsList'));
 const DocumentDetail = lazy(() => import('./pages/documents/DocumentDetail'));
@@ -630,6 +634,12 @@ function App() {
             {/* PUBLIC SIGNING PAGE — no auth required, token-based access    */}
             {/* ============================================================ */}
             <Route path="/sign/public/:requestId/:signerId/:token" element={<PublicSigningPage />} />
+
+            {/* ============================================================ */}
+            {/* PUBLIC CAREERS — no auth, gated by org.careersEnabled         */}
+            {/* ============================================================ */}
+            <Route path="/careers/:orgSlug" element={<CareersHome />} />
+            <Route path="/careers/:orgSlug/jobs/:publicSlug" element={<CareersJobDetail />} />
 
             {/* ============================================================ */}
             {/* LEGACY ROUTES — /home, /outreach/*, /timesheet/*, /settings/* */}

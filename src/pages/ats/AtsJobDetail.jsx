@@ -22,7 +22,9 @@ import {
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
   CheckCircle2, Clock, XCircle, AlertTriangle,
+  Globe, Copy, ExternalLink, Check,
 } from 'lucide-react';
+import api from '../../utils/api';
 
 /* ── Job-status pill ─────────────────────────────────────────────────────
  * Q7-B: status uses blue/amber/red so it doesn't visually collide with the
@@ -461,6 +463,15 @@ export default function AtsJobDetail() {
   const [approvalDraftComment, setApprovalDraftComment] = useState('');
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
 
+  // Careers publish state. orgCareersEnabled is fetched once via
+  // /settings/careers so the publish toggle on this job knows whether the
+  // org-level kill switch is on. Disabled-at-org is rendered as a hint
+  // pointing the admin to Settings → General → Careers Site.
+  const [orgCareersEnabled, setOrgCareersEnabled] = useState(false);
+  const [orgCareersUrl, setOrgCareersUrl] = useState('');
+  const [publishingCareers, setPublishingCareers] = useState(false);
+  const [careersUrlCopied, setCareersUrlCopied] = useState(false);
+
   const isAdmin = getAppRole('ats') === 'admin';
   // 2026-05-18 RBAC two-tier: anyone with ATS access is a "recruiter" and
   // can do daily work (create candidates + applications, run interviews,
@@ -488,6 +499,74 @@ export default function AtsJobDetail() {
       .then((res) => { if (res.success) setCompanyContacts(res.companies || []); })
       .catch(() => {});
   }, [orgSlug]);
+
+  // Org-level careers flag (drives whether the per-job publish toggle is
+  // actionable). Cheap read; cached for the lifetime of this page view.
+  useEffect(() => {
+    if (!orgSlug) return;
+    api.getCareersSettings(orgSlug)
+      .then((res) => {
+        if (res?.success) {
+          setOrgCareersEnabled(!!res.careers?.enabled);
+          setOrgCareersUrl(res.careers?.publicUrl || '');
+        }
+      })
+      .catch(() => {});
+  }, [orgSlug]);
+
+  const jobPublicUrl = (job?.publicSlug && orgCareersUrl)
+    ? `${orgCareersUrl}/jobs/${job.publicSlug}`
+    : '';
+
+  const handlePublishCareers = async () => {
+    if (!orgSlug || !jobId) return;
+    setPublishingCareers(true);
+    try {
+      const res = await atsApi.publishJob(orgSlug, jobId);
+      if (res.success) {
+        setJob((prev) => ({
+          ...prev,
+          publishToCareers: true,
+          publicSlug: res.publicSlug || prev?.publicSlug,
+          publishedAt: prev?.publishedAt || new Date().toISOString(),
+        }));
+        showToast('Job published to careers site', 'success');
+      } else {
+        showToast(res.error || 'Failed to publish', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to publish', 'error');
+    } finally {
+      setPublishingCareers(false);
+    }
+  };
+
+  const handleUnpublishCareers = async () => {
+    if (!orgSlug || !jobId) return;
+    setPublishingCareers(true);
+    try {
+      const res = await atsApi.unpublishJob(orgSlug, jobId);
+      if (res.success) {
+        setJob((prev) => ({ ...prev, publishToCareers: false, unpublishedAt: new Date().toISOString() }));
+        showToast('Job removed from careers site', 'success');
+      } else {
+        showToast(res.error || 'Failed to unpublish', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to unpublish', 'error');
+    } finally {
+      setPublishingCareers(false);
+    }
+  };
+
+  const handleCopyJobPublicUrl = async () => {
+    if (!jobPublicUrl) return;
+    try {
+      await navigator.clipboard.writeText(jobPublicUrl);
+      setCareersUrlCopied(true);
+      setTimeout(() => setCareersUrlCopied(false), 1500);
+    } catch {}
+  };
 
   // Save client picker selection — writes both clientContactId + clientName
   // so the page label stays in sync with the linked contact.
@@ -939,6 +1018,106 @@ export default function AtsJobDetail() {
           </div>
         )}
       </div>
+
+      {/* ─── Careers publish panel ───────────────────────────────────────
+          Admin-only. Surfaces:
+            • current publish state + toggle (only when job is Open+Approved)
+            • shareable public URL when published
+            • a warning chip when Public-facing JD is empty (will fall back
+              to Internal description on the public page).
+          Hidden entirely when the org has not enabled Careers AND the job
+          is not already published — to keep the page lean for tenants
+          that aren't using this feature yet. */}
+      {isAdmin && !job.archived && (orgCareersEnabled || job.publishToCareers) && (
+        <div className={`rounded-lg border px-4 py-3 ${
+          job.publishToCareers
+            ? 'border-emerald-500/30 bg-emerald-500/5'
+            : 'border-dark-700 bg-dark-800/40'
+        }`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                job.publishToCareers ? 'bg-emerald-500/15 text-emerald-300' : 'bg-dark-700 text-dark-300'
+              }`}>
+                <Globe size={15} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-white">Public Careers Page</p>
+                  {job.publishToCareers ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/15 text-emerald-300">
+                      Live
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-dark-700 text-dark-400">
+                      Not published
+                    </span>
+                  )}
+                  {!(job.websiteDescription || '').trim() && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      <AlertTriangle size={10} /> Public-facing JD empty — using Internal
+                    </span>
+                  )}
+                </div>
+                {job.publishToCareers && jobPublicUrl ? (
+                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-mono text-dark-300 truncate max-w-md">{jobPublicUrl}</span>
+                    <button
+                      onClick={handleCopyJobPublicUrl}
+                      className="inline-flex items-center gap-1 text-[11px] text-dark-400 hover:text-white transition-colors"
+                    >
+                      {careersUrlCopied ? <><Check size={11} className="text-emerald-400" /> Copied</> : <><Copy size={11} /> Copy</>}
+                    </button>
+                    <a
+                      href={jobPublicUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-dark-400 hover:text-white transition-colors"
+                    >
+                      <ExternalLink size={11} /> Open
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-dark-500 mt-0.5">
+                    {orgCareersEnabled
+                      ? (job.status === 'open' && job.approvalStatus === 'approved'
+                          ? 'Publish to expose this job at rivvra.com/careers and accept applications via the public form.'
+                          : 'Job must be Open and Approved to publish.')
+                      : <>Enable Careers in <span className="text-dark-300">Settings → General</span> first.</>}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {job.publishToCareers ? (
+                <button
+                  onClick={handleUnpublishCareers}
+                  disabled={publishingCareers}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-dark-800 border border-dark-700 text-dark-300 hover:text-white hover:border-dark-600 transition-colors disabled:opacity-40 flex items-center gap-1.5"
+                >
+                  {publishingCareers && <Loader2 size={12} className="animate-spin" />}
+                  Unpublish
+                </button>
+              ) : (
+                <button
+                  onClick={handlePublishCareers}
+                  disabled={
+                    publishingCareers
+                    || !orgCareersEnabled
+                    || job.status !== 'open'
+                    || job.approvalStatus !== 'approved'
+                  }
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  {publishingCareers && <Loader2 size={12} className="animate-spin" />}
+                  Publish to Careers
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Approval-state banner ───────────────────────────────────────
           Surfaces *why* New Application is missing/disabled and what the

@@ -71,6 +71,14 @@ const atsApi = {
     });
   },
 
+  publishJob(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/publish`, { method: 'POST' });
+  },
+
+  unpublishJob(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/unpublish`, { method: 'POST' });
+  },
+
   changeJobStatus(orgSlug, id, status) {
     return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/status`, {
       method: 'PATCH',
