@@ -142,7 +142,7 @@ export default function CareersHome() {
   return (
     <div className="min-h-screen bg-[#fafafa] text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white" style={{ '--accent': accent }}>
       <TopBar org={org} orgSlug={orgSlug} accent={accent} />
-      <Hero org={org} totalJobs={totalJobs} companiesCount={companiesCount} accent={accent} />
+      <Hero org={org} totalJobs={totalJobs} companiesCount={companiesCount} accent={accent} jobs={jobs} />
 
       <StickyFilters
         q={q} setQ={setQ}
@@ -277,59 +277,147 @@ function CompanyLogo({ url, size = 36, alt = '' }) {
   );
 }
 
-function Hero({ org, totalJobs, companiesCount, accent }) {
+function Hero({ org, totalJobs, companiesCount, accent, jobs }) {
   const count = useCountUp(totalJobs, 1.3);
   const tagline = org?.branding?.tagline;
+  const departmentsCount = useMemo(() => new Set(jobs.map(j => j.department).filter(Boolean)).size, [jobs]);
+
+  // Three most recent published jobs feed the stats card teaser.
+  const recent = useMemo(() => [...jobs].sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)).slice(0, 3), [jobs]);
 
   return (
     <section className="relative overflow-hidden">
       <MeshGradient accent={accent} />
-      <div className="relative max-w-6xl mx-auto px-6 sm:px-8 pt-20 pb-24 sm:pt-28 sm:pb-32">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-3xl"
-        >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 backdrop-blur border border-zinc-200/80 mb-6">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ background: accent }} />
-              <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: accent }} />
-            </span>
-            <span className="text-xs font-medium text-zinc-700">We're hiring</span>
-          </div>
-
-          <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight text-zinc-900 leading-[1.05]">
-            {tagline ? tagline : <>Build what's next, <span style={{ color: accent }}>with us.</span></>}
-          </h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
+      <div className="relative max-w-6xl mx-auto px-6 sm:px-8 pt-16 pb-20 sm:pt-24 sm:pb-24 lg:pt-28 lg:pb-28">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+          {/* Headline column */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-6 text-lg text-zinc-600 max-w-xl"
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="lg:col-span-7"
           >
-            {totalJobs === 0
-              ? 'There are no openings right now — check back soon.'
-              : <>We have <strong className="text-zinc-900 tabular-nums">{count}</strong> open {count === 1 ? 'role' : 'roles'}{companiesCount > 1 && <> across <strong className="text-zinc-900">{companiesCount}</strong> entities</>}. Apply with your resume — we read every application.</>}
-          </motion.p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 backdrop-blur border border-zinc-200/80 mb-6">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ background: accent }} />
+                <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: accent }} />
+              </span>
+              <span className="text-xs font-medium text-zinc-700">We're hiring</span>
+            </div>
 
-          {totalJobs > 0 && (
-            <motion.div
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-semibold tracking-[-0.02em] text-zinc-900 leading-[1.02]">
+              {tagline ? tagline : <>Build what's next, <span style={{ color: accent }}>with us.</span></>}
+            </h1>
+
+            <motion.p
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-9 flex items-center gap-3"
+              transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-6 text-lg text-zinc-700 max-w-xl"
             >
-              <a href="#openings" className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-medium text-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5" style={{ background: accent }}>
-                See open roles <ArrowRight size={16} />
-              </a>
-              <ScrollHint />
-            </motion.div>
+              {totalJobs === 0
+                ? 'There are no openings right now — check back soon.'
+                : <>We have <strong className="text-zinc-900 tabular-nums">{count}</strong> open {count === 1 ? 'role' : 'roles'}{companiesCount > 1 && <> across <strong className="text-zinc-900">{companiesCount}</strong> entities</>}. Apply with your resume — we read every application.</>}
+            </motion.p>
+
+            {totalJobs > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="mt-8 flex items-center gap-3"
+              >
+                <a href="#openings" className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-medium text-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5" style={{ background: accent, boxShadow: `0 8px 24px -10px ${accent}80` }}>
+                  See open roles <ArrowRight size={16} />
+                </a>
+                <ScrollHint />
+              </motion.div>
+            )}
+          </motion.div>
+
+          {/* Stats card column */}
+          {totalJobs > 0 && (
+            <motion.aside
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="lg:col-span-5"
+            >
+              <HeroStatsCard
+                totalJobs={totalJobs}
+                companiesCount={companiesCount}
+                departmentsCount={departmentsCount}
+                recent={recent}
+                orgSlug={org?.slug}
+                accent={accent}
+              />
+            </motion.aside>
           )}
-        </motion.div>
+        </div>
       </div>
     </section>
+  );
+}
+
+function HeroStatsCard({ totalJobs, companiesCount, departmentsCount, recent, orgSlug, accent }) {
+  const openCount = useCountUp(totalJobs, 1.3);
+  const entCount = useCountUp(companiesCount, 1.4);
+  const deptCount = useCountUp(departmentsCount, 1.5);
+
+  return (
+    <div className="relative">
+      {/* Soft accent glow behind the card */}
+      <div className="absolute -inset-6 rounded-[2rem] opacity-60 blur-2xl pointer-events-none" style={{ background: `radial-gradient(closest-side, ${accent}25, transparent 70%)` }} />
+      <div className="relative bg-white/80 backdrop-blur-xl border border-zinc-200/80 rounded-3xl p-6 shadow-[0_20px_60px_-25px_rgba(0,0,0,0.18)]">
+        <div className="flex items-center justify-between mb-5">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Open positions</p>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <StatTile value={openCount} label={openCount === 1 ? 'role' : 'roles'} accent={accent} />
+          <StatTile value={entCount} label={entCount === 1 ? 'entity' : 'entities'} accent={accent} muted />
+          <StatTile value={deptCount} label={deptCount === 1 ? 'team' : 'teams'} accent={accent} muted />
+        </div>
+
+        {recent.length > 0 && (
+          <div className="pt-4 border-t border-zinc-100">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 mb-3">Recently posted</p>
+            <ul className="space-y-1">
+              {recent.map((j, i) => (
+                <motion.li
+                  key={j.publicSlug}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.45, delay: 0.4 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <Link
+                    to={`/careers/${orgSlug}/jobs/${j.publicSlug}`}
+                    className="group flex items-center justify-between gap-3 -mx-2 px-2 py-2 rounded-lg hover:bg-zinc-50 transition-colors"
+                  >
+                    <span className="text-sm text-zinc-800 truncate group-hover:text-zinc-950">{j.name}</span>
+                    <ArrowRight size={13} className="text-zinc-300 group-hover:text-zinc-700 transition-all group-hover:translate-x-0.5 flex-shrink-0" />
+                  </Link>
+                </motion.li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatTile({ value, label, accent, muted = false }) {
+  return (
+    <div className="rounded-2xl bg-white/60 border border-zinc-200/60 p-3.5 text-center">
+      <div className="text-2xl sm:text-3xl font-semibold tabular-nums tracking-tight" style={{ color: muted ? '#18181b' : accent }}>
+        {value}
+      </div>
+      <div className="text-[11px] text-zinc-500 mt-0.5 lowercase tracking-wide">{label}</div>
+    </div>
   );
 }
 
@@ -465,7 +553,19 @@ function JobCard({ job, orgSlug, accent, hideCompany }) {
   return (
     <Link
       to={`/careers/${orgSlug}/jobs/${job.publicSlug}`}
-      className="group relative block bg-white border border-zinc-200/80 rounded-2xl p-5 sm:p-6 transition-all hover:border-zinc-300 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.15)] hover:-translate-y-0.5"
+      className="group relative block bg-white rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-0.5"
+      style={{
+        // Doubled box-shadow: outer soft drop + inner accent ring that
+        // fades in on hover. Inline because Tailwind JIT can't compose
+        // arbitrary ring colors per-org at runtime.
+        boxShadow: 'inset 0 0 0 1px rgb(228 228 231 / 0.8)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = `inset 0 0 0 1.5px ${accent}80, 0 12px 32px -16px rgb(0 0 0 / 0.15)`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgb(228 228 231 / 0.8)';
+      }}
     >
       <span
         className="absolute top-0 left-6 right-6 h-px opacity-0 group-hover:opacity-100 transition-opacity"
@@ -475,13 +575,13 @@ function JobCard({ job, orgSlug, accent, hideCompany }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-base sm:text-lg font-semibold text-zinc-900 group-hover:text-zinc-950 truncate">{job.name}</h3>
-          <div className="mt-2.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-zinc-500">
+          <div className="mt-2.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-zinc-600">
             {job.department && <span className="inline-flex items-center gap-1.5"><Briefcase size={12} className="text-zinc-400" />{job.department}</span>}
             {job.location && <span className="inline-flex items-center gap-1.5"><MapPin size={12} className="text-zinc-400" />{job.location}</span>}
             {job.employmentType && <Chip>{job.employmentType}</Chip>}
             {job.hiringMode && <Chip>{job.hiringMode}</Chip>}
-            {job.requiredExperience && <span className="text-zinc-500">{job.requiredExperience} exp</span>}
-            {!hideCompany && job.companyName && <span className="text-zinc-400">· {job.companyName}</span>}
+            {job.requiredExperience && <span className="text-zinc-600">{job.requiredExperience} exp</span>}
+            {!hideCompany && job.companyName && <span className="text-zinc-500">· {job.companyName}</span>}
           </div>
         </div>
         <div
@@ -490,11 +590,16 @@ function JobCard({ job, orgSlug, accent, hideCompany }) {
           <ArrowRight size={14} className="text-zinc-400 group-hover:text-white transition-colors group-hover:translate-x-0.5 duration-200" />
         </div>
       </div>
-      {job.publishedAt && (
-        <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center gap-1.5 text-[11px] text-zinc-400">
-          <Clock size={11} /> Posted {fmtDate(job.publishedAt)}
-        </div>
-      )}
+      <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between gap-2 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold uppercase tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Open
+        </span>
+        {job.publishedAt && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
+            <Clock size={11} className="text-zinc-400" /> {fmtDate(job.publishedAt)}
+          </span>
+        )}
+      </div>
     </Link>
   );
 }
