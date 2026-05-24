@@ -140,6 +140,7 @@ const FIELD_TO_CARD = {
   'Work Location':        'card-staffing',
   'Required Experience':  'card-staffing',
   'Job Description':      'card-description',
+  'Public-facing JD':     'card-description',
 };
 function ApprovalSubmitBanner({
   status, approverName, approverComment, missing, approverAssigned,
