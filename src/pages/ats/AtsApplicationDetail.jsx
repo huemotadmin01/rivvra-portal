@@ -2121,9 +2121,7 @@ export default function AtsApplicationDetail() {
         // captured via the admin Offer button.
         const msg = err.offerLevel === 'salary'
           ? 'Please fill the Salary Proposed field in the Compensation section below before moving to this stage.'
-          : isAdmin
-            ? 'Click "Capture Offer" (top right) to capture the offer details first.'
-            : 'This application needs offer details captured first. Ask an admin to click "Capture Offer" on this page.';
+          : 'Click "Capture Offer" (top right) to capture the offer details first.';
         showToast(msg, 'warning');
         return;
       }
@@ -2758,12 +2756,16 @@ export default function AtsApplicationDetail() {
                     View reused Rate Confirmation
                   </Link>
                 )}
-                {/* Offer button — admin-only. 2026-05-18 PM: only visible
-                    from Offer Proposal stage onwards. Earlier stages use the
-                    inline Compensation field on the page for salary capture
-                    (L1 gate accepts that). Label flips between "Capture Offer"
-                    (no offer subdoc yet) and "Offer" (edit existing). */}
-                {isAdmin && isAtOrPastOfferProposal && (
+                {/* Offer button — 2026-05-25 role-model widening: opened
+                    to atsAccess (recruiters owning the app) so the
+                    person negotiating the offer can capture it without
+                    pinging an admin. Backend PATCH /offer enforces
+                    team-scope so a member can only edit offers on
+                    their own apps. Visible from one stage before Offer
+                    Proposal onwards. Label flips between "Capture
+                    Offer" (no offer subdoc yet) and "Offer" (edit
+                    existing). Hire stays admin-only. */}
+                {canEdit && isAtOrPastOfferProposal && (
                   <button
                     onClick={() => { setEditOfferOnly(true); setShowHireModal(true); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
