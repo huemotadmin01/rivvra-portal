@@ -10,6 +10,7 @@ import {
   ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, LogOut, Building2
 } from 'lucide-react';
 import ComingSoonModal from '../ComingSoonModal';
+import DocumentsFolderNav from './DocumentsFolderNav';
 
 // 2026-05-12: `collapsed` + `onToggleCollapsed` are owned by
 // PlatformLayout (persists per-user via localStorage). When collapsed
@@ -87,6 +88,12 @@ function AppSidebar({ isOpen, onClose, collapsed = false, onToggleCollapsed = ()
       {/* Navigation */}
       <nav className={`flex-1 ${collapsed ? 'px-2 py-3' : 'p-4'} space-y-1 overflow-y-auto overflow-x-hidden min-h-0`}>
         {sidebarItems.map((item, idx) => {
+          // 2026-05-25: Documents app injects its per-company folder list
+          // inline as a dynamic sub-section. Component fetches its own
+          // data and respects the collapsed prop.
+          if (item.type === 'documentsFolders') {
+            return <DocumentsFolderNav key={`folders-${idx}`} collapsed={collapsed} />;
+          }
           if (item.type === 'group') {
             const expanded = isGroupExpanded(item);
             const hasActiveChild = item.children.some(child => isActive(child.path));

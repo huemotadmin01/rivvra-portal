@@ -559,11 +559,27 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/documents',
     derivedRoles: true,
-    // 2026-05-25 sidebar consolidation: DocumentsList renders its own
-    // folder-aware sidebar that already includes "All Documents" + the
-    // admin Configuration links inline, so the platform sub-nav was a
-    // visual duplicate (two adjacent left rails). Drop it to one rail.
-    getSidebarItems: () => [],
+    // 2026-05-25 sidebar consolidation v2: folders are now first-class
+    // children inside the platform left rail. AppSidebar special-cases
+    // `type: 'documentsFolders'` and renders a DocumentsFolderNav that
+    // fetches the per-company folder list. The page-level Folders rail
+    // was removed at the same time — single left column for Documents.
+    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+      const isAdmin = orgAppRole === 'admin';
+      return [
+        { type: 'item', path: '/documents', label: 'All Documents', icon: FolderArchive },
+        { type: 'documentsFolders' },
+        ...(isAdmin ? [
+          {
+            type: 'group', label: 'Configuration', icon: Settings,
+            children: [
+              { path: '/documents/manage/folders', label: 'Folders', icon: Folder },
+              { path: '/documents/manage/tags', label: 'Tags', icon: Tag },
+            ],
+          },
+        ] : []),
+      ];
+    },
   },
 
   knowledgeBase: {

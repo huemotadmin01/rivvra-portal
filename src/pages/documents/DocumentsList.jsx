@@ -9,7 +9,7 @@ import FilterBar, {
   FilterChip, GroupByChip, ArchivedToggle, useFilterParams,
 } from '../../components/shared/FilterBar';
 import {
-  Loader2, FolderOpen, Folder, Upload, Settings,
+  Loader2, Folder, Upload,
   FileText, Tag as TagIcon,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
@@ -197,42 +197,33 @@ export default function DocumentsList() {
     );
   }
 
+  // 2026-05-25 sidebar consolidation v2: folder rail moved into the
+  // platform AppSidebar (DocumentsFolderNav). The page is just a single
+  // column now — same active-folder URL contract, no duplicate left rail.
+  // selectedFolderName is rendered as a chip near the search bar so users
+  // can see + clear the active folder filter without scanning the outer rail.
+  const selectedFolderName = folderId ? (folders.find((f) => String(f._id) === folderId)?.name || '') : '';
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-dark-950">
-      {/* Sidebar — folders */}
-      <aside className="w-64 border-r border-dark-800 bg-dark-900 flex flex-col">
-        <div className="px-4 py-3 border-b border-dark-800 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-dark-100">Folders</h2>
-          {isAdmin && (
-            <button onClick={() => navigate(`/org/${orgSlug}/documents/manage/folders`)} className="text-dark-400 hover:text-dark-200" title="Manage folders">
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-        <nav className="flex-1 overflow-y-auto py-2">
-          <button onClick={() => updateFolder('')}
-            className={`w-full flex items-center gap-2 px-4 py-1.5 text-sm transition ${!folderId ? 'bg-rivvra-500/10 text-rivvra-300' : 'text-dark-300 hover:bg-dark-800'}`}>
-            <FolderOpen className="w-4 h-4" /> All documents
-          </button>
-          {folders.length === 0 && (
-            <div className="px-4 py-3 text-xs text-dark-500">
-              No folders yet.{isAdmin && ' Create one in Manage Folders.'}
-            </div>
-          )}
-          {folders.map((f) => (
-            <button key={f._id} onClick={() => updateFolder(f._id)}
-              className={`w-full flex items-center gap-2 px-4 py-1.5 text-sm transition ${folderId === String(f._id) ? 'bg-rivvra-500/10 text-rivvra-300' : 'text-dark-300 hover:bg-dark-800'}`}>
-              <Folder className="w-4 h-4" /> <span className="truncate">{f.name}</span>
-            </button>
-          ))}
-        </nav>
-      </aside>
-
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-dark-950">
       {/* Main */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="px-6 py-3 border-b border-dark-800 flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <FilterBar searchPlaceholder="Search by name, description, filename…">
+              {/* Active-folder chip — clearable without leaving the page or
+                  scanning the outer rail. Only shown when a folder is set. */}
+              {selectedFolderName && (
+                <button
+                  type="button"
+                  onClick={() => updateFolder('')}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-rivvra-500/10 border border-rivvra-500/30 text-rivvra-300 hover:bg-rivvra-500/20"
+                  title="Clear folder filter"
+                >
+                  <Folder className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[180px]">{selectedFolderName}</span>
+                  <span className="text-rivvra-400" aria-hidden>×</span>
+                </button>
+              )}
               {tagOptions.length > 0 && (
                 <FilterChip
                   type="select"

@@ -29,6 +29,16 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
   const isImage = mimeType?.startsWith('image/');
   const isPdf = mimeType === 'application/pdf';
   const useCanvas = isPdf && pdfRenderer === 'canvas';
+  // 2026-05-25: spreadsheets (xlsx/xls/csv/ods/o-spreadsheet) and Word docs
+  // (docx/doc) have no browser-native inline preview. Rather than dump the
+  // user into a broken iframe or leak the signed URL to a third-party
+  // viewer (docs.google.com), render a friendly download stub. Same for
+  // PowerPoint and other "office" MIMEs that aren't PDF.
+  const lowerMime = (mimeType || '').toLowerCase();
+  const isSpreadsheet = /sheet|excel|csv|spreadsheet/.test(lowerMime);
+  const isWordDoc = /word|document(?!\/)|opendocument\.text/.test(lowerMime) && !isPdf;
+  const isPresentation = /presentation|powerpoint/.test(lowerMime);
+  const isDownloadOnly = isSpreadsheet || isWordDoc || isPresentation;
 
   const fetchAsBlob = useCallback((url, headers = {}) => {
     setLoading(true);
@@ -62,6 +72,14 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
 
     if (useCanvas) {
       // PdfCanvasViewer handles its own loading from fetchUrl/directUrl.
+      setLoading(false);
+      return undefined;
+    }
+
+    // Spreadsheets / Word / PowerPoint — no browser-native inline preview.
+    // Skip the blob fetch entirely so we don't burn bandwidth + the signed
+    // URL's TTL. The download CTA still works via the existing handleDownload.
+    if (isDownloadOnly) {
       setLoading(false);
       return undefined;
     }
@@ -197,6 +215,30 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
               title={filename}
               onError={handleIframeError}
             />
+          ) : isDownloadOnly ? (
+            // Spreadsheets / Word docs / Slides — render a friendly
+            // download stub with a clear next-step rather than
+            // attempting an iframe that won't work (or worse: leaking
+            // the signed URL to a 3rd-party viewer like Google Docs).
+            <div className="text-center max-w-sm px-6">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-dark-800 border border-dark-700 flex items-center justify-center mb-4">
+                <FileText className={`w-8 h-8 ${isSpreadsheet ? 'text-emerald-400' : isPresentation ? 'text-amber-400' : 'text-sky-400'}`} />
+              </div>
+              <h4 className="text-base font-semibold text-dark-100 mb-1.5 truncate">{filename}</h4>
+              <p className="text-dark-400 text-sm mb-5">
+                Inline preview isn't available for {isSpreadsheet ? 'spreadsheets' : isPresentation ? 'presentations' : 'Word documents'}.
+                {isSpreadsheet && ' Opens in Excel, Numbers, or Google Sheets.'}
+                {isWordDoc && ' Opens in Word, Pages, or Google Docs.'}
+                {isPresentation && ' Opens in PowerPoint, Keynote, or Google Slides.'}
+              </p>
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium"
+              >
+                <Download className="w-4 h-4" /> Download to view
+              </button>
+            </div>
           ) : (
             <p className="text-dark-500 text-sm">Preview not available for this file type</p>
           )}
