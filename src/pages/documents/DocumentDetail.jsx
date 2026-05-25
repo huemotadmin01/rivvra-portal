@@ -312,22 +312,28 @@ export default function DocumentDetail() {
           </div>
         </div>
 
-        {/* Admin actions */}
-        {isAdmin && (
-          <div className="px-6 py-4 flex items-center gap-2 flex-wrap">
-            <input ref={replaceFileInput} type="file" className="hidden" onChange={(e) => handleReplace(e.target.files?.[0])} />
-            <button onClick={() => replaceFileInput.current?.click()} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 hover:bg-dark-700 text-dark-100 inline-flex items-center gap-1.5">
-              <Upload className="w-4 h-4" /> Replace / new version
-            </button>
-            <button onClick={handleArchive} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 hover:bg-dark-700 text-dark-100 inline-flex items-center gap-1.5">
-              {doc.archived ? <><ArchiveRestore className="w-4 h-4" /> Unarchive</> : <><Archive className="w-4 h-4" /> Archive</>}
-            </button>
-            <div className="flex-1" />
-            <button onClick={askDelete} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 inline-flex items-center gap-1.5">
-              <Trash2 className="w-4 h-4" /> Delete permanently
-            </button>
-          </div>
-        )}
+        {/* Actions row — split so non-admins still see Archive/Unarchive
+            (reversible) but Replace + Delete stay admin-only. 2026-05-25
+            role-model widening per user request. */}
+        <div className="px-6 py-4 flex items-center gap-2 flex-wrap">
+          {/* Archive — every member can soft-delete (and undo). */}
+          <button onClick={handleArchive} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 hover:bg-dark-700 text-dark-100 inline-flex items-center gap-1.5">
+            {doc.archived ? <><ArchiveRestore className="w-4 h-4" /> Unarchive</> : <><Archive className="w-4 h-4" /> Archive</>}
+          </button>
+          {/* Replace + Delete — admin-only (matches backend gates). */}
+          {isAdmin && (
+            <>
+              <input ref={replaceFileInput} type="file" className="hidden" onChange={(e) => handleReplace(e.target.files?.[0])} />
+              <button onClick={() => replaceFileInput.current?.click()} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 hover:bg-dark-700 text-dark-100 inline-flex items-center gap-1.5">
+                <Upload className="w-4 h-4" /> Replace / new version
+              </button>
+              <div className="flex-1" />
+              <button onClick={askDelete} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 inline-flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4" /> Delete permanently
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog
