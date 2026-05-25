@@ -3293,6 +3293,7 @@ export default function AtsApplicationDetail() {
                 onEditSchedule={openInterviewScheduleModal}
                 onEditResult={openInterviewResultModal}
                 orgPath={orgPath}
+                applicationId={applicationId}
               />
               <InterviewRoundCard
                 label="L2"
@@ -3307,6 +3308,7 @@ export default function AtsApplicationDetail() {
                 onEditSchedule={openInterviewScheduleModal}
                 onEditResult={openInterviewResultModal}
                 orgPath={orgPath}
+                applicationId={applicationId}
               />
               <InterviewRoundCard
                 label="HR"
@@ -3321,6 +3323,7 @@ export default function AtsApplicationDetail() {
                 onEditSchedule={openInterviewScheduleModal}
                 onEditResult={openInterviewResultModal}
                 orgPath={orgPath}
+                applicationId={applicationId}
               />
             </div>
             <div className="border-t border-dark-700 my-3" />
@@ -3555,6 +3558,11 @@ function InterviewRoundCard({
   // 2026-05-17 Phase N: orgPath passed from parent so we can build the
   // /employee/:id link for the interviewer when the slot has an id.
   orgPath,
+  // 2026-05-25 regression fix: applicationId was being referenced from
+  // closure but InterviewRoundCard is a module-level function so the
+  // reference threw "applicationId is not defined" when the
+  // interviewer-id Link was rendered. Pass it explicitly.
+  applicationId,
 }) {
   const slot = application[interviewField];
   const isSlotObject = slot != null && typeof slot === 'object';
