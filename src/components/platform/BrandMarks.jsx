@@ -141,6 +141,29 @@ const MarkSettings = ({ size }) => (
   </Wrap>
 );
 
+// Documents — three offset folder/page sheets in slate with a fold-mark
+// detail and an emerald tab on top (calls out "current / active doc").
+const MarkDocuments = ({ size }) => (
+  <Wrap size={size}>
+    {/* Back paper */}
+    <rect x="16" y="14" width="34" height="42" rx="4" fill="#94a3b8" opacity="0.30" />
+    {/* Middle paper */}
+    <rect x="13" y="18" width="34" height="42" rx="4" fill="#94a3b8" opacity="0.55" />
+    {/* Front paper */}
+    <rect x="10" y="22" width="34" height="38" rx="4" fill="#cbd5e1" />
+    {/* Folded corner */}
+    <path d="M38 22 v8 h6 z" fill="#94a3b8" opacity="0.7" />
+    <path d="M38 22 v8 h6" stroke="#475569" strokeWidth="1" fill="none" />
+    {/* Text lines */}
+    <rect x="15" y="34" width="22" height="3" rx="1.5" fill="#475569" opacity="0.55" />
+    <rect x="15" y="40" width="18" height="3" rx="1.5" fill="#475569" opacity="0.4" />
+    <rect x="15" y="46" width="20" height="3" rx="1.5" fill="#475569" opacity="0.4" />
+    {/* Active-doc tab pip */}
+    <circle cx="44" cy="44" r="5" fill="#34d399" />
+    <path d="M41.5 44 l2 2 3.5 -4" stroke="#0a0f0d" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+  </Wrap>
+);
+
 const MarkFallback = ({ size }) => (
   <Wrap size={size}>
     {[14,26,38,50].map((y) => [14,26,38,50].map((x) => (
@@ -155,6 +178,7 @@ const REGISTRY = {
   sign: MarkSign, todo: MarkTodo,
   invoicing: MarkInvoicing, expenses: MarkExpenses, incentive: MarkIncentive,
   knowledgeBase: MarkKnowledgeBase, kb: MarkKnowledgeBase, knowledge_base: MarkKnowledgeBase, knowledgebase: MarkKnowledgeBase,
+  documents: MarkDocuments,
   settings: MarkSettings,
 };
 

@@ -7,12 +7,25 @@ import { warmTimesheetBackend } from '../../utils/timesheetApi';
 import { Lock, Puzzle, ArrowRight } from 'lucide-react';
 import BrandMark, { hasBrandMark } from './BrandMarks';
 
+// 2026-05-25 health-check: colorConfig was missing 7 colors that apps.jsx
+// actually uses (amber/emerald/indigo/teal/fuchsia/slate/sky), so most
+// cards silently fell back to `rivvra` green on hover. Expanded to cover
+// every color the registry assigns. Hover glow / border / icon tint now
+// reflect each app's brand colour.
 const colorConfig = {
-  rivvra: { rgb: '34, 197, 94',  iconColor: '#4ade80', glow: 'rgba(34, 197, 94, 0.18)' },
-  blue:   { rgb: '59, 130, 246', iconColor: '#60a5fa', glow: 'rgba(59, 130, 246, 0.18)' },
-  purple: { rgb: '168, 85, 247', iconColor: '#c084fc', glow: 'rgba(168, 85, 247, 0.18)' },
-  orange: { rgb: '249, 115, 22', iconColor: '#fb923c', glow: 'rgba(249, 115, 22, 0.18)' },
-  cyan:   { rgb: '6, 182, 212',  iconColor: '#22d3ee', glow: 'rgba(6, 182, 212, 0.18)' },
+  rivvra:  { rgb: '34, 197, 94',   iconColor: '#4ade80', glow: 'rgba(34, 197, 94, 0.18)' },
+  blue:    { rgb: '59, 130, 246',  iconColor: '#60a5fa', glow: 'rgba(59, 130, 246, 0.18)' },
+  purple:  { rgb: '168, 85, 247',  iconColor: '#c084fc', glow: 'rgba(168, 85, 247, 0.18)' },
+  orange:  { rgb: '249, 115, 22',  iconColor: '#fb923c', glow: 'rgba(249, 115, 22, 0.18)' },
+  cyan:    { rgb: '6, 182, 212',   iconColor: '#22d3ee', glow: 'rgba(6, 182, 212, 0.18)' },
+  amber:   { rgb: '245, 158, 11',  iconColor: '#fbbf24', glow: 'rgba(245, 158, 11, 0.18)' },
+  emerald: { rgb: '16, 185, 129',  iconColor: '#34d399', glow: 'rgba(16, 185, 129, 0.18)' },
+  indigo:  { rgb: '99, 102, 241',  iconColor: '#818cf8', glow: 'rgba(99, 102, 241, 0.18)' },
+  teal:    { rgb: '20, 184, 166',  iconColor: '#2dd4bf', glow: 'rgba(20, 184, 166, 0.18)' },
+  fuchsia: { rgb: '217, 70, 239',  iconColor: '#e879f9', glow: 'rgba(217, 70, 239, 0.18)' },
+  slate:   { rgb: '148, 163, 184', iconColor: '#cbd5e1', glow: 'rgba(148, 163, 184, 0.18)' },
+  sky:     { rgb: '14, 165, 233',  iconColor: '#38bdf8', glow: 'rgba(14, 165, 233, 0.18)' },
+  rose:    { rgb: '244, 63, 94',   iconColor: '#fb7185', glow: 'rgba(244, 63, 94, 0.18)' },
 };
 
 function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 'tile', accent }) {
