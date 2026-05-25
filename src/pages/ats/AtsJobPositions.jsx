@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
-import { ATS_EMPLOYMENT_TYPE_KEYS } from '../../utils/atsEmploymentTypes';
 import FilterBar, { FilterChip, GroupByChip, MoreFiltersPopover, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
 import { groupRecords, sortGroupsByCount } from '../../utils/grouping';
 import { useDensity } from '../../hooks/useDensity';
@@ -75,367 +74,6 @@ function ApprovalBadge({ status }) {
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${styles[key] || 'bg-dark-700 text-dark-400'}`}>
       {labels[key] || status || 'Pending'}
     </span>
-  );
-}
-
-/* ── New Job Modal ────────────────────────────────────────────────────── */
-const EMPTY_JOB = {
-  name: '',
-  department: '',
-  description: '',
-  recruiterId: '',
-  clientName: '',
-  expectedHires: 1,
-  employmentType: '',
-  location: '',
-  requiredExperience: '',
-  approvalStatus: 'pending',
-  approverId: '',
-  clientBudget: '',
-  maxBudget: '',
-  hiringMode: '',
-  accountOwnerId: '',
-};
-
-const EXPERIENCE_OPTIONS = [
-  { value: '', label: 'Select Experience' },
-  { value: '0-2 Years', label: '0-2 Years' },
-  { value: '2-5 Years', label: '2-5 Years' },
-  { value: '5-8 Years', label: '5-8 Years' },
-  { value: '8-11 Years', label: '8-11 Years' },
-  { value: '11-14 Years', label: '11-14 Years' },
-  { value: '14+ Years', label: '14+ Years' },
-];
-
-const APPROVAL_STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-];
-
-const HIRING_MODE_OPTIONS = [
-  { value: '', label: 'Select Hiring Mode' },
-  { value: 'C2C', label: 'C2C' },
-  { value: 'C2H', label: 'C2H' },
-  { value: 'Full-time Hire', label: 'Full-time Hire' },
-  { value: 'C2C or Full-time Hire', label: 'C2C or Full-time Hire' },
-];
-
-function NewJobModal({ show, onClose, onSaved, orgSlug }) {
-  const modalRef = useRef(null);
-  const { showToast } = useToast();
-  const [form, setForm] = useState(EMPTY_JOB);
-  const [saving, setSaving] = useState(false);
-  const [recruiters, setRecruiters] = useState([]);
-
-  // Fetch recruiters for user dropdowns
-  useEffect(() => {
-    if (!orgSlug) return;
-    atsApi.listRecruiters(orgSlug).then((res) => {
-      if (res.success && res.recruiters) {
-        setRecruiters(res.recruiters);
-      }
-    }).catch(() => {});
-  }, [orgSlug]);
-
-  useEffect(() => {
-    if (show) {
-      setForm(EMPTY_JOB);
-      setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
-    }
-  }, [show]);
-
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-
-    try {
-      setSaving(true);
-      const payload = {
-        name: form.name.trim(),
-        department: form.department.trim(),
-        description: form.description.trim(),
-        recruiterId: form.recruiterId || undefined,
-        clientName: form.clientName.trim(),
-        expectedHires: Number(form.expectedHires) || 1,
-        employmentType: form.employmentType.trim(),
-        location: form.location.trim(),
-        requiredExperience: form.requiredExperience,
-        approvalStatus: form.approvalStatus,
-        approverId: form.approverId || undefined,
-        clientBudget: form.clientBudget ? Number(form.clientBudget) : undefined,
-        maxBudget: form.maxBudget ? Number(form.maxBudget) : undefined,
-        hiringMode: form.hiringMode,
-        accountOwnerId: form.accountOwnerId || undefined,
-      };
-      const res = await atsApi.createJob(orgSlug, payload);
-      if (res.success) {
-        showToast('Job position created');
-        onSaved();
-        onClose();
-      }
-    } catch (err) {
-      showToast(err.message || 'Failed to create job position', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!show) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="job-modal-title"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-2xl my-8"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h3 id="job-modal-title" className="text-lg font-semibold text-white">
-            New Job Position
-          </h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Position Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="e.g. Senior Software Engineer"
-              className="input-field"
-            />
-          </div>
-
-          {/* Department & Employment Type */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Department</label>
-              <input
-                type="text"
-                value={form.department}
-                onChange={(e) => handleChange('department', e.target.value)}
-                placeholder="e.g. Engineering"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Employment Type</label>
-              <select
-                value={form.employmentType}
-                onChange={(e) => handleChange('employmentType', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Pick employment type…</option>
-                {ATS_EMPLOYMENT_TYPE_KEYS.map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Recruiter & Client */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Recruiter</label>
-              <select
-                value={form.recruiterId}
-                onChange={(e) => handleChange('recruiterId', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select Recruiter</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name || r.email}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Client</label>
-              <input
-                type="text"
-                value={form.clientName}
-                onChange={(e) => handleChange('clientName', e.target.value)}
-                placeholder="Client / Company"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Location & Expected Hires */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Location</label>
-              <input
-                type="text"
-                value={form.location}
-                onChange={(e) => handleChange('location', e.target.value)}
-                placeholder="e.g. Remote, NYC"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Expected Hires</label>
-              <input
-                type="number"
-                value={form.expectedHires}
-                onChange={(e) => handleChange('expectedHires', e.target.value)}
-                min="1"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Required Experience & Hiring Mode */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Required Experience</label>
-              <select
-                value={form.requiredExperience}
-                onChange={(e) => handleChange('requiredExperience', e.target.value)}
-                className="input-field"
-              >
-                {EXPERIENCE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Hiring Mode</label>
-              <select
-                value={form.hiringMode}
-                onChange={(e) => handleChange('hiringMode', e.target.value)}
-                className="input-field"
-              >
-                {HIRING_MODE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Client Budget & Max Budget */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Client Budget</label>
-              <input
-                type="number"
-                value={form.clientBudget}
-                onChange={(e) => handleChange('clientBudget', e.target.value)}
-                placeholder="e.g. 80000"
-                min="0"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Max Budget (Candidate)</label>
-              <input
-                type="number"
-                value={form.maxBudget}
-                onChange={(e) => handleChange('maxBudget', e.target.value)}
-                placeholder="e.g. 120000"
-                min="0"
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          {/* Approval Status & Approver */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Approval Status</label>
-              <select
-                value={form.approvalStatus}
-                onChange={(e) => handleChange('approvalStatus', e.target.value)}
-                className="input-field"
-              >
-                {APPROVAL_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Approver</label>
-              <select
-                value={form.approverId}
-                onChange={(e) => handleChange('approverId', e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select Approver</option>
-                {recruiters.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name || r.email}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Account Owner. 2026-05-17: Account Manager removed per
-              user feedback — Huemot's workflow uses Account Owner as
-              the salesperson field; the second slot was redundant. */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Account Owner</label>
-            <select
-              value={form.accountOwnerId}
-              onChange={(e) => handleChange('accountOwnerId', e.target.value)}
-              className="input-field"
-            >
-              <option value="">Select Account Owner</option>
-              {recruiters.map((r) => (
-                <option key={r._id} value={r._id}>{r.name || r.email}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Description</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              placeholder="Job description..."
-              rows={3}
-              className="input-field resize-none"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {saving && <Loader2 size={16} className="animate-spin" />}
-              Create Job
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }
 
@@ -510,21 +148,32 @@ export default function AtsJobPositions() {
   // History entry uses `replace: true` so the default-application
   // doesn't pollute back-button history.
   useEffect(() => {
-    let mutated = false;
+    // 2026-05-25 health-check F-P1-8: only inject defaults when ALL of
+    // the relevant landing keys are absent. Previously the per-key
+    // `searchParams.has(x)` checks ran independently, so a bookmarked
+    // URL like `/ats/jobs?status=closed` would still get
+    // `approvalStatus=approved` slammed on top, narrowing the view to
+    // closed-AND-approved. Treat any explicit filter key as a signal
+    // that the user is driving the URL and skip default-injection
+    // entirely. Within-route entries (sidebar re-click) preserve the
+    // user's URL; a fresh /ats/jobs visit still gets all three defaults.
+    const userHasFilters = (
+      searchParams.has('status')
+      || searchParams.has('approvalStatus')
+      || searchParams.has('groupBy')
+      || searchParams.has('search')
+      || searchParams.has('hiringMode')
+      || searchParams.has('requiredExperience')
+      || searchParams.has('recruiter')
+      || searchParams.has('clientName')
+      || searchParams.has('archived')
+    );
+    if (userHasFilters) return;
     const np = new URLSearchParams(searchParams);
-    if (!searchParams.has('status')) {
-      np.set('status', 'open');
-      mutated = true;
-    }
-    if (!searchParams.has('approvalStatus')) {
-      np.set('approvalStatus', 'approved');
-      mutated = true;
-    }
-    if (!searchParams.has('groupBy')) {
-      np.set('groupBy', 'status');
-      mutated = true;
-    }
-    if (mutated) setSearchParams(np, { replace: true });
+    np.set('status', 'open');
+    np.set('approvalStatus', 'approved');
+    np.set('groupBy', 'status');
+    setSearchParams(np, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 

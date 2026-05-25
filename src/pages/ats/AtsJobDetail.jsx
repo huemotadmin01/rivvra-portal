@@ -293,7 +293,11 @@ function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
   const [draft, setDraft] = useState(safeValue);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { setDraft(safeValue); }, [safeValue]);
+  // F-P2-12: only re-seed draft when not actively editing. Parent
+  // re-renders (activity-panel polling, etc.) used to wipe the
+  // in-progress edit because `safeValue` identity flipped on every
+  // re-render.
+  useEffect(() => { if (!editing) setDraft(safeValue); }, [safeValue, editing]);
 
   const handleSave = async () => {
     if ((draft || '') === safeValue) { setEditing(false); return; }

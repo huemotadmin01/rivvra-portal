@@ -25,6 +25,13 @@ export default function AtsCandidateNew() {
   const orgSlug = currentOrg?.slug;
   const isAdmin = getAppRole('ats') === 'admin';
 
+  // Hooks must be declared before any conditional return to keep hook
+  // ordering stable across renders. The non-admin gate below otherwise
+  // changes the hook count when the role flips, producing the
+  // "Rendered fewer hooks than expected" prod crash we hit in May.
+  const [form, setForm] = useState({ name: '', email: '', phone: '', mobile: '', linkedinProfile: '' });
+  const [saving, setSaving] = useState(false);
+
   // 2026-05-21: candidate creation is admin-only. Mirrors the list-page
   // button gate so a non-admin can't reach the form by typing the URL.
   if (!isAdmin) {
@@ -46,8 +53,6 @@ export default function AtsCandidateNew() {
       </div>
     );
   }
-  const [form, setForm] = useState({ name: '', email: '', phone: '', mobile: '', linkedinProfile: '' });
-  const [saving, setSaving] = useState(false);
 
   const canSubmit = form.name.trim() && form.email.trim();
 

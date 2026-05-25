@@ -44,6 +44,10 @@ export default function AtsMyApprovals() {
   const [pending, setPending] = useState([]);
   const [decided, setDecided] = useState([]);
   const [loading, setLoading] = useState(true);
+  // F-P2-9: track first-load separately so refetches (e.g. showFull toggle)
+  // don't blank-flash the displayed rows. Initial load still shows the
+  // skeleton; subsequent refetches keep the prior list visible.
+  const [hasLoaded, setHasLoaded] = useState(false);
   // 2026-05-17 health-check H.3: surface truncation when the API totals
   // exceed what we pulled in the first page. Previously a org with >50
   // approved jobs silently lost rows past the limit; recruiters had no
@@ -55,7 +59,7 @@ export default function AtsMyApprovals() {
 
   const fetchLists = useCallback(async () => {
     if (!orgSlug) return;
-    setLoading(true);
+    if (!hasLoaded) setLoading(true);
     try {
       const cap = showFull ? 500 : 100;
       const [pRes, aRes, rRes] = await Promise.all([
@@ -74,8 +78,9 @@ export default function AtsMyApprovals() {
       console.error('Failed to load My Approvals:', err);
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
-  }, [orgSlug, showFull]);
+  }, [orgSlug, showFull, hasLoaded]);
 
   useEffect(() => { fetchLists(); }, [fetchLists]);
 

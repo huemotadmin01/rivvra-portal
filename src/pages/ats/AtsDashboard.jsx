@@ -1249,7 +1249,7 @@ export default function AtsDashboard() {
                   {item.jobName && <span className="text-dark-500"> · {item.jobName}</span>}
                 </span>
                 <span className="text-xs text-orange-400 shrink-0">
-                  {item.overdue.map((o) => o.label.replace(' Interview', '').replace(' Discussion', '')).join(', ')}
+                  {(item.overdue || []).map((o) => o.label.replace(' Interview', '').replace(' Discussion', '')).join(', ')}
                 </span>
               </Link>
             </li>

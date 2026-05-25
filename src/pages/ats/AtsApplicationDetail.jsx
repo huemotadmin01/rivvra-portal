@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useAuth } from '../../context/AuthContext';
@@ -1797,6 +1797,13 @@ export default function AtsApplicationDetail() {
   // the missing kind. After upload, re-fire the original transition.
   //   { stageId, targetStageName, missingAttachment } | null
   const [pendingAttachmentMove, setPendingAttachmentMove] = useState(null);
+  // Resume gate (memory ats_resume_gate_2026_05_22): every forward stage
+  // move requires an attachment with isResume=true on the candidate.
+  // Backend returns { requiresResume: true, code: RESUME_MISSING }.
+  // We open the same AttachmentUploadModal shape with a synthetic
+  // "missingAttachment" descriptor pointing at the resume isResume flag.
+  //   { stageId, targetStageName } | null
+  const [pendingResumeMove, setPendingResumeMove] = useState(null);
   // Phase-1 / Q26 (2026-05-11): when a forward move into L1 / L2 / HR
   // is blocked because the interview slot is missing, open the
   // InterviewScheduleModal pre-filled with whatever the API echoes
@@ -1866,11 +1873,23 @@ export default function AtsApplicationDetail() {
   const isViewOnly = !!(canRecruit && application && !canActOnThis);
 
   // ── Fetch application ─────────────────────────────────────────────────
+  // Race guard via monotonic seq — rapid stage moves trigger multiple
+  // fetchApplication calls; without this, an out-of-order response can
+  // overwrite fresh data with stale data. List pages use _requestKey
+  // dedup; detail page did not until 2026-05-25 health-check F-P1-5.
+  const fetchAppSeq = useRef(0);
   const fetchApplication = useCallback(async () => {
     if (!orgSlug || !applicationId) return;
+    // ObjectId shape check — Express :applicationId catches segments like
+    // "new" / "create" / typos and would otherwise 404 with a misleading
+    // "Application not found" toast. Gate the fetch on a valid 24-char
+    // hex shape; show NotFound directly without burning a request.
+    if (!/^[a-f0-9]{24}$/i.test(applicationId)) { setLoading(false); return; }
+    const mySeq = ++fetchAppSeq.current;
     setLoading(true);
     try {
       const res = await atsApi.getApplication(orgSlug, applicationId);
+      if (mySeq !== fetchAppSeq.current) return;
       if (res.success) {
         // Merge enriched fields onto the doc so InlineField can read
         // them as plain properties.
@@ -1904,10 +1923,11 @@ export default function AtsApplicationDetail() {
         setApplication(merged);
       }
     } catch (err) {
+      if (mySeq !== fetchAppSeq.current) return;
       console.error('Failed to load application:', err);
       showToast('Failed to load application', 'error');
     } finally {
-      setLoading(false);
+      if (mySeq === fetchAppSeq.current) setLoading(false);
     }
   }, [orgSlug, applicationId, showToast]);
 
@@ -2025,6 +2045,17 @@ export default function AtsApplicationDetail() {
           stageId,
           fromStageName: err.currentStageName || '',
           toStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
+        });
+        return;
+      }
+      // Resume gate (memory ats_resume_gate_2026_05_22): forward move
+      // requires isResume=true attachment on the candidate. Pre-load
+      // the upload modal pointing at "Resume" so the recruiter has the
+      // same targeted affordance as the per-stage attachment gate.
+      if (err?.requiresResume || err?.code === 'RESUME_MISSING') {
+        setPendingResumeMove({
+          stageId,
+          targetStageName: err.targetStageName || stages.find((s) => s._id === stageId)?.name || '',
         });
         return;
       }
@@ -2342,6 +2373,25 @@ export default function AtsApplicationDetail() {
     }
   };
 
+  // Resume gate retry — uploads with isResume=true (no kind slug) so the
+  // gate at /stage clears, then re-fires the original move.
+  const handleResumeUpload = async (file) => {
+    if (!pendingResumeMove) return;
+    const { stageId } = pendingResumeMove;
+    try {
+      setActionSaving(true);
+      await atsApi.uploadAttachment(orgSlug, applicationId, file, true);
+      showToast('Resume uploaded');
+      setPendingResumeMove(null);
+      await handleMoveStage(stageId);
+      fetchApplication();
+    } catch (err) {
+      showToast(err.message || 'Upload failed', 'error');
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
   // Phase-1 / Q26 (2026-05-11): save the interview slot via /interview
   // and re-fire the original stage move. Same chained-action pattern
   // as the offer/attachment gates: clear the pending state, retry
@@ -2565,7 +2615,12 @@ export default function AtsApplicationDetail() {
   }
 
   const currentStageId = application.stageId?._id || application.stageId;
-  const currentStageName = application.stageName || application.stageId?.name || 'Unknown';
+  // Resolve via stageId first; stageName is a stale denorm cache (memory
+  // feedback_stage_name_stale, measured 39/2789 drift on 2026-05-20).
+  const currentStageName = stages.find((s) => s._id === currentStageId)?.name
+    || application.stageName
+    || application.stageId?.name
+    || 'Unknown';
   // 2026-05-18 PM: the Capture Offer / Offer button only appears from the
   // Offer Proposal stage onwards. Match by sequence so renamed stages still
   // gate correctly — find the earliest Offer Proposal stage in the org's
@@ -2896,7 +2951,7 @@ export default function AtsApplicationDetail() {
               editable={canEdit}
               onSave={saveField}
               displayValue={application.evaluation > 0
-                ? <span className="text-amber-400">{'★'.repeat(application.evaluation)}</span>
+                ? <span className="text-amber-400">{'★'.repeat(Math.max(0, Math.min(3, Number(application.evaluation) || 0)))}</span>
                 : undefined}
             />
             {application.candidateId && (
@@ -3444,6 +3499,14 @@ export default function AtsApplicationDetail() {
         saving={actionSaving}
         targetStageName={pendingAttachmentMove?.targetStageName}
         missingAttachment={pendingAttachmentMove?.missingAttachment}
+      />
+      <AttachmentUploadModal
+        show={!!pendingResumeMove}
+        onClose={() => setPendingResumeMove(null)}
+        onConfirm={handleResumeUpload}
+        saving={actionSaving}
+        targetStageName={pendingResumeMove?.targetStageName}
+        missingAttachment={{ slug: 'resume', label: 'Resume', mime: 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document', maxSizeMb: null }}
       />
       <InterviewScheduleModal
         show={!!pendingInterviewMove}

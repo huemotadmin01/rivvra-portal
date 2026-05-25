@@ -255,16 +255,25 @@ export default function AtsApplicationNew() {
   }, [orgSlug, form.candidateId, jobId]);
 
   // ── Candidate typeahead behavior ─────────────────────────────────────
+  // Race guard: rapid typing can let a slow earlier request resolve
+  // AFTER a fast later one, overwriting fresh results with stale ones
+  // and hiding the "Create new candidate" footer when the typed query
+  // doesn't match the stale set. A monotonic seq id is checked before
+  // each setState; any reply with an older seq is dropped.
+  const candSearchSeq = useRef(0);
   const searchCandidates = useCallback(async (q) => {
     if (!orgSlug) return;
+    const mySeq = ++candSearchSeq.current;
     setCandSearching(true);
     try {
       const res = await atsApi.listCandidates(orgSlug, { search: q || '', limit: 20 });
+      if (mySeq !== candSearchSeq.current) return;
       setCandResults(res?.candidates || []);
     } catch {
+      if (mySeq !== candSearchSeq.current) return;
       setCandResults([]);
     } finally {
-      setCandSearching(false);
+      if (mySeq === candSearchSeq.current) setCandSearching(false);
     }
   }, [orgSlug]);
 

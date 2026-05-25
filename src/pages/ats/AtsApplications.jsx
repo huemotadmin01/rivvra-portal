@@ -261,6 +261,17 @@ export default function AtsApplications() {
   // user's cleared chip mid-session.
   useEffect(() => {
     if (searchParams.has('groupBy')) return;
+    // 2026-05-25 F-P1-9: respect explicit user-clear across reloads.
+    // Without this, clearing the groupBy chip and refreshing re-injected
+    // groupBy=stage. Track "defaults applied for this lifecycle in this
+    // tab" in sessionStorage; if set, skip re-injection.
+    const lifecycleKey = `ats-apps-groupby-applied:${
+      searchParams.get('archived') === '1' ? 'archived'
+      : searchParams.get('applicationStatus') === 'hired' ? 'hired'
+      : searchParams.get('applicationStatus') === 'refused' ? 'refused'
+      : 'ongoing'
+    }`;
+    if (sessionStorage.getItem(lifecycleKey)) return;
     // Lifecycle inference — must match the lifecycle derivation at the
     // top of this component so the two stay consistent.
     const isArchived = searchParams.get('archived') === '1' || searchParams.get('archived') === 'true';
@@ -272,6 +283,7 @@ export default function AtsApplications() {
     const np = new URLSearchParams(searchParams);
     np.set('groupBy', 'stage');
     setSearchParams(np, { replace: true });
+    sessionStorage.setItem(lifecycleKey, '1');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
@@ -685,8 +697,12 @@ export default function AtsApplications() {
           {/* Bulk action bar — appears when one or more rows are selected.
               Sits above the table so it's clearly tied to the list. */}
           {selectedIds.size > 0 && (
-            <div className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30">
-              <span className="text-sm text-white font-medium">
+            <div
+              className="card flex flex-wrap items-center gap-3 p-3 bg-rivvra-500/10 border-rivvra-500/30"
+              role="region"
+              aria-label="Bulk actions"
+            >
+              <span className="text-sm text-white font-medium" aria-live="polite">
                 {selectedIds.size} selected
               </span>
               <button
@@ -847,7 +863,10 @@ export default function AtsApplications() {
 
                       {/* Stage */}
                       <td className="px-4 py-3">
-                        <StageBadge stageName={app.stageName || app.stageId?.name} />
+                        {/* stageName is a stale denorm cache (memory feedback_stage_name_stale,
+                            39/2789 mismatched on 2026-05-20). Resolve via stageId against the
+                            local stages array first. */}
+                        <StageBadge stageName={stages.find((s) => s._id === app.stageId)?.name || app.stageName || app.stageId?.name} />
                       </td>
 
                       {/* Recruiter. Phase N: conditional Link to employee
