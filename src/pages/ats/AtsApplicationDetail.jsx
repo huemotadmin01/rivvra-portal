@@ -2621,15 +2621,22 @@ export default function AtsApplicationDetail() {
     || application.stageName
     || application.stageId?.name
     || 'Unknown';
-  // 2026-05-18 PM: the Capture Offer / Offer button only appears from the
+  // 2026-05-18 PM: the Capture Offer / Offer button appears from the
   // Offer Proposal stage onwards. Match by sequence so renamed stages still
   // gate correctly — find the earliest Offer Proposal stage in the org's
   // configured stages and compare the current stage's sequence against it.
+  // 2026-05-25 regression fix: the backend gate requires offer captured
+  // BEFORE moving INTO Offer Proposal (requiresOffer fires on the
+  // forward move attempt from HR Discussion / the prior stage). The
+  // previous strict `>=` left the user trapped: they couldn't move
+  // forward AND couldn't capture the offer because the button was hidden.
+  // Lower the threshold by 1 so the button is reachable from the stage
+  // immediately before Offer Proposal (typically HR Discussion).
   const OFFER_PROPOSAL_NAMES = new Set(['offer proposal', 'offer extended', 'offer rolled out', 'offer']);
   const offerProposalStage = stages.find((s) => OFFER_PROPOSAL_NAMES.has((s.name || '').toLowerCase().trim()));
   const currentStage = stages.find((s) => s._id === currentStageId);
   const isAtOrPastOfferProposal = !!(offerProposalStage && currentStage
-    && Number(currentStage.sequence ?? 0) >= Number(offerProposalStage.sequence ?? Infinity));
+    && Number(currentStage.sequence ?? 0) >= Number((offerProposalStage.sequence ?? Infinity) - 1));
 
   // 2026-05-20 Documents Collection gate — show the checklist card on/after
   // entry to Documents Collection (recruiter needs to track receipt and
