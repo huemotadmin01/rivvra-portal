@@ -118,9 +118,20 @@ export default function CrmConfigTags() {
   };
 
   // ── Delete ──────────────────────────────────────────────────────────────
+  // 2026-05-25 health-check P1: previous version had two bugs.
+  // (1) The modal Delete button called `onClick={handleDelete}` which
+  //     passed the synthetic React event as `tagToDelete`. `target = event
+  //     || editingTag` resolved to the truthy event, `target._id` was
+  //     undefined → silent no-op. Modal Delete looked broken to the user.
+  // (2) The inline-row Delete had no confirm; a misclick on the tiny trash
+  //     icon permanently dropped a tag (LostReasons uses ConfirmDialog,
+  //     Stages uses native confirm — Tags had nothing).
+  // Now: only treat `tagToDelete` as a target if it's a real tag (has _id),
+  // and wrap inline-row delete with a native confirm.
   const handleDelete = async (tagToDelete) => {
-    const target = tagToDelete || editingTag;
+    const target = (tagToDelete && tagToDelete._id) ? tagToDelete : editingTag;
     if (!target) return;
+    if (!window.confirm(`Delete tag "${target.name}"? This cannot be undone.`)) return;
     setSaving(true);
     try {
       await crmApi.deleteTag(orgSlug, target._id);

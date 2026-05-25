@@ -110,13 +110,29 @@ export default function CrmOpportunityDetail() {
   const [showStageDetachModal, setShowStageDetachModal] = useState(null);
   const [errorFields, setErrorFields] = useState(new Set());
   const fieldRefs = useRef({});
+  // 2026-05-25 health-check P1: the deferred bumpActivities setTimeout
+  // used to leak — if the user navigated away within 2s, setState fired
+  // on an unmounted component. Track the timer so we can cancel on
+  // unmount. Also gate the deferred setState on a mounted flag.
+  const bumpTimerRef = useRef(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
+    };
+  }, []);
 
   // Bump twice — immediate (sync audit rows like stage_change,
   // field_change) + after ~2s (async fire-and-forget rows like
   // email_sent that the server records after the response returns).
   const bumpActivities = useCallback(() => {
     setActivityRefreshKey(k => k + 1);
-    setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
+    if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
+    bumpTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) setActivityRefreshKey(k => k + 1);
+    }, 2000);
   }, []);
 
   // Mount-only: pull opp + stages in parallel. Lost reasons are

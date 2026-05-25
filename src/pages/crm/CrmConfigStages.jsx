@@ -99,7 +99,11 @@ export default function CrmConfigStages() {
           isWonStage: formIsWon,
         });
       } else {
-        await crmApi.createStage(orgSlug, { name: trimmed });
+        // 2026-05-25 health-check P1: the modal already exposes the
+        // isWonStage toggle on Create (per the 2026-05-14 design), but
+        // this call dropped it on the floor. New "Won"-flagged stages
+        // could only be created by editing-after-create — confusing.
+        await crmApi.createStage(orgSlug, { name: trimmed, isWonStage: formIsWon });
       }
       // Close modal and refresh — do this before toast to ensure modal closes
       setModalOpen(false);
