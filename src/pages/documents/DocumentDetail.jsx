@@ -99,6 +99,17 @@ export default function DocumentDetail() {
 
   async function handleReplace(file) {
     if (!file) return;
+    // Client-side 50 MB cap matches the server (memory: documents_app_design_locked).
+    // Without this, large files burn an entire round-trip + bandwidth only to be
+    // rejected. The Huemot migration already saw 2 files (34 MB zip, 15 MB PDF)
+    // refused — surface this synchronously.
+    const MAX_BYTES = 50 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast({ title: 'File too large', description: `Max 50 MB. This file is ${(file.size / 1024 / 1024).toFixed(1)} MB.`, variant: 'error' });
+      // Clear the input so re-picking the same file re-fires onChange.
+      if (replaceFileInput.current) replaceFileInput.current.value = '';
+      return;
+    }
     setBusy(true);
     try {
       const fd = new FormData();
@@ -111,6 +122,8 @@ export default function DocumentDetail() {
       toast({ title: 'Upload failed', description: e.message, variant: 'error' });
     } finally {
       setBusy(false);
+      // Reset so picking the same file again re-fires.
+      if (replaceFileInput.current) replaceFileInput.current.value = '';
     }
   }
 
@@ -218,11 +231,30 @@ export default function DocumentDetail() {
           <Field label="Folder" icon={Folder}>
             {isAdmin ? (
               <select
+                aria-label="Folder"
                 value={String(doc.folderId || '')}
-                onChange={(e) => handleMetadataUpdate({ folderId: e.target.value })}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next === String(doc.folderId || '')) return;
+                  // 2026-05-25: confirm before moving — without the gate, an
+                  // accidental click on the native <select> silently
+                  // relocated the document. Native confirm is enough here.
+                  const target = folders.find((f) => String(f._id) === next);
+                  const label = target?.name || '(none)';
+                  if (!window.confirm(`Move "${doc.name}" to "${label}"?`)) {
+                    return;
+                  }
+                  handleMetadataUpdate({ folderId: next });
+                }}
                 className="w-full px-2 py-1 rounded bg-dark-800 border border-dark-700 text-dark-100 text-sm"
               >
+                <option value="">— No folder —</option>
                 {folders.map((f) => <option key={f._id} value={f._id}>{f.name}</option>)}
+                {/* If current folder is archived (so absent from `folders`), inject it
+                    as a fallback option so the select correctly reflects state. */}
+                {doc.folderId && !folders.some((f) => String(f._id) === String(doc.folderId)) && (
+                  <option value={String(doc.folderId)}>(archived folder)</option>
+                )}
               </select>
             ) : (
               <span className="text-sm text-dark-200">{folders.find((f) => String(f._id) === String(doc.folderId))?.name || '—'}</span>

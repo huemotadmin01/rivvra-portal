@@ -10,17 +10,10 @@ import FilterBar, {
 } from '../../components/shared/FilterBar';
 import {
   Loader2, FolderOpen, Folder, Upload, Settings,
-  FileText, Image as ImageIcon, FileArchive,
-  Tag as TagIcon,
+  FileText, Tag as TagIcon,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
-
-function fileIcon(mime) {
-  if (!mime) return FileText;
-  if (mime.startsWith('image/')) return ImageIcon;
-  if (mime.includes('zip')) return FileArchive;
-  return FileText;
-}
+import { fileIconFor, fileIconColorFor } from '../../utils/fileIcon';
 
 function formatSize(n) {
   if (!n && n !== 0) return '';
@@ -179,7 +172,21 @@ export default function DocumentsList() {
       if (!map.has(k)) map.set(k, []);
       map.get(k).push(d);
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    // 2026-05-25: when grouping by month, sort chronologically (newest first)
+    // instead of alphabetically — "April 2026" used to land before "October
+    // 2025" because of localeCompare. For folder/mimeType, alphabetical still
+    // matches user expectations.
+    const entries = Array.from(map.entries());
+    if (groupBy === 'uploadedMonth') {
+      entries.sort(([a], [b]) => {
+        const da = a === '(unknown)' ? -Infinity : new Date(a).getTime();
+        const db = b === '(unknown)' ? -Infinity : new Date(b).getTime();
+        return db - da;
+      });
+    } else {
+      entries.sort(([a], [b]) => a.localeCompare(b));
+    }
+    return entries;
   }, [docs, groupBy, foldersById]);
 
   if (!currentCompany) {
@@ -297,43 +304,103 @@ export default function DocumentsList() {
 function DocsGrid({ docs, tagsById, onOpen }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-      {docs.map((d) => {
-        const Icon = fileIcon(d.currentVersion?.mimeType);
-        return (
-          <button key={d._id}
-            onClick={() => onOpen(d)}
-            className={`text-left flex items-start gap-3 p-3 rounded-lg border bg-dark-900 hover:bg-dark-800 transition ${d.archived ? 'border-amber-500/30 opacity-70' : 'border-dark-800'}`}>
-            <Icon className="w-5 h-5 mt-0.5 text-dark-400 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-dark-100 truncate">{d.name}</h3>
-                {d.archived && <span className="text-[10px] uppercase tracking-wider text-amber-400">Archived</span>}
-              </div>
-              <div className="text-xs text-dark-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                <span>{formatSize(d.currentVersion?.size)}</span>
-                <span>·</span>
-                <span>{formatDateUTC(d.currentVersion?.uploadedAt || d.updatedAt)}</span>
-                {(d.versions?.length || 0) > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{(d.versions.length || 0) + 1} versions</span>
-                  </>
-                )}
-              </div>
-              {d.tagIds?.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {d.tagIds.slice(0, 4).map((tid) => {
-                    const t = tagsById.get(String(tid));
-                    if (!t) return null;
-                    return <span key={tid} className="px-1.5 py-0.5 rounded text-[10px] bg-dark-800 text-dark-300 border border-dark-700">{t.name}</span>;
-                  })}
-                  {d.tagIds.length > 4 && <span className="text-[10px] text-dark-500">+{d.tagIds.length - 4}</span>}
-                </div>
-              )}
-            </div>
-          </button>
-        );
-      })}
+      {docs.map((d) => (
+        <DocCard key={d._id} doc={d} tagsById={tagsById} onOpen={onOpen} />
+      ))}
     </div>
+  );
+}
+
+// DocCard — extracted so each row can lazily fetch its own image thumbnail
+// signed URL without re-fetching on parent re-render. For non-images we just
+// render the MIME-coloured lucide icon.
+function DocCard({ doc: d, tagsById, onOpen }) {
+  const mime = d.currentVersion?.mimeType;
+  const isImage = typeof mime === 'string' && mime.startsWith('image/');
+  const Icon = fileIconFor(mime);
+  const iconColor = fileIconColorFor(mime);
+  return (
+    <button
+      onClick={() => onOpen(d)}
+      className={`text-left flex items-start gap-3 p-3 rounded-lg border bg-dark-900 hover:bg-dark-800 transition ${d.archived ? 'border-amber-500/30 opacity-70' : 'border-dark-800'}`}>
+      {/* Thumbnail: signed image preview for images, MIME-coloured icon for everything else */}
+      {isImage ? (
+        <DocImageThumb docId={d._id} alt={d.name} />
+      ) : (
+        <div className="w-12 h-12 rounded-md bg-dark-800 border border-dark-700 flex items-center justify-center shrink-0">
+          <Icon className={`w-6 h-6 ${iconColor}`} />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-medium text-dark-100 truncate">{d.name}</h3>
+          {d.archived && <span className="text-[10px] uppercase tracking-wider text-amber-400">Archived</span>}
+        </div>
+        <div className="text-xs text-dark-500 mt-0.5 flex items-center gap-2 flex-wrap">
+          <span>{formatSize(d.currentVersion?.size)}</span>
+          <span>·</span>
+          <span>{formatDateUTC(d.currentVersion?.uploadedAt || d.updatedAt)}</span>
+          {(d.versions?.length || 0) > 0 && (
+            <>
+              <span>·</span>
+              <span>{(d.versions.length || 0) + 1} versions</span>
+            </>
+          )}
+        </div>
+        {d.tagIds?.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {d.tagIds.slice(0, 4).map((tid) => {
+              const t = tagsById.get(String(tid));
+              if (!t) return null;
+              return <span key={tid} className="px-1.5 py-0.5 rounded text-[10px] bg-dark-800 text-dark-300 border border-dark-700">{t.name}</span>;
+            })}
+            {d.tagIds.length > 4 && <span className="text-[10px] text-dark-500">+{d.tagIds.length - 4}</span>}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// Lazy signed-URL image thumbnail. Fetches its own preview URL on mount;
+// falls back to the MIME icon if the signed-URL fetch fails or is still
+// resolving. Renders a 12×12 (48 px) square so it visually matches the
+// icon-tile alternative.
+function DocImageThumb({ docId, alt }) {
+  const { orgSlug } = useOrg();
+  const [src, setSrc] = useState('');
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!orgSlug || !docId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await documentsApi.previewUrl(orgSlug, docId);
+        if (cancelled) return;
+        // API returns { success, data: { url, expiresAt, mimeType, ... } }.
+        const url = r?.data?.url || r?.url;
+        if (r?.success && typeof url === 'string') setSrc(url); else setFailed(true);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgSlug, docId]);
+  if (failed || !src) {
+    return (
+      <div className="w-12 h-12 rounded-md bg-dark-800 border border-dark-700 flex items-center justify-center shrink-0">
+        {/* Placeholder while loading or on fail */}
+        <span className="block w-3 h-3 rounded-full bg-dark-700" aria-hidden />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || ''}
+      loading="lazy"
+      className="w-12 h-12 rounded-md object-cover border border-dark-700 bg-dark-800 shrink-0"
+      onError={() => setFailed(true)}
+    />
   );
 }
