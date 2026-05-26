@@ -2791,7 +2791,14 @@ export default function AtsApplicationDetail() {
                 </button>
               </>
             )}
-            {isAdmin && application.hireDate && !application.employeeId && (
+            {/* 2026-05-25: gate matches backend POST /:id/create-employee
+                which is atsAccess (recruiters + admins). Previously
+                isAdmin-only, leaving recruiters unable to finish the
+                hire→employee flow on their own apps. Create-Employee
+                happens AFTER hire, so canEdit (which excludes terminal
+                state) is the wrong gate — use canRecruit + canActOnThis
+                + !archived to allow action on hired apps. */}
+            {canRecruit && canActOnThis && !application?.archived && application.hireDate && !application.employeeId && (
               <button
                 onClick={() => setShowCreateEmpDrawer(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"

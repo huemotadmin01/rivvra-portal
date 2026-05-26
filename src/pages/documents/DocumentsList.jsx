@@ -316,7 +316,7 @@ function DocCard({ doc: d, tagsById, onOpen }) {
       className={`text-left flex items-start gap-3 p-3 rounded-lg border bg-dark-900 hover:bg-dark-800 transition ${d.archived ? 'border-amber-500/30 opacity-70' : 'border-dark-800'}`}>
       {/* Thumbnail: signed image preview for images, MIME-coloured icon for everything else */}
       {isImage ? (
-        <DocImageThumb docId={d._id} alt={d.name} />
+        <DocImageThumb docId={d._id} alt={d.name} fallbackIcon={Icon} fallbackIconColor={iconColor} />
       ) : (
         <div className="w-12 h-12 rounded-md bg-dark-800 border border-dark-700 flex items-center justify-center shrink-0">
           <Icon className={`w-6 h-6 ${iconColor}`} />
@@ -357,7 +357,7 @@ function DocCard({ doc: d, tagsById, onOpen }) {
 // falls back to the MIME icon if the signed-URL fetch fails or is still
 // resolving. Renders a 12×12 (48 px) square so it visually matches the
 // icon-tile alternative.
-function DocImageThumb({ docId, alt }) {
+function DocImageThumb({ docId, alt, fallbackIcon: FallbackIcon, fallbackIconColor }) {
   const { orgSlug } = useOrg();
   const [src, setSrc] = useState('');
   const [failed, setFailed] = useState(false);
@@ -377,11 +377,17 @@ function DocImageThumb({ docId, alt }) {
     })();
     return () => { cancelled = true; };
   }, [orgSlug, docId]);
+  // 2026-05-25 follow-up: render the MIME-coloured icon during the
+  // signed-URL fetch (and on fail), not an anonymous grey dot. Keeps
+  // image rows visually consistent with non-image rows during load.
   if (failed || !src) {
     return (
       <div className="w-12 h-12 rounded-md bg-dark-800 border border-dark-700 flex items-center justify-center shrink-0">
-        {/* Placeholder while loading or on fail */}
-        <span className="block w-3 h-3 rounded-full bg-dark-700" aria-hidden />
+        {FallbackIcon ? (
+          <FallbackIcon className={`w-6 h-6 ${fallbackIconColor || 'text-dark-400'}`} />
+        ) : (
+          <span className="block w-3 h-3 rounded-full bg-dark-700" aria-hidden />
+        )}
       </div>
     );
   }
