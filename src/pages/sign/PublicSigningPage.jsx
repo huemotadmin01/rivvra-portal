@@ -10,7 +10,8 @@ import { todayStr } from '../../utils/dateUtils';
 import { API_BASE_URL } from '../../utils/config';
 import {
   PenTool, Type, Calendar, User, Mail, Phone, Building2,
-  CheckSquare, AlignLeft, Loader2, Check, X, AlertTriangle,
+  CheckSquare, AlignLeft, Loader2, Check, CheckCircle2,
+  X, XCircle, AlertTriangle,
   ChevronDown, ChevronUp, FileText, Clock, Shield,
   ArrowRight, ArrowDown, Download,
 } from 'lucide-react';
@@ -966,6 +967,11 @@ export default function PublicSigningPage() {
   // State
   const [status, setStatus] = useState('loading'); // loading | signing | success | refused | error | waiting
   const [error, setError] = useState('');
+  // 2026-05-23: signerState captured from the verify endpoint so the
+  // error screen can branch on the actual terminal reason (completed /
+  // refused / cancelled / expired) instead of one alarming red triangle
+  // for all of them. Null until verify returns a signerState in the body.
+  const [terminalState, setTerminalState] = useState(null);
   const [request, setRequest] = useState(null);
   // Tracks whether the request reached the fully-signed state on this
   // signer's submit. Drives the "Download signed copy" CTA on the success
@@ -1071,6 +1077,11 @@ export default function PublicSigningPage() {
             setStatus('waiting');
             return;
           }
+          // Capture the terminal signer state so the error screen can
+          // branch on it (already-signed vs refused vs cancelled vs
+          // expired). Null when the backend didn't send a state — that
+          // path keeps falling through to the generic error template.
+          if (data.signerState) setTerminalState(data.signerState);
           throw new Error(data.error || 'This signing link is invalid or has expired.');
         }
 
@@ -1606,17 +1617,76 @@ export default function PublicSigningPage() {
   }
 
   if (status === 'error') {
+    // 2026-05-23 terminal-state polish: a signer who clicks the email
+    // link a second time used to see a red error triangle + "Unable to
+    // Open Document" even though they had just *successfully* signed
+    // — looked like a system failure. Branch the icon, headline, and
+    // copy on the backend-reported signerState so a completed signing
+    // reads as a success, a refusal/cancellation reads as informational,
+    // and only genuine errors (invalid token, etc.) keep the red look.
+    const variants = {
+      completed: {
+        bg: 'bg-emerald-100',
+        iconColor: 'text-emerald-600',
+        Icon: CheckCircle2,
+        title: "You've already signed this document",
+        body: 'Your signature was successfully captured. There is nothing more to do here.',
+        tone: 'success',
+      },
+      refused: {
+        bg: 'bg-amber-100',
+        iconColor: 'text-amber-600',
+        Icon: XCircle,
+        title: 'You declined to sign this document',
+        body: 'Your refusal was recorded and the sender has been notified.',
+        tone: 'info',
+      },
+      cancelled: {
+        bg: 'bg-gray-100',
+        iconColor: 'text-gray-600',
+        Icon: X,
+        title: 'This signing request was cancelled',
+        body: 'The sender cancelled this request, so it can no longer be signed.',
+        tone: 'info',
+      },
+      expired: {
+        bg: 'bg-amber-100',
+        iconColor: 'text-amber-600',
+        Icon: Clock,
+        title: 'This signing link has expired',
+        body: 'The sender set an expiry date that has now passed. Contact the sender for a new link if you still need to sign.',
+        tone: 'info',
+      },
+      // Fallback for null state and any unknown future state — keep the
+      // alarming look only for actual error conditions (invalid token,
+      // malformed URL, transport failure).
+      _generic: {
+        bg: 'bg-red-100',
+        iconColor: 'text-red-600',
+        Icon: AlertTriangle,
+        title: 'Unable to Open Document',
+        body: error,
+        tone: 'error',
+      },
+    };
+    const variant = variants[terminalState] || variants._generic;
+    const Icon = variant.Icon;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-            <AlertTriangle className="w-8 h-8 text-red-600" />
+          <div className={`w-16 h-16 ${variant.bg} rounded-full flex items-center justify-center mx-auto`}>
+            <Icon className={`w-8 h-8 ${variant.iconColor}`} />
           </div>
-          <h2 className="mt-5 text-xl font-semibold text-gray-900">Unable to Open Document</h2>
-          <p className="mt-3 text-sm text-gray-600">{error}</p>
-          <p className="mt-4 text-xs text-gray-400">
-            If you believe this is an error, please contact the sender.
-          </p>
+          <h2 className="mt-5 text-xl font-semibold text-gray-900">{variant.title}</h2>
+          <p className="mt-3 text-sm text-gray-600">{variant.body}</p>
+          {/* Sender-contact line is only useful for the generic / error
+              path. For known terminal states the body already explains
+              what happened so this would just add visual noise. */}
+          {variant.tone === 'error' && (
+            <p className="mt-4 text-xs text-gray-400">
+              If you believe this is an error, please contact the sender.
+            </p>
+          )}
           <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-400 flex items-center justify-center gap-1.5">
             <Shield className="w-3.5 h-3.5 text-gray-400" />
             <span>Secured by</span>
