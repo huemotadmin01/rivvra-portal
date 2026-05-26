@@ -22,7 +22,7 @@ import {
   Briefcase, Users, FileText, Tag, Plus,
   MapPin, UserCheck, Trash2, Archive, ArchiveRestore, MoreHorizontal,
   CheckCircle2, Clock, XCircle, AlertTriangle,
-  Globe, Copy, ExternalLink, Check,
+  Globe, Copy, ExternalLink, Check, Share2,
 } from 'lucide-react';
 import api from '../../utils/api';
 
@@ -476,6 +476,7 @@ export default function AtsJobDetail() {
   const [orgCareersUrl, setOrgCareersUrl] = useState('');
   const [publishingCareers, setPublishingCareers] = useState(false);
   const [careersUrlCopied, setCareersUrlCopied] = useState(false);
+  const [refLinkCopied, setRefLinkCopied] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
   // 2026-05-18 RBAC two-tier: anyone with ATS access is a "recruiter" and
@@ -1123,6 +1124,50 @@ export default function AtsJobDetail() {
           </div>
         </div>
       )}
+
+      {/* ─── Personal Referral Link ────────────────────────────────────
+          Visible to anyone with ATS access (recruiters, account owners,
+          admins) once the job is published to careers AND we know their
+          employeeId. Appending ?ref=<empId> to the public URL routes
+          applications through this recruiter — careers.js validates the
+          ref and uses it as application.recruiterId in place of the org
+          default. Resolves the gap where Niharika shared a public link
+          but didn't get credit on resulting applications. */}
+      {canRecruit && myEmployeeId && job.publishToCareers && jobPublicUrl && (() => {
+        const myRefLink = `${jobPublicUrl}?ref=${myEmployeeId}`;
+        return (
+          <div className="rounded-lg border border-dark-700 bg-dark-800/40 px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-rivvra-500/15 text-rivvra-300">
+                  <Share2 size={15} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white">Your Referral Link</p>
+                  <p className="text-xs text-dark-500 mt-0.5">
+                    Share this instead of the plain public URL. Candidates who apply through this link get credited to you as recruiter.
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-mono text-dark-300 truncate max-w-md">{myRefLink}</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(myRefLink);
+                          setRefLinkCopied(true);
+                          setTimeout(() => setRefLinkCopied(false), 1800);
+                        } catch (_) { /* ignore — browser may block in non-secure context */ }
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-dark-400 hover:text-white transition-colors"
+                    >
+                      {refLinkCopied ? <><Check size={11} className="text-emerald-400" /> Copied</> : <><Copy size={11} /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── Approval-state banner ───────────────────────────────────────
           Surfaces *why* New Application is missing/disabled and what the

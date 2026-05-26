@@ -272,6 +272,12 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
       fd.append('phone', form.phone.trim());
       fd.append('linkedinUrl', form.linkedinUrl.trim());
       fd.append('resume', resumeFile);
+      // Referral attribution: if the candidate arrived via a recruiter's
+      // personal link (?ref=<empId>), forward that to the backend so the
+      // application's recruiterId becomes the link owner instead of the
+      // org default. Invalid/missing → backend silently falls back.
+      const refParam = new URLSearchParams(window.location.search).get('ref');
+      if (refParam) fd.append('ref', refParam.trim());
       const res = await fetch(
         `${API_BASE_URL}/api/public/careers/${encodeURIComponent(orgSlug)}/jobs/${encodeURIComponent(publicSlug)}/apply`,
         { method: 'POST', body: fd },
