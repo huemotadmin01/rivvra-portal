@@ -526,7 +526,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 // the text fits or we hit the minFontSize floor. Below the floor we
 // fall back to the original truncate so the value doesn't render at
 // unreadable sizes.
-function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '', style = {} }) {
+function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '', style = {}, containerRef = null }) {
   const ref = useRef(null);
   const [fontSize, setFontSize] = useState(maxFontSize);
   // 2026-05-27 v3: still gets "9000 per da" truncated in very narrow
@@ -541,8 +541,14 @@ function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '
   const [scaleX, setScaleX] = useState(1);
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || !el.parentElement) return;
-    const parentW = el.parentElement.clientWidth;
+    if (!el) return;
+    // Prefer the explicit containerRef when given (parent of FittedText
+    // is sometimes an inline-block whose clientWidth equals content
+    // width, which would defeat the measurement). Fall back to the
+    // direct parent.
+    const measureEl = containerRef?.current || el.parentElement;
+    if (!measureEl) return;
+    const parentW = measureEl.clientWidth;
     if (parentW <= 0) {
       setFontSize(maxFontSize);
       setScaleX(1);
@@ -581,6 +587,37 @@ function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '
     >
       {children}
     </span>
+  );
+}
+
+// PrevSignerValue — read-only render of a previous signer's filled
+// text/date value. The wrapping div with `w-full` is the measurement
+// container we pass to FittedText; the inner inline-block <span> holds
+// the bg-white background so it only covers the actual glyph area.
+// This combination fixes the "bg-white was erasing the line above"
+// regression — the white background now only covers the typed text,
+// not the entire field width.
+function PrevSignerValue({ isCompactScale, height, displayDate }) {
+  const containerRef = useRef(null);
+  const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
+  const maxFontSize = Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
+  return (
+    <div
+      className="w-full h-full flex items-end font-medium pb-0.5 overflow-hidden"
+      style={{ lineHeight: 1.1 }}
+    >
+      <div ref={containerRef} className="w-full overflow-hidden">
+        <span className="bg-white text-gray-800 px-1 inline-block max-w-full align-bottom">
+          <FittedText
+            maxFontSize={maxFontSize}
+            minFontSize={isCompactScale ? 5 : 10}
+            containerRef={containerRef}
+          >
+            {displayDate}
+          </FittedText>
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -754,28 +791,11 @@ function PdfPageWithFields({
               // final PDF stamp's positioning. Inline-block + bg-white pad
               // is only as wide as the glyphs (plus tiny horizontal
               // padding) so we don't erase surrounding document text.
-              <div
-                className="w-full h-full flex items-end font-medium pb-0.5"
-                style={{ lineHeight: 1.1 }}
-              >
-                {/* 2026-05-27 G1 v2: changed wrapper from <span> to
-                    <div w-full> so FittedText's parentElement.clientWidth
-                    reports the real container width. An inline span has
-                    no reliable clientWidth, which was silently breaking
-                    the shrink loop for previous-signer values — "29 Ma"
-                    instead of "29 May 2026". */}
-                <div className="bg-white text-gray-800 px-1 w-full overflow-hidden">
-                  <FittedText
-                    maxFontSize={(() => {
-                      const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
-                      return Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
-                    })()}
-                    minFontSize={isCompactScale ? 6 : 10}
-                  >
-                    {displayDate}
-                  </FittedText>
-                </div>
-              </div>
+              <PrevSignerValue
+                isCompactScale={isCompactScale}
+                height={height}
+                displayDate={displayDate}
+              />
             )}
           </div>
         );
