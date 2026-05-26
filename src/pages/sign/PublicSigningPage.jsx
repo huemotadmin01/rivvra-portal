@@ -771,23 +771,30 @@ function PdfPageWithFields({
         // text underneath.
         const visualHeight = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
         const filledFontSize = Math.min(Math.max(visualHeight * 0.55, 12), 20);
-        // 2026-05-23 mobile chrome: soften the borders + background on
-        // compact scales so a 18-22px field doesn't read as a thick
-        // opaque bar erasing the document text under it. Borders shrink
-        // from 2px to 1px and filled fields drop the white background
-        // for a semi-transparent green tint so the document still shows
-        // through faintly behind the typed value.
+        // 2026-05-23 mobile chrome v3: on compact scales a *filled*
+        // text field used to render with a coloured box + border, which
+        // at 12-18px tall reads as a horizontal highlight stripe across
+        // the document — ugly and looked like the field "erased" the
+        // surrounding paragraph. Real signed paper documents don't show
+        // a box around the typed value; the value just sits on the
+        // printed underline that the template author put there.
+        //
+        // So on compact + filled we drop the box chrome entirely (no
+        // background, no border) and let the value text sit inline with
+        // the document. Unfilled fields keep a 1px dashed border so the
+        // signer can still see where to tap. Desktop styling is
+        // unchanged.
         const filledClass = isCompactScale
-          ? 'border border-green-400 bg-green-50/40 cursor-pointer'
+          ? 'cursor-pointer'
           : 'border-2 border-green-400 bg-white cursor-pointer';
         const errorClass = isCompactScale
-          ? 'border border-dashed border-red-500 bg-red-50/40 cursor-pointer animate-pulse'
+          ? 'border border-dashed border-red-500 bg-red-50/30 cursor-pointer animate-pulse'
           : 'border-2 border-dashed border-red-500 bg-red-50/60 cursor-pointer animate-pulse';
         const requiredClass = isCompactScale
-          ? 'border border-dashed border-indigo-400 bg-indigo-50/30 hover:bg-indigo-100/40 cursor-pointer'
+          ? 'border border-dashed border-indigo-400 bg-indigo-50/20 hover:bg-indigo-100/30 cursor-pointer'
           : 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer';
         const optionalClass = isCompactScale
-          ? 'border border-dashed border-gray-300 bg-gray-50/30 hover:bg-gray-100/40 cursor-pointer'
+          ? 'border border-dashed border-gray-300 bg-gray-50/20 hover:bg-gray-100/30 cursor-pointer'
           : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer';
 
         return (
