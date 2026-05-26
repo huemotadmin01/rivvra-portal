@@ -526,18 +526,32 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 // the text fits or we hit the minFontSize floor. Below the floor we
 // fall back to the original truncate so the value doesn't render at
 // unreadable sizes.
-function FittedText({ children, maxFontSize = 14, minFontSize = 8, className = '', style = {} }) {
+function FittedText({ children, maxFontSize = 14, minFontSize = 6, className = '', style = {} }) {
   const ref = useRef(null);
   const [fontSize, setFontSize] = useState(maxFontSize);
   // Re-fit when the rendered string or the available width changes.
+  // 2026-05-27 v2: dropped maxWidth:100% on the inline-block — when the
+  // text overflows the parent, that cap was clamping scrollWidth to
+  // clientWidth, masking the overflow signal and stopping the shrink
+  // loop prematurely. Without the cap, scrollWidth reports the
+  // unconstrained natural width and the shrink loop can compare it
+  // honestly against the parent's clientWidth. Floor also dropped from
+  // 8px to 6px so long names like "Priyanshu Sahu" can fit narrow
+  // mobile fields without giving up and ellipsis-truncating.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !el.parentElement) return;
+    const parentW = el.parentElement.clientWidth;
+    if (parentW <= 0) {
+      // Parent not laid out yet — render at max, the next render after
+      // layout completes will retry.
+      setFontSize(maxFontSize);
+      return;
+    }
     let size = maxFontSize;
     el.style.fontSize = `${size}px`;
-    // Hard cap iterations so a pathological case can't lock the thread.
-    let safety = 30;
-    while (size > minFontSize && el.scrollWidth > el.parentElement.clientWidth && safety-- > 0) {
+    let safety = 50;
+    while (size > minFontSize && el.scrollWidth > parentW && safety-- > 0) {
       size -= 0.5;
       el.style.fontSize = `${size}px`;
     }
@@ -547,7 +561,7 @@ function FittedText({ children, maxFontSize = 14, minFontSize = 8, className = '
     <span
       ref={ref}
       className={`whitespace-nowrap ${className}`}
-      style={{ ...style, fontSize, display: 'inline-block', maxWidth: '100%' }}
+      style={{ ...style, fontSize, display: 'inline-block' }}
     >
       {children}
     </span>
@@ -728,21 +742,23 @@ function PdfPageWithFields({
                 className="w-full h-full flex items-end font-medium pb-0.5"
                 style={{ lineHeight: 1.1 }}
               >
-                {/* 2026-05-26 G1: previous-signer values get the same
-                    shrink-to-fit treatment as the active signer's
-                    filled state so the second signer can actually read
-                    what the first signer typed. */}
-                <span className="bg-white text-gray-800 px-1 max-w-full overflow-hidden">
+                {/* 2026-05-27 G1 v2: changed wrapper from <span> to
+                    <div w-full> so FittedText's parentElement.clientWidth
+                    reports the real container width. An inline span has
+                    no reliable clientWidth, which was silently breaking
+                    the shrink loop for previous-signer values — "29 Ma"
+                    instead of "29 May 2026". */}
+                <div className="bg-white text-gray-800 px-1 w-full overflow-hidden">
                   <FittedText
                     maxFontSize={(() => {
                       const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
                       return Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
                     })()}
-                    minFontSize={isCompactScale ? 8 : 10}
+                    minFontSize={isCompactScale ? 6 : 10}
                   >
                     {displayDate}
                   </FittedText>
-                </span>
+                </div>
               </div>
             )}
           </div>
@@ -980,7 +996,7 @@ function PdfPageWithFields({
                     >
                       <FittedText
                         maxFontSize={filledFontSize}
-                        minFontSize={isCompactScale ? 8 : 10}
+                        minFontSize={isCompactScale ? 6 : 10}
                       >
                         {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
                       </FittedText>
@@ -1944,12 +1960,18 @@ export default function PublicSigningPage() {
           top of the first signature field on short viewports. Desktop keeps
           the sticky pinned banner. */}
       {!hasStarted && pdfDoc && (
-        <div className="relative sm:sticky sm:top-[57px] z-20 flex justify-center py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-md">
+        // 2026-05-27 H4: was a full-width strip with py-3 + py-2.5
+        // padding (~56px tall) that ate ~10% of an iPhone viewport
+        // before the signer even started reading. Slimmed to py-1.5 +
+        // py-1 (~32px) so the document gets back the real estate it
+        // needs. Desktop keeps a slightly more comfortable size; the
+        // sm: prefixes restore the bigger padding when there's room.
+        <div className="relative sm:sticky sm:top-[57px] z-20 flex justify-center py-1.5 sm:py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-md">
           <button
             onClick={handleClickToStart}
-            className="flex items-center gap-2 px-6 py-2.5 bg-white text-indigo-700 font-semibold text-sm rounded-full shadow-lg hover:shadow-xl hover:bg-indigo-50 transition-all"
+            className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-1 sm:py-2.5 bg-white text-indigo-700 font-semibold text-xs sm:text-sm rounded-full shadow-lg hover:shadow-xl hover:bg-indigo-50 transition-all"
           >
-            <ArrowDown className="w-4 h-4" />
+            <ArrowDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             CLICK TO START
           </button>
         </div>
