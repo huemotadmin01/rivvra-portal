@@ -223,6 +223,21 @@ const atsApi = {
     });
   },
 
+  // 2026-05-27 — admin-only escape hatch for the Rate Confirmation gate.
+  // Stamp lives on application.rateConfirmationGate; auto-clears when a
+  // fully-signed RC envelope is later attached. Reason must be ≥10 chars.
+  bypassRateConfirmationGate(orgSlug, applicationId, reason) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/rate-confirmation/bypass`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+  revokeRateConfirmationBypass(orgSlug, applicationId) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${applicationId}/rate-confirmation/bypass`, {
+      method: 'DELETE',
+    });
+  },
+
   // 2026-05-11: restore a refused application back to 'ongoing'.
   // Clears refused / refusedAt / refuseReasonId. Reason is required
   // and stored in the stageHistory entry for audit. Admin-only.

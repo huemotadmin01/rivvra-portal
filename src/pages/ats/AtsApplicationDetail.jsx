@@ -1828,6 +1828,11 @@ export default function AtsApplicationDetail() {
   const [showKebab, setShowKebab] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // 2026-05-27 — admin-only RC gate bypass. Reason ≥10 chars enforced
+  // both client-side (button disabled) and server-side.
+  const [showRcBypassModal, setShowRcBypassModal] = useState(false);
+  const [rcBypassReason, setRcBypassReason] = useState('');
+  const [rcBypassSaving, setRcBypassSaving] = useState(false);
 
   const isAdmin = getAppRole('ats') === 'admin';
   // 2026-05-18 RBAC two-tier: any ATS user can edit applications, skills,
@@ -2553,6 +2558,36 @@ export default function AtsApplicationDetail() {
     }
   };
 
+  // 2026-05-27 — confirm the RC gate bypass. Server enforces ≥10 chars
+  // and org-admin, but we mirror both so the button stays accurate.
+  const handleBypassRcGate = async () => {
+    const reason = rcBypassReason.trim();
+    if (reason.length < 10) return;
+    setRcBypassSaving(true);
+    try {
+      await atsApi.bypassRateConfirmationGate(orgSlug, applicationId, reason);
+      showToast('Rate Confirmation gate bypassed', 'success');
+      setShowRcBypassModal(false);
+      setRcBypassReason('');
+      // Also close the RC modal if the user opened bypass from inside it.
+      setShowRateConfirmationModal(false);
+      fetchApplication();
+    } catch (err) {
+      showToast(err.message || 'Failed to bypass Rate Confirmation gate', 'error');
+    } finally {
+      setRcBypassSaving(false);
+    }
+  };
+  const handleRevokeRcBypass = async () => {
+    try {
+      await atsApi.revokeRateConfirmationBypass(orgSlug, applicationId);
+      showToast('Bypass revoked', 'success');
+      fetchApplication();
+    } catch (err) {
+      showToast(err.message || 'Failed to revoke bypass', 'error');
+    }
+  };
+
   const handleCreateEmployeeConfirm = async (payload) => {
     try {
       setCreatingEmployee(true);
@@ -2756,6 +2791,28 @@ export default function AtsApplicationDetail() {
                     View reused Rate Confirmation
                   </Link>
                 )}
+                {/* 2026-05-27 — admin RC-gate bypass badge. Shows who lifted
+                    the gate and why; admins get an inline Revoke. Auto-
+                    clears server-side once a signed RC is attached, so
+                    this stops rendering on the next refetch. */}
+                {application?.rateConfirmationGate?.bypassedAt && (
+                  <span
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 border border-amber-500/30 text-amber-300"
+                    title={`Bypassed by ${application.rateConfirmationGate.bypassedByName || 'admin'} on ${formatDateUTC(application.rateConfirmationGate.bypassedAt)} — ${application.rateConfirmationGate.reason}`}
+                  >
+                    <ShieldOff size={12} />
+                    RC gate bypassed
+                    {isOrgAdmin && (
+                      <button
+                        type="button"
+                        onClick={handleRevokeRcBypass}
+                        className="ml-1 text-amber-200 underline hover:text-white"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </span>
+                )}
                 {/* Offer button — 2026-05-25 role-model widening: opened
                     to atsAccess (recruiters owning the app) so the
                     person negotiating the offer can capture it without
@@ -2873,7 +2930,22 @@ export default function AtsApplicationDetail() {
                 {showKebab && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                    <div className="absolute right-0 top-full mt-1 w-64 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                      {/* 2026-05-27 — admin escape hatch for the Rate Confirmation
+                          gate. Hidden once a bypass is already in place
+                          (the revoke link sits on the chip instead). */}
+                      {!application?.rateConfirmationGate?.bypassedAt && !application?.archived && (
+                        <button
+                          onClick={() => { setShowKebab(false); setRcBypassReason(''); setShowRcBypassModal(true); }}
+                          className="w-full text-left px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10 flex items-center gap-2"
+                        >
+                          <ShieldOff size={12} />
+                          <div className="flex-1">
+                            <div className="font-medium">Bypass Rate Confirmation gate</div>
+                            <div className="text-[10px] text-dark-500 mt-0.5">Lift the signed-RC requirement on this application.</div>
+                          </div>
+                        </button>
+                      )}
                       <button
                         onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
                         className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
@@ -2892,6 +2964,49 @@ export default function AtsApplicationDetail() {
           </div>
         )}
       </div>
+
+      {/* 2026-05-27 — Bypass Rate Confirmation gate (admin only). Reason
+          is required (≥10 chars) and stored on rateConfirmationGate for
+          audit. Server re-validates both. */}
+      {showRcBypassModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl p-5">
+            <h2 className="text-sm font-semibold text-dark-100 mb-1 flex items-center gap-2">
+              <ShieldOff size={14} className="text-amber-300" />
+              Bypass Rate Confirmation gate
+            </h2>
+            <p className="text-xs text-dark-400 mb-3">
+              The signed-RC requirement will be lifted for <span className="text-dark-200 font-medium">{application.candidateName || 'this application'}</span>. The bypass will be cleared automatically once a signed Rate Confirmation is attached.
+            </p>
+            <label className="block text-xs text-dark-400 mb-1">Reason (min 10 chars)</label>
+            <textarea
+              value={rcBypassReason}
+              onChange={(e) => setRcBypassReason(e.target.value)}
+              rows={3}
+              autoFocus
+              className="w-full px-3 py-2 text-xs bg-dark-900 border border-dark-600 rounded-lg text-dark-100 placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 mb-4"
+              placeholder="Why is this gate being bypassed?"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowRcBypassModal(false); setRcBypassReason(''); }}
+                disabled={rcBypassSaving}
+                className="flex-1 px-3 py-2 text-xs text-dark-300 bg-dark-900 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBypassRcGate}
+                disabled={rcBypassSaving || rcBypassReason.trim().length < 10}
+                className="flex-1 px-3 py-2 text-xs text-white bg-amber-500 rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {rcBypassSaving ? <Loader2 size={12} className="animate-spin" /> : <ShieldOff size={12} />}
+                Confirm bypass
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
@@ -3482,6 +3597,8 @@ export default function AtsApplicationDetail() {
         recruiterName={authUser?.name || ''}
         recruiterEmail={authUser?.email || ''}
         onSent={() => { setShowRateConfirmationModal(false); fetchApplication(); }}
+        canBypass={isOrgAdmin && !application?.rateConfirmationGate?.bypassedAt}
+        onBypassRequested={() => { setRcBypassReason(''); setShowRcBypassModal(true); }}
       />
       <HireModal
         show={showHireModal}

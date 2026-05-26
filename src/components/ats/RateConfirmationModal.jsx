@@ -74,6 +74,11 @@ export default function RateConfirmationModal({
   show, onClose, onSent,
   orgSlug, application,
   recruiterName, recruiterEmail,
+  // 2026-05-27 — admin-only escape hatch. When canBypass is true the modal
+  // shows a small "Bypass instead" affordance in the header; clicking it
+  // closes this modal and asks the parent to open its reason prompt.
+  canBypass = false,
+  onBypassRequested,
 }) {
   const isResend = !!application?.rateConfirmation?.envelopeId;
 
@@ -395,9 +400,25 @@ export default function RateConfirmationModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-dark-400 hover:text-white p-1 rounded-md hover:bg-dark-800">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 2026-05-27 — admin escape hatch surfaced inside the modal
+                because the gate error auto-opens this view; without it an
+                admin would have to close and dig into the kebab. Closes
+                this modal and delegates the reason prompt to the parent. */}
+            {canBypass && (
+              <button
+                type="button"
+                onClick={() => { onClose?.(); onBypassRequested?.(); }}
+                className="px-2.5 py-1 text-xs font-medium rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition-colors"
+                title="Lift the signed-RC requirement on this application"
+              >
+                Bypass instead
+              </button>
+            )}
+            <button onClick={onClose} className="text-dark-400 hover:text-white p-1 rounded-md hover:bg-dark-800">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="p-5 space-y-5">
