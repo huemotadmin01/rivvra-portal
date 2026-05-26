@@ -424,16 +424,19 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
     );
   }
 
-  // 2026-05-23 mobile fix v5: when the parent is rendering at a compact
-  // scale, the active-typing chrome (opaque white background + thick
-  // ring + 44px touch-target floor) reads as a giant floating box that
-  // erases the document text the signer is working alongside. The
-  // `compact` branch drops the bg to translucent, swaps the focus ring
-  // down to a single-pixel line, and lets the field use its natural
-  // height. Desktop branch is unchanged — keeps the 44px touch floor
-  // and bg-white/90.
+  // 2026-05-23 mobile fix v6: previous v5 made the compact bg translucent
+  // (bg-white/40) which made typed text unreadable — document text
+  // bleeding through 60% transparency washed the gray-900 glyphs out.
+  // Back to opaque white, but everything else stays tight: thin border,
+  // 1px focus ring, no 44px touch-target floor. The active box is only
+  // as tall as the field itself, not stretched to 44px.
+  //
+  // appearance-none + box-border + leading-tight: iOS Safari adds its
+  // own padding + min-height to <input> via -webkit-appearance. Without
+  // resetting those, the input box renders ~12px taller than the styled
+  // height, looking oversized next to document text.
   const inputCls = compact
-    ? 'absolute bg-white/40 border border-indigo-400 rounded px-1 text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none'
+    ? 'absolute appearance-none box-border leading-tight bg-white border border-indigo-400 rounded px-1 text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none'
     : 'absolute bg-white/90 border border-indigo-300 rounded px-2 sm:px-1.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
   // The wrapping field box passes its actual rendered height through as
   // `style.height` (a number). When we can read it, bottom-align the typed
@@ -570,14 +573,26 @@ function PdfPageWithFields({
       if (!pdfDoc) return;
       try {
         const page = await pdfDoc.getPage(pageNum);
+        // 2026-05-23 mobile fix v6: render at devicePixelRatio so the
+        // canvas is sharp on Retina / HiDPI displays. Before this, the
+        // PDF was rasterised at 1x and then upscaled by the browser to
+        // the device's 2x/3x pixel density, producing the blurry text
+        // Priyanshu reported on iPhone. Cap at 2x so a 3x device doesn't
+        // explode memory (each doubling = 4x pixel count). pageDims
+        // stays in CSS pixels so the absolute-positioned field overlay
+        // and click targets keep their coordinates.
+        const dpr = Math.min(2, typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1);
         const viewport = page.getViewport({ scale });
+        const hiResViewport = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
         if (!canvas || cancelled) return;
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        canvas.width = hiResViewport.width;
+        canvas.height = hiResViewport.height;
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
         setPageDims({ width: viewport.width, height: viewport.height });
         const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        await page.render({ canvasContext: ctx, viewport: hiResViewport }).promise;
         if (!cancelled) setRendered(true);
       } catch (err) {
         if (!cancelled) console.error('Error rendering PDF page', pageNum, err);
