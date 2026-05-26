@@ -424,19 +424,21 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
     );
   }
 
-  // 2026-05-23 mobile fix v6: previous v5 made the compact bg translucent
-  // (bg-white/40) which made typed text unreadable — document text
-  // bleeding through 60% transparency washed the gray-900 glyphs out.
-  // Back to opaque white, but everything else stays tight: thin border,
-  // 1px focus ring, no 44px touch-target floor. The active box is only
-  // as tall as the field itself, not stretched to 44px.
-  //
-  // appearance-none + box-border + leading-tight: iOS Safari adds its
-  // own padding + min-height to <input> via -webkit-appearance. Without
-  // resetting those, the input box renders ~12px taller than the styled
-  // height, looking oversized next to document text.
+  // 2026-05-23 mobile fix v8: signer complained the active input box was
+  // still oversized — covered the words on the lines above and below
+  // because the chrome stretched higher than the field's natural
+  // height. Two fixes here:
+  //   - bg-white/75 instead of bg-white: enough opacity for the typed
+  //     glyphs to read clearly, but neighboring document text shows
+  //     through faintly so the signer keeps spatial context.
+  //   - Drop the focus ring entirely on compact; the 1px indigo border
+  //     was already adequate visual affordance for "this is the input".
+  //     The focus ring was the main thing protruding above/below the
+  //     line of body text.
+  // appearance-none + box-border + leading-tight stay — they reset
+  // iOS Safari's default -webkit-appearance padding.
   const inputCls = compact
-    ? 'absolute appearance-none box-border leading-tight bg-white border border-indigo-400 rounded px-1 text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none'
+    ? 'absolute appearance-none box-border leading-tight bg-white/75 border border-indigo-400 rounded-sm px-1 text-gray-900 focus:outline-none'
     : 'absolute bg-white/90 border border-indigo-300 rounded px-2 sm:px-1.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
   // The wrapping field box passes its actual rendered height through as
   // `style.height` (a number). When we can read it, bottom-align the typed
@@ -513,21 +515,17 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 // chrome (dashed rose frame + "Signed with Rivvra Sign" + image + hash)
 // stays consistent across both views and matches the final PDF output.
 // Three places used to hand-render this independently and drift apart.
-// 2026-05-23 mobile fix v4: SignatureStamp used to always render the
-// "Signed with Rivvra Sign" green label + 8px hash regardless of available
-// height. On mobile compact scale a filled signature box can be ~15px
-// tall — the 9px green label dominates the entire frame and reads as a
-// horizontal green stripe across the document. The `compact` variant
-// drops the label and hash, showing just the signature image; the full
-// chrome still renders on desktop where there's vertical room for it.
-function SignatureStamp({ src, hash, alt = 'Signature', compact = false }) {
-  if (compact) {
-    return (
-      <div className="flex items-center justify-center w-full h-full">
-        <img src={src} alt={alt} className="max-w-full max-h-full object-contain" />
-      </div>
-    );
-  }
+// 2026-05-23 SignatureStamp — always renders the full audit chrome
+// (dashed-frame label + image + hash) regardless of scale. The compact
+// variant tried in v4 stripped the label and hash to avoid the green
+// stripe look on small mobile boxes, but that hid the legal evidence
+// the second signer needs to see — they couldn't tell whose signature
+// it was or verify the tamper-evidence hash. We restored the full
+// chrome (v8) and tightened the surrounding container instead. The
+// `compact` prop is still accepted for backwards compatibility but is
+// no longer used to gate the label/hash; the stamp scales to fit the
+// container it's given.
+function SignatureStamp({ src, hash, alt = 'Signature' }) {
   return (
     <div className="flex flex-col items-center w-full h-full">
       <span className="text-[9px] text-green-700 font-medium mt-0.5 leading-none">
@@ -663,12 +661,16 @@ function PdfPageWithFields({
               height: isSignatureDataUrl
                 ? height + (isCompactScale ? 0 : 20)
                 : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36)),
-              // 2026-05-23 mobile fix v4: drop the dashed rose frame +
-              // opaque white bg on compact scales; at a phone's natural
-              // field height that chrome reads as a stripe over document
-              // text. The signature image still renders cleanly inside.
-              border: isSignatureDataUrl && !isCompactScale ? '2px dashed #d4a0a0' : undefined,
-              backgroundColor: isSignatureDataUrl && !isCompactScale ? '#ffffff' : undefined,
+              // 2026-05-23 mobile fix v8: restored the dashed rose
+              // frame + white bg on the previous-signer signature
+              // container even on compact scales. The frame, label,
+              // and hash together are the audit evidence the second
+              // signer needs to see — stripping them on mobile hid
+              // legally meaningful info. Tighter container heights
+              // (above) keep the chrome from looking out of place
+              // even at compact scale.
+              border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
+              backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
             }}
           >
             {isSignatureDataUrl ? (
@@ -775,17 +777,14 @@ function PdfPageWithFields({
               className={`absolute cursor-pointer rounded transition-all overflow-visible ${highlightRing}`}
               style={{
                 left, top, width,
-                // Don't inflate the box past the template-defined height
-                // on compact scale — the +20 on desktop gives breathing
-                // room for the "Signed with Rivvra Sign" label + hash;
-                // those don't render in the compact variant of the stamp.
-                height: isFilled ? (isCompactScale ? height : height + 20) : unfilledHeight,
-                // 2026-05-23 mobile fix v4: drop the dashed rose frame +
-                // opaque white bg on compact scales. They were turning a
-                // ~15-20px filled signature into a horizontal stripe
-                // across the document text.
-                border: isFilled && !isCompactScale ? '2px dashed #d4a0a0' : undefined,
-                backgroundColor: isFilled && !isCompactScale ? '#ffffff' : undefined,
+                // 2026-05-23 mobile fix v8: keep the +20 vertical
+                // breathing room for the audit chrome (label + hash)
+                // even on compact, and restore the dashed rose frame +
+                // white bg. Stripping them on mobile hid the legal
+                // evidence the signer needs to verify after they sign.
+                height: isFilled ? height + 20 : unfilledHeight,
+                border: isFilled ? '2px dashed #d4a0a0' : undefined,
+                backgroundColor: isFilled ? '#ffffff' : undefined,
                 scrollMarginTop: 120,
                 scrollMarginBottom: 100,
               }}
