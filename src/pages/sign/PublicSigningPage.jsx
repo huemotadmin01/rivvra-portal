@@ -611,7 +611,13 @@ function PdfPageWithFields({
         // 2026-05-23 mobile fix (matches the active-signer block below):
         // skip the 36px floor on compact scales so read-only and active
         // fields stack consistently and don't overlap on phones.
-        const isCompactScale = scale < 1;
+        // 2026-05-23 mobile fix v4: tightened the gate. The render scale
+        // can drop below 1 on a narrow desktop window (sidebar + small
+        // browser), and we don't want that to flip a desktop user into
+        // the mobile field chrome. Require both: a compact render scale
+        // *and* a mobile-sized viewport. Tailwind `md` breakpoint is
+        // 768px which matches our other responsive cutoffs.
+        const isCompactScale = scale < 1 && typeof window !== 'undefined' && window.innerWidth < 768;
 
         return (
           <div
@@ -683,7 +689,13 @@ function PdfPageWithFields({
         // we now use the natural scaled height so adjacent fields stay
         // visually separated; on desktop (scale >= 1) the touch-target
         // floor still applies so tappable areas remain comfortable.
-        const isCompactScale = scale < 1;
+        // 2026-05-23 mobile fix v4: tightened the gate. The render scale
+        // can drop below 1 on a narrow desktop window (sidebar + small
+        // browser), and we don't want that to flip a desktop user into
+        // the mobile field chrome. Require both: a compact render scale
+        // *and* a mobile-sized viewport. Tailwind `md` breakpoint is
+        // 768px which matches our other responsive cutoffs.
+        const isCompactScale = scale < 1 && typeof window !== 'undefined' && window.innerWidth < 768;
         const Callout = isHighlighted ? (
           <div
             className="absolute left-0 -top-7 px-2 py-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded shadow-md whitespace-nowrap pointer-events-none animate-bounce z-10"
@@ -805,7 +817,10 @@ function PdfPageWithFields({
         // so the box doesn't read as a horizontal bar erasing document
         // text underneath.
         const visualHeight = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
-        const filledFontSize = Math.min(Math.max(visualHeight * 0.55, 12), 20);
+        // Floor on the filled font size: 12 on compact (matches the 18px
+        // visualHeight floor) and 14 on desktop (matches the 36px floor).
+        // Keeps glyph cleanly inside the box on both paths.
+        const filledFontSize = Math.min(Math.max(visualHeight * 0.55, isCompactScale ? 12 : 14), 20);
         // 2026-05-23 mobile chrome v3: on compact scales a *filled*
         // text field used to render with a coloured box + border, which
         // at 12-18px tall reads as a horizontal highlight stripe across
