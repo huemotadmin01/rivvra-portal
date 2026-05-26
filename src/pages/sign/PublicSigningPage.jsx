@@ -652,9 +652,17 @@ function PdfPageWithFields({
               // active-signer's wrapping-div height so previous and current
               // values render at the same visual size and land on the
               // underline beneath.
+              // 2026-05-23 mobile fix v7: previous v4 used the natural
+              // `height` on compact so close-stacked fields didn't
+              // overlap. But for *text* values that meant an 8-12px
+              // container with a 14-20px font, so the typed text was
+              // clipped off the visible area — second signer couldn't
+              // see what the first signer had filled in. Match the
+              // active-signer's 18px floor here so the text fits while
+              // still staying small enough to avoid overlap.
               height: isSignatureDataUrl
                 ? height + (isCompactScale ? 0 : 20)
-                : (isCompactScale ? height : Math.max(height, 36)),
+                : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36)),
               // 2026-05-23 mobile fix v4: drop the dashed rose frame +
               // opaque white bg on compact scales; at a phone's natural
               // field height that chrome reads as a stripe over document
@@ -681,7 +689,19 @@ function PdfPageWithFields({
               // padding) so we don't erase surrounding document text.
               <div
                 className="w-full h-full flex items-end font-medium pb-0.5"
-                style={{ fontSize: Math.min(Math.max(Math.max(height, 36) * 0.55, 14), 20), lineHeight: 1.1 }}
+                // Mirror the active-signer's filledFontSize formula
+                // so the previous-signer text fits the container we
+                // just sized. On compact: 18px box → 12px floor; on
+                // desktop: 36px box → 14px floor. Was previously
+                // calculated against `Math.max(height, 36)` even on
+                // compact, producing text taller than its container.
+                style={{
+                  fontSize: (() => {
+                    const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
+                    return Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
+                  })(),
+                  lineHeight: 1.1,
+                }}
               >
                 <span className="bg-white text-gray-800 px-1 truncate max-w-full">
                   {displayDate}
