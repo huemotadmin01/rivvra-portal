@@ -405,7 +405,7 @@ function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, confirmLabe
 }
 
 // ── Inline Field Input ──────────────────────────────────────────────────────
-function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
+function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compact = false }) {
   const fieldType = item.type;
 
   if (fieldType === 'checkbox') {
@@ -424,11 +424,17 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
     );
   }
 
-  // Shared mobile-friendly input class: min touch target 44px on mobile.
-  // Font size matches the read-only render's sizing (height-driven) so the
-  // typing experience visually mirrors the surrounding document text rather
-  // than always rendering at tiny text-xs.
-  const inputCls = 'absolute bg-white/90 border border-indigo-300 rounded px-2 sm:px-1.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
+  // 2026-05-23 mobile fix v5: when the parent is rendering at a compact
+  // scale, the active-typing chrome (opaque white background + thick
+  // ring + 44px touch-target floor) reads as a giant floating box that
+  // erases the document text the signer is working alongside. The
+  // `compact` branch drops the bg to translucent, swaps the focus ring
+  // down to a single-pixel line, and lets the field use its natural
+  // height. Desktop branch is unchanged — keeps the 44px touch floor
+  // and bg-white/90.
+  const inputCls = compact
+    ? 'absolute bg-white/40 border border-indigo-400 rounded px-1 text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none'
+    : 'absolute bg-white/90 border border-indigo-300 rounded px-2 sm:px-1.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none min-h-[44px] sm:min-h-0';
   // The wrapping field box passes its actual rendered height through as
   // `style.height` (a number). When we can read it, bottom-align the typed
   // text so it sits at the bottom edge of the box — that's where the
@@ -879,6 +885,7 @@ function PdfPageWithFields({
                   setTimeout(() => setActiveFieldId(null), 150);
                 }}
                 style={{ left: 0, top: 0, width: '100%', height: visualHeight, position: 'relative' }}
+                compact={isCompactScale}
               />
             ) : (
               // items-end + small bottom padding bottom-aligns the typed
@@ -890,7 +897,13 @@ function PdfPageWithFields({
               >
                 {isFilled ? (
                   <>
-                    <span className="text-gray-900 truncate flex-1">
+                    {/* title= so long values that get clipped by the
+                        narrow field width can still be inspected by a
+                        long-press / hover on mobile / desktop. */}
+                    <span
+                      className="text-gray-900 truncate flex-1"
+                      title={item.type === 'date' ? formatDisplayDate(fieldValue) : String(fieldValue ?? '')}
+                    >
                       {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
                     </span>
                     <Check className="w-3 h-3 text-green-600 flex-shrink-0" />
