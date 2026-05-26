@@ -526,42 +526,58 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 // the text fits or we hit the minFontSize floor. Below the floor we
 // fall back to the original truncate so the value doesn't render at
 // unreadable sizes.
-function FittedText({ children, maxFontSize = 14, minFontSize = 6, className = '', style = {} }) {
+function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '', style = {} }) {
   const ref = useRef(null);
   const [fontSize, setFontSize] = useState(maxFontSize);
-  // Re-fit when the rendered string or the available width changes.
-  // 2026-05-27 v2: dropped maxWidth:100% on the inline-block — when the
-  // text overflows the parent, that cap was clamping scrollWidth to
-  // clientWidth, masking the overflow signal and stopping the shrink
-  // loop prematurely. Without the cap, scrollWidth reports the
-  // unconstrained natural width and the shrink loop can compare it
-  // honestly against the parent's clientWidth. Floor also dropped from
-  // 8px to 6px so long names like "Priyanshu Sahu" can fit narrow
-  // mobile fields without giving up and ellipsis-truncating.
+  // 2026-05-27 v3: still gets "9000 per da" truncated in very narrow
+  // fields because at 6px the floor was just short of fitting. Two
+  // changes:
+  //   - Floor dropped to 5px (renders as 10-15 device px on Retina,
+  //     legible).
+  //   - When we hit the floor and STILL overflow, apply a horizontal
+  //     squeeze (scaleX 0.95 -> 0.80) so we can compress letter spacing
+  //     a bit without rendering text below 5px. Visually equivalent to
+  //     a "condensed" font weight; far better than truncation.
+  const [scaleX, setScaleX] = useState(1);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !el.parentElement) return;
     const parentW = el.parentElement.clientWidth;
     if (parentW <= 0) {
-      // Parent not laid out yet — render at max, the next render after
-      // layout completes will retry.
       setFontSize(maxFontSize);
+      setScaleX(1);
       return;
     }
+    // Phase 1: shrink fontSize from max to min.
     let size = maxFontSize;
     el.style.fontSize = `${size}px`;
+    el.style.transform = '';
     let safety = 50;
     while (size > minFontSize && el.scrollWidth > parentW && safety-- > 0) {
       size -= 0.5;
       el.style.fontSize = `${size}px`;
     }
+    // Phase 2: if we hit the floor and it still overflows, apply a
+    // horizontal squeeze. Clamp at 0.80 — below that text looks
+    // visibly distorted.
+    let sx = 1;
+    if (el.scrollWidth > parentW) {
+      sx = Math.max(0.80, parentW / el.scrollWidth);
+    }
     setFontSize(size);
+    setScaleX(sx);
   }, [children, maxFontSize, minFontSize]);
   return (
     <span
       ref={ref}
       className={`whitespace-nowrap ${className}`}
-      style={{ ...style, fontSize, display: 'inline-block' }}
+      style={{
+        ...style,
+        fontSize,
+        display: 'inline-block',
+        transform: scaleX !== 1 ? `scaleX(${scaleX})` : undefined,
+        transformOrigin: 'left center',
+      }}
     >
       {children}
     </span>
@@ -703,12 +719,12 @@ function PdfPageWithFields({
               // active-signer's wrapping-div height so previous and current
               // values render at the same visual size and land on the
               // underline beneath.
-              // 2026-05-26 G2: mirror the active-signer's compact
-              // padding so the previous-signer signature stamp
-              // doesn't bleed into adjacent document text on mobile.
-              // +8 gives enough room for the 9px label + 8px hash.
+              // 2026-05-27 H5: mirror active-signer's 40px floor on
+              // compact so the previous signer's signature image stays
+              // visible (the second signer needs to inspect it as
+              // legal evidence).
               height: isSignatureDataUrl
-                ? height + (isCompactScale ? 8 : 20)
+                ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
                 : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36)),
               // 2026-05-23 mobile fix v8: restored the dashed rose
               // frame + white bg on the previous-signer signature
@@ -828,15 +844,18 @@ function PdfPageWithFields({
               className={`absolute cursor-pointer rounded transition-all overflow-visible ${highlightRing}`}
               style={{
                 left, top, width,
-                // 2026-05-26 G2: the +20 breathing room for the audit
-                // chrome (label + hash) was pushing the bottom edge of
-                // a filled signature box ~20px below the natural field
-                // position on mobile — which bled into the document
-                // text underneath the signature. Reduce to +8 on
-                // compact (just enough for the 9px label + 8px hash
-                // with tight leading) and keep +20 on desktop where
-                // there's more visual room around the signature block.
-                height: isFilled ? height + (isCompactScale ? 8 : 20) : unfilledHeight,
+                // 2026-05-27 H5: previous version (+8 on compact) was
+                // tight enough that on small signature fields the
+                // SignatureStamp layout (label + image + hash, vertical)
+                // crushed the IMAGE to 5-8px while the 9px label + 8px
+                // hash consumed everything else. Signer's actual
+                // signature drawing rendered as a faint smudge or
+                // appeared missing. Floor the container at 40px on
+                // compact so the image always has ≥20px to render in
+                // (label + hash combined are ~20px).
+                height: isFilled
+                  ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
+                  : unfilledHeight,
                 border: isFilled ? '2px dashed #d4a0a0' : undefined,
                 backgroundColor: isFilled ? '#ffffff' : undefined,
                 scrollMarginTop: 120,
