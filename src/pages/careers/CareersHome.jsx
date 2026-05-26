@@ -219,16 +219,24 @@ function TopBar({ org, orgSlug, accent }) {
             <p className="text-sm font-semibold text-zinc-900">{org?.name || orgSlug}</p>
           </div>
         </Link>
-        {org?.companyWebsite && (
-          <a
-            href={org.companyWebsite}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors hidden sm:inline-flex items-center gap-1.5"
-          >
-            Visit website <ArrowRight size={14} />
-          </a>
-        )}
+        {org?.companyWebsite && (() => {
+          // Admins commonly enter "www.huemot.com" without a scheme. Browsers
+          // then treat the href as relative to the current path, sending the
+          // user to rivvra.com/careers/<slug>/www.huemot.com. Normalize to an
+          // absolute URL here so the button always escapes the careers site.
+          const raw = String(org.companyWebsite).trim();
+          const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, '')}`;
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors hidden sm:inline-flex items-center gap-1.5"
+            >
+              Visit website <ArrowRight size={14} />
+            </a>
+          );
+        })()}
       </div>
     </header>
   );
