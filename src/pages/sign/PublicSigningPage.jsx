@@ -504,7 +504,21 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style }) {
 // chrome (dashed rose frame + "Signed with Rivvra Sign" + image + hash)
 // stays consistent across both views and matches the final PDF output.
 // Three places used to hand-render this independently and drift apart.
-function SignatureStamp({ src, hash, alt = 'Signature' }) {
+// 2026-05-23 mobile fix v4: SignatureStamp used to always render the
+// "Signed with Rivvra Sign" green label + 8px hash regardless of available
+// height. On mobile compact scale a filled signature box can be ~15px
+// tall — the 9px green label dominates the entire frame and reads as a
+// horizontal green stripe across the document. The `compact` variant
+// drops the label and hash, showing just the signature image; the full
+// chrome still renders on desktop where there's vertical room for it.
+function SignatureStamp({ src, hash, alt = 'Signature', compact = false }) {
+  if (compact) {
+    return (
+      <div className="flex items-center justify-center w-full h-full">
+        <img src={src} alt={alt} className="max-w-full max-h-full object-contain" />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center w-full h-full">
       <span className="text-[9px] text-green-700 font-medium mt-0.5 leading-none">
@@ -614,15 +628,23 @@ function PdfPageWithFields({
               height: isSignatureDataUrl
                 ? height + (isCompactScale ? 0 : 20)
                 : (isCompactScale ? height : Math.max(height, 36)),
-              border: isSignatureDataUrl ? '2px dashed #d4a0a0' : undefined,
-              backgroundColor: isSignatureDataUrl ? '#ffffff' : undefined,
+              // 2026-05-23 mobile fix v4: drop the dashed rose frame +
+              // opaque white bg on compact scales; at a phone's natural
+              // field height that chrome reads as a stripe over document
+              // text. The signature image still renders cleanly inside.
+              border: isSignatureDataUrl && !isCompactScale ? '2px dashed #d4a0a0' : undefined,
+              backgroundColor: isSignatureDataUrl && !isCompactScale ? '#ffffff' : undefined,
             }}
           >
             {isSignatureDataUrl ? (
               // Show the previous signer's stamp with the SAME chrome the
               // active signer sees once they sign and that the final PDF
               // shows: dashed rose frame, label, image, truncated hash.
-              <SignatureStamp src={val} hash={previousSignatureHashes[fieldId]} />
+              <SignatureStamp
+                src={val}
+                hash={previousSignatureHashes[fieldId]}
+                compact={isCompactScale}
+              />
             ) : (
               // Bottom-align the read-only previous value so it visually
               // sits on the underline beneath the field — matches what the
@@ -700,9 +722,17 @@ function PdfPageWithFields({
               className={`absolute cursor-pointer rounded transition-all overflow-visible ${highlightRing}`}
               style={{
                 left, top, width,
-                height: isFilled ? height + 20 : unfilledHeight,
-                border: isFilled ? '2px dashed #d4a0a0' : undefined,
-                backgroundColor: isFilled ? '#ffffff' : undefined,
+                // Don't inflate the box past the template-defined height
+                // on compact scale — the +20 on desktop gives breathing
+                // room for the "Signed with Rivvra Sign" label + hash;
+                // those don't render in the compact variant of the stamp.
+                height: isFilled ? (isCompactScale ? height : height + 20) : unfilledHeight,
+                // 2026-05-23 mobile fix v4: drop the dashed rose frame +
+                // opaque white bg on compact scales. They were turning a
+                // ~15-20px filled signature into a horizontal stripe
+                // across the document text.
+                border: isFilled && !isCompactScale ? '2px dashed #d4a0a0' : undefined,
+                backgroundColor: isFilled && !isCompactScale ? '#ffffff' : undefined,
                 scrollMarginTop: 120,
                 scrollMarginBottom: 100,
               }}
@@ -710,7 +740,12 @@ function PdfPageWithFields({
             >
               {Callout}
               {isFilled ? (
-                <SignatureStamp src={fieldValue} hash={hash} alt={item.type} />
+                <SignatureStamp
+                  src={fieldValue}
+                  hash={hash}
+                  alt={item.type}
+                  compact={isCompactScale}
+                />
               ) : (
                 <div className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded ${
                   showValidation && isRequired && !isFilled
