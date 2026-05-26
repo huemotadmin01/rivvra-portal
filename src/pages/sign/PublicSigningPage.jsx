@@ -686,11 +686,13 @@ function PdfPageWithFields({
           // which left mobile signers tapping fields with no response. Filled
           // state keeps the template-defined height so the flattened PDF
           // signature lands where the template author placed it.
-          // 2026-05-23 mobile fix: skip the 44 floor when the PDF is rendered
-          // at a compact scale (mobile fit-to-width) so adjacent fields don't
-          // visually overlap. Mobile users pinch-zoom for precision taps;
-          // desktop still gets the comfortable touch target.
-          const unfilledHeight = isCompactScale ? height : Math.max(height, 44);
+          // 2026-05-23 mobile floor tuned: dropping the floor entirely made
+          // adjacent fields stop overlapping but also let signature
+          // placeholders shrink below readability on a phone. Halve the
+          // desktop floor on compact scales — 22px is enough to show the
+          // pen icon + label without inflating the box past close-stacked
+          // PDF gaps.
+          const unfilledHeight = isCompactScale ? Math.max(height, 22) : Math.max(height, 44);
           return (
             <div
               key={fieldId}
@@ -759,11 +761,35 @@ function PdfPageWithFields({
         // rather than floating above it). The min height is calibrated so
         // text lands on the printed underline beneath users' typical
         // "box-above-the-line" placement habit.
-        // 2026-05-23 mobile fix: skip the 36 floor on compact scales so
-        // close-stacked fields (name + text + signature within a few PDF
-        // points of each other) don't visually merge on a phone.
-        const visualHeight = isCompactScale ? height : Math.max(height, 36);
-        const filledFontSize = Math.min(Math.max(visualHeight * 0.55, 14), 20);
+        // 2026-05-23 mobile floor tuned: dropping the floor entirely turned
+        // filled text fields into thin opaque bars across the document
+        // (border-2 + bg-white was wider than the content inside). The
+        // compact-scale floor is now 18px — enough to contain a 14px
+        // glyph without inflating past close-stacked PDF gaps. Filled
+        // styling is also softened on compact scales (see className below)
+        // so the box doesn't read as a horizontal bar erasing document
+        // text underneath.
+        const visualHeight = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
+        const filledFontSize = Math.min(Math.max(visualHeight * 0.55, 12), 20);
+        // 2026-05-23 mobile chrome: soften the borders + background on
+        // compact scales so a 18-22px field doesn't read as a thick
+        // opaque bar erasing the document text under it. Borders shrink
+        // from 2px to 1px and filled fields drop the white background
+        // for a semi-transparent green tint so the document still shows
+        // through faintly behind the typed value.
+        const filledClass = isCompactScale
+          ? 'border border-green-400 bg-green-50/40 cursor-pointer'
+          : 'border-2 border-green-400 bg-white cursor-pointer';
+        const errorClass = isCompactScale
+          ? 'border border-dashed border-red-500 bg-red-50/40 cursor-pointer animate-pulse'
+          : 'border-2 border-dashed border-red-500 bg-red-50/60 cursor-pointer animate-pulse';
+        const requiredClass = isCompactScale
+          ? 'border border-dashed border-indigo-400 bg-indigo-50/30 hover:bg-indigo-100/40 cursor-pointer'
+          : 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer';
+        const optionalClass = isCompactScale
+          ? 'border border-dashed border-gray-300 bg-gray-50/30 hover:bg-gray-100/40 cursor-pointer'
+          : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer';
+
         return (
           <div
             key={item._id || item.id}
@@ -772,12 +798,12 @@ function PdfPageWithFields({
               isActive
                 ? ''
                 : isFilled
-                  ? 'border-2 border-green-400 bg-white cursor-pointer'
+                  ? filledClass
                   : showValidation && isRequired
-                    ? 'border-2 border-dashed border-red-500 bg-red-50/60 cursor-pointer animate-pulse'
+                    ? errorClass
                     : isRequired
-                      ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-100/60 cursor-pointer'
-                      : 'border-2 border-dashed border-gray-300 bg-gray-50/50 hover:bg-gray-100/60 cursor-pointer'
+                      ? requiredClass
+                      : optionalClass
             }`}
             style={{ left, top, width, height: visualHeight, scrollMarginTop: 120, scrollMarginBottom: 100 }}
             onClick={() => {
