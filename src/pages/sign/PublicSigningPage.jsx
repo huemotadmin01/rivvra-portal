@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 // Bundle the pdfjs worker locally — see SignRequestDetail.jsx for the Safari
@@ -516,6 +516,44 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 // chrome (dashed rose frame + "Signed with Rivvra Sign" + image + hash)
 // stays consistent across both views and matches the final PDF output.
 // Three places used to hand-render this independently and drift apart.
+// 2026-05-26 FittedText — shrink-to-fit the typed value into a narrow
+// field. Without this, a filled date like "26 May 2026" rendered inside
+// a 60px-wide PDF field showed as "26 Ma…" with no way for the signer
+// to read what they typed. We can't just remove `truncate` because the
+// value would bleed sideways into the next field; we can't widen the
+// field because the position is template-defined. Solution: measure
+// scrollWidth after render, and reduce fontSize in 0.5px steps until
+// the text fits or we hit the minFontSize floor. Below the floor we
+// fall back to the original truncate so the value doesn't render at
+// unreadable sizes.
+function FittedText({ children, maxFontSize = 14, minFontSize = 8, className = '', style = {} }) {
+  const ref = useRef(null);
+  const [fontSize, setFontSize] = useState(maxFontSize);
+  // Re-fit when the rendered string or the available width changes.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !el.parentElement) return;
+    let size = maxFontSize;
+    el.style.fontSize = `${size}px`;
+    // Hard cap iterations so a pathological case can't lock the thread.
+    let safety = 30;
+    while (size > minFontSize && el.scrollWidth > el.parentElement.clientWidth && safety-- > 0) {
+      size -= 0.5;
+      el.style.fontSize = `${size}px`;
+    }
+    setFontSize(size);
+  }, [children, maxFontSize, minFontSize]);
+  return (
+    <span
+      ref={ref}
+      className={`whitespace-nowrap ${className}`}
+      style={{ ...style, fontSize, display: 'inline-block', maxWidth: '100%' }}
+    >
+      {children}
+    </span>
+  );
+}
+
 // 2026-05-23 SignatureStamp — always renders the full audit chrome
 // (dashed-frame label + image + hash) regardless of scale. The compact
 // variant tried in v4 stripped the label and hash to avoid the green
@@ -651,16 +689,12 @@ function PdfPageWithFields({
               // active-signer's wrapping-div height so previous and current
               // values render at the same visual size and land on the
               // underline beneath.
-              // 2026-05-23 mobile fix v7: previous v4 used the natural
-              // `height` on compact so close-stacked fields didn't
-              // overlap. But for *text* values that meant an 8-12px
-              // container with a 14-20px font, so the typed text was
-              // clipped off the visible area — second signer couldn't
-              // see what the first signer had filled in. Match the
-              // active-signer's 18px floor here so the text fits while
-              // still staying small enough to avoid overlap.
+              // 2026-05-26 G2: mirror the active-signer's compact
+              // padding so the previous-signer signature stamp
+              // doesn't bleed into adjacent document text on mobile.
+              // +8 gives enough room for the 9px label + 8px hash.
               height: isSignatureDataUrl
-                ? height + (isCompactScale ? 0 : 20)
+                ? height + (isCompactScale ? 8 : 20)
                 : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36)),
               // 2026-05-23 mobile fix v8: restored the dashed rose
               // frame + white bg on the previous-signer signature
@@ -692,22 +726,22 @@ function PdfPageWithFields({
               // padding) so we don't erase surrounding document text.
               <div
                 className="w-full h-full flex items-end font-medium pb-0.5"
-                // Mirror the active-signer's filledFontSize formula
-                // so the previous-signer text fits the container we
-                // just sized. On compact: 18px box → 12px floor; on
-                // desktop: 36px box → 14px floor. Was previously
-                // calculated against `Math.max(height, 36)` even on
-                // compact, producing text taller than its container.
-                style={{
-                  fontSize: (() => {
-                    const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
-                    return Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
-                  })(),
-                  lineHeight: 1.1,
-                }}
+                style={{ lineHeight: 1.1 }}
               >
-                <span className="bg-white text-gray-800 px-1 truncate max-w-full">
-                  {displayDate}
+                {/* 2026-05-26 G1: previous-signer values get the same
+                    shrink-to-fit treatment as the active signer's
+                    filled state so the second signer can actually read
+                    what the first signer typed. */}
+                <span className="bg-white text-gray-800 px-1 max-w-full overflow-hidden">
+                  <FittedText
+                    maxFontSize={(() => {
+                      const containerH = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
+                      return Math.min(Math.max(containerH * 0.55, isCompactScale ? 12 : 14), 20);
+                    })()}
+                    minFontSize={isCompactScale ? 8 : 10}
+                  >
+                    {displayDate}
+                  </FittedText>
                 </span>
               </div>
             )}
@@ -778,12 +812,15 @@ function PdfPageWithFields({
               className={`absolute cursor-pointer rounded transition-all overflow-visible ${highlightRing}`}
               style={{
                 left, top, width,
-                // 2026-05-23 mobile fix v8: keep the +20 vertical
-                // breathing room for the audit chrome (label + hash)
-                // even on compact, and restore the dashed rose frame +
-                // white bg. Stripping them on mobile hid the legal
-                // evidence the signer needs to verify after they sign.
-                height: isFilled ? height + 20 : unfilledHeight,
+                // 2026-05-26 G2: the +20 breathing room for the audit
+                // chrome (label + hash) was pushing the bottom edge of
+                // a filled signature box ~20px below the natural field
+                // position on mobile — which bled into the document
+                // text underneath the signature. Reduce to +8 on
+                // compact (just enough for the 9px label + 8px hash
+                // with tight leading) and keep +20 on desktop where
+                // there's more visual room around the signature block.
+                height: isFilled ? height + (isCompactScale ? 8 : 20) : unfilledHeight,
                 border: isFilled ? '2px dashed #d4a0a0' : undefined,
                 backgroundColor: isFilled ? '#ffffff' : undefined,
                 scrollMarginTop: 120,
@@ -932,14 +969,21 @@ function PdfPageWithFields({
               >
                 {isFilled ? (
                   <>
-                    {/* title= so long values that get clipped by the
-                        narrow field width can still be inspected by a
-                        long-press / hover on mobile / desktop. */}
+                    {/* 2026-05-26 G1: FittedText shrinks the font size
+                        instead of clipping the value with `truncate`.
+                        Signer can now see the whole "26 May 2026"
+                        instead of just "26 Ma…". title= remains as a
+                        fallback for desktop hover. */}
                     <span
-                      className="text-gray-900 truncate flex-1"
+                      className="flex-1 min-w-0 overflow-hidden text-gray-900"
                       title={item.type === 'date' ? formatDisplayDate(fieldValue) : String(fieldValue ?? '')}
                     >
-                      {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
+                      <FittedText
+                        maxFontSize={filledFontSize}
+                        minFontSize={isCompactScale ? 8 : 10}
+                      >
+                        {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
+                      </FittedText>
                     </span>
                     <Check className="w-3 h-3 text-green-600 flex-shrink-0" />
                   </>
