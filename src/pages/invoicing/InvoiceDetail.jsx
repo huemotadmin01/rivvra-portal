@@ -1759,6 +1759,9 @@ export default function InvoiceDetail() {
         const match = candidates.find(t => preferIgst ? /igst/i.test(t.name) : !/igst/i.test(t.name));
         return (match || candidates[0])._id;
       };
+      // Currency from the AI (ISO 4217 — "USD", "INR", "EUR", …). Used by
+      // both line-level lineCurrency and the invoice-level currency below.
+      const extractedCurrency = (extracted?.invoice?.currency || '').trim().toUpperCase() || null;
       const newLines = (extracted?.lines || []).map((l) => {
         const taxId = resolveTaxId(l.taxRate);
         return {
@@ -1768,14 +1771,19 @@ export default function InvoiceDetail() {
           hsnSacCode: l.hsnSac || undefined,
           taxIds: taxId ? [taxId] : [],
           expenseCategory: l.expenseCategory || undefined,
-          lineCurrency: extracted?.vendor?.gstin ? 'INR' : undefined,
+          lineCurrency: extractedCurrency || undefined,
         };
       });
 
+      // Prefer the currency the AI parsed off the bill. Falls back to INR
+      // only when the extracted vendor has a GSTIN (strongly implies an
+      // Indian B2B bill). Previous version hardcoded INR whenever ANY
+      // vendor.gstin came back, so a mis-extracted buyer GSTIN on a $20
+      // USD bill caused the bill to be recorded as ₹20 INR.
       const updates = {
         date: extracted?.invoice?.date || undefined,
         dueDate: extracted?.invoice?.dueDate || extracted?.invoice?.date || undefined,
-        currency: extracted?.vendor?.gstin ? 'INR' : undefined,
+        currency: extractedCurrency || (extracted?.vendor?.gstin ? 'INR' : undefined),
         vendorInvoiceNumber: extracted?.invoice?.number || undefined,
         placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
         gstTreatment: extracted?.invoice?.gstTreatment || undefined,
