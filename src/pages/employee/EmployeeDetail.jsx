@@ -267,7 +267,7 @@ export default function EmployeeDetail() {
   // CTC management state
   const [showSetCtc, setShowSetCtc] = useState(false);
   const [showReviseCtc, setShowReviseCtc] = useState(false);
-  const [ctcForm, setCtcForm] = useState({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+  const [ctcForm, setCtcForm] = useState({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
   const [ctcSaving, setCtcSaving] = useState(false);
   const [salaryHistory, setSalaryHistory] = useState([]);
   const [salaryHistoryLoading, setSalaryHistoryLoading] = useState(false);
@@ -688,7 +688,7 @@ export default function EmployeeDetail() {
       const res = await employeeApi.setCtc(currentOrg.slug, employeeId, data);
       if (res.success) {
         setShowSetCtc(false);
-        setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+        setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
         // Re-fetch employee + salary history
         const empRes = await employeeApi.get(currentOrg.slug, employeeId);
         if (empRes.success) setEmployee(empRes.employee);
@@ -711,10 +711,16 @@ export default function EmployeeDetail() {
         effectiveFrom: ctcForm.effectiveFrom,
         reason: ctcForm.reason,
       };
+      // Only send employmentType if admin explicitly changed it — otherwise
+      // omit so the backend keeps the current type. This avoids confusing
+      // "no-op" type updates on routine CTC revisions.
+      if (ctcForm.employmentType && ctcForm.employmentType !== emp?.employmentType) {
+        data.employmentType = ctcForm.employmentType;
+      }
       const res = await employeeApi.reviseCtc(currentOrg.slug, employeeId, data);
       if (res.success) {
         setShowReviseCtc(false);
-        setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+        setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
         const empRes = await employeeApi.get(currentOrg.slug, employeeId);
         if (empRes.success) setEmployee(empRes.employee);
         fetchSalaryHistory();
@@ -1047,7 +1053,7 @@ export default function EmployeeDetail() {
                     {isAdmin && (
                       <button
                         onClick={() => {
-                          setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+                          setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
                           setShowReviseCtc(true);
                         }}
                         className="text-dark-400 hover:text-rivvra-400 transition-colors"
@@ -1060,7 +1066,7 @@ export default function EmployeeDetail() {
                 ) : isAdmin ? (
                   <button
                     onClick={() => {
-                      setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '' });
+                      setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
                       setShowSetCtc(true);
                     }}
                     className="flex items-center gap-1 text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
@@ -2115,6 +2121,26 @@ export default function EmployeeDetail() {
                   className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
                   placeholder="e.g. 3600000"
                 />
+              </div>
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">
+                  Employment Type
+                  <span className="text-dark-500 text-xs ml-2">(change here to promote/demote in the same step)</span>
+                </label>
+                <select
+                  value={ctcForm.employmentType || emp?.employmentType || 'confirmed'}
+                  onChange={e => setCtcForm(f => ({ ...f, employmentType: e.target.value }))}
+                  className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-2 text-white text-sm focus:border-rivvra-500 focus:outline-none"
+                >
+                  <option value="confirmed">Confirmed</option>
+                  <option value="intern">Intern</option>
+                  <option value="internal_consultant">Internal Consultant (non-billable)</option>
+                </select>
+                {ctcForm.employmentType && ctcForm.employmentType !== emp?.employmentType && (
+                  <p className="text-amber-400 text-xs mt-1">
+                    This will also change the employee's type from <span className="font-medium">{emp?.employmentType}</span> to <span className="font-medium">{ctcForm.employmentType}</span> — structure, PF/ESI applicability, and components will be re-derived.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm text-dark-400 mb-1">Effective From</label>
