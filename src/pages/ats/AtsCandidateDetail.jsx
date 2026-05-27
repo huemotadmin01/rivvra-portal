@@ -11,6 +11,7 @@ import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import StageBadge from '../../components/ats/StageBadge';
+import AiResumeInsights from '../../components/ats/AiResumeInsights';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
@@ -57,6 +58,27 @@ export default function AtsCandidateDetail() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archivePreview, setArchivePreview] = useState(null);
   const [archiving, setArchiving] = useState(false);
+  const [aiRescoring, setAiRescoring] = useState(false);
+
+  const handleAiRescore = useCallback(async () => {
+    if (!candidateId) return;
+    setAiRescoring(true);
+    try {
+      const res = await atsApi.rescoreCandidateAi(slug, candidateId);
+      if (res?.success) {
+        showToast('AI re-score complete', 'success');
+        const fresh = await atsApi.getCandidate(slug, candidateId);
+        if (fresh?.success) setCandidate(fresh.candidate);
+      } else {
+        showToast(res?.error || 'AI re-score failed', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'AI re-score failed', 'error');
+    } finally {
+      setAiRescoring(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, candidateId]);
 
   usePageTitle(candidate?.name);
 
@@ -312,6 +334,16 @@ export default function AtsCandidateDetail() {
           <SectionCard title="Skills" icon={Award}>
             <SkillsPicker orgSlug={slug} candidateId={candidateId} readOnly={!canEdit} />
           </SectionCard>
+
+          {/* 2026-05-28: AI-extracted resume insights (summary, skills, years,
+              work history, education, quality score). Renders nothing when no
+              data yet — backfill / new-application processing populates it. */}
+          <AiResumeInsights
+            candidate={candidate}
+            canRescore={isAdmin}
+            rescoring={aiRescoring}
+            onRescore={handleAiRescore}
+          />
 
           {/* Applications */}
           <div>

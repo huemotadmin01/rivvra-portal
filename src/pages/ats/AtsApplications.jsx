@@ -27,6 +27,7 @@ const APP_GROUP_BY_OPTIONS = [
 // filter chip was subsumed by the new lifecycle segmented toggle
 // (Ongoing / Hired / Refused / Archived).
 import StageBadge from '../../components/ats/StageBadge';
+import { AiScoreBadge } from '../../components/ats/AiResumeInsights';
 import {
   Plus, Loader2, Users,
   ChevronLeft, ChevronRight, X,
@@ -642,9 +643,22 @@ export default function AtsApplications() {
             <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
             <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
             <GroupByChip options={APP_GROUP_BY_OPTIONS} />
-            <MoreFiltersPopover paramKeys={['source', 'employmentType']}>
+            <MoreFiltersPopover paramKeys={['source', 'employmentType', 'aiScoreMin']}>
               <FilterChip type="select" paramKey="source" label="Source" options={sourceOptions} placeholder="No sources" />
               <FilterChip type="select" paramKey="employmentType" label="Employment Type" options={employmentTypeOptions} placeholder="No types" />
+              {/* 2026-05-28: AI fit threshold. Recruiters use 60+ for broad
+                  shortlist, 80+ for strong-match-only review. */}
+              <FilterChip
+                type="select"
+                paramKey="aiScoreMin"
+                label="AI Fit ≥"
+                options={[
+                  { value: '60', label: '60 (any reasonable match)' },
+                  { value: '70', label: '70 (decent match)' },
+                  { value: '80', label: '80 (strong match)' },
+                  { value: '90', label: '90 (excellent match)' },
+                ]}
+              />
             </MoreFiltersPopover>
             <LifecycleToggle lifecycle={lifecycle} counts={counts} onChange={setLifecycle} />
           </FilterBar>
@@ -762,6 +776,9 @@ export default function AtsApplications() {
                     <SortableHeader column="stageId">Stage</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell">Recruiter</th>
                     <SortableHeader column="evaluation" align="center" className="hidden lg:table-cell">Evaluation</SortableHeader>
+                    {/* 2026-05-28: AI Fit column. Mongo sorts missing as
+                        lowest ascending — dir=desc surfaces scored rows first. */}
+                    <SortableHeader column="aiJobFitScore" align="center" className="hidden lg:table-cell">AI Fit</SortableHeader>
                     <SortableHeader column="appliedOn" className="hidden xl:table-cell">Applied</SortableHeader>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">L1 Feedback</th>
                     <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">L2 Feedback</th>
@@ -892,6 +909,12 @@ export default function AtsApplications() {
                         <div className="flex justify-center">
                           <EvalStars value={app.evaluation || 0} />
                         </div>
+                      </td>
+
+                      {/* AI Fit — 2026-05-28. Shows nothing for un-scored
+                          apps (pending / no resume / pre-AI rows). */}
+                      <td className="px-4 py-3 hidden lg:table-cell text-center">
+                        <AiScoreBadge score={app.aiJobFitScore} size="sm" />
                       </td>
 
                       {/* Applied */}

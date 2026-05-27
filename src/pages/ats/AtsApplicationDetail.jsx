@@ -12,6 +12,7 @@ import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
+import AiResumeInsights from '../../components/ats/AiResumeInsights';
 import RateConfirmationModal from '../../components/ats/RateConfirmationModal';
 import RefuseModal from '../../components/ats/RefuseModal';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
@@ -1763,6 +1764,7 @@ export default function AtsApplicationDetail() {
   const [application, setApplication] = useState(null);
   usePageTitle(application?.candidateName);
   const [loading, setLoading] = useState(true);
+  const [aiRescoring, setAiRescoring] = useState(false);
 
   // Dropdown data
   const [stages, setStages] = useState([]);
@@ -1924,6 +1926,10 @@ export default function AtsApplicationDetail() {
           // is missing; default to true (the legacy behavior) so a server
           // without the field falls back to client-side isMine + isAdmin.
           canWrite: typeof res.canWrite === 'boolean' ? res.canWrite : undefined,
+          // 2026-05-28: candidate doc embeds AI-extracted fields (aiProfileSummary,
+          // aiSkills, aiQualityScore, aiWorkHistory, etc). Stash for the
+          // AiResumeInsights card.
+          _candidate: res.candidate || null,
         };
         setApplication(merged);
       }
@@ -1933,6 +1939,36 @@ export default function AtsApplicationDetail() {
       showToast('Failed to load application', 'error');
     } finally {
       if (mySeq === fetchAppSeq.current) setLoading(false);
+    }
+  }, [orgSlug, applicationId, showToast]);
+
+  // 2026-05-28: manual AI re-score (admin-only). Synchronous call —
+  // re-fetches the application afterwards to pull the refreshed candidate doc.
+  const handleAiRescore = useCallback(async () => {
+    if (!applicationId) return;
+    setAiRescoring(true);
+    try {
+      const res = await atsApi.rescoreApplicationAi(orgSlug, applicationId);
+      if (res?.success) {
+        showToast('AI re-score complete', 'success');
+        // Re-fetch to pick up updated candidate fields (summary, skills, etc).
+        try {
+          const fresh = await atsApi.getApplication(orgSlug, applicationId);
+          if (fresh?.success) {
+            setApplication((prev) => ({
+              ...(prev || {}),
+              ...(fresh.application || {}),
+              _candidate: fresh.candidate || null,
+            }));
+          }
+        } catch (_) { /* swallow */ }
+      } else {
+        showToast(res?.error || 'AI re-score failed', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'AI re-score failed', 'error');
+    } finally {
+      setAiRescoring(false);
     }
   }, [orgSlug, applicationId, showToast]);
 
@@ -3101,6 +3137,14 @@ export default function AtsApplicationDetail() {
               </div>
             )}
           </SectionCard>
+
+          <AiResumeInsights
+            candidate={application._candidate}
+            application={application}
+            canRescore={isAdmin}
+            rescoring={aiRescoring}
+            onRescore={handleAiRescore}
+          />
 
           <SectionCard title="Job" icon={Briefcase}>
             <div className="grid grid-cols-[140px_1fr] gap-2 py-2">

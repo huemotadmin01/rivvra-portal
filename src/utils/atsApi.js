@@ -139,6 +139,14 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}`);
   },
 
+  // 2026-05-28: manual AI re-score (admin only). Synchronous — caller waits.
+  rescoreApplicationAi(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/ai-rescore`, { method: 'POST' });
+  },
+  rescoreCandidateAi(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}/ai-rescore`, { method: 'POST' });
+  },
+
   createApplication(orgSlug, data) {
     return api.request(`/api/org/${orgSlug}/ats/applications`, {
       method: 'POST',
