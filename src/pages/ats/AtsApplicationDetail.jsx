@@ -1744,7 +1744,12 @@ const EVAL_OPTIONS = [
 /* ── Main component ──────────────────────────────────────────────────── */
 export default function AtsApplicationDetail() {
   const { applicationId } = useParams();
-  const { currentOrg, getAppRole, hasAppAccess, isOrgAdmin } = useOrg();
+  const { currentOrg, getAppRole, hasAppAccess, isOrgAdmin, membershipVerified } = useOrg();
+  // 2026-05-28 — Bypass-gate UI must wait for the live `/by-user/me`
+  // round-trip before trusting `isOrgAdmin`. Cache-hydrated membership
+  // could carry a stale `orgRole: 'admin'` from prior elevation and would
+  // leak the bypass affordance for ~1s on first paint.
+  const canBypassRcGate = membershipVerified && isOrgAdmin === true;
   const { user: authUser } = useAuth();
   const { currentCompany, companies } = useCompany();
   const { orgPath } = usePlatform();
@@ -2838,7 +2843,7 @@ export default function AtsApplicationDetail() {
                   >
                     <ShieldOff size={12} />
                     RC gate bypassed
-                    {isOrgAdmin && (
+                    {canBypassRcGate && (
                       <button
                         type="button"
                         onClick={handleRevokeRcBypass}
@@ -2970,7 +2975,7 @@ export default function AtsApplicationDetail() {
                       {/* 2026-05-27 — admin escape hatch for the Rate Confirmation
                           gate. Hidden once a bypass is already in place
                           (the revoke link sits on the chip instead). */}
-                      {!application?.rateConfirmationGate?.bypassedAt && !application?.archived && (
+                      {canBypassRcGate && !application?.rateConfirmationGate?.bypassedAt && !application?.archived && (
                         <button
                           onClick={() => { setShowKebab(false); setRcBypassReason(''); setShowRcBypassModal(true); }}
                           className="w-full text-left px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10 flex items-center gap-2"
@@ -3641,7 +3646,7 @@ export default function AtsApplicationDetail() {
         recruiterName={authUser?.name || ''}
         recruiterEmail={authUser?.email || ''}
         onSent={() => { setShowRateConfirmationModal(false); fetchApplication(); }}
-        canBypass={isOrgAdmin && !application?.rateConfirmationGate?.bypassedAt}
+        canBypass={canBypassRcGate && !application?.rateConfirmationGate?.bypassedAt}
         onBypassRequested={() => { setRcBypassReason(''); setShowRcBypassModal(true); }}
       />
       <HireModal

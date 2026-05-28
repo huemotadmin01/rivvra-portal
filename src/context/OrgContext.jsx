@@ -71,6 +71,13 @@ export function OrgProvider({ children }) {
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // 2026-05-28 — `membershipVerified` is true only after the live
+  // `/api/org/by-user/me` round-trip lands. Cache-hydrated membership is
+  // shown for fast first paint but is NOT trusted for privileged UI
+  // (e.g. ATS Rate Confirmation bypass). Stale cache rows with
+  // orgRole='admin' from prior elevation would otherwise leak admin-only
+  // affordances for the ~1s window before silent revalidation.
+  const [membershipVerified, setMembershipVerified] = useState(false);
   const fetchedRef = useRef(false);
   const lastUserIdRef = useRef(null);
 
@@ -102,6 +109,9 @@ export function OrgProvider({ children }) {
         setMembership(null);
         writeCache(userIdentity, null, null);
       }
+      // Live server response landed — UI gating on `membershipVerified`
+      // (privileged actions like ATS RC-gate bypass) can now trust the role.
+      setMembershipVerified(true);
     } catch (err) {
       console.error('Failed to fetch org context:', err);
       setError(err.message);
@@ -140,6 +150,7 @@ export function OrgProvider({ children }) {
       lastUserIdRef.current = null;
       setCurrentOrg(null);
       setMembership(null);
+      setMembershipVerified(false);
       setLoading(false);
       clearCache();
     }
@@ -193,6 +204,9 @@ export function OrgProvider({ children }) {
     isOrgAdmin: membership?.orgRole === 'owner' || membership?.orgRole === 'admin',
     isOrgOwner: membership?.orgRole === 'owner',
     orgRole: membership?.orgRole || null,
+    // Use for privileged UI that must not trust cache-hydrated roles. See
+    // membershipVerified state declaration for the rationale.
+    membershipVerified,
     // Trial state
     trial,
     isTrialActive,
@@ -210,7 +224,7 @@ export function OrgProvider({ children }) {
       fetchedRef.current = false;
       fetchOrg(false);
     },
-  }), [currentOrg, membership, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, trial, isTrialActive, isGracePeriod, isTrialArchived, isReadOnly, trialDaysRemaining, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
+  }), [currentOrg, membership, membershipVerified, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, trial, isTrialActive, isGracePeriod, isTrialArchived, isReadOnly, trialDaysRemaining, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
 
   return (
     <OrgContext.Provider value={value}>
