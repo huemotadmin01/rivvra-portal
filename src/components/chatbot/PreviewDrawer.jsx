@@ -37,8 +37,10 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
     if (!item?.id) return;
     let aborted = false;
     setLoading(true); setErr(null); setData(null);
-    const fetcher = item.kind === 'application'
-      ? atsApi.getApplication(orgSlug, item.id)
+    // Branch by kind so a job click doesn't end up hitting /candidates/<jobId>
+    // and returning "Candidate not found" (the bug 2026-05-28).
+    const fetcher = item.kind === 'application' ? atsApi.getApplication(orgSlug, item.id)
+      : item.kind === 'job' ? atsApi.getJob(orgSlug, item.id)
       : atsApi.getCandidate(orgSlug, item.id);
     fetcher
       .then((res) => {
@@ -60,10 +62,11 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
 
   if (!item) return null;
 
-  const candidate = item.kind === 'application' ? data?.candidate : data?.candidate;
+  const candidate = item.kind === 'application' ? data?.candidate : (item.kind === 'job' ? null : data?.candidate);
   const application = item.kind === 'application' ? data?.application : null;
-  const fullPath = item.kind === 'application'
-    ? `/org/${orgSlug}/ats/applications/${item.id}`
+  const job = item.kind === 'job' ? data?.job : (data?.jobName ? { name: data.jobName } : null);
+  const fullPath = item.kind === 'application' ? `/org/${orgSlug}/ats/applications/${item.id}`
+    : item.kind === 'job' ? `/org/${orgSlug}/ats/jobs/${item.id}`
     : `/org/${orgSlug}/ats/candidates/${item.id}`;
 
   return (
@@ -91,7 +94,7 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
               <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M14.3 5.7L10 10l4.3 4.3-1.4 1.4L8.6 11.4l-4.3 4.3L2.9 14.3 7.2 10 2.9 5.7 4.3 4.3l4.3 4.3 4.3-4.3z"/></svg>
             </button>
             <div className="text-[11px] uppercase tracking-wider text-dark-500 font-medium">
-              {item.kind === 'application' ? 'Application' : 'Candidate'} preview
+              {item.kind === 'application' ? 'Application' : item.kind === 'job' ? 'Job' : 'Candidate'} preview
             </div>
           </div>
           <button
@@ -124,11 +127,22 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
               {/* Header summary */}
               <div>
                 <h2 className="text-lg font-semibold text-white tracking-tight">
-                  {item.kind === 'application' ? application?.candidateName : candidate?.name}
+                  {item.kind === 'application' ? application?.candidateName
+                    : item.kind === 'job' ? job?.name
+                    : candidate?.name}
                 </h2>
                 <div className="text-xs text-dark-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {candidate?.email && <span>{candidate.email}</span>}
-                  {candidate?.phone && <span>· {candidate.phone}</span>}
+                  {item.kind === 'job' ? (
+                    <>
+                      {job?.clientName && <span>{job.clientName}</span>}
+                      {job?.department && <span>· {job.department}</span>}
+                    </>
+                  ) : (
+                    <>
+                      {candidate?.email && <span>{candidate.email}</span>}
+                      {candidate?.phone && <span>· {candidate.phone}</span>}
+                    </>
+                  )}
                 </div>
                 {/* Score row */}
                 <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
@@ -154,7 +168,78 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
                     For <span className="font-medium text-white">{data.jobName}</span>
                   </div>
                 )}
+                {/* Job-specific pills */}
+                {item.kind === 'job' && job && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                    {job.approvalStatus && job.approvalStatus !== 'approved' && (
+                      <Pill tone={job.approvalStatus === 'rejected' ? 'rose' : 'amber'}>
+                        {job.approvalStatus}
+                      </Pill>
+                    )}
+                    {job.approvalStatus === 'approved' && <Pill tone="success">approved</Pill>}
+                    {job.status && <Pill>{job.status}</Pill>}
+                    {job.location && <Pill>{job.location}</Pill>}
+                    {job.hiringMode && <Pill>{job.hiringMode}</Pill>}
+                    {job.employmentType && <Pill>{job.employmentType}</Pill>}
+                    {job.hiredCount > 0 && <Pill tone="success">{job.hiredCount} hired</Pill>}
+                    {job.published && <Pill>published</Pill>}
+                  </div>
+                )}
               </div>
+
+              {/* Job-specific body: description + required skills +
+                  ownership + applications pipeline summary */}
+              {item.kind === 'job' && job && (
+                <>
+                  {(job.recruiterName || job.accountOwnerName || job.approverName) && (
+                    <div className="rounded-md border border-dark-700 bg-dark-800/40 px-3 py-2.5 space-y-1.5">
+                      {job.recruiterName && (
+                        <div className="text-xs text-dark-300"><span className="text-dark-500">Recruiter:</span> <span className="text-white">{job.recruiterName}</span></div>
+                      )}
+                      {job.accountOwnerName && (
+                        <div className="text-xs text-dark-300"><span className="text-dark-500">Account Owner:</span> <span className="text-white">{job.accountOwnerName}</span></div>
+                      )}
+                      {job.approverName && (
+                        <div className="text-xs text-dark-300"><span className="text-dark-500">Approver:</span> <span className="text-white">{job.approverName}</span></div>
+                      )}
+                      {(job.clientBudget != null || job.maxBudget != null) && (
+                        <div className="text-xs text-dark-300"><span className="text-dark-500">Budget:</span> <span className="text-white">{job.clientBudget != null ? `Client ${job.clientBudget}` : ''}{job.maxBudget != null ? ` · Max ${job.maxBudget}` : ''}</span></div>
+                      )}
+                    </div>
+                  )}
+                  {Array.isArray(job.requiredSkills) && job.requiredSkills.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-1.5">Required skills</div>
+                      <div className="flex flex-wrap gap-1">
+                        {job.requiredSkills.slice(0, 30).map((s, i) => (
+                          <span key={`${s}-${i}`} className="text-[11px] px-2 py-0.5 rounded bg-dark-700/60 text-dark-200">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {data?.applicationCountByStage && Object.keys(data.applicationCountByStage).length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-1.5">Pipeline ({Object.values(data.applicationCountByStage).reduce((a,b) => a + (b || 0), 0)} applications)</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(data.applicationCountByStage).filter(([, c]) => (c || 0) > 0).map(([stage, count]) => (
+                          <span key={stage} className="text-[11px] px-2 py-1 rounded-md bg-dark-800 border border-dark-700 text-dark-200">
+                            <span className="text-dark-400">{stage}</span> <span className="font-semibold text-white ml-1">{count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {job.description && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-1.5">Description</div>
+                      <div className="text-xs text-dark-200 leading-relaxed whitespace-pre-wrap line-clamp-[14]">
+                        {String(job.description).slice(0, 1500)}
+                        {job.description.length > 1500 && '…'}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Job-fit reasoning if application */}
               {item.kind === 'application' && application?.aiJobFitReasoning && (
@@ -164,8 +249,8 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
                 </div>
               )}
 
-              {/* AI insights card — reuse the existing component */}
-              {candidate && (
+              {/* AI insights card — reuse the existing component (skip for job kind) */}
+              {item.kind !== 'job' && candidate && (
                 <AiResumeInsights candidate={candidate} application={application || undefined} />
               )}
 
