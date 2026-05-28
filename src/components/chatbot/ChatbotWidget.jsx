@@ -50,12 +50,12 @@ function renderAssistantText(text, { orgSlug, navigate }) {
 function renderInline(raw, { orgSlug, navigate }) {
   // Tokenize, in order of precedence:
   //   **bold**
-  //   [c:ObjectId] / [a:ObjectId] / [j:ObjectId]  — typed entity links
-  //   [ObjectId]   — legacy plain-id fallback, routes to candidate
-  //   bare 24-hex   — LLM occasionally drops raw ObjectIds in body text;
-  //                   match-and-drop so users never see the long hex string
+  //   [Label](c:ObjectId)   — markdown-style entity link  ← preferred
+  //   [c:ObjectId] / [a:…] / [j:…]   — typed bracket-prefix marker
+  //   [ObjectId]            — legacy plain-id fallback, routes to candidate
+  //   bare 24-hex           — defensive: scrub if it slips into prose
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[(c|a|j):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[([^\]]+)\]\((c|a|j):([a-f0-9]{24})\))|(\[(c|a|j):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
   const KIND_PATH = { c: 'candidates', a: 'applications', j: 'jobs' };
   let lastIdx = 0;
   let m;
@@ -79,6 +79,20 @@ function renderInline(raw, { orgSlug, navigate }) {
     }
     if (seg.startsWith('**')) {
       out.push(<strong key={k++} className="text-white">{seg.slice(2, -2)}</strong>);
+    } else if (m[2]) {
+      // Markdown-style entity link: [Label](kind:id)
+      const label = m[3];
+      const kind = m[4].toLowerCase();
+      const id = m[5];
+      const path = KIND_PATH[kind];
+      out.push(
+        <a
+          key={k++}
+          href={`/org/${orgSlug}/ats/${path}/${id}`}
+          onClick={(e) => { e.preventDefault(); navigate(`/org/${orgSlug}/ats/${path}/${id}`); }}
+          className="text-rivvra-300 hover:underline decoration-rivvra-500/40 underline-offset-2 font-medium"
+        >{label}</a>,
+      );
     } else if (seg.match(/^\[[caj]:/i)) {
       const kind = seg[1].toLowerCase();
       const id = seg.slice(3, -1);
