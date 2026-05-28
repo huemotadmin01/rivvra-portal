@@ -111,7 +111,7 @@ function renderInline(raw, { orgSlug, navigate }) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-function ToolCallPill({ name, args, summary }) {
+function ToolCallPill({ name, args, summary, navigate }) {
   const label = {
     searchCandidates: 'Searching candidates',
     getCandidate: 'Loading candidate',
@@ -120,6 +120,25 @@ function ToolCallPill({ name, args, summary }) {
     recruiterStats: 'Crunching stats',
     compareCandidates: 'Comparing candidates',
   }[name] || name;
+
+  const KIND_ICON = {
+    candidate: (
+      <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className="text-rivvra-300/80">
+        <path d="M10 10a3 3 0 100-6 3 3 0 000 6zM3 17a7 7 0 0114 0H3z"/>
+      </svg>
+    ),
+    application: (
+      <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className="text-rivvra-300/80">
+        <path d="M4 3h10l2 2v12H4V3z" fillOpacity="0.4"/>
+        <path d="M4 3h10l2 2H4z"/>
+      </svg>
+    ),
+    job: (
+      <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" className="text-rivvra-300/80">
+        <path d="M6 6V4a2 2 0 012-2h4a2 2 0 012 2v2h3a1 1 0 011 1v9a1 1 0 01-1 1H2a1 1 0 01-1-1V7a1 1 0 011-1h4zm2 0h4V4H8v2z"/>
+      </svg>
+    ),
+  };
 
   const argSummary = useMemo(() => {
     if (!args) return '';
@@ -133,23 +152,62 @@ function ToolCallPill({ name, args, summary }) {
     return parts.join(' · ');
   }, [args]);
 
+  const items = summary?.items || [];
+
   return (
-    <div className="inline-flex items-start gap-2 text-[11px] rounded-md bg-dark-800/60 border border-dark-700 px-2 py-1.5 my-1 max-w-full">
-      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-rivvra-300 mt-0.5 flex-shrink-0">
-        {summary
-          ? <path d="M16.7 5.3l-7.4 7.4-4-4-1.4 1.4 5.4 5.4 8.8-8.8z"/>
-          : <circle cx="10" cy="10" r="3"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite"/></circle>}
-      </svg>
-      <div className="min-w-0">
-        <div className="text-dark-300 font-medium">{label}{summary ? '' : '…'}</div>
-        {argSummary && <div className="text-dark-500 truncate">{argSummary}</div>}
-        {summary && typeof summary.matchCount === 'number' && (
-          <div className="text-emerald-400 text-[10px]">{summary.matchCount} {summary.matchCount === 1 ? 'match' : 'matches'}</div>
-        )}
-        {summary && summary.error && (
-          <div className="text-rose-400 text-[10px]">Error: {summary.error}</div>
-        )}
+    <div className="space-y-1.5 my-1">
+      <div className="inline-flex items-start gap-2 text-[11px] rounded-md bg-dark-800/60 border border-dark-700 px-2 py-1.5 max-w-full">
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-rivvra-300 mt-0.5 flex-shrink-0">
+          {summary
+            ? <path d="M16.7 5.3l-7.4 7.4-4-4-1.4 1.4 5.4 5.4 8.8-8.8z"/>
+            : <circle cx="10" cy="10" r="3"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite"/></circle>}
+        </svg>
+        <div className="min-w-0">
+          <div className="text-dark-300 font-medium">{label}{summary ? '' : '…'}</div>
+          {argSummary && <div className="text-dark-500 truncate">{argSummary}</div>}
+          {summary && typeof summary.matchCount === 'number' && (
+            <div className="text-emerald-400 text-[10px]">{summary.matchCount} {summary.matchCount === 1 ? 'match' : 'matches'}</div>
+          )}
+          {summary && summary.error && (
+            <div className="text-rose-400 text-[10px]">Error: {summary.error}</div>
+          )}
+        </div>
       </div>
+
+      {/* Linkable result cards — guaranteed clickable, independent of LLM
+          formatting. The recruiter doesn't need the bot to ask for IDs;
+          they can jump directly from any card to the detail page. */}
+      {items.length > 0 && (
+        <div className="flex flex-col gap-1 pl-1">
+          {items.map((it, i) => {
+            const clickable = !!it._viewUrl;
+            const content = (
+              <>
+                <span className="flex-shrink-0">{KIND_ICON[it._kind] || KIND_ICON.candidate}</span>
+                <span className="text-sm text-dark-100 truncate font-medium">{it.name}</span>
+                {it.meta && <span className="text-[11px] text-dark-500 truncate">· {it.meta}</span>}
+                {clickable && (
+                  <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" className="ml-auto text-dark-500 group-hover:text-rivvra-300 transition-colors flex-shrink-0">
+                    <path d="M4 10h10m0 0l-4-4m4 4l-4 4"/>
+                  </svg>
+                )}
+              </>
+            );
+            return clickable ? (
+              <a
+                key={`${it._id}-${i}`}
+                href={it._viewUrl}
+                onClick={(e) => { e.preventDefault(); navigate(it._viewUrl); }}
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-all"
+              >{content}</a>
+            ) : (
+              <div key={`${it._id}-${i}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-dark-800/30 border border-dark-700/50">
+                {content}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -375,7 +433,7 @@ export default function ChatbotWidget() {
                 ) : (
                   <div className="max-w-[92%] text-sm text-dark-200 space-y-1">
                     {m.toolCalls?.map((tc) => (
-                      <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} />
+                      <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} />
                     ))}
                     <div className="whitespace-pre-wrap break-words">
                       {renderAssistantText(m.content, { orgSlug, navigate })}
@@ -422,7 +480,7 @@ export default function ChatbotWidget() {
               <div className="flex justify-start">
                 <div className="max-w-[92%] text-sm text-dark-200 space-y-1">
                   {pendingTools.map((tc) => (
-                    <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} />
+                    <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} />
                   ))}
                   {pendingTokens && (
                     <div className="whitespace-pre-wrap break-words">
