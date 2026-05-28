@@ -78,7 +78,14 @@ function renderInline(raw, { orgSlug, navigate }) {
       continue;
     }
     if (seg.startsWith('**')) {
-      out.push(<strong key={k++} className="text-white">{seg.slice(2, -2)}</strong>);
+      // Recursively parse the bold's content so e.g. **[Name](c:id)**
+      // renders as <strong><a>Name</a></strong> — without this the
+      // outer bold swallows the markdown link as plain text.
+      out.push(
+        <strong key={k++} className="text-white">
+          {renderInline(seg.slice(2, -2), { orgSlug, navigate })}
+        </strong>,
+      );
     } else if (m[2]) {
       // Markdown-style entity link: [Label](kind:id)
       const label = m[3];
