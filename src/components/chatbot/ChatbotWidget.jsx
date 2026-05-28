@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { streamChatbot } from '../../utils/chatbotApi';
+import PreviewDrawer from './PreviewDrawer';
 
 const SAMPLE_QUERIES = [
   'Find Salesforce developers with 8+ years',
@@ -111,7 +112,7 @@ function renderInline(raw, { orgSlug, navigate }) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-function ToolCallPill({ name, args, summary, navigate }) {
+function ToolCallPill({ name, args, summary, navigate, onItemClick }) {
   const label = {
     searchCandidates: 'Searching candidates',
     getCandidate: 'Loading candidate',
@@ -206,7 +207,15 @@ function ToolCallPill({ name, args, summary, navigate }) {
               <a
                 key={`${it._id}-${i}`}
                 href={it._viewUrl}
-                onClick={(e) => { e.preventDefault(); navigate(it._viewUrl); }}
+                onClick={(e) => {
+                  // Cmd/Ctrl-click = open the full detail page in this tab
+                  // (recruiter wants the canonical editor). Plain click =
+                  // preview drawer (recruiter wants to stay in chat flow).
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                  e.preventDefault();
+                  if (onItemClick) onItemClick(it);
+                  else navigate(it._viewUrl);
+                }}
                 className="group flex flex-col px-2 py-1.5 rounded-md bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-all"
               >{content}</a>
             ) : (
@@ -236,6 +245,9 @@ export default function ChatbotWidget() {
   const [pendingTokens, setPendingTokens] = useState('');
   const [pendingTools, setPendingTools] = useState([]);
   const [pendingListLinks, setPendingListLinks] = useState([]);
+  // Phase 3.3 — clicking a result card opens this preview drawer instead
+  // of navigating away. Cmd/Ctrl-click bypasses to the full detail page.
+  const [previewItem, setPreviewItem] = useState(null); // { kind, id }
   const [input, setInput] = useState('');
   const [sessionId] = useState(() => generateSessionId());
   const abortRef = useRef(null);
@@ -377,6 +389,17 @@ export default function ChatbotWidget() {
         </button>
       )}
 
+      {/* Preview drawer (left side) — rendered when user clicks a result
+          card. Keeps the chat panel visible on the right so they can
+          glance at a candidate and keep scanning others. */}
+      {previewItem && (
+        <PreviewDrawer
+          item={previewItem}
+          orgSlug={orgSlug}
+          onClose={() => setPreviewItem(null)}
+        />
+      )}
+
       {/* Panel */}
       {open && (
         <div className="fixed bottom-5 right-5 z-40 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-dark-900 border border-dark-700 shadow-2xl shadow-black/40 overflow-hidden">
@@ -442,7 +465,7 @@ export default function ChatbotWidget() {
                 ) : (
                   <div className="max-w-[92%] text-sm text-dark-200 space-y-1">
                     {m.toolCalls?.map((tc) => (
-                      <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} />
+                      <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} onItemClick={(it) => setPreviewItem({ kind: it._kind, id: it._id })} />
                     ))}
                     <div className="whitespace-pre-wrap break-words">
                       {renderAssistantText(m.content, { orgSlug, navigate })}
@@ -489,7 +512,7 @@ export default function ChatbotWidget() {
               <div className="flex justify-start">
                 <div className="max-w-[92%] text-sm text-dark-200 space-y-1">
                   {pendingTools.map((tc) => (
-                    <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} />
+                    <ToolCallPill key={tc.id} name={tc.name} args={tc.args} summary={tc.summary} navigate={navigate} onItemClick={(it) => setPreviewItem({ kind: it._kind, id: it._id })} />
                   ))}
                   {pendingTokens && (
                     <div className="whitespace-pre-wrap break-words">
