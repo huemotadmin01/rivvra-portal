@@ -169,27 +169,53 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
                 <AiResumeInsights candidate={candidate} application={application || undefined} />
               )}
 
-              {/* Recent applications list (candidate preview only) */}
+              {/* Recent applications list (candidate preview only).
+                  The candidate-detail endpoint returns enriched docs with
+                  applicationStatus + jobName + stageName + aiJobFitScore,
+                  so we surface all of those. Clicking a row closes the
+                  drawer FIRST (otherwise the chatbot keeps blocking) then
+                  navigates. */}
               {item.kind === 'candidate' && Array.isArray(data?.applications) && data.applications.length > 0 && (
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Applications ({data.applications.length})</div>
-                  <ul className="space-y-1">
-                    {data.applications.slice(0, 10).map((a) => (
-                      <li key={a._id}>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/org/${orgSlug}/ats/applications/${a._id}`)}
-                          className="w-full text-left text-xs px-2 py-1.5 rounded bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-colors"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-dark-200 truncate">{a.status || '—'}</span>
-                            <span className="text-dark-500 text-[10px]">
-                              {typeof a.aiJobFitScore === 'number' ? `Fit ${Math.round(a.aiJobFitScore)}` : '—'}
-                            </span>
-                          </div>
-                        </button>
-                      </li>
-                    ))}
+                  <ul className="space-y-1.5">
+                    {data.applications.slice(0, 10).map((a) => {
+                      const lifecycle = a.hireDate ? 'Hired' : a.refused ? 'Refused' : a.archived ? 'Archived' : (a.applicationStatus || 'Ongoing');
+                      const lifecycleTone =
+                        lifecycle === 'Hired' ? 'text-emerald-300'
+                        : lifecycle === 'Refused' ? 'text-rose-300'
+                        : lifecycle === 'Archived' ? 'text-dark-500'
+                        : 'text-rivvra-300';
+                      return (
+                        <li key={a._id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = `/org/${orgSlug}/ats/applications/${a._id}`;
+                              onClose();
+                              setTimeout(() => navigate(url), 50);
+                            }}
+                            className="w-full text-left px-2.5 py-2 rounded-md bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-colors group"
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-0.5">
+                              <span className="text-sm text-white font-medium truncate">{a.jobName || 'Untitled job'}</span>
+                              {typeof a.aiJobFitScore === 'number' && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                                  a.aiJobFitScore >= 80 ? 'bg-emerald-500/15 text-emerald-300'
+                                  : a.aiJobFitScore >= 60 ? 'bg-amber-500/15 text-amber-300'
+                                  : 'bg-rose-500/15 text-rose-300'
+                                }`}>Fit {Math.round(a.aiJobFitScore)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px]">
+                              <span className={lifecycleTone}>{lifecycle}</span>
+                              {a.stageName && <span className="text-dark-500">· {a.stageName}</span>}
+                              <span className="ml-auto text-dark-500 group-hover:text-rivvra-300">→</span>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
