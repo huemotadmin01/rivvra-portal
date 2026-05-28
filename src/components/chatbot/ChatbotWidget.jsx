@@ -47,9 +47,13 @@ function renderAssistantText(text, { orgSlug, navigate }) {
 }
 
 function renderInline(raw, { orgSlug, navigate }) {
-  // Tokenize: **bold** | [24-hex id] | plain
+  // Tokenize, in order of precedence:
+  //   **bold**
+  //   [c:ObjectId] / [a:ObjectId] / [j:ObjectId]  — typed entity links
+  //   [ObjectId]   — legacy plain-id fallback, routes to candidate
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[[a-f0-9]{24}\])/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[(c|a|j):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])/gi;
+  const KIND_PATH = { c: 'candidates', a: 'applications', j: 'jobs' };
   let lastIdx = 0;
   let m;
   let k = 0;
@@ -58,17 +62,27 @@ function renderInline(raw, { orgSlug, navigate }) {
     const seg = m[0];
     if (seg.startsWith('**')) {
       out.push(<strong key={k++} className="text-white">{seg.slice(2, -2)}</strong>);
+    } else if (seg.match(/^\[[caj]:/i)) {
+      const kind = seg[1].toLowerCase();
+      const id = seg.slice(3, -1);
+      const path = KIND_PATH[kind];
+      out.push(
+        <a
+          key={k++}
+          href={`/org/${orgSlug}/ats/${path}/${id}`}
+          onClick={(e) => { e.preventDefault(); navigate(`/org/${orgSlug}/ats/${path}/${id}`); }}
+          className="text-rivvra-300 hover:underline decoration-rivvra-500/40 underline-offset-2"
+          title={kind === 'c' ? 'Open candidate' : kind === 'a' ? 'Open application' : 'Open job'}
+        >→</a>,
+      );
     } else {
-      // [ObjectId] — link to candidate detail (best guess; works for cand ids)
+      // Legacy [ObjectId] — assume candidate.
       const id = seg.slice(1, -1);
       out.push(
         <a
           key={k++}
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate(`/org/${orgSlug}/ats/candidates/${id}`);
-          }}
+          href={`/org/${orgSlug}/ats/candidates/${id}`}
+          onClick={(e) => { e.preventDefault(); navigate(`/org/${orgSlug}/ats/candidates/${id}`); }}
           className="text-rivvra-300 hover:underline"
         >#{id.slice(-6)}</a>,
       );
@@ -138,6 +152,7 @@ export default function ChatbotWidget() {
   const [streaming, setStreaming] = useState(false);
   const [pendingTokens, setPendingTokens] = useState('');
   const [pendingTools, setPendingTools] = useState([]);
+  const [pendingListLinks, setPendingListLinks] = useState([]);
   const [input, setInput] = useState('');
   const [sessionId] = useState(() => generateSessionId());
   const abortRef = useRef(null);
@@ -163,12 +178,14 @@ export default function ChatbotWidget() {
     setStreaming(true);
     setPendingTokens('');
     setPendingTools([]);
+    setPendingListLinks([]);
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
     let acc = '';
     const tools = [];
+    const listLinks = [];
     try {
       // `data` arrives already-parsed (chatbotApi unwraps the JSON envelope).
       // For token events it's a string; for tool_call/result it's an object.
@@ -183,6 +200,11 @@ export default function ChatbotWidget() {
           const t = tools.find((x) => x.id === data.id);
           if (t) { t.summary = data.summary; }
           setPendingTools([...tools]);
+        } else if (event === 'list_link') {
+          if (data?.url && !listLinks.find((l) => l.url === data.url)) {
+            listLinks.push({ label: data.label, url: data.url });
+            setPendingListLinks([...listLinks]);
+          }
         } else if (event === 'error') {
           acc += `\n\n_⚠️ ${data?.message || 'Something went wrong'}_`;
           setPendingTokens(acc);
@@ -198,9 +220,10 @@ export default function ChatbotWidget() {
       }
       setPendingTokens(acc);
     } finally {
-      setMessages((prev) => [...prev, { role: 'assistant', content: acc, toolCalls: tools }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: acc, toolCalls: tools, listLinks }]);
       setPendingTokens('');
       setPendingTools([]);
+      setPendingListLinks([]);
       setStreaming(false);
       abortRef.current = null;
     }
@@ -217,23 +240,57 @@ export default function ChatbotWidget() {
     setPendingTools([]);
   }, [streaming]);
 
+  // ⌘K / Ctrl-K opens the assistant from anywhere on an ATS page.
+  useEffect(() => {
+    if (!onAtsRoute || !hasAtsAccess) return;
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        // Ignore if user is in an input/textarea/contenteditable (don't
+        // hijack browser search-in-page from form fields).
+        const tag = (e.target?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
+        e.preventDefault();
+        setOpen((v) => !v);
+      } else if (e.key === 'Escape' && open) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onAtsRoute, hasAtsAccess, open]);
+
   // Hide widget entirely when off-route or no ATS access.
   if (!user || !orgSlug || !onAtsRoute || !hasAtsAccess) return null;
 
   return (
     <>
-      {/* FAB */}
+      {/* FAB — pill with icon + label + shortcut. Restrained dark monochrome
+          with one rivvra accent on the icon, matches Linear/v0/Vercel style.
+          See ChatbotWidget redesign 2026-05-28. */}
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full bg-gradient-to-br from-rivvra-500 to-rivvra-600 hover:from-rivvra-400 hover:to-rivvra-500 text-white shadow-lg shadow-rivvra-500/30 flex items-center justify-center transition-all hover:scale-105"
-          aria-label="Open AI assistant"
+          aria-label="Open AI assistant (⌘K)"
+          className="fixed bottom-6 right-6 z-40 group inline-flex items-center gap-2.5 pl-3 pr-3.5 h-11 rounded-full bg-dark-900/95 backdrop-blur border border-dark-700/80 shadow-[0_8px_24px_-6px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)_inset] hover:border-rivvra-500/40 hover:bg-dark-800/95 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ease-out text-sm font-medium text-white tracking-tight focus:outline-none focus-visible:ring-2 focus-visible:ring-rivvra-500/40"
         >
-          <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5L10 2z"/>
-            <circle cx="15" cy="15" r="2"/>
-          </svg>
+          <span className="relative inline-flex items-center justify-center w-5 h-5">
+            {/* 4-point star with stroked, two-stop gradient — feels hand-drawn,
+                not a filled diamond. */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-rivvra-300 transition-transform duration-300 group-hover:rotate-[15deg]">
+              <defs>
+                <linearGradient id="aiStarGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#6ee7b7"/>
+                  <stop offset="100%" stopColor="#10b981"/>
+                </linearGradient>
+              </defs>
+              <path d="M12 3.5c.6 4.2 2.3 5.9 6.5 6.5-4.2.6-5.9 2.3-6.5 6.5-.6-4.2-2.3-5.9-6.5-6.5 4.2-.6 5.9-2.3 6.5-6.5z" stroke="url(#aiStarGrad)" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+            {/* Online dot — static green pulse, indicates "AI is ready". */}
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400 ring-2 ring-dark-900 shadow-[0_0_6px_rgba(52,211,153,0.5)]" aria-hidden="true" />
+          </span>
+          <span className="leading-none">Ask AI</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-0.5 text-[10px] font-mono text-dark-500 group-hover:text-dark-400 px-1.5 py-0.5 rounded border border-dark-700 bg-dark-950/40 leading-none transition-colors">⌘K</kbd>
         </button>
       )}
 
@@ -307,6 +364,21 @@ export default function ChatbotWidget() {
                     <div className="whitespace-pre-wrap break-words">
                       {renderAssistantText(m.content, { orgSlug, navigate })}
                     </div>
+                    {m.listLinks?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1.5">
+                        {m.listLinks.map((l) => (
+                          <a
+                            key={l.url}
+                            href={l.url}
+                            onClick={(e) => { e.preventDefault(); navigate(l.url); }}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-rivvra-500/10 border border-rivvra-500/30 text-rivvra-200 hover:bg-rivvra-500/20 hover:border-rivvra-500/50 transition-colors"
+                          >
+                            {l.label}
+                            <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path d="M4 10h10m0 0l-4-4m4 4l-4 4"/></svg>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -323,6 +395,21 @@ export default function ChatbotWidget() {
                     <div className="whitespace-pre-wrap break-words">
                       {renderAssistantText(pendingTokens, { orgSlug, navigate })}
                       <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-rivvra-400 animate-pulse rounded-sm align-middle" />
+                    </div>
+                  )}
+                  {pendingListLinks.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1.5">
+                      {pendingListLinks.map((l) => (
+                        <a
+                          key={l.url}
+                          href={l.url}
+                          onClick={(e) => { e.preventDefault(); navigate(l.url); }}
+                          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-rivvra-500/10 border border-rivvra-500/30 text-rivvra-200 hover:bg-rivvra-500/20 hover:border-rivvra-500/50 transition-colors"
+                        >
+                          {l.label}
+                          <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path d="M4 10h10m0 0l-4-4m4 4l-4 4"/></svg>
+                        </a>
+                      ))}
                     </div>
                   )}
                 </div>
