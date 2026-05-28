@@ -51,8 +51,10 @@ function renderInline(raw, { orgSlug, navigate }) {
   //   **bold**
   //   [c:ObjectId] / [a:ObjectId] / [j:ObjectId]  — typed entity links
   //   [ObjectId]   — legacy plain-id fallback, routes to candidate
+  //   bare 24-hex   — LLM occasionally drops raw ObjectIds in body text;
+  //                   match-and-drop so users never see the long hex string
   const out = [];
-  const re = /(\*\*[^*]+\*\*)|(\[(c|a|j):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])/gi;
+  const re = /(\*\*[^*]+\*\*)|(\[(c|a|j):[a-f0-9]{24}\])|(\[[a-f0-9]{24}\])|(\b[a-f0-9]{24}\b)/gi;
   const KIND_PATH = { c: 'candidates', a: 'applications', j: 'jobs' };
   let lastIdx = 0;
   let m;
@@ -60,6 +62,20 @@ function renderInline(raw, { orgSlug, navigate }) {
   while ((m = re.exec(raw)) !== null) {
     if (m.index > lastIdx) out.push(<span key={k++}>{raw.slice(lastIdx, m.index)}</span>);
     const seg = m[0];
+    // Bare 24-hex (not inside brackets) — silently drop. The LLM was told
+    // not to do this but we don't trust it.
+    if (/^[a-f0-9]{24}$/i.test(seg)) {
+      lastIdx = m.index + seg.length;
+      // Also swallow a leading hash if present (#abc123 cleanup).
+      if (out.length && typeof out[out.length-1]?.props?.children === 'string') {
+        const last = out[out.length-1];
+        const txt = last.props.children;
+        if (txt.endsWith('#')) {
+          out[out.length-1] = <span key={`s${k++}`}>{txt.slice(0, -1)}</span>;
+        }
+      }
+      continue;
+    }
     if (seg.startsWith('**')) {
       out.push(<strong key={k++} className="text-white">{seg.slice(2, -2)}</strong>);
     } else if (seg.match(/^\[[caj]:/i)) {
@@ -383,6 +399,23 @@ export default function ChatbotWidget() {
                 )}
               </div>
             ))}
+
+            {/* "Thinking…" placeholder while we wait for the first SSE event
+                after the user submits — covers the dead zone before any
+                tool_call or token has arrived. Shown only when streaming
+                is in flight and we haven't surfaced anything yet. */}
+            {streaming && !pendingTokens && pendingTools.length === 0 && (
+              <div className="flex justify-start">
+                <div className="inline-flex items-center gap-2 text-xs text-dark-400 px-3 py-2 rounded-md bg-dark-800/40 border border-dark-700/50">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-rivvra-400 animate-pulse" style={{ animationDelay: '0ms' }} />
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-rivvra-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-rivvra-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                  </span>
+                  <span>Thinking…</span>
+                </div>
+              </div>
+            )}
 
             {/* Live streaming assistant message */}
             {(pendingTokens || pendingTools.length > 0) && (
