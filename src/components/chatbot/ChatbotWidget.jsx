@@ -354,26 +354,41 @@ export default function ChatbotWidget() {
     setMessages([]);
     setPendingTokens('');
     setPendingTools([]);
+    setPendingListLinks([]);
+    setPreviewItem(null);
+  }, [streaming]);
+
+  // Closing the panel must abort any in-flight stream — otherwise tokens
+  // keep generating on the backend (cost) and the next open() shows stale
+  // pendingTokens.
+  const closePanel = useCallback(() => {
+    if (streaming) abortRef.current?.abort();
+    setOpen(false);
   }, [streaming]);
 
   // ⌘K / Ctrl-K opens the assistant from anywhere on an ATS page.
+  // ESC closes the PANEL — but only when no PreviewDrawer is open above
+  // it. Otherwise a single ESC press would close both at once.
   useEffect(() => {
     if (!onAtsRoute || !hasAtsAccess) return;
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        // Ignore if user is in an input/textarea/contenteditable (don't
-        // hijack browser search-in-page from form fields).
         const tag = (e.target?.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
         e.preventDefault();
         setOpen((v) => !v);
-      } else if (e.key === 'Escape' && open) {
-        setOpen(false);
+      } else if (e.key === 'Escape' && open && !previewItem) {
+        closePanel();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onAtsRoute, hasAtsAccess, open]);
+  }, [onAtsRoute, hasAtsAccess, open, previewItem]);
+
+  // Bug 5 fix: abort any in-flight stream when the widget unmounts (route
+  // change while a query is mid-flight). Without this the fetch keeps
+  // running in the background and the server keeps generating tokens.
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   // Hide widget entirely when off-route or no ATS access.
   if (!user || !orgSlug || !onAtsRoute || !hasAtsAccess) return null;
@@ -448,7 +463,7 @@ export default function ChatbotWidget() {
               )}
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closePanel}
                 className="h-7 w-7 rounded text-dark-400 hover:text-white hover:bg-dark-800 flex items-center justify-center"
                 aria-label="Close"
               >

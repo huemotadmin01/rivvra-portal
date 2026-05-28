@@ -37,8 +37,12 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
     if (!item?.id) return;
     let aborted = false;
     setLoading(true); setErr(null); setData(null);
-    // Branch by kind so a job click doesn't end up hitting /candidates/<jobId>
-    // and returning "Candidate not found" (the bug 2026-05-28).
+    // Hard-timeout fallback — if the fetch never resolves (stalled network,
+    // backend hang), show an error rather than spinning forever.
+    const timeoutId = setTimeout(() => {
+      if (!aborted) { setErr('Loading timed out — please try again.'); setLoading(false); }
+    }, 15000);
+    // Branch by kind so a job click doesn't end up hitting /candidates/<jobId>.
     const fetcher = item.kind === 'application' ? atsApi.getApplication(orgSlug, item.id)
       : item.kind === 'job' ? atsApi.getJob(orgSlug, item.id)
       : atsApi.getCandidate(orgSlug, item.id);
@@ -49,15 +53,22 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
         else setErr(res?.error || 'Failed to load');
       })
       .catch((e) => { if (!aborted) setErr(e.message || 'Network error'); })
-      .finally(() => { if (!aborted) setLoading(false); });
-    return () => { aborted = true; };
+      .finally(() => { clearTimeout(timeoutId); if (!aborted) setLoading(false); });
+    return () => { aborted = true; clearTimeout(timeoutId); };
   }, [item?.id, item?.kind, orgSlug]);
 
-  // ESC to close
+  // ESC to close. stopPropagation so the chatbot widget's own ESC handler
+  // (which would close the panel) doesn't ALSO fire on the same press.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    // Capture phase so we win over the widget's listener which is on bubble.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
   if (!item) return null;
