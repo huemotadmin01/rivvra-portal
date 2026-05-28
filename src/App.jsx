@@ -7,6 +7,7 @@ import { OrgProvider } from './context/OrgContext';
 import { CompanyProvider } from './context/CompanyContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import PlatformLayout from './components/platform/PlatformLayout';
+import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import ProtectedRoute from './components/ProtectedRoute';
 import OrgRedirect from './components/OrgRedirect';
 import AppAccessGate from './components/AppAccessGate';
@@ -247,6 +248,9 @@ function OrgPlatformLayout() {
     <OrgProvider>
       <CompanyProvider>
         <PlatformLayout />
+        {/* 2026-05-28: floating AI assistant — gates itself to /ats/ routes
+            and ats-app access internally. */}
+        <ChatbotWidget />
       </CompanyProvider>
     </OrgProvider>
   );
