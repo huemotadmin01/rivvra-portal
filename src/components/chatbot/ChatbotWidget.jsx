@@ -183,13 +183,22 @@ function ToolCallPill({ name, args, summary, navigate }) {
             const clickable = !!it._viewUrl;
             const content = (
               <>
-                <span className="flex-shrink-0">{KIND_ICON[it._kind] || KIND_ICON.candidate}</span>
-                <span className="text-sm text-dark-100 truncate font-medium">{it.name}</span>
-                {it.meta && <span className="text-[11px] text-dark-500 truncate">· {it.meta}</span>}
-                {clickable && (
-                  <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" className="ml-auto text-dark-500 group-hover:text-rivvra-300 transition-colors flex-shrink-0">
-                    <path d="M4 10h10m0 0l-4-4m4 4l-4 4"/>
-                  </svg>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="flex-shrink-0">{KIND_ICON[it._kind] || KIND_ICON.candidate}</span>
+                  <span className="text-sm text-dark-100 truncate font-medium">{it.name}</span>
+                  {it.meta && <span className="text-[11px] text-dark-500 truncate">· {it.meta}</span>}
+                  {clickable && (
+                    <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" className="ml-auto text-dark-500 group-hover:text-rivvra-300 transition-colors flex-shrink-0">
+                      <path d="M4 10h10m0 0l-4-4m4 4l-4 4"/>
+                    </svg>
+                  )}
+                </div>
+                {Array.isArray(it.skills) && it.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1 pl-[18px]">
+                    {it.skills.map((s) => (
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-dark-700/60 text-dark-300 leading-tight">{s}</span>
+                    ))}
+                  </div>
                 )}
               </>
             );
@@ -198,10 +207,10 @@ function ToolCallPill({ name, args, summary, navigate }) {
                 key={`${it._id}-${i}`}
                 href={it._viewUrl}
                 onClick={(e) => { e.preventDefault(); navigate(it._viewUrl); }}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-all"
+                className="group flex flex-col px-2 py-1.5 rounded-md bg-dark-800/40 hover:bg-dark-800 border border-dark-700/60 hover:border-rivvra-500/40 transition-all"
               >{content}</a>
             ) : (
-              <div key={`${it._id}-${i}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-dark-800/30 border border-dark-700/50">
+              <div key={`${it._id}-${i}`} className="flex flex-col px-2 py-1.5 rounded-md bg-dark-800/30 border border-dark-700/50">
                 {content}
               </div>
             );
