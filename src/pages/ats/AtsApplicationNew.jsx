@@ -842,6 +842,99 @@ export default function AtsApplicationNew() {
                 </div>
               </section>
 
+              {/* Resume */}
+              <section className="card p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-rivvra-300" />
+                  <h2 className="text-sm font-semibold text-white tracking-wide">
+                    Resume <span className="text-red-400">*</span>
+                    <span className="ml-2 text-[11px] font-normal text-dark-500">PDF, DOC, or DOCX · max 10 MB</span>
+                  </h2>
+                </div>
+
+                {form.candidateId && loadingResume ? (
+                  <div className="text-xs text-dark-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Looking up candidate's resume…</div>
+                ) : existingResume && !resumeFile ? (
+                  <div className={`bg-dark-900/40 border rounded-lg p-4 flex items-center justify-between gap-3 ${resumeConfirmed ? 'border-emerald-500/40' : 'border-amber-500/30'}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileCheck2 size={18} className={`flex-shrink-0 ${resumeConfirmed ? 'text-emerald-400' : 'text-amber-300'}`} />
+                      <div className="min-w-0">
+                        <div className="text-sm text-white truncate">{existingResume.fileName}</div>
+                        <div className="text-[11px] text-dark-500">
+                          Resume on file
+                          {existingResume.createdAt
+                            ? ` · uploaded ${new Date(existingResume.createdAt).toLocaleDateString()}`
+                            : ''}
+                          {' · '}
+                          {resumeConfirmed
+                            ? <span className="text-emerald-300">will be attached to this application</span>
+                            : <span className="text-amber-200">confirm to reuse, or upload a new file</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!resumeConfirmed && (
+                        <button
+                          type="button"
+                          onClick={() => setResumeConfirmed(true)}
+                          className="text-xs px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                        >
+                          Use this resume
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => resumeInputRef.current?.click()}
+                        className="text-xs text-rivvra-300 hover:text-rivvra-200"
+                      >
+                        Upload new
+                      </button>
+                    </div>
+                  </div>
+                ) : resumeFile ? (
+                  <div className="bg-dark-900/40 border border-dark-700 rounded-lg p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileCheck2 size={18} className="text-emerald-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm text-white truncate">{resumeFile.name}</div>
+                        <div className="text-[11px] text-dark-500">
+                          {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
+                          {resumeOverride && <span className="ml-2 text-amber-400/80">replaces existing</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setResumeFile(null); setResumeOverride(false); if (resumeInputRef.current) resumeInputRef.current.value = ''; setAiPreview(null); setAiPreviewError(null); setAiPreviewLoading(false); aiPreviewReqRef.current++; }}
+                      className="text-xs text-dark-400 hover:text-red-400 flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDrop={handleResumeDrop}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={() => resumeInputRef.current?.click()}
+                    className="border-2 border-dashed border-dark-700 rounded-lg p-8 text-center cursor-pointer hover:border-rivvra-500/40 hover:bg-dark-900/30 transition-colors"
+                  >
+                    <Upload size={20} className="text-dark-500 mx-auto mb-2" />
+                    <div className="text-sm text-dark-300">Drop a resume here or <span className="text-rivvra-300">browse</span></div>
+                    <div className="text-[11px] text-dark-500 mt-1">PDF, DOC, DOCX · up to 10 MB</div>
+                  </div>
+                )}
+                <input
+                  ref={resumeInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleResumePick(f);
+                  }}
+                />
+              </section>
+
               {/* Skills */}
               <section className="card p-6 space-y-4">
                 <div className="flex items-center gap-2">
@@ -851,6 +944,16 @@ export default function AtsApplicationNew() {
                     <span className="ml-2 text-[11px] font-normal text-dark-500">at least one required</span>
                   </h2>
                 </div>
+
+                {/* Pointer to the Resume section when no resume is up yet —
+                    the AI suggestions panel only renders once a file is
+                    picked, so without this nudge the recruiter would type
+                    skills manually and miss the time-saver. */}
+                {!resumeFile && !existingResume && !aiPreviewLoading && (
+                  <div className="text-[11px] text-rivvra-200/80 bg-rivvra-500/[0.05] border border-rivvra-500/15 rounded-md px-2.5 py-1.5">
+                    <span className="opacity-70">Tip:</span> upload the resume above and AI will suggest skills you can accept with one click.
+                  </div>
+                )}
 
                 {/* Inherited (read-only) chips */}
                 {form.candidateId && (
@@ -1004,99 +1107,6 @@ export default function AtsApplicationNew() {
                 <p className="text-xs text-dark-500">
                   Picked skills attach to the candidate on submit. Existing-candidate skills already count toward the requirement.
                 </p>
-              </section>
-
-              {/* Resume */}
-              <section className="card p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <FileText size={14} className="text-rivvra-300" />
-                  <h2 className="text-sm font-semibold text-white tracking-wide">
-                    Resume <span className="text-red-400">*</span>
-                    <span className="ml-2 text-[11px] font-normal text-dark-500">PDF, DOC, or DOCX · max 10 MB</span>
-                  </h2>
-                </div>
-
-                {form.candidateId && loadingResume ? (
-                  <div className="text-xs text-dark-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Looking up candidate's resume…</div>
-                ) : existingResume && !resumeFile ? (
-                  <div className={`bg-dark-900/40 border rounded-lg p-4 flex items-center justify-between gap-3 ${resumeConfirmed ? 'border-emerald-500/40' : 'border-amber-500/30'}`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FileCheck2 size={18} className={`flex-shrink-0 ${resumeConfirmed ? 'text-emerald-400' : 'text-amber-300'}`} />
-                      <div className="min-w-0">
-                        <div className="text-sm text-white truncate">{existingResume.fileName}</div>
-                        <div className="text-[11px] text-dark-500">
-                          Resume on file
-                          {existingResume.createdAt
-                            ? ` · uploaded ${new Date(existingResume.createdAt).toLocaleDateString()}`
-                            : ''}
-                          {' · '}
-                          {resumeConfirmed
-                            ? <span className="text-emerald-300">will be attached to this application</span>
-                            : <span className="text-amber-200">confirm to reuse, or upload a new file</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {!resumeConfirmed && (
-                        <button
-                          type="button"
-                          onClick={() => setResumeConfirmed(true)}
-                          className="text-xs px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
-                        >
-                          Use this resume
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => resumeInputRef.current?.click()}
-                        className="text-xs text-rivvra-300 hover:text-rivvra-200"
-                      >
-                        Upload new
-                      </button>
-                    </div>
-                  </div>
-                ) : resumeFile ? (
-                  <div className="bg-dark-900/40 border border-dark-700 rounded-lg p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FileCheck2 size={18} className="text-emerald-400 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-sm text-white truncate">{resumeFile.name}</div>
-                        <div className="text-[11px] text-dark-500">
-                          {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
-                          {resumeOverride && <span className="ml-2 text-amber-400/80">replaces existing</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setResumeFile(null); setResumeOverride(false); if (resumeInputRef.current) resumeInputRef.current.value = ''; setAiPreview(null); setAiPreviewError(null); setAiPreviewLoading(false); aiPreviewReqRef.current++; }}
-                      className="text-xs text-dark-400 hover:text-red-400 flex-shrink-0"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    onDrop={handleResumeDrop}
-                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    onClick={() => resumeInputRef.current?.click()}
-                    className="border-2 border-dashed border-dark-700 rounded-lg p-8 text-center cursor-pointer hover:border-rivvra-500/40 hover:bg-dark-900/30 transition-colors"
-                  >
-                    <Upload size={20} className="text-dark-500 mx-auto mb-2" />
-                    <div className="text-sm text-dark-300">Drop a resume here or <span className="text-rivvra-300">browse</span></div>
-                    <div className="text-[11px] text-dark-500 mt-1">PDF, DOC, DOCX · up to 10 MB</div>
-                  </div>
-                )}
-                <input
-                  ref={resumeInputRef}
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleResumePick(f);
-                  }}
-                />
               </section>
 
               {/* Pipeline */}
