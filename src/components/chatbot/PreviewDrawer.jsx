@@ -14,8 +14,18 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import atsApi from '../../utils/atsApi';
 import AiResumeInsights from '../ats/AiResumeInsights';
+
+// JD content from the server is wrapped in HTML by prettifyJd (<p>, <h3>,
+// <ul>, <strong>). Detect that shape and render through DOMPurify so the
+// preview drawer shows clean formatted copy instead of leaking raw tags
+// as visible text. Plain-text JDs (no tags) fall through to the original
+// whitespace-pre-wrap renderer below.
+const JD_TAG_RE = /<\/?(p|h[1-6]|ul|ol|li|strong|em|br|div|span)\b/i;
+const JD_ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'span', 'div', 'blockquote'];
+const JD_ALLOWED_ATTR = ['href', 'target', 'rel'];
 
 function Pill({ children, tone = 'neutral' }) {
   const cls = {
@@ -243,10 +253,20 @@ export default function PreviewDrawer({ item, orgSlug, onClose }) {
                   {job.description && (
                     <div>
                       <div className="text-[10px] uppercase tracking-wider text-dark-500 mb-1.5">Description</div>
-                      <div className="text-xs text-dark-200 leading-relaxed whitespace-pre-wrap line-clamp-[14]">
-                        {String(job.description).slice(0, 1500)}
-                        {job.description.length > 1500 && '…'}
-                      </div>
+                      {JD_TAG_RE.test(job.description) ? (
+                        <div
+                          className="text-xs text-dark-200 leading-relaxed line-clamp-[14] [&_p]:mb-1.5 [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mt-2 [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mt-2 [&_h3]:font-semibold [&_h3]:text-white [&_h3]:mt-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_strong]:text-white"
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
+                            String(job.description).slice(0, 1500) + (job.description.length > 1500 ? '…' : ''),
+                            { ALLOWED_TAGS: JD_ALLOWED_TAGS, ALLOWED_ATTR: JD_ALLOWED_ATTR },
+                          ) }}
+                        />
+                      ) : (
+                        <div className="text-xs text-dark-200 leading-relaxed whitespace-pre-wrap line-clamp-[14]">
+                          {String(job.description).slice(0, 1500)}
+                          {job.description.length > 1500 && '…'}
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

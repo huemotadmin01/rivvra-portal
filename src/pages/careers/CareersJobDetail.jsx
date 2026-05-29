@@ -15,11 +15,21 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../../utils/config';
+import DOMPurify from 'dompurify';
 import {
   Loader2, ChevronLeft, Briefcase, MapPin, Clock, Building2,
   AlertCircle, CheckCircle2, Upload, FileText, Mail, User, Phone,
   Linkedin, Send, X, ArrowRight,
 } from 'lucide-react';
+
+// Tag allowlist for JD HTML — mirrors the JD-safe set on the recruiter side
+// (AtsJobDetail.jsx DescriptionBody). Strips script/style/iframe and any
+// attribute other than the safe link triple, so a candidate-supplied or
+// future AI-generated JD can't smuggle in script content via the public
+// careers page.
+const JD_ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'span', 'div', 'blockquote'];
+const JD_ALLOWED_ATTR = ['href', 'target', 'rel'];
+const sanitizeJd = (html) => DOMPurify.sanitize(html || '', { ALLOWED_TAGS: JD_ALLOWED_TAGS, ALLOWED_ATTR: JD_ALLOWED_ATTR });
 
 const MAX_RESUME_MB = 10;
 const RESUME_ACCEPT = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -130,7 +140,7 @@ export default function CareersJobDetail() {
             {job.description ? (
               <div
                 className="careers-jd text-[15.5px] leading-[1.7] text-zinc-700 [&_p]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-zinc-900 [&_h2]:mt-8 [&_h2]:mb-3 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-zinc-900 [&_h3]:mt-6 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_li]:mb-1 [&_strong]:text-zinc-900 [&_a]:underline [&_a]:text-zinc-900"
-                dangerouslySetInnerHTML={{ __html: job.description }}
+                dangerouslySetInnerHTML={{ __html: sanitizeJd(job.description) }}
               />
             ) : (
               <p className="text-sm text-zinc-500 italic">Job description coming soon.</p>
@@ -140,7 +150,7 @@ export default function CareersJobDetail() {
                 <h2 className="text-xl font-semibold text-zinc-900 mt-10 mb-3">Requirements</h2>
                 <div
                   className="careers-jd text-[15.5px] leading-[1.7] text-zinc-700 [&_p]:mb-4 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_li]:mb-1"
-                  dangerouslySetInnerHTML={{ __html: job.requirements }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeJd(job.requirements) }}
                 />
               </>
             )}
