@@ -489,6 +489,49 @@ export default function AtsApplicationNew() {
       });
   };
 
+  // When the recruiter clicks "Use this resume" we DON'T re-run OpenAI —
+  // we surface the candidate's already-extracted aiSkills (from Mongo) as
+  // suggestions. Sub-100ms vs 3s, same UX.
+  const handleUseExistingResume = async () => {
+    setResumeConfirmed(true);
+    const cid = form.candidateId;
+    if (!cid) return;
+    setAiPreviewLoading(true);
+    setAiPreviewError(null);
+    setAiPreview(null);
+    try {
+      const res = await atsApi.getCandidate(orgSlug, cid);
+      if (!res?.success || !res.candidate) {
+        setAiPreviewError('Could not load candidate AI data');
+        return;
+      }
+      const c = res.candidate;
+      const aiSkills = Array.isArray(c.aiSkills) ? c.aiSkills.slice(0, 20) : [];
+      // Match against master picklist so each chip can render known/new state
+      // (avoids round-tripping to the create-skill endpoint on accept).
+      const masterByLc = new Map(masterSkills.map((m) => [String(m.name).toLowerCase().trim(), m]));
+      const suggestedSkills = aiSkills.map((name) => {
+        const m = masterByLc.get(String(name).toLowerCase().trim());
+        return { name, knownSkillId: m?._id ? String(m._id) : null, isNew: !m };
+      });
+      if (suggestedSkills.length === 0) {
+        setAiPreviewError('No AI-extracted skills on file for this candidate');
+        return;
+      }
+      setAiPreview({
+        suggestedSkills,
+        totalYearsExp: typeof c.aiTotalYearsExp === 'number' ? c.aiTotalYearsExp : null,
+        summary: c.aiProfileSummary || '',
+        // omit workHistory/education to keep the response small — we don't
+        // surface those on this form
+      });
+    } catch (e) {
+      setAiPreviewError(e?.message || 'Could not load candidate AI data');
+    } finally {
+      setAiPreviewLoading(false);
+    }
+  };
+
   // One-click accept a single AI-suggested skill into the picker.
   const acceptAiSkill = (sugg) => {
     setPickedSkills((prev) => {
@@ -876,7 +919,7 @@ export default function AtsApplicationNew() {
                       {!resumeConfirmed && (
                         <button
                           type="button"
-                          onClick={() => setResumeConfirmed(true)}
+                          onClick={handleUseExistingResume}
                           className="text-xs px-2 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
                         >
                           Use this resume
