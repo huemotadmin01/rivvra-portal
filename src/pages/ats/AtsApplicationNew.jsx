@@ -116,6 +116,13 @@ export default function AtsApplicationNew() {
   // resume-on-file. Silent auto-satisfaction was attaching the wrong file
   // to fresh applications.
   const [resumeConfirmed, setResumeConfirmed] = useState(false);
+  // 2026-05-28: AI preview-resume — extracted skills, shown as one-click
+  // suggestions on the Skills picker. previewLoading=true while OpenAI
+  // round-trips (~3s). previewError holds a soft fallback message.
+  const [aiPreview, setAiPreview] = useState(null); // {suggestedSkills: [{name,knownSkillId,isNew}], totalYearsExp, summary, ...} | null
+  const [aiPreviewLoading, setAiPreviewLoading] = useState(false);
+  const [aiPreviewError, setAiPreviewError] = useState(null);
+  const aiPreviewReqRef = useRef(0);
   // Pre-flight duplicate-application banner (same candidate + same job,
   // not yet hired/refused). Server-side 409 is the source of truth; this
   // is a UX nicety to catch it before the recruiter fills the form.
@@ -462,6 +469,44 @@ export default function AtsApplicationNew() {
     if (err) { showToast(err, 'error'); return; }
     setResumeFile(file);
     if (existingResume) setResumeOverride(true);
+    // Kick off AI preview — async, ~3s round-trip. Race-safe via seq counter.
+    const mySeq = ++aiPreviewReqRef.current;
+    setAiPreviewLoading(true);
+    setAiPreviewError(null);
+    setAiPreview(null);
+    atsApi.previewResumeAi(orgSlug, file)
+      .then((res) => {
+        if (mySeq !== aiPreviewReqRef.current) return; // newer pick raced
+        if (res?.success) setAiPreview(res);
+        else setAiPreviewError(res?.error || 'AI preview unavailable');
+      })
+      .catch((e) => {
+        if (mySeq !== aiPreviewReqRef.current) return;
+        setAiPreviewError(e.message || 'AI preview unavailable');
+      })
+      .finally(() => {
+        if (mySeq === aiPreviewReqRef.current) setAiPreviewLoading(false);
+      });
+  };
+
+  // One-click accept a single AI-suggested skill into the picker.
+  const acceptAiSkill = (sugg) => {
+    setPickedSkills((prev) => {
+      // Skip duplicates (case-insensitive on canonical name).
+      const seen = new Set(prev.map((s) => String(s.skillName).toLowerCase().trim()));
+      if (seen.has(String(sugg.name).toLowerCase().trim())) return prev;
+      return [...prev, {
+        tempKey: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        skillId: sugg.knownSkillId || null,
+        skillName: sugg.name,
+        levelId: '', levelName: '',
+        isNew: !sugg.knownSkillId,
+      }];
+    });
+  };
+  const acceptAllAiSkills = () => {
+    if (!aiPreview?.suggestedSkills) return;
+    for (const s of aiPreview.suggestedSkills.slice(0, 8)) acceptAiSkill(s);
   };
 
   const handleResumeDrop = (e) => {
@@ -851,6 +896,66 @@ export default function AtsApplicationNew() {
                   </div>
                 )}
 
+                {/* AI-suggested skills (2026-05-28). Rendered when a resume
+                    has been picked. Each chip is a one-click accept; "+ Add all"
+                    accepts the top 8 in one go. Suggestions are skipped if the
+                    skill is already in pickedSkills or inheritedSkills. */}
+                {(aiPreviewLoading || aiPreview?.suggestedSkills?.length > 0 || aiPreviewError) && (
+                  <div className="rounded-md border border-rivvra-500/20 bg-rivvra-500/[0.04] px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="text-[10px] uppercase tracking-wider text-rivvra-300 font-semibold flex items-center gap-1.5">
+                        <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5L10 2z"/></svg>
+                        AI-suggested from the resume
+                      </div>
+                      {aiPreview?.suggestedSkills?.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={acceptAllAiSkills}
+                          className="text-[11px] text-rivvra-200 hover:text-white px-2 py-0.5 rounded bg-rivvra-500/15 hover:bg-rivvra-500/25 border border-rivvra-500/30"
+                        >+ Add all (top {Math.min(8, aiPreview.suggestedSkills.length)})</button>
+                      )}
+                    </div>
+                    {aiPreviewLoading && (
+                      <div className="text-xs text-dark-400 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Analyzing resume…</div>
+                    )}
+                    {aiPreviewError && !aiPreviewLoading && (
+                      <div className="text-[11px] text-amber-300/80">{aiPreviewError} — please add skills manually.</div>
+                    )}
+                    {aiPreview?.suggestedSkills?.length > 0 && !aiPreviewLoading && (
+                      <>
+                        <div className="flex flex-wrap gap-1.5">
+                          {aiPreview.suggestedSkills.slice(0, 12).map((sugg) => {
+                            const alreadyPicked = pickedSkills.some((p) => String(p.skillName).toLowerCase().trim() === String(sugg.name).toLowerCase().trim())
+                              || inheritedSkills.some((p) => String(p.skillName || p.name || '').toLowerCase().trim() === String(sugg.name).toLowerCase().trim());
+                            return (
+                              <button
+                                key={sugg.name}
+                                type="button"
+                                onClick={() => acceptAiSkill(sugg)}
+                                disabled={alreadyPicked}
+                                className={`group inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full border transition-colors ${
+                                  alreadyPicked
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 cursor-default'
+                                    : 'bg-dark-900/40 border-dashed border-rivvra-500/30 text-rivvra-200 hover:bg-rivvra-500/10 hover:border-rivvra-500/50'
+                                }`}
+                                title={alreadyPicked ? 'Already added' : (sugg.isNew ? 'Will be added as a new skill' : 'Known skill')}
+                              >
+                                {alreadyPicked ? '✓ ' : '+ '}{sugg.name}
+                                {sugg.isNew && !alreadyPicked && <span className="text-[9px] uppercase tracking-wider text-emerald-300/80">new</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {aiPreview.totalYearsExp != null && (
+                          <div className="text-[11px] text-dark-500 mt-1.5">
+                            AI also estimated <span className="text-dark-300">{aiPreview.totalYearsExp} years</span> of total experience.
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* Add skill row */}
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
                   {/* 2026-05-17 health-check G.3: declared as a combobox
@@ -964,7 +1069,7 @@ export default function AtsApplicationNew() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setResumeFile(null); setResumeOverride(false); if (resumeInputRef.current) resumeInputRef.current.value = ''; }}
+                      onClick={() => { setResumeFile(null); setResumeOverride(false); if (resumeInputRef.current) resumeInputRef.current.value = ''; setAiPreview(null); setAiPreviewError(null); setAiPreviewLoading(false); aiPreviewReqRef.current++; }}
                       className="text-xs text-dark-400 hover:text-red-400 flex-shrink-0"
                     >
                       Remove

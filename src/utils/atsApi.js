@@ -140,6 +140,15 @@ const atsApi = {
   },
 
   // 2026-05-28: manual AI re-score (admin only). Synchronous — caller waits.
+  // 2026-05-28: AI preview-resume — synchronous extraction at form-time
+  // so the recruiter sees AI skill suggestions BEFORE creating the
+  // application. Used by AtsApplicationNew.
+  previewResumeAi(orgSlug, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.uploadFile(`/api/org/${orgSlug}/ats/ai-preview-resume`, fd);
+  },
+
   rescoreApplicationAi(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/ats/applications/${id}/ai-rescore`, { method: 'POST' });
   },
