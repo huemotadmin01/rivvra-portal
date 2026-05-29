@@ -532,8 +532,14 @@ export default function AtsApplicationNew() {
     }
   };
 
-  // One-click accept a single AI-suggested skill into the picker.
+  // One-click accept a single AI-suggested skill into the picker. If the
+  // recruiter has the "Level (optional)" dropdown set, every accepted skill
+  // inherits that level — matches the muscle memory of the search-and-add
+  // flow. Dropdown blank → skill goes in with no level set (current behavior).
   const acceptAiSkill = (sugg) => {
+    const lvl = pendingLevelId
+      ? (skillLevels.find((l) => String(l._id) === String(pendingLevelId)) || null)
+      : null;
     setPickedSkills((prev) => {
       // Skip duplicates (case-insensitive on canonical name).
       const seen = new Set(prev.map((s) => String(s.skillName).toLowerCase().trim()));
@@ -542,7 +548,8 @@ export default function AtsApplicationNew() {
         tempKey: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
         skillId: sugg.knownSkillId || null,
         skillName: sugg.name,
-        levelId: '', levelName: '',
+        levelId: lvl?._id ? String(lvl._id) : '',
+        levelName: lvl?.name || '',
         isNew: !sugg.knownSkillId,
       }];
     });
@@ -1054,11 +1061,16 @@ export default function AtsApplicationNew() {
                         AI-suggested from the resume
                       </div>
                       {aiPreview?.suggestedSkills?.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={acceptAllAiSkills}
-                          className="text-[11px] text-rivvra-200 hover:text-white px-2 py-0.5 rounded bg-rivvra-500/15 hover:bg-rivvra-500/25 border border-rivvra-500/30"
-                        >+ Add all (top {Math.min(8, aiPreview.suggestedSkills.length)})</button>
+                        <div className="flex items-center gap-1.5">
+                          {pendingLevelId && (
+                            <span className="text-[10px] text-dark-500">applies level <span className="text-rivvra-300">{(skillLevels.find((l) => String(l._id) === String(pendingLevelId)) || {}).name || ''}</span></span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={acceptAllAiSkills}
+                            className="text-[11px] text-rivvra-200 hover:text-white px-2 py-0.5 rounded bg-rivvra-500/15 hover:bg-rivvra-500/25 border border-rivvra-500/30"
+                          >+ Add all (top {Math.min(8, aiPreview.suggestedSkills.length)})</button>
+                        </div>
                       )}
                     </div>
                     {aiPreviewLoading && (
