@@ -25,6 +25,7 @@ import {
   Globe, Copy, ExternalLink, Check, Share2,
 } from 'lucide-react';
 import api from '../../utils/api';
+import DOMPurify from 'dompurify';
 
 /* ── Job-status pill ─────────────────────────────────────────────────────
  * Q7-B: status uses blue/amber/red so it doesn't visually collide with the
@@ -352,8 +353,28 @@ function DescriptionBody({ field, value, canEdit, onSave, placeholder }) {
     );
   }
 
-  // Render: bullets + newlines preserved. Lines starting with `•` get a
-  // hanging-indent so multi-line bullets wrap nicely.
+  // Render: prettifyJd (server-side) wraps JD content in HTML tags (<p>,
+  // <h3>, <ul>, <li>, <strong>) so the public careers page can format the
+  // copy. Detect that shape and render it through DOMPurify so recruiters
+  // see the formatted JD instead of raw markup. Legacy plain-text JDs
+  // (no tags) fall through to the bullet/newline renderer below.
+  const hasHtml = /<\/?(p|h[1-6]|ul|ol|li|strong|em|br|div|span)\b/i.test(safeValue);
+  if (hasHtml) {
+    const clean = DOMPurify.sanitize(safeValue, {
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'span', 'div', 'blockquote'],
+      ALLOWED_ATTR: ['href', 'target', 'rel'],
+    });
+    return (
+      <div
+        onClick={canEdit ? () => setEditing(true) : undefined}
+        className={`text-sm text-dark-200 leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mt-3 [&_h1]:mb-1.5 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-white [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:text-white [&_h4]:mt-2 [&_h4]:mb-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:mb-0.5 [&_strong]:text-white [&_strong]:font-semibold [&_a]:text-rivvra-400 [&_a]:underline [&_a:hover]:text-rivvra-300 ${canEdit ? 'cursor-text hover:bg-dark-800/40 -mx-2 px-2 py-1 rounded' : ''}`}
+        dangerouslySetInnerHTML={{ __html: clean }}
+      />
+    );
+  }
+
+  // Plain-text fallback: bullets + newlines preserved. Lines starting with
+  // `•` get a hanging-indent so multi-line bullets wrap nicely.
   const lines = String(safeValue).split(/\r?\n|(?<=\.)\s+(?=•)/g);
   return (
     <div
@@ -562,6 +583,17 @@ export default function AtsJobDetail() {
       showToast(err.message || 'Failed to unpublish', 'error');
     } finally {
       setPublishingCareers(false);
+    }
+  };
+
+  const handleToggleAutoPublish = async (nextVal) => {
+    if (!orgSlug || !jobId) return;
+    setJob((prev) => (prev ? { ...prev, autoPublishOnApproval: nextVal } : prev));
+    try {
+      await atsApi.updateJob(orgSlug, jobId, { autoPublishOnApproval: nextVal });
+    } catch (err) {
+      setJob((prev) => (prev ? { ...prev, autoPublishOnApproval: !nextVal } : prev));
+      showToast(err.message || 'Failed to update auto-publish preference', 'error');
     }
   };
 
@@ -1122,6 +1154,34 @@ export default function AtsJobDetail() {
               )}
             </div>
           </div>
+
+          {/* Auto-publish toggle. Default ON. Off for confidential / NDA roles
+              where the org doesn't want a public listing even after approval.
+              Server reads this on the approval transition (PUT /jobs/:id);
+              already-published jobs aren't affected by toggling. */}
+          {orgCareersEnabled && (
+            <div className="mt-3 pt-3 border-t border-dark-700/60 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-dark-200">Auto-publish when approved</p>
+                <p className="text-[11px] text-dark-500 mt-0.5">
+                  When the assigned approver approves this job, it goes live on the careers site automatically. Turn off for confidential roles.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={job.autoPublishOnApproval !== false}
+                onClick={() => handleToggleAutoPublish(job.autoPublishOnApproval === false)}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
+                  job.autoPublishOnApproval !== false ? 'bg-emerald-500' : 'bg-dark-700'
+                }`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  job.autoPublishOnApproval !== false ? 'translate-x-5' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
