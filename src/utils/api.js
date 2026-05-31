@@ -373,25 +373,6 @@ class ApiClient {
     });
   }
 
-  // CRM endpoints
-  async exportToOdoo({ leadData, userEmail, linkedinUrl, profileType, extractedSkill }) {
-    return this.request('/api/crm/export-odoo', {
-      method: 'POST',
-      body: JSON.stringify({ leadData, userEmail, linkedinUrl, profileType, extractedSkill }),
-    });
-  }
-
-  async checkCRMExport(url, userEmail) {
-    return this.request(`/api/crm/check-export?url=${encodeURIComponent(url)}&userEmail=${encodeURIComponent(userEmail)}`);
-  }
-
-  async extractSkill(headline, userEmail) {
-    return this.request('/api/openai/extract-skill', {
-      method: 'POST',
-      body: JSON.stringify({ headline, userEmail }),
-    });
-  }
-
   // Sequence endpoints
   async getSequences() {
     return this.request('/api/sequences');

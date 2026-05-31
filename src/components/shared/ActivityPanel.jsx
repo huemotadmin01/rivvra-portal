@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import activityApi from '../../utils/activityApi';
 import atsApi from '../../utils/atsApi';
 import {
@@ -181,11 +182,11 @@ function EmailBodyDrawer({ open, orgSlug, applicationId, logId, fallbackSubject,
           {!loading && !error && log?.bodyHtml && (
             <div className="bg-white text-black rounded-lg p-5 shadow-inner">
               {/* The Sign / ATS email templates ship inline-styled HTML
-                  intended for an email client. Rendering it inside an
-                  iframe-style white surface keeps that intent. The body
-                  comes from our own renderer and a server-trusted DB
-                  template, not user input. */}
-              <div dangerouslySetInnerHTML={{ __html: log.bodyHtml }} />
+                  intended for an email client. The body comes from our own
+                  renderer, but it interpolates candidate/contact-supplied
+                  fields, so sanitize before rendering (defense-in-depth —
+                  strips scripts/event handlers, keeps inline styles). */}
+              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(log.bodyHtml) }} />
             </div>
           )}
         </div>
