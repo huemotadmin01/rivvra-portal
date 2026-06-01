@@ -17,8 +17,23 @@ export function ToastProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  // Adapter for the object-style API used by the Documents app:
+  //   toast({ title, description, variant })
+  // The rest of the platform calls showToast(message, type) directly. The
+  // Documents pages were written against this `toast` shape, which never
+  // existed on the context — so every toast() call threw "toast is not a
+  // function" and silently aborted the line right after it (the list refresh
+  // / modal close / navigate), making mutations look like they "didn't work".
+  // Mapping it here fixes all Documents call sites at once.
+  const toast = useCallback((opts = {}) => {
+    const { title, description, variant } = opts;
+    const type = variant === 'error' ? 'error' : variant === 'warning' ? 'warning' : 'success';
+    const message = [title, description].filter(Boolean).join(': ') || 'Done';
+    showToast(message, type);
+  }, [showToast]);
+
   return (
-    <ToastContext.Provider value={{ showToast, addToast: showToast }}>
+    <ToastContext.Provider value={{ showToast, addToast: showToast, toast }}>
       {children}
       {/* Toast container - fixed bottom, responsive */}
       <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-md z-[9999] space-y-2 pointer-events-none">
