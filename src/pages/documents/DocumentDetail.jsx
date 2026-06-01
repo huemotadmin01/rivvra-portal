@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import documentsApi from '../../utils/documentsApi';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -23,6 +24,9 @@ export default function DocumentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { orgSlug, getAppRole } = useOrg();
+  // Gate fetches on company hydration so the doc resolves under the active
+  // company (not the pre-hydration fallback) — same fix as DocumentsList.
+  const { hydrated } = useCompany();
   const { toast } = useToast();
   const isAdmin = getAppRole('documents') === 'admin';
 
@@ -37,7 +41,7 @@ export default function DocumentDetail() {
   const replaceFileInput = useRef(null);
 
   const load = useCallback(async () => {
-    if (!orgSlug || !id) return;
+    if (!orgSlug || !id || !hydrated) return;
     setLoading(true);
     try {
       const [d, f, t] = await Promise.all([
@@ -55,7 +59,7 @@ export default function DocumentDetail() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, id, toast, navigate]);
+  }, [orgSlug, id, hydrated, toast, navigate]);
 
   useEffect(() => { load(); }, [load]);
 
