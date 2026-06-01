@@ -268,6 +268,12 @@ export default function EmployeeDetail() {
   const [showSetCtc, setShowSetCtc] = useState(false);
   const [showReviseCtc, setShowReviseCtc] = useState(false);
   const [ctcForm, setCtcForm] = useState({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
+  // Cross-reminder nudge: after revising CTC (cost) on a billable employee with
+  // an active assignment, prompt to review the client/bill rate — and vice-versa.
+  // These are deliberately independent decisions (an appraisal rarely moves the
+  // client rate), so this is a non-blocking reminder, never an auto-sync.
+  // Shape: { kind: 'rate', assignmentIndex } | { kind: 'ctc' }
+  const [crossNudge, setCrossNudge] = useState(null);
   const [ctcSaving, setCtcSaving] = useState(false);
   const [salaryHistory, setSalaryHistory] = useState([]);
   const [salaryHistoryLoading, setSalaryHistoryLoading] = useState(false);
@@ -724,6 +730,12 @@ export default function EmployeeDetail() {
         const empRes = await employeeApi.get(currentOrg.slug, employeeId);
         if (empRes.success) setEmployee(empRes.employee);
         fetchSalaryHistory();
+        // Nudge: billable employee on an active assignment — the client/bill rate
+        // may need a matching review (kept separate from CTC on purpose).
+        const activeIdx = (empRes.employee?.assignments || []).findIndex(a => a.status === 'active');
+        if (empRes.employee?.billable && activeIdx >= 0) {
+          setCrossNudge({ kind: 'rate', assignmentIndex: activeIdx });
+        }
       } else {
         alert(res.error || 'Failed to revise CTC');
       }
@@ -784,6 +796,11 @@ export default function EmployeeDetail() {
         setReviseModal(null);
         const empRes = await employeeApi.get(currentOrg.slug, employeeId);
         if (empRes.success) setEmployee(empRes.employee);
+        // Mirror nudge: rate moved — if this is a billable employee paid via the
+        // CTC chain, prompt to review whether their CTC also needs revising.
+        if (empRes.employee?.billable) {
+          setCrossNudge({ kind: 'ctc' });
+        }
       } else {
         alert(result.error || 'Failed to revise rate');
       }
@@ -968,6 +985,48 @@ export default function EmployeeDetail() {
               The employee will be auto-separated the day after their last working date. Final-month payroll will be prorated to days worked. F&F can be prepared in advance below.
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Cross-reminder nudge (CTC ↔ assignment rate) ───────────────── */}
+      {crossNudge && isAdmin && (
+        <div className="mb-5 px-4 py-3 rounded-xl border border-sky-500/30 bg-sky-500/10 flex items-start gap-3">
+          {crossNudge.kind === 'rate'
+            ? <TrendingUp size={18} className="text-sky-400 flex-shrink-0 mt-0.5" />
+            : <IndianRupee size={18} className="text-sky-400 flex-shrink-0 mt-0.5" />}
+          <div className="text-sm text-sky-100 flex-1">
+            <div className="font-semibold">
+              {crossNudge.kind === 'rate' ? 'CTC revised — review the assignment rate?' : 'Rate revised — review the CTC?'}
+            </div>
+            <div className="text-xs text-sky-200/80 mt-0.5">
+              {crossNudge.kind === 'rate'
+                ? 'This employee is billable on an active assignment. If this change affects what the client is billed, revise the client/candidate rate too. They are tracked separately and won’t update automatically.'
+                : 'If this rate change reflects a compensation change, the employee’s CTC may also need revising. CTC drives the payslip and is tracked separately from the assignment rate.'}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (crossNudge.kind === 'rate') {
+                  openReviseModal(crossNudge.assignmentIndex);
+                } else {
+                  setCtcForm({ ctcAnnual: '', effectiveFrom: '', reason: '', employmentType: '' });
+                  setShowReviseCtc(true);
+                }
+                setCrossNudge(null);
+              }}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs font-medium transition-colors"
+            >
+              {crossNudge.kind === 'rate' ? <><TrendingUp size={13} /> Revise Rate</> : <><IndianRupee size={13} /> Revise CTC</>}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCrossNudge(null)}
+            className="text-sky-300/70 hover:text-sky-100 transition-colors flex-shrink-0"
+            title="Dismiss"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -1685,6 +1744,21 @@ export default function EmployeeDetail() {
                     if (r.monthly) return `${clientSym}${Number(r.monthly).toLocaleString()}/mo`;
                     return '\u2014';
                   };
+                  // \u2500\u2500 CTC \u2194 rate drift hint \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+                  // For a billable employee on an active assignment, surface
+                  // when the latest CTC revision and the latest rate revision
+                  // have drifted far apart in time \u2014 a cue that one may be
+                  // stale. Self-gates: non-billable / contractors have no CTC
+                  // chain, so lastCtcDate is empty and nothing renders.
+                  const lastCtcDate = salaryHistory?.[0]?.effectiveFrom;
+                  const rateDates = (a.rateHistory || []).map(e => e.effectiveDate).filter(Boolean);
+                  const lastRateDate = rateDates.length
+                    ? rateDates.reduce((m, d) => (new Date(d) > new Date(m) ? d : m))
+                    : a.startDate;
+                  const driftDays = (lastCtcDate && lastRateDate)
+                    ? Math.abs((new Date(lastCtcDate) - new Date(lastRateDate)) / 86400000)
+                    : null;
+                  const showDrift = a.status === 'active' && emp.billable && driftDays != null && driftDays > 30;
                   return (<>
                     <tr key={i} className="hover:bg-dark-800/30 transition-colors group">
                       <td className="px-3 py-2.5 text-sm">
@@ -1748,6 +1822,19 @@ export default function EmployeeDetail() {
                         </td>
                       )}
                     </tr>
+                    {/* CTC ↔ rate drift hint */}
+                    {showDrift && (
+                      <tr key={`drift-${i}`}>
+                        <td colSpan={isAdmin ? 8 : 7} className="px-3 pt-0 pb-2 bg-amber-500/5">
+                          <div className="flex items-center gap-2 text-xs text-amber-300/90">
+                            <AlertTriangle size={11} className="flex-shrink-0" />
+                            <span>
+                              CTC last revised {formatDateUTC(lastCtcDate)} · rate last revised {formatDateUTC(lastRateDate)} — these have drifted apart. Check whether both are up to date.
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {/* Rate History */}
                     {a.rateHistory?.length > 0 && (
                       <tr key={`hist-${i}`}>
