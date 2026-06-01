@@ -422,10 +422,10 @@ export default function AtsApplicationNew() {
       .filter((s) => (s.name || '').toLowerCase().includes(q))
       .slice(0, 30);
   }, [skillQuery, pickedSkills, inheritedSkills, masterSkills]);
-  // Free-text skill creation was removed 2026-06-01: recruiters can only pick
-  // EXISTING master skills here (prevents typo/variant skills polluting the
-  // org taxonomy). New skills now come only from AI suggestions (recruiter-
-  // confirmed, normalized names) or are added by an admin via Settings.
+  // This form never mints master skills (2026-06-01). Free-text creation was
+  // removed, and AI suggestions are filtered to existing master skills too
+  // (see toMasterMatchedSuggestions) — so both paths can only attach skills
+  // that already exist. New master skills are added by an admin via Settings.
   const addPickedSkill = ({ skillId, skillName, isNew }) => {
     const levelDoc = pendingLevelId ? skillLevels.find((l) => String(l._id) === String(pendingLevelId)) : null;
     setPickedSkills((p) => [
@@ -459,6 +459,28 @@ export default function AtsApplicationNew() {
     return null;
   };
 
+  // Keep only AI suggestions that map to an EXISTING master skill, re-matched
+  // against the current master list (the single source of truth — it may have
+  // changed since extraction). Unmatched suggestions are dropped so the AI path
+  // can't mint new master skills, consistent with the no-free-text-mint rule.
+  // Returns chips using the CANONICAL master name + id, deduped.
+  const toMasterMatchedSuggestions = (rawSuggestions) => {
+    const masterByLc = new Map(masterSkills.map((m) => [String(m.name).toLowerCase().trim(), m]));
+    const out = [];
+    const seen = new Set();
+    for (const sg of (rawSuggestions || [])) {
+      const name = String(sg?.name || '').trim();
+      if (!name) continue;
+      const m = masterByLc.get(name.toLowerCase());
+      if (!m) continue;
+      const key = String(m._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: m.name, knownSkillId: String(m._id) });
+    }
+    return out;
+  };
+
   const handleResumePick = (file) => {
     const err = validateResumeFile(file);
     if (err) { showToast(err, 'error'); return; }
@@ -472,7 +494,7 @@ export default function AtsApplicationNew() {
     atsApi.previewResumeAi(orgSlug, file)
       .then((res) => {
         if (mySeq !== aiPreviewReqRef.current) return; // newer pick raced
-        if (res?.success) setAiPreview(res);
+        if (res?.success) setAiPreview({ ...res, suggestedSkills: toMasterMatchedSuggestions(res.suggestedSkills) });
         else setAiPreviewError(res?.error || 'AI preview unavailable');
       })
       .catch((e) => {
@@ -502,15 +524,11 @@ export default function AtsApplicationNew() {
       }
       const c = res.candidate;
       const aiSkills = Array.isArray(c.aiSkills) ? c.aiSkills.slice(0, 20) : [];
-      // Match against master picklist so each chip can render known/new state
-      // (avoids round-tripping to the create-skill endpoint on accept).
-      const masterByLc = new Map(masterSkills.map((m) => [String(m.name).toLowerCase().trim(), m]));
-      const suggestedSkills = aiSkills.map((name) => {
-        const m = masterByLc.get(String(name).toLowerCase().trim());
-        return { name, knownSkillId: m?._id ? String(m._id) : null, isNew: !m };
-      });
+      // Only suggest skills that already exist in the master picklist — the AI
+      // path can't mint new master skills (see toMasterMatchedSuggestions).
+      const suggestedSkills = toMasterMatchedSuggestions(aiSkills.map((name) => ({ name })));
       if (suggestedSkills.length === 0) {
-        setAiPreviewError('No AI-extracted skills on file for this candidate');
+        setAiPreviewError('No AI-extracted skills match the existing skill list');
         return;
       }
       setAiPreview({
@@ -541,11 +559,11 @@ export default function AtsApplicationNew() {
       if (seen.has(String(sugg.name).toLowerCase().trim())) return prev;
       return [...prev, {
         tempKey: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-        skillId: sugg.knownSkillId || null,
+        skillId: sugg.knownSkillId,
         skillName: sugg.name,
         levelId: lvl?._id ? String(lvl._id) : '',
         levelName: lvl?.name || '',
-        isNew: !sugg.knownSkillId,
+        isNew: false,
       }];
     });
   };
@@ -582,24 +600,10 @@ export default function AtsApplicationNew() {
     if (!canSubmit) return;
     setSaving(true);
     try {
-      // Step 1: resolve any "new" master skills to real ids
-      const resolvedSkills = [];
-      for (const s of pickedSkills) {
-        if (s.isNew) {
-          try {
-            const created = await atsApi.createSkill(orgSlug, { name: s.skillName });
-            const newId = created?.skill?._id;
-            if (!newId) throw new Error(`Failed to create skill "${s.skillName}"`);
-            resolvedSkills.push({ ...s, skillId: String(newId), isNew: false });
-          } catch (err) {
-            showToast(err?.message || `Failed to create skill "${s.skillName}"`, 'error');
-            setSaving(false);
-            return;
-          }
-        } else {
-          resolvedSkills.push(s);
-        }
-      }
+      // Step 1: only attach skills that map to an existing master skill. The
+      // form no longer mints new master skills (neither free-text nor AI) — any
+      // picked entry without a real skillId is dropped defensively.
+      const resolvedSkills = pickedSkills.filter((s) => !!s.skillId);
 
       // Step 2: create the application (server creates / dedups candidate)
       const payload = {
@@ -1031,7 +1035,6 @@ export default function AtsApplicationNew() {
                         <span key={s.tempKey} className="inline-flex items-center gap-1 bg-rivvra-500/10 border border-rivvra-500/20 text-rivvra-200 text-xs px-2 py-1 rounded-full">
                           {s.skillName}
                           {s.levelName && <span className="text-rivvra-300/70 text-[10px]">· {s.levelName}</span>}
-                          {s.isNew && <span className="text-[9px] uppercase tracking-wider text-emerald-300 ml-0.5">new</span>}
                           <button
                             type="button"
                             onClick={() => removePickedSkill(s.tempKey)}
@@ -1092,10 +1095,9 @@ export default function AtsApplicationNew() {
                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 cursor-default'
                                     : 'bg-dark-900/40 border-dashed border-rivvra-500/30 text-rivvra-200 hover:bg-rivvra-500/10 hover:border-rivvra-500/50'
                                 }`}
-                                title={alreadyPicked ? 'Already added' : (sugg.isNew ? 'Will be added as a new skill' : 'Known skill')}
+                                title={alreadyPicked ? 'Already added' : 'Existing skill'}
                               >
                                 {alreadyPicked ? '✓ ' : '+ '}{sugg.name}
-                                {sugg.isNew && !alreadyPicked && <span className="text-[9px] uppercase tracking-wider text-emerald-300/80">new</span>}
                               </button>
                             );
                           })}
