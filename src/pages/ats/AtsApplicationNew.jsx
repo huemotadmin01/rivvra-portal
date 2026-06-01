@@ -94,8 +94,7 @@ export default function AtsApplicationNew() {
   // attached to the candidate post-create). inheritedSkills are skills
   // the existing-picked candidate already has (read-only chips here).
   const [masterSkills, setMasterSkills] = useState([]);
-  const [skillLevels, setSkillLevels] = useState([]);
-  const [pickedSkills, setPickedSkills] = useState([]); // [{tempKey, skillId|null, skillName, levelId|'', levelName|'', isNew}]
+  const [pickedSkills, setPickedSkills] = useState([]); // [{tempKey, skillId|null, skillName}]
   const [inheritedSkills, setInheritedSkills] = useState([]); // [{_id, skillId, skillName, skillLevelName}]
   const [loadingInherited, setLoadingInherited] = useState(false);
 
@@ -103,7 +102,6 @@ export default function AtsApplicationNew() {
   const [skillQuery, setSkillQuery] = useState('');
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [skillAnchorRect, setSkillAnchorRect] = useState(null);
-  const [pendingLevelId, setPendingLevelId] = useState('');
   const skillInputRef = useRef(null);
   const skillContainerRef = useRef(null);
 
@@ -194,20 +192,15 @@ export default function AtsApplicationNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, jobId]);
 
-  // ── Load master skill list + levels (once) ───────────────────────────
+  // ── Load master skill list (once) ────────────────────────────────────
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
     (async () => {
       try {
-        const [skills, levels] = await Promise.all([
-          atsApi.listSkills(orgSlug),
-          atsApi.listSkillLevels(orgSlug),
-        ]);
+        const skills = await atsApi.listSkills(orgSlug);
         if (cancelled) return;
         setMasterSkills(skills?.skills || skills?.items || []);
-        const ls = levels?.skillLevels || levels?.items || [];
-        setSkillLevels([...ls].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
       } catch { /* skills are optional surface — failure is silent */ }
     })();
     return () => { cancelled = true; };
@@ -426,22 +419,17 @@ export default function AtsApplicationNew() {
   // removed, and AI suggestions are filtered to existing master skills too
   // (see toMasterMatchedSuggestions) — so both paths can only attach skills
   // that already exist. New master skills are added by an admin via Settings.
-  const addPickedSkill = ({ skillId, skillName, isNew }) => {
-    const levelDoc = pendingLevelId ? skillLevels.find((l) => String(l._id) === String(pendingLevelId)) : null;
+  const addPickedSkill = ({ skillId, skillName }) => {
     setPickedSkills((p) => [
       ...p,
       {
         tempKey: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         skillId: skillId || null,
         skillName,
-        levelId: levelDoc ? String(levelDoc._id) : '',
-        levelName: levelDoc ? levelDoc.name : '',
-        isNew: !!isNew,
       },
     ]);
     setSkillQuery('');
     setSkillDropdownOpen(false);
-    setPendingLevelId('');
   };
 
   const removePickedSkill = (tempKey) => {
@@ -545,14 +533,9 @@ export default function AtsApplicationNew() {
     }
   };
 
-  // One-click accept a single AI-suggested skill into the picker. If the
-  // recruiter has the "Level (optional)" dropdown set, every accepted skill
-  // inherits that level — matches the muscle memory of the search-and-add
-  // flow. Dropdown blank → skill goes in with no level set (current behavior).
+  // One-click accept a single AI-suggested skill into the picker. Proficiency
+  // level is not captured on this form — set later on the candidate page.
   const acceptAiSkill = (sugg) => {
-    const lvl = pendingLevelId
-      ? (skillLevels.find((l) => String(l._id) === String(pendingLevelId)) || null)
-      : null;
     setPickedSkills((prev) => {
       // Skip duplicates (case-insensitive on canonical name).
       const seen = new Set(prev.map((s) => String(s.skillName).toLowerCase().trim()));
@@ -561,9 +544,6 @@ export default function AtsApplicationNew() {
         tempKey: 'ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
         skillId: sugg.knownSkillId,
         skillName: sugg.name,
-        levelId: lvl?._id ? String(lvl._id) : '',
-        levelName: lvl?.name || '',
-        isNew: false,
       }];
     });
   };
@@ -631,7 +611,6 @@ export default function AtsApplicationNew() {
         try {
           await atsApi.addCandidateSkill(orgSlug, newCandidateId, {
             skillId: s.skillId,
-            ...(s.levelId ? { skillLevelId: s.levelId } : {}),
           });
         } catch (err) {
           skillFailures.push(s.skillName);
@@ -1034,7 +1013,6 @@ export default function AtsApplicationNew() {
                       {pickedSkills.map((s) => (
                         <span key={s.tempKey} className="inline-flex items-center gap-1 bg-rivvra-500/10 border border-rivvra-500/20 text-rivvra-200 text-xs px-2 py-1 rounded-full">
                           {s.skillName}
-                          {s.levelName && <span className="text-rivvra-300/70 text-[10px]">· {s.levelName}</span>}
                           <button
                             type="button"
                             onClick={() => removePickedSkill(s.tempKey)}
@@ -1060,16 +1038,11 @@ export default function AtsApplicationNew() {
                         AI-suggested from the resume
                       </div>
                       {aiPreview?.suggestedSkills?.length > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          {pendingLevelId && (
-                            <span className="text-[10px] text-dark-500">applies level <span className="text-rivvra-300">{(skillLevels.find((l) => String(l._id) === String(pendingLevelId)) || {}).name || ''}</span></span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={acceptAllAiSkills}
-                            className="text-[11px] text-rivvra-200 hover:text-white px-2 py-0.5 rounded bg-rivvra-500/15 hover:bg-rivvra-500/25 border border-rivvra-500/30"
-                          >+ Add all (top {Math.min(8, aiPreview.suggestedSkills.length)})</button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={acceptAllAiSkills}
+                          className="text-[11px] text-rivvra-200 hover:text-white px-2 py-0.5 rounded bg-rivvra-500/15 hover:bg-rivvra-500/25 border border-rivvra-500/30"
+                        >+ Add all (top {Math.min(8, aiPreview.suggestedSkills.length)})</button>
                       )}
                     </div>
                     {aiPreviewLoading && (
@@ -1112,45 +1085,35 @@ export default function AtsApplicationNew() {
                   </div>
                 )}
 
-                {/* Add skill row */}
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
-                  {/* 2026-05-17 health-check G.3: declared as a combobox
-                      so AT announce "combobox, expanded/collapsed" and
-                      can address the listbox via aria-controls. */}
-                  <div ref={skillContainerRef} className="relative">
-                    <Search size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      ref={skillInputRef}
-                      type="text"
-                      value={skillQuery}
-                      placeholder="Search skills…"
-                      aria-label="Search skills"
-                      role="combobox"
-                      aria-expanded={skillDropdownOpen}
-                      aria-controls="skill-picker-listbox"
-                      aria-autocomplete="list"
-                      onFocus={() => setSkillDropdownOpen(true)}
-                      onChange={(e) => {
-                        setSkillQuery(e.target.value);
-                        setSkillDropdownOpen(true);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setSkillDropdownOpen(false);
-                      }}
-                      className={`${inputWithIcon}`}
-                    />
-                  </div>
-                  <select
-                    value={pendingLevelId}
-                    onChange={(e) => setPendingLevelId(e.target.value)}
-                    className={inputBase}
-                    aria-label="Skill level (optional)"
-                  >
-                    <option value="">Level (optional)</option>
-                    {skillLevels.map((l) => (
-                      <option key={l._id} value={l._id}>{l.name}</option>
-                    ))}
-                  </select>
+                {/* Add skill row. Proficiency level is intentionally NOT
+                    captured here — at create time recruiters are just logging
+                    skills off a resume; level is set later on the candidate
+                    detail page (SkillsPicker) once proficiency is assessed.
+                    2026-05-17 health-check G.3: declared as a combobox so AT
+                    announce "combobox, expanded/collapsed" and can address the
+                    listbox via aria-controls. */}
+                <div ref={skillContainerRef} className="relative">
+                  <Search size={13} className="text-dark-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={skillInputRef}
+                    type="text"
+                    value={skillQuery}
+                    placeholder="Search skills…"
+                    aria-label="Search skills"
+                    role="combobox"
+                    aria-expanded={skillDropdownOpen}
+                    aria-controls="skill-picker-listbox"
+                    aria-autocomplete="list"
+                    onFocus={() => setSkillDropdownOpen(true)}
+                    onChange={(e) => {
+                      setSkillQuery(e.target.value);
+                      setSkillDropdownOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setSkillDropdownOpen(false);
+                    }}
+                    className={`${inputWithIcon}`}
+                  />
                 </div>
 
                 <p className="text-xs text-dark-500">
@@ -1405,7 +1368,7 @@ export default function AtsApplicationNew() {
             <button
               key={s._id}
               type="button"
-              onClick={() => addPickedSkill({ skillId: String(s._id), skillName: s.name, isNew: false })}
+              onClick={() => addPickedSkill({ skillId: String(s._id), skillName: s.name })}
               className="w-full text-left px-3 py-2 hover:bg-dark-700 border-b border-dark-700/50 last:border-0"
             >
               <div className="text-xs text-white">{s.name}</div>
