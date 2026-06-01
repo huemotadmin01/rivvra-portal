@@ -146,8 +146,28 @@ class ApiClient {
     const headers = {};
     const token = localStorage.getItem('rivvra_token');
     if (token) headers.Authorization = `Bearer ${token}`;
+    // CRITICAL: attach the active-company header just like request(). Without it
+    // the backend falls back to the persisted membership.currentCompanyId, so an
+    // upload made right after a company switch could land in the WRONG company.
+    const companyId = getActiveCompanyId();
+    if (companyId) headers['X-Company-Id'] = companyId;
     // Do NOT set Content-Type — browser sets it with boundary for multipart
-    const response = await fetch(url, { method: 'POST', headers, body: formData });
+
+    // Bound the request: a stalled server/Cloudinary upload would otherwise leave
+    // the UI spinner running forever. 90s comfortably covers a 50 MB upload.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
+    let response;
+    try {
+      response = await fetch(url, { method: 'POST', headers, body: formData, signal: controller.signal });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('Upload timed out. Please check your connection and try again.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Upload failed (${response.status})`);
     return data;

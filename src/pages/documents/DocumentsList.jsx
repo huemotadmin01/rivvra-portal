@@ -55,7 +55,11 @@ function groupKeyFor(doc, groupBy, foldersById) {
 export default function DocumentsList() {
   const navigate = useNavigate();
   const { orgSlug, getAppRole } = useOrg();
-  const { currentCompany } = useCompany();
+  // `hydrated` gates data fetches: pre-hydration the api client suppresses the
+  // X-Company-Id header (it falls back to the server-persisted company), so a
+  // cold-refresh fetch could briefly list a DIFFERENT company's docs than the
+  // one shown in the switcher. Waiting for hydration keeps header and UI aligned.
+  const { currentCompany, hydrated } = useCompany();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useFilterParams(['search', 'tag', 'archived', 'groupBy']);
@@ -88,7 +92,10 @@ export default function DocumentsList() {
   }, [searchParams, setSearchParams]);
 
   const loadCatalog = useCallback(async () => {
-    if (!orgSlug || !currentCompany) return;
+    // Wait for company hydration so requests carry the correct X-Company-Id
+    // header. Firing pre-hydration lets the server fall back to the membership's
+    // default company, which caused the "wrong company's docs flash" on refresh.
+    if (!orgSlug || !currentCompany || !hydrated) return;
     try {
       const [fr, tr] = await Promise.all([
         documentsApi.listFolders(orgSlug),
@@ -99,10 +106,10 @@ export default function DocumentsList() {
     } catch (e) {
       toast({ title: 'Failed to load folders/tags', description: e.message, variant: 'error' });
     }
-  }, [orgSlug, currentCompany, toast]);
+  }, [orgSlug, currentCompany, hydrated, toast]);
 
   const loadDocs = useCallback(async () => {
-    if (!orgSlug || !currentCompany) return;
+    if (!orgSlug || !currentCompany || !hydrated) return;
     setLoading(true);
     try {
       const r = await documentsApi.list(orgSlug, {
@@ -120,12 +127,12 @@ export default function DocumentsList() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, currentCompany, folderId, tagFilter, q, includeArchived, toast]);
+  }, [orgSlug, currentCompany, hydrated, folderId, tagFilter, q, includeArchived, toast]);
 
   // Lightweight archived-count probe so ArchivedToggle shows the right badge.
   // Fires once per (company, filter) combo, not on every keystroke.
   useEffect(() => {
-    if (!orgSlug || !currentCompany) return;
+    if (!orgSlug || !currentCompany || !hydrated) return;
     let cancelled = false;
     (async () => {
       try {
@@ -144,7 +151,7 @@ export default function DocumentsList() {
       } catch {/* non-fatal */}
     })();
     return () => { cancelled = true; };
-  }, [orgSlug, currentCompany, folderId, tagFilter, q, total, includeArchived]);
+  }, [orgSlug, currentCompany, hydrated, folderId, tagFilter, q, total, includeArchived]);
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
   useEffect(() => { loadDocs(); }, [loadDocs]);
