@@ -1268,7 +1268,10 @@ export default function AtsApplicationNew() {
                   ? <span className="text-dark-300">Ready to create.</span>
                   : 'Fill required fields to enable Create.'}
               </p>
-              <div className="flex items-center gap-2 ml-auto">
+              {/* mr reserve keeps the buttons clear of the global Ask-AI FAB
+                  (fixed bottom-right, ~174px footprint). Dropped at 2xl where
+                  the centered max-w-6xl container's own right margin clears it. */}
+              <div className="flex items-center gap-2 ml-auto mr-[168px] 2xl:mr-0">
                 <button
                   type="button"
                   onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
