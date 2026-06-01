@@ -24,11 +24,10 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
   const [selectedSkillId, setSelectedSkillId] = useState('');
   const [selectedSkillName, setSelectedSkillName] = useState('');
   const [selectedLevelId, setSelectedLevelId] = useState('');
-  // Typeahead state for the skill picker — searchable list with a
-  // "+ Create '<query>'" affordance when no exact match exists.
+  // Typeahead state for the skill picker — searchable list restricted to
+  // EXISTING master skills (no inline create — see handleAdd comment).
   const [skillQuery, setSkillQuery] = useState('');
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
-  const [creatingSkill, setCreatingSkill] = useState(false);
   const [skillAnchorRect, setSkillAnchorRect] = useState(null);
   const skillInputRef = useRef(null);
   const skillContainerRef = useRef(null);
@@ -133,33 +132,9 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
     setSkillDropdownOpen(false);
   };
 
-  // Create a new master skill on the fly when no existing skill matches
-  // what the user typed. Closes the typeahead and selects the freshly
-  // created skill so the admin can pick a level and click Add.
-  const handleCreateSkill = async (rawName) => {
-    const name = (rawName || '').trim();
-    if (!name) return;
-    try {
-      setCreatingSkill(true);
-      const res = await atsApi.createSkill(orgSlug, { name });
-      const newSkill = res?.skill;
-      if (!newSkill?._id) throw new Error('Create returned no skill');
-      // Only add to the local list if it's actually new — the server's
-      // dedupe gate returns existed: true when the skill was already on file.
-      if (!res?.existed) setAllSkills((prev) => [...prev, newSkill]);
-      setSelectedSkillId(newSkill._id);
-      setSelectedSkillName(newSkill.name);
-      setSkillQuery(newSkill.name);
-      setSkillDropdownOpen(false);
-      showToast(res?.existed
-        ? `Picked existing skill "${newSkill.name}"`
-        : `Created skill "${newSkill.name}"`);
-    } catch (err) {
-      showToast(err.message || 'Failed to create skill', 'error');
-    } finally {
-      setCreatingSkill(false);
-    }
-  };
+  // 2026-06-01: inline skill creation removed. Recruiters can only assign
+  // EXISTING master skills here — prevents typo/variant skills polluting the
+  // org-wide taxonomy. New master skills are added by an admin in Settings.
 
   // Filter master list by the search query, excluding already-assigned.
   const skillSuggestions = (() => {
@@ -170,10 +145,6 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       .filter((s) => (s.name || '').toLowerCase().includes(q))
       .slice(0, 30);
   })();
-  const exactSkillMatch = skillSuggestions.find(
-    (s) => (s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
-  );
-  const showCreateOption = skillQuery.trim().length > 0 && !exactSkillMatch;
 
   const handleRemove = async (assignmentId) => {
     try {
@@ -217,17 +188,15 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       {showAdd && !readOnly && (
         <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            {/* Searchable skill typeahead — replaces the long native <select>
-                that listed every master skill (and on Huemot, ~360 of them).
-                Includes a "+ Create '<query>'" affordance when there's no
-                exact match, so admins can add new skills inline. */}
+            {/* Searchable skill typeahead — restricted to existing master
+                skills (no inline create). New skills are added in Settings. */}
             <div ref={skillContainerRef} className="relative">
               <Search size={11} className="text-dark-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={skillInputRef}
                 type="text"
                 value={skillQuery}
-                placeholder="Search or create skill…"
+                placeholder="Search skill…"
                 onFocus={() => setSkillDropdownOpen(true)}
                 onChange={(e) => {
                   setSkillQuery(e.target.value);
@@ -240,10 +209,6 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setSkillDropdownOpen(false);
-                  if (e.key === 'Enter' && showCreateOption && !creatingSkill) {
-                    e.preventDefault();
-                    handleCreateSkill(skillQuery);
-                  }
                 }}
                 className="input-field text-sm py-1.5 pl-7 w-full"
               />
@@ -298,20 +263,9 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
           }}
           className="bg-dark-800 border border-dark-600 rounded-lg shadow-xl max-h-64 overflow-y-auto"
         >
-          {showCreateOption && (
-            <button
-              type="button"
-              onClick={() => handleCreateSkill(skillQuery)}
-              disabled={creatingSkill}
-              className="w-full text-left px-3 py-2 text-xs text-rivvra-300 hover:bg-dark-700 border-b border-dark-700/50 flex items-center gap-1.5 disabled:opacity-50"
-            >
-              {creatingSkill ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-              Create &ldquo;{skillQuery.trim()}&rdquo;
-            </button>
-          )}
-          {skillSuggestions.length === 0 && !showCreateOption && (
+          {skillSuggestions.length === 0 && (
             <div className="px-3 py-2 text-xs text-dark-500">
-              {skillQuery.trim() ? 'No matching skills' : 'Type to search'}
+              {skillQuery.trim() ? 'No matching skill — ask an admin to add it in Settings' : 'Type to search'}
             </div>
           )}
           {skillSuggestions.map((s) => (

@@ -34,15 +34,21 @@ function MatchedSkills({ candidate, search }) {
   const term = (search || '').trim();
   if (!term) return null;
   const skills = Array.isArray(candidate.skills) ? candidate.skills : [];
-  if (skills.length === 0) return null;
+  // AI-extracted skills (e.g. careers-site candidates that have no
+  // recruiter-curated skills yet) — kept separate from curated skills and
+  // flagged with an "AI" badge so recruiters can tell why a row qualified.
+  const aiSkills = Array.isArray(candidate.aiSkills) ? candidate.aiSkills : [];
+  if (skills.length === 0 && aiSkills.length === 0) return null;
   // Skip when the row already matched on name/email — no need to also
   // explain via skills, the row is "obviously" relevant.
   const lowerTerm = term.toLowerCase();
   const nameHit  = (candidate.name  || '').toLowerCase().includes(lowerTerm);
   const emailHit = (candidate.email || '').toLowerCase().includes(lowerTerm);
   if (nameHit || emailHit) return null;
-  // Find skills whose name contains the term (case-insensitive).
+  // Find skills whose name contains the term (case-insensitive). Curated
+  // skills take precedence; an AI skill is only shown if not already curated.
   const matched = [];
+  const aiMatched = [];
   const seen = new Set();
   for (const s of skills) {
     const n = (s.skillName || '').trim();
@@ -54,7 +60,17 @@ function MatchedSkills({ candidate, search }) {
     matched.push(n);
     if (matched.length >= 4) break;
   }
-  if (matched.length === 0) return null;
+  for (const s of aiSkills) {
+    const n = (typeof s === 'string' ? s : s?.skillName || s?.name || '').trim();
+    if (!n) continue;
+    if (!n.toLowerCase().includes(lowerTerm)) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    aiMatched.push(n);
+    if (aiMatched.length >= 4) break;
+  }
+  if (matched.length === 0 && aiMatched.length === 0) return null;
 
   // Highlight the matching substring inside each chip.
   const renderHighlighted = (text) => {
@@ -79,6 +95,16 @@ function MatchedSkills({ candidate, search }) {
           key={name}
           className="text-[10px] px-1.5 py-0.5 rounded-full bg-rivvra-500/10 text-rivvra-300 border border-rivvra-500/20"
         >
+          {renderHighlighted(name)}
+        </span>
+      ))}
+      {aiMatched.map((name) => (
+        <span
+          key={`ai-${name}`}
+          className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 inline-flex items-center gap-1"
+          title="Extracted from resume by AI — not yet confirmed by a recruiter"
+        >
+          <span className="text-[8px] font-semibold uppercase tracking-wider opacity-80">AI</span>
           {renderHighlighted(name)}
         </span>
       ))}

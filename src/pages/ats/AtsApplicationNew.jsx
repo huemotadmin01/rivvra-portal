@@ -21,8 +21,8 @@ import {
  * Locked behavior 2026-05-10:
  *  - Recruiter required (typeahead, prefills from job).
  *  - Candidate name + (email OR phone) required.
- *  - At least one skill required (existing-candidate's tagged skills count
- *    toward the gate; new picks union into the candidate's skill set).
+ *  - Skills optional (2026-06-01): picks union into the candidate's skill set.
+ *    Only EXISTING master skills or AI suggestions — no free-text minting.
  *  - Resume required: existing-candidate's prior resume satisfies the gate;
  *    new candidates must upload one (PDF/DOC/DOCX, ≤10 MB).
  *  - Source intentionally absent — edited later on the application detail
@@ -422,15 +422,10 @@ export default function AtsApplicationNew() {
       .filter((s) => (s.name || '').toLowerCase().includes(q))
       .slice(0, 30);
   }, [skillQuery, pickedSkills, inheritedSkills, masterSkills]);
-  const exactSkillMatch = skillSuggestions.find(
-    (s) => (s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
-  );
-  const showSkillCreateOption = skillQuery.trim().length > 0 && !exactSkillMatch && !pickedSkills.some(
-    (s) => (s.skillName || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
-  ) && !inheritedSkills.some(
-    (s) => (s.skillName || s.name || '').trim().toLowerCase() === skillQuery.trim().toLowerCase(),
-  );
-
+  // Free-text skill creation was removed 2026-06-01: recruiters can only pick
+  // EXISTING master skills here (prevents typo/variant skills polluting the
+  // org taxonomy). New skills now come only from AI suggestions (recruiter-
+  // confirmed, normalized names) or are added by an admin via Settings.
   const addPickedSkill = ({ skillId, skillName, isNew }) => {
     const levelDoc = pendingLevelId ? skillLevels.find((l) => String(l._id) === String(pendingLevelId)) : null;
     setPickedSkills((p) => [
@@ -571,13 +566,14 @@ export default function AtsApplicationNew() {
   const hasContact = !!(form.email.trim() || form.phone.trim());
   const hasRecruiter = !!form.recruiterId;
   const totalSkills = pickedSkills.length + inheritedSkills.length;
-  const hasSkill = totalSkills >= 1;
+  // Skills are optional at create time — public careers applications arrive
+  // without them and AI enrichment fills the gap, so the manual flow matches.
   // Resume gate: a freshly uploaded file always counts. A reused resume
   // only counts after the recruiter explicitly confirms it (was silently
   // attaching prior-application files before 2026-05-13).
   const hasResume = !!resumeFile || (!!existingResume && resumeConfirmed);
   const blockedByDuplicate = !!existingAppOnThisJob;
-  const canSubmit = !!trimmedName && hasContact && hasRecruiter && hasSkill && hasResume
+  const canSubmit = !!trimmedName && hasContact && hasRecruiter && hasResume
     && !blockedByDuplicate && !saving && !loadingJob && !!job;
 
   // ── Submit ───────────────────────────────────────────────────────────
@@ -990,8 +986,8 @@ export default function AtsApplicationNew() {
                 <div className="flex items-center gap-2">
                   <Award size={14} className="text-rivvra-300" />
                   <h2 className="text-sm font-semibold text-white tracking-wide">
-                    Skills <span className="text-red-400">*</span>
-                    <span className="ml-2 text-[11px] font-normal text-dark-500">at least one required</span>
+                    Skills
+                    <span className="ml-2 text-[11px] font-normal text-dark-500">optional</span>
                   </h2>
                 </div>
 
@@ -1125,8 +1121,8 @@ export default function AtsApplicationNew() {
                       ref={skillInputRef}
                       type="text"
                       value={skillQuery}
-                      placeholder="Search or create a skill…"
-                      aria-label="Search or create a skill"
+                      placeholder="Search skills…"
+                      aria-label="Search skills"
                       role="combobox"
                       aria-expanded={skillDropdownOpen}
                       aria-controls="skill-picker-listbox"
@@ -1138,10 +1134,6 @@ export default function AtsApplicationNew() {
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Escape') setSkillDropdownOpen(false);
-                        if (e.key === 'Enter' && showSkillCreateOption) {
-                          e.preventDefault();
-                          addPickedSkill({ skillName: skillQuery.trim(), isNew: true });
-                        }
                       }}
                       className={`${inputWithIcon}`}
                     />
@@ -1160,7 +1152,7 @@ export default function AtsApplicationNew() {
                 </div>
 
                 <p className="text-xs text-dark-500">
-                  Picked skills attach to the candidate on submit. Existing-candidate skills already count toward the requirement.
+                  Skills are optional. Pick from existing skills or accept an AI suggestion — new skills are added by an admin in Settings.
                 </p>
               </section>
 
@@ -1277,7 +1269,7 @@ export default function AtsApplicationNew() {
                       <dd className="text-dark-200 text-right">
                         {totalSkills > 0
                           ? `${totalSkills} total${pickedSkills.length ? ` (${pickedSkills.length} new)` : ''}`
-                          : <span className="text-amber-400/80">— required</span>}
+                          : <span className="text-dark-500">— none</span>}
                       </dd>
                     </div>
                     <div className="flex items-start justify-between gap-3">
@@ -1296,7 +1288,6 @@ export default function AtsApplicationNew() {
                     <ChecklistRow ok={!!trimmedName} label="Candidate name" />
                     <ChecklistRow ok={hasContact} label="Email or phone" />
                     <ChecklistRow ok={hasRecruiter} label="Recruiter assigned" />
-                    <ChecklistRow ok={hasSkill} label="At least one skill" />
                     <ChecklistRow ok={hasResume} label="Resume uploaded" />
                   </div>
                 </div>
@@ -1403,18 +1394,9 @@ export default function AtsApplicationNew() {
           style={{ position: 'fixed', top: skillAnchorRect.top + 4, left: skillAnchorRect.left, width: skillAnchorRect.width, zIndex: 1000 }}
           className="bg-dark-800 border border-dark-600 rounded-lg shadow-2xl max-h-64 overflow-y-auto"
         >
-          {showSkillCreateOption && (
-            <button
-              type="button"
-              onClick={() => addPickedSkill({ skillName: skillQuery.trim(), isNew: true })}
-              className="w-full text-left px-3 py-2 text-xs text-rivvra-300 hover:bg-dark-700 border-b border-dark-700/50 flex items-center gap-1.5"
-            >
-              <Plus size={11} /> Create &ldquo;{skillQuery.trim()}&rdquo;
-            </button>
-          )}
-          {skillSuggestions.length === 0 && !showSkillCreateOption && (
+          {skillSuggestions.length === 0 && (
             <div className="px-3 py-2 text-xs text-dark-500">
-              {skillQuery.trim() ? 'No matching skills' : 'Type to search'}
+              {skillQuery.trim() ? 'No matching skill — ask an admin to add it in Settings' : 'Type to search'}
             </div>
           )}
           {skillSuggestions.map((s) => (
