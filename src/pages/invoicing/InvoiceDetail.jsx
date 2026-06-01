@@ -753,9 +753,12 @@ export default function InvoiceDetail() {
   const [journals, setJournals] = useState([]); // journals of matching type for DRAFT journal change
 
   const isDraft = invoice?.status === 'draft';
-  // Real Vendor Bills run on the BILL journal. Employee Bills (EMPBI) and
-  // customer invoices share the same detail page but must not see these fields.
-  const isVendorBill = invoice?.journalCode === 'BILL';
+  // Real Vendor Bills are identified by type, NOT the journal: a vendor bill
+  // created before a BILL/purchase journal was configured has journalCode=null
+  // and would otherwise be misclassified as a customer invoice (e.g. wrongly
+  // forced to fill Start/End dates on confirm). Employee Bills (EMPBI) share
+  // type='vendor_bill' but are reimbursement vouchers, so exclude them here.
+  const isVendorBill = invoice?.type === 'vendor_bill' && invoice?.journalCode !== 'EMPBI';
   // Employee Bills are reimbursement vouchers, not vendor invoices.  The
   // line-item table renders a different column set (Date / Merchant / Payment
   // Mode / Receipt) instead of the staff-aug-style Consultant / Start / End
