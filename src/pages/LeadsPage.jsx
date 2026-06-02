@@ -63,10 +63,12 @@ function LeadsPage() {
   const [setupComplete, setSetupComplete] = useState(null);
 
   const leadsPerPage = 50;
-  // Paid outreach access is granted at the org level (enabledApps → membership
-  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
-  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  // Paid access is granted at the org level (enabledApps → membership appAccess),
+  // so org-provisioned users have no legacy user.plan. isPro covers outreach AI
+  // features; canExportCrm mirrors the backend's requireAppAccess('crm') gate on
+  // the convert-lead endpoint so the UI never offers an export the API will 403.
   const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
+  const canExportCrm = hasAppAccess('crm') || user?.plan === 'pro' || user?.plan === 'premium';
 
   // Debounce search input
   useEffect(() => {
@@ -565,7 +567,7 @@ function LeadsPage() {
                             <ManageDropdown
                               lead={lead}
                               onExportCRM={() => {
-                                if (!isPro) {
+                                if (!canExportCrm) {
                                   setComingSoonFeature('Export to CRM');
                                   setShowComingSoon(true);
                                   return;

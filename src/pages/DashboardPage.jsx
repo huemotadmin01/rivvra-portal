@@ -483,10 +483,12 @@ function DashboardPage() {
     };
   }, [fetchData]);
 
-  // Paid outreach access is granted at the org level (enabledApps → membership
-  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
-  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  // Paid access is granted at the org level (enabledApps → membership appAccess),
+  // so org-provisioned users have no legacy user.plan. isPro covers outreach AI
+  // features; canExportCrm mirrors the backend's requireAppAccess('crm') gate on
+  // the convert-lead endpoint so the UI never offers an export the API will 403.
   const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
+  const canExportCrm = hasAppAccess('crm') || user?.plan === 'pro' || user?.plan === 'premium';
 
   const handleFeatureClick = (feature) => {
     if (!isPro) {
@@ -926,7 +928,7 @@ function DashboardPage() {
                   { label: 'Contacts Saved', value: savedLeadsCount || 0, icon: Users, color: 'rivvra', cta: 'Extract your first contact →' },
                   { label: 'Emails Generated', value: features?.usage?.emailsGenerated || 0, icon: Mail, color: 'blue', locked: !isPro, cta: 'Generate your first email →' },
                   { label: 'DMs Generated', value: features?.usage?.dmsGenerated || 0, icon: MessageSquare, color: 'purple', locked: !isPro, cta: 'Generate your first DM →' },
-                  { label: 'CRM Exports', value: features?.usage?.crmExports || 0, icon: Building2, color: 'orange', locked: !isPro, cta: 'Export to your CRM →' },
+                  { label: 'CRM Exports', value: features?.usage?.crmExports || 0, icon: Building2, color: 'orange', locked: !canExportCrm, cta: 'Export to your CRM →' },
                 ].map((stat, i) => (
                   <div key={i} className="card p-5 relative">
                     {stat.locked && (
