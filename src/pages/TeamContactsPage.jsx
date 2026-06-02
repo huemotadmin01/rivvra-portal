@@ -588,6 +588,11 @@ function TeamContactsPage() {
                                   showToast('Complete your setup on the Engage page first', 'error');
                                   return;
                                 }
+                                const seqEmail = (lead.email || '').trim();
+                                if (!seqEmail || seqEmail === 'noemail@domain.com' || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(seqEmail)) {
+                                  showToast('A valid email is required to add this lead to a sequence', 'error');
+                                  return;
+                                }
                                 setSequenceTarget(lead);
                                 setShowAddToSequence(true);
                               }}
