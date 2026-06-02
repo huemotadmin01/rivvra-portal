@@ -122,7 +122,13 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   // this authoritatively (403 LEAD_NOT_INTERESTED); this is the friendly
   // mirror so users see why before filling out the form. Single chokepoint —
   // every page that opens this modal is covered here.
+  //
+  // Two distinct blocked cases share the gate: an already-'converted' lead
+  // (re-exporting would create a duplicate opportunity) gets a different,
+  // accurate message than a lead that simply hasn't replied yet.
   if (lead.outreachStatus !== 'replied') {
+    const isConverted = lead.outreachStatus === 'converted';
+    const leadLabel = lead.name || 'This lead';
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={onClose} />
@@ -130,15 +136,30 @@ function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
           <button onClick={onClose} className="absolute top-4 right-4 p-1 text-dark-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rivvra-500/20 to-blue-500/20 flex items-center justify-center mx-auto mb-4">
-            <UserCheck className="w-8 h-8 text-rivvra-400" />
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Lead isn’t Interested yet</h2>
-          <p className="text-dark-400 mb-6">
-            Only leads marked <span className="text-white font-medium">Interested</span> can be converted to an opportunity.
-            Set <span className="text-white font-medium">{lead.name || 'this lead'}</span>’s outreach status to
-            {' '}<span className="text-white font-medium">Interested</span> once they reply, then export to CRM.
-          </p>
+          {isConverted ? (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-green-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Already converted</h2>
+              <p className="text-dark-400 mb-6">
+                <span className="text-white font-medium">{leadLabel}</span> has already been converted to an
+                opportunity in CRM. Re-exporting is disabled to avoid creating a duplicate.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rivvra-500/20 to-blue-500/20 flex items-center justify-center mx-auto mb-4">
+                <UserCheck className="w-8 h-8 text-rivvra-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Lead isn’t Interested yet</h2>
+              <p className="text-dark-400 mb-6">
+                Only leads marked <span className="text-white font-medium">Interested</span> can be converted to an opportunity.
+                Set <span className="text-white font-medium">{leadLabel}</span>’s outreach status to
+                {' '}<span className="text-white font-medium">Interested</span> once they reply, then export to CRM.
+              </p>
+            </>
+          )}
           <button
             onClick={onClose}
             className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rivvra-500 to-blue-500 text-white font-semibold hover:from-rivvra-400 hover:to-blue-400 transition-all"
