@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useOrg } from '../context/OrgContext';
 import { usePlatform } from '../context/PlatformContext';
 import {
   Search, Users, Mail, MessageSquare, Building2,
@@ -351,6 +352,7 @@ function AddToListModal({ isOpen, onClose, lists, onSelect, onCreateList, lead }
 // ==================== Main Dashboard Page ====================
 function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
+  const { hasAppAccess } = useOrg();
   const { orgPath } = usePlatform();
   const { installed: extInstalled, dismiss: dismissExt, isDismissed: isExtDismissed, chromeStoreUrl } = useExtensionDetector();
   const [extBannerDismissed, setExtBannerDismissed] = useState(false);
@@ -481,7 +483,10 @@ function DashboardPage() {
     };
   }, [fetchData]);
 
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  // Paid outreach access is granted at the org level (enabledApps → membership
+  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
+  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
 
   const handleFeatureClick = (feature) => {
     if (!isPro) {

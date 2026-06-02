@@ -12,8 +12,11 @@ import crmApi from '../utils/crmApi';
 // success | error.
 function ExportToCRMModal({ isOpen, onClose, lead, onSuccess }) {
   const { user } = useAuth();
-  const { orgSlug } = useOrg();
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  const { orgSlug, hasAppAccess } = useOrg();
+  // Paid outreach access is granted at the org level (enabledApps → membership
+  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
+  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
 
   const [step, setStep] = useState('form');
   const [profileType, setProfileType] = useState('');

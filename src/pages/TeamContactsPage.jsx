@@ -25,7 +25,7 @@ import { useToast } from '../context/ToastContext';
 function TeamContactsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { getAppRole, currentOrg } = useOrg();
+  const { getAppRole, currentOrg, hasAppAccess } = useOrg();
   const orgRole = currentOrg ? getAppRole('outreach') : null;
   const effectiveRole = orgRole || user?.role || 'member';
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,7 +65,10 @@ function TeamContactsPage() {
   const [setupComplete, setSetupComplete] = useState(null);
 
   const leadsPerPage = 50;
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  // Paid outreach access is granted at the org level (enabledApps → membership
+  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
+  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
 
   // Debounce search input - wait 400ms after user stops typing
   useEffect(() => {

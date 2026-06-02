@@ -29,7 +29,7 @@ function TeamListsPage() {
   const { orgPath } = usePlatform();
   const { user, isAuthenticated } = useAuth();
   const { showToast } = useToast();
-  const { getAppRole, currentOrg } = useOrg();
+  const { getAppRole, currentOrg, hasAppAccess } = useOrg();
   // Org membership role is the source of truth; user.role is fallback
   const orgRole = currentOrg ? getAppRole('outreach') : null;
   const effectiveRole = orgRole || user?.role || 'member';
@@ -75,7 +75,10 @@ function TeamListsPage() {
   const filterRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  // Paid outreach access is granted at the org level (enabledApps → membership
+  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
+  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
   const leadsPerPage = 10;
 
   const loadLeads = useCallback(async (listName, pageNum = 1, search = '', filters = {}) => {

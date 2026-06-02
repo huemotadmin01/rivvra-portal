@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
+import { useOrg } from '../context/OrgContext';
 import {
   Users, ChevronRight, ChevronLeft, Linkedin,
   Trash2, Plus, Search, List, FolderOpen,
@@ -27,6 +28,7 @@ function MyListsPage() {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
   const { user, isAuthenticated } = useAuth();
+  const { hasAppAccess } = useOrg();
   const { showToast } = useToast();
   const [lists, setLists] = useState([]);
   const [selectedList, setSelectedList] = useState(searchParams.get('list') || null);
@@ -64,7 +66,10 @@ function MyListsPage() {
   const [outreachStatusFilter, setOutreachStatusFilter] = useState('all');
   const filterRef = useRef(null);
 
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  // Paid outreach access is granted at the org level (enabledApps → membership
+  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
+  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
   const leadsPerPage = 10;
 
   const loadLeads = useCallback(async (listName, pageNum = 1, search = '', filters = {}) => {

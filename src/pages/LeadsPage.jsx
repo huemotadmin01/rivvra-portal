@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
+import { useOrg } from '../context/OrgContext';
 import {
   Linkedin, Users, Search, Filter, Download,
   ExternalLink, Building2, MapPin,
@@ -24,6 +25,7 @@ import { useToast } from '../context/ToastContext';
 
 function LeadsPage() {
   const { user } = useAuth();
+  const { hasAppAccess } = useOrg();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { leadId } = useParams();
@@ -61,7 +63,10 @@ function LeadsPage() {
   const [setupComplete, setSetupComplete] = useState(null);
 
   const leadsPerPage = 50;
-  const isPro = user?.plan === 'pro' || user?.plan === 'premium';
+  // Paid outreach access is granted at the org level (enabledApps → membership
+  // appAccess.outreach), so org-provisioned users have no legacy user.plan.
+  // Treat org outreach access as Pro; keep the legacy plan check as a fallback.
+  const isPro = hasAppAccess('outreach') || user?.plan === 'pro' || user?.plan === 'premium';
 
   // Debounce search input
   useEffect(() => {
