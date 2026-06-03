@@ -8,6 +8,7 @@ import {
   Loader2, BarChart3, Users, UserCheck, Clock,
   FileBarChart, RefreshCw, Download, ChevronDown,
   AlertTriangle, MessageSquareWarning, Hourglass, ArrowRight,
+  Layers,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
@@ -1109,23 +1110,29 @@ export default function AtsDashboard() {
           Two-column on lg+, stacked below. Each table groups rows by
           recruitment team (Team-A / Team-B subheaders), matching the
           Odoo Recruitment dashboard layout. */}
-      <div className="flex items-center justify-end gap-2">
-        <span className="text-[11px] text-dark-500">Group by</span>
-        <div className="inline-flex rounded-lg border border-dark-700 overflow-hidden">
-          {[['team', 'Team'], ['source', 'Source']].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setSubmissionsGroupBy(key)}
-              className={`px-3 py-1 text-[11px] font-medium transition-colors ${
-                submissionsGroupBy === key
-                  ? 'bg-rivvra-500/20 text-rivvra-200'
-                  : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-dark-200">Submissions</h3>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-dark-400">
+            <Layers className="w-4 h-4" />
+            Group by
+          </span>
+          <div className="inline-flex rounded-lg border border-dark-600 overflow-hidden">
+            {[['team', 'Team'], ['source', 'Source']].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSubmissionsGroupBy(key)}
+                className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
+                  submissionsGroupBy === key
+                    ? 'bg-rivvra-500 text-white'
+                    : 'text-dark-300 hover:text-dark-100 hover:bg-dark-800'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
