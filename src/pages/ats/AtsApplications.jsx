@@ -649,7 +649,7 @@ export default function AtsApplications() {
             {/* 2026-06-03: surfaces the claimable pool (unassigned or parked
                 on the "HR Team" holding account) so recruiters can find leads
                 to claim. Top-level so it's discoverable, not buried. */}
-            <FilterChip type="boolean" paramKey="unclaimed" label="Unclaimed leads" />
+            <FilterChip type="boolean" paramKey="unclaimed" label="Unclaimed Applications" />
             <GroupByChip options={APP_GROUP_BY_OPTIONS} />
             <MoreFiltersPopover paramKeys={['source', 'employmentType', 'aiScoreMin']}>
               <FilterChip type="select" paramKey="source" label="Source" options={sourceOptions} placeholder="No sources" />
