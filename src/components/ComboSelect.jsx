@@ -57,6 +57,15 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   // Sync display value when prop changes
   useEffect(() => { setInputValue(displayValue || ''); }, [displayValue]);
 
+  // Always-current displayValue for the blur restore below. The restore runs
+  // on a 150 ms timeout, so reading the prop via closure would capture a
+  // stale value: picking an option fires blur (closure displayValue still '')
+  // a tick before the parent propagates the new selection, and the timeout
+  // would then wipe the just-picked text back to the placeholder. A ref lets
+  // the timeout read the latest value instead.
+  const displayValueRef = useRef(displayValue || '');
+  useEffect(() => { displayValueRef.current = displayValue || ''; }, [displayValue]);
+
   // Debounced onSearch fan-out. Skipped when no onSearch is wired (the
   // common case — most ComboSelect consumers pass a static options array
   // and the in-memory filter at line 70 is enough).
@@ -119,7 +128,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
             // the previously selected display value on blur. Without
             // this the input would visibly diverge from the bound value.
             if (disableCreate) {
-              setTimeout(() => setInputValue(displayValue || ''), 150);
+              setTimeout(() => setInputValue(displayValueRef.current || ''), 150);
             }
           }}
           placeholder={placeholder}
