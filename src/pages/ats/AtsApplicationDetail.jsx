@@ -1830,6 +1830,7 @@ export default function AtsApplicationDetail() {
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [showRateConfirmationModal, setShowRateConfirmationModal] = useState(false);
   const [actionSaving, setActionSaving] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const [creatingEmployee, setCreatingEmployee] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [showKebab, setShowKebab] = useState(false);
@@ -1883,6 +1884,16 @@ export default function AtsApplicationDetail() {
   // not the assigned recruiter and not an admin. Surfaced as a pill so
   // they understand why action buttons are missing.
   const isViewOnly = !!(canRecruit && application && !canActOnThis);
+  // "Assign to me": an application is claimable when it's in the
+  // unassigned pool — no recruiter, or parked on the "HR Team" holding
+  // account. Heuristic mirrors the backend (null OR HR-Team/default);
+  // the backend is the source of truth and 403s anything not claimable.
+  // Shown even when the caller can't otherwise act (that's the point —
+  // it's how a recruiter picks up a careers lead under the team-scope RBAC).
+  const isUnassignedApp = application
+    && (!application.recruiterId || /^\s*HR\s*Team\s*$/i.test(application.recruiterName || ''));
+  const canClaim = canRecruit && isUnassignedApp
+    && !application?.archived && appStatus !== 'hired';
 
   // ── Fetch application ─────────────────────────────────────────────────
   // Race guard via monotonic seq — rapid stage moves trigger multiple
@@ -2041,6 +2052,27 @@ export default function AtsApplicationDetail() {
       }
     } catch (err) {
       showToast(err?.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
+    }
+  };
+
+  // handleClaim — "Assign to me". Takes ownership of an application that's
+  // sitting in the unassigned pool (no recruiter, or parked on the
+  // HR-Team / careers-default account). Backend enforces eligibility and
+  // wins/loses the race; we just refetch to refresh the (permission-
+  // derived) UI once ownership flips to the caller.
+  const handleClaim = async () => {
+    try {
+      setClaiming(true);
+      const res = await atsApi.claimApplication(orgSlug, applicationId);
+      if (res?.data) setApplication((prev) => ({ ...prev, ...res.data }));
+      showToast('Application assigned to you');
+      fetchApplication();
+    } catch (err) {
+      showToast(err?.message || 'Failed to claim application', 'error');
+      // On a 409 (someone else just claimed) refresh to show the truth.
+      fetchApplication();
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -3175,6 +3207,23 @@ export default function AtsApplicationDetail() {
               linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_application', applicationId)}
               onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
+            {/* "Assign to me" — self-serve claim of an unassigned lead. Lets
+                a recruiter pick up an HR-Team / unowned application even
+                though the team-scope RBAC otherwise makes it read-only. */}
+            {canClaim && (
+              <div className="grid grid-cols-[140px_1fr] gap-2 pb-2">
+                <span />
+                <button
+                  type="button"
+                  onClick={handleClaim}
+                  disabled={claiming}
+                  className="inline-flex items-center gap-1.5 self-start rounded-lg border border-rivvra-500/40 bg-rivvra-500/10 px-3 py-1.5 text-xs font-semibold text-rivvra-200 transition-colors hover:bg-rivvra-500/20 disabled:opacity-50"
+                >
+                  <UserPlus size={14} />
+                  {claiming ? 'Assigning…' : 'Assign to me'}
+                </button>
+              </div>
+            )}
             {/* Account Owner — read-only mirror of the linked Job Position.
                 Edit it on the Job page and it propagates to every app. */}
             <EmployeeLookup

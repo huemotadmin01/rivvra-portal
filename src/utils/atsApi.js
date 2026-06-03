@@ -170,6 +170,16 @@ const atsApi = {
     });
   },
 
+  // "Assign to me" — claim an unassigned (HR-Team/default) application.
+  // Carve-out from the team-scope write gate; only works on the
+  // unassigned pool (see backend POST /applications/:id/claim).
+  claimApplication(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/ats/applications/${id}/claim`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  },
+
   // Phase-1 / Q13 (2026-05-10): backward stage moves require a reason
   // (captured in stageHistory). Forward moves don't, so reason is
   // optional. The API ignores reason on forward moves; passing it is
