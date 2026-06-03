@@ -455,7 +455,6 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     // Joining date / notice / probation only required when fullOfferRequired.
     if (fullOfferRequired) {
       if (!joiningDate || !/^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) errs.joiningDate = 'Required';
-      else if (joiningDate < today) errs.joiningDate = 'Cannot be in the past';
       const np = Number(noticePeriodDays);
       if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
       const pm = Number(probationMonths);
@@ -521,7 +520,6 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                 type="date"
                 value={joiningDate}
                 onChange={(e) => setJoiningDate(e.target.value)}
-                min={today}
                 className="input-field"
                 required
               />
