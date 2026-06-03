@@ -2,12 +2,23 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import ConfirmDialog from '../../shared/ConfirmDialog';
+import { useCompany } from '../../../context/CompanyContext';
 import {
   Plus, Edit2, X, Loader2, Trash2,
-  Layers, Tag, Search,
+  Layers, Tag, Search, Copy,
 } from 'lucide-react';
 
 export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag, orgSlug, showToast }) {
+  // Sibling entities for the "Copy from another entity" action. Excludes the
+  // active company; only shown when the org actually has more than one entity.
+  const { companies = [], currentCompany } = useCompany();
+  const siblingCompanies = useMemo(
+    () => companies.filter(c => String(c._id) !== String(currentCompany?._id)),
+    [companies, currentCompany]
+  );
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copyFromId, setCopyFromId] = useState('');
+  const [copying, setCopying] = useState(false);
   const modalRef = useRef(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +132,31 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
     }
   };
 
+  const openCopy = () => {
+    setCopyFromId(siblingCompanies[0]?._id ? String(siblingCompanies[0]._id) : '');
+    setShowCopyModal(true);
+  };
+  const closeCopy = () => { setShowCopyModal(false); setCopyFromId(''); };
+  const handleCopy = async (e) => {
+    e.preventDefault();
+    if (!copyFromId) return;
+    try {
+      setCopying(true);
+      const res = await atsApi.copyConfigFrom(orgSlug, apiEntity, copyFromId);
+      if (res.success) {
+        showToast(res.message || `Copied ${res.copied || 0} ${entityLabel.toLowerCase()}`);
+        closeCopy();
+        fetchItems();
+      } else {
+        showToast(res.error || `Failed to copy ${entityLabel.toLowerCase()}`, 'error');
+      }
+    } catch (err) {
+      showToast(err.message || `Failed to copy ${entityLabel.toLowerCase()}`, 'error');
+    } finally {
+      setCopying(false);
+    }
+  };
+
   // Client-side search filter. Picklists are read-once-per-tab and small,
   // so filtering locally keeps typing snappy.
   const visibleItems = useMemo(() => {
@@ -165,6 +201,16 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
                   className="input-field text-sm py-1.5 pl-8 pr-2 w-full"
                 />
               </div>
+            )}
+            {siblingCompanies.length > 0 && (
+              <button
+                onClick={openCopy}
+                className="bg-dark-700 hover:bg-dark-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
+                title="Copy this list from another entity"
+              >
+                <Copy size={14} />
+                Copy from entity
+              </button>
             )}
             <button
               onClick={openAdd}
@@ -303,6 +349,63 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
                   </button>
                 </div>
               )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Copy-from-entity modal */}
+      {showCopyModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) closeCopy(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeCopy(); }}
+        >
+          <div role="dialog" aria-modal="true" className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-white">Copy {entityLabel} from another entity</h3>
+              <button onClick={closeCopy} className="text-dark-400 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-dark-400 mb-5">
+              Adds {entityLabel.toLowerCase()} from the selected entity into
+              {' '}<strong className="text-dark-200">{currentCompany?.name || 'this entity'}</strong>.
+              {' '}Existing names are skipped, so nothing is overwritten.
+            </p>
+            <form onSubmit={handleCopy} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-1">
+                  Source entity <span className="text-red-400">*</span>
+                </label>
+                <select
+                  required
+                  value={copyFromId}
+                  onChange={(e) => setCopyFromId(e.target.value)}
+                  className="input-field w-full"
+                >
+                  {siblingCompanies.map(c => (
+                    <option key={c._id} value={String(c._id)}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCopy}
+                  className="bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={copying || !copyFromId}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  {copying && <Loader2 size={16} className="animate-spin" />}
+                  Copy {entityLabel}
+                </button>
+              </div>
             </form>
           </div>
         </div>

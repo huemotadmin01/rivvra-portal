@@ -523,6 +523,16 @@ const atsApi = {
     });
   },
 
+  // Clone a picklist from a sibling entity into the active company.
+  // Idempotent server-side (skips names already present). The active
+  // company is implied by the X-Company-Id header.
+  copyConfigFrom(orgSlug, entity, fromCompanyId) {
+    return api.request(`/api/org/${orgSlug}/ats/config/${entity}/copy-from`, {
+      method: 'POST',
+      body: JSON.stringify({ fromCompanyId }),
+    });
+  },
+
   // ── Dashboard ─────────────────────────────────────────────────────────
   // 2026-05-12 audit P1 #8: time-range filter. Both dateFrom and dateTo
   // are optional ISO strings; omitting both preserves the legacy
