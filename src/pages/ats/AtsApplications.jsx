@@ -158,6 +158,10 @@ export default function AtsApplications() {
     // data scope. Dashboard tiles add the matching one for non-admin
     // recruiters so clicking through doesn't widen the view.
     'mine', 'team',
+    // 2026-06-03: unclaimed=1 surfaces the claimable pool (no recruiter, or
+    // still on the org default / "HR Team" holding account) so recruiters
+    // can find leads to claim instead of stumbling onto them.
+    'unclaimed',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   // 2026-05-17 Phase L: harden page-param parsing. parseInt('abc') returns
@@ -642,6 +646,10 @@ export default function AtsApplications() {
             <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
             <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
             <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />
+            {/* 2026-06-03: surfaces the claimable pool (unassigned or parked
+                on the "HR Team" holding account) so recruiters can find leads
+                to claim. Top-level so it's discoverable, not buried. */}
+            <FilterChip type="boolean" paramKey="unclaimed" label="Unclaimed leads" />
             <GroupByChip options={APP_GROUP_BY_OPTIONS} />
             <MoreFiltersPopover paramKeys={['source', 'employmentType', 'aiScoreMin']}>
               <FilterChip type="select" paramKey="source" label="Source" options={sourceOptions} placeholder="No sources" />
