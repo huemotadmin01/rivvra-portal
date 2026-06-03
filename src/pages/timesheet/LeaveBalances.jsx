@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { usePeriod } from '../../context/PeriodContext';
 import { useCompany } from '../../context/CompanyContext';
 import { getAllLeaveBalances } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
-import { CalendarDays, Search, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarDays, Search, Loader2, ChevronDown, ChevronUp, History } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 1 });
 
@@ -15,7 +16,8 @@ const EMP_TYPE_LABELS = {
 };
 
 export default function LeaveBalances() {
-  const { orgSlug } = usePlatform();
+  const navigate = useNavigate();
+  const { orgSlug, orgPath } = usePlatform();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -197,6 +199,14 @@ export default function LeaveBalances() {
                       <tr>
                         <td colSpan={leaveTypes.length + 3} className="px-0 py-0 border-b border-dark-700/50">
                           <div className="bg-dark-950/50 p-5">
+                            <div className="flex justify-end mb-3">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(orgPath(`/timesheet/leave/balances/${empId}`)); }}
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-700 text-rivvra-300 hover:bg-dark-750 hover:text-rivvra-200 transition-colors"
+                              >
+                                <History size={13} /> View full history
+                              </button>
+                            </div>
                             {item.fnfEncashed && (
                               <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
                                 <span>✓</span>

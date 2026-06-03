@@ -198,6 +198,11 @@ export async function adjustLeaveBalance(data) {
   return res.data;
 }
 
+export async function getLeaveHistory(employeeId, params) {
+  const res = await timesheetApi.get(`/leave-balances/${employeeId}/history`, { params });
+  return res.data;
+}
+
 export async function applyLeave(data) {
   const res = await timesheetApi.post('/leave-requests', data);
   return res.data;
