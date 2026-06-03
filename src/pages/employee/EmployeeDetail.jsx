@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import employeeApi from '../../utils/employeeApi';
+import api from '../../utils/api';
 import assetApi from '../../utils/assetApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
@@ -218,6 +219,7 @@ export default function EmployeeDetail() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showLaunchPlanModal, setShowLaunchPlanModal] = useState(false);
   const [sendingOnboardingLink, setSendingOnboardingLink] = useState(false);
+  const [resendingInvite, setResendingInvite] = useState(false);
   const [employeeDocs, setEmployeeDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docUploadOpen, setDocUploadOpen] = useState(null); // category key of open dropdown
@@ -763,6 +765,23 @@ export default function EmployeeDetail() {
     }
   };
 
+  const handleResendInvite = async () => {
+    if (!currentOrg?.slug || !employee?.email || resendingInvite) return;
+    setResendingInvite(true);
+    try {
+      const res = await api.resendOrgInvite(currentOrg.slug, employee.email);
+      if (res.success) {
+        showToast('Invite resent to ' + employee.email, 'success');
+      } else {
+        showToast(res.error || 'Failed to resend invite', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to resend invite', 'error');
+    } finally {
+      setResendingInvite(false);
+    }
+  };
+
   // ── Rate Revision ──────────────────────────────────────────────────────────
   const openReviseModal = (idx) => {
     const a = employee.assignments[idx];
@@ -932,25 +951,55 @@ export default function EmployeeDetail() {
               {/* Action buttons (admin only) */}
               {isAdmin && (
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Request Details — smart button: invite if not linked, send form if linked */}
+                  {/* Request Details — smart button: invite if not linked, send form if linked.
+                      When an invite is already sent but not yet accepted, show a
+                      Pending state + Resend instead of re-opening the invite modal
+                      (which the backend rejects with a 409). */}
                   {emp.email && emp.status === 'active' && (
-                    <button
-                      onClick={() => {
-                        // If employment type is default 'confirmed' and no onboarding completed yet,
-                        // ask admin to confirm/select the employment type first
-                        if (emp.employmentType === 'confirmed' && !emp._employmentTypeConfirmed && !emp.onboardingCompleted) {
-                          setShowEmpTypePrompt(true);
-                          setPendingEmpType(emp.employmentType);
-                          return;
-                        }
-                        emp.linkedUserId ? handleSendOnboardingLink() : setShowInviteModal(true);
-                      }}
-                      disabled={sendingOnboardingLink}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      {sendingOnboardingLink ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                      {sendingOnboardingLink ? 'Sending...' : 'Request Details'}
-                    </button>
+                    emp.inviteStatus === 'invited' && !emp.linkedUserId ? (
+                      <div className="flex items-center gap-2">
+                        <span
+                          title="A workspace invite has been sent and is awaiting acceptance"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium"
+                        >
+                          <Clock size={14} />
+                          Invite Pending
+                        </span>
+                        <button
+                          onClick={handleResendInvite}
+                          disabled={resendingInvite}
+                          title="Resend the invite email"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          {resendingInvite ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                          {resendingInvite ? 'Resending...' : 'Resend'}
+                        </button>
+                        <Link
+                          to={orgPath('/settings/users')}
+                          className="text-xs text-dark-400 hover:text-white underline"
+                        >
+                          Manage
+                        </Link>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          // If employment type is default 'confirmed' and no onboarding completed yet,
+                          // ask admin to confirm/select the employment type first
+                          if (emp.employmentType === 'confirmed' && !emp._employmentTypeConfirmed && !emp.onboardingCompleted) {
+                            setShowEmpTypePrompt(true);
+                            setPendingEmpType(emp.employmentType);
+                            return;
+                          }
+                          emp.linkedUserId ? handleSendOnboardingLink() : setShowInviteModal(true);
+                        }}
+                        disabled={sendingOnboardingLink}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        {sendingOnboardingLink ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                        {sendingOnboardingLink ? 'Sending...' : 'Request Details'}
+                      </button>
+                    )
                   )}
                   {/* Launch Plan */}
                   <button
