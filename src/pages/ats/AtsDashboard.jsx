@@ -262,20 +262,21 @@ function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', cente
  * Submissions". Renders Candidate / Job / Recruiter / Account Owner /
  * Stage columns, grouped by recruitmentTeamName with a subheader per
  * team. Each row is a Link to the application detail. */
-function SubmissionsTable({ title, subtitle, rows, orgSlug, emptyText = 'No submissions' }) {
+function SubmissionsTable({ title, subtitle, rows, orgSlug, groupBy = 'team', emptyText = 'No submissions' }) {
   const grouped = useMemo(() => {
+    const unknown = groupBy === 'source' ? 'No Source' : 'Unassigned';
     const m = new Map();
     for (const r of rows) {
-      const key = r.teamName || 'Unassigned';
+      const key = (groupBy === 'source' ? r.source : r.teamName) || unknown;
       if (!m.has(key)) m.set(key, []);
       m.get(key).push(r);
     }
     return Array.from(m.entries()).sort(([a], [b]) => {
-      if (a === 'Unassigned') return 1;
-      if (b === 'Unassigned') return -1;
+      if (a === unknown) return 1;
+      if (b === unknown) return -1;
       return a.localeCompare(b);
     });
-  }, [rows]);
+  }, [rows, groupBy]);
 
   return (
     <div className="bg-dark-850 rounded-xl border border-dark-700 overflow-hidden">
@@ -783,6 +784,9 @@ export default function AtsDashboard() {
   const [data, setData] = useState(null);
   // Sticky per-user range. Lazy init reads localStorage; falls back to 30d.
   const [rangeKey, setRangeKey] = useState(() => readStoredRange());
+  // Submissions tables grouping: 'team' (default) or 'source'. Shared so
+  // Today's + Last Working Day toggle together.
+  const [submissionsGroupBy, setSubmissionsGroupBy] = useState('team');
 
   const fetchDashboard = useCallback(async ({ silent = false } = {}) => {
     if (!orgSlug) return;
@@ -1105,12 +1109,32 @@ export default function AtsDashboard() {
           Two-column on lg+, stacked below. Each table groups rows by
           recruitment team (Team-A / Team-B subheaders), matching the
           Odoo Recruitment dashboard layout. */}
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-[11px] text-dark-500">Group by</span>
+        <div className="inline-flex rounded-lg border border-dark-700 overflow-hidden">
+          {[['team', 'Team'], ['source', 'Source']].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSubmissionsGroupBy(key)}
+              className={`px-3 py-1 text-[11px] font-medium transition-colors ${
+                submissionsGroupBy === key
+                  ? 'bg-rivvra-500/20 text-rivvra-200'
+                  : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SubmissionsTable
           title="Today's Submissions"
-          subtitle="New applications submitted today, grouped by team"
+          subtitle={`New applications submitted today, grouped by ${submissionsGroupBy}`}
           rows={todaySubmissions}
           orgSlug={orgSlug}
+          groupBy={submissionsGroupBy}
           emptyText="No new submissions today"
         />
         <SubmissionsTable
@@ -1118,6 +1142,7 @@ export default function AtsDashboard() {
           subtitle="Previous working day's submissions for follow-up"
           rows={lastWorkingDaySubmissions}
           orgSlug={orgSlug}
+          groupBy={submissionsGroupBy}
           emptyText="No submissions on the last working day"
         />
       </div>
