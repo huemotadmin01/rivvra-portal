@@ -16,6 +16,7 @@ import RecordMeta from '../../components/shared/RecordMeta';
 import { withFromContext } from '../../utils/entityDescribe';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import ContactLookup from '../../components/shared/ContactLookup';
 import InlineField from '../../components/shared/InlineField';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -372,6 +373,8 @@ export default function ContactDetail() {
     mobile: '',
     website: '',
     jobTitle: '',
+    parentCompanyId: '',
+    parentCompanyName: '',
     address: { street: '', street2: '', city: '', state: '', zip: '', country: '', countryCode: '' },
     gstTreatment: '',
     gstin: '',
@@ -649,6 +652,20 @@ export default function ContactDetail() {
       showToast('Unarchived');
     } catch (err) {
       showToast(err?.message || 'Failed to unarchive', 'error');
+    }
+  };
+
+  // -- Link a person to this company (Gap 2) ----------------------------------
+  // Works for both an existing individual (set its parentCompanyId) and one
+  // just created via the picker (already linked, so this is idempotent).
+  const handleAddPerson = async (individualId) => {
+    if (!individualId || !contactId) return;
+    try {
+      await contactsApi.update(orgSlug, individualId, { parentCompanyId: contactId });
+      showToast('Person linked');
+      fetchContact();
+    } catch (err) {
+      showToast(err?.message || 'Failed to link person', 'error');
     }
   };
 
@@ -982,19 +999,19 @@ export default function ContactDetail() {
                     </span>
                   </div>
                   <InlineField label="Job Title" value={contact.jobTitle} field="jobTitle" editable={isAdmin} onSave={saveField} placeholder="Add job title" />
-                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
-                    <span className="text-dark-400 text-sm">Company</span>
-                    <span className="text-white text-sm">
-                      {contact.parentCompanyName ? (
-                        <Link
-                          to={orgPath(`/contacts/${contact.parentCompanyId}`)}
-                          className="text-rivvra-400 hover:underline"
-                        >
-                          {contact.parentCompanyName}
-                        </Link>
-                      ) : '\u2014'}
-                    </span>
-                  </div>
+                  <ContactLookup
+                    orgSlug={orgSlug}
+                    type="company"
+                    label="Company"
+                    currentValue={contact.parentCompanyId}
+                    currentName={contact.parentCompanyName}
+                    editable={isAdmin || isCreateMode}
+                    linkTo={(id) => orgPath(`/contacts/${id}`)}
+                    onSelect={(id, name) => {
+                      saveField('parentCompanyId', id || null);
+                      setContact((prev) => ({ ...prev, parentCompanyId: id || null, parentCompanyName: name || null }));
+                    }}
+                  />
                 </>
               ) : (
                 <>
@@ -1220,17 +1237,36 @@ export default function ContactDetail() {
           </div>
 
           {/* Child Contacts (for companies) */}
-          {contact.type === 'company' && childContacts.length > 0 && (
+          {contact.type === 'company' && !isCreateMode && (
             <div className="card p-5">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
                   <Users size={14} className="text-blue-400" />
                 </div>
                 <h3 className="text-white font-semibold">Contacts at {contact.name}</h3>
-                <span className="ml-auto text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-medium">
+                <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-medium">
                   {childContacts.length}
                 </span>
+                {isAdmin && (
+                  <div className="ml-auto">
+                    <ContactLookup
+                      orgSlug={orgSlug}
+                      type="individual"
+                      variant="button"
+                      triggerLabel="Add person"
+                      parentCompanyId={contact._id}
+                      excludeIds={childContacts.map((c) => c._id)}
+                      onSelect={(id) => handleAddPerson(id)}
+                    />
+                  </div>
+                )}
               </div>
+              {childContacts.length === 0 ? (
+                <div className="text-center py-10 px-4 rounded-xl border border-dashed border-dark-700/60 text-sm text-dark-500">
+                  No people linked to this company yet.
+                  {isAdmin && ' Use “Add person” to link an individual contact.'}
+                </div>
+              ) : (
               <div className="overflow-hidden rounded-xl border border-dark-700/60">
                 <table className="w-full">
                   <thead>
@@ -1304,6 +1340,7 @@ export default function ContactDetail() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
 
