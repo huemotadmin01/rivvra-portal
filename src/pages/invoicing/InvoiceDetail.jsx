@@ -1875,7 +1875,11 @@ export default function InvoiceDetail() {
       // list-page drop zone shows. Without this, "Extract from PDF" on an
       // unlinked draft silently left the Vendor blank (e.g. a foreign vendor
       // bill recorded under an Indian company never prompted to add the vendor).
-      if (!linkedContactId && extracted?.vendor?.name) {
+      // Trigger on ANY vendor signal (name / gstin / taxId), not just name —
+      // the model can return a null name for an overseas vendor while still
+      // having captured a tax id, and we still want to prompt.
+      const hasVendorSignal = !!(extracted?.vendor?.name || extracted?.vendor?.gstin || extracted?.vendor?.taxId);
+      if (!linkedContactId && hasVendorSignal) {
         if (vendorMatch?.contactId) {
           await linkVendorContact(vendorMatch.contactId);
           showToast(`Bill updated — linked existing vendor "${vendorMatch.contactName || extracted.vendor.name}"`);

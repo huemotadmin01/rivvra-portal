@@ -269,6 +269,11 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         return (match || candidates[0])._id;
       };
 
+      // Currency from the AI (ISO 4217 — "USD", "CAD", "INR", …). Drives both
+      // the invoice-level currency and per-line lineCurrency below. Mirrors the
+      // re-extract path in InvoiceDetail so dropping on the list and
+      // re-extracting onto a draft agree.
+      const extractedCurrency = (extracted?.invoice?.currency || '').trim().toUpperCase() || null;
       const lines = (extracted?.lines || []).length
         ? extracted.lines.map((l) => {
             const taxId = resolveTaxId(l.taxRate);
@@ -283,20 +288,21 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               // schema in the same change.
               unit: l.unit || undefined,
               taxIds: taxId ? [taxId] : [],
+              lineCurrency: extractedCurrency || undefined,
             };
           })
         : [{ description: '', quantity: 1, unitPrice: 0, taxIds: [] }];
-
-      // India-first extraction: if the PDF had a GSTIN on either side, it's
-      // an INR invoice regardless of the contact's or journal's default.
-      const looksIndian = !!(extracted?.vendor?.gstin);
 
       const payload = {
         type: 'vendor_bill',
         date: invDate,
         dueDate,
         contactId: contactId || undefined,
-        currency: looksIndian ? 'INR' : undefined,
+        // Prefer the currency the AI parsed off the bill. Fall back to INR only
+        // when nothing was parsed AND the vendor shows an Indian GSTIN (strongly
+        // implies a domestic B2B bill). Never hardcode INR just because a GSTIN
+        // came back — a foreign vendor's bill in $/CAD must keep its currency.
+        currency: extractedCurrency || (extracted?.vendor?.gstin ? 'INR' : undefined),
         vendorInvoiceNumber: extracted?.invoice?.number || undefined,
         placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
         gstTreatment: extracted?.invoice?.gstTreatment || undefined,
