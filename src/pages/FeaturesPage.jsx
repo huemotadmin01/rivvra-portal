@@ -4,12 +4,13 @@ import {
   ArrowRight, ChevronRight,
   Mail, Clock, Briefcase, UserSearch, Banknote, UsersRound,
   Contact, PenTool, CheckSquare,
+  Receipt, Wallet, Award, FolderArchive, BookOpen,
   // Feature icons
   Linkedin, Zap, Send, Reply, ListChecks, BarChart3,
   CalendarCheck, CheckCircle, DollarSign, Users, FileText,
   Target, Globe, Search, Shield, Layers,
   CreditCard, Download, Settings, Building2, Tag,
-  Inbox, ClipboardCheck, CalendarDays, Star,
+  Inbox, ClipboardCheck, CalendarDays, Star, Percent,
 } from 'lucide-react';
 import MarketingLayout from '../components/marketing/MarketingLayout';
 
@@ -158,6 +159,81 @@ const APPS = [
       { icon: BarChart3, title: 'Dashboard', desc: 'Overview of task status and completion rates.' },
     ],
   },
+  {
+    id: 'invoicing',
+    name: 'Invoicing',
+    tagline: 'Invoices, bills & payments',
+    description: 'Raise customer invoices, track vendor bills, record payments, and pull tax-ready reports.',
+    icon: Receipt,
+    color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', badge: 'bg-amber-500/15 text-amber-400' },
+    status: 'live',
+    features: [
+      { icon: FileText, title: 'Customer Invoices', desc: 'Create, send, and track invoices with multi-currency support.' },
+      { icon: CreditCard, title: 'Vendor & Employee Bills', desc: 'Record bills and reimbursements against vendors and staff.' },
+      { icon: DollarSign, title: 'Payments & TDS', desc: 'Log payments, apply TDS, and reconcile against the bank.' },
+      { icon: BarChart3, title: 'Aged Reports & Tax', desc: 'Aged receivables/payables and tax reports out of the box.' },
+    ],
+  },
+  {
+    id: 'expenses',
+    name: 'Expenses',
+    tagline: 'Employee expense claims',
+    description: 'Let staff submit expense claims and route them through approval with categories and reimbursements.',
+    icon: Wallet,
+    color: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', badge: 'bg-emerald-500/15 text-emerald-400' },
+    status: 'live',
+    features: [
+      { icon: FileText, title: 'Submit Claims', desc: 'Capture expenses with receipts, amounts, and categories.' },
+      { icon: CheckCircle, title: 'Approvals', desc: 'Team-lead and admin approval flows with audit history.' },
+      { icon: Tag, title: 'Categories', desc: 'Standardize spend with configurable expense categories.' },
+      { icon: DollarSign, title: 'Reimbursements', desc: 'Track what is owed and mark claims as reimbursed.' },
+    ],
+  },
+  {
+    id: 'incentive',
+    name: 'Incentive',
+    tagline: 'Commission & incentive tracking',
+    description: 'Track recruiter and account-manager commissions from placement to payout.',
+    icon: Award,
+    color: { bg: 'bg-fuchsia-500/10', text: 'text-fuchsia-400', border: 'border-fuchsia-500/20', badge: 'bg-fuchsia-500/15 text-fuchsia-400' },
+    status: 'live',
+    features: [
+      { icon: DollarSign, title: 'Commission Tracking', desc: 'Attribute earnings to recruiters and account managers.' },
+      { icon: Percent, title: 'Rate Tables', desc: 'Configure incentive rates and rules per role.' },
+      { icon: Users, title: 'My Earnings', desc: 'Every team member sees their own earnings breakdown.' },
+      { icon: FileText, title: 'Payout Records', desc: 'A complete record of incentive runs and payouts.' },
+    ],
+  },
+  {
+    id: 'documents',
+    name: 'Documents',
+    tagline: 'Company document library',
+    description: 'A central, versioned document library scoped to your company with folders, tags, and access control.',
+    icon: FolderArchive,
+    color: { bg: 'bg-slate-500/10', text: 'text-slate-300', border: 'border-slate-500/20', badge: 'bg-slate-500/15 text-slate-300' },
+    status: 'live',
+    features: [
+      { icon: FileText, title: 'Document Library', desc: 'Store and find company documents in one place.' },
+      { icon: Layers, title: 'Versioning', desc: 'Full version history for every document.' },
+      { icon: Tag, title: 'Folders & Tags', desc: 'Organize with folders and flexible tags.' },
+      { icon: Shield, title: 'Secure Access', desc: 'Per-company scoping and signed, expiring links.' },
+    ],
+  },
+  {
+    id: 'knowledgeBase',
+    name: 'Knowledge Base',
+    tagline: 'Guides & workflow walkthroughs',
+    description: 'Internal guides and step-by-step walkthroughs so your team always knows how the platform works.',
+    icon: BookOpen,
+    color: { bg: 'bg-sky-500/10', text: 'text-sky-400', border: 'border-sky-500/20', badge: 'bg-sky-500/15 text-sky-400' },
+    status: 'live',
+    features: [
+      { icon: BookOpen, title: 'Guides & Articles', desc: 'A searchable library of how-to articles.' },
+      { icon: ClipboardCheck, title: 'Walkthroughs', desc: 'Step-by-step workflow walkthroughs for each app.' },
+      { icon: Search, title: 'Searchable', desc: 'Find the right answer fast with full-text search.' },
+      { icon: Shield, title: 'Admin Authored', desc: 'Curated and maintained by your organization admins.' },
+    ],
+  },
 ];
 
 const STATUS_BADGE = {
@@ -184,7 +260,7 @@ function FeaturesPage() {
       <section className="pt-20 pb-16 lg:pt-28 lg:pb-24">
         <div className="max-w-4xl mx-auto px-6 text-center space-y-5">
           <h1 className="text-[40px] lg:text-[56px] font-bold text-white tracking-[-0.03em] leading-[1.1]">
-            Nine apps, one platform
+            Fourteen apps, one platform
           </h1>
           <p className="text-lg text-dark-400 max-w-2xl mx-auto leading-relaxed">
             Purpose-built for staffing agencies. Pick what you need now, add more later.

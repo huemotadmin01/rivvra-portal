@@ -4,6 +4,7 @@ import {
   ArrowRight, ChevronRight, Check,
   Mail, Clock, Banknote, UsersRound,
   Contact, PenTool, CheckSquare, Briefcase, UserSearch,
+  Receipt, Wallet, Award, FolderArchive, BookOpen,
   Layers, Shield, Zap, Globe, KeyRound, Boxes, Search, Bell,
 } from 'lucide-react';
 import MarketingLayout from '../components/marketing/MarketingLayout';
@@ -64,6 +65,36 @@ const PLATFORM_APPS = [
     icon: CheckSquare, color: 'teal',
     features: ['Task management', 'AI extraction', 'Priority levels', 'Due dates'],
   },
+  {
+    id: 'invoicing', name: 'Invoicing', status: 'live',
+    description: 'Customer invoices, vendor bills, payments, and tax-ready reports.',
+    icon: Receipt, color: 'amber',
+    features: ['Customer invoices', 'Vendor bills', 'Payments & TDS', 'Aged reports'],
+  },
+  {
+    id: 'expenses', name: 'Expenses', status: 'live',
+    description: 'Submit, categorize, and approve employee expense claims.',
+    icon: Wallet, color: 'emerald',
+    features: ['Expense claims', 'Approvals', 'Categories', 'Reimbursements'],
+  },
+  {
+    id: 'incentive', name: 'Incentive', status: 'live',
+    description: 'Track recruiter and account-manager commissions end to end.',
+    icon: Award, color: 'fuchsia',
+    features: ['Commission tracking', 'Rate tables', 'Recruiter earnings', 'Payout records'],
+  },
+  {
+    id: 'documents', name: 'Documents', status: 'live',
+    description: 'A company document library with versioning and access control.',
+    icon: FolderArchive, color: 'slate',
+    features: ['Document library', 'Versioning', 'Folders & tags', 'Secure access'],
+  },
+  {
+    id: 'knowledgeBase', name: 'Knowledge Base', status: 'live',
+    description: 'Internal guides and workflow walkthroughs for your team.',
+    icon: BookOpen, color: 'sky',
+    features: ['Guides & articles', 'Walkthroughs', 'Searchable', 'Admin authored'],
+  },
 ];
 
 const COLOR_MAP = {
@@ -76,6 +107,9 @@ const COLOR_MAP = {
   cyan:   { bg: 'bg-cyan-500/10', text: 'text-cyan-400', dot: 'bg-cyan-400' },
   indigo: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', dot: 'bg-indigo-400' },
   teal:   { bg: 'bg-teal-500/10', text: 'text-teal-400', dot: 'bg-teal-400' },
+  fuchsia:{ bg: 'bg-fuchsia-500/10', text: 'text-fuchsia-400', dot: 'bg-fuchsia-400' },
+  slate:  { bg: 'bg-slate-500/10', text: 'text-slate-300', dot: 'bg-slate-400' },
+  sky:    { bg: 'bg-sky-500/10', text: 'text-sky-400', dot: 'bg-sky-400' },
 };
 
 const STATUS_BADGE = {
@@ -272,15 +306,15 @@ function LandingPage() {
                 one platform
               </span>
               <span className="block text-dark-400 font-serif-accent italic font-normal text-[34px] sm:text-[44px] lg:text-[54px] tracking-[-0.01em] mt-3">
-                not nine logins.
+                not fourteen logins.
               </span>
             </h1>
           </Reveal>
 
           <Reveal immediate delay={0.14}>
             <p className="text-lg lg:text-xl text-dark-400 max-w-2xl mx-auto leading-relaxed mt-7">
-              Outreach, timesheets, CRM, hiring, payroll and more — nine modular apps
-              that share one workspace, one login, and one source of truth.
+              Outreach, hiring, timesheets, payroll, invoicing and more — fourteen modular
+              apps that share one workspace, one login, and one source of truth.
             </p>
           </Reveal>
 
@@ -322,7 +356,7 @@ function LandingPage() {
       <section className="relative border-y border-white/[0.05] bg-white/[0.01]">
         <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-2 lg:grid-cols-4 divide-x divide-white/[0.05]">
           {[
-            { k: '9 apps', v: 'one workspace' },
+            { k: '14 apps', v: 'one workspace' },
             { k: '1 login', v: 'every tool' },
             { k: 'Per-seat', v: 'pay for who works' },
             { k: 'Org-scoped', v: 'access you control' },

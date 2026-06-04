@@ -4,6 +4,7 @@ import {
   ArrowRight, CheckCircle, ChevronRight, Zap, Shield,
   Users, Layers, Mail, Clock, Briefcase, UserSearch,
   Banknote, UsersRound, Contact, PenTool, CheckSquare, X,
+  Receipt, Wallet, Award, FolderArchive, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import MarketingLayout from '../components/marketing/MarketingLayout';
@@ -61,6 +62,11 @@ const ALL_APPS = [
   { name: 'Contacts', icon: Contact, color: 'text-cyan-400', status: 'Beta' },
   { name: 'Sign', icon: PenTool, color: 'text-indigo-400', status: 'Beta' },
   { name: 'To-Do', icon: CheckSquare, color: 'text-teal-400', status: 'Beta' },
+  { name: 'Invoicing', icon: Receipt, color: 'text-amber-400', status: 'Live' },
+  { name: 'Expenses', icon: Wallet, color: 'text-emerald-400', status: 'Live' },
+  { name: 'Incentive', icon: Award, color: 'text-fuchsia-400', status: 'Live' },
+  { name: 'Documents', icon: FolderArchive, color: 'text-slate-300', status: 'Live' },
+  { name: 'Knowledge Base', icon: BookOpen, color: 'text-sky-400', status: 'Live' },
 ];
 
 // ── FAQs ──────────────────────────────────────────────────────────────────────
@@ -102,6 +108,11 @@ const COMPARISON = [
   { feature: 'Outreach', core: false, all_apps: true },
   { feature: 'ESS', core: false, all_apps: true },
   { feature: 'To-Do', core: false, all_apps: true },
+  { feature: 'Invoicing', core: false, all_apps: true },
+  { feature: 'Expenses', core: false, all_apps: true },
+  { feature: 'Incentive', core: false, all_apps: true },
+  { feature: 'Documents', core: false, all_apps: true },
+  { feature: 'Knowledge Base', core: false, all_apps: true },
   { feature: 'Team members', core: 'Up to 25', all_apps: 'Unlimited' },
   { feature: 'Support', core: 'Email', all_apps: 'Priority' },
   { feature: 'Chrome extension', core: false, all_apps: true },
@@ -229,12 +240,12 @@ function PricingPage() {
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl lg:text-3xl font-bold text-white tracking-[-0.02em] mb-3">
-              All 9 apps available
+              All 14 apps available
             </h2>
-            <p className="text-dark-400 text-sm">Core includes 6 essential apps. All Apps unlocks the full 9-app platform.</p>
+            <p className="text-dark-400 text-sm">Core includes 6 essential apps. All Apps unlocks the full 14-app platform.</p>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-9 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-4">
             {ALL_APPS.map((app) => (
               <div key={app.name} className="flex flex-col items-center gap-2 p-4 rounded-xl border border-white/[0.06] bg-white/[0.02]">
                 <app.icon className={`w-5 h-5 ${app.color}`} />
