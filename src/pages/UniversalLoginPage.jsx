@@ -259,18 +259,22 @@ export default function UniversalLoginPage() {
   // ──────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-dark-950 mesh-gradient grid-pattern flex items-center justify-center p-4">
-      <div className="max-w-md mx-auto w-full">
+      {/* Width capped to 400px so the email/password inputs align exactly
+          with the fixed-width (400px) Google button. */}
+      <div className="max-w-[400px] mx-auto w-full">
         {/* Branding */}
-        <div className="flex flex-col items-center mb-10">
+        <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rivvra-500/20 to-emerald-500/20 border border-rivvra-500/30 flex items-center justify-center mb-4">
             <RivvraLogo className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold text-white">Sign in to Rivvra</h1>
-          <p className="text-dark-400 mt-1">Log in to your workspace</p>
+          <p className="text-dark-400 text-sm mt-2 text-center">
+            Use your work email — we'll take you to the right workspace.
+          </p>
         </div>
 
         <div className="animate-fade-in">
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* Google Sign-In */}
             <div className="relative">
               {googleLoading && (
