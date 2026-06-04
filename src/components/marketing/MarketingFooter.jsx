@@ -10,7 +10,7 @@ export default function MarketingFooter() {
           <div className="md:col-span-2 space-y-4">
             <Link to="/" className="flex items-center gap-2.5">
               <RivvraLogo className="w-7 h-7" />
-              <span className="text-[17px] font-semibold text-white tracking-tight">Rivvra</span>
+              <span className="font-marketing text-[18px] font-bold text-white tracking-[-0.02em]">Rivvra</span>
             </Link>
             <p className="text-dark-500 text-sm leading-relaxed max-w-xs">
               The all-in-one platform for staffing agencies. Nine modular apps that work together.

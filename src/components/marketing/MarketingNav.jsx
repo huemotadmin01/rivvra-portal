@@ -17,7 +17,7 @@ export default function MarketingNav({ activePage }) {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 group">
           <RivvraLogo className="w-7 h-7" />
-          <span className="text-[17px] font-semibold text-white tracking-tight">Rivvra</span>
+          <span className="font-marketing text-[18px] font-bold text-white tracking-[-0.02em]">Rivvra</span>
         </Link>
 
         {/* Desktop links */}

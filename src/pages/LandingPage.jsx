@@ -1,9 +1,10 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, CheckCircle, ChevronRight,
-  Mail, Clock, Target, UserPlus, Banknote, UsersRound,
+  ArrowRight, ChevronRight, Check,
+  Mail, Clock, Banknote, UsersRound,
   Contact, PenTool, CheckSquare, Briefcase, UserSearch,
-  Layers, Shield, Zap, Globe, Building2, Users, Star,
+  Layers, Shield, Zap, Globe, KeyRound, Boxes, Search, Bell,
 } from 'lucide-react';
 import MarketingLayout from '../components/marketing/MarketingLayout';
 
@@ -66,395 +67,509 @@ const PLATFORM_APPS = [
 ];
 
 const COLOR_MAP = {
-  rivvra: { bg: 'bg-rivvra-500/10', text: 'text-rivvra-400', border: 'border-rivvra-500/20', glow: 'group-hover:shadow-rivvra-500/10' },
-  blue:   { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', glow: 'group-hover:shadow-blue-500/10' },
-  emerald:{ bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', glow: 'group-hover:shadow-emerald-500/10' },
-  purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', glow: 'group-hover:shadow-purple-500/10' },
-  amber:  { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', glow: 'group-hover:shadow-amber-500/10' },
-  orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20', glow: 'group-hover:shadow-orange-500/10' },
-  cyan:   { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20', glow: 'group-hover:shadow-cyan-500/10' },
-  indigo: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/20', glow: 'group-hover:shadow-indigo-500/10' },
-  teal:   { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/20', glow: 'group-hover:shadow-teal-500/10' },
+  rivvra: { bg: 'bg-rivvra-500/10', text: 'text-rivvra-400', dot: 'bg-rivvra-400' },
+  blue:   { bg: 'bg-blue-500/10', text: 'text-blue-400', dot: 'bg-blue-400' },
+  emerald:{ bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', dot: 'bg-purple-400' },
+  amber:  { bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-400' },
+  orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', dot: 'bg-orange-400' },
+  cyan:   { bg: 'bg-cyan-500/10', text: 'text-cyan-400', dot: 'bg-cyan-400' },
+  indigo: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', dot: 'bg-indigo-400' },
+  teal:   { bg: 'bg-teal-500/10', text: 'text-teal-400', dot: 'bg-teal-400' },
 };
 
 const STATUS_BADGE = {
-  live:        { label: 'Live',        cls: 'bg-rivvra-500/15 text-rivvra-400 ring-rivvra-500/20' },
-  coming_soon: { label: 'Coming Soon', cls: 'bg-dark-700/80 text-dark-400 ring-dark-600/30' },
-  beta:        { label: 'Beta',        cls: 'bg-amber-500/15 text-amber-400 ring-amber-500/20' },
+  live:        { label: 'Live',        cls: 'bg-rivvra-500/15 text-rivvra-300 ring-rivvra-500/25' },
+  coming_soon: { label: 'Soon',        cls: 'bg-white/[0.04] text-dark-400 ring-white/[0.08]' },
+  beta:        { label: 'Beta',        cls: 'bg-amber-500/12 text-amber-300/90 ring-amber-500/20' },
 };
 
-// ── Testimonials ──────────────────────────────────────────────────────────────
-const TESTIMONIALS = [
-  {
-    quote: 'Rivvra replaced three tools for us. Outreach, timesheets, and team management in one dashboard.',
-    name: 'Sarah Chen',
-    title: 'Director of Operations',
-    company: 'TalentBridge Staffing',
-  },
-  {
-    quote: 'We cut contractor onboarding time in half. Exactly what staffing agencies need.',
-    name: 'Marcus Johnson',
-    title: 'CEO',
-    company: 'Apex Workforce Solutions',
-  },
-  {
-    quote: 'Started with two apps, now using five. The modular approach lets us grow at our own pace.',
-    name: 'Priya Sharma',
-    title: 'Head of Recruitment',
-    company: 'Nexus Staffing',
-  },
-];
+// ── Reveal ────────────────────────────────────────────────────────────────────
+// Scroll/mount reveal whose VISIBILITY is driven by React state (not by an
+// animation completing). A guaranteed timer fallback flips it visible even if
+// IntersectionObserver never fires or the tab is backgrounded — so content can
+// never get stranded invisible. The CSS transition is pure enhancement.
+const EASE = 'cubic-bezier(.22,1,.36,1)';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
-function LandingPage() {
+function Reveal({ children, delay = 0, y = 22, className = '', immediate = false }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    if (immediate || typeof IntersectionObserver === 'undefined') {
+      const t = setTimeout(() => setShown(true), 20);
+      return () => clearTimeout(t);
+    }
+    const el = ref.current;
+    const safety = setTimeout(() => setShown(true), 1300); // never strand content
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) { setShown(true); io.disconnect(); clearTimeout(safety); }
+      },
+      { rootMargin: '0px 0px -60px 0px' }
+    );
+    if (el) io.observe(el);
+    return () => { io.disconnect(); clearTimeout(safety); };
+  }, [immediate]);
+
   return (
-    <MarketingLayout activePage="/">
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: shown ? 1 : 0,
+        transform: shown ? 'none' : `translateY(${y}px)`,
+        transition: `opacity .7s ${EASE} ${delay}s, transform .7s ${EASE} ${delay}s`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
-      {/* ═══════════ HERO ═══════════════════════════════════════════════════ */}
-      <section className="relative pt-20 pb-20 lg:pt-28 lg:pb-28">
-        {/* Dot grid background */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-              backgroundSize: '32px 32px',
-            }}
-          />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-rivvra-500/[0.06] rounded-full blur-[150px]" />
+// Section eyebrow — serif-accented label used above section headings
+function Eyebrow({ children }) {
+  return (
+    <p className="text-dark-500 text-sm tracking-wide mb-4">
+      <span className="font-serif-accent italic text-rivvra-400/90 text-[17px]">{children}</span>
+    </p>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRODUCT MOCK — high-fidelity, in-code representation of the Rivvra app.
+// Neutral sample data; not a screenshot, no real customer data.
+// ═══════════════════════════════════════════════════════════════════════════════
+function ProductMock() {
+  const railApps = PLATFORM_APPS.slice(0, 7);
+  const launcher = PLATFORM_APPS.slice(0, 6);
+  return (
+    <div className="relative rounded-2xl bg-dark-900/90 shadow-mock overflow-hidden backdrop-blur-xl">
+      {/* window chrome */}
+      <div className="flex items-center gap-3 px-4 h-11 border-b border-white/[0.06] bg-white/[0.015]">
+        <div className="flex gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]/80" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]/80" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]/80" />
         </div>
-
-        <div className="relative max-w-4xl mx-auto px-6 text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] mb-8">
-            <div className="w-1.5 h-1.5 rounded-full bg-rivvra-400 animate-pulse" />
-            <span className="text-[13px] text-dark-400 font-medium">Built for staffing agencies</span>
+        <div className="flex-1 flex justify-center">
+          <div className="flex items-center gap-2 px-3 h-6 rounded-md bg-dark-950/60 border border-white/[0.05] text-[11px] text-dark-500 max-w-xs w-full justify-center">
+            <Shield className="w-3 h-3 text-rivvra-500/70" />
+            rivvra.com/org/northwind/home
           </div>
-
-          {/* Headline */}
-          <h1 className="text-[44px] sm:text-[56px] lg:text-[72px] font-bold leading-[1.05] tracking-[-0.03em] text-white mb-6">
-            One platform,{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-rivvra-400 to-emerald-400">
-              nine apps
-            </span>
-          </h1>
-
-          {/* Subheadline */}
-          <p className="text-lg lg:text-xl text-dark-400 max-w-2xl mx-auto leading-relaxed mb-10">
-            Outreach, timesheets, CRM, hiring, payroll, and more &mdash; modular tools
-            that work together so your team stays on the same page.
-          </p>
-
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              to="/signup"
-              className="px-8 py-3.5 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/20 flex items-center justify-center gap-2"
-            >
-              Start 14-day free trial
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/features"
-              className="px-8 py-3.5 bg-white/[0.04] text-white border border-white/[0.08] rounded-xl text-[15px] font-semibold hover:bg-white/[0.07] hover:border-white/[0.12] transition-all flex items-center justify-center gap-2"
-            >
-              Explore features
-            </Link>
-          </div>
-
-          <p className="mt-5 text-dark-600 text-[13px]">Free for 14 days &middot; No credit card required</p>
         </div>
-      </section>
+        <div className="w-12" />
+      </div>
 
-      {/* ═══════════ PRODUCT PREVIEW ═══════════════════════════════════════ */}
-      <section className="pb-16 -mt-4">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
-            {/* Browser chrome */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-dark-600" />
-                <div className="w-2.5 h-2.5 rounded-full bg-dark-600" />
-                <div className="w-2.5 h-2.5 rounded-full bg-dark-600" />
+      <div className="flex">
+        {/* left app rail */}
+        <div className="hidden sm:flex flex-col items-center gap-1.5 py-4 px-2.5 border-r border-white/[0.06] bg-white/[0.01]">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rivvra-400 to-rivvra-600 flex items-center justify-center mb-2">
+            <span className="text-dark-950 font-bold text-xs">N</span>
+          </div>
+          {railApps.map((app, i) => {
+            const c = COLOR_MAP[app.color];
+            return (
+              <div
+                key={app.id}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${i === 0 ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}`}
+              >
+                <app.icon className={`w-4 h-4 ${i === 0 ? c.text : 'text-dark-500'}`} />
               </div>
-              <div className="flex-1 mx-4">
-                <div className="h-6 rounded-md bg-dark-800/50 max-w-xs mx-auto" />
+            );
+          })}
+        </div>
+
+        {/* main panel */}
+        <div className="flex-1 p-5 sm:p-6 min-w-0">
+          {/* top bar */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+              <div className="w-5 h-5 rounded-md bg-gradient-to-br from-rivvra-400 to-rivvra-600 flex items-center justify-center">
+                <span className="text-dark-950 font-bold text-[9px]">N</span>
+              </div>
+              <span className="text-[12px] font-medium text-dark-200">Northwind Staffing</span>
+              <ChevronRight className="w-3 h-3 text-dark-600 rotate-90" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2 px-2.5 h-7 rounded-lg bg-white/[0.02] border border-white/[0.05] text-[11px] text-dark-500">
+                <Search className="w-3 h-3" /> Search
+              </div>
+              <div className="w-7 h-7 rounded-lg bg-white/[0.02] border border-white/[0.05] flex items-center justify-center">
+                <Bell className="w-3.5 h-3.5 text-dark-500" />
+              </div>
+              <div className="w-7 h-7 rounded-full bg-rivvra-500/20 border border-rivvra-500/30 flex items-center justify-center">
+                <span className="text-[10px] font-semibold text-rivvra-300">AL</span>
               </div>
             </div>
-            {/* Placeholder content */}
-            <div className="aspect-[16/9] bg-dark-900/50 flex items-center justify-center">
-              <div className="text-center space-y-3">
-                <div className="w-12 h-12 rounded-xl bg-rivvra-500/10 flex items-center justify-center mx-auto">
-                  <Zap className="w-6 h-6 text-rivvra-400" />
-                </div>
-                <p className="text-dark-500 text-sm">Product demo coming soon</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ APP GRID ═══════════════════════════════════════════════ */}
-      <section className="py-16 lg:py-20 border-t border-white/[0.04]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl lg:text-[40px] font-bold text-white tracking-[-0.02em] mb-4">
-              Every tool your agency needs
-            </h2>
-            <p className="text-dark-400 text-lg max-w-2xl mx-auto">
-              Pick the apps you need. Each one is purpose-built for staffing and works seamlessly with the others.
-            </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {PLATFORM_APPS.map((app) => {
-              const Icon = app.icon;
+          {/* greeting */}
+          <div className="mb-5">
+            <h3 className="font-marketing text-[19px] sm:text-[22px] font-semibold text-white tracking-[-0.01em]">
+              Good morning, Alex
+            </h3>
+            <p className="text-[12px] text-dark-500 mt-0.5">6 apps active · 12 members · everything in one workspace</p>
+          </div>
+
+          {/* app launcher grid */}
+          <div className="grid grid-cols-3 gap-2.5">
+            {launcher.map((app) => {
               const c = COLOR_MAP[app.color];
               const badge = STATUS_BADGE[app.status];
-
               return (
                 <div
                   key={app.id}
-                  className={`group relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-300 ${c.glow} hover:shadow-xl`}
+                  className="group/app relative rounded-xl border border-white/[0.05] bg-white/[0.02] p-3 hover:bg-white/[0.04] hover:border-white/[0.09] transition-colors"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center`}>
-                      <Icon className={`w-5 h-5 ${c.text}`} />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-8 h-8 rounded-lg ${c.bg} flex items-center justify-center`}>
+                      <app.icon className={`w-4 h-4 ${c.text}`} />
                     </div>
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${badge.cls}`}>
-                      {badge.label}
-                    </span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${app.status === 'live' ? 'bg-rivvra-400' : app.status === 'beta' ? 'bg-amber-400/80' : 'bg-dark-600'}`} />
                   </div>
-
-                  <h3 className="text-[15px] font-semibold text-white mb-1.5">{app.name}</h3>
-                  <p className="text-dark-500 text-[13px] leading-relaxed mb-4">{app.description}</p>
-
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {app.features.map((feat) => (
-                      <div key={feat} className="flex items-center gap-1.5 text-[12px] text-dark-400">
-                        <CheckCircle className={`w-3 h-3 ${c.text} flex-shrink-0`} />
-                        {feat}
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-[12px] font-semibold text-dark-200">{app.name}</p>
+                  <p className="text-[10px] text-dark-600 mt-0.5">{badge.label}</p>
                 </div>
               );
             })}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          <div className="text-center mt-10">
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+function LandingPage() {
+  return (
+    <MarketingLayout activePage="/">
+      {/* ════════════ HERO ════════════════════════════════════════════════ */}
+      <section className="relative grain pt-16 pb-12 lg:pt-24">
+        {/* atmospheric backdrop */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[55%] w-[820px] h-[820px] aurora rounded-full blur-[120px] opacity-70" />
+          <div
+            className="absolute inset-0 opacity-[0.04]"
+            style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '34px 34px' }}
+          />
+        </div>
+
+        <div className="relative max-w-4xl mx-auto px-6 text-center">
+          <Reveal immediate className="inline-block mb-8">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03]">
+              <span className="w-1.5 h-1.5 rounded-full bg-rivvra-400 animate-pulse" />
+              <span className="text-[13px] text-dark-300 font-medium">Built for staffing agencies</span>
+            </div>
+          </Reveal>
+
+          <Reveal immediate delay={0.06}>
+            <h1 className="font-marketing text-[46px] sm:text-[62px] lg:text-[80px] font-extrabold leading-[0.98] tracking-[-0.035em] text-white">
+              Run your agency on{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-rivvra-300 via-rivvra-400 to-emerald-300">
+                one platform
+              </span>
+              <span className="block text-dark-400 font-serif-accent italic font-normal text-[34px] sm:text-[44px] lg:text-[54px] tracking-[-0.01em] mt-3">
+                not nine logins.
+              </span>
+            </h1>
+          </Reveal>
+
+          <Reveal immediate delay={0.14}>
+            <p className="text-lg lg:text-xl text-dark-400 max-w-2xl mx-auto leading-relaxed mt-7">
+              Outreach, timesheets, CRM, hiring, payroll and more — nine modular apps
+              that share one workspace, one login, and one source of truth.
+            </p>
+          </Reveal>
+
+          <Reveal immediate delay={0.22}>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-9">
+              <Link
+                to="/signup"
+                className="group px-7 py-3.5 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/25 flex items-center justify-center gap-2"
+              >
+                Start 14-day free trial
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                to="/features"
+                className="px-7 py-3.5 bg-white/[0.04] text-white border border-white/[0.08] rounded-xl text-[15px] font-semibold hover:bg-white/[0.07] hover:border-white/[0.14] transition-all flex items-center justify-center gap-2"
+              >
+                Explore features
+              </Link>
+            </div>
+          </Reveal>
+
+          <Reveal immediate delay={0.3}>
+            <p className="mt-5 text-dark-600 text-[13px]">Free for 14 days · No credit card required</p>
+          </Reveal>
+        </div>
+
+        {/* ── product mock ── */}
+        <Reveal immediate delay={0.32} y={40} className="relative max-w-5xl mx-auto px-6 mt-16">
+          <div className="absolute -inset-x-10 -top-10 bottom-0 aurora blur-[100px] opacity-50 pointer-events-none" />
+          <div className="relative">
+            <ProductMock />
+          </div>
+          {/* fade the mock into the page */}
+          <div className="absolute inset-x-0 -bottom-1 h-24 bg-gradient-to-b from-transparent to-dark-950 pointer-events-none" />
+        </Reveal>
+      </section>
+
+      {/* ════════════ FACT STRIP (honest, product-true) ══════════════════ */}
+      <section className="relative border-y border-white/[0.05] bg-white/[0.01]">
+        <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-2 lg:grid-cols-4 divide-x divide-white/[0.05]">
+          {[
+            { k: '9 apps', v: 'one workspace' },
+            { k: '1 login', v: 'every tool' },
+            { k: 'Per-seat', v: 'pay for who works' },
+            { k: 'Org-scoped', v: 'access you control' },
+          ].map((s, i) => (
+            <Reveal key={s.k} delay={i * 0.06} className="px-5 text-center">
+              <p className="font-marketing text-2xl lg:text-[28px] font-bold text-white tracking-[-0.02em]">{s.k}</p>
+              <p className="text-[12px] text-dark-500 mt-1">{s.v}</p>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ════════════ APP GRID ═══════════════════════════════════════════ */}
+      <section className="relative grain py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-6">
+          <Reveal className="max-w-2xl mb-12">
+            <Eyebrow>the toolkit</Eyebrow>
+            <h2 className="font-marketing text-[34px] lg:text-[46px] font-bold text-white tracking-[-0.025em] leading-[1.05]">
+              Every tool your agency needs — and nothing it doesn't
+            </h2>
+            <p className="text-dark-400 text-lg mt-5 leading-relaxed">
+              Each app is purpose-built for staffing and speaks to the others. Turn on what you need today; add the rest as you grow.
+            </p>
+          </Reveal>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {PLATFORM_APPS.map((app, i) => {
+              const c = COLOR_MAP[app.color];
+              const badge = STATUS_BADGE[app.status];
+              return (
+                <Reveal key={app.id} delay={(i % 3) * 0.06} y={26}>
+                  <div className="group relative h-full rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 hover:bg-white/[0.035] hover:border-white/[0.12] transition-all duration-300 overflow-hidden">
+                    {/* hover wash in app color */}
+                    <div className={`absolute -right-12 -top-12 w-32 h-32 rounded-full ${c.bg} blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                    <div className="relative">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center`}>
+                          <app.icon className={`w-5 h-5 ${c.text}`} />
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      <h3 className="font-marketing text-[17px] font-semibold text-white mb-1.5">{app.name}</h3>
+                      <p className="text-dark-500 text-[13px] leading-relaxed mb-5">{app.description}</p>
+                      <div className="grid grid-cols-2 gap-y-1.5 gap-x-3">
+                        {app.features.map((feat) => (
+                          <div key={feat} className="flex items-center gap-1.5 text-[12px] text-dark-400">
+                            <Check className={`w-3 h-3 ${c.text} flex-shrink-0`} />
+                            {feat}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Reveal>
+              );
+            })}
+          </div>
+
+          <Reveal delay={0.1} className="mt-10">
             <Link to="/features" className="inline-flex items-center gap-1.5 text-rivvra-400 hover:text-rivvra-300 font-medium text-sm transition-colors">
               Explore all features in detail
               <ChevronRight className="w-4 h-4" />
             </Link>
-          </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* ═══════════ HOW IT WORKS ══════════════════════════════════════════ */}
-      <section className="py-16 lg:py-20 border-t border-white/[0.04]">
+      {/* ════════════ WHY ONE PLATFORM (split + product detail) ══════════ */}
+      <section className="relative py-20 lg:py-28 border-t border-white/[0.05]">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl lg:text-[40px] font-bold text-white tracking-[-0.02em] mb-4">
-              Get started in minutes
-            </h2>
-            <p className="text-dark-400 text-lg max-w-xl mx-auto">
-              Create your workspace, choose your apps, and invite your team.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {[
-              {
-                step: '01', icon: Building2,
-                title: 'Create your workspace',
-                desc: 'Sign up with your work email. Your org workspace is auto-created.',
-              },
-              {
-                step: '02', icon: Layers,
-                title: 'Choose your apps',
-                desc: 'Start with one app or all nine. Add more as your team grows.',
-              },
-              {
-                step: '03', icon: Users,
-                title: 'Invite your team',
-                desc: 'Add teammates with per-app access control. Pay only for who uses what.',
-              },
-            ].map((item) => (
-              <div key={item.step} className="text-center space-y-4">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
-                  <item.icon className="w-6 h-6 text-rivvra-400" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-bold text-rivvra-500 uppercase tracking-widest">Step {item.step}</span>
-                  <h3 className="text-lg font-semibold text-white mt-1.5">{item.title}</h3>
-                </div>
-                <p className="text-dark-500 text-sm leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ PLATFORM HIGHLIGHTS ═══════════════════════════════════ */}
-      <section className="py-16 lg:py-20 border-t border-white/[0.04]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03]">
-                <Shield className="w-3.5 h-3.5 text-rivvra-400" />
-                <span className="text-[12px] text-dark-400 font-medium">Purpose-built for staffing</span>
-              </div>
-              <h2 className="text-3xl lg:text-[40px] font-bold text-white leading-tight tracking-[-0.02em]">
-                Every tool a staffing agency needs &mdash; nothing more
+          <div className="grid lg:grid-cols-2 gap-14 lg:gap-20 items-center">
+            <Reveal>
+              <Eyebrow>why rivvra</Eyebrow>
+              <h2 className="font-marketing text-[34px] lg:text-[46px] font-bold text-white tracking-[-0.025em] leading-[1.05]">
+                One workspace, so your data stops living in silos
               </h2>
-              <p className="text-dark-400 text-lg leading-relaxed">
-                Most platforms try to serve everyone. Rivvra is built specifically
-                for staffing agencies, recruiters, and workforce teams.
+              <p className="text-dark-400 text-lg mt-5 leading-relaxed">
+                Most platforms try to serve everyone. Rivvra is built only for staffing —
+                recruiters, contractors, and the back office working from the same record.
               </p>
-              <ul className="space-y-4 pt-2">
+              <ul className="space-y-3 mt-8">
                 {[
-                  { icon: Shield, text: 'Per-user app access &mdash; admins control who sees what' },
-                  { icon: Globe, text: 'Org-scoped workspaces with team collaboration' },
-                  { icon: Zap, text: 'Cross-app workflows &mdash; data flows between apps automatically' },
-                  { icon: Layers, text: 'Modular architecture &mdash; start small, scale as you grow' },
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg border border-white/[0.06] bg-white/[0.02] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  { icon: KeyRound, title: 'Per-user app access', text: 'Admins decide exactly who sees which app.' },
+                  { icon: Globe, title: 'Org-scoped workspaces', text: 'Every record is partitioned to your company.' },
+                  { icon: Zap, title: 'Cross-app workflows', text: 'A placement flows from CRM to payroll automatically.' },
+                  { icon: Boxes, title: 'Modular by design', text: 'Start with one app; switch on the rest anytime.' },
+                ].map((item) => (
+                  <li key={item.title} className="flex items-start gap-3.5 group">
+                    <div className="w-9 h-9 rounded-xl border border-white/[0.07] bg-white/[0.02] flex items-center justify-center flex-shrink-0 group-hover:border-rivvra-500/30 group-hover:bg-rivvra-500/[0.06] transition-colors">
                       <item.icon className="w-4 h-4 text-rivvra-400" />
                     </div>
-                    <span className="text-dark-400 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: item.text }} />
+                    <div>
+                      <p className="text-[15px] font-semibold text-dark-100">{item.title}</p>
+                      <p className="text-dark-500 text-sm leading-relaxed">{item.text}</p>
+                    </div>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Reveal>
 
-            {/* Mini app launcher preview */}
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-rivvra-500/[0.06] to-transparent rounded-3xl blur-2xl" />
-              <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 space-y-6 backdrop-blur-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rivvra-400 to-rivvra-600 flex items-center justify-center">
-                    <span className="text-dark-950 font-bold text-sm">R</span>
+            <Reveal delay={0.12}>
+              <div className="relative">
+                <div className="absolute -inset-6 aurora blur-[80px] opacity-40 pointer-events-none" />
+                <div className="relative rounded-2xl border border-white/[0.08] bg-dark-900/70 p-7 backdrop-blur-sm shadow-mock">
+                  <div className="flex items-center gap-3 pb-5 border-b border-white/[0.06]">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rivvra-400 to-rivvra-600 flex items-center justify-center">
+                      <span className="text-dark-950 font-bold text-sm">N</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">Northwind Staffing</p>
+                      <p className="text-xs text-dark-500">6 apps active · 12 members</p>
+                    </div>
+                    <span className="ml-auto text-[10px] font-semibold text-rivvra-300 bg-rivvra-500/15 ring-1 ring-rivvra-500/25 rounded-md px-2 py-0.5">
+                      Owner
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white">Acme Staffing</p>
-                    <p className="text-xs text-dark-500">5 apps active &middot; 12 members</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2.5">
-                  {PLATFORM_APPS.slice(0, 6).map((app) => {
-                    const c = COLOR_MAP[app.color];
-                    return (
-                      <div key={app.name} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.04]">
-                        <div className={`w-8 h-8 rounded-lg ${c.bg} flex items-center justify-center`}>
-                          <app.icon className={`w-4 h-4 ${c.text}`} />
+                  <div className="grid grid-cols-3 gap-2.5 py-5">
+                    {PLATFORM_APPS.slice(0, 6).map((app) => {
+                      const c = COLOR_MAP[app.color];
+                      return (
+                        <div key={app.name} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/[0.025] border border-white/[0.05]">
+                          <div className={`w-8 h-8 rounded-lg ${c.bg} flex items-center justify-center`}>
+                            <app.icon className={`w-4 h-4 ${c.text}`} />
+                          </div>
+                          <span className="text-[11px] text-dark-400 font-medium">{app.name}</span>
                         </div>
-                        <span className="text-[11px] text-dark-400 font-medium">{app.name}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2">
-                    {['S', 'M', 'P', 'A', 'R'].map((l, i) => (
-                      <div key={i} className="w-7 h-7 rounded-full bg-dark-800 border-2 border-dark-950 flex items-center justify-center">
-                        <span className="text-[10px] font-semibold text-dark-400">{l}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                  <span className="text-[11px] text-dark-600 ml-1">+7 team members</span>
+                  <div className="flex items-center gap-2 pt-4 border-t border-white/[0.06]">
+                    <div className="flex -space-x-2">
+                      {['A', 'M', 'P', 'R', 'S'].map((l, i) => (
+                        <div key={i} className="w-7 h-7 rounded-full bg-dark-800 border-2 border-dark-900 flex items-center justify-center">
+                          <span className="text-[10px] font-semibold text-dark-400">{l}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-dark-600 ml-1">+7 with per-app access</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      {/* ═══════════ TESTIMONIALS ═════════════════════════════════════════ */}
-      <section className="py-16 lg:py-20 border-t border-white/[0.04]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl lg:text-[40px] font-bold text-white tracking-[-0.02em]">
-              Trusted by staffing teams
+      {/* ════════════ HOW IT WORKS ═══════════════════════════════════════ */}
+      <section className="relative grain py-20 lg:py-28 border-t border-white/[0.05]">
+        <div className="max-w-6xl mx-auto px-6">
+          <Reveal className="text-center max-w-xl mx-auto mb-14">
+            <Eyebrow>get going</Eyebrow>
+            <h2 className="font-marketing text-[34px] lg:text-[46px] font-bold text-white tracking-[-0.025em] leading-[1.05]">
+              Live in minutes, not a migration
             </h2>
-          </div>
+          </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto">
-            {TESTIMONIALS.map((t, i) => (
-              <div key={i} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 space-y-4">
-                <div className="flex gap-0.5">
-                  {[...Array(5)].map((_, j) => (
-                    <Star key={j} className="w-3.5 h-3.5 fill-rivvra-400 text-rivvra-400" />
-                  ))}
-                </div>
-                <p className="text-dark-300 text-sm leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
-                <div className="pt-3 border-t border-white/[0.06]">
-                  <p className="text-sm font-medium text-white">{t.name}</p>
-                  <p className="text-[12px] text-dark-500">{t.title}, {t.company}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ PRICING TEASER ═══════════════════════════════════════ */}
-      <section className="py-16 lg:py-20 border-t border-white/[0.04]">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-3xl lg:text-[40px] font-bold text-white tracking-[-0.02em] mb-4">
-            Simple, transparent pricing
-          </h2>
-          <p className="text-dark-400 text-lg mb-12 max-w-xl mx-auto">
-            Two plans. Per-seat billing. Start with a 14-day free trial.
-          </p>
-
-          <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto mb-10">
+          <div className="grid md:grid-cols-3 gap-6">
             {[
-              { plan: 'Core', price: '$10', desc: 'ATS, CRM, Contacts, Employee, Sign, Payroll' },
-              { plan: 'All Apps', price: '$15', desc: 'Everything in Core + Outreach, ESS, To-Do' },
-            ].map((item) => (
-              <div key={item.plan} className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 text-center">
-                <p className="text-[13px] font-semibold text-dark-400 uppercase tracking-wide mb-2">{item.plan}</p>
-                <p className="text-4xl font-bold text-white">{item.price}<span className="text-base font-normal text-dark-500">/user/mo</span></p>
-                <p className="text-[13px] text-dark-500 mt-2">{item.desc}</p>
-              </div>
+              { step: '01', title: 'Create your workspace', desc: 'Sign up with your work email — your org workspace is created automatically.' },
+              { step: '02', title: 'Choose your apps', desc: 'Switch on one app or all nine. Add more as your team grows.' },
+              { step: '03', title: 'Invite your team', desc: 'Add teammates with per-app access. Pay only for who uses what.' },
+            ].map((item, i) => (
+              <Reveal key={item.step} delay={i * 0.1}>
+                <div className="relative h-full rounded-2xl border border-white/[0.06] bg-white/[0.02] p-7">
+                  <span className="font-serif-accent italic text-[40px] text-rivvra-400/30 leading-none">{item.step}</span>
+                  <h3 className="font-marketing text-lg font-semibold text-white mt-3">{item.title}</h3>
+                  <p className="text-dark-500 text-sm leading-relaxed mt-2">{item.desc}</p>
+                </div>
+              </Reveal>
             ))}
           </div>
-
-          <Link to="/pricing" className="inline-flex items-center gap-1.5 text-rivvra-400 hover:text-rivvra-300 font-medium text-sm transition-colors">
-            View full pricing details
-            <ChevronRight className="w-4 h-4" />
-          </Link>
         </div>
       </section>
 
-      {/* ═══════════ CTA ══════════════════════════════════════════════════ */}
-      <section className="py-16 lg:py-20">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="relative rounded-3xl border border-white/[0.08] bg-white/[0.02] p-10 lg:p-14 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-rivvra-500/[0.06] via-transparent to-emerald-500/[0.04]" />
-            <div className="relative space-y-6">
-              <h2 className="text-3xl lg:text-[40px] font-bold text-white tracking-[-0.02em]">
-                Ready to run your agency smarter?
-              </h2>
-              <p className="text-dark-400 text-lg max-w-xl mx-auto">
-                Start your 14-day free trial today. All apps included, no credit card required.
-              </p>
-              <div className="pt-2">
-                <Link
-                  to="/signup"
-                  className="px-10 py-4 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/20 inline-flex items-center gap-2"
-                >
-                  Start free trial
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
-              </div>
-              <p className="text-dark-600 text-[13px]">Work email required</p>
-            </div>
+      {/* ════════════ PRICING TEASER ═════════════════════════════════════ */}
+      <section className="relative py-20 lg:py-28 border-t border-white/[0.05]">
+        <div className="max-w-5xl mx-auto px-6">
+          <Reveal className="text-center max-w-xl mx-auto mb-12">
+            <Eyebrow>pricing</Eyebrow>
+            <h2 className="font-marketing text-[34px] lg:text-[46px] font-bold text-white tracking-[-0.025em] leading-[1.05]">
+              Two plans. Per-seat. No surprises.
+            </h2>
+          </Reveal>
+
+          <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+            {[
+              { plan: 'Core', price: '$10', desc: 'ATS, CRM, Contacts, Employee, Sign, Payroll', featured: false },
+              { plan: 'All Apps', price: '$15', desc: 'Everything in Core + Outreach, ESS, To-Do', featured: true },
+            ].map((item) => (
+              <Reveal key={item.plan} delay={item.featured ? 0.08 : 0}>
+                <div className={`relative h-full rounded-2xl p-7 ${item.featured ? 'border border-rivvra-500/30 bg-rivvra-500/[0.04]' : 'border border-white/[0.08] bg-white/[0.02]'}`}>
+                  {item.featured && (
+                    <span className="absolute top-5 right-5 text-[10px] font-semibold text-rivvra-300 bg-rivvra-500/15 ring-1 ring-rivvra-500/25 rounded-md px-2 py-0.5">
+                      Most popular
+                    </span>
+                  )}
+                  <p className="text-[12px] font-semibold text-dark-400 uppercase tracking-widest mb-3">{item.plan}</p>
+                  <p className="font-marketing text-[44px] font-bold text-white leading-none tracking-[-0.02em]">
+                    {item.price}<span className="text-base font-normal text-dark-500"> /user/mo</span>
+                  </p>
+                  <p className="text-[13px] text-dark-500 mt-4 leading-relaxed">{item.desc}</p>
+                </div>
+              </Reveal>
+            ))}
           </div>
+
+          <Reveal delay={0.1} className="text-center mt-10">
+            <Link to="/pricing" className="inline-flex items-center gap-1.5 text-rivvra-400 hover:text-rivvra-300 font-medium text-sm transition-colors">
+              View full pricing details
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ════════════ FINAL CTA ══════════════════════════════════════════ */}
+      <section className="relative py-20 lg:py-28">
+        <div className="max-w-5xl mx-auto px-6">
+          <Reveal>
+            <div className="relative grain rounded-[28px] border border-white/[0.08] bg-dark-900/40 px-8 py-14 lg:px-16 lg:py-20 overflow-hidden text-center">
+              <div className="absolute inset-0 aurora opacity-70 pointer-events-none" />
+              <div className="absolute inset-x-0 -bottom-20 h-40 bg-rivvra-500/10 blur-[80px] pointer-events-none" />
+              <div className="relative">
+                <h2 className="font-marketing text-[34px] lg:text-[52px] font-bold text-white tracking-[-0.03em] leading-[1.02]">
+                  Run your agency smarter
+                  <span className="block font-serif-accent italic font-normal text-dark-400 text-[26px] lg:text-[38px] mt-2">
+                    starting today.
+                  </span>
+                </h2>
+                <p className="text-dark-400 text-lg max-w-xl mx-auto mt-6">
+                  Spin up your workspace in minutes. All apps included in the trial, no credit card required.
+                </p>
+                <div className="mt-9">
+                  <Link
+                    to="/signup"
+                    className="group px-9 py-4 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/25 inline-flex items-center gap-2"
+                  >
+                    Start free trial
+                    <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
+                <p className="text-dark-600 text-[13px] mt-5">Work email required</p>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
     </MarketingLayout>
