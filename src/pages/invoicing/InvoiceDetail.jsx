@@ -17,6 +17,7 @@ import { API_BASE_URL } from '../../utils/config';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
+import VendorChoiceModal from './VendorChoiceModal';
 import {
   ArrowLeft, Send, Trash2, Download, Mail, Copy, Archive, ArchiveRestore,
   CreditCard, XCircle, RotateCcw, Loader2, X, FileText,
@@ -732,6 +733,9 @@ export default function InvoiceDetail() {
   // AI re-extract (vendor bill draft only)
   const aiFileInputRef = useRef(null);
   const [aiExtracting, setAiExtracting] = useState(false);
+  // After a re-extract on an UNLINKED draft, hold the extracted vendor so we can
+  // offer Create / Match / Leave-blank — the same prompt the list drop-zone shows.
+  const [reExtractVendor, setReExtractVendor] = useState(null); // { extracted } | null
 
   // ── Inline editing state ──
   const [editForm, setEditForm] = useState({});
@@ -1749,6 +1753,7 @@ export default function InvoiceDetail() {
       fd.append('file', file);
       const res = await invoicingApi.extractVendorBill(orgSlug, fd);
       const extracted = res?.extracted;
+      const vendorMatch = res?.vendorMatch || null;
       if (!extracted) throw new Error('Extraction returned no data');
 
       // Resolve tax IDs from extracted line rates (prefer IGST when PDF reports it)
@@ -1866,6 +1871,21 @@ export default function InvoiceDetail() {
         }
       }
 
+      // No vendor linked yet? Offer to create / match — the same prompt the
+      // list-page drop zone shows. Without this, "Extract from PDF" on an
+      // unlinked draft silently left the Vendor blank (e.g. a foreign vendor
+      // bill recorded under an Indian company never prompted to add the vendor).
+      if (!linkedContactId && extracted?.vendor?.name) {
+        if (vendorMatch?.contactId) {
+          await linkVendorContact(vendorMatch.contactId);
+          showToast(`Bill updated — linked existing vendor "${vendorMatch.contactName || extracted.vendor.name}"`);
+        } else {
+          setReExtractVendor({ extracted });
+          showToast('Bill updated — choose or create the vendor');
+        }
+        return;
+      }
+
       showToast(contactEnriched
         ? 'Bill updated from PDF — vendor contact refreshed'
         : 'Bill updated from PDF — please verify');
@@ -1873,6 +1893,16 @@ export default function InvoiceDetail() {
       showToast(err.message || 'AI extraction failed', 'error');
     } finally {
       setAiExtracting(false);
+    }
+  };
+
+  // Link a contact to THIS bill (used by the re-extract vendor prompt). PATCHes
+  // contactId and syncs local state so the Vendor block fills in immediately.
+  const linkVendorContact = async (contactId) => {
+    if (!contactId) return;
+    const saveRes = await invoicingApi.updateInvoice(orgSlug, invoiceId, { contactId });
+    if (saveRes?.invoice) {
+      setInvoice(prev => ({ ...prev, ...saveRes.invoice, payments: prev?.payments || [] }));
     }
   };
 
@@ -3514,6 +3544,26 @@ export default function InvoiceDetail() {
           mimeType={previewDoc.mimeType}
           fetchUrl={previewDoc.url}
           onClose={() => setPreviewDoc(null)}
+        />
+      )}
+
+      {reExtractVendor && (
+        <VendorChoiceModal
+          extracted={reExtractVendor.extracted}
+          orgSlug={orgSlug}
+          onCancel={() => setReExtractVendor(null)}
+          createLabel="Create vendor & link"
+          blankLabel="Leave blank"
+          onDone={async (contactId) => {
+            setReExtractVendor(null);
+            if (!contactId) return;
+            try {
+              await linkVendorContact(contactId);
+              showToast('Vendor linked to bill');
+            } catch (err) {
+              showToast(err.message || 'Failed to link vendor', 'error');
+            }
+          }}
         />
       )}
     </div>
