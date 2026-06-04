@@ -23,7 +23,9 @@ import { Loader2 } from 'lucide-react';
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
-// LoginPage removed — users log in via /find-workspace → /org/:slug/login
+// Universal (Salesforce-style) login at /login — resolves org from email,
+// then routes to /org/:slug/home. Branded /org/:slug/login still available.
+import UniversalLoginPage from './pages/UniversalLoginPage';
 import OrgLoginPage from './pages/OrgLoginPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
@@ -342,7 +344,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/signup" element={<SignupPage />} />
-            <Route path="/login" element={<Navigate to="/find-workspace" replace />} />
+            <Route path="/login" element={<UniversalLoginPage />} />
             <Route path="/invite" element={<InviteAcceptPage />} />
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/pricing" element={<PricingPage />} />

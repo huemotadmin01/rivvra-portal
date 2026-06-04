@@ -220,6 +220,11 @@ class ApiClient {
     });
   }
 
+  // List every org the authenticated user belongs to (universal login picker)
+  async getMyOrgs() {
+    return this.request('/api/auth/my-orgs');
+  }
+
   // User endpoints
   async getProfile() {
     return this.request('/api/user/profile');

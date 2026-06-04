@@ -159,7 +159,8 @@ export function AuthProvider({ children }) {
       throw new Error(response.error || 'Google login failed');
     } catch (err) {
       setError(err.message);
-      return { success: false, error: err.message };
+      // Pass through the API error envelope (e.g. SSO_REQUIRED + orgSlug).
+      return { success: false, error: err.message, code: err.code, orgSlug: err.orgSlug };
     }
   }, [broadcastAuthChange]);
 
@@ -213,7 +214,9 @@ export function AuthProvider({ children }) {
       throw new Error(response.error || 'Login failed');
     } catch (err) {
       setError(err.message);
-      return { success: false, error: err.message };
+      // Pass through the API error envelope (e.g. SSO_REQUIRED + orgSlug) so the
+      // universal login page can bounce to the branded /org/<slug>/login.
+      return { success: false, error: err.message, code: err.code, orgSlug: err.orgSlug };
     }
   }, [broadcastAuthChange]);
 
