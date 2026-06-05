@@ -151,7 +151,7 @@ function UpgradePage() {
           Your organization has been successfully upgraded.
         </p>
         <p className="text-dark-400 text-sm mb-8">
-          All platform apps are now unlocked. Your subscription is active and will be managed through Stripe.
+          Your plan is active and your higher limits are now in effect. Billing is managed securely through Stripe.
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link
@@ -197,7 +197,9 @@ function UpgradePage() {
               </div>
               <p className="text-sm text-dark-400">
                 {PRICING[currentOrg?.plan]?.price
-                  ? `$${PRICING[currentOrg?.plan]?.price}/user/month`
+                  ? (currentOrg?.billing?.billingPeriod === 'annual'
+                      ? `$${PRICING[currentOrg.plan].price * 10}/user/year`
+                      : `$${PRICING[currentOrg.plan].price}/user/month`)
                   : 'Custom pricing'}
               </p>
             </div>
