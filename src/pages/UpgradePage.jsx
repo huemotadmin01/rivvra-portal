@@ -9,39 +9,45 @@ import {
 } from 'lucide-react';
 
 const PRICING = {
-  core: {
-    name: 'Core',
-    price: 10,
+  growth: {
+    name: 'Growth',
+    price: 3, // per user / month, billed monthly
     currency: 'USD',
-    period: 'user/month',
     features: [
-      'ATS, CRM, Contacts',
-      'Employee, Sign, Payroll',
-      'Up to 25 users',
+      'All 14 apps',
+      'Up to 25 team members',
+      '10,000 active records',
+      '500 outreach emails / day',
+      '25 GB storage',
       'Email support',
     ],
   },
-  all_apps: {
-    name: 'All Apps',
-    price: 15,
+  scale: {
+    name: 'Scale',
+    price: 6,
     currency: 'USD',
-    period: 'user/month',
     features: [
-      'Everything in Core',
-      'Outreach, ESS, To-Do',
-      'Unlimited users',
+      'All 14 apps',
+      'Unlimited team members',
+      'Unlimited active records',
+      '2,000 outreach emails / day',
+      '100 GB storage',
       'Priority support',
-      'Chrome extension',
-      'Cross-app workflows',
     ],
   },
 };
+
+// Per-seat monthly-equivalent given the billing period (annual = 2 months free).
+function perSeatFor(plan, period) {
+  return period === 'annual' ? (plan.price * 10) / 12 : plan.price;
+}
 
 function UpgradePage() {
   const { currentOrg, orgSlug, isOrgOwner, isOrgAdmin, refetchOrg } = useOrg();
   const [searchParams] = useSearchParams();
 
-  const [selectedPlan, setSelectedPlan] = useState('core');
+  const [selectedPlan, setSelectedPlan] = useState('growth');
+  const [billingPeriod, setBillingPeriod] = useState('monthly');
   const [seatCount, setSeatCount] = useState(3);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -80,8 +86,9 @@ function UpgradePage() {
   }, [orgSlug, stripeSuccess]);
 
   const plan = PRICING[selectedPlan];
-  const monthlyTotal = plan.price * seatCount;
-  const isPaid = currentOrg?.plan === 'core' || currentOrg?.plan === 'all_apps' || currentOrg?.plan === 'pro' || currentOrg?.plan === 'enterprise';
+  const monthlyEquivTotal = perSeatFor(plan, billingPeriod) * seatCount; // $/mo equivalent
+  const annualTotal = plan.price * 10 * seatCount;                       // $/yr if annual
+  const isPaid = ['growth', 'scale', 'core', 'all_apps', 'pro', 'enterprise'].includes(currentOrg?.plan);
 
   // Redirect to Stripe Checkout
   const handleCheckout = async () => {
@@ -100,6 +107,7 @@ function UpgradePage() {
       const result = await api.createCheckoutSession(orgSlug, {
         plan: selectedPlan,
         seats: seatCount,
+        billingPeriod,
       });
       if (result.url) {
         window.location.href = result.url;
@@ -308,6 +316,23 @@ function UpgradePage() {
         <p className="text-dark-300">
           Upgrade to raise your team, record, email and storage limits and keep your team productive.
         </p>
+
+        {/* Billing period toggle */}
+        <div className="inline-flex items-center gap-1 mt-6 p-1 rounded-full border border-dark-700 bg-dark-900">
+          <button
+            onClick={() => setBillingPeriod('monthly')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${billingPeriod === 'monthly' ? 'bg-dark-700 text-white' : 'text-dark-400 hover:text-white'}`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setBillingPeriod('annual')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 ${billingPeriod === 'annual' ? 'bg-dark-700 text-white' : 'text-dark-400 hover:text-white'}`}
+          >
+            Annual
+            <span className="text-[10px] font-semibold text-rivvra-300 bg-rivvra-500/15 rounded px-1.5 py-0.5">2 months free</span>
+          </button>
+        </div>
       </div>
 
       {/* Plan Selection */}
@@ -331,8 +356,11 @@ function UpgradePage() {
               )}
             </div>
             <div className="mb-4">
-              <span className="text-3xl font-bold text-white">${p.price}</span>
-              <span className="text-dark-400 ml-1">/{p.period}</span>
+              <span className="text-3xl font-bold text-white">${perSeatFor(p, billingPeriod).toFixed(billingPeriod === 'annual' ? 2 : 0)}</span>
+              <span className="text-dark-400 ml-1">/user/mo</span>
+              <p className="text-xs text-dark-500 mt-1">
+                {billingPeriod === 'annual' ? `billed annually · $${p.price * 10}/user/yr` : 'billed monthly'}
+              </p>
             </div>
             <ul className="space-y-2">
               {p.features.map((f, i) => (
@@ -365,12 +393,15 @@ function UpgradePage() {
           <div className="text-dark-300">
             <span className="text-sm">seats</span>
             <span className="text-dark-500 mx-2">x</span>
-            <span className="text-white font-semibold">${plan.price}</span>
+            <span className="text-white font-semibold">${perSeatFor(plan, billingPeriod).toFixed(billingPeriod === 'annual' ? 2 : 0)}</span>
             <span className="text-dark-500 mx-2">=</span>
-            <span className="text-rivvra-400 font-bold text-xl">${monthlyTotal}</span>
+            <span className="text-rivvra-400 font-bold text-xl">${monthlyEquivTotal.toFixed(billingPeriod === 'annual' ? 2 : 0)}</span>
             <span className="text-sm text-dark-400">/month</span>
           </div>
         </div>
+        {billingPeriod === 'annual' && (
+          <p className="text-xs text-dark-500 mt-3">Billed annually as ${annualTotal}/year for {seatCount} seat{seatCount > 1 ? 's' : ''}.</p>
+        )}
       </div>
 
       {/* Error */}
@@ -395,7 +426,7 @@ function UpgradePage() {
           ) : (
             <>
               <CreditCard className="w-5 h-5" />
-              Upgrade to {plan.name} — ${monthlyTotal}/mo
+              Upgrade to {plan.name} — ${monthlyEquivTotal.toFixed(billingPeriod === 'annual' ? 2 : 0)}/mo
             </>
           )}
         </button>
