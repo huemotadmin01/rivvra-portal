@@ -1039,11 +1039,7 @@ class ApiClient {
     return this.request(`/api/org/${slug}/public-info`);
   }
 
-  // ─── Trial & Billing ──────────────────────────────────────────────────────
-
-  async getTrialStatus(orgSlug) {
-    return this.request(`/api/org/${orgSlug}/trial-status`);
-  }
+  // ─── Billing ──────────────────────────────────────────────────────────────
 
   async upgradeOrg(orgSlug, data) {
     return this.request(`/api/org/${orgSlug}/upgrade`, {

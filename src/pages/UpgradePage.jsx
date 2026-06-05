@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
 import {
-  Crown, Check, Users, Clock, AlertTriangle, Sparkles,
+  Crown, Check, Users, AlertTriangle, Sparkles,
   CreditCard, ExternalLink, Loader2, ArrowRight, Shield,
   Calendar, RefreshCw,
 } from 'lucide-react';
@@ -38,7 +38,7 @@ const PRICING = {
 };
 
 function UpgradePage() {
-  const { currentOrg, orgSlug, trial, isOrgOwner, isOrgAdmin, refetchOrg } = useOrg();
+  const { currentOrg, orgSlug, isOrgOwner, isOrgAdmin, refetchOrg } = useOrg();
   const [searchParams] = useSearchParams();
 
   const [selectedPlan, setSelectedPlan] = useState('core');
@@ -46,7 +46,6 @@ function UpgradePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [stripeSuccess, setStripeSuccess] = useState(false);
-  const [trialStatus, setTrialStatus] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [subLoading, setSubLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -66,15 +65,6 @@ function UpgradePage() {
       setSelectedPlan(planParam);
     }
   }, [searchParams, refetchOrg]);
-
-  // Fetch trial status
-  useEffect(() => {
-    if (orgSlug) {
-      api.getTrialStatus(orgSlug)
-        .then(res => { if (res.success) setTrialStatus(res.trial); })
-        .catch(() => {});
-    }
-  }, [orgSlug]);
 
   // Fetch subscription status
   useEffect(() => {
@@ -306,9 +296,7 @@ function UpgradePage() {
     );
   }
 
-  // ── Upgrade flow for free/trial orgs ─────────────────────────────────
-  const displayTrial = trialStatus || trial;
-
+  // ── Upgrade flow for Free orgs ───────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       {/* Header */}
@@ -318,37 +306,9 @@ function UpgradePage() {
         </div>
         <h1 className="text-2xl font-bold text-white mb-2">Upgrade {currentOrg?.name || 'Your Organization'}</h1>
         <p className="text-dark-300">
-          {displayTrial?.status === 'active' && `${displayTrial.daysRemaining ?? 0} days left in your trial. `}
-          {displayTrial?.status === 'grace' && 'Your trial has ended. Data is read-only. '}
-          {displayTrial?.status === 'archived' && 'Your organization has been archived. '}
-          Upgrade to unlock all features and keep your team productive.
+          Upgrade to raise your team, record, email and storage limits and keep your team productive.
         </p>
       </div>
-
-      {/* Trial Status Card */}
-      {displayTrial && displayTrial.status !== 'none' && displayTrial.status !== 'converted' && (
-        <div className={`rounded-xl p-4 mb-8 flex items-center gap-3 ${
-          displayTrial.status === 'active' ? 'bg-rivvra-500/10 border border-rivvra-500/30' :
-          displayTrial.status === 'grace' ? 'bg-amber-500/10 border border-amber-500/30' :
-          'bg-red-500/10 border border-red-500/30'
-        }`}>
-          {displayTrial.status === 'active' ? (
-            <Clock className="w-5 h-5 text-rivvra-400 flex-shrink-0" />
-          ) : (
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-          )}
-          <div>
-            <span className={`text-sm font-medium ${
-              displayTrial.status === 'active' ? 'text-rivvra-300' :
-              displayTrial.status === 'grace' ? 'text-amber-300' : 'text-red-300'
-            }`}>
-              {displayTrial.status === 'active' && `Trial active — ${displayTrial.daysRemaining} days remaining`}
-              {displayTrial.status === 'grace' && `Read-only mode — upgrade to restore write access`}
-              {displayTrial.status === 'archived' && `Organization archived — upgrade to restore everything`}
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Plan Selection */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

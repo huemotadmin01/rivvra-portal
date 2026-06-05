@@ -714,44 +714,6 @@ export default function SettingsGeneral() {
         Manage Users & Teams
       </button>
 
-      {/* ═══════════════════════ TRIAL STATUS ═══════════════════════ */}
-      {trial && trial.status !== 'none' && trial.status !== 'converted' && (
-        <>
-          <SectionHeader title="Trial Status" />
-
-          <div className={`p-4 rounded-xl border ${
-            trial.status === 'active' ? 'bg-rivvra-500/5 border-rivvra-500/20' :
-            trial.status === 'grace' ? 'bg-amber-500/5 border-amber-500/20' :
-            'bg-red-500/5 border-red-500/20'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium ${
-                  trial.status === 'active' ? 'text-rivvra-300' :
-                  trial.status === 'grace' ? 'text-amber-300' : 'text-red-300'
-                }`}>
-                  {trial.status === 'active' && `Free Trial — ${trial.daysRemaining ?? 0} days remaining`}
-                  {trial.status === 'grace' && 'Trial ended — Read-only mode'}
-                  {trial.status === 'archived' && 'Organization archived'}
-                </p>
-                <p className="text-xs text-dark-500 mt-1">
-                  {trial.status === 'active' && 'All features are unlocked during your trial period.'}
-                  {trial.status === 'grace' && 'Upgrade to continue creating and modifying data.'}
-                  {trial.status === 'archived' && 'Upgrade to restore access to your data.'}
-                </p>
-              </div>
-              {(trial.status === 'grace' || trial.status === 'archived' || (trial.status === 'active' && (trial.daysRemaining ?? 14) <= 5)) && (
-                <button
-                  onClick={() => navigate(`/org/${currentOrg.slug}/upgrade`)}
-                  className="px-4 py-2 bg-rivvra-500 text-dark-950 rounded-lg text-sm font-semibold hover:bg-rivvra-400 transition-colors flex-shrink-0"
-                >
-                  Upgrade
-                </button>
-              )}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* ═══════════════════════ DATA BACKUP ═══════════════════════ */}
       {isOrgOwner && <DataBackupSection currentOrg={currentOrg} />}

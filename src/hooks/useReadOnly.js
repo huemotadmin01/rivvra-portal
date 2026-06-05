@@ -1,35 +1,18 @@
-import { useOrg } from '../context/OrgContext';
-
 /**
- * Hook for trial read-only enforcement in UI.
- * Returns isReadOnly flag and a guardAction wrapper.
- * Usage:
- *   const { isReadOnly } = useReadOnly();
- *   <button disabled={isReadOnly}>Create</button>
+ * useReadOnly — RETIRED (trial removed).
+ *
+ * The 14-day trial and its read-only "grace" / "archived" states are gone, so
+ * this hook no longer restricts anything. It's kept as a no-op (same API) so
+ * the components still importing it keep working; the call sites can be removed
+ * in a later cleanup. NOTE: alumni read-only is handled separately via
+ * useOrg().isReadOnly — this hook was only ever about trials.
  */
 export function useReadOnly() {
-  const { currentOrg } = useOrg();
-
-  const trial = currentOrg?.trial;
-  const isReadOnly = trial?.status === 'grace';
-  const isArchived = trial?.status === 'archived';
-  const isTrialExpired = isReadOnly || isArchived;
-
   return {
-    isReadOnly,
-    isArchived,
-    isTrialExpired,
-    /**
-     * Guard a write action — returns false and shows message if read-only.
-     * @param {Function} action - The action to execute if not read-only
-     * @returns {boolean} - true if action executed, false if blocked
-     */
+    isReadOnly: false,
+    isArchived: false,
+    isTrialExpired: false,
     guardAction: (action) => {
-      if (isReadOnly || isArchived) {
-        // Could integrate with a toast system later
-        console.warn('Action blocked: organization is in read-only mode (trial expired)');
-        return false;
-      }
       if (typeof action === 'function') action();
       return true;
     },

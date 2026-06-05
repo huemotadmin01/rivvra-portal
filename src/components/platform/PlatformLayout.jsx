@@ -8,7 +8,6 @@ import { BreadcrumbProvider } from '../../context/BreadcrumbContext';
 import { PeriodProvider } from '../../context/PeriodContext';
 import TopBar from './TopBar';
 import AppSidebar from './AppSidebar';
-import TrialBanner from './TrialBanner';
 import AlumniBanner from './AlumniBanner';
 import Breadcrumbs from './Breadcrumbs';
 import { ArrowLeftRight, X, Loader2 } from 'lucide-react';
@@ -120,7 +119,6 @@ function PlatformLayout() {
             <main className={`flex-1 min-w-0 min-h-[calc(100vh-3.5rem)] transition-[margin] duration-200 ${
               showSidebar ? (sidebarCollapsed ? 'md:ml-16' : 'md:ml-64') : ''
             }`}>
-              <TrialBanner />
               <AlumniBanner />
               {!isFullScreenPage && <Breadcrumbs />}
               {/* Hold rendering of company-scoped pages until CompanyContext
