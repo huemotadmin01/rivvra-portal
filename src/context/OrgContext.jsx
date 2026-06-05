@@ -175,14 +175,6 @@ export function OrgProvider({ children }) {
     return access.role || 'member';
   }, [membership]);
 
-  // Trial state helpers
-  const trial = currentOrg?.trial || null;
-  const isTrialActive = trial?.status === 'active';
-  const isGracePeriod = trial?.status === 'grace';
-  const isTrialArchived = trial?.status === 'archived';
-  const isReadOnly = trial?.status === 'grace';
-  const trialDaysRemaining = trial?.daysRemaining ?? null;
-
   // Alumni state helpers (read-only post-separation access window)
   const alumniPhase = membership?.alumniPhase || 'active';
   const isAlumni = alumniPhase === 'a' || alumniPhase === 'b';
@@ -207,13 +199,9 @@ export function OrgProvider({ children }) {
     // Use for privileged UI that must not trust cache-hydrated roles. See
     // membershipVerified state declaration for the rationale.
     membershipVerified,
-    // Trial state
-    trial,
-    isTrialActive,
-    isGracePeriod,
-    isTrialArchived,
-    isReadOnly: isReadOnly || isAlumni, // alumni are also read-only
-    trialDaysRemaining,
+    // Read-only access: alumni in their post-separation grace window.
+    // (The 14-day trial read-only state was removed.)
+    isReadOnly: isAlumni,
     // Alumni state
     alumniPhase,
     isAlumni,
@@ -224,7 +212,7 @@ export function OrgProvider({ children }) {
       fetchedRef.current = false;
       fetchOrg(false);
     },
-  }), [currentOrg, membership, membershipVerified, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, trial, isTrialActive, isGracePeriod, isTrialArchived, isReadOnly, trialDaysRemaining, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
+  }), [currentOrg, membership, membershipVerified, effectiveSlug, loading, error, hasAppAccess, getAppRole, fetchOrg, alumniPhase, isAlumni, isArchivedAlumni, alumniCutoffAt, alumniDaysRemaining]);
 
   return (
     <OrgContext.Provider value={value}>

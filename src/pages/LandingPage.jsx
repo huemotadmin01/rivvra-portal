@@ -430,7 +430,7 @@ function LandingPage() {
                 to="/signup"
                 className="group px-7 py-3.5 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/25 flex items-center justify-center gap-2"
               >
-                Start 14-day free trial
+                Start for free
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
@@ -443,7 +443,7 @@ function LandingPage() {
           </Reveal>
 
           <Reveal immediate delay={0.3}>
-            <p className="mt-5 text-dark-600 text-[13px]">Free for 14 days · No credit card required</p>
+            <p className="mt-5 text-dark-600 text-[13px]">Free forever · No credit card required</p>
           </Reveal>
         </div>
 
@@ -755,14 +755,14 @@ function LandingPage() {
                   </span>
                 </h2>
                 <p className="text-dark-400 text-lg max-w-xl mx-auto mt-6">
-                  Spin up your workspace in minutes. All apps included in the trial, no credit card required.
+                  Spin up your workspace in minutes. All 14 apps on the Free plan, no credit card required.
                 </p>
                 <div className="mt-9">
                   <Link
                     to="/signup"
                     className="group px-9 py-4 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/25 inline-flex items-center gap-2"
                   >
-                    Start free trial
+                    Start for free
                     <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>

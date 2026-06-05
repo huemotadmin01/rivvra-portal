@@ -7,12 +7,9 @@ import {
 } from 'lucide-react';
 
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'All Status' },
-  { value: 'none', label: 'No Trial (Grandfathered)' },
-  { value: 'trial', label: 'Trial Active' },
-  { value: 'grace', label: 'Grace Period' },
-  { value: 'archived', label: 'Archived' },
-  { value: 'paid', label: 'Paid (Pro/Enterprise)' },
+  { value: 'all', label: 'All Plans' },
+  { value: 'free', label: 'Free' },
+  { value: 'paid', label: 'Paid (Core/All Apps/Pro/Enterprise)' },
 ];
 
 function AdminWorkspacesPage() {
@@ -133,9 +130,6 @@ function AdminWorkspacesPage() {
                 <th className="px-5 py-3 text-left"><SortHeader column="name">Name</SortHeader></th>
                 <th className="px-5 py-3 text-left"><SortHeader column="plan">Plan</SortHeader></th>
                 <th className="px-5 py-3 text-left">
-                  <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Status</span>
-                </th>
-                <th className="px-5 py-3 text-left">
                   <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Members</span>
                 </th>
                 <th className="px-5 py-3 text-left">
@@ -180,9 +174,6 @@ function AdminWorkspacesPage() {
                     </td>
                     <td className="px-5 py-3">
                       <PlanBadge plan={ws.plan} />
-                    </td>
-                    <td className="px-5 py-3">
-                      <TrialStatusBadge status={ws.trial?.status} />
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1.5">
@@ -243,29 +234,15 @@ function AdminWorkspacesPage() {
 
 function PlanBadge({ plan }) {
   const colors = {
-    trial: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    free: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    core: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    all_apps: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     pro: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     enterprise: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   };
   return (
-    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colors[plan] || colors.trial}`}>
-      {(plan || 'trial').toUpperCase()}
-    </span>
-  );
-}
-
-function TrialStatusBadge({ status }) {
-  if (!status || status === 'none') {
-    return <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-dark-700/50 text-dark-400">none</span>;
-  }
-  const colors = {
-    active: 'bg-green-500/10 text-green-400',
-    grace: 'bg-amber-500/10 text-amber-400',
-    archived: 'bg-red-500/10 text-red-400',
-  };
-  return (
-    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${colors[status] || ''}`}>
-      {status}
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colors[plan] || colors.free}`}>
+      {(plan || 'free').toUpperCase()}
     </span>
   );
 }

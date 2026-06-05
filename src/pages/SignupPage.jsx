@@ -1157,7 +1157,7 @@ function SignupPage() {
 
           {/* Value Props */}
           <div className="space-y-2">
-            {['14-day free trial, all apps included', 'Per-seat pricing — pay for what you use', 'Invite your whole team in seconds'].map((feature, i) => (
+            {['Free forever plan — all 14 apps included', 'Per-seat pricing — pay only as you grow', 'Invite your whole team in seconds'].map((feature, i) => (
               <div key={i} className="flex items-center gap-2 text-sm">
                 <Check className="w-4 h-4 text-rivvra-400 flex-shrink-0" />
                 <span className="text-dark-300">{feature}</span>

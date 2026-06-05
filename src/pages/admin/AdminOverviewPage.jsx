@@ -2,16 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import {
-  Building2, Users, Clock, AlertTriangle, CreditCard,
+  Building2, Users, CreditCard,
   TrendingUp, Loader2, ChevronRight
 } from 'lucide-react';
 
 const statCards = [
   { key: 'totalOrgs', label: 'Total Workspaces', icon: Building2, color: 'blue' },
   { key: 'paidOrgs', label: 'Paid Orgs', icon: CreditCard, color: 'emerald' },
-  { key: 'trialActive', label: 'Active Trials', icon: Clock, color: 'green' },
-  { key: 'trialGrace', label: 'Grace Period', icon: AlertTriangle, color: 'amber' },
-  { key: 'expiringIn7Days', label: 'Expiring in 7 Days', icon: AlertTriangle, color: 'red' },
+  { key: 'freeOrgs', label: 'Free Orgs', icon: Building2, color: 'green' },
   { key: 'totalUsers', label: 'Total Users', icon: Users, color: 'purple' },
   { key: 'orgsCreatedThisMonth', label: 'New Orgs This Month', icon: TrendingUp, color: 'cyan' },
   { key: 'usersCreatedThisMonth', label: 'New Users This Month', icon: TrendingUp, color: 'indigo' },
@@ -150,7 +148,6 @@ function AdminOverviewPage() {
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <PlanBadge plan={ws.plan} />
-                  <TrialStatusBadge status={ws.trial?.status} />
                   <span className="text-xs text-dark-500">
                     {ws.billing?.seatsUsed || 0}/{ws.billing?.seatsTotal || 0} seats
                   </span>
@@ -166,27 +163,15 @@ function AdminOverviewPage() {
 
 function PlanBadge({ plan }) {
   const colors = {
-    trial: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    free: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    core: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    all_apps: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     pro: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     enterprise: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   };
   return (
-    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colors[plan] || colors.trial}`}>
-      {(plan || 'trial').toUpperCase()}
-    </span>
-  );
-}
-
-function TrialStatusBadge({ status }) {
-  if (!status || status === 'none') return null;
-  const colors = {
-    active: 'bg-green-500/10 text-green-400',
-    grace: 'bg-amber-500/10 text-amber-400',
-    archived: 'bg-red-500/10 text-red-400',
-  };
-  return (
-    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${colors[status] || ''}`}>
-      {status}
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colors[plan] || colors.free}`}>
+      {(plan || 'free').toUpperCase()}
     </span>
   );
 }

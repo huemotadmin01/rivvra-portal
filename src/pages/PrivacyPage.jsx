@@ -19,7 +19,7 @@ function PrivacyPage() {
               <Link to="/features" className="text-sm text-dark-300 hover:text-white transition-colors">Features</Link>
               <Link to="/pricing" className="text-sm text-dark-300 hover:text-white transition-colors">Pricing</Link>
               <Link to="/signup" className="px-5 py-2 bg-rivvra-500 text-dark-950 rounded-lg text-sm font-semibold hover:bg-rivvra-400 transition-colors flex items-center gap-1.5">
-                Start free trial
+                Start for free
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>

@@ -363,7 +363,7 @@ export default function SettingsGeneral() {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
   const { user } = useAuth();
-  const { currentOrg, isOrgAdmin, isOrgOwner, trial } = useOrg();
+  const { currentOrg, isOrgAdmin, isOrgOwner } = useOrg();
 
   // License data (fetched for org owners/admins)
   const [licenses, setLicenses] = useState(null);
@@ -501,13 +501,14 @@ export default function SettingsGeneral() {
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
                 currentOrg.plan === 'pro' ? 'bg-amber-500/20 text-amber-300' :
                 currentOrg.plan === 'enterprise' ? 'bg-purple-500/20 text-purple-300' :
-                currentOrg.plan === 'trial' ? 'bg-rivvra-500/20 text-rivvra-300' :
+                (currentOrg.plan === 'core' || currentOrg.plan === 'all_apps') ? 'bg-amber-500/20 text-amber-300' :
                 'bg-dark-700 text-dark-300'
               }`}>
                 <Crown className="w-3 h-3" />
                 {currentOrg.plan === 'pro' ? 'Pro' :
                  currentOrg.plan === 'enterprise' ? 'Enterprise' :
-                 currentOrg.plan === 'trial' ? 'Trial' : 'Free'}
+                 currentOrg.plan === 'core' ? 'Core' :
+                 currentOrg.plan === 'all_apps' ? 'All Apps' : 'Free'}
               </span>
             )}
           </div>

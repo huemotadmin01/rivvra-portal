@@ -52,11 +52,12 @@ function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">5. Free Trial</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">5. Free Plan</h2>
             <p>
-              New organizations receive a 14-day free trial with access to all apps. No credit card is
-              required. When the trial ends, you must select a paid plan to continue using the Service.
-              Your data is preserved during and after the trial period.
+              New organizations start on a free plan with access to all apps and no credit card
+              required. The free plan is subject to usage limits (such as team size, records, daily
+              emails, and storage); upgrading to a paid plan raises those limits. Your data is
+              preserved whether you remain on the free plan or upgrade.
             </p>
           </section>
 

@@ -368,17 +368,17 @@ function FeaturesPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-rivvra-500/[0.06] via-transparent to-emerald-500/[0.04]" />
             <div className="relative space-y-5">
               <h2 className="text-2xl lg:text-3xl font-bold text-white tracking-[-0.02em]">
-                Try every app free for 14 days
+                Get every app — free, forever
               </h2>
               <p className="text-dark-400 max-w-md mx-auto text-sm">
-                All apps included. No credit card required.
+                All 14 apps on the Free plan. No credit card required.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
                 <Link
                   to="/signup"
                   className="px-8 py-3.5 bg-rivvra-500 text-dark-950 rounded-xl text-sm font-semibold hover:bg-rivvra-400 transition-all hover:shadow-lg hover:shadow-rivvra-500/25 inline-flex items-center justify-center gap-2"
                 >
-                  Start free trial
+                  Start for free
                   <ArrowRight className="w-4 h-4" />
                 </Link>
                 <Link

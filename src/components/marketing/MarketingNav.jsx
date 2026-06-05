@@ -46,7 +46,7 @@ export default function MarketingNav({ activePage }) {
             to="/signup"
             className="ml-1 px-5 py-2 bg-rivvra-500 text-dark-950 rounded-lg text-[13px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-lg hover:shadow-rivvra-500/25 flex items-center gap-1.5"
           >
-            Start free trial
+            Start for free
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -89,7 +89,7 @@ export default function MarketingNav({ activePage }) {
                 onClick={() => setMobileOpen(false)}
                 className="block w-full text-center px-5 py-3 bg-rivvra-500 text-dark-950 rounded-xl text-sm font-semibold hover:bg-rivvra-400 transition-colors"
               >
-                Start free trial
+                Start for free
               </Link>
             </div>
           </div>

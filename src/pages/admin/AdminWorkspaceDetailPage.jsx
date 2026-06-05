@@ -3,14 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../utils/api';
 import {
   Building2, ArrowLeft, Loader2, Save, Users, Shield,
-  Clock, AlertCircle, Globe, Calendar, ChevronRight,
+  AlertCircle, Globe, Calendar, ChevronRight,
   Database, RotateCcw, Trash2, Download
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
 const ALL_APPS = ['outreach', 'timesheet', 'employee', 'contacts', 'crm', 'ats'];
-const PLAN_OPTIONS = ['trial', 'pro', 'enterprise'];
-const TRIAL_STATUS_OPTIONS = ['none', 'active', 'grace', 'archived'];
+const PLAN_OPTIONS = ['free', 'core', 'all_apps', 'pro', 'enterprise'];
 
 function AdminWorkspaceDetailPage() {
   const { orgId } = useParams();
@@ -27,7 +26,6 @@ function AdminWorkspaceDetailPage() {
   const [editPlan, setEditPlan] = useState('');
   const [editSeats, setEditSeats] = useState(0);
   const [editApps, setEditApps] = useState([]);
-  const [editTrialStatus, setEditTrialStatus] = useState('');
 
   // Backup state
   const [backups, setBackups] = useState([]);
@@ -52,10 +50,9 @@ function AdminWorkspaceDetailPage() {
       setStats(res.stats);
 
       // Set editable fields
-      setEditPlan(res.workspace.plan || 'trial');
+      setEditPlan(res.workspace.plan || 'free');
       setEditSeats(res.workspace.billing?.seatsTotal || 0);
       setEditApps(res.workspace.enabledApps || []);
-      setEditTrialStatus(res.workspace.trial?.status || 'none');
     } catch (err) {
       setError(err.message || 'Failed to load workspace');
     } finally {
@@ -137,7 +134,6 @@ function AdminWorkspaceDetailPage() {
         plan: editPlan,
         billing: { seatsTotal: editSeats },
         enabledApps: editApps,
-        trial: { status: editTrialStatus },
       });
 
       setSaveSuccess('Workspace updated successfully');
@@ -240,20 +236,6 @@ function AdminWorkspaceDetailPage() {
             </div>
           </div>
 
-          {/* Trial Status */}
-          <div>
-            <label className="block text-xs font-medium text-dark-400 mb-1.5 uppercase tracking-wider">Trial Status</label>
-            <select
-              value={editTrialStatus}
-              onChange={(e) => setEditTrialStatus(e.target.value)}
-              className="input-field text-sm"
-            >
-              {TRIAL_STATUS_OPTIONS.map(s => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
-            </select>
-          </div>
-
           {/* Enabled Apps */}
           <div>
             <label className="block text-xs font-medium text-dark-400 mb-2 uppercase tracking-wider">Enabled Apps</label>
@@ -285,23 +267,8 @@ function AdminWorkspaceDetailPage() {
           </button>
         </div>
 
-        {/* Trial & Billing Info — Read Only */}
+        {/* Billing & Owner Info — Read Only */}
         <div className="space-y-6">
-          {/* Trial Info */}
-          <div className="bg-dark-900/50 border border-dark-800 rounded-xl p-5 space-y-3">
-            <h2 className="text-base font-semibold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400" /> Trial Details
-            </h2>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <InfoRow label="Status" value={workspace?.trial?.status || 'none'} />
-              <InfoRow label="Started" value={formatDate(workspace?.trial?.startedAt)} />
-              <InfoRow label="Expires" value={formatDate(workspace?.trial?.expiresAt)} />
-              <InfoRow label="Grace Expires" value={formatDate(workspace?.trial?.graceExpiresAt)} />
-              <InfoRow label="Hard Delete At" value={formatDate(workspace?.trial?.hardDeleteAt)} />
-              <InfoRow label="Converted" value={formatDate(workspace?.trial?.convertedAt)} />
-            </div>
-          </div>
-
           {/* Owner Info */}
           <div className="bg-dark-900/50 border border-dark-800 rounded-xl p-5 space-y-3">
             <h2 className="text-base font-semibold text-white flex items-center gap-2">

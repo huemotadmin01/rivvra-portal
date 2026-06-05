@@ -30,7 +30,6 @@ const APP_COLORS = {
   ats:   { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/20' },
   sign:  { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/20' },
   org:   { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-  trial: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
 };
 
 const STATUS_COLORS = {
@@ -39,8 +38,8 @@ const STATUS_COLORS = {
   skipped: { bg: 'bg-amber-500/10',   text: 'text-amber-400',   border: 'border-amber-500/20',   icon: Clock },
 };
 
-const APP_LABELS = { auth: 'Auth', ats: 'ATS', sign: 'Sign', org: 'Org', trial: 'Trial' };
-const APPS = ['auth', 'ats', 'sign', 'org', 'trial'];
+const APP_LABELS = { auth: 'Auth', ats: 'ATS', sign: 'Sign', org: 'Org' };
+const APPS = ['auth', 'ats', 'sign', 'org'];
 const STATUSES = ['sent', 'failed'];
 const LIMIT = 20;
 
