@@ -703,14 +703,16 @@ function LandingPage() {
           <Reveal className="text-center max-w-xl mx-auto mb-12">
             <Eyebrow>pricing</Eyebrow>
             <h2 className="font-marketing text-[34px] lg:text-[46px] font-bold text-white tracking-[-0.025em] leading-[1.05]">
-              Two plans. Per-seat. No surprises.
+              Start free. Pay only as you grow.
             </h2>
+            <p className="text-dark-400 text-lg mt-5">All 14 apps on every plan — per-seat, no surprises.</p>
           </Reveal>
 
-          <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+          <div className="grid sm:grid-cols-3 gap-5 max-w-3xl mx-auto">
             {[
-              { plan: 'Core', price: '$10', desc: 'ATS, CRM, Contacts, Employee, Sign, Payroll', featured: false },
-              { plan: 'All Apps', price: '$15', desc: 'Everything in Core + Outreach, ESS, To-Do', featured: true },
+              { plan: 'Free', price: '$0', desc: 'All 14 apps · up to 3 users · 50 emails/day · 2 GB', featured: false },
+              { plan: 'Growth', price: '$3', desc: 'All 14 apps · up to 25 users · 500 emails/day · 25 GB', featured: true },
+              { plan: 'Scale', price: '$6', desc: 'All 14 apps · unlimited users · 2,000 emails/day · 100 GB', featured: false },
             ].map((item) => (
               <Reveal key={item.plan} delay={item.featured ? 0.08 : 0}>
                 <div className={`relative h-full rounded-2xl p-7 ${item.featured ? 'border border-rivvra-500/30 bg-rivvra-500/[0.04]' : 'border border-white/[0.08] bg-white/[0.02]'}`}>
@@ -721,7 +723,7 @@ function LandingPage() {
                   )}
                   <p className="text-[12px] font-semibold text-dark-400 uppercase tracking-widest mb-3">{item.plan}</p>
                   <p className="font-marketing text-[44px] font-bold text-white leading-none tracking-[-0.02em]">
-                    {item.price}<span className="text-base font-normal text-dark-500"> /user/mo</span>
+                    {item.price}<span className="text-base font-normal text-dark-500"> {item.price === '$0' ? '/forever' : '/user/mo'}</span>
                   </p>
                   <p className="text-[13px] text-dark-500 mt-4 leading-relaxed">{item.desc}</p>
                 </div>
