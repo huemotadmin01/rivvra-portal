@@ -1140,15 +1140,17 @@ function SignupPage() {
         {/* Content */}
         <div className="relative max-w-lg text-center space-y-8">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-3">One platform, every app you need</h2>
-            <p className="text-dark-400">Outreach, timesheets, CRM, and recruiting — built for staffing agencies.</p>
+            <h2 className="text-2xl font-bold text-white mb-3">One platform, fourteen apps</h2>
+            <p className="text-dark-400">Outreach, hiring, timesheets, payroll, invoicing &amp; more — built for staffing agencies.</p>
           </div>
 
           {/* App Preview Cards */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { name: 'Outreach', desc: 'Email sequences & leads', color: 'rivvra', live: true },
+              { name: 'Outreach', desc: 'Find & email leads', color: 'rivvra', live: true },
               { name: 'ESS', desc: 'Hours, payroll & approvals', color: 'blue', live: true },
+              { name: 'Invoicing', desc: 'Invoices & payments', color: 'amber', live: true },
+              { name: 'Sign', desc: 'E-signatures', color: 'indigo', live: true },
               { name: 'CRM', desc: 'Deals & pipeline', color: 'purple', live: false },
               { name: 'ATS', desc: 'Recruiting & placements', color: 'orange', live: false },
             ].map((app, i) => (
