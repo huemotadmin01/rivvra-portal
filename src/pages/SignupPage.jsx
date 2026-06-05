@@ -479,10 +479,17 @@ function SignupPage() {
         }
       }
 
-      navigate('/home');
+      // Route into the freshly-created workspace. (Plain "/home" isn't a real
+      // route — app pages live under /org/:slug — so it fell through to the
+      // marketing landing page.)
+      let slug = data.user?.defaultOrgSlug || data.org?.slug;
+      if (!slug) {
+        try { slug = JSON.parse(localStorage.getItem('rivvra_user') || '{}').defaultOrgSlug; } catch { /* ignore */ }
+      }
+      navigate(slug ? `/org/${slug}/home` : '/find-workspace');
     } catch (err) {
       console.error('Failed to save onboarding data:', err);
-      navigate('/home');
+      navigate('/find-workspace');
     }
   };
 
