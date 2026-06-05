@@ -120,6 +120,8 @@ function SignupPage() {
     senderTitle: '',
     teamSize: '',
     useCase: '',
+    country: '',          // ISO code: 'IN' | 'US' | 'CA' — sets the default company's country/currency
+    seedSampleData: true, // optional: seed sample records so apps aren't empty
   });
 
   // Company autocomplete
@@ -958,9 +960,50 @@ function SignupPage() {
                 <p className="text-xs text-dark-500 mt-1">Used in email templates as {'{{senderTitle}}'}</p>
               </div>
 
+              {/* Country — sets the default company's country & currency */}
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-2">
+                  Where is your company based? <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { code: 'IN', name: 'India', flag: '🇮🇳', cur: 'INR' },
+                    { code: 'US', name: 'United States', flag: '🇺🇸', cur: 'USD' },
+                    { code: 'CA', name: 'Canada', flag: '🇨🇦', cur: 'CAD' },
+                  ].map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, country: c.code })}
+                      className={`rounded-xl border p-3 text-center transition-all ${
+                        formData.country === c.code
+                          ? 'border-rivvra-500 bg-rivvra-500/10'
+                          : 'border-dark-700 bg-dark-800/50 hover:border-dark-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{c.flag}</div>
+                      <div className="text-sm font-medium text-white">{c.name}</div>
+                      <div className="text-[11px] text-dark-500">{c.cur}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-dark-500 mt-1">Sets your company&apos;s currency and regional defaults. You can change it later.</p>
+              </div>
+
+              {/* Optional: seed sample data */}
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.seedSampleData}
+                  onChange={(e) => setFormData({ ...formData, seedSampleData: e.target.checked })}
+                  className="w-4 h-4 rounded accent-rivvra-500"
+                />
+                <span className="text-sm text-dark-300">Add sample data so I can explore the apps right away</span>
+              </label>
+
               <button
                 onClick={handleQuestionnaireNext}
-                disabled={!formData.companyName.trim() || !formData.senderTitle.trim()}
+                disabled={!formData.companyName.trim() || !formData.senderTitle.trim() || !formData.country}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
                 Continue
