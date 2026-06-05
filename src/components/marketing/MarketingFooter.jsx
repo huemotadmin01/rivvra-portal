@@ -23,6 +23,16 @@ export default function MarketingFooter() {
             <ul className="space-y-3">
               <li><Link to="/features" className="text-sm text-dark-400 hover:text-white transition-colors">Features</Link></li>
               <li><Link to="/pricing" className="text-sm text-dark-400 hover:text-white transition-colors">Pricing</Link></li>
+              <li>
+                <a
+                  href="https://chromewebstore.google.com/detail/rivvra-linkedin-lead-extr/afmjolicodhklbppiknbbjpjbhfjhipm"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-dark-400 hover:text-white transition-colors"
+                >
+                  Chrome Extension
+                </a>
+              </li>
               <li><Link to="/signup" className="text-sm text-dark-400 hover:text-white transition-colors">Get started</Link></li>
             </ul>
           </div>

@@ -6,8 +6,13 @@ import {
   Contact, PenTool, CheckSquare, Briefcase, UserSearch,
   Receipt, Wallet, Award, FolderArchive, BookOpen,
   Layers, Shield, Zap, Globe, KeyRound, Boxes, Search, Bell,
+  Chrome, Linkedin, Sparkles, MapPin, BadgeCheck,
 } from 'lucide-react';
+
+// Live Chrome Web Store listing for the LinkedIn Lead Extractor extension
+const EXTENSION_URL = 'https://chromewebstore.google.com/detail/rivvra-linkedin-lead-extr/afmjolicodhklbppiknbbjpjbhfjhipm';
 import MarketingLayout from '../components/marketing/MarketingLayout';
+import RivvraLogo from '../components/RivvraLogo';
 
 // ── All 9 platform apps ──────────────────────────────────────────────────────
 const PLATFORM_APPS = [
@@ -275,6 +280,107 @@ function ProductMock() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CHROME EXTENSION MOCK — LinkedIn profile with the Rivvra side panel docked.
+// In-code mock, neutral sample data; mirrors the real extension's panel.
+// ═══════════════════════════════════════════════════════════════════════════════
+function ExtensionMock() {
+  return (
+    <div className="relative rounded-2xl bg-dark-900/90 shadow-mock overflow-hidden backdrop-blur-xl">
+      {/* browser chrome */}
+      <div className="flex items-center gap-3 px-4 h-11 border-b border-white/[0.06] bg-white/[0.015]">
+        <div className="flex gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]/80" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]/80" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]/80" />
+        </div>
+        <div className="flex-1 flex justify-center">
+          <div className="flex items-center gap-2 px-3 h-6 rounded-md bg-dark-950/60 border border-white/[0.05] text-[11px] text-dark-500 max-w-xs w-full justify-center">
+            <Linkedin className="w-3 h-3 text-[#0a66c2]" />
+            linkedin.com/in/jordan-rivera
+          </div>
+        </div>
+        <div className="w-7 h-6 rounded-md bg-rivvra-500/15 ring-1 ring-rivvra-500/25 flex items-center justify-center">
+          <Chrome className="w-3.5 h-3.5 text-rivvra-300" />
+        </div>
+      </div>
+
+      <div className="flex">
+        {/* LinkedIn profile (left) */}
+        <div className="hidden sm:block flex-1 p-5 min-w-0">
+          <div className="h-12 rounded-lg bg-gradient-to-r from-[#0a66c2]/30 to-[#0a66c2]/10 mb-[-24px]" />
+          <div className="px-1">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#0a66c2] to-[#004182] ring-4 ring-dark-900 flex items-center justify-center">
+              <span className="text-white font-bold text-lg">JR</span>
+            </div>
+            <p className="mt-3 text-[15px] font-semibold text-dark-100">Jordan Rivera</p>
+            <p className="text-[12px] text-dark-400">VP of Talent Acquisition · Northwind</p>
+            <p className="text-[11px] text-dark-500 mt-0.5 flex items-center gap-1">
+              <MapPin className="w-3 h-3" /> San Francisco, CA · 500+ connections
+            </p>
+            <div className="flex gap-2 mt-3">
+              <div className="h-7 w-20 rounded-full bg-[#0a66c2]/80" />
+              <div className="h-7 w-16 rounded-full border border-dark-700" />
+            </div>
+            <div className="mt-5 space-y-2">
+              <div className="h-2 rounded bg-white/[0.05] w-3/4" />
+              <div className="h-2 rounded bg-white/[0.04] w-full" />
+              <div className="h-2 rounded bg-white/[0.04] w-5/6" />
+            </div>
+          </div>
+        </div>
+
+        {/* Rivvra extension panel (right) */}
+        <div className="w-full sm:w-[290px] flex-shrink-0 border-l border-white/[0.06] bg-dark-950/50 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <RivvraLogo className="w-5 h-5" />
+              <span className="text-[13px] font-semibold text-white">Lead Extractor</span>
+            </div>
+            <span className="text-[10px] font-medium text-rivvra-300 bg-rivvra-500/15 ring-1 ring-rivvra-500/25 rounded px-1.5 py-0.5">
+              Synced
+            </span>
+          </div>
+
+          <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Extracted from profile</p>
+          <div className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+            {[
+              { k: 'Name', v: 'Jordan Rivera' },
+              { k: 'Title', v: 'VP of Talent Acquisition' },
+              { k: 'Company', v: 'Northwind' },
+            ].map((f) => (
+              <div key={f.k} className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-dark-500">{f.k}</span>
+                <span className="text-[11px] text-dark-200 font-medium truncate">{f.v}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
+              <span className="text-[11px] text-dark-500">Email</span>
+              <span className="text-[11px] text-rivvra-300 font-medium flex items-center gap-1 truncate">
+                <BadgeCheck className="w-3 h-3 flex-shrink-0" /> j.rivera@northwind.com
+              </span>
+            </div>
+          </div>
+
+          {/* profile type toggle */}
+          <div className="flex gap-1 mt-3 p-0.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+            <div className="flex-1 text-center text-[11px] py-1.5 rounded-md text-dark-400">Candidate</div>
+            <div className="flex-1 text-center text-[11px] py-1.5 rounded-md bg-white/[0.06] text-white font-medium">Client</div>
+          </div>
+
+          {/* actions */}
+          <button className="w-full mt-3 h-9 rounded-lg bg-rivvra-500 text-dark-950 text-[12px] font-semibold flex items-center justify-center gap-1.5">
+            <Check className="w-3.5 h-3.5" /> Save to Outreach
+          </button>
+          <button className="w-full mt-2 h-9 rounded-lg border border-white/[0.08] bg-white/[0.02] text-dark-200 text-[12px] font-medium flex items-center justify-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-rivvra-400" /> Generate AI email
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 function LandingPage() {
@@ -498,6 +604,64 @@ function LandingPage() {
                     </div>
                     <span className="text-[11px] text-dark-600 ml-1">+7 with per-app access</span>
                   </div>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════ CHROME EXTENSION ═══════════════════════════════════ */}
+      <section className="relative py-20 lg:py-28 border-t border-white/[0.05]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-14 lg:gap-16 items-center">
+            <Reveal>
+              <Eyebrow>chrome extension</Eyebrow>
+              <h2 className="font-marketing text-[34px] lg:text-[46px] font-bold text-white tracking-[-0.025em] leading-[1.05]">
+                Capture leads without leaving LinkedIn
+              </h2>
+              <p className="text-dark-400 text-lg mt-5 leading-relaxed">
+                The <span className="text-dark-200 font-medium">Rivvra LinkedIn Lead Extractor</span> pulls a prospect's
+                name, title, company and verified email straight from their profile or a search —
+                then saves them to Outreach in one click.
+              </p>
+              <ul className="space-y-3 mt-8">
+                {[
+                  { icon: Linkedin, title: 'One-click extraction', text: 'Grab profile data from any LinkedIn page or search result.' },
+                  { icon: BadgeCheck, title: 'Email enrichment', text: 'Find and verify a working email for every contact.' },
+                  { icon: Sparkles, title: 'AI emails, DMs & notes', text: 'Draft personalized outreach right inside the panel.' },
+                  { icon: Mail, title: 'Straight into Outreach', text: 'Saved leads sync to your workspace — no copy-paste.' },
+                ].map((item) => (
+                  <li key={item.title} className="flex items-start gap-3.5 group">
+                    <div className="w-9 h-9 rounded-xl border border-white/[0.07] bg-white/[0.02] flex items-center justify-center flex-shrink-0 group-hover:border-rivvra-500/30 group-hover:bg-rivvra-500/[0.06] transition-colors">
+                      <item.icon className="w-4 h-4 text-rivvra-400" />
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-semibold text-dark-100">{item.title}</p>
+                      <p className="text-dark-500 text-sm leading-relaxed">{item.text}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-4">
+                <a
+                  href={EXTENSION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group px-6 py-3.5 bg-rivvra-500 text-dark-950 rounded-xl text-[15px] font-semibold hover:bg-rivvra-400 transition-all hover:shadow-xl hover:shadow-rivvra-500/25 inline-flex items-center justify-center gap-2"
+                >
+                  <Chrome className="w-4 h-4" />
+                  Add to Chrome
+                </a>
+                <span className="text-dark-500 text-[13px]">Free · auto-pairs with your Rivvra login</span>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.12}>
+              <div className="relative">
+                <div className="absolute -inset-6 aurora blur-[80px] opacity-40 pointer-events-none" />
+                <div className="relative">
+                  <ExtensionMock />
                 </div>
               </div>
             </Reveal>
