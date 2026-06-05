@@ -70,6 +70,58 @@ async function generateTypedSignature(text, font, width = 400, height = 150) {
   return canvas.toDataURL('image/png');
 }
 
+// Process an uploaded signature image into a clean, transparent PNG.
+//
+// Two problems with raw uploads (especially JPGs, which are the common case
+// for a scanned/photographed signature):
+//   1. JPG has no alpha channel, so the white paper background paints an
+//      opaque box over whatever sits under the signature field on the doc.
+//   2. pdf-lib only embeds PNG/JPG reliably; normalizing to PNG here means
+//      the sealed PDF always gets an embeddable image regardless of source.
+//
+// We knock out near-white pixels (the paper) to transparent with a small
+// feather band so stroke edges stay smooth, keep the ink opaque, and
+// preserve any alpha the source already had. Output is always image/png.
+// Falls back to the original data URL if anything goes wrong (e.g. a
+// cross-origin taint — not possible for a local FileReader URL, but cheap
+// insurance) so an upload never silently produces nothing.
+function processSignatureImage(dataUrl) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] === 0) continue; // already transparent — leave it
+            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            if (lum >= 250) {
+              d[i + 3] = 0; // paper white → fully transparent
+            } else if (lum > 220) {
+              // Feather the paper→ink transition so edges don't get a halo.
+              d[i + 3] = Math.round(d[i + 3] * ((250 - lum) / 30));
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch {
+      resolve(dataUrl);
+    }
+  });
+}
+
 // Generate a short hash fingerprint from a data URL for signature identification
 async function generateSignatureHash(dataUrl) {
   if (!dataUrl) return '';
@@ -141,8 +193,12 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => {
-      setUploadedImageUrl(reader.result);
+    reader.onload = async () => {
+      // Normalize to a clean transparent PNG (knocks out the white paper
+      // background and guarantees an embeddable format). Falls back to the
+      // raw upload internally if processing fails.
+      const cleaned = await processSignatureImage(reader.result);
+      setUploadedImageUrl(cleaned);
     };
     reader.onerror = () => setUploadError('Failed to read the file. Try again.');
     reader.readAsDataURL(file);
