@@ -501,6 +501,33 @@ export default function TimesheetEntry() {
 
   const isReadOnly = !canEdit;
 
+  // Per-day display metadata — derived once, shared by the desktop grid and the
+  // mobile list so both views stay in lockstep. Pure read of existing state; no
+  // behaviour change.
+  const getDayMeta = (day) => {
+    const entry = entries[day] || { hours: '', status: null };
+    const dayOfWeek = new Date(year, month - 1, day).getDay();
+    const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
+    const hoursNum = parseFloat(entry.hours) || 0;
+    const dateObj = new Date(year, month - 1, day);
+    const hasStatus = entry.status !== null;
+    return {
+      entry,
+      isWeekendDay,
+      hoursNum,
+      hasStatus,
+      weekday: dayNames[dayOfWeek],
+      isToday: day === now.getDate() && month === now.getMonth() + 1 && year === now.getFullYear(),
+      isWeekendIdle: entry.status === 'weekend',
+      isNonWorking: entry.status === 'leave' || entry.status === 'holiday',
+      isWeekendWorking: isWeekendDay && entry.status === 'working' && hoursNum > 0,
+      isPastUnfilled: dateObj < new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !isWeekendDay && !hasStatus,
+      isPreStart: isBeforeProjectStart(day),
+      isPostEnd: isAfterProjectEnd(day),
+      isPostLwd: isAfterLwd(day),
+    };
+  };
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div className="text-center space-y-3">
@@ -581,7 +608,7 @@ export default function TimesheetEntry() {
         </div>
       ) : (
         <>
-          <div className="card overflow-hidden">
+          <div className="card overflow-hidden hidden sm:block">
             <div className="grid grid-cols-7 border-b border-dark-800">
               {dayNames.map(d => (
                 <div key={d} className="text-center py-2 text-xs font-medium text-dark-400 bg-dark-800/50">{d}</div>
@@ -702,6 +729,85 @@ export default function TimesheetEntry() {
             </div>
           </div>
 
+          {/* Mobile: one tappable row per day — far easier to read & tap than a 7-col grid */}
+          <div className="sm:hidden card divide-y divide-dark-800/60 overflow-hidden">
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const m = getDayMeta(day);
+
+              const dateBlock = (
+                <div className="w-10 shrink-0 text-center">
+                  <div className="text-[10px] font-medium uppercase tracking-wide text-dark-500">{m.weekday}</div>
+                  <div className={`text-base font-semibold leading-tight ${m.isToday ? 'text-rivvra-400' : m.isWeekendDay ? 'text-dark-500' : 'text-dark-200'}`}>{day}</div>
+                </div>
+              );
+
+              // Days outside the project/LWD window — read-only, with reason
+              if (m.isPreStart || m.isPostEnd || m.isPostLwd) {
+                const reason = m.isPostLwd ? 'Beyond last working date'
+                  : m.isPreStart ? 'Before project start' : 'After project end';
+                return (
+                  <div key={day} className="flex items-center gap-3 px-3 py-2.5 bg-dark-900/50 opacity-50">
+                    {dateBlock}
+                    <span className="text-xs text-dark-600">{reason}</span>
+                  </div>
+                );
+              }
+
+              const rowBg = m.isPastUnfilled ? 'bg-amber-500/5' :
+                m.isWeekendWorking ? 'bg-blue-500/5' :
+                m.isWeekendDay ? 'bg-dark-800/20' :
+                m.isNonWorking ? (m.entry.status === 'leave' ? 'bg-red-500/5' : 'bg-purple-500/5') :
+                m.entry.status === 'working' && m.hoursNum > 8 ? 'bg-blue-500/5' :
+                m.entry.status === 'working' && m.hoursNum > 0 ? 'bg-emerald-500/5' : '';
+
+              const cycleDisabled = isReadOnly || (m.entry.status === 'holiday' && !canHoliday) || (eligible && m.entry.status === 'leave');
+              const inputDisabled = isReadOnly || m.entry.status === 'leave' || m.entry.status === 'holiday';
+              const showBadge = m.hasStatus && m.entry.status !== 'weekend';
+
+              return (
+                <div key={day} className={`flex items-center gap-3 px-3 py-2 ${rowBg}`}>
+                  {dateBlock}
+
+                  {/* Status — tap to cycle (same rules as desktop) */}
+                  <button
+                    onClick={() => cycleStatus(day)}
+                    disabled={cycleDisabled}
+                    className="flex-1 flex justify-start items-center min-w-0 disabled:cursor-default"
+                  >
+                    {showBadge ? (
+                      <span className={`px-2 py-1 rounded text-xs font-medium text-white ${statusColors[m.entry.status]}`}>
+                        {statusLabels[m.entry.status]}
+                      </span>
+                    ) : m.isWeekendDay ? (
+                      cycleDisabled
+                        ? <span className="text-xs text-dark-500">Weekend</span>
+                        : <span className="px-2 py-1 rounded text-xs font-medium text-dark-400 border border-dashed border-dark-700">+ Add work</span>
+                    ) : cycleDisabled ? (
+                      <span className="text-xs text-dark-600">—</span>
+                    ) : (
+                      <span className="px-2 py-1 rounded text-xs font-medium text-dark-400 border border-dashed border-dark-700">Tap to set status</span>
+                    )}
+                  </button>
+
+                  {/* Hours */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      value={m.isWeekendIdle ? '' : (m.entry.hours === '' || m.entry.hours === null || m.entry.hours === undefined ? '' : m.entry.hours)}
+                      onChange={e => setHours(day, e.target.value)}
+                      onFocus={e => e.target.select()}
+                      disabled={inputDisabled}
+                      min="0" max="24" step="0.5" placeholder={m.isWeekendDay ? '0' : '8'}
+                      className="w-14 h-9 text-center text-sm font-semibold bg-dark-800 border border-dark-700 rounded text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500 focus:border-rivvra-500 disabled:bg-dark-800/50 disabled:text-dark-500 placeholder:text-dark-600 placeholder:font-normal [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="text-xs text-dark-500">h</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 sm:gap-4 card p-3 sm:p-4">
             {Object.entries(statusColors).map(([key, color]) => (
               <div key={key} className="flex items-center gap-1.5">
@@ -721,15 +827,15 @@ export default function TimesheetEntry() {
           {!isReadOnly && (
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <button onClick={handleReset} disabled={saving}
-                className="bg-dark-800 border border-dark-700 text-dark-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 hover:text-white flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors">
+                className="flex-1 sm:flex-none justify-center bg-dark-800 border border-dark-700 text-dark-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 hover:text-white flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors">
                 <RotateCcw size={14} /> Reset
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="bg-dark-800 border border-dark-700 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors">
+                className="flex-1 sm:flex-none justify-center bg-dark-800 border border-dark-700 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-dark-700 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors">
                 <Save size={14} /> Save Draft
               </button>
               <button onClick={handleSubmit} disabled={saving}
-                className="bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors">
+                className="flex-1 sm:flex-none justify-center bg-rivvra-500 text-dark-950 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-rivvra-400 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors">
                 <Send size={14} /> Submit
               </button>
             </div>

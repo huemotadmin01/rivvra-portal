@@ -402,8 +402,8 @@ export default function MyAttendancePage() {
         </div>
       </div>
 
-      {/* ── Calendar Grid ── */}
-      <div className="bg-dark-800/70 rounded-2xl border border-dark-700/50 overflow-hidden backdrop-blur-sm">
+      {/* ── Calendar Grid (desktop / tablet) ── */}
+      <div className="hidden sm:block bg-dark-800/70 rounded-2xl border border-dark-700/50 overflow-hidden backdrop-blur-sm">
         {/* Day headers */}
         <div className="grid grid-cols-7">
           {dayHeaders.map((d, i) => (
@@ -505,6 +505,66 @@ export default function MyAttendancePage() {
         </div>
       </div>
 
+      {/* ── Calendar List (mobile) — one tappable row per day, easier to read & tap ── */}
+      <div className="sm:hidden bg-dark-800/70 rounded-2xl border border-dark-700/50 divide-y divide-dark-700/40 overflow-hidden backdrop-blur-sm">
+        {[...entries]
+          .sort((a, b) => (toISTDateStr(a.date) < toISTDateStr(b.date) ? -1 : 1))
+          .map((entry) => {
+            const dateStr = toISTDateStr(entry.date);
+            const [yy, mm, dd] = dateStr.split('-').map(Number);
+            const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(yy, mm - 1, dd).getDay()];
+            const displayStatus = getEntryDisplayStatus(entry);
+            const config = statusConfig[displayStatus] || statusConfig.working;
+            const isLocked = ['leave', 'weekend', 'not_joined'].includes(entry.status);
+            const isPostLwd = isAfterLwd(dateStr);
+            const isFuture = dateStr > todayStr;
+            const isClickable = canEdit && !isLocked && !isPostLwd && !isFuture;
+            const isToday = dateStr === todayStr;
+            const isWeekend = entry.status === 'weekend';
+            const isMuted = isPostLwd || isFuture || entry.status === 'not_joined' || entry.status === 'upcoming';
+            const cellTooltip = isPostLwd
+              ? `Beyond last working date (${lastWorkingDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})`
+              : isFuture
+                ? "Can't mark attendance for a future date"
+                : '';
+            const emoji = config.emoji && !['—', '·'].includes(config.emoji) ? `${config.emoji} ` : '';
+
+            return (
+              <div
+                key={dateStr}
+                title={cellTooltip}
+                onClick={() => isClickable && handleDayClick(dateStr)}
+                className={`flex items-center gap-3 px-3 py-2.5 transition-colors
+                  ${isToday ? 'bg-rivvra-500/5' : isWeekend ? 'bg-dark-900/30' : ''}
+                  ${isMuted ? 'opacity-50' : ''}
+                  ${isClickable ? 'cursor-pointer active:bg-dark-700/30' : ''}
+                `}
+              >
+                {/* Date */}
+                <div className="w-10 shrink-0 text-center">
+                  <div className="text-[10px] font-medium uppercase tracking-wide text-dark-500">{weekday}</div>
+                  <div className={`text-base font-semibold leading-tight ${isToday ? 'text-rivvra-400' : isWeekend ? 'text-dark-600' : 'text-dark-200'}`}>{dd}</div>
+                </div>
+
+                {/* Status */}
+                <div className="flex-1 min-w-0">
+                  <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-semibold border ${config.border} ${config.bg} ${config.text}`}>
+                    {emoji}{config.label}
+                  </span>
+                  {entry.notes && ['leave', 'holiday', 'holiday_work', 'holiday_work_half'].includes(entry.status) && (
+                    <span className={`block text-[10px] mt-0.5 truncate ${config.text} opacity-70`} title={entry.notes}>
+                      {entry.notes.replace('Leave: ', '')}
+                    </span>
+                  )}
+                </div>
+
+                {/* Tap affordance */}
+                {isClickable && <ChevronRight size={16} className="text-dark-600 shrink-0" />}
+              </div>
+            );
+          })}
+      </div>
+
       {/* ── Legend ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 px-1">
         {Object.entries(statusConfig).filter(([k]) => k !== 'weekend' && k !== 'not_joined').map(([key, cfg]) => (
@@ -524,11 +584,11 @@ export default function MyAttendancePage() {
               Weekday: <span className="text-emerald-400">Present</span> → <span className="text-amber-400">Half</span> → <span className="text-red-400">Absent</span> · Holiday: <span className="text-orange-400">HW</span> → <span className="text-orange-300">½HW</span> → <span className="text-purple-400">Holiday</span>
             </p>
           </div>
-          <div className="flex items-center gap-2.5 self-end sm:self-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto self-stretch sm:self-auto">
             <button
               onClick={handleReset}
               disabled={saving || submitting}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-800 text-dark-400 hover:bg-dark-700 hover:text-white border border-dark-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-medium"
+              className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-800 text-dark-400 hover:bg-dark-700 hover:text-white border border-dark-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-medium"
             >
               <RotateCcw size={15} />
               Reset
@@ -536,7 +596,7 @@ export default function MyAttendancePage() {
             <button
               onClick={handleSave}
               disabled={saving || !dirty}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-700/80 text-white hover:bg-dark-600 border border-dark-600/50 hover:border-dark-500/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-medium"
+              className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-700/80 text-white hover:bg-dark-600 border border-dark-600/50 hover:border-dark-500/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-medium"
             >
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               Save Draft
@@ -544,10 +604,11 @@ export default function MyAttendancePage() {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-bold shadow-lg shadow-rivvra-500/20 hover:shadow-rivvra-400/30"
+              className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97] text-sm font-bold shadow-lg shadow-rivvra-500/20 hover:shadow-rivvra-400/30"
             >
               {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-              Submit for Approval
+              <span className="sm:hidden">Submit</span>
+              <span className="hidden sm:inline">Submit for Approval</span>
             </button>
           </div>
         </div>
