@@ -613,6 +613,7 @@ export const APP_REGISTRY = {
       const isAdmin = orgAppRole === 'admin';
       return [
         { type: 'item', path: '/settings/general', label: 'General Settings', icon: Settings },
+        ...(isAdmin ? [{ type: 'item', path: '/upgrade', label: 'Billing & Plan', icon: CreditCard }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/companies', label: 'Companies', icon: Building2 }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/users', label: 'Users & Teams', icon: Users }] : []),
         ...(isAdmin ? [{ type: 'item', path: '/settings/email-logs', label: 'Email Logs', icon: Inbox }] : []),
