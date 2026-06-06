@@ -35,6 +35,9 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          # Sentry frontend DSN — injected at build time (Vite inlines it).
+          # No-op if the secret is unset, so this is safe before you add it.
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - name: Copy 404.html for SPA routing
         run: cp dist/index.html dist/404.html
