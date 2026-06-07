@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useOrg } from '../context/OrgContext';
 import api from '../utils/api';
+import UsagePanel from '../components/UsagePanel';
 import {
   Crown, Check, Users, AlertTriangle, Sparkles,
   CreditCard, ExternalLink, Loader2, ArrowRight, Shield,
@@ -187,6 +188,8 @@ function UpgradePage() {
           <p className="text-dark-400">Manage your {currentOrg?.name} subscription</p>
         </div>
 
+        <UsagePanel orgSlug={orgSlug} />
+
         {/* Current Plan Card */}
         <div className="bg-dark-900 rounded-xl border border-dark-700 p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
@@ -336,6 +339,8 @@ function UpgradePage() {
           </button>
         </div>
       </div>
+
+      <UsagePanel orgSlug={orgSlug} />
 
       {/* Plan Selection */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

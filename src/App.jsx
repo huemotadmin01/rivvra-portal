@@ -6,6 +6,7 @@ import { PlatformProvider } from './context/PlatformContext';
 import { OrgProvider } from './context/OrgContext';
 import { CompanyProvider } from './context/CompanyContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import PlanLimitListener from './components/PlanLimitListener';
 import PlatformLayout from './components/platform/PlatformLayout';
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -336,6 +337,7 @@ function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+      <PlanLimitListener />
       <ErrorBoundary>
       <Router>
         <PlatformProvider>

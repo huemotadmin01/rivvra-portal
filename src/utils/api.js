@@ -120,6 +120,21 @@ class ApiClient {
             if (k !== 'message' && !(k in err)) err[k] = data[k];
           }
         }
+        // Plan-cap hit: broadcast a global event so a top-level listener can
+        // show an "Upgrade to continue" prompt without every call site handling it.
+        if (
+          response.status === 402 &&
+          data &&
+          ['RECORDS_LIMIT', 'EMAILS_LIMIT', 'SEATS_EXHAUSTED'].includes(data.code)
+        ) {
+          try {
+            window.dispatchEvent(
+              new CustomEvent('rivvra:plan-limit', {
+                detail: { code: data.code, error: data.error, limit: data.limit, used: data.used },
+              }),
+            );
+          } catch { /* non-browser env */ }
+        }
         throw err;
       }
 
@@ -1040,6 +1055,10 @@ class ApiClient {
   }
 
   // ─── Billing ──────────────────────────────────────────────────────────────
+
+  async getOrgUsage(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/usage`);
+  }
 
   async upgradeOrg(orgSlug, data) {
     return this.request(`/api/org/${orgSlug}/upgrade`, {
