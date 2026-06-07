@@ -125,7 +125,7 @@ class ApiClient {
         if (
           response.status === 402 &&
           data &&
-          ['RECORDS_LIMIT', 'EMAILS_LIMIT', 'SEATS_EXHAUSTED'].includes(data.code)
+          ['RECORDS_LIMIT', 'EMAILS_LIMIT', 'SEATS_EXHAUSTED', 'STORAGE_LIMIT'].includes(data.code)
         ) {
           try {
             window.dispatchEvent(
