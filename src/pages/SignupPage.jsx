@@ -16,34 +16,44 @@ const STEPS = {
   OTP: 'otp',
   PASSWORD: 'password',
   COMPANY: 'company',
-  ROLE: 'role',
+  BUSINESS_TYPE: 'business_type',
   TEAM_SIZE: 'team_size',
-  USE_CASE: 'use_case',
+  GOALS: 'goals',
+  WORKSPACE_PREFS: 'workspace_prefs',
 };
 
-const ROLES = [
-  { id: 'founder', label: 'Founder / CEO', icon: '👑' },
-  { id: 'sales', label: 'Sales / BD', icon: '💼' },
-  { id: 'marketing', label: 'Marketing', icon: '📢' },
-  { id: 'recruiter', label: 'Recruiter / HR', icon: '🎯' },
-  { id: 'consultant', label: 'Consultant', icon: '💡' },
-  { id: 'freelancer', label: 'Freelancer', icon: '🚀' },
-  { id: 'other', label: 'Other', icon: '✨' },
+// What kind of organization — drives copy + sensible app defaults.
+const BUSINESS_TYPES = [
+  { id: 'staffing_agency', label: 'Staffing / Recruiting agency', icon: '🧑‍💼' },
+  { id: 'internal_hr', label: 'Internal HR / People team', icon: '🏢' },
+  { id: 'rpo', label: 'RPO / Managed services', icon: '⚙️' },
+  { id: 'consultancy', label: 'Consultancy', icon: '💡' },
+  { id: 'other', label: 'Something else', icon: '✨' },
 ];
 
 const TEAM_SIZES = [
-  { id: 'solo', label: 'Just me', description: 'Solo entrepreneur' },
-  { id: '2-10', label: '2-10', description: 'Small team' },
-  { id: '11-50', label: '11-50', description: 'Growing company' },
-  { id: '51-200', label: '51-200', description: 'Mid-size business' },
-  { id: '200+', label: '200+', description: 'Enterprise' },
+  { id: 'solo', label: 'Just me', description: 'Solo / founder' },
+  { id: '2-5', label: '2–5', description: 'Small team' },
+  { id: '6-25', label: '6–25', description: 'Growing team' },
+  { id: '26-100', label: '26–100', description: 'Established' },
+  { id: '100+', label: '100+', description: 'Large org' },
 ];
 
-const USE_CASES = [
-  { id: 'lead_gen', label: 'Contact Generation', description: 'Find and reach potential customers', icon: Target },
-  { id: 'recruiting', label: 'Recruiting', description: 'Source and hire talent', icon: Users },
-  { id: 'sales', label: 'Sales Outreach', description: 'Book more meetings', icon: Briefcase },
-  { id: 'marketing', label: 'Marketing Research', description: 'Analyze prospects and markets', icon: Building2 },
+// Primary goals (multi-select) — each maps to apps the backend enables.
+const GOAL_OPTIONS = [
+  { id: 'recruit', label: 'Fill roles / recruit', icon: '🎯' },
+  { id: 'clients', label: 'Manage clients & deals', icon: '🤝' },
+  { id: 'payroll', label: 'Run payroll & HR', icon: '💸' },
+  { id: 'outreach', label: 'Outbound outreach', icon: '📣' },
+  { id: 'invoicing', label: 'Invoicing & payments', icon: '🧾' },
+];
+
+const HEARD_FROM_OPTIONS = [
+  { id: 'google', label: 'Google search' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'referral', label: 'Referral' },
+  { id: 'twitter', label: 'X / Twitter' },
+  { id: 'other', label: 'Other' },
 ];
 
 // Blocked personal email domains
@@ -116,12 +126,13 @@ function SignupPage() {
   // Questionnaire data
   const [formData, setFormData] = useState({
     companyName: '',
-    role: '',
     senderTitle: '',
-    teamSize: '',
-    useCase: '',
     country: '',          // ISO code: 'IN' | 'US' | 'CA' — sets the default company's country/currency
-    seedSampleData: true, // optional: seed sample records so apps aren't empty
+    businessType: '',     // staffing_agency | internal_hr | rpo | consultancy | other
+    teamSize: '',
+    goals: [],            // multi-select; drives which apps get enabled
+    heardFrom: '',        // attribution
+    seedSampleData: false, // opt-in: seed removable example data (default = clean)
   });
 
   // Company autocomplete
@@ -448,7 +459,7 @@ function SignupPage() {
 
   // Handle questionnaire navigation
   const handleQuestionnaireNext = () => {
-    const stepOrder = [STEPS.COMPANY, STEPS.ROLE, STEPS.TEAM_SIZE, STEPS.USE_CASE];
+    const stepOrder = [STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
     const currentIndex = stepOrder.indexOf(currentStep);
     
     if (currentIndex < stepOrder.length - 1) {
@@ -459,7 +470,7 @@ function SignupPage() {
   };
 
   const handleQuestionnaireBack = () => {
-    const stepOrder = [STEPS.COMPANY, STEPS.ROLE, STEPS.TEAM_SIZE, STEPS.USE_CASE];
+    const stepOrder = [STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
     const currentIndex = stepOrder.indexOf(currentStep);
     
     if (currentIndex > 0) {
@@ -497,7 +508,7 @@ function SignupPage() {
 
   // Calculate progress
   const getProgress = () => {
-    const steps = [STEPS.AUTH, STEPS.OTP, STEPS.PASSWORD, STEPS.COMPANY, STEPS.ROLE, STEPS.TEAM_SIZE, STEPS.USE_CASE];
+    const steps = [STEPS.AUTH, STEPS.OTP, STEPS.PASSWORD, STEPS.COMPANY, STEPS.BUSINESS_TYPE, STEPS.TEAM_SIZE, STEPS.GOALS, STEPS.WORKSPACE_PREFS];
     const currentIndex = steps.indexOf(currentStep);
     return Math.round(((currentIndex + 1) / steps.length) * 100);
   };
@@ -990,17 +1001,6 @@ function SignupPage() {
                 <p className="text-xs text-dark-500 mt-1">Sets your company&apos;s currency and regional defaults. You can change it later.</p>
               </div>
 
-              {/* Optional: seed sample data */}
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={formData.seedSampleData}
-                  onChange={(e) => setFormData({ ...formData, seedSampleData: e.target.checked })}
-                  className="w-4 h-4 rounded accent-rivvra-500"
-                />
-                <span className="text-sm text-dark-300">Add sample data so I can explore the apps right away</span>
-              </label>
-
               <button
                 onClick={handleQuestionnaireNext}
                 disabled={!formData.companyName.trim() || !formData.senderTitle.trim() || !formData.country}
@@ -1012,8 +1012,8 @@ function SignupPage() {
             </div>
           )}
 
-          {/* Step 5: Role */}
-          {currentStep === STEPS.ROLE && (
+          {/* Step 5: Business type */}
+          {currentStep === STEPS.BUSINESS_TYPE && (
             <div className="space-y-6">
               <button
                 onClick={handleQuestionnaireBack}
@@ -1025,33 +1025,34 @@ function SignupPage() {
 
               <div>
                 <h1 className="text-3xl font-bold text-white mb-2">
-                  What's your role?
+                  What best describes your business?
                 </h1>
                 <p className="text-dark-400">
-                  We'll customize Rivvra for your workflow.
+                  We'll tailor Rivvra to how you work.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {ROLES.map((role) => (
+              <div className="space-y-3">
+                {BUSINESS_TYPES.map((bt) => (
                   <button
-                    key={role.id}
-                    onClick={() => setFormData({ ...formData, role: role.id })}
-                    className={`p-4 rounded-xl border text-left transition-all ${
-                      formData.role === role.id
+                    key={bt.id}
+                    onClick={() => setFormData({ ...formData, businessType: bt.id })}
+                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                      formData.businessType === bt.id
                         ? 'border-rivvra-500 bg-rivvra-500/10'
                         : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
                     }`}
                   >
-                    <span className="text-2xl mb-2 block">{role.icon}</span>
-                    <span className="font-medium text-white">{role.label}</span>
+                    <span className="text-2xl">{bt.icon}</span>
+                    <span className="font-medium text-white flex-1">{bt.label}</span>
+                    {formData.businessType === bt.id && <Check className="w-5 h-5 text-rivvra-400" />}
                   </button>
                 ))}
               </div>
 
               <button
                 onClick={handleQuestionnaireNext}
-                disabled={!formData.role}
+                disabled={!formData.businessType}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
                 Continue
@@ -1113,8 +1114,8 @@ function SignupPage() {
             </div>
           )}
 
-          {/* Step 7: Use Case */}
-          {currentStep === STEPS.USE_CASE && (
+          {/* Step 7: Goals (multi-select) */}
+          {currentStep === STEPS.GOALS && (
             <div className="space-y-6">
               <button
                 onClick={handleQuestionnaireBack}
@@ -1126,43 +1127,128 @@ function SignupPage() {
 
               <div>
                 <h1 className="text-3xl font-bold text-white mb-2">
-                  What will you use Rivvra for?
+                  What do you want to do first?
                 </h1>
                 <p className="text-dark-400">
-                  We'll set up your workspace accordingly.
+                  Pick all that apply — we'll switch on the right apps for you.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {USE_CASES.map((useCase) => (
-                  <button
-                    key={useCase.id}
-                    onClick={() => setFormData({ ...formData, useCase: useCase.id })}
-                    className={`p-4 rounded-xl border text-left transition-all ${
-                      formData.useCase === useCase.id
-                        ? 'border-rivvra-500 bg-rivvra-500/10'
-                        : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
-                    }`}
-                  >
-                    <useCase.icon className={`w-6 h-6 mb-3 ${
-                      formData.useCase === useCase.id ? 'text-rivvra-400' : 'text-dark-500'
-                    }`} />
-                    <span className="font-medium text-white block">{useCase.label}</span>
-                    <span className="text-sm text-dark-400">{useCase.description}</span>
-                  </button>
-                ))}
+              <div className="space-y-3">
+                {GOAL_OPTIONS.map((g) => {
+                  const selected = formData.goals.includes(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => setFormData({
+                        ...formData,
+                        goals: selected
+                          ? formData.goals.filter((x) => x !== g.id)
+                          : [...formData.goals, g.id],
+                      })}
+                      className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                        selected
+                          ? 'border-rivvra-500 bg-rivvra-500/10'
+                          : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
+                      }`}
+                    >
+                      <span className="text-2xl">{g.icon}</span>
+                      <span className="font-medium text-white flex-1">{g.label}</span>
+                      <span className={`w-5 h-5 rounded border flex items-center justify-center ${selected ? 'bg-rivvra-500 border-rivvra-500' : 'border-dark-600'}`}>
+                        {selected && <Check className="w-3.5 h-3.5 text-dark-950" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={handleQuestionnaireNext}
+                disabled={formData.goals.length === 0}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                Continue
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
+          {/* Step 8: Workspace preferences (attribution + sample data) */}
+          {currentStep === STEPS.WORKSPACE_PREFS && (
+            <div className="space-y-6">
+              <button
+                onClick={handleQuestionnaireBack}
+                className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">
+                  One last thing
+                </h1>
+                <p className="text-dark-400">
+                  Choose how your workspace should start.
+                </p>
+              </div>
+
+              {/* Sample data choice */}
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => setFormData({ ...formData, seedSampleData: true })}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    formData.seedSampleData
+                      ? 'border-rivvra-500 bg-rivvra-500/10'
+                      : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
+                  }`}
+                >
+                  <span className="font-medium text-white block">Start with example data</span>
+                  <span className="text-sm text-dark-400">Explore with sample jobs &amp; candidates. Remove anytime in one click.</span>
+                </button>
+                <button
+                  onClick={() => setFormData({ ...formData, seedSampleData: false })}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    !formData.seedSampleData
+                      ? 'border-rivvra-500 bg-rivvra-500/10'
+                      : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'
+                  }`}
+                >
+                  <span className="font-medium text-white block">Start with a clean workspace</span>
+                  <span className="text-sm text-dark-400">Empty and ready for your real data.</span>
+                </button>
+              </div>
+
+              {/* Attribution (optional) */}
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-2">How did you hear about us? <span className="text-dark-500 font-normal">(optional)</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {HEARD_FROM_OPTIONS.map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() => setFormData({ ...formData, heardFrom: formData.heardFrom === h.id ? '' : h.id })}
+                      className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                        formData.heardFrom === h.id
+                          ? 'border-rivvra-500 bg-rivvra-500/10 text-white'
+                          : 'border-dark-700 bg-dark-800/50 text-dark-300 hover:border-dark-600'
+                      }`}
+                    >
+                      {h.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button
                 onClick={handleComplete}
-                disabled={!formData.useCase || loading}
+                disabled={loading}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    Get started
+                    Create my workspace
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}

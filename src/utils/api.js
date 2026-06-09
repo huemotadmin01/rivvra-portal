@@ -1060,6 +1060,10 @@ class ApiClient {
     return this.request(`/api/org/${orgSlug}/usage`);
   }
 
+  async removeSampleData(orgSlug) {
+    return this.request(`/api/org/${orgSlug}/sample-data`, { method: 'DELETE' });
+  }
+
   async upgradeOrg(orgSlug, data) {
     return this.request(`/api/org/${orgSlug}/upgrade`, {
       method: 'POST',
