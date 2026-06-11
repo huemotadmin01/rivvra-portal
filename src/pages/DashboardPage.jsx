@@ -15,6 +15,78 @@ import { exportLeadsToCSV } from '../utils/csvExport';
 import ComingSoonModal from '../components/ComingSoonModal';
 import { useExtensionDetector } from '../hooks/useExtensionDetector';
 
+// ==================== Outreach Get Started Checklist ====================
+function OutreachGetStarted({ gmailConnected, contactsCount, sequencesCount, orgPath }) {
+  const steps = [
+    {
+      label: 'Connect your Gmail',
+      desc: 'Send sequences from your own email address',
+      done: gmailConnected,
+      to: orgPath('/outreach/engage'),
+      cta: 'Connect',
+    },
+    {
+      label: 'Add your first contacts',
+      desc: 'Use the Chrome extension on LinkedIn, or add contacts manually',
+      done: contactsCount > 0,
+      to: orgPath('/outreach/leads'),
+      cta: 'Add contacts',
+    },
+    {
+      label: 'Create your first sequence',
+      desc: 'Build a multi-step email campaign and enroll contacts',
+      done: sequencesCount > 0,
+      to: orgPath('/outreach/engage'),
+      cta: 'Create sequence',
+    },
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  if (doneCount === steps.length) return null;
+
+  return (
+    <div className="mb-8 bg-gradient-to-br from-dark-800/80 to-dark-900/80 border border-dark-700/60 rounded-2xl p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rivvra-500/20 to-blue-500/20 flex items-center justify-center">
+          <Sparkles className="w-5 h-5 text-rivvra-400" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold text-white">Get started with Outreach</h3>
+          <p className="text-xs text-dark-400 mt-0.5">{doneCount} of {steps.length} steps complete</p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+              step.done ? 'bg-rivvra-500/5 border-rivvra-500/20' : 'bg-dark-800 border-dark-700'
+            }`}
+          >
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+              step.done ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-700 text-white border border-dark-500'
+            }`}>
+              {step.done ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${step.done ? 'text-rivvra-400' : 'text-white'}`}>{step.label}</p>
+              {!step.done && <p className="text-xs text-dark-500 mt-0.5">{step.desc}</p>}
+            </div>
+            {!step.done && (
+              <Link
+                to={step.to}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors flex-shrink-0"
+              >
+                {step.cta}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ==================== Lead Search Card ====================
 function LeadSearchCard({ lead, onClick, onSave, onAddToList, isSaved, saving }) {
   const hasEmail = lead.email && lead.email !== 'noemail@domain.com' && lead.email !== 'No email found' && lead.email !== '';
@@ -362,6 +434,9 @@ function DashboardPage() {
   const [comingSoonFeature, setComingSoonFeature] = useState('');
   const [savedLeadsCount, setSavedLeadsCount] = useState(0);
   const [lists, setLists] = useState([]);
+  const [gmailStatus, setGmailStatus] = useState(null);
+  const [sequencesCount, setSequencesCount] = useState(null);
+  const [emailsToday, setEmailsToday] = useState(null);
 
   // Search state
   const [searchMode, setSearchMode] = useState('contacts');
@@ -441,15 +516,21 @@ function DashboardPage() {
   // ---- Dashboard data fetch ----
   const fetchData = useCallback(async () => {
     try {
-      const [featuresRes, leadsRes, listsRes] = await Promise.all([
+      const [featuresRes, leadsRes, listsRes, gmailRes, seqRes, emailsRes] = await Promise.all([
         api.getFeatures(),
         api.getLeads({ limit: 1 }).catch(() => ({ total: 0 })),
-        api.getLists().catch(() => ({ lists: [] }))
+        api.getLists().catch(() => ({ lists: [] })),
+        api.getGmailStatus().catch(() => null),
+        api.getSequences().catch(() => null),
+        api.getEmailsSentToday().catch(() => null),
       ]);
 
       if (featuresRes.success) setFeatures(featuresRes);
       setSavedLeadsCount(leadsRes.total || 0);
       setLists(listsRes.lists || []);
+      setGmailStatus(gmailRes);
+      setSequencesCount(seqRes?.sequences ? seqRes.sequences.length : null);
+      setEmailsToday(emailsRes?.success ? emailsRes : null);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -821,6 +902,16 @@ function DashboardPage() {
           ) : (
             /* ==================== DEFAULT DASHBOARD VIEW ==================== */
             <>
+              {/* Outreach Get Started Checklist (new workspaces) */}
+              {!loading && gmailStatus && sequencesCount !== null && (
+                <OutreachGetStarted
+                  gmailConnected={!!gmailStatus.connected}
+                  contactsCount={savedLeadsCount}
+                  sequencesCount={sequencesCount}
+                  orgPath={orgPath}
+                />
+              )}
+
               {/* Extension Install Banner */}
               {!extInstalled && !extBannerDismissed && !isExtDismissed() && (
                 <div className="mb-8 relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/5 via-rivvra-500/5 to-blue-500/5">
@@ -921,6 +1012,45 @@ function DashboardPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Daily email quota (only once Gmail is connected) */}
+              {emailsToday && gmailStatus?.connected && (() => {
+                const userLimit = emailsToday.limit || 0;
+                const orgLimit = emailsToday.org?.limit ?? null;
+                const effectiveLimit = orgLimit !== null ? Math.min(userLimit, orgLimit) : userLimit;
+                const orgBound = orgLimit !== null && orgLimit < userLimit;
+                const sent = orgBound ? (emailsToday.org?.sent || 0) : (emailsToday.sent || 0);
+                const pct = effectiveLimit > 0 ? Math.min(100, Math.round((sent / effectiveLimit) * 100)) : 0;
+                const atLimit = effectiveLimit > 0 && sent >= effectiveLimit;
+                const nearLimit = !atLimit && pct >= 80;
+                return (
+                  <div className={`mb-8 px-5 py-4 rounded-xl border ${
+                    atLimit ? 'bg-red-500/5 border-red-500/30' : nearLimit ? 'bg-amber-500/5 border-amber-500/25' : 'bg-dark-800/40 border-dark-700'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Mail className={`w-4 h-4 ${atLimit ? 'text-red-400' : nearLimit ? 'text-amber-400' : 'text-dark-400'}`} />
+                        <span className="text-sm font-medium text-white">Emails sent today</span>
+                        {orgBound && <span className="text-xs text-dark-500">(org-wide plan limit)</span>}
+                      </div>
+                      <span className={`text-sm font-semibold ${atLimit ? 'text-red-400' : nearLimit ? 'text-amber-400' : 'text-dark-300'}`}>
+                        {sent} / {effectiveLimit}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${atLimit ? 'bg-red-500' : nearLimit ? 'bg-amber-500' : 'bg-rivvra-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    {atLimit && (
+                      <p className="text-xs text-red-400 mt-2">
+                        Daily email limit reached — queued sequence emails will resume sending tomorrow.{orgBound ? ' Upgrade your plan to raise the org-wide limit.' : ' You can raise your personal limit in Outreach settings.'}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Quick Stats Row */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
