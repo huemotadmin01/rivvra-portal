@@ -5,7 +5,82 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { Loader2, Plus, FileText } from 'lucide-react';
+import { Loader2, Plus, FileText, Sparkles, CheckCircle2, ArrowRight, Settings2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+// ---------------------------------------------------------------------------
+// Get-started checklist (new workspaces) — mirrors the CRM/Outreach cards.
+// ---------------------------------------------------------------------------
+function InvoicingGetStarted({ orgPath, companyDetailsDone, companyId, invoicesTotal }) {
+  const steps = [
+    {
+      label: 'Complete your company details',
+      desc: 'Address and tax ID appear on every invoice PDF you send',
+      done: companyDetailsDone,
+      to: orgPath(companyId ? `/settings/companies/${companyId}` : '/settings/companies'),
+      cta: 'Company settings',
+    },
+    {
+      label: 'Create your first invoice',
+      desc: 'Drafts are free to edit — a number is only assigned when you confirm',
+      done: invoicesTotal > 0,
+      to: orgPath('/invoicing/invoices/new'),
+      cta: 'New invoice',
+    },
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  if (doneCount === steps.length) return null;
+
+  return (
+    <div className="bg-gradient-to-br from-dark-800/80 to-dark-900/80 border border-dark-700/60 rounded-2xl p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rivvra-500/20 to-blue-500/20 flex items-center justify-center">
+          <Sparkles className="w-5 h-5 text-rivvra-400" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold text-white">Get started with Invoicing</h3>
+          <p className="text-xs text-dark-400 mt-0.5">{doneCount} of {steps.length} steps complete</p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+              step.done ? 'bg-rivvra-500/5 border-rivvra-500/20' : 'bg-dark-800 border-dark-700'
+            }`}
+          >
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+              step.done ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-700 text-white border border-dark-500'
+            }`}>
+              {step.done ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${step.done ? 'text-rivvra-400' : 'text-white'}`}>{step.label}</p>
+              {!step.done && <p className="text-xs text-dark-500 mt-0.5">{step.desc}</p>}
+            </div>
+            {!step.done && (
+              <Link
+                to={step.to}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors flex-shrink-0"
+              >
+                {step.cta}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        ))}
+        <Link
+          to={orgPath('/invoicing/journals')}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-dark-700 text-dark-400 hover:text-white hover:border-dark-500 transition-colors"
+        >
+          <Settings2 className="w-4 h-4 flex-shrink-0" />
+          <span className="text-xs">Optional: review your journals, taxes and payment terms (defaults are set up for you)</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Journal Card (Odoo-style)
@@ -273,21 +348,26 @@ export default function InvoicingDashboard() {
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // null = not yet loaded → checklist hidden until counts are known.
+  const [invoicesTotal, setInvoicesTotal] = useState(null);
 
   useEffect(() => {
     if (!orgSlug) return;
     setLoading(true);
     setError(false);
+    setInvoicesTotal(null);
 
     Promise.all([
       invoicingApi.getJournalStats(orgSlug).catch(() => null),
       invoicingApi.getDashboard(orgSlug).catch(() => null),
+      invoicingApi.listInvoices(orgSlug, { limit: 1 }).catch(() => null),
     ])
-      .then(([statsRes, dashRes]) => {
+      .then(([statsRes, dashRes, listRes]) => {
         // Reset state on every company switch so stale numbers from the
         // previous company never linger if the new fetches return nothing.
         setJournals(statsRes?.success && statsRes.journalStats ? statsRes.journalStats : []);
         setKpis(dashRes?.success && dashRes.kpis ? dashRes.kpis : null);
+        setInvoicesTotal(listRes?.success ? (listRes.total ?? 0) : null);
         if (!statsRes?.success && !dashRes?.success) {
           setError(true);
         }
@@ -295,6 +375,9 @@ export default function InvoicingDashboard() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [orgSlug, currentCompany?._id]);
+
+  const companyAddr = currentCompany?.address || {};
+  const companyDetailsDone = !!(companyAddr.street || companyAddr.city);
 
   // ---------- Loading ----------
   if (loading) {
@@ -355,6 +438,16 @@ export default function InvoicingDashboard() {
             New Invoice
           </button>
         </div>
+
+        {/* ---- Get-started checklist (new workspaces) ---- */}
+        {invoicesTotal !== null && (
+          <InvoicingGetStarted
+            orgPath={orgPath}
+            companyDetailsDone={companyDetailsDone}
+            companyId={currentCompany?._id}
+            invoicesTotal={invoicesTotal}
+          />
+        )}
 
         {/* ---- KPI Strip ---- */}
         {kpis && (
