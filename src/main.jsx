@@ -1,3 +1,5 @@
+// Must run before any chunk that uses newer browser APIs (pdfjs-dist).
+import './lib/polyfills.js'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
