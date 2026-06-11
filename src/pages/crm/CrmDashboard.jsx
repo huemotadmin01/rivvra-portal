@@ -8,8 +8,83 @@ import { formatMoney } from '../../utils/currency';
 import {
   Briefcase, Trophy, XCircle, ArrowRight,
   Clock, Loader2, Calendar, BarChart3, RefreshCw,
+  Sparkles, CheckCircle2, Settings2,
 } from 'lucide-react';
 import MyTeamWidget from '../../components/shared/MyTeamWidget';
+import contactsApi from '../../utils/contactsApi';
+
+// New-workspace onboarding card — mirrors OutreachGetStarted on the Outreach
+// dashboard. Hidden once the org has both a contact and an opportunity.
+function CrmGetStarted({ slug, contactsTotal, oppsTotal }) {
+  const steps = [
+    {
+      label: 'Add your first contact',
+      desc: 'Opportunities are linked to a contact — add a client company or person first',
+      done: contactsTotal > 0,
+      to: `/org/${slug}/contacts/list`,
+      cta: 'Add contact',
+    },
+    {
+      label: 'Create your first opportunity',
+      desc: 'Track a deal through your pipeline from first contact to converted',
+      done: oppsTotal > 0,
+      to: `/org/${slug}/crm/opportunities/new`,
+      cta: 'New opportunity',
+    },
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  if (doneCount === steps.length) return null;
+
+  return (
+    <div className="bg-gradient-to-br from-dark-800/80 to-dark-900/80 border border-dark-700/60 rounded-2xl p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rivvra-500/20 to-blue-500/20 flex items-center justify-center">
+          <Sparkles className="w-5 h-5 text-rivvra-400" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold text-white">Get started with CRM</h3>
+          <p className="text-xs text-dark-400 mt-0.5">{doneCount} of {steps.length} steps complete</p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+              step.done ? 'bg-rivvra-500/5 border-rivvra-500/20' : 'bg-dark-800 border-dark-700'
+            }`}
+          >
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+              step.done ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-700 text-white border border-dark-500'
+            }`}>
+              {step.done ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${step.done ? 'text-rivvra-400' : 'text-white'}`}>{step.label}</p>
+              {!step.done && <p className="text-xs text-dark-500 mt-0.5">{step.desc}</p>}
+            </div>
+            {!step.done && (
+              <Link
+                to={step.to}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors flex-shrink-0"
+              >
+                {step.cta}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        ))}
+        <Link
+          to={`/org/${slug}/crm/config/stages`}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-dark-700 text-dark-400 hover:text-white hover:border-dark-500 transition-colors"
+        >
+          <Settings2 className="w-4 h-4 flex-shrink-0" />
+          <span className="text-xs">Optional: customize your pipeline stages to match how you sell</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function KPICard({ label, value, icon: Icon, color = 'dark', subtitle, to }) {
   const colorMap = {
@@ -124,6 +199,26 @@ export default function CrmDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rangeKey, setRangeKey] = useState(() => readStoredRange());
+  // Get-started checklist counts — unbounded (the dashboard KPIs are
+  // range-filtered, so a 30d window on an older org would wrongly re-show
+  // the checklist). null = not yet loaded → card hidden.
+  const [setupCounts, setSetupCounts] = useState(null);
+
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    Promise.all([
+      contactsApi.list(slug, { limit: 1 }).catch(() => null),
+      crmApi.listOpportunities(slug, { limit: 1 }).catch(() => null),
+    ]).then(([contactsRes, oppsRes]) => {
+      if (cancelled) return;
+      setSetupCounts({
+        contacts: contactsRes?.total ?? null,
+        opps: oppsRes?.total ?? null,
+      });
+    });
+    return () => { cancelled = true; };
+  }, [slug, currentCompany?._id]);
 
   // 2026-05-14: CRM Reporting page merged into Dashboard. The analytical
   // section (win/loss/conversion rates, salesperson performance) renders
@@ -184,6 +279,11 @@ export default function CrmDashboard() {
 
   return (
     <div className="p-4 space-y-6 max-w-6xl mx-auto">
+      {/* ── Get-started checklist (new workspaces; hides once set up) ── */}
+      {setupCounts && setupCounts.contacts !== null && setupCounts.opps !== null && (
+        <CrmGetStarted slug={slug} contactsTotal={setupCounts.contacts} oppsTotal={setupCounts.opps} />
+      )}
+
       {/* ── Header — title + scope badge on the left, range picker on the right ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
