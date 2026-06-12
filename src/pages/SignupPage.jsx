@@ -118,6 +118,7 @@ function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
 
   // Invite token (from InviteAcceptPage redirect)
   const [inviteToken, setInviteToken] = useState('');
@@ -329,6 +330,11 @@ function SignupPage() {
     
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    if (!agreeTerms) {
+      setError('Please accept the Terms of Service and Privacy Policy to continue');
       return;
     }
 
@@ -624,6 +630,13 @@ function SignupPage() {
                 </button>
               </form>
 
+              <p className="text-xs text-dark-500 text-center">
+                By continuing, you agree to Rivvra's{' '}
+                <Link to="/terms" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline">Terms of Service</Link>
+                {' '}and{' '}
+                <Link to="/privacy" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline">Privacy Policy</Link>.
+              </p>
+
               <p className="text-sm text-dark-500 text-center">
                 Already have an account?{' '}
                 <Link to="/find-workspace" className="text-rivvra-400 hover:text-rivvra-300">
@@ -843,9 +856,26 @@ function SignupPage() {
                   )}
                 </div>
 
+                {/* Terms acceptance — account is created on this submit */}
+                <label className="flex items-start gap-3 cursor-pointer select-none pt-1">
+                  <input
+                    type="checkbox"
+                    checked={agreeTerms}
+                    onChange={(e) => setAgreeTerms(e.target.checked)}
+                    disabled={loading}
+                    className="mt-0.5 w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500"
+                  />
+                  <span className="text-xs text-dark-400 leading-relaxed">
+                    I agree to Rivvra's{' '}
+                    <Link to="/terms" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline" onClick={(e) => e.stopPropagation()}>Terms of Service</Link>
+                    {' '}and{' '}
+                    <Link to="/privacy" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline" onClick={(e) => e.stopPropagation()}>Privacy Policy</Link>
+                  </span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={loading || !fullName || passwordStrength.strength === 'weak' || password !== confirmPassword}
+                  disabled={loading || !fullName || passwordStrength.strength === 'weak' || password !== confirmPassword || !agreeTerms}
                   className="btn-primary w-full flex items-center justify-center gap-2 mt-6"
                 >
                   {loading ? (

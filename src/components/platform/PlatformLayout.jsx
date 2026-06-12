@@ -10,6 +10,7 @@ import TopBar from './TopBar';
 import AppSidebar from './AppSidebar';
 import AlumniBanner from './AlumniBanner';
 import SampleDataBanner from '../SampleDataBanner';
+import UsageWarningBanner from '../UsageWarningBanner';
 import Breadcrumbs from './Breadcrumbs';
 import { ArrowLeftRight, X, Loader2 } from 'lucide-react';
 
@@ -122,6 +123,7 @@ function PlatformLayout() {
             }`}>
               <AlumniBanner />
               <SampleDataBanner />
+              <UsageWarningBanner />
               {!isFullScreenPage && <Breadcrumbs />}
               {/* Hold rendering of company-scoped pages until CompanyContext
                   has hydrated — i.e. OrgContext has settled and the

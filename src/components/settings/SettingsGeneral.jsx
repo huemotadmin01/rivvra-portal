@@ -137,6 +137,146 @@ function AuthenticationSection({ currentOrg }) {
 }
 
 /**
+ * DangerZoneSection — owner-only: full data export (JSONL download) and
+ * permanent organization deletion (type-the-slug confirmation; backend also
+ * writes an audit row and detaches user accounts without deleting them).
+ */
+function DangerZoneSection({ currentOrg }) {
+  const slug = currentOrg?.slug;
+  const [exporting, setExporting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmSlug, setConfirmSlug] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleExport = async () => {
+    if (!slug || exporting) return;
+    setExporting(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('rivvra_token');
+      const resp = await fetch(`${api.baseUrl}/api/org/${slug}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}));
+        throw new Error(j.error || `Export failed (${resp.status})`);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rivvra-export-${slug}-${new Date().toISOString().slice(0, 10)}.jsonl`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (confirmSlug !== slug || deleting) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await api.request(`/api/org/${slug}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmSlug }),
+      });
+      // Org is gone — clear local state and send the user to the landing page.
+      localStorage.removeItem('rivvra_user');
+      window.location.href = '/';
+    } catch (err) {
+      setError(err.message || 'Deletion failed');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="bg-dark-800/50 border border-red-500/20 rounded-2xl p-6 mt-6">
+      <div className="flex items-center gap-2 mb-1">
+        <AlertTriangle className="w-4 h-4 text-red-400" />
+        <h2 className="text-base font-semibold text-white">Danger zone</h2>
+      </div>
+      <p className="text-xs text-dark-400 mb-5">Export everything your organization owns, or permanently close this workspace.</p>
+
+      {/* Export */}
+      <div className="flex items-center justify-between gap-4 py-3 border-t border-dark-700/60">
+        <div>
+          <p className="text-sm font-medium text-white">Export all data</p>
+          <p className="text-xs text-dark-500 mt-0.5">Download every record in this workspace as a JSON Lines file. Files stored in the cloud are referenced by URL.</p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-2 px-3 py-2 bg-dark-700 text-dark-200 border border-dark-600 rounded-lg text-sm font-medium hover:text-white hover:border-dark-500 disabled:opacity-50 transition-colors flex-shrink-0"
+        >
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {exporting ? 'Exporting…' : 'Export data'}
+        </button>
+      </div>
+
+      {/* Delete */}
+      <div className="py-3 border-t border-dark-700/60">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-white">Delete this organization</p>
+            <p className="text-xs text-dark-500 mt-0.5">Permanently removes all workspace data for every member. User accounts are kept. This cannot be undone.</p>
+          </div>
+          {!deleteOpen && (
+            <button
+              onClick={() => { setDeleteOpen(true); setConfirmSlug(''); setError(''); }}
+              className="px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors flex-shrink-0"
+            >
+              Delete organization
+            </button>
+          )}
+        </div>
+        {deleteOpen && (
+          <div className="mt-4 p-4 bg-red-500/5 border border-red-500/20 rounded-xl">
+            <p className="text-xs text-dark-300 mb-2">
+              We strongly recommend exporting your data first. To confirm, type the workspace ID{' '}
+              <span className="font-mono font-semibold text-red-300">{slug}</span> below:
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={confirmSlug}
+                onChange={(e) => setConfirmSlug(e.target.value)}
+                placeholder={slug}
+                className="flex-1 px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white placeholder-dark-600 focus:outline-none focus:border-red-500"
+                disabled={deleting}
+              />
+              <button
+                onClick={handleDelete}
+                disabled={confirmSlug !== slug || deleting}
+                className="flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {deleting ? 'Deleting…' : 'Permanently delete'}
+              </button>
+              <button
+                onClick={() => { setDeleteOpen(false); setConfirmSlug(''); setError(''); }}
+                disabled={deleting}
+                className="px-3 py-2 text-dark-400 hover:text-white text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+    </div>
+  );
+}
+
+/**
  * DataBackupSection — Org owner backup management
  */
 function DataBackupSection({ currentOrg }) {
@@ -718,6 +858,9 @@ export default function SettingsGeneral() {
 
       {/* ═══════════════════════ DATA BACKUP ═══════════════════════ */}
       {isOrgOwner && <DataBackupSection currentOrg={currentOrg} />}
+
+      {/* ═══════════════════════ DANGER ZONE ═══════════════════════ */}
+      {isOrgOwner && <DangerZoneSection currentOrg={currentOrg} />}
     </div>
   );
 }
