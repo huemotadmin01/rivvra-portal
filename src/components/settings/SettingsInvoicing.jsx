@@ -165,6 +165,8 @@ export default function SettingsInvoicing() {
     enableStripePayments: false,
     enableRecurringInvoices: false,
     enableFollowUps: false,
+    // null = auto-detect from staffing signals; true = always; false = never.
+    requireConsultantOnLines: null,
   });
 
   // Reference data
@@ -200,6 +202,7 @@ export default function SettingsInvoicing() {
           enableStripePayments: s.enableStripePayments ?? false,
           enableRecurringInvoices: s.enableRecurringInvoices ?? false,
           enableFollowUps: s.enableFollowUps ?? false,
+          requireConsultantOnLines: typeof s.requireConsultantOnLines === 'boolean' ? s.requireConsultantOnLines : null,
         }));
 
         // Payment terms
@@ -351,6 +354,21 @@ export default function SettingsInvoicing() {
             enabled={settings.enableFollowUps}
             onChange={(v) => update('enableFollowUps', v)}
           />
+          <div className="py-4">
+            <label className="block text-sm font-medium text-white mb-0.5">Require Consultant on Invoice Lines</label>
+            <p className="text-sm text-dark-400 mb-2">
+              Staffing-augmentation billing requires a consultant and service dates on every customer-invoice line before it can be confirmed. Leave on Automatic unless you need to override.
+            </p>
+            <select
+              value={settings.requireConsultantOnLines === null ? 'auto' : settings.requireConsultantOnLines ? 'always' : 'never'}
+              onChange={e => update('requireConsultantOnLines', e.target.value === 'auto' ? null : e.target.value === 'always')}
+              className="w-full sm:w-72 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
+            >
+              <option value="auto">Automatic (detect from staffing apps)</option>
+              <option value="always">Always require</option>
+              <option value="never">Never require (services-only)</option>
+            </select>
+          </div>
         </div>
       </SectionCard>
 
