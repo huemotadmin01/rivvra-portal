@@ -123,18 +123,6 @@ const SEQUENCE_LABELS = {
 // Currency options
 // ---------------------------------------------------------------------------
 
-const CURRENCIES = [
-  { value: 'USD', label: 'USD - US Dollar' },
-  { value: 'EUR', label: 'EUR - Euro' },
-  { value: 'GBP', label: 'GBP - British Pound' },
-  { value: 'INR', label: 'INR - Indian Rupee' },
-  { value: 'AED', label: 'AED - UAE Dirham' },
-  { value: 'SGD', label: 'SGD - Singapore Dollar' },
-  { value: 'AUD', label: 'AUD - Australian Dollar' },
-  { value: 'CAD', label: 'CAD - Canadian Dollar' },
-  { value: 'JPY', label: 'JPY - Japanese Yen' },
-];
-
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
@@ -161,8 +149,8 @@ export default function SettingsInvoicing() {
     companyTaxId: '',
     defaultPaymentTermId: '',
     defaultTaxIds: [],
-    // Field names match the backend inv_settings schema so save/load round-trips.
-    currency: 'INR',
+    // Currency is per-company (Settings → Companies), not org-wide. Field names
+    // match the backend inv_settings schema so save/load round-trips.
     enableStripePayments: false,
     enableRecurring: false,
     enableFollowUps: false,
@@ -199,7 +187,6 @@ export default function SettingsInvoicing() {
           ...prev,
           defaultPaymentTermId: s.defaultPaymentTermId || s.defaultPaymentTerm || '',
           defaultTaxIds: s.defaultTaxIds || s.defaultTaxes || [],
-          currency: s.currency || 'INR',
           enableStripePayments: s.enableStripePayments ?? false,
           enableRecurring: s.enableRecurring ?? false,
           enableFollowUps: s.enableFollowUps ?? false,
@@ -306,18 +293,10 @@ export default function SettingsInvoicing() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm text-dark-300 mb-1">Default Currency</label>
-            <select
-              value={settings.currency}
-              onChange={e => update('currency', e.target.value)}
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
+          {/* Currency is managed per-company (Settings → Companies), not org-wide:
+              a multi-company org bills each internal company in its own currency.
+              On invoice create, company.currency takes precedence over the
+              org-level settings.currency fallback. So no org-level picker here. */}
           <div className="sm:col-span-2">
             <label className="block text-sm text-dark-300 mb-2">Default Taxes</label>
             <TaxMultiSelect
