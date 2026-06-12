@@ -5,9 +5,10 @@ import { usePeriod } from '../../context/PeriodContext';
 import { getPayrollRuns } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   IndianRupee, Users, TrendingUp, Shield, FileText,
-  Play, Lock, Eye, ChevronRight, Calendar,
+  Play, Lock, Eye, ChevronRight, Calendar, Globe, ArrowRight,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -43,6 +44,39 @@ export default function PayrollDashboardPage() {
   }, [orgSlug, currentCompany?._id]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
+
+  // India-only gate: statutory payroll (PF/ESI/PT/TDS, Form 16) only exists
+  // for INR companies today. Non-India admins get an explainer instead of an
+  // empty dashboard with raw 400s behind every action.
+  if (currentCompany && currentCompany.currency !== 'INR') {
+    return (
+      <div className="flex items-center justify-center py-24 px-6">
+        <div className="max-w-lg text-center">
+          <div className="w-16 h-16 rounded-2xl bg-dark-800 border border-dark-700 flex items-center justify-center mx-auto mb-5">
+            <Globe className="w-8 h-8 text-dark-400" />
+          </div>
+          <h2 className="text-lg font-semibold text-white mb-2">Payroll is currently available for India entities only</h2>
+          <p className="text-sm text-dark-400 leading-relaxed mb-6">
+            Statutory payroll (PF, ESI, Professional Tax, TDS and Form 16) is built for Indian
+            companies. {currentCompany?.name ? `"${currentCompany.name}"` : 'Your active company'} is
+            a {currentCompany?.currency || 'non-INR'} entity, so payroll runs aren't available here yet.
+            Payroll for other countries is on our roadmap.
+          </p>
+          <p className="text-xs text-dark-500 mb-6">
+            In the meantime, Employee records, Timesheets, Attendance and Leave all work for every country.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Link to={`/org/${orgSlug}/employee/dashboard`} className="flex items-center gap-1.5 px-4 py-2 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-sm font-medium hover:bg-rivvra-500/20 transition-colors">
+              Employee app <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link to={`/org/${orgSlug}/timesheet/dashboard`} className="flex items-center gap-1.5 px-4 py-2 bg-dark-800 text-dark-300 border border-dark-700 rounded-lg text-sm font-medium hover:text-white hover:border-dark-500 transition-colors">
+              Timesheet app <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Latest run
   const latestRun = runs[0];

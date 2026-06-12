@@ -8,8 +8,88 @@ import { formatDateUTC } from '../../utils/dateUtils';
 import {
   Loader2, Users, UserCheck, UserX, UserMinus,
   Building2, Briefcase, Calendar, AlertTriangle, Clock,
-  TrendingUp, ChevronDown,
+  TrendingUp, ChevronDown, Sparkles, CheckCircle2, ArrowRight, Banknote,
 } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
+
+/* New-workspace onboarding card — mirrors the CRM/Outreach/Invoicing cards.
+   Hidden once the org has team members beyond the auto-created owner record
+   and at least one department. */
+function HrGetStarted({ orgSlug, employeesTotal, departmentsCount, isIndia }) {
+  const steps = [
+    {
+      label: 'Add your team members',
+      desc: 'Your own employee profile was created automatically — add the rest of your team',
+      done: employeesTotal > 1,
+      to: `/org/${orgSlug}/employee/add`,
+      cta: 'Add employee',
+    },
+    {
+      label: 'Organize departments',
+      desc: 'Group employees into departments for reporting and the org chart',
+      done: departmentsCount > 0,
+      to: `/org/${orgSlug}/employee/departments`,
+      cta: 'Departments',
+    },
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  if (doneCount === steps.length) return null;
+
+  return (
+    <div className="bg-gradient-to-br from-dark-800/80 to-dark-900/80 border border-dark-700/60 rounded-2xl p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rivvra-500/20 to-blue-500/20 flex items-center justify-center">
+          <Sparkles className="w-5 h-5 text-rivvra-400" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold text-white">Set up your team workspace</h3>
+          <p className="text-xs text-dark-400 mt-0.5">{doneCount} of {steps.length} steps complete</p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+              step.done ? 'bg-rivvra-500/5 border-rivvra-500/20' : 'bg-dark-800 border-dark-700'
+            }`}
+          >
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+              step.done ? 'bg-rivvra-500 text-dark-950' : 'bg-dark-700 text-white border border-dark-500'
+            }`}>
+              {step.done ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${step.done ? 'text-rivvra-400' : 'text-white'}`}>{step.label}</p>
+              {!step.done && <p className="text-xs text-dark-500 mt-0.5">{step.desc}</p>}
+            </div>
+            {!step.done && (
+              <Link
+                to={step.to}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20 rounded-lg text-xs font-medium hover:bg-rivvra-500/20 transition-colors flex-shrink-0"
+              >
+                {step.cta}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        ))}
+        {isIndia && (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-dark-700 text-dark-400">
+            <Banknote className="w-4 h-4 flex-shrink-0" />
+            <span className="text-xs">
+              Before your first payroll run:{' '}
+              <Link to={`/org/${orgSlug}/timesheet/holidays`} className="text-rivvra-400 hover:underline">add your holiday calendar</Link>
+              {' '}and{' '}
+              <Link to={`/org/${orgSlug}/settings/payroll`} className="text-rivvra-400 hover:underline">create a salary structure</Link>.
+              Your leave policy is already set up.
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 
@@ -198,6 +278,7 @@ function MiniTable({ title, icon: Icon, columns, rows, orgSlug }) {
 export default function EmployeeDashboard() {
   usePageTitle('Employee Dashboard');
   const { orgSlug } = useOrg();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [period, setPeriod] = useState('current_month');
@@ -253,6 +334,14 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* ── Get-started checklist (new workspaces) ─────────────────────── */}
+      <HrGetStarted
+        orgSlug={orgSlug}
+        employeesTotal={kpis.total || 0}
+        departmentsCount={byDepartment.length}
+        isIndia={currentCompany?.currency === 'INR'}
+      />
+
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-lg font-semibold text-dark-100">Employee Dashboard</h1>
