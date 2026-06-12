@@ -161,9 +161,10 @@ export default function SettingsInvoicing() {
     companyTaxId: '',
     defaultPaymentTermId: '',
     defaultTaxIds: [],
-    defaultCurrency: 'USD',
+    // Field names match the backend inv_settings schema so save/load round-trips.
+    currency: 'INR',
     enableStripePayments: false,
-    enableRecurringInvoices: false,
+    enableRecurring: false,
     enableFollowUps: false,
     // null = auto-detect from staffing signals; true = always; false = never.
     requireConsultantOnLines: null,
@@ -198,9 +199,9 @@ export default function SettingsInvoicing() {
           ...prev,
           defaultPaymentTermId: s.defaultPaymentTermId || s.defaultPaymentTerm || '',
           defaultTaxIds: s.defaultTaxIds || s.defaultTaxes || [],
-          defaultCurrency: s.defaultCurrency || 'INR',
+          currency: s.currency || 'INR',
           enableStripePayments: s.enableStripePayments ?? false,
-          enableRecurringInvoices: s.enableRecurringInvoices ?? false,
+          enableRecurring: s.enableRecurring ?? false,
           enableFollowUps: s.enableFollowUps ?? false,
           requireConsultantOnLines: typeof s.requireConsultantOnLines === 'boolean' ? s.requireConsultantOnLines : null,
         }));
@@ -308,8 +309,8 @@ export default function SettingsInvoicing() {
           <div>
             <label className="block text-sm text-dark-300 mb-1">Default Currency</label>
             <select
-              value={settings.defaultCurrency}
-              onChange={e => update('defaultCurrency', e.target.value)}
+              value={settings.currency}
+              onChange={e => update('currency', e.target.value)}
               className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
             >
               {CURRENCIES.map((c) => (
@@ -345,8 +346,8 @@ export default function SettingsInvoicing() {
           <Toggle
             label="Recurring Invoices"
             description="Automatically generate invoices on a set schedule"
-            enabled={settings.enableRecurringInvoices}
-            onChange={(v) => update('enableRecurringInvoices', v)}
+            enabled={settings.enableRecurring}
+            onChange={(v) => update('enableRecurring', v)}
           />
           <Toggle
             label="Automatic Follow-ups"
