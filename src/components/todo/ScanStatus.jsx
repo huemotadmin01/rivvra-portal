@@ -115,6 +115,27 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
     }
   }
 
+  // Gmail-to-task scanning needs the restricted gmail.readonly scope, which is
+  // paused until Google CASA verification (backend returns FEATURE_DISABLED).
+  // Hide the connect/scan controls so users don't hit an erroring button.
+  const GMAIL_SCAN_ENABLED = false;
+  if (!GMAIL_SCAN_ENABLED) {
+    return (
+      <div className="bg-dark-900 rounded-xl border border-dark-800">
+        <div className="flex items-center justify-between p-4 border-b border-dark-800">
+          <h3 className="text-sm font-semibold text-white">AI Inbox Scanner</h3>
+        </div>
+        <div className="p-4">
+          <p className="text-xs text-dark-400 leading-relaxed">
+            Automatic task extraction from Gmail is temporarily unavailable while we
+            complete Google's security review. You can keep adding and managing to-dos
+            manually — everything else works as normal.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-dark-900 rounded-xl border border-dark-800">
       <div className="flex items-center justify-between p-4 border-b border-dark-800">
