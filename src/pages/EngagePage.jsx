@@ -93,6 +93,14 @@ function EngagePage() {
     const gmailCode = searchParams.get('gmail_code');
     if (!gmailCode) return;
 
+    // An OAuth authorization code is SINGLE-USE. The post-callback redirect
+    // (/engage → OrgRedirect → /org/:slug/outreach/engage) can remount this
+    // component with the same ?gmail_code, firing the exchange twice — the
+    // first succeeds, the second fails with invalid_grant and shows a false
+    // "Failed to connect Gmail" toast. Dedupe per code so it runs exactly once.
+    if (sessionStorage.getItem('rivvra_gmail_code_used') === gmailCode) return;
+    sessionStorage.setItem('rivvra_gmail_code_used', gmailCode);
+
     // Clean up URL first (remove query params) — use window.history to avoid re-render
     const cleanHash = window.location.hash.split('?')[0];
     window.history.replaceState(null, '', window.location.pathname + cleanHash);
