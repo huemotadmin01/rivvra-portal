@@ -2,8 +2,22 @@ import { useState, useEffect, useRef } from 'react';
 import { Info, Shield, RotateCcw, Save, Check, Loader2, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
 import ToggleSwitch from './ToggleSwitch';
+import { useAuth } from '../context/AuthContext';
+import { useCompany } from '../context/CompanyContext';
 
 function EngageSettings({ gmailStatus }) {
+  const { user } = useAuth();
+  const { currentCompany } = useCompany();
+  // A plain-text starter signature built from data we already have (name,
+  // title, company) — no Gmail scope needed. Only ever PREFILLED when the
+  // saved signature is empty (see loadSettings); never overwrites an
+  // existing one, and only persists if the user clicks Save.
+  const starterSignature = (() => {
+    const name = (user?.name || '').trim();
+    if (!name) return '';
+    const line2 = [user?.senderTitle, currentCompany?.name].filter(Boolean).join(', ');
+    return [name, line2].filter(Boolean).join('\n');
+  })();
   const [settings, setSettings] = useState({
     dailySendLimit: 50,
     hourlySendLimit: 6,
@@ -24,9 +38,14 @@ function EngageSettings({ gmailStatus }) {
     try {
       const res = await api.getEngageSettings();
       if (res.success) {
+        const savedSig = (res.settings?.signature || '').trim();
         setSettings(prev => ({
           ...prev,
           ...res.settings,
+          // Prefill the starter ONLY when the saved signature is empty. Users
+          // with a real signature keep it untouched; this is just a helpful
+          // default for new reps that they can edit and Save.
+          signature: savedSig ? res.settings.signature : starterSignature,
           unsubscribe: {
             ...prev.unsubscribe,
             ...(res.settings?.unsubscribe || {})
