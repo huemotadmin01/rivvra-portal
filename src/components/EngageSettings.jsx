@@ -293,7 +293,7 @@ function EngageSettings({ gmailStatus }) {
       {/* Email signature */}
       <SignatureSection
         signature={settings.signature || ''}
-        gmailConnected={gmailStatus.connected}
+        onChange={(val) => setSettings({ ...settings, signature: val })}
       />
     </div>
   );
@@ -301,7 +301,7 @@ function EngageSettings({ gmailStatus }) {
 
 // ========================== SIGNATURE SECTION ==========================
 
-function SignatureSection({ signature, gmailConnected }) {
+function SignatureSection({ signature, onChange }) {
   const iframeRef = useRef(null);
 
   useEffect(() => {
@@ -353,31 +353,35 @@ function SignatureSection({ signature, gmailConnected }) {
     <div className="card p-6">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-white">Email signature</h3>
-        {gmailConnected && signature && (
-          <span className="text-xs text-rivvra-400">Synced from Gmail</span>
-        )}
       </div>
-      <p className="text-xs text-dark-400 mb-4">This signature will be appended to all sequence emails. It is automatically fetched from your connected Gmail account.</p>
+      <p className="text-xs text-dark-400 mb-4">
+        This signature is appended to all sequence emails. Paste it here — plain text or HTML
+        (copy it from your Gmail settings if you'd like to match).
+      </p>
 
-      {signature ? (
-        <div className="rounded-lg overflow-hidden border border-dark-700">
-          <iframe
-            ref={iframeRef}
-            title="Email signature preview"
-            className="w-full border-0 bg-white"
-            style={{ minHeight: '120px' }}
-            sandbox="allow-same-origin"
-          />
-        </div>
-      ) : (
-        <div className="flex items-center justify-center py-8 px-4 bg-dark-800/50 border border-dark-700 border-dashed rounded-lg">
-          <p className="text-sm text-dark-500 text-center">
-            {gmailConnected
-              ? 'No signature found. Disconnect and reconnect Gmail to re-sync.'
-              : 'Connect your Gmail account to auto-import your email signature.'}
-          </p>
+      <textarea
+        value={signature}
+        onChange={(e) => onChange(e.target.value)}
+        rows={6}
+        placeholder={'e.g.\n\nJane Doe\nTalent Partner, Acme Staffing\njane@acme.com · +1 415 555 0100'}
+        className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder-dark-600 focus:outline-none focus:border-rivvra-500 font-mono resize-y"
+      />
+
+      {signature && (
+        <div className="mt-3">
+          <p className="text-[11px] uppercase tracking-wider text-dark-500 mb-1.5">Preview</p>
+          <div className="rounded-lg overflow-hidden border border-dark-700">
+            <iframe
+              ref={iframeRef}
+              title="Email signature preview"
+              className="w-full border-0 bg-white"
+              style={{ minHeight: '80px' }}
+              sandbox="allow-same-origin"
+            />
+          </div>
         </div>
       )}
+      <p className="text-[11px] text-dark-500 mt-2">Remember to click Save settings above after editing.</p>
     </div>
   );
 }
