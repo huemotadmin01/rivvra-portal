@@ -140,6 +140,31 @@ function PrivacyPage() {
               <li><strong className="text-dark-200">Resend:</strong> For transactional emails (OTP, invites)</li>
             </ul>
             <p className="mt-4">Each of these services has its own privacy policy governing data handling.</p>
+
+            <h3 className="text-lg font-medium text-dark-200 mb-3 mt-6">8.1 Google API Services User Data Policy (Limited Use)</h3>
+            <p className="mb-4">
+              Rivvra's use and transfer of information received from Google APIs adheres to the{' '}
+              <a
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-rivvra-400 hover:text-rivvra-300 underline"
+              >
+                Google API Services User Data Policy
+              </a>
+              , including its Limited Use requirements.
+            </p>
+            <p className="mb-4">
+              We request the <strong className="text-dark-200">https://www.googleapis.com/auth/gmail.send</strong> scope
+              for the sole purpose of sending emails that you compose and explicitly initiate within Rivvra (such as
+              activating an outreach sequence or sending a test email) from your own connected Gmail account. We do not
+              read, modify, organize, or delete any content in your mailbox. Specifically:
+            </p>
+            <ul className="list-disc list-inside space-y-2 ml-2">
+              <li>We use Google user data only to provide and improve the email-sending feature you have enabled.</li>
+              <li>We do not transfer or sell this data to third parties, and we do not use it for advertising.</li>
+              <li>We do not allow humans to read this data, except with your explicit consent, where necessary for security purposes (such as investigating abuse), or to comply with applicable law.</li>
+            </ul>
           </section>
 
           <section>
