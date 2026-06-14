@@ -447,6 +447,16 @@ const atsApi = {
     });
   },
 
+  // Bulk import: rows is an array of { name, email, phone?, mobile?,
+  // linkedinProfile?, description? }. Server re-validates + dedups and returns
+  // { success, summary, results[] }.
+  bulkImportCandidates(orgSlug, rows) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/bulk-import`, {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    });
+  },
+
   updateCandidate(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/ats/candidates/${id}`, {
       method: 'PUT',

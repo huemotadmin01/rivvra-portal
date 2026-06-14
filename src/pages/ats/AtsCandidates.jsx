@@ -11,16 +11,28 @@ import { useDensity } from '../../hooks/useDensity';
 import DensityToggle from '../../components/shared/DensityToggle';
 import SortableHeader from '../../components/shared/SortableHeader';
 import GroupedHeader from '../../components/shared/GroupedHeader';
+import BulkImportModal from '../../components/BulkImportModal';
 import {
   Plus, Loader2, Users, ChevronDown,
   ChevronLeft, ChevronRight,
-  Mail, Phone, Linkedin, ExternalLink,
+  Mail, Phone, Linkedin, ExternalLink, Upload,
 } from 'lucide-react';
 
 const GROUP_BY_OPTIONS = [
   { value: '', label: 'None' },
   { value: 'manager', label: 'Manager' },
   { value: 'skill', label: 'Skill' },
+];
+
+// Field config for the bulk-import modal — maps spreadsheet columns to the
+// candidate create payload. `aliases` drive auto-matching of header names.
+const CANDIDATE_IMPORT_FIELDS = [
+  { key: 'name', label: 'Name', required: true, aliases: ['name', 'full name', 'candidate', 'candidate name'] },
+  { key: 'email', label: 'Email', required: true, aliases: ['email', 'e-mail', 'email address', 'mail'] },
+  { key: 'phone', label: 'Phone', required: false, aliases: ['phone', 'phone number', 'telephone', 'tel'] },
+  { key: 'mobile', label: 'Mobile', required: false, aliases: ['mobile', 'mobile number', 'cell', 'cellphone'] },
+  { key: 'linkedinProfile', label: 'LinkedIn', required: false, aliases: ['linkedin', 'linkedin profile', 'linkedin url', 'profile'] },
+  { key: 'description', label: 'Notes', required: false, aliases: ['description', 'notes', 'about', 'summary'] },
 ];
 
 // EMPTY_CANDIDATE + NewCandidateModal removed — creation now routes to /ats/candidates/new
@@ -132,6 +144,7 @@ export default function AtsCandidates() {
   const { density, setDensity, cellPadding } = useDensity('ats:candidates');
 
   const [candidates, setCandidates] = useState([]);
+  const [showImport, setShowImport] = useState(false);
   const [total, setTotal] = useState(0);
   const [archivedCount, setArchivedCount] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
@@ -328,6 +341,14 @@ export default function AtsCandidates() {
               dupes and stray records owned by the wrong team. */}
           {isAdmin && (
           <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-dark-800 text-dark-100 rounded-lg hover:bg-dark-700 transition-colors text-sm font-medium"
+          >
+            <Upload className="w-4 h-4" /> Import
+          </button>
+          )}
+          {isAdmin && (
+          <button
             onClick={() => navigate(orgPath('/ats/candidates/new'))}
             className="flex items-center gap-2 px-4 py-2 bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors text-sm font-medium"
           >
@@ -336,6 +357,19 @@ export default function AtsCandidates() {
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <BulkImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          title="Import Candidates"
+          itemNoun="candidate"
+          templateName="candidates-import-template.csv"
+          fields={CANDIDATE_IMPORT_FIELDS}
+          onImport={(rows) => atsApi.bulkImportCandidates(orgSlug, rows)}
+          onDone={() => fetchCandidates()}
+        />
+      )}
 
       {/* Filters — URL-driven via shared FilterBar */}
       <FilterBar searchPlaceholder="Search by name, email, or skill…">
