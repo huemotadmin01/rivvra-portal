@@ -131,7 +131,28 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
       if (directUrl) window.open(directUrl, '_blank');
       return;
     }
-    if (!blobUrl) return;
+    // Download-only types (Word / Excel / PowerPoint) never set blobUrl — the
+    // preview is skipped to save bandwidth. Fetch the blob from the proxy
+    // on-demand so the CTA actually downloads (with the real filename) instead
+    // of silently no-op'ing.
+    if (!blobUrl) {
+      if (fetchUrl) {
+        const token = localStorage.getItem('rivvra_token');
+        fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+          .then((b) => {
+            const u = URL.createObjectURL(b);
+            const a = document.createElement('a');
+            a.href = u; a.download = filename || 'document';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(u), 5000);
+          })
+          .catch(() => directUrl && window.open(directUrl, '_blank'));
+        return;
+      }
+      if (directUrl) window.open(directUrl, '_blank');
+      return;
+    }
     if (directUrl && blobUrl === directUrl) {
       window.open(directUrl, '_blank');
       return;

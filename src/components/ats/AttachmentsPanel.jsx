@@ -126,6 +126,33 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     if (!readOnly) handleUpload(e.dataTransfer.files);
   };
 
+  // Download through the authenticated /download proxy instead of linking the
+  // raw Cloudinary URL. The proxy returns the correct Content-Type, and saving
+  // the blob with an explicit `download={fileName}` forces the real extension.
+  // Linking att.url directly handed the browser an extension-less octet-stream
+  // for migrated résumés (filename "app-<id>-att-<id>") — Word docs then opened
+  // as markup/HTML because the OS couldn't tell they were .docx.
+  const handleDownload = async (att) => {
+    try {
+      const token = localStorage.getItem('rivvra_token');
+      const res = await fetch(atsApi.getAttachmentDownloadUrl(orgSlug, att._id), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.fileName || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      showToast(err.message || 'Download failed', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-4">
@@ -203,7 +230,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => canPreview ? setPreviewDoc(att) : window.open(att.url, '_blank')}
+                      onClick={() => canPreview ? setPreviewDoc(att) : handleDownload(att)}
                       className="text-sm text-white hover:text-rivvra-400 truncate transition-colors text-left"
                     >
                       {att.fileName}
@@ -229,15 +256,14 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
                       <Eye size={13} />
                     </button>
                   )}
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(att)}
                     className="p-1 rounded text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
                     title="Download"
                   >
                     <Download size={13} />
-                  </a>
+                  </button>
                   {!readOnly && (
                     <>
                       <button
