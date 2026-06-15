@@ -835,6 +835,7 @@ export default function InvoiceDetail() {
         gstTreatment: invoice.gstTreatment || '',
         placeOfSupply: invoice.placeOfSupply || '',
         customerGstin: invoice.customerGstin || '',
+        vendorGstin: invoice.vendorGstin || '',
         journalId: invoice.journalId || '',
         journalCode: invoice.journalCode || '',
         journalName: invoice.journalName || '',
@@ -1042,7 +1043,11 @@ export default function InvoiceDetail() {
     // Auto-populate fields from contact
     if (contact.gstTreatment) updates.gstTreatment = contact.gstTreatment;
     if (contact.gstin) {
-      updates.customerGstin = contact.gstin;
+      // On a vendor bill the contact IS the vendor, so its GSTIN is the vendor
+      // GSTIN (drives GSTR-2B reconciliation). On a customer invoice it's the
+      // customer GSTIN.
+      if (isVendorBill) updates.vendorGstin = contact.gstin;
+      else updates.customerGstin = contact.gstin;
     }
     if (contact.address) updates.contactAddress = contact.address;
     if (contact.placeOfSupply) updates.placeOfSupply = contact.placeOfSupply;
@@ -1795,7 +1800,9 @@ export default function InvoiceDetail() {
         vendorInvoiceNumber: extracted?.invoice?.number || undefined,
         placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
         gstTreatment: extracted?.invoice?.gstTreatment || undefined,
-        customerGstin: extracted?.vendor?.gstin || undefined,
+        // Extracted GSTIN belongs to the VENDOR (this is a vendor bill) — store
+        // it as vendorGstin for GSTR-2B reconciliation, not customerGstin.
+        vendorGstin: extracted?.vendor?.gstin || undefined,
         tdsRate: Number(extracted?.tds?.rate) > 0 ? Number(extracted.tds.rate) : undefined,
         tdsSection: extracted?.tds?.section || undefined,
       };
@@ -2489,6 +2496,21 @@ export default function InvoiceDetail() {
                         editable={isDraft}
                         onSave={saveField}
                       />
+
+                      {/* Vendor GSTIN — the supplier's GSTIN, used for GSTR-2B
+                          reconciliation. Auto-filled from the vendor contact /
+                          AI extraction; editable on drafts. Vendor bills only. */}
+                      {isVendorBill && (
+                        <EditableField
+                          label="Vendor GSTIN"
+                          value={isDraft ? editForm.vendorGstin : (invoice.vendorGstin || '')}
+                          field="vendorGstin"
+                          type="text"
+                          editable={isDraft}
+                          onSave={saveField}
+                          placeholder="e.g. 27AABCU9603R1ZM"
+                        />
+                      )}
                     </>
                   )}
 
