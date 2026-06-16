@@ -316,6 +316,26 @@ const invoicingApi = {
   getEmployeeSnapshot(orgSlug, billId) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${billId}/employee-snapshot`);
   },
+
+  // ---------- GST GSTR-2B RECONCILIATION (India only) ----------
+  importGstr2b(orgSlug, formData) {
+    return api.uploadFile(`/api/org/${orgSlug}/invoicing/gst/2b/import`, formData);
+  },
+  listGstr2bImports(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/gst/2b/imports`);
+  },
+  reconcileGstr2b(orgSlug, returnPeriod) {
+    return api.request(`/api/org/${orgSlug}/invoicing/gst/2b/reconcile`, { method: 'POST', body: JSON.stringify({ returnPeriod }) });
+  },
+  getGstr2bRecon(orgSlug, period) {
+    return api.request(`/api/org/${orgSlug}/invoicing/gst/2b/reconcile/${period}`);
+  },
+  annotateGstr2bRow(orgSlug, reconId, body) {
+    return api.request(`/api/org/${orgSlug}/invoicing/gst/2b/recon/${reconId}/row`, { method: 'PATCH', body: JSON.stringify(body) });
+  },
+  getGstr2bItcAtRisk(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/gst/2b/itc-at-risk`);
+  },
 };
 
 export default invoicingApi;

@@ -461,6 +461,7 @@ export const APP_REGISTRY = {
           { path: '/invoicing/reports/receivables', label: 'Aged Receivables', icon: Clock },
           { path: '/invoicing/reports/payables', label: 'Aged Payables', icon: Clock },
           { path: '/invoicing/reports/tax', label: 'Tax Report', icon: Shield },
+          { path: '/invoicing/reports/gst-2b', label: 'GST 2B Recon', icon: Shield },
           { path: '/invoicing/reports/analysis', label: 'Invoice Analysis', icon: BarChart3 },
         ],
       },
