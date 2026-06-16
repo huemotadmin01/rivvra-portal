@@ -336,6 +336,13 @@ const invoicingApi = {
   getGstr2bItcAtRisk(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/gst/2b/itc-at-risk`);
   },
+  validateGstin(orgSlug, gstin) {
+    return api.request(`/api/org/${orgSlug}/invoicing/gst/validate-gstin?gstin=${encodeURIComponent(gstin)}`);
+  },
+  // Soft GST payment-hold toggle on a vendor bill (manual).
+  setGstHold(orgSlug, id, body) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/gst-hold`, { method: 'PATCH', body: JSON.stringify(body) });
+  },
 };
 
 export default invoicingApi;

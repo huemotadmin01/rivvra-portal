@@ -13,6 +13,7 @@ import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { validateGstin } from '../../utils/gstin';
 import { API_BASE_URL } from '../../utils/config';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
@@ -2035,8 +2036,45 @@ export default function InvoiceDetail() {
     label: pt.name,
   }));
 
+  // Soft GST payment-hold toggle (vendor bills). Manual holds win over the
+  // reconciliation auto-hold. Does not block recording a payment — just warns.
+  const handleToggleGstHold = async () => {
+    const held = !!invoice.gstHold?.onHold;
+    let reason = '';
+    if (!held) {
+      reason = window.prompt('Reason for holding this payment?', 'GST not yet filed by vendor (not in 2B)');
+      if (reason === null) return; // cancelled
+    }
+    try {
+      const res = await invoicingApi.setGstHold(orgSlug, invoiceId, { onHold: !held, reason });
+      setInvoice(prev => ({ ...prev, gstHold: res.gstHold }));
+      showToast(held ? 'Payment hold released' : 'Payment held', 'success');
+    } catch (e) { showToast(e.message || 'Failed to update hold', 'error'); }
+  };
+  const onHold = !!invoice.gstHold?.onHold;
+
   return (
     <div className="min-h-screen bg-dark-900">
+      {/* GST payment-hold strip (vendor bills, posted). Soft warning. */}
+      {isVendorBill && !isDraft && status !== 'cancelled' && (
+        <div className={`px-4 sm:px-6 lg:px-8 py-2 border-b ${onHold ? 'bg-red-500/10 border-red-500/20' : 'bg-dark-850 border-dark-700'}`}>
+          <div className="max-w-[1600px] mx-auto flex items-center gap-3 text-sm">
+            {onHold ? (
+              <>
+                <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                <span className="text-red-300 font-medium">Payment on hold</span>
+                <span className="text-red-400/80 truncate">{invoice.gstHold?.reason}{invoice.gstHold?.source === 'reconciliation' ? ' · auto from 2B' : ''}</span>
+                <button onClick={handleToggleGstHold} className="ml-auto text-xs px-3 py-1 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 shrink-0">Release hold</button>
+              </>
+            ) : (
+              <>
+                <span className="text-dark-500 text-xs">No GST payment hold on this bill.</span>
+                <button onClick={handleToggleGstHold} className="ml-auto text-xs px-3 py-1 rounded-lg border border-dark-600 text-dark-300 hover:bg-dark-800 shrink-0">Hold payment</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {/* ══════════════════════════════════════════════════════════════════
          TOP BAR — Actions + Status Stepper
          ══════════════════════════════════════════════════════════════════ */}
@@ -2501,15 +2539,25 @@ export default function InvoiceDetail() {
                           reconciliation. Auto-filled from the vendor contact /
                           AI extraction; editable on drafts. Vendor bills only. */}
                       {isVendorBill && (
-                        <EditableField
-                          label="Vendor GSTIN"
-                          value={isDraft ? editForm.vendorGstin : (invoice.vendorGstin || '')}
-                          field="vendorGstin"
-                          type="text"
-                          editable={isDraft}
-                          onSave={saveField}
-                          placeholder="e.g. 27AABCU9603R1ZM"
-                        />
+                        <div>
+                          <EditableField
+                            label="Vendor GSTIN"
+                            value={isDraft ? editForm.vendorGstin : (invoice.vendorGstin || '')}
+                            field="vendorGstin"
+                            type="text"
+                            editable={isDraft}
+                            onSave={saveField}
+                            placeholder="e.g. 27AABCU9603R1ZM"
+                          />
+                          {(() => {
+                            const g = (isDraft ? editForm.vendorGstin : invoice.vendorGstin) || '';
+                            if (!g.trim()) return null;
+                            const v = validateGstin(g);
+                            return v.ok
+                              ? <p className="text-xs text-emerald-400 mt-1">✓ Valid GSTIN</p>
+                              : <p className="text-xs text-red-400 mt-1">✗ {v.reason}</p>;
+                          })()}
+                        </div>
                       )}
                     </>
                   )}
@@ -3452,6 +3500,7 @@ export default function InvoiceDetail() {
             invoiceType={invoice.type}
             isVendorBill={isVendorBill}
             isIndia={isIndia}
+            gstHold={invoice.gstHold}
             onClose={() => setShowPaymentModal(false)}
             onSuccess={() => {
               setShowPaymentModal(false);
@@ -3904,7 +3953,7 @@ function ActionBtn({ icon: Icon, label, onClick, loading, primary, danger }) {
 // RecordPaymentModal
 // ============================================================================
 
-function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isVendorBill, isIndia, onClose, onSuccess, showToast }) {
+function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total, subtotal, amountDue, invoiceType, isVendorBill, isIndia, gstHold, onClose, onSuccess, showToast }) {
   const [journals, setJournals] = useState([]);
   const [tdsConfigs, setTdsConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4063,6 +4112,15 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
           <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-rivvra-500" /></div>
         ) : (
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {/* GST payment-hold warning — soft; payment is still allowed. */}
+            {gstHold?.onHold && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-300">
+                  This bill is on <span className="font-medium">GST payment hold</span>{gstHold.reason ? ` — ${gstHold.reason}` : ''}. You can still record the payment, but its ITC may be at risk.
+                </p>
+              </div>
+            )}
             {/* TDS Warning Banner */}
             {showTdsWarning && (
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
