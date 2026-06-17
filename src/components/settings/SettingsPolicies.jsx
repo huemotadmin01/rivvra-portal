@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck, AlertCircle, Plus, FileText, Pencil, Archive, Upload,
-  Users, CheckCircle2, X, Loader2, BarChart3,
+  Users, CheckCircle2, X, Loader2, BarChart3, Trash2,
 } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -40,6 +40,7 @@ export default function SettingsPolicies() {
   const [editor, setEditor] = useState(null);   // policy object or {} for new
   const [report, setReport] = useState(null);    // { policy, report, total, acknowledged }
   const [confirm, setConfirm] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const companyId = currentCompany?._id;
 
@@ -48,7 +49,7 @@ export default function SettingsPolicies() {
     setLoading(true);
     try {
       const [list, m] = await Promise.all([
-        api.request(`/api/org/${orgSlug}/policies/admin`),
+        api.request(`/api/org/${orgSlug}/policies/admin${showArchived ? '?includeArchived=true' : ''}`),
         api.request(`/api/org/${orgSlug}/policies/audiences`),
       ]);
       setPolicies(list.policies || []);
@@ -58,9 +59,9 @@ export default function SettingsPolicies() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+  }, [orgSlug, showToast, showArchived]);
 
-  // Reload when the active company changes (company-scoped list).
+  // Reload when the active company or archived filter changes.
   useEffect(() => { load(); }, [load, companyId]);
 
   const openReport = async (p) => {
@@ -81,6 +82,20 @@ export default function SettingsPolicies() {
       action: async () => {
         await api.request(`/api/org/${orgSlug}/policies/${p._id}`, { method: 'DELETE' });
         showToast('Policy archived');
+        await load();
+      },
+    });
+  };
+
+  const deletePolicy = (p) => {
+    setConfirm({
+      title: 'Delete policy permanently',
+      message: `Permanently delete "${p.title}"? This removes the document file and ALL acknowledgment records. This cannot be undone.`,
+      confirmLabel: 'Delete permanently',
+      danger: true,
+      action: async () => {
+        await api.request(`/api/org/${orgSlug}/policies/${p._id}/permanent`, { method: 'DELETE' });
+        showToast('Policy deleted');
         await load();
       },
     });
@@ -111,12 +126,23 @@ export default function SettingsPolicies() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setEditor({})}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" /> Add Policy
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-dark-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="accent-rivvra-500"
+            />
+            Show archived
+          </label>
+          <button
+            onClick={() => setEditor({})}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" /> Add Policy
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -174,12 +200,19 @@ export default function SettingsPolicies() {
                 {p.status !== 'archived' && (
                   <button
                     onClick={() => archivePolicy(p)}
-                    className="p-1.5 rounded-lg text-dark-400 hover:text-red-300 hover:bg-red-500/10"
-                    title="Archive"
+                    className="p-1.5 rounded-lg text-dark-400 hover:text-amber-300 hover:bg-amber-500/10"
+                    title="Archive (hide from employees)"
                   >
                     <Archive className="w-4 h-4" />
                   </button>
                 )}
+                <button
+                  onClick={() => deletePolicy(p)}
+                  className="p-1.5 rounded-lg text-dark-400 hover:text-red-300 hover:bg-red-500/10"
+                  title="Delete permanently"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))}
