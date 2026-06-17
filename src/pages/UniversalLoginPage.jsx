@@ -379,7 +379,7 @@ export default function UniversalLoginPage() {
             <p className="text-center text-xs text-dark-600 pt-2">
               <Link to="/" className="text-dark-400 hover:text-dark-300">Back to home</Link>
               {' '}&middot;{' '}
-              <Link to="/privacy" className="hover:text-dark-400">Privacy</Link>
+              <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-dark-400">Privacy</a>
             </p>
           </div>
         </div>

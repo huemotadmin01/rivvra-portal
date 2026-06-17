@@ -634,7 +634,7 @@ function SignupPage() {
                 By continuing, you agree to Rivvra's{' '}
                 <Link to="/terms" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline">Terms of Service</Link>
                 {' '}and{' '}
-                <Link to="/privacy" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline">Privacy Policy</Link>.
+                <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:text-rivvra-300 underline">Privacy Policy</a>.
               </p>
 
               <p className="text-sm text-dark-500 text-center">
@@ -869,7 +869,7 @@ function SignupPage() {
                     I agree to Rivvra's{' '}
                     <Link to="/terms" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline" onClick={(e) => e.stopPropagation()}>Terms of Service</Link>
                     {' '}and{' '}
-                    <Link to="/privacy" target="_blank" className="text-rivvra-400 hover:text-rivvra-300 underline" onClick={(e) => e.stopPropagation()}>Privacy Policy</Link>
+                    <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:text-rivvra-300 underline" onClick={(e) => e.stopPropagation()}>Privacy Policy</a>
                   </span>
                 </label>
 

@@ -75,7 +75,7 @@ function TermsPage() {
             <p>
               You retain all rights to the data you submit to the Service. We do not claim ownership of
               your content. We use your data solely to provide and improve the Service as described in
-              our <Link to="/privacy" className="text-rivvra-400 hover:text-rivvra-300 transition-colors">Privacy Policy</Link>.
+              our <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="text-rivvra-400 hover:text-rivvra-300 transition-colors">Privacy Policy</a>.
             </p>
           </section>
 

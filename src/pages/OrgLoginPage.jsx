@@ -459,7 +459,7 @@ export default function OrgLoginPage() {
               Powered by{' '}
               <Link to="/" className="text-dark-400 hover:text-dark-300">Rivvra</Link>
               {' '}&middot;{' '}
-              <Link to="/privacy" className="hover:text-dark-400">Privacy</Link>
+              <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-dark-400">Privacy</a>
             </p>
           </div>
         </div>

@@ -267,7 +267,7 @@ function LoginPage() {
 
               <p className="text-center text-xs text-dark-500 pt-4">
                 &copy; {new Date().getFullYear()} Rivvra. All rights reserved.{' '}
-                <Link to="/privacy" className="hover:text-dark-300">Privacy</Link> and{' '}
+                <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:text-dark-300">Privacy</a> and{' '}
                 <a href="#" className="hover:text-dark-300">Terms</a>.
               </p>
             </div>
