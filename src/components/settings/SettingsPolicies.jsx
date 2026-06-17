@@ -267,6 +267,12 @@ function PolicyEditor({ orgSlug, policy, categories, audiences, onClose, onSaved
   const handleSubmit = async () => {
     if (!title.trim()) return showToast('Title is required', 'error');
     if (!isEdit && !file) return showToast('Please choose a file', 'error');
+    // Guard the silent footgun: unchecking "All employees" and selecting no
+    // type would otherwise send appliesTo:[] which the backend treats as
+    // everyone — the opposite of intent. Force an explicit choice.
+    if (!appliesAll && appliesTo.length === 0) {
+      return showToast('Select at least one employee type, or choose "All employees"', 'error');
+    }
     const finalAppliesTo = appliesAll ? ['ALL'] : appliesTo;
     setSaving(true);
     try {
