@@ -622,6 +622,7 @@ export const APP_REGISTRY = {
         { type: 'item', path: '/settings/timesheet', label: 'ESS', icon: Clock },
         ...(isAdmin ? [{ type: 'item', path: '/settings/payroll', label: 'Payroll', icon: Wallet }] : []),
         { type: 'item', path: '/settings/employee', label: 'Employee', icon: UsersRound },
+        ...(isAdmin ? [{ type: 'item', path: '/settings/policies', label: 'Company Policies', icon: Shield }] : []),
         { type: 'item', path: '/settings/contacts', label: 'Contacts', icon: Contact },
         { type: 'item', path: '/settings/crm', label: 'CRM', icon: Briefcase },
         { type: 'item', path: '/settings/ats', label: 'ATS', icon: UserSearch },

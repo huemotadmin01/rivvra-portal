@@ -59,6 +59,8 @@ const UserDetail = lazy(() => import('./pages/settings/UserDetail'));
 const SettingsOutreach = lazy(() => import('./components/settings/SettingsOutreach'));
 const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimesheet'));
 const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
+const SettingsPolicies = lazy(() => import('./components/settings/SettingsPolicies'));
+const MyPolicies = lazy(() => import('./pages/ess/MyPolicies'));
 const SettingsEmailLogs = lazy(() => import('./components/settings/SettingsEmailLogs'));
 const SettingsCrm = lazy(() => import('./components/settings/SettingsCrm'));
 const SettingsAts = lazy(() => import('./components/settings/SettingsAts'));
@@ -368,6 +370,9 @@ function App() {
             <Route element={<ProtectedRoute><OrgPlatformLayout /></ProtectedRoute>}>
               <Route path="/org/:slug/home" element={<OnboardingGate><AppLauncherPage /></OnboardingGate>} />
               <Route path="/org/:slug/my-profile" element={<MyProfilePage />} />
+              {/* Company Policies (ESS) — any authenticated member with a linked
+                  employee record; intentionally NOT behind an app/country gate. */}
+              <Route path="/org/:slug/my-policies" element={<ErrorBoundary><MyPolicies /></ErrorBoundary>} />
 
               {/* Employee onboarding wizard — outside AppAccessGate (any authenticated employee can access) */}
               <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><EmployeeOnboardingWizard /></ErrorBoundary>} />
@@ -402,6 +407,7 @@ function App() {
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheet /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/payroll" element={<SettingsPageWrapper><SettingsPayroll /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/employee" element={<SettingsPageWrapper><SettingsEmployee /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/policies" element={<SettingsPageWrapper><SettingsPolicies /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/email-logs" element={<SettingsPageWrapper><SettingsEmailLogs /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/crm" element={<SettingsPageWrapper><SettingsCrm /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/ats" element={<SettingsPageWrapper><SettingsAts /></SettingsPageWrapper>} />

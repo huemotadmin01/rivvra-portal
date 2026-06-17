@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
-import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard } from 'lucide-react';
+import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 import PeriodPicker from './PeriodPicker';
 import { API_BASE_URL } from '../../utils/config';
@@ -334,6 +334,13 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                 >
                   <UserCircle className="w-4 h-4" />
                   My Profile
+                </Link>
+                <Link
+                  to={orgPath('/my-policies')}
+                  className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Company Policies
                 </Link>
                 {isOrgAdmin && (
                   <Link
