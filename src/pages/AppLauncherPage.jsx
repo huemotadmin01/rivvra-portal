@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
-import { Building2, Search, X } from 'lucide-react';
+import { usePolicyAck } from '../context/PolicyAckContext';
+import { Building2, Search, X, ShieldCheck, ChevronRight } from 'lucide-react';
 import AppBentoGrid from '../components/platform/AppBentoGrid';
 import RivvraLogo from '../components/RivvraLogo';
 import api from '../utils/api';
@@ -9,6 +11,8 @@ import api from '../utils/api';
 function AppLauncherPage() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { pendingCount: policyPending } = usePolicyAck();
+  const { slug } = useParams();
   const firstName = user?.name?.split(' ')[0] || 'there';
 
   const companyLogoUrl = currentCompany?.hasLogo && currentCompany?._id
@@ -80,6 +84,24 @@ function AppLauncherPage() {
           </h1>
           <p className="text-dark-400 mt-2 text-base">{currentCompany?.name || 'Your staffing agency command center'}</p>
         </div>
+        {policyPending > 0 && (
+          <Link
+            to={`/org/${slug}/my-policies`}
+            className="flex items-center gap-3 mb-6 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 transition-colors group"
+            style={{ animation: 'fadeSlideUp 0.5s ease-out 0.08s both' }}
+          >
+            <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="w-5 h-5 text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-100">
+                {policyPending} {policyPending === 1 ? 'policy' : 'policies'} awaiting your acknowledgment
+              </p>
+              <p className="text-xs text-amber-200/70">Review and acknowledge your company policies</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-amber-300 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+          </Link>
+        )}
         <AppBentoGrid query={query} />
         <a href="https://rivvra.com" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 mt-12 opacity-40 hover:opacity-60 transition-opacity">
           <RivvraLogo className="w-4 h-4" />

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
+import { usePolicyAck } from '../../context/PolicyAckContext';
 import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 import PeriodPicker from './PeriodPicker';
@@ -54,6 +55,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
   const { currentOrg, isOrgAdmin } = useOrg();
+  const { pendingCount: policyPending } = usePolicyAck();
   const orgPlan = currentOrg?.plan || 'free';
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
@@ -304,7 +306,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
 
           {/* User dropdown */}
           <div className="relative group">
-            <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-dark-800/50 transition-colors">
+            <button className="relative flex items-center gap-2 p-1.5 rounded-lg hover:bg-dark-800/50 transition-colors">
               {user?.picture ? (
                 <img src={user.picture?.startsWith('/api/') ? `${API_BASE_URL}${user.picture}` : user.picture} alt="" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
               ) : (
@@ -313,6 +315,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                     {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
                   </span>
                 </div>
+              )}
+              {policyPending > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-dark-950" title={`${policyPending} policy acknowledgment${policyPending > 1 ? 's' : ''} pending`} />
               )}
             </button>
 
@@ -340,7 +345,12 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                   className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  Company Policies
+                  <span className="flex-1">Company Policies</span>
+                  {policyPending > 0 && (
+                    <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-dark-950 text-xs font-bold flex items-center justify-center">
+                      {policyPending}
+                    </span>
+                  )}
                 </Link>
                 {isOrgAdmin && (
                   <Link

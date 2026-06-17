@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, FileText, Download, Eye, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
+import { usePolicyAck } from '../../context/PolicyAckContext';
 import { api } from '../../utils/api';
 import { downloadFile } from '../../utils/download';
 import { API_BASE_URL } from '../../utils/config';
@@ -37,6 +38,7 @@ function formatBytes(bytes) {
 export default function MyPolicies() {
   const { orgSlug } = useOrg();
   const { showToast } = useToast();
+  const { refresh: refreshPendingBadge } = usePolicyAck();
   const [loading, setLoading] = useState(true);
   const [linked, setLinked] = useState(true);
   const [policies, setPolicies] = useState([]);
@@ -73,6 +75,8 @@ export default function MyPolicies() {
       await api.request(`/api/org/${orgSlug}/policies/${p._id}/acknowledge`, { method: 'POST' });
       showToast('Policy acknowledged');
       await load();
+      refreshPendingBadge(); // clear the home banner / avatar badge
+
     } catch (err) {
       showToast(err.message || 'Failed to acknowledge', 'error');
     } finally {

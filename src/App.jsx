@@ -5,6 +5,7 @@ import { ToastProvider } from './context/ToastContext';
 import { PlatformProvider } from './context/PlatformContext';
 import { OrgProvider } from './context/OrgContext';
 import { CompanyProvider } from './context/CompanyContext';
+import { PolicyAckProvider } from './context/PolicyAckContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import PlanLimitListener from './components/PlanLimitListener';
 import PlatformLayout from './components/platform/PlatformLayout';
@@ -254,10 +255,12 @@ function OrgPlatformLayout() {
   return (
     <OrgProvider>
       <CompanyProvider>
-        <PlatformLayout />
-        {/* 2026-05-28: floating AI assistant — gates itself to /ats/ routes
-            and ats-app access internally. */}
-        <ChatbotWidget />
+        <PolicyAckProvider>
+          <PlatformLayout />
+          {/* 2026-05-28: floating AI assistant — gates itself to /ats/ routes
+              and ats-app access internally. */}
+          <ChatbotWidget />
+        </PolicyAckProvider>
       </CompanyProvider>
     </OrgProvider>
   );
