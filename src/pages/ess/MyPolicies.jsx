@@ -74,7 +74,7 @@ export default function MyPolicies() {
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-rivvra-500/15 flex items-center justify-center">
           <ShieldCheck className="w-5 h-5 text-rivvra-400" />
