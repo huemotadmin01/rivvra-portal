@@ -8,14 +8,12 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, FileText, Download, Eye, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShieldCheck, FileText, CheckCircle2, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePolicyAck } from '../../context/PolicyAckContext';
 import { api } from '../../utils/api';
-import { downloadFile } from '../../utils/download';
-import { API_BASE_URL } from '../../utils/config';
-import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import PolicyReaderModal from './PolicyReaderModal';
 
 const CATEGORY_LABELS = {
   HR: 'HR',
@@ -42,8 +40,7 @@ export default function MyPolicies() {
   const [loading, setLoading] = useState(true);
   const [linked, setLinked] = useState(true);
   const [policies, setPolicies] = useState([]);
-  const [preview, setPreview] = useState(null); // { id, fileName, mimeType }
-  const [acking, setAcking] = useState(null); // policy id in-flight
+  const [reading, setReading] = useState(null); // the policy open in the reader modal
 
   const load = useCallback(async () => {
     if (!orgSlug) return;
@@ -61,28 +58,13 @@ export default function MyPolicies() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDownload = async (p) => {
-    try {
-      await downloadFile(`/api/org/${orgSlug}/policies/${p._id}/download?download=1`, p.fileName || 'policy');
-    } catch {
-      showToast('Download failed', 'error');
-    }
-  };
-
-  const handleAcknowledge = async (p) => {
-    setAcking(p._id);
-    try {
-      await api.request(`/api/org/${orgSlug}/policies/${p._id}/acknowledge`, { method: 'POST' });
-      showToast('Policy acknowledged');
-      await load();
-      refreshPendingBadge(); // clear the home banner / avatar badge
-
-    } catch (err) {
-      showToast(err.message || 'Failed to acknowledge', 'error');
-    } finally {
-      setAcking(null);
-    }
-  };
+  // Called by the reader modal once the user has read + acknowledged.
+  const acknowledgePolicy = useCallback(async (p) => {
+    await api.request(`/api/org/${orgSlug}/policies/${p._id}/acknowledge`, { method: 'POST' });
+    showToast('Policy acknowledged');
+    await load();
+    refreshPendingBadge(); // clear the home banner / avatar badge
+  }, [orgSlug, showToast, load, refreshPendingBadge]);
 
   const pendingCount = policies.filter((p) => p.actionRequired).length;
 
@@ -139,7 +121,11 @@ export default function MyPolicies() {
               </h2>
               <div className="space-y-2.5">
                 {items.map((p) => (
-                  <div key={p._id} className="card p-4 flex items-start gap-4">
+                  <button
+                    key={p._id}
+                    onClick={() => setReading(p)}
+                    className="w-full text-left card p-4 flex items-center gap-4 hover:border-dark-600 hover:bg-dark-800/60 transition-colors group"
+                  >
                     <div className="w-9 h-9 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4.5 h-4.5 text-red-400" />
                     </div>
@@ -157,42 +143,18 @@ export default function MyPolicies() {
                         ) : null}
                       </div>
                       {p.description && (
-                        <p className="text-dark-400 text-sm mt-0.5 line-clamp-2">{p.description}</p>
+                        <p className="text-dark-400 text-sm mt-0.5 line-clamp-1">{p.description}</p>
                       )}
                       <p className="text-dark-500 text-xs mt-1.5">
                         {p.fileName} {p.size ? `· ${formatBytes(p.size)}` : ''}
                         {p.updatedAt ? ` · Updated ${new Date(p.updatedAt).toLocaleDateString()}` : ''}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setPreview({ id: p._id, fileName: p.fileName, mimeType: p.mimeType })}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
-                          title="Preview"
-                        >
-                          <Eye className="w-4 h-4" /> View
-                        </button>
-                        <button
-                          onClick={() => handleDownload(p)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
-                          title="Download"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {p.acknowledgmentRequired && !p.acknowledged && (
-                        <button
-                          onClick={() => handleAcknowledge(p)}
-                          disabled={acking === p._id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-rivvra-500 hover:bg-rivvra-600 text-white disabled:opacity-50"
-                        >
-                          {acking === p._id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                          I acknowledge
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    <span className="flex items-center gap-1.5 flex-shrink-0 text-sm text-dark-400 group-hover:text-white transition-colors">
+                      <span className="hidden sm:inline">{p.actionRequired ? 'Read & acknowledge' : 'Read'}</span>
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -200,13 +162,13 @@ export default function MyPolicies() {
         </div>
       )}
 
-      {preview && (
-        <DocumentPreviewModal
-          filename={preview.fileName}
-          mimeType={preview.mimeType}
-          fetchUrl={`${API_BASE_URL}/api/org/${orgSlug}/policies/${preview.id}/download`}
-          pdfRenderer="canvas"
-          onClose={() => setPreview(null)}
+      {reading && (
+        <PolicyReaderModal
+          policy={reading}
+          orgSlug={orgSlug}
+          onAcknowledge={acknowledgePolicy}
+          onClose={() => setReading(null)}
+          showToast={showToast}
         />
       )}
     </div>
