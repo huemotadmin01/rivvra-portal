@@ -338,6 +338,10 @@ const atsApi = {
         ...payload,
         linkedModel: 'ats_application',
         linkedId: applicationId,
+        // Only 'offer'-subtype envelopes write back to application.offer.* on
+        // the Sign side. Rate Confirmations / NDAs / MSAs share the same
+        // linkedModel but must NOT populate the offer block.
+        linkedSubtype: 'offer',
       }),
     });
   },

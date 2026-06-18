@@ -360,6 +360,9 @@ export default function RateConfirmationModal({
         })),
         linkedModel: 'ats_application',
         linkedId: application._id,
+        // Explicitly NOT 'offer' — keeps a signed Rate Confirmation from
+        // mirroring into application.offer.* (phantom "Signed by all parties").
+        linkedSubtype: 'rate_confirmation',
       });
 
       const envelopeId = envelopeRes?.request?._id || envelopeRes?.request?.id;
