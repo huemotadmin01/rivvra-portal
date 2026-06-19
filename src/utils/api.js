@@ -120,6 +120,18 @@ class ApiClient {
             if (k !== 'message' && !(k in err)) err[k] = data[k];
           }
         }
+        // Expired/invalid session: if we sent a token but the server rejected
+        // it as unauthenticated, broadcast a global event so the app can force
+        // a clean re-login instead of every call site silently swallowing the
+        // 401 (which made pages like "My Contacts" look empty — as if the
+        // user's saved data had vanished). Guarded on `token` so genuine
+        // not-logged-in / wrong-OTP 401s on the login screen don't loop.
+        if (response.status === 401 && token) {
+          try {
+            window.dispatchEvent(new CustomEvent('rivvra:auth-expired', { detail: { endpoint } }));
+          } catch { /* non-browser env */ }
+        }
+
         // Plan-cap hit: broadcast a global event so a top-level listener can
         // show an "Upgrade to continue" prompt without every call site handling it.
         if (

@@ -241,6 +241,21 @@ export function AuthProvider({ children }) {
     clearAuth();
   }, [clearAuth]);
 
+  // Global session-expiry handler: the API client dispatches
+  // 'rivvra:auth-expired' when a request with a token comes back 401. Clear
+  // auth so the route guards bounce the user to login, and leave a breadcrumb
+  // the login screen can surface ("Your session expired — please sign in
+  // again") so an expired token reads as a re-login prompt, not lost data.
+  useEffect(() => {
+    const handleExpired = () => {
+      if (!localStorage.getItem('rivvra_token')) return; // already cleared
+      try { sessionStorage.setItem('rivvra_session_expired', '1'); } catch { /* ignore */ }
+      clearAuth();
+    };
+    window.addEventListener('rivvra:auth-expired', handleExpired);
+    return () => window.removeEventListener('rivvra:auth-expired', handleExpired);
+  }, [clearAuth]);
+
   // Update user data
   const updateUser = useCallback((updates) => {
     const updatedUser = { ...user, ...updates };

@@ -38,6 +38,18 @@ export default function OrgLoginPage() {
 
   const googleInitialized = useRef(false);
 
+  // If the user was bounced here by an expired session (a request came back
+  // 401 → 'rivvra:auth-expired' → auth cleared), explain why rather than
+  // looking like a random logout. Reuses the existing error banner.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('rivvra_session_expired')) {
+        sessionStorage.removeItem('rivvra_session_expired');
+        setError('Your session expired — please sign in again.');
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   // ──────────────────────────────────────────────────────────────────────
   // Fetch org public info on mount
   // ──────────────────────────────────────────────────────────────────────

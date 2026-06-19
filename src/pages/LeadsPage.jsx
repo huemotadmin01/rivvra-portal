@@ -35,6 +35,7 @@ function LeadsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedLeads, setSelectedLeads] = useState([]);
@@ -94,10 +95,15 @@ function LeadsPage() {
         setLeads(response.leads || []);
         setTotalCount(response.total || 0);
         setTotalPages(response.totalPages || 1);
+        setLoadError(null);
       }
     } catch (err) {
       console.error('Failed to load leads:', err);
-      setLeads([]);
+      // Surface the failure instead of silently showing an empty list — an
+      // empty list reads as "my saved contacts vanished", when the real cause
+      // is usually a transient/auth error. (401s also trigger a global
+      // re-login via the API client.)
+      setLoadError(err?.message || 'Could not load your contacts. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -457,6 +463,25 @@ function LeadsPage() {
                 <div>
                   <div className="w-8 h-8 border-2 border-rivvra-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                   <p className="text-dark-400">Loading contacts...</p>
+                </div>
+              </div>
+            ) : loadError && leads.length === 0 ? (
+              <div className="p-12 text-center flex-1 flex items-center justify-center">
+                <div>
+                  <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-8 h-8 text-red-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Couldn’t load your contacts</h3>
+                  <p className="text-dark-400 mb-4 max-w-md">
+                    {loadError}. Your saved contacts are safe — this is a loading error, not data loss.
+                  </p>
+                  <button
+                    onClick={() => loadLeads()}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 text-dark-950 font-medium hover:bg-rivvra-400 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Retry
+                  </button>
                 </div>
               </div>
             ) : leads.length === 0 && !debouncedSearch && activeFilterCount === 0 ? (
