@@ -713,6 +713,10 @@ export default function InvoiceDetail() {
   const [actionLoading, setActionLoading] = useState(null);
   const [activeTab, setActiveTab] = useState('lines');
 
+  // Live GSTIN status (active/cancelled) — on-demand IRP lookup
+  const [gstinLive, setGstinLive] = useState(null);      // { status, source, details? }
+  const [gstinLiveLoading, setGstinLiveLoading] = useState(false);
+
   // Modals
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -2053,6 +2057,21 @@ export default function InvoiceDetail() {
   };
   const onHold = !!invoice.gstHold?.onHold;
 
+  // On-demand live GSTIN status check (active/cancelled) via the IRP lookup.
+  const checkGstinLive = async () => {
+    const g = ((isDraft ? editForm.vendorGstin : invoice.vendorGstin) || '').trim();
+    if (!g) return;
+    setGstinLiveLoading(true); setGstinLive(null);
+    try {
+      const r = await invoicingApi.validateGstin(orgSlug, g);
+      setGstinLive(r.live || { status: 'unknown', source: 'disabled' });
+    } catch {
+      setGstinLive({ status: 'unknown', source: 'error' });
+    } finally {
+      setGstinLiveLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-dark-900">
       {/* GST payment-hold strip (vendor bills, posted). Soft warning. */}
@@ -2553,9 +2572,26 @@ export default function InvoiceDetail() {
                             const g = (isDraft ? editForm.vendorGstin : invoice.vendorGstin) || '';
                             if (!g.trim()) return null;
                             const v = validateGstin(g);
-                            return v.ok
-                              ? <p className="text-xs text-emerald-400 mt-1">✓ Valid GSTIN</p>
-                              : <p className="text-xs text-red-400 mt-1">✗ {v.reason}</p>;
+                            return (
+                              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                {v.ok
+                                  ? <span className="text-xs text-emerald-400">✓ Valid format</span>
+                                  : <span className="text-xs text-red-400">✗ {v.reason}</span>}
+                                {v.ok && (
+                                  <button type="button" onClick={checkGstinLive} disabled={gstinLiveLoading}
+                                    className="text-xs text-rivvra-400 hover:underline disabled:opacity-50">
+                                    {gstinLiveLoading ? 'Checking…' : 'Verify at GSTN'}
+                                  </button>
+                                )}
+                                {gstinLive && (
+                                  gstinLive.status === 'active' ? <span className="text-xs text-emerald-400">● Active at GSTN</span>
+                                  : gstinLive.status === 'cancelled' ? <span className="text-xs text-red-400">● Cancelled at GSTN</span>
+                                  : gstinLive.status === 'suspended' ? <span className="text-xs text-amber-400">● Suspended at GSTN</span>
+                                  : gstinLive.status === 'not_found' ? <span className="text-xs text-red-400">● Not found at GSTN</span>
+                                  : <span className="text-xs text-dark-500">Live check not enabled yet</span>
+                                )}
+                              </div>
+                            );
                           })()}
                         </div>
                       )}
