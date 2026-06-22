@@ -3588,14 +3588,30 @@ export default function AtsApplicationDetail() {
 
           {appStatus === 'refused' && (
             <SectionCard className="border-red-500/20" title="Refused" icon={XCircle}>
-              <p className="text-dark-300 text-sm py-1">
-                {application.refuseReason || 'No reason provided'}
-              </p>
-              {application.refusedAt && (
-                <p className="text-dark-500 text-xs mt-2">
-                  Refused on {formatDate(application.refusedAt)}
-                </p>
-              )}
+              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 py-1">
+                <span className="text-dark-400 text-sm">Reason</span>
+                <span className={`text-sm ${application.refuseReason ? 'text-dark-200' : 'text-dark-500 italic'}`}>
+                  {application.refuseReason || 'No reason provided'}
+                </span>
+                {application.refusedAtStageName && (
+                  <>
+                    <span className="text-dark-400 text-sm">Refused at</span>
+                    <span className="text-dark-200 text-sm">{application.refusedAtStageName} stage</span>
+                  </>
+                )}
+                {application.refusedByName && (
+                  <>
+                    <span className="text-dark-400 text-sm">Refused by</span>
+                    <span className="text-dark-200 text-sm">{application.refusedByName}</span>
+                  </>
+                )}
+                {application.refusedAt && (
+                  <>
+                    <span className="text-dark-400 text-sm">Refused on</span>
+                    <span className="text-dark-200 text-sm">{formatDate(application.refusedAt)}</span>
+                  </>
+                )}
+              </div>
             </SectionCard>
           )}
 
