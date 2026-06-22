@@ -2588,7 +2588,9 @@ export default function InvoiceDetail() {
                                   : gstinLive.status === 'cancelled' ? <span className="text-xs text-red-400">● Cancelled at GSTN</span>
                                   : gstinLive.status === 'suspended' ? <span className="text-xs text-amber-400">● Suspended at GSTN</span>
                                   : gstinLive.status === 'not_found' ? <span className="text-xs text-red-400">● Not found at GSTN</span>
-                                  : <span className="text-xs text-dark-500">Live check not enabled yet</span>
+                                  : gstinLive.source === 'disabled' ? <span className="text-xs text-dark-500">Live check not enabled</span>
+                                  : gstinLive.source === 'error' ? <span className="text-xs text-amber-400">Live check failed — retry</span>
+                                  : <span className="text-xs text-dark-500">No registration data (sandbox)</span>
                                 )}
                               </div>
                             );
