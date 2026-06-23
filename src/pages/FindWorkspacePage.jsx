@@ -128,6 +128,11 @@ function FindWorkspacePage() {
               <ArrowLeft className="w-3 h-3" /> Back to home
             </Link>
           </p>
+          {/* Ex-employees whose workspace access has ended can still reach
+              their official documents (Form-16, experience letter, …). */}
+          <p className="text-dark-500 text-xs">
+            Former employee? <Link to="/document-vault" className="text-rivvra-400 hover:underline">Open your Document Vault</Link>
+          </p>
         </div>
       </div>
     </div>

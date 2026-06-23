@@ -58,6 +58,7 @@ import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
+import ReleaseDocumentsPanel from '../../components/employee/ReleaseDocumentsPanel';
 import { withFromContext } from '../../utils/entityDescribe';
 import ComboSelect from '../../components/ComboSelect';
 import QuickAddClientModal from '../../components/QuickAddClientModal';
@@ -1723,6 +1724,15 @@ export default function EmployeeDetail() {
           </div>
         );
       })()}
+
+      {/* ── Documents Shared with Employee (HR-managed, admin only) ───────── */}
+      {isAdmin && (
+        <ReleaseDocumentsPanel
+          orgSlug={currentOrg?.slug}
+          employeeId={employeeId}
+          showToast={showToast}
+        />
+      )}
 
       {/* Document Preview Modal */}
       {docPreview && (

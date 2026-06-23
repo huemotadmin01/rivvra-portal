@@ -254,6 +254,99 @@ const employeeApi = {
     return `${API_BASE_URL}/api/org/${orgSlug}/employee/my-documents/${docId}`;
   },
 
+  // ── Release Documents (Form-16, offer/experience/appraisal letters, …) ──────
+  listReleaseDocTypes(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/employee/release-document-types`);
+  },
+
+  async uploadReleaseDoc(orgSlug, employeeId, file, { docType, label, period, notify } = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('docType', docType);
+    if (label) formData.append('label', label);
+    if (period) formData.append('period', period);
+    if (notify === false) formData.append('notify', 'false');
+    const url = `${API_BASE_URL}/api/org/${orgSlug}/employee/employees/${employeeId}/release-documents`;
+    const token = localStorage.getItem('rivvra_token');
+    const companyId = getActiveCompanyId();
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (companyId) headers['X-Company-Id'] = companyId;
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    if (!res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) { const data = await res.json(); throw new Error(data.error || 'Upload failed'); }
+      throw new Error(`Upload failed with status ${res.status}`);
+    }
+    return res.json();
+  },
+
+  listEmployeeReleaseDocs(orgSlug, employeeId) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/release-documents`);
+  },
+
+  editReleaseDoc(orgSlug, docId, data) {
+    return api.request(`/api/org/${orgSlug}/employee/release-documents/${docId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  archiveReleaseDoc(orgSlug, docId) {
+    return api.request(`/api/org/${orgSlug}/employee/release-documents/${docId}`, { method: 'DELETE' });
+  },
+
+  adminReleaseDocUrl(orgSlug, docId, download = false) {
+    return `${API_BASE_URL}/api/org/${orgSlug}/employee/release-documents/${docId}/download${download ? '?download=1' : ''}`;
+  },
+
+  listMyReleaseDocs(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/employee/my-release-documents`);
+  },
+
+  myReleaseDocUrl(orgSlug, docId, download = false) {
+    return `${API_BASE_URL}/api/org/${orgSlug}/employee/my-release-documents/${docId}/download${download ? '?download=1' : ''}`;
+  },
+
+  // Document Vault — global, identity-scoped (works for fully-archived ex-employees).
+  listDocumentVault() {
+    return api.request(`/api/me/document-vault`);
+  },
+
+  vaultDocUrl(docId, download = false) {
+    return `${API_BASE_URL}/api/me/document-vault/${docId}/download${download ? '?download=1' : ''}`;
+  },
+
+  // Fetch an auth-protected file as a blob and either save it (download) or
+  // return an object URL (preview). The download endpoints require the bearer
+  // token + active-company header, so a plain <a href> can't be used.
+  async fetchAuthedFile(url) {
+    const token = localStorage.getItem('rivvra_token');
+    const companyId = getActiveCompanyId();
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (companyId) headers['X-Company-Id'] = companyId;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) { const data = await res.json(); throw new Error(data.error || 'Download failed'); }
+      throw new Error(`Download failed with status ${res.status}`);
+    }
+    return res.blob();
+  },
+
+  async saveAuthedFile(url, fileName) {
+    const blob = await this.fetchAuthedFile(url);
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = fileName || 'document';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+  },
+
   // ── Rate Revision ──────────────────────────────────────────────────────────
   reviseRate(orgSlug, employeeId, assignmentIndex, data) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${employeeId}/assignments/${assignmentIndex}/revise-rate`, {

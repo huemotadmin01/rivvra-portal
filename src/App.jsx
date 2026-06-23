@@ -62,6 +62,8 @@ const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimes
 const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
 const SettingsPolicies = lazy(() => import('./components/settings/SettingsPolicies'));
 const MyPolicies = lazy(() => import('./pages/ess/MyPolicies'));
+const MyDocuments = lazy(() => import('./pages/ess/MyDocuments'));
+const DocumentVault = lazy(() => import('./pages/DocumentVault'));
 const SettingsEmailLogs = lazy(() => import('./components/settings/SettingsEmailLogs'));
 const SettingsCrm = lazy(() => import('./components/settings/SettingsCrm'));
 const SettingsAts = lazy(() => import('./components/settings/SettingsAts'));
@@ -359,6 +361,10 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/find-workspace" element={<FindWorkspacePage />} />
+            {/* Document Vault — permanent, identity-scoped document access for
+                any authenticated user, incl. fully-archived ex-employees who no
+                longer have an active workspace. Auth-only (no org membership). */}
+            <Route path="/document-vault" element={<ProtectedRoute><ErrorBoundary><DocumentVault /></ErrorBoundary></ProtectedRoute>} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
@@ -376,6 +382,8 @@ function App() {
               {/* Company Policies (ESS) — any authenticated member with a linked
                   employee record; intentionally NOT behind an app/country gate. */}
               <Route path="/org/:slug/my-policies" element={<ErrorBoundary><MyPolicies /></ErrorBoundary>} />
+              {/* My Documents (ESS) — HR-shared documents; same gating as policies. */}
+              <Route path="/org/:slug/my-documents" element={<ErrorBoundary><MyDocuments /></ErrorBoundary>} />
 
               {/* Employee onboarding wizard — outside AppAccessGate (any authenticated employee can access) */}
               <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><EmployeeOnboardingWizard /></ErrorBoundary>} />

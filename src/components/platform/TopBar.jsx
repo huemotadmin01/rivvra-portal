@@ -5,7 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useOrg } from '../../context/OrgContext';
 import { usePolicyAck } from '../../context/PolicyAckContext';
-import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
+import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard, ShieldCheck, FolderDown } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 import PeriodPicker from './PeriodPicker';
 import { API_BASE_URL } from '../../utils/config';
@@ -351,6 +351,13 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                       {policyPending}
                     </span>
                   )}
+                </Link>
+                <Link
+                  to={orgPath('/my-documents')}
+                  className="flex items-center gap-2 px-3 py-2 text-dark-300 hover:text-white hover:bg-dark-800/50 rounded-lg transition-colors text-sm"
+                >
+                  <FolderDown className="w-4 h-4" />
+                  My Documents
                 </Link>
                 {isOrgAdmin && (
                   <Link
