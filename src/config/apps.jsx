@@ -6,7 +6,7 @@ import {
   Tag, AlertTriangle, Banknote, CheckSquare, MapPin,
   CalendarOff, PlusCircle, ClipboardCheck, Calendar, LayoutDashboard, CalendarCheck,
   Shield, User, Network, Package, Calculator, BookOpen, Receipt, CreditCard, Landmark,
-  TrendingUp, Award, Percent, FolderArchive, Folder,
+  TrendingUp, Award, Percent, FolderArchive, Folder, FolderDown,
 } from 'lucide-react';
 
 export const APP_REGISTRY = {
@@ -109,6 +109,8 @@ export const APP_REGISTRY = {
           }] : []),
           // F&F Receipt — read-only view of the alumnus's finalized settlement
           { type: 'item', path: '/timesheet/my-fnf', label: 'F&F Receipt', icon: FileText },
+          // My Documents: experience/relieving letters, Form-16 — exactly what alumni need
+          { type: 'item', path: '/my-documents', label: 'My Documents', icon: FolderDown },
         ];
       }
 
@@ -174,6 +176,8 @@ export const APP_REGISTRY = {
         ] : []),
         // My Assets: visible to all employees
         { type: 'item', path: '/timesheet/my-assets', label: 'My Assets', icon: Package },
+        // My Documents: HR-shared documents (Form-16, letters); visible to all employees
+        { type: 'item', path: '/my-documents', label: 'My Documents', icon: FolderDown },
         // Admin only: configuration
         ...(isAdmin ? [
           {
