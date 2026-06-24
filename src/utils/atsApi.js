@@ -130,6 +130,18 @@ const atsApi = {
       method: 'DELETE',
     });
   },
+  // Account owner hands a suggested candidate to the job's recruiter.
+  recommendSuggestedCandidate(orgSlug, jobId, candidateId, note) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates/${candidateId}/recommend`, {
+      method: 'POST',
+      body: JSON.stringify(note ? { note } : {}),
+    });
+  },
+  unrecommendSuggestedCandidate(orgSlug, jobId, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates/${candidateId}/recommend`, {
+      method: 'DELETE',
+    });
+  },
 
   // ── Applications ──────────────────────────────────────────────────────
   // 2026-05-17 health-check: _requestKey is stripped from query string and

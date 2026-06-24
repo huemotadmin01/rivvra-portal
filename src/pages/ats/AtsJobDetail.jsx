@@ -1418,8 +1418,9 @@ export default function AtsJobDetail() {
               orgSlug={orgSlug}
               jobId={jobId}
               job={job}
-              canSubmit={canCreateApplication}
-              onSubmitted={fetchApplications}
+              canCreate={canCreateApplication}
+              canRecommend={isAccountOwner || isAdmin}
+              onCreated={fetchApplications}
               refreshKey={suggestRefresh}
             />
           )}
