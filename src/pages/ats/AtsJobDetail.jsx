@@ -14,6 +14,8 @@ import RecordMeta from '../../components/shared/RecordMeta';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import StageBadge from '../../components/ats/StageBadge';
+import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
+import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
@@ -465,6 +467,9 @@ export default function AtsJobDetail() {
   const [appsPage, setAppsPage] = useState(1);
   const [appsTotalPages, setAppsTotalPages] = useState(1);
   const [appsLoading, setAppsLoading] = useState(false);
+  // Bumped to force the Suggested Candidates card to re-fetch (e.g. after
+  // editing required skills).
+  const [suggestRefresh, setSuggestRefresh] = useState(0);
 
   // UI / modal state
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -766,6 +771,15 @@ export default function AtsJobDetail() {
       setActivityRefreshKey(k => k + 1);
       setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
     }
+  };
+
+  // Persist the job's structured required skills (drives the Suggested
+  // Candidates matcher) and re-fetch suggestions so the new ranking shows.
+  const saveRequiredSkills = async (next) => {
+    const res = await atsApi.updateJob(orgSlug, jobId, { requiredSkills: next });
+    if (res?.job) setJob(res.job);
+    else setJob((prev) => ({ ...prev, requiredSkills: next }));
+    setSuggestRefresh((k) => k + 1);
   };
 
   // savePerson — atomic update of an id + denormalized name pair (e.g.
@@ -1321,6 +1335,12 @@ export default function AtsJobDetail() {
               onSave={saveField}
               displayValue={requiredExpDisplay || undefined}
             />
+            <JobRequiredSkills
+              orgSlug={orgSlug}
+              value={job.requiredSkills || []}
+              canEdit={canEdit}
+              onSave={saveRequiredSkills}
+            />
             <InlineField
               label="Client Hiring Mode"
               field="hiringMode"
@@ -1389,6 +1409,20 @@ export default function AtsJobDetail() {
               onSave={saveField}
             />
           </SectionCard>
+
+          {/* Suggested Candidates — only for a live (approved + open) req.
+              Helps the account owner immediately submit best-fit people from
+              the candidate DB instead of hand-filtering the candidate tab. */}
+          {isApproved && statusKey === 'open' && !job.archived && (
+            <SuggestedCandidates
+              orgSlug={orgSlug}
+              jobId={jobId}
+              job={job}
+              canSubmit={canCreateApplication}
+              onSubmitted={fetchApplications}
+              refreshKey={suggestRefresh}
+            />
+          )}
 
           {/* Applications */}
           <div>

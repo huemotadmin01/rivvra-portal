@@ -116,6 +116,21 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/unarchive`, { method: 'PATCH' });
   },
 
+  // ── Suggested candidates (rule-based matcher; approved+open jobs only) ──
+  getSuggestedCandidates(orgSlug, jobId, { limit = 10 } = {}) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates?limit=${limit}`);
+  },
+  dismissSuggestedCandidate(orgSlug, jobId, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates/${candidateId}/dismiss`, {
+      method: 'POST',
+    });
+  },
+  undismissSuggestedCandidate(orgSlug, jobId, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates/${candidateId}/dismiss`, {
+      method: 'DELETE',
+    });
+  },
+
   // ── Applications ──────────────────────────────────────────────────────
   // 2026-05-17 health-check: _requestKey is stripped from query string and
   // forwarded to api.request for dedup — rapid filter typing / page changes
