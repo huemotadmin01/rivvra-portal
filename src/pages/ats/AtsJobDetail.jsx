@@ -1337,9 +1337,15 @@ export default function AtsJobDetail() {
             />
             <JobRequiredSkills
               orgSlug={orgSlug}
+              jobId={jobId}
               value={job.requiredSkills || []}
               canEdit={canEdit}
               onSave={saveRequiredSkills}
+              onAutofilled={(skills) => {
+                // Endpoint already saved server-side — just sync state + refresh suggestions.
+                setJob((prev) => ({ ...prev, requiredSkills: skills }));
+                setSuggestRefresh((k) => k + 1);
+              }}
             />
             <InlineField
               label="Client Hiring Mode"

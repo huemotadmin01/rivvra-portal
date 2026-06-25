@@ -116,6 +116,11 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/jobs/${id}/unarchive`, { method: 'PATCH' });
   },
 
+  // AI-extract required skills from the JD and save them on the job.
+  autofillJobSkills(orgSlug, jobId) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/autofill-skills`, { method: 'POST' });
+  },
+
   // ── Suggested candidates (rule-based matcher; approved+open jobs only) ──
   getSuggestedCandidates(orgSlug, jobId, { limit = 10 } = {}) {
     return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates?limit=${limit}`);
