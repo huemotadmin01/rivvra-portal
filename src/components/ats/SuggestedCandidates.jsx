@@ -45,6 +45,7 @@ export default function SuggestedCandidates({
   const [availChecked, setAvailChecked] = useState(false);
   const [recentlyDismissed, setRecentlyDismissed] = useState(null);
   const [myEmployee, setMyEmployee] = useState(null); // caller's employee — last-resort recruiter fallback
+  const [limit, setLimit] = useState(10); // top-10 default; "Show more" expands to 25
 
   // Resolve the caller's own employee once, used only as the final fallback
   // when neither the candidate's manager nor the job has a recruiter.
@@ -66,14 +67,14 @@ export default function SuggestedCandidates({
     try {
       setLoading(true);
       setError(null);
-      const res = await atsApi.getSuggestedCandidates(orgSlug, jobId, { limit: 10 });
+      const res = await atsApi.getSuggestedCandidates(orgSlug, jobId, { limit });
       setData(res);
     } catch (err) {
       setError(err.message || 'Failed to load suggestions');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, jobId]);
+  }, [orgSlug, jobId, limit]);
 
   useEffect(() => { fetchSuggestions(); }, [fetchSuggestions, refreshKey]);
 
@@ -319,18 +320,21 @@ export default function SuggestedCandidates({
 
               {/* Actions */}
               <div className="shrink-0 flex items-center gap-1.5">
-                {canRecommend && !c.recommendation && (
+                {/* Create only when this viewer can actually own the app for
+                    this candidate (its manager / their lead / admin). Everyone
+                    else recommends — the handoff to the candidate's manager. */}
+                {canRecommend && !(canCreate && c.canCreate) && !c.recommendation && (
                   <button
                     onClick={() => handleRecommend(c)}
                     disabled={busyId === c._id}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-dark-700 text-rivvra-200 hover:bg-dark-600 disabled:opacity-50 transition-colors"
-                    title="Recommend this candidate to the job's recruiter"
+                    title="Recommend this candidate to the candidate's manager"
                   >
                     {busyId === c._id ? <Loader2 size={12} className="animate-spin" /> : <ThumbsUp size={12} />}
                     Recommend
                   </button>
                 )}
-                {canCreate && confirmId !== c._id && (
+                {canCreate && c.canCreate && confirmId !== c._id && (
                   <button
                     onClick={() => { setConfirmId(c._id); setAvailChecked(false); }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 transition-colors"
@@ -358,6 +362,19 @@ export default function SuggestedCandidates({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Show more — expand the curated top-10 up to 25. Beyond that, the
+          Candidates tab is the place for exhaustive, filterable search. */}
+      {!loading && !error && limit < 25 && candidates.length >= limit && (
+        <div className="mt-3 text-center">
+          <button
+            onClick={() => setLimit(25)}
+            className="text-rivvra-300 hover:text-rivvra-200 text-xs font-medium"
+          >
+            Show more
+          </button>
+        </div>
       )}
     </div>
   );

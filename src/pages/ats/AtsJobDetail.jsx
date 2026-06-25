@@ -1425,7 +1425,7 @@ export default function AtsJobDetail() {
               jobId={jobId}
               job={job}
               canCreate={canCreateApplication}
-              canRecommend={isAccountOwner || isAdmin}
+              canRecommend={canRecruit || isAccountOwner || isAdmin}
               onCreated={fetchApplications}
               refreshKey={suggestRefresh}
             />
