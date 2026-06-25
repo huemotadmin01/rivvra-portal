@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Sparkles, Loader2, Plus, X, ExternalLink, Users, RefreshCw, Undo2,
@@ -43,6 +44,22 @@ export default function SuggestedCandidates({
   const [confirmId, setConfirmId] = useState(null);    // row showing the availability confirm
   const [availChecked, setAvailChecked] = useState(false);
   const [recentlyDismissed, setRecentlyDismissed] = useState(null);
+  const [myEmployee, setMyEmployee] = useState(null); // caller's employee — last-resort recruiter fallback
+
+  // Resolve the caller's own employee once, used only as the final fallback
+  // when neither the candidate's manager nor the job has a recruiter.
+  useEffect(() => {
+    if (!orgSlug || !canCreate) return;
+    let alive = true;
+    employeeApi.getMyProfile(orgSlug)
+      .then((res) => {
+        if (alive && res?.success && res.employee) {
+          setMyEmployee({ id: res.employee._id, name: res.employee.fullName || res.employee.name || '' });
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [orgSlug, canCreate]);
 
   const fetchSuggestions = useCallback(async () => {
     if (!orgSlug || !jobId) return;
@@ -75,6 +92,13 @@ export default function SuggestedCandidates({
   const handleCreate = async (cand) => {
     try {
       setBusyId(cand._id);
+      // Recruiter inherits the candidate's Manager — the real employee who
+      // sourced/owns this candidate and made the availability call — rather
+      // than the job's recruiter (often the shared "HR Team" placeholder).
+      // Fallback chain: candidate manager → job recruiter → the creator.
+      // accountOwner is still snapshotted from the job on the server side.
+      const recruiterId = cand.managerId || job?.recruiterId || myEmployee?.id || null;
+      const recruiterName = cand.managerName || job?.recruiterName || myEmployee?.name || '';
       await atsApi.createApplication(orgSlug, {
         candidateId: String(cand._id),
         candidateName: cand.name,
@@ -82,8 +106,8 @@ export default function SuggestedCandidates({
         phone: cand.phone || null,
         linkedinProfile: cand.linkedinProfile || null,
         jobPositionId: jobId,
-        recruiterId: job?.recruiterId || null,
-        recruiterName: job?.recruiterName || '',
+        recruiterId,
+        recruiterName,
       });
       showToast(`${cand.name} added to this job`);
       setConfirmId(null);
