@@ -221,9 +221,9 @@ export default function SuggestedCandidates({
       ) : candidates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <Users className="w-7 h-7 text-dark-500 mb-2" />
-          <p className="text-dark-400 text-sm">No matching candidates found yet.</p>
+          <p className="text-dark-400 text-sm">No strong matches in your candidate database yet.</p>
           <p className="text-dark-500 text-xs mt-1">
-            Add required skills to this job or build up your candidate database to get suggestions.
+            We only show candidates who genuinely fit the required skills. Add candidates or refine the job's required skills to surface more.
           </p>
         </div>
       ) : (
