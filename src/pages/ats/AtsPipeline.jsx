@@ -394,7 +394,10 @@ export default function AtsPipeline() {
     try {
       const [jobsRes, stagesRes, recruitersRes] = await Promise.all([
         atsApi.listJobs(orgSlug, { limit: 200 }),
-        atsApi.listStages(orgSlug),
+        // 2026-06-26: when filtered to a single position, fetch that job's
+        // resolved pipeline (incl. its extra interview rounds) so DnD
+        // target columns line up with the job-aware kanban board.
+        atsApi.listStages(orgSlug, jobFilter || undefined),
         atsApi.listRecruiters(orgSlug),
       ]);
       if (jobsRes.success) setJobs(jobsRes.jobs || []);
@@ -404,7 +407,7 @@ export default function AtsPipeline() {
       console.error('Failed to load dropdowns:', err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id]);
+  }, [orgSlug, currentCompany?._id, jobFilter]);
 
   useEffect(() => { fetchKanban(); }, [fetchKanban]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);

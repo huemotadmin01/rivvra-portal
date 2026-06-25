@@ -2006,6 +2006,38 @@ export default function AtsApplicationDetail() {
   useEffect(() => { fetchApplication(); }, [fetchApplication]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
+  // 2026-06-26: once we know the job, refetch the JOB-RESOLVED pipeline so
+  // the stage bar + interview rounds include this requirement's extra
+  // rounds (L3, L4 …). fetchDropdowns' initial global fetch is just the
+  // first paint; this replaces it with the job-specific list.
+  const jobPositionId = application?.jobPositionId;
+  useEffect(() => {
+    if (!orgSlug || !jobPositionId) return undefined;
+    let alive = true;
+    atsApi.listStages(orgSlug, jobPositionId)
+      .then((res) => { if (alive && res?.success) setStages(res.stages || []); })
+      .catch(() => { /* keep global stages on failure */ });
+    return () => { alive = false; };
+  }, [orgSlug, jobPositionId]);
+
+  // Interview rounds to render: technical rounds (l1, l2, l3 …) in pipeline
+  // order, then HR. Derived from the resolved pipeline's roundKeys.
+  const interviewRounds = useMemo(() => {
+    const LEGACY_FEEDBACK = { l1: 'l1Feedback', l2: 'l2Feedback', hr: 'hrRoundFeedback' };
+    const tech = (stages || [])
+      .filter((s) => /^l\d+$/.test(s.roundKey || ''))
+      .sort((a, b) => (Number(a.sequence) || 0) - (Number(b.sequence) || 0))
+      .map((s) => ({
+        level: s.roundKey,
+        label: s.roundKey.toUpperCase(),
+        isHr: false,
+        feedbackField: LEGACY_FEEDBACK[s.roundKey] || `${s.roundKey}Feedback`,
+      }));
+    const hr = (stages || []).find((s) => s.roundKey === 'hr');
+    if (hr) tech.push({ level: 'hr', label: 'HR', isHr: true, feedbackField: 'hrRoundFeedback' });
+    return tech;
+  }, [stages]);
+
   const recruiterOptions = useMemo(
     () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
     [recruiters]
@@ -3511,51 +3543,27 @@ export default function AtsApplicationDetail() {
 
           <SectionCard title="Interview" icon={Calendar}>
             <div className="space-y-2.5">
-              <InterviewRoundCard
-                label="L1"
-                level="l1"
-                interviewField="l1Interview"
-                resultField="l1Result"
-                dateField="l1DateTime"
-                feedbackField="l1Feedback"
-                application={application}
-                canEdit={canEdit}
-                isClientRole={application.isClientRole === true}
-                onEditSchedule={openInterviewScheduleModal}
-                onEditResult={openInterviewResultModal}
-                orgPath={orgPath}
-                applicationId={applicationId}
-              />
-              <InterviewRoundCard
-                label="L2"
-                level="l2"
-                interviewField="l2Interview"
-                resultField="l2Result"
-                dateField="l2DateTime"
-                feedbackField="l2Feedback"
-                application={application}
-                canEdit={canEdit}
-                isClientRole={application.isClientRole === true}
-                onEditSchedule={openInterviewScheduleModal}
-                onEditResult={openInterviewResultModal}
-                orgPath={orgPath}
-                applicationId={applicationId}
-              />
-              <InterviewRoundCard
-                label="HR"
-                level="hr"
-                interviewField="hrInterview"
-                resultField="hrResult"
-                dateField="hrDateTime"
-                feedbackField="hrRoundFeedback"
-                application={application}
-                canEdit={canEdit}
-                isClientRole={false}
-                onEditSchedule={openInterviewScheduleModal}
-                onEditResult={openInterviewResultModal}
-                orgPath={orgPath}
-                applicationId={applicationId}
-              />
+              {/* 2026-06-26: interview rounds are now dynamic per job
+                  (L1, L2, L3 … + HR), derived from the resolved pipeline
+                  (stages carrying a roundKey). HR is always last. */}
+              {interviewRounds.map((r) => (
+                <InterviewRoundCard
+                  key={r.level}
+                  label={r.label}
+                  level={r.level}
+                  interviewField={`${r.level}Interview`}
+                  resultField={`${r.level}Result`}
+                  dateField={`${r.level}DateTime`}
+                  feedbackField={r.feedbackField}
+                  application={application}
+                  canEdit={canEdit}
+                  isClientRole={r.isHr ? false : application.isClientRole === true}
+                  onEditSchedule={openInterviewScheduleModal}
+                  onEditResult={openInterviewResultModal}
+                  orgPath={orgPath}
+                  applicationId={applicationId}
+                />
+              ))}
             </div>
             <div className="border-t border-dark-700 my-3" />
             <InlineField

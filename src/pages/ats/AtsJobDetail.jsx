@@ -16,6 +16,7 @@ import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
 import JobRequiredSkills from '../../components/ats/JobRequiredSkills';
+import InterviewRoundsCard from '../../components/ats/InterviewRoundsCard';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { withFromContext } from '../../utils/entityDescribe';
@@ -1415,6 +1416,11 @@ export default function AtsJobDetail() {
               onSave={saveField}
             />
           </SectionCard>
+
+          {/* Interview Rounds — per-job variable technical rounds (L1, L2,
+              L3 …). Account Owner / ATS admin can add rounds for this
+              requirement only. (per_job_interview_rounds_plan.md) */}
+          <InterviewRoundsCard orgSlug={orgSlug} jobId={jobId} />
 
           {/* Suggested Candidates — only for a live (approved + open) req.
               Helps the account owner immediately submit best-fit people from

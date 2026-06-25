@@ -6,8 +6,23 @@ import api from './api';
 
 const atsApi = {
   // ── Stages ────────────────────────────────────────────────────────────
-  listStages(orgSlug) {
-    return api.request(`/api/org/${orgSlug}/ats/stages`);
+  // Pass jobPositionId to get the job-RESOLVED pipeline (global stages +
+  // that job's extra interview rounds). Omit it for the global config list.
+  listStages(orgSlug, jobPositionId) {
+    const qs = jobPositionId ? `?jobPositionId=${encodeURIComponent(jobPositionId)}` : '';
+    return api.request(`/api/org/${orgSlug}/ats/stages${qs}`);
+  },
+
+  // ── Per-job interview rounds ─────────────────────────────────────────
+  listInterviewRounds(orgSlug, jobId) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/interview-rounds`);
+  },
+
+  setInterviewRounds(orgSlug, jobId, techRounds) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/interview-rounds`, {
+      method: 'PUT',
+      body: JSON.stringify({ techRounds }),
+    });
   },
 
   createStage(orgSlug, data) {
