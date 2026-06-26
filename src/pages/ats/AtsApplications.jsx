@@ -285,6 +285,9 @@ export default function AtsApplications() {
   const [stages, setStages] = useState([]);
   // Resolved interview rounds for the single-job expanded mode (incl. L3+).
   const [jobRounds, setJobRounds] = useState([]);
+  // Full resolved pipeline for the filtered job (drives the Stage filter
+  // options so job-scoped rounds like L3+ are selectable).
+  const [jobStages, setJobStages] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const [sources, setSources] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
@@ -475,17 +478,19 @@ export default function AtsApplications() {
   // job-scoped L3+ rounds) so the list can render one column per round.
   useEffect(() => {
     let alive = true;
-    if (!singleJobId || !orgSlug) { setJobRounds([]); return; }
+    if (!singleJobId || !orgSlug) { setJobRounds([]); setJobStages([]); return; }
     atsApi.listStages(orgSlug, singleJobId)
       .then((res) => {
         if (!alive) return;
         if (res?.success) {
-          setJobRounds((res.stages || [])
+          const all = res.stages || [];
+          setJobStages(all);
+          setJobRounds(all
             .filter((s) => s.roundKey)
             .map((s) => ({ roundKey: s.roundKey, label: roundLabel(s.roundKey) })));
         }
       })
-      .catch(() => { if (alive) setJobRounds([]); });
+      .catch(() => { if (alive) { setJobRounds([]); setJobStages([]); } });
     return () => { alive = false; };
   }, [singleJobId, orgSlug]);
 
@@ -647,8 +652,10 @@ export default function AtsApplications() {
   // on any parent re-render (search keystroke, filter toggle).
   // 2026-05-12 audit P2 #17.
   const stageOptions = useMemo(
-    () => stages.map((s) => ({ value: s._id, label: s.name })),
-    [stages],
+    // When a single job is filtered, offer its resolved pipeline (incl.
+    // job-scoped L3+ rounds); otherwise the global stage set.
+    () => ((singleJobId && jobStages.length > 0) ? jobStages : stages).map((s) => ({ value: s._id, label: s.name })),
+    [stages, jobStages, singleJobId],
   );
   const jobOptions = useMemo(
     () => jobs.map((j) => ({ value: j._id, label: j.name })),

@@ -1029,14 +1029,27 @@ export default function AtsDashboard() {
       {applicationsByStageActive.length > 0 && (() => {
         const stageTile = (name) => {
           const s = applicationsByStageActive.find((x) => x.stageName === name);
+          const ids = (s?.stageIds && s.stageIds.length) ? s.stageIds : (s?.stageId ? [s.stageId] : []);
           return {
             count: s?.count || 0,
             stageId: s?.stageId || null,
+            stageIds: ids,
           };
         };
+        // 2026-06-26: dynamic extra interview rounds (L3, L4 … Ln) — surface
+        // a tile for every extra round present in the data, ordered by
+        // pipeline sequence, inserted right after L2.
+        const extraRoundTiles = applicationsByStageActive
+          .filter((s) => {
+            const m = /^L(\d+)\s+Interview$/i.exec(s.stageName || '');
+            return m && parseInt(m[1], 10) >= 3;
+          })
+          .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+          .map((s) => ({ name: s.stageName, color: 'blue', icon: BarChart3 }));
         const tiles = [
           { name: 'L1 Interview',         color: 'blue',    icon: BarChart3 },
           { name: 'L2 Interview',         color: 'blue',    icon: BarChart3 },
+          ...extraRoundTiles,
           { name: 'Documents Collection', color: 'purple',  icon: Users },
           { name: 'HR Discussion',        color: 'amber',   icon: Clock },
           { name: 'Offer Signed',         color: 'emerald', icon: UserCheck },
@@ -1045,8 +1058,8 @@ export default function AtsDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {tiles.map(({ name, color, icon }) => {
               const t = stageTile(name);
-              const to = t.stageId
-                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageId}&applicationStatus=ongoing${scopeQuery}`
+              const to = t.stageIds.length
+                ? `/org/${orgSlug}/ats/applications?stageId=${t.stageIds.join(',')}&applicationStatus=ongoing${scopeQuery}`
                 : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`;
               return (
                 <KpiTile
@@ -1069,7 +1082,8 @@ export default function AtsDashboard() {
       <RecruitmentFunnel
         data={applicationsByStageActive.length > 0 ? applicationsByStageActive : applicationsByStage}
         onStageClick={(s) => {
-          if (s.stageId) navigate(`/org/${orgSlug}/ats/applications?stageId=${s.stageId}&applicationStatus=ongoing${scopeQuery}`);
+          const ids = (s.stageIds && s.stageIds.length) ? s.stageIds.join(',') : s.stageId;
+          if (ids) navigate(`/org/${orgSlug}/ats/applications?stageId=${ids}&applicationStatus=ongoing${scopeQuery}`);
         }}
       />
 
