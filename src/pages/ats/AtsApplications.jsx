@@ -116,6 +116,80 @@ function FeedbackBadge({ result, legacy }) {
   );
 }
 
+/* ── Interview schedule columns (2026-06-26) ────────────────────────────
+ * Dynamic per-round interview columns on the list. The list endpoint
+ * returns app.interviews[] (normalized {roundKey, datetime, mode,
+ * interviewerName, recommendation, legacyFeedback}) and app.currentRoundKey
+ * (the round the candidate currently sits on, incl. job-scoped L3+).
+ * All-jobs view → one compact summary column; filtered to a single job →
+ * one column per that job's resolved rounds (L1, L2, L3…, HR). */
+function roundLabel(rk) {
+  if (!rk) return '';
+  if (rk === 'hr') return 'HR';
+  return String(rk).toUpperCase(); // l1 → L1, l3 → L3
+}
+function formatDateTimeShort(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+function legacyToRec(legacy) {
+  if (!legacy || typeof legacy !== 'string') return null;
+  return LEGACY_FEEDBACK_NORMALISE[legacy.trim().toLowerCase()] || null;
+}
+// Single round's schedule + outcome, stacked. Single-job expanded mode.
+function RoundCell({ interview }) {
+  const dt = formatDateTimeShort(interview?.datetime);
+  if (!interview || (!dt && !interview.recommendation && !interview.legacyFeedback)) {
+    return <span className="text-dark-600">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      {dt ? <span className="text-dark-300 whitespace-nowrap">{dt}</span> : <span className="text-dark-600 text-xs">Not scheduled</span>}
+      <FeedbackBadge result={interview.recommendation ? { recommendation: interview.recommendation } : null} legacy={interview.legacyFeedback} />
+    </div>
+  );
+}
+// Compact summary for the all-jobs view: current/next round date·time + a
+// tiny outcome trail of the rounds that have data.
+function InterviewSummaryCell({ app }) {
+  const interviews = app.interviews || [];
+  if (interviews.length === 0 && !app.currentRoundKey) return <span className="text-dark-600">—</span>;
+  // primary = the round matching the current stage; else latest scheduled.
+  let primary = app.currentRoundKey ? interviews.find(i => i.roundKey === app.currentRoundKey) : null;
+  if (!primary) {
+    const scheduled = interviews.filter(i => i.datetime);
+    primary = scheduled.length ? scheduled[scheduled.length - 1] : null;
+  }
+  const dt = formatDateTimeShort(primary?.datetime);
+  const label = roundLabel(primary?.roundKey || app.currentRoundKey);
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="whitespace-nowrap">
+        {label && <span className="text-dark-200 font-medium mr-1">{label}</span>}
+        {dt ? <span className="text-dark-400">{dt}</span>
+          : (label ? <span className="text-dark-600">not scheduled</span> : <span className="text-dark-600">—</span>)}
+      </span>
+      {interviews.length > 0 && (
+        <span className="flex items-center gap-1 flex-wrap">
+          {interviews.map(i => {
+            const rec = i.recommendation || legacyToRec(i.legacyFeedback);
+            const tone = rec === 'Proceed' ? 'text-emerald-400'
+              : rec === 'Reject' ? 'text-red-400'
+              : rec === 'Awaited' ? 'text-amber-400' : 'text-dark-500';
+            return (
+              <span key={i.roundKey} className={`text-[10px] ${tone}`} title={`${roundLabel(i.roundKey)}${rec ? ' · ' + rec : ''}${i.datetime ? ' · ' + formatDateTimeShort(i.datetime) : ''}`}>
+                {roundLabel(i.roundKey)}{rec === 'Proceed' ? '✓' : ''}
+              </span>
+            );
+          })}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /* ── Evaluation Stars (read-only) ─────────────────────────────────────── */
 function EvalStars({ value = 0, max = 3 }) {
   return (
@@ -171,6 +245,9 @@ export default function AtsApplications() {
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
   const groupBy = filterParams.groupBy || '';
   const isGrouped = Boolean(groupBy);
+  // 2026-06-26: when the list is filtered to a single job (and not grouped),
+  // expand the interview column into one column per that job's rounds.
+  const singleJobId = (!isGrouped && filterParams.jobId) ? filterParams.jobId : null;
 
   // 2026-05-17 ATS-APP-LIFECYCLE: derive the active lifecycle segment from
   // URL. Default landing = 'ongoing' so the headline count reflects deals
@@ -206,6 +283,8 @@ export default function AtsApplications() {
   // Dropdown data
   const [jobs, setJobs] = useState([]);
   const [stages, setStages] = useState([]);
+  // Resolved interview rounds for the single-job expanded mode (incl. L3+).
+  const [jobRounds, setJobRounds] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const [sources, setSources] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
@@ -391,6 +470,24 @@ export default function AtsApplications() {
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
+
+  // 2026-06-26: resolve the filtered job's interview rounds (global + its
+  // job-scoped L3+ rounds) so the list can render one column per round.
+  useEffect(() => {
+    let alive = true;
+    if (!singleJobId || !orgSlug) { setJobRounds([]); return; }
+    atsApi.listStages(orgSlug, singleJobId)
+      .then((res) => {
+        if (!alive) return;
+        if (res?.success) {
+          setJobRounds((res.stages || [])
+            .filter((s) => s.roundKey)
+            .map((s) => ({ roundKey: s.roundKey, label: roundLabel(s.roundKey) })));
+        }
+      })
+      .catch(() => { if (alive) setJobRounds([]); });
+    return () => { alive = false; };
+  }, [singleJobId, orgSlug]);
 
   // 2026-05-17 ATS-APP-LIFECYCLE: parallel fetch of all four lifecycle
   // segment counts so each chip shows its own number. Base filter
@@ -621,6 +718,14 @@ export default function AtsApplications() {
     });
   };
 
+  // Interview column layout: expanded (one col per round) only when a single
+  // job is filtered and its rounds resolved; otherwise one summary column.
+  const showRoundColumns = Boolean(singleJobId) && jobRounds.length > 0;
+  const interviewColCount = showRoundColumns ? jobRounds.length : 1;
+  // 9 non-interview columns (checkbox + 8 data cols); grouped header spans
+  // all-but-its-own-first-cell = total - 1.
+  const groupColSpan = 8 + interviewColCount;
+
   return (
     <div className="p-6 md:p-8 space-y-6">
       {/* Header */}
@@ -788,8 +893,16 @@ export default function AtsApplications() {
                         lowest ascending — dir=desc surfaces scored rows first. */}
                     <SortableHeader column="aiJobFitScore" align="center" className="hidden lg:table-cell">AI Fit</SortableHeader>
                     <SortableHeader column="appliedOn" className="hidden xl:table-cell">Applied</SortableHeader>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">L1 Feedback</th>
-                    <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">L2 Feedback</th>
+                    {/* Interview schedule. All-jobs → one compact summary
+                        column; single job filtered → one column per round
+                        (L1, L2, L3…, HR) with date/time + feedback. */}
+                    {showRoundColumns ? (
+                      jobRounds.map((r) => (
+                        <th key={r.roundKey} className="text-left px-4 py-3 text-dark-400 font-medium hidden lg:table-cell whitespace-nowrap">{r.label}</th>
+                      ))
+                    ) : (
+                      <th className="text-left px-4 py-3 text-dark-400 font-medium hidden xl:table-cell">Interview</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -930,18 +1043,22 @@ export default function AtsApplications() {
                         {formatDate(app.appliedOn)}
                       </td>
 
-                      {/* L1 Feedback \u2014 prefer structured l1Result.recommendation
-                          (Proceed / Awaited / Reject), fall back to the legacy
-                          free-text l1Feedback for any record whose Odoo value
-                          didn't normalize (e.g. "Selected" \u2192 "Proceed").
-                          2026-05-12 audit fix. */}
-                      <td className="px-4 py-3 text-xs hidden xl:table-cell">
-                        <FeedbackBadge result={app.l1Result} legacy={app.l1Feedback} />
-                      </td>
-                      {/* L2 Feedback */}
-                      <td className="px-4 py-3 text-xs hidden xl:table-cell">
-                        <FeedbackBadge result={app.l2Result} legacy={app.l2Feedback} />
-                      </td>
+                      {/* Interview schedule date/time + outcome.
+                          Single-job \u2192 one cell per round; else one summary. */}
+                      {showRoundColumns ? (
+                        jobRounds.map((r) => {
+                          const iv = (app.interviews || []).find((i) => i.roundKey === r.roundKey);
+                          return (
+                            <td key={r.roundKey} className="px-4 py-3 text-xs hidden lg:table-cell">
+                              <RoundCell interview={iv} />
+                            </td>
+                          );
+                        })
+                      ) : (
+                        <td className="px-4 py-3 text-xs hidden xl:table-cell">
+                          <InterviewSummaryCell app={app} />
+                        </td>
+                      )}
                     </tr>
                   );
                   // 2026-05-12 ATS audit Q2 = A: when groupBy is set, wrap
@@ -967,7 +1084,7 @@ export default function AtsApplications() {
                         label={group.label}
                         count={group.records.length}
                         recordSingular="application"
-                        colSpan={10}
+                        colSpan={groupColSpan}
                         collapsed={collapsed}
                         onToggle={() => toggleGroup(key)}
                         accent={accent}
