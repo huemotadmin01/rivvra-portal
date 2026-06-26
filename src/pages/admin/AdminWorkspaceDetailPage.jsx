@@ -370,7 +370,9 @@ function AdminWorkspaceDetailPage() {
                             const res = await superImpersonate(orgId, m.id);
                             if (res.success) {
                               const slug = res.org?.slug || res.user?.defaultOrgSlug;
-                              window.location.href = slug ? `/org/${slug}` : '/';
+                              // Hard nav to the org landing route (/home exists; bare
+                              // /org/:slug does not). Mirrors the org-level Login As.
+                              window.location.assign(slug ? `/org/${slug}/home` : '/');
                             } else {
                               setImpersonatingId(null);
                               alert(res.error || 'Failed to log in as this user');
