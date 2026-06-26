@@ -298,6 +298,40 @@ export function AuthProvider({ children }) {
     }
   }, [user, token, broadcastAuthChange]);
 
+  // Super-admin cross-org "Login As" (any member of any workspace).
+  // Mirrors impersonateUser but hits the super-admin endpoint and returns the
+  // target org so the caller can route into that workspace.
+  const superImpersonate = useCallback(async (orgId, userId) => {
+    setError(null);
+    try {
+      const response = await api.superImpersonateUser(orgId, userId);
+
+      if (response.success) {
+        const { token: impToken, user: impUser } = response;
+
+        const adminData = { user, token };
+        setOriginalAdmin(adminData);
+        localStorage.setItem('rivvra_original_admin', JSON.stringify(adminData));
+
+        setToken(impToken);
+        setUser(impUser);
+        setIsImpersonating(true);
+
+        localStorage.setItem('rivvra_token', impToken);
+        localStorage.setItem('rivvra_user', JSON.stringify(impUser));
+
+        broadcastAuthChange(impUser, impToken);
+
+        return { success: true, user: impUser, org: response.org };
+      }
+
+      throw new Error(response.error || 'Impersonation failed');
+    } catch (err) {
+      setError(err.message);
+      return { success: false, error: err.message };
+    }
+  }, [user, token, broadcastAuthChange]);
+
   // Stop impersonating and restore admin session
   const stopImpersonating = useCallback(() => {
     if (!originalAdmin) return;
@@ -336,9 +370,10 @@ export function AuthProvider({ children }) {
     logout,
     updateUser,
     impersonateUser,
+    superImpersonate,
     stopImpersonating,
     clearError,
-  }), [user, token, loading, error, isImpersonating, originalAdmin, loginWithOtp, loginWithGoogle, signupWithPassword, loginWithPassword, logout, updateUser, impersonateUser, stopImpersonating, clearError]);
+  }), [user, token, loading, error, isImpersonating, originalAdmin, loginWithOtp, loginWithGoogle, signupWithPassword, loginWithPassword, logout, updateUser, impersonateUser, superImpersonate, stopImpersonating, clearError]);
 
   return (
     <AuthContext.Provider value={value}>

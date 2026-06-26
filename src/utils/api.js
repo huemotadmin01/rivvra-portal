@@ -935,6 +935,13 @@ class ApiClient {
     });
   }
 
+  // Super-admin cross-org "Login As" (any member of any workspace)
+  async superImpersonateUser(orgId, userId) {
+    return this.request(`/api/superadmin/workspaces/${orgId}/impersonate/${userId}`, {
+      method: 'POST',
+    });
+  }
+
   // Sub-Teams CRUD
   async getTeams() {
     return this.request('/api/teams');

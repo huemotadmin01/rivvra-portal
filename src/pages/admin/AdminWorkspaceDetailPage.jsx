@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import {
   Building2, ArrowLeft, Loader2, Save, Users, Shield,
   AlertCircle, Globe, Calendar, ChevronRight,
-  Database, RotateCcw, Trash2, Download
+  Database, RotateCcw, Trash2, Download, LogIn
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
@@ -13,6 +14,8 @@ const PLAN_OPTIONS = ['free', 'core', 'all_apps', 'pro', 'enterprise'];
 
 function AdminWorkspaceDetailPage() {
   const { orgId } = useParams();
+  const { superImpersonate } = useAuth();
+  const [impersonatingId, setImpersonatingId] = useState(null);
   const [workspace, setWorkspace] = useState(null);
   const [owner, setOwner] = useState(null);
   const [members, setMembers] = useState([]);
@@ -314,12 +317,13 @@ function AdminWorkspaceDetailPage() {
                 <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">App Access</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Status</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Joined</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-dark-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-dark-400">No members</td>
+                  <td colSpan={6} className="px-5 py-8 text-center text-dark-400">No members</td>
                 </tr>
               ) : (
                 members.map((m, idx) => (
@@ -356,6 +360,34 @@ function AdminWorkspaceDetailPage() {
                       <span className="text-sm text-dark-400">
                         {formatDate(m.joinedAt)}
                       </span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      {m.id ? (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm(`Log in as ${m.name || m.email} in "${workspace?.name || 'this workspace'}"?\n\nThis is a Rivvra super-admin action and is recorded in the audit log.`)) return;
+                            setImpersonatingId(m.id);
+                            const res = await superImpersonate(orgId, m.id);
+                            if (res.success) {
+                              const slug = res.org?.slug || res.user?.defaultOrgSlug;
+                              window.location.href = slug ? `/org/${slug}` : '/';
+                            } else {
+                              setImpersonatingId(null);
+                              alert(res.error || 'Failed to log in as this user');
+                            }
+                          }}
+                          disabled={impersonatingId === m.id}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
+                          title="Log in as this user (super-admin)"
+                        >
+                          {impersonatingId === m.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <LogIn className="w-3.5 h-3.5" />}
+                          Login As
+                        </button>
+                      ) : (
+                        <span className="text-xs text-dark-600">—</span>
+                      )}
                     </td>
                   </tr>
                 ))
