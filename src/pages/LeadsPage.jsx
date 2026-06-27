@@ -8,9 +8,10 @@ import {
   ExternalLink, Building2, MapPin,
   ChevronLeft, ChevronRight, Bookmark,
   ArrowUpDown, RefreshCw, Trash2, AlertTriangle,
-  StickyNote, UserPlus
+  StickyNote, UserPlus, Upload
 } from 'lucide-react';
 
+import BulkImportModal from '../components/BulkImportModal';
 import LeadDetailPanel from '../components/LeadDetailPanel';
 import ManageDropdown from '../components/ManageDropdown';
 import api from '../utils/api';
@@ -23,6 +24,18 @@ import EditContactModal from '../components/EditContactModal';
 import CreateContactModal from '../components/CreateContactModal';
 import { useToast } from '../context/ToastContext';
 
+// Column config for the bulk-import modal → lead create payload.
+const LEAD_IMPORT_FIELDS = [
+  { key: 'name', label: 'Name', required: true, aliases: ['name', 'full name', 'contact', 'contact name'] },
+  { key: 'company', label: 'Company', required: true, aliases: ['company', 'company name', 'organization', 'employer'] },
+  { key: 'email', label: 'Email', required: false, aliases: ['email', 'e-mail', 'email address', 'mail'] },
+  { key: 'title', label: 'Title', required: false, aliases: ['title', 'job title', 'headline', 'designation', 'role', 'position'] },
+  { key: 'phone', label: 'Phone', required: false, aliases: ['phone', 'phone number', 'mobile', 'tel'] },
+  { key: 'location', label: 'Location', required: false, aliases: ['location', 'city', 'region', 'country'] },
+  { key: 'linkedinUrl', label: 'LinkedIn URL', required: false, aliases: ['linkedin', 'linkedin url', 'linkedin profile', 'profile'] },
+  { key: 'profileType', label: 'Type (candidate/client)', required: false, aliases: ['type', 'profile type', 'profiletype'] },
+];
+
 function LeadsPage() {
   const { user } = useAuth();
   const { hasAppAccess } = useOrg();
@@ -32,6 +45,7 @@ function LeadsPage() {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
   const [leads, setLeads] = useState([]);
+  const [showImport, setShowImport] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -331,6 +345,13 @@ function LeadsPage() {
                 </button>
               )}
               <button
+                onClick={() => setShowImport(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-dark-800 text-white hover:bg-dark-700 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Import
+              </button>
+              <button
                 onClick={() => setShowCreateContact(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 text-dark-950 font-medium hover:bg-rivvra-400 transition-colors"
               >
@@ -359,6 +380,17 @@ function LeadsPage() {
               </button>
             </div>
           </div>
+
+          <BulkImportModal
+            open={showImport}
+            onClose={() => setShowImport(false)}
+            title="Import Contacts"
+            itemNoun="contact"
+            templateName="leads-import-template.csv"
+            fields={LEAD_IMPORT_FIELDS}
+            onImport={(rows) => api.bulkImportLeads(rows)}
+            onDone={() => loadLeads(true)}
+          />
 
           {/* Search Bar */}
           <div className="flex items-center gap-4 mb-6">

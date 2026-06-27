@@ -28,6 +28,14 @@ const contactsApi = {
     });
   },
 
+  // Bulk import: rows of { name, email?, phone?, mobile?, jobTitle?, website?, type? }
+  bulkImport(orgSlug, rows) {
+    return api.request(`/api/org/${orgSlug}/contacts/bulk-import`, {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    });
+  },
+
   update(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/contacts/${id}`, {
       method: 'PUT',

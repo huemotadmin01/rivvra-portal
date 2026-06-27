@@ -323,6 +323,14 @@ class ApiClient {
     });
   }
 
+  // Bulk import: rows of { name, company, profileType?, email?, phone?, title?, location?, linkedinUrl? }
+  async bulkImportLeads(rows) {
+    return this.request('/api/portal/leads/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    });
+  }
+
   async getLeads({ page = 1, limit = 50, search, profileType, outreachStatus, listName } = {}) {
     const params = new URLSearchParams({ page, limit });
     if (search) params.set('search', search);

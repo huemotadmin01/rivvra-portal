@@ -7,14 +7,26 @@ import { useToast } from '../../context/ToastContext';
 import contactsApi from '../../utils/contactsApi';
 import { downloadFile } from '../../utils/download';
 import FilterBar, { FilterChip, ArchivedToggle, useFilterParams } from '../../components/shared/FilterBar';
+import BulkImportModal from '../../components/BulkImportModal';
 import {
   Plus, Users, Building2,
-  ChevronLeft, ChevronRight, Download, Loader2,
+  ChevronLeft, ChevronRight, Download, Loader2, Upload,
   ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeletons';
 
 const PAGE_SIZE = 25;
+
+// Column config for the bulk-import modal → contact create payload.
+const CONTACT_IMPORT_FIELDS = [
+  { key: 'name', label: 'Name', required: true, aliases: ['name', 'contact', 'contact name', 'company name', 'full name'] },
+  { key: 'email', label: 'Email', required: false, aliases: ['email', 'e-mail', 'email address', 'mail'] },
+  { key: 'phone', label: 'Phone', required: false, aliases: ['phone', 'phone number', 'telephone', 'tel'] },
+  { key: 'mobile', label: 'Mobile', required: false, aliases: ['mobile', 'mobile number', 'cell'] },
+  { key: 'jobTitle', label: 'Job Title', required: false, aliases: ['job title', 'jobtitle', 'designation', 'role', 'position'] },
+  { key: 'website', label: 'Website', required: false, aliases: ['website', 'url', 'web', 'site'] },
+  { key: 'type', label: 'Type (company/individual)', required: false, aliases: ['type', 'contact type'] },
+];
 
 // 2026-05-17 CONTACTS-D: clickable header that flips asc/desc on the active
 // column or switches to the new column (defaults to asc).
@@ -90,6 +102,7 @@ export default function ContactsList({ filterType }) {
 
   const isAdmin = getAppRole('contacts') === 'admin';
   const orgSlug = currentOrg?.slug;
+  const [showImport, setShowImport] = useState(false);
 
   const setPage = (next) => {
     const np = new URLSearchParams(searchParams);
@@ -231,15 +244,37 @@ export default function ContactsList({ filterType }) {
           </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={() => navigate(orgPath(`/contacts/new-record${filterType ? `?type=${filterType}` : ''}`))}
-            className="btn-primary flex items-center gap-2 self-start"
-          >
-            <Plus size={16} />
-            New Contact
-          </button>
+          <div className="flex items-center gap-2 self-start">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-dark-800 text-dark-100 rounded-lg hover:bg-dark-700 transition-colors text-sm font-medium"
+            >
+              <Upload size={16} />
+              Import
+            </button>
+            <button
+              onClick={() => navigate(orgPath(`/contacts/new-record${filterType ? `?type=${filterType}` : ''}`))}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus size={16} />
+              New Contact
+            </button>
+          </div>
         )}
       </div>
+
+      {isAdmin && (
+        <BulkImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          title="Import Contacts"
+          itemNoun="contact"
+          templateName="contacts-import-template.csv"
+          fields={CONTACT_IMPORT_FIELDS}
+          onImport={(rows) => contactsApi.bulkImport(orgSlug, rows)}
+          onDone={() => fetchContacts()}
+        />
+      )}
 
       {/* Filters — URL-driven via shared FilterBar */}
       <div className="flex items-center gap-2 flex-wrap">
