@@ -218,6 +218,16 @@ function SignupPage() {
     }
   }, [countdown]);
 
+  // Whether new-workspace registration is open (super-admin toggle). Invite
+  // signups join an existing workspace and are always allowed. null = loading.
+  const [registrationOpen, setRegistrationOpen] = useState(null);
+  useEffect(() => {
+    if (inviteToken) { setRegistrationOpen(true); return; }
+    api.getRegistrationStatus()
+      .then(r => setRegistrationOpen(r?.open !== false))
+      .catch(() => setRegistrationOpen(true)); // fail open
+  }, [inviteToken]);
+
   // Handle email submission
   const handleEmailSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -520,6 +530,37 @@ function SignupPage() {
   };
 
   const passwordStrength = checkPasswordStrength(password);
+
+  // Registration temporarily closed (super-admin toggle) — invite signups bypass.
+  if (registrationOpen === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dark-950 px-6">
+        <div className="max-w-md w-full text-center">
+          <Link to="/" className="inline-flex items-center gap-2 mb-8">
+            <div className="w-10 h-10 rounded-xl bg-dark-800 flex items-center justify-center">
+              <RivvraLogo className="w-7 h-7" />
+            </div>
+            <span className="text-xl font-bold text-white">Rivvra</span>
+          </Link>
+          <div className="bg-dark-900 border border-dark-800 rounded-2xl p-8">
+            <h1 className="text-2xl font-bold text-white mb-3">Sign-ups are temporarily closed</h1>
+            <p className="text-dark-400 text-sm leading-relaxed">
+              We've paused new workspace registrations while we put the finishing touches on Rivvra.
+              We'll reopen soon — thanks for your patience.
+            </p>
+            <p className="text-dark-500 text-sm mt-4">
+              Already have an account?{' '}
+              <Link to="/login" className="text-rivvra-400 hover:text-rivvra-300 font-medium">Log in</Link>
+            </p>
+            <p className="text-dark-500 text-xs mt-6">
+              Need access now? Email{' '}
+              <a href="mailto:info@huemot.com" className="text-rivvra-400 hover:text-rivvra-300">info@huemot.com</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-dark-950">

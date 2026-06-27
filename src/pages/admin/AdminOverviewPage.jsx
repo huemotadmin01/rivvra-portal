@@ -32,9 +32,29 @@ function AdminOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // New-workspace registration toggle. null = loading.
+  const [regOpen, setRegOpen] = useState(null);
+  const [regSaving, setRegSaving] = useState(false);
+
   useEffect(() => {
     loadData();
+    api.getRegistrationSetting()
+      .then(r => setRegOpen(r?.open !== false))
+      .catch(() => {});
   }, []);
+
+  const toggleRegistration = async () => {
+    if (regSaving) return;
+    setRegSaving(true);
+    try {
+      const res = await api.setRegistrationSetting(!regOpen);
+      if (res?.success) setRegOpen(res.open);
+    } catch (e) {
+      setError(e.message || 'Failed to update registration setting');
+    } finally {
+      setRegSaving(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -77,6 +97,39 @@ function AdminOverviewPage() {
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-dark-400 mt-1">Rivvra platform overview</p>
       </div>
+
+      {/* New-workspace registration toggle */}
+      {regOpen !== null && (
+        <div className={`border rounded-xl p-5 flex items-center justify-between gap-4 ${
+          regOpen ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className={`inline-block w-2.5 h-2.5 rounded-full ${regOpen ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            <div>
+              <p className="text-sm font-semibold text-white">
+                New workspace registration — {regOpen ? 'Open' : 'Closed'}
+              </p>
+              <p className="text-xs text-dark-400 mt-0.5">
+                {regOpen
+                  ? 'Anyone can sign up and create a new workspace.'
+                  : 'Self-service sign-ups are blocked. Existing customers and team invites are unaffected.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleRegistration}
+            disabled={regSaving}
+            className={`shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors ${
+              regOpen
+                ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
+                : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+            }`}
+          >
+            {regSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {regOpen ? 'Close registrations' : 'Open registrations'}
+          </button>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

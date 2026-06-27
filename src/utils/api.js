@@ -1115,6 +1115,23 @@ class ApiClient {
     return this.request('/api/superadmin/stats');
   }
 
+  // New-workspace registration toggle (super-admin)
+  async getRegistrationSetting() {
+    return this.request('/api/superadmin/registration');
+  }
+
+  async setRegistrationSetting(open) {
+    return this.request('/api/superadmin/registration', {
+      method: 'PUT',
+      body: JSON.stringify({ open }),
+    });
+  }
+
+  // Public: whether self-service signup is open (no auth)
+  async getRegistrationStatus() {
+    return this.request('/api/auth/registration-status');
+  }
+
   async getSuperAdminWorkspaces(params = {}) {
     const qs = new URLSearchParams(params).toString();
     return this.request(`/api/superadmin/workspaces${qs ? '?' + qs : ''}`);
