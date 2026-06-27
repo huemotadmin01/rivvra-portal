@@ -453,7 +453,9 @@ export const APP_REGISTRY = {
     adminOnly: true,
     defaultRoute: '/invoicing/dashboard',
     derivedRoles: true,
-    getSidebarItems: () => [
+    // 5th arg (isOrgOwner) is passed by AppSidebar so net-profit stays
+    // owner / super-admin only — see Profitability tab.
+    getSidebarItems: (user, _ts, _role, _company, isOrgOwner) => [
       { type: 'item', path: '/invoicing/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { type: 'item', path: '/invoicing/invoices', label: 'Customer Invoices', icon: FileText },
       { type: 'item', path: '/invoicing/bills', label: 'Vendor Bills', icon: Wallet },
@@ -467,6 +469,10 @@ export const APP_REGISTRY = {
           { path: '/invoicing/reports/tax', label: 'Tax Report', icon: Shield },
           { path: '/invoicing/reports/gst-2b', label: 'GST 2B Recon', icon: Shield },
           { path: '/invoicing/reports/analysis', label: 'Invoice Analysis', icon: BarChart3 },
+          // Net profit is sensitive P&L: owner / platform super-admin only.
+          ...((isOrgOwner || user?.superAdmin)
+            ? [{ path: '/invoicing/reports/profitability', label: 'Profitability', icon: TrendingUp }]
+            : []),
         ],
       },
       { type: 'item', path: '/invoicing/reconciliation', label: 'Bank Reconciliation', icon: Landmark },

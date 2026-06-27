@@ -13,6 +13,26 @@ const invoicingApi = {
     return api.request(`/api/org/${orgSlug}/invoicing/dashboard/journal-stats`);
   },
 
+  // ---------- PROFITABILITY (net profit — owner / super-admin only) ----------
+  getProfitability(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability${qs ? '?' + qs : ''}`);
+  },
+  getProfitabilityRecords(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability/records${qs ? '?' + qs : ''}`);
+  },
+  getProfitAdjustments(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability/adjustments${qs ? '?' + qs : ''}`);
+  },
+  saveProfitAdjustment(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability/adjustments`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  deleteProfitAdjustment(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability/adjustments/${id}`, { method: 'DELETE' });
+  },
+
   // ---------- INVOICES ----------
   listInvoices(orgSlug, params = {}) {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
