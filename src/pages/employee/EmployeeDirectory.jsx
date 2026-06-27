@@ -7,8 +7,25 @@ import employeeApi from '../../utils/employeeApi';
 import { getPublicPlatformSetting } from '../../utils/payrollApi';
 import {
   Search, Plus, Loader2, Users, Mail, Phone, Hash,
-  ChevronLeft, ChevronRight, ChevronDown, X,
+  ChevronLeft, ChevronRight, ChevronDown, X, Upload,
 } from 'lucide-react';
+import BulkImportModal from '../../components/BulkImportModal';
+
+// Column config for the bulk-import modal → employee create payload.
+// Import posture = migrating existing staff: Sourced By blank, no probation,
+// no salary (set CTC later via Revise CTC).
+const EMPLOYEE_IMPORT_FIELDS = [
+  { key: 'fullName', label: 'Full Name', required: true, aliases: ['full name', 'name', 'employee name', 'fullname'] },
+  { key: 'email', label: 'Email', required: true, aliases: ['email', 'e-mail', 'email address', 'work email', 'mail'] },
+  { key: 'phone', label: 'Phone', required: false, aliases: ['phone', 'phone number', 'mobile', 'contact'] },
+  { key: 'employeeId', label: 'Employee ID', required: false, aliases: ['employee id', 'emp id', 'employeeid', 'id', 'empid'] },
+  { key: 'employmentType', label: 'Employment Type', required: false, aliases: ['employment type', 'type', 'emp type'] },
+  { key: 'designation', label: 'Designation', required: false, aliases: ['designation', 'title', 'job title', 'role', 'position'] },
+  { key: 'joiningDate', label: 'Joining Date', required: false, aliases: ['joining date', 'doj', 'date of joining', 'start date', 'joined'] },
+  { key: 'status', label: 'Status', required: false, aliases: ['status', 'employment status'] },
+  { key: 'lastWorkingDate', label: 'Last Working Date', required: false, aliases: ['last working date', 'lwd', 'exit date', 'end date'] },
+  { key: 'dateOfBirth', label: 'Date of Birth', required: false, aliases: ['date of birth', 'dob', 'birth date', 'birthday'] },
+];
 
 /* ── Inline FilterChip component ─────────────────────────────────────── */
 function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
@@ -94,6 +111,7 @@ export default function EmployeeDirectory() {
   const debounceRef = useRef(null);
   const isAdmin = getAppRole('employee') === 'admin';
   const orgSlug = currentOrg?.slug;
+  const [showImport, setShowImport] = useState(false);
 
   // Count active filters
   const activeFilterCount = [departmentFilter, employmentTypeFilter, statusFilter, billableFilter]
@@ -234,15 +252,37 @@ export default function EmployeeDirectory() {
           </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={() => navigate(orgPath('/employee/add'))}
-            className="btn-primary flex items-center gap-2 self-start"
-          >
-            <Plus size={16} />
-            Add Employee
-          </button>
+          <div className="flex items-center gap-2 self-start">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-dark-800 text-dark-100 rounded-lg hover:bg-dark-700 transition-colors text-sm font-medium"
+            >
+              <Upload size={16} />
+              Import
+            </button>
+            <button
+              onClick={() => navigate(orgPath('/employee/add'))}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Add Employee
+            </button>
+          </div>
         )}
       </div>
+
+      {isAdmin && (
+        <BulkImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          title="Import Employees"
+          itemNoun="employee"
+          templateName="employees-import-template.csv"
+          fields={EMPLOYEE_IMPORT_FIELDS}
+          onImport={(rows) => employeeApi.bulkImport(orgSlug, rows)}
+          onDone={() => fetchEmployees()}
+        />
+      )}
 
       {/* Search bar */}
       <div className="relative">

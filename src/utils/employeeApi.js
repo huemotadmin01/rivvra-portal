@@ -25,6 +25,15 @@ const employeeApi = {
     });
   },
 
+  // Bulk import: rows of { fullName, email, phone?, employeeId?, employmentType?,
+  // designation?, joiningDate?, status?, lastWorkingDate?, dateOfBirth? }
+  bulkImport(orgSlug, rows) {
+    return api.request(`/api/org/${orgSlug}/employee/employees/bulk-import`, {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    });
+  },
+
   update(orgSlug, id, data) {
     return api.request(`/api/org/${orgSlug}/employee/employees/${id}`, {
       method: 'PUT',
