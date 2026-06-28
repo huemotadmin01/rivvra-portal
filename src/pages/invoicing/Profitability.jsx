@@ -18,7 +18,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import {
-  Loader2, ArrowLeft, Lock, Info, X, TrendingUp, TrendingDown, SlidersHorizontal,
+  Loader2, ArrowLeft, Lock, Info, X, TrendingUp, SlidersHorizontal,
 } from 'lucide-react';
 
 const GRANULARITIES = [
@@ -67,19 +67,14 @@ function KpiCard({ label, amount, currency, tone }) {
   );
 }
 
-// One P&L block for a single currency: KPIs + net-profit chart + breakdown table.
-function CurrencyBlock({ currency, series, total, onDrill }) {
+// Consolidated P&L (single functional currency): KPIs + chart + breakdown table.
+function PnlBlock({ currency, series, total, onDrill }) {
   const netRevenue = total.revenue - total.creditNotes;
   const totalCosts = total.vendorBills + total.employeeBills + total.payrollCtc + total.otherExpenses;
-  const chartData = series.map((s) => {
-    const c = s.byCurrency.find((x) => x.currency === currency) || {};
-    return { name: s.label, net: c.netProfit || 0 };
-  });
+  const chartData = series.map((s) => ({ name: s.label, net: s.netProfit || 0 }));
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold text-dark-200 uppercase tracking-wider">{currency}</h2>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard label="Net Profit" amount={total.netProfit} currency={currency} tone="profit" />
         <KpiCard label="Revenue (net of credit notes)" amount={netRevenue} currency={currency} tone="revenue" />
@@ -118,35 +113,32 @@ function CurrencyBlock({ currency, series, total, onDrill }) {
             </tr>
           </thead>
           <tbody>
-            {series.map((s) => {
-              const c = s.byCurrency.find((x) => x.currency === currency) || {};
-              return (
-                <tr key={s.period} className="border-b border-dark-700/50 hover:bg-dark-800/40 transition-colors">
-                  <td className="px-4 py-3 text-white font-medium whitespace-nowrap sticky left-0 bg-dark-850">{s.label}</td>
-                  {BUCKETS.map((b) => {
-                    const val = c[b.key] || 0;
-                    const display = formatCurrency(val, currency);
-                    return (
-                      <td key={b.key} className="px-4 py-3 text-right whitespace-nowrap">
-                        {b.drill && val !== 0 ? (
-                          <button
-                            onClick={() => onDrill({ period: s.period, label: s.label, bucket: b.key, bucketLabel: b.label, currency })}
-                            className="text-dark-200 hover:text-rivvra-400 hover:underline underline-offset-2"
-                          >
-                            {b.sign < 0 ? `(${display})` : display}
-                          </button>
-                        ) : (
-                          <span className="text-dark-400">{b.sign < 0 && val !== 0 ? `(${display})` : display}</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${(c.netProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {formatCurrency(c.netProfit || 0, currency)}
-                  </td>
-                </tr>
-              );
-            })}
+            {series.map((s) => (
+              <tr key={s.period} className="border-b border-dark-700/50 hover:bg-dark-800/40 transition-colors">
+                <td className="px-4 py-3 text-white font-medium whitespace-nowrap sticky left-0 bg-dark-850">{s.label}</td>
+                {BUCKETS.map((b) => {
+                  const val = s[b.key] || 0;
+                  const display = formatCurrency(val, currency);
+                  return (
+                    <td key={b.key} className="px-4 py-3 text-right whitespace-nowrap">
+                      {b.drill && val !== 0 ? (
+                        <button
+                          onClick={() => onDrill({ period: s.period, label: s.label, bucket: b.key, bucketLabel: b.label, currency })}
+                          className="text-dark-200 hover:text-rivvra-400 hover:underline underline-offset-2"
+                        >
+                          {b.sign < 0 ? `(${display})` : display}
+                        </button>
+                      ) : (
+                        <span className="text-dark-400">{b.sign < 0 && val !== 0 ? `(${display})` : display}</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${(s.netProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {formatCurrency(s.netProfit || 0, currency)}
+                </td>
+              </tr>
+            ))}
           </tbody>
           <tfoot>
             <tr className="bg-dark-800/60 font-semibold">
@@ -214,8 +206,11 @@ function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
                     <td className="px-5 py-3 text-right text-dark-400 whitespace-nowrap">
                       {r.date ? new Date(r.date).toLocaleDateString() : ''}
                     </td>
-                    <td className="px-5 py-3 text-right text-dark-200 font-medium whitespace-nowrap">
-                      {formatCurrency(r.amount, r.currency || ctx.currency)}
+                    <td className="px-5 py-3 text-right whitespace-nowrap">
+                      <span className="text-dark-200 font-medium">{formatCurrency(r.amount, r.currency || ctx.currency)}</span>
+                      {r.nativeCurrency && r.nativeCurrency !== (r.currency || ctx.currency) && (
+                        <span className="block text-[11px] text-dark-500">{formatCurrency(r.nativeAmount, r.nativeCurrency)}</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -381,9 +376,9 @@ export default function Profitability() {
                 Net profit (GST-excluded, accrual) for {data?.company?.name || currentCompany?.name || 'this company'}
               </p>
               <p className="text-dark-500 text-xs mt-1 max-w-2xl">
-                Revenue is GST-excluded and recognised by <span className="text-dark-300">service period</span> (each line's
-                service month), not invoice date — so totals won't match the Customer Invoices list, which is by invoice
-                date and GST-inclusive.
+                GST-excluded; revenue recognised by <span className="text-dark-300">service period</span> (each line's
+                service month), not invoice date. All currencies are converted to {data?.currency || 'the functional currency'}
+                {' '}at the configured FX rates — so totals won't match the Customer Invoices list (by invoice date, GST-inclusive, per-currency).
               </p>
             </div>
           </div>
@@ -423,6 +418,18 @@ export default function Profitability() {
           </div>
         )}
 
+        {/* Missing FX rate warning */}
+        {data?.missingRates?.length > 0 && (
+          <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-amber-300 text-sm">
+            <Info size={18} className="flex-shrink-0 mt-0.5" />
+            <span>
+              No exchange rate configured for {data.missingRates.join(', ')} → {data.currency}, so amounts in
+              {' '}{data.missingRates.length > 1 ? 'those currencies are' : 'that currency is'} excluded from net profit.
+              Add the rate in <span className="font-medium">Incentive → Settings → FX rates</span>.
+            </span>
+          </div>
+        )}
+
         {loading && (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-rivvra-400 animate-spin" /></div>
         )}
@@ -431,24 +438,7 @@ export default function Profitability() {
         )}
 
         {!loading && !error && data && (
-          data.totals?.length > 0 ? (
-            <div className="space-y-10">
-              {data.currencies.map((cur) => (
-                <CurrencyBlock
-                  key={cur}
-                  currency={cur}
-                  series={data.series}
-                  total={data.totals.find((t) => t.currency === cur) || {}}
-                  onDrill={setDrill}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-dark-500">
-              <TrendingDown size={48} className="mb-3 opacity-40" />
-              <p className="text-base font-medium text-dark-400">No finalized activity for this period</p>
-            </div>
-          )
+          <PnlBlock currency={data.currency} series={data.series || []} total={data.totals || {}} onDrill={setDrill} />
         )}
       </div>
 
@@ -459,7 +449,7 @@ export default function Profitability() {
         <AdjustmentsModal
           orgSlug={orgSlug}
           fy={fy || data.fy}
-          currency={data.primaryCurrency}
+          currency={data.currency}
           months={fyMonths}
           onClose={() => setShowAdj(false)}
           onSaved={() => { setShowAdj(false); load(); }}
