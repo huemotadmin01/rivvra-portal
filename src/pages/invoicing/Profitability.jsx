@@ -380,6 +380,11 @@ export default function Profitability() {
               <p className="text-dark-300 text-sm mt-0.5">
                 Net profit (GST-excluded, accrual) for {data?.company?.name || currentCompany?.name || 'this company'}
               </p>
+              <p className="text-dark-500 text-xs mt-1 max-w-2xl">
+                Revenue is GST-excluded and recognised by <span className="text-dark-300">service period</span> (each line's
+                service month), not invoice date — so totals won't match the Customer Invoices list, which is by invoice
+                date and GST-inclusive.
+              </p>
             </div>
           </div>
           <button
