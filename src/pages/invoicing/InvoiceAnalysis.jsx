@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { formatCurrency } from '../../utils/formatCurrency';
 import {
   Loader2, ArrowLeft, Search, TrendingUp, Users, Package,
 } from 'lucide-react';
@@ -11,15 +12,8 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatCurrency(amount, currency = 'INR') {
-  if (amount == null) return '₹0.00';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
+// formatCurrency is imported from utils — it guards against invalid ISO codes
+// (a malformed currency on a record would otherwise crash Intl.NumberFormat).
 
 function formatNumber(num) {
   if (num == null) return '0';
