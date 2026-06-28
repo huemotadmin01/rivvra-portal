@@ -377,8 +377,9 @@ export default function Profitability() {
               </p>
               <p className="text-dark-500 text-xs mt-1 max-w-2xl">
                 GST-excluded; revenue recognised by <span className="text-dark-300">service period</span> (each line's
-                service month), not invoice date. All currencies are converted to {data?.currency || 'the functional currency'}
-                {' '}at the configured FX rates — so totals won't match the Customer Invoices list (by invoice date, GST-inclusive, per-currency).
+                service month), not invoice date. Foreign currencies are converted to {data?.currency || 'the base currency'}
+                {' '}at <span className="text-dark-300">reference (ECB) rates</span> on the payment date (paid) or invoice date (unpaid)
+                {' '}— so totals won't match the Customer Invoices list (by invoice date, GST-inclusive, per-currency).
               </p>
             </div>
           </div>
@@ -423,9 +424,8 @@ export default function Profitability() {
           <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-amber-300 text-sm">
             <Info size={18} className="flex-shrink-0 mt-0.5" />
             <span>
-              No exchange rate configured for {data.missingRates.join(', ')} → {data.currency}, so amounts in
+              No reference FX rate available for {data.missingRates.join(', ')} → {data.currency}, so amounts in
               {' '}{data.missingRates.length > 1 ? 'those currencies are' : 'that currency is'} excluded from net profit.
-              Add the rate in <span className="font-medium">Incentive → Settings → FX rates</span>.
             </span>
           </div>
         )}
