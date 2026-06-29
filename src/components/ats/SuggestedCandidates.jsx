@@ -378,7 +378,7 @@ export default function SuggestedCandidates({
                 {/* Create only when this viewer can actually own the app for
                     this candidate (its manager / their lead / admin). Everyone
                     else recommends — the handoff to the candidate's manager. */}
-                {canRecommend && !(canCreate && c.canCreate) && !(canCreate && c.company?.isOther) && !c.recommendation && (
+                {canRecommend && !(canCreate && c.canCreate) && !c.recommendation && (
                   <button
                     onClick={() => handleRecommend(c)}
                     disabled={busyId === c._id}

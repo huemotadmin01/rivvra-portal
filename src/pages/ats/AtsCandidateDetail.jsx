@@ -102,7 +102,7 @@ export default function AtsCandidateDetail() {
   // Cross-company: the candidate belongs to a different company in the org
   // (reached via org-wide / cross-company suggestions). Read-only — edits/
   // skills/archive would target the wrong company. 2026-06-26.
-  const { currentCompanyId, companies } = useCompany();
+  const { currentCompanyId, companies, switchCompany } = useCompany();
   const isCrossCompany = !!(candidate?.companyId && currentCompanyId
     && String(candidate.companyId) !== String(currentCompanyId));
   const crossCompanyName = isCrossCompany
@@ -295,6 +295,28 @@ export default function AtsCandidateDetail() {
             </p>
           </div>
         </div>
+
+        {/* Cross-company: this candidate's applications, skills and edits live
+            in their own company. The counts here read 0 because the page is
+            scoped to the active company — prompt the user to switch. */}
+        {isCrossCompany && (
+          <div className="mb-4 rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/25 px-4 py-3 flex items-start gap-3">
+            <Building2 size={16} className="text-amber-300 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-100 font-medium">This candidate belongs to {crossCompanyName}</p>
+              <p className="text-xs text-amber-200/70 mt-0.5">
+                You're viewing them read-only from {companies.find((c) => String(c._id) === String(currentCompanyId))?.name || 'your current company'}.
+                Their applications, skills and full history live in {crossCompanyName} — switch companies to see and edit them.
+              </p>
+            </div>
+            <button
+              onClick={() => switchCompany(String(candidate.companyId))}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/30 hover:bg-amber-500/25 transition-colors"
+            >
+              <Building2 size={13} /> Switch to {crossCompanyName}
+            </button>
+          </div>
+        )}
 
         {/* 2026-05-18 RBAC: Archive available to all recruiters; Unarchive
             stays admin-only. 2026-05-18 PM: action bar hidden entirely for
