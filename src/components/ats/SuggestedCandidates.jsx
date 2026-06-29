@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
@@ -79,6 +79,11 @@ export default function SuggestedCandidates({
   useEffect(() => { fetchSuggestions(); }, [fetchSuggestions, refreshKey]);
 
   const candidates = data?.candidates || [];
+  // Same-company matches first, then a separator, then cross-company ones.
+  const sameCompany = candidates.filter((c) => !c.company?.isOther);
+  const otherCompany = candidates.filter((c) => c.company?.isOther);
+  const orderedCandidates = [...sameCompany, ...otherCompany];
+  const firstOtherIndex = sameCompany.length;
 
   const patchCandidate = (id, patch) => setData((prev) => prev && {
     ...prev,
@@ -228,8 +233,19 @@ export default function SuggestedCandidates({
         </div>
       ) : (
         <ul className="divide-y divide-dark-700/70">
-          {candidates.map((c) => (
-            <li key={c._id} className="py-3 flex items-start gap-3">
+          {orderedCandidates.map((c, i) => (
+            <Fragment key={c._id}>
+            {i === firstOtherIndex && otherCompany.length > 0 && (
+              <li className="pt-4 pb-2">
+                <div className="flex items-center gap-2">
+                  <Users size={12} className="text-dark-500" />
+                  <span className="text-[11px] uppercase tracking-wide text-dark-400 font-medium">From other companies in your organization</span>
+                  <div className="flex-1 h-px bg-dark-700" />
+                </div>
+                <p className="text-[10px] text-dark-500 mt-1">These candidates belong to another company — coordinate with their owner (Recommend) rather than creating directly.</p>
+              </li>
+            )}
+            <li className="py-3 flex items-start gap-3">
               <div className={`shrink-0 mt-0.5 w-12 h-12 rounded-lg ring-1 flex flex-col items-center justify-center ${fitTone(c.fitScore)}`}>
                 <span className="text-base font-semibold leading-none">{c.fitScore}</span>
                 <span className="text-[9px] uppercase tracking-wide opacity-70">fit</span>
@@ -248,6 +264,11 @@ export default function SuggestedCandidates({
                   )}
                   {c.managerName && (
                     <span className="text-[11px] text-dark-500">· Owner: {c.managerName}</span>
+                  )}
+                  {c.company?.isOther && c.company?.name && (
+                    <span className="text-[10px] bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20 px-1.5 py-0.5 rounded" title="Candidate from another company in your organization">
+                      {c.company.name}
+                    </span>
                   )}
                 </div>
 
@@ -360,6 +381,7 @@ export default function SuggestedCandidates({
                 </button>
               </div>
             </li>
+            </Fragment>
           ))}
         </ul>
       )}

@@ -341,6 +341,16 @@ export default function SettingsAts() {
                 onChange={v => update('autoCreateCandidate', v)}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-dark-300">Suggest candidates across companies</p>
+                <p className="text-xs text-dark-500">Let this company's job suggestions also draw from other companies in your organization (shown in a separate section). Use when this company has a small candidate pool.</p>
+              </div>
+              <ToggleSwitch
+                checked={settings?.crossCompanySuggestions ?? false}
+                onChange={v => update('crossCompanySuggestions', v)}
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Default Stage</label>
               <p className="text-xs text-dark-500 mb-2">Stage assigned to new applications when created</p>
