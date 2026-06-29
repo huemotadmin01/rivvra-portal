@@ -108,7 +108,12 @@ export default function AtsCandidateDetail() {
   const crossCompanyName = isCrossCompany
     ? (companies.find((c) => String(c._id) === String(candidate.companyId))?.name || 'another company')
     : null;
-  const canEdit = canRecruit && canActOnThis && !candidate?.archived && !isCrossCompany;
+  // Writes are safe only when the company context is RESOLVED and the
+  // candidate is in the active company. Treating an unresolved currentCompanyId
+  // as not-writable closes the load-race where a cross-company candidate could
+  // be edited before the company context settles. 2026-06-26 audit fix.
+  const crossCompanySafe = !!currentCompanyId && !isCrossCompany;
+  const canEdit = canRecruit && canActOnThis && !candidate?.archived && crossCompanySafe;
   const isViewOnly = !!(canRecruit && candidate && (!canActOnThis || isCrossCompany));
 
   const load = useCallback(async () => {
@@ -321,7 +326,7 @@ export default function AtsCandidateDetail() {
         {/* 2026-05-18 RBAC: Archive available to all recruiters; Unarchive
             stays admin-only. 2026-05-18 PM: action bar hidden entirely for
             non-managers (matches the read-all + manager-write gate). */}
-        {canRecruit && canActOnThis && !isCrossCompany && (
+        {canRecruit && canActOnThis && crossCompanySafe && (
           <div className="flex items-center gap-2 flex-wrap">
             {candidate.archived ? (
               isAdmin && (
@@ -380,7 +385,7 @@ export default function AtsCandidateDetail() {
               data yet — backfill / new-application processing populates it. */}
           <AiResumeInsights
             candidate={candidate}
-            canRescore={isAdmin}
+            canRescore={isAdmin && crossCompanySafe}
             rescoring={aiRescoring}
             onRescore={handleAiRescore}
           />

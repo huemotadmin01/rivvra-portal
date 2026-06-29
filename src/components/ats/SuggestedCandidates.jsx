@@ -389,7 +389,7 @@ export default function SuggestedCandidates({
                     Recommend
                   </button>
                 )}
-                {canCreate && c.canCreate && confirmId !== c._id && (
+                {canCreate && c.canCreate && !c.company?.isOther && confirmId !== c._id && (
                   <button
                     onClick={() => { setConfirmId(c._id); setAvailChecked(false); }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 transition-colors"
