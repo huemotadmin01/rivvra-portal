@@ -52,6 +52,26 @@ const atsApi = {
     });
   },
 
+  // ── Attachment Kinds (org-wide taxonomy for per-stage upload gates) ─────
+  listAttachmentKinds(orgSlug, includeArchived = false) {
+    const qs = includeArchived ? '?includeArchived=true' : '';
+    return api.request(`/api/org/${orgSlug}/ats/attachment-kinds${qs}`);
+  },
+
+  createAttachmentKind(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/ats/attachment-kinds`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateAttachmentKind(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/ats/attachment-kinds/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   // ── Job Positions ─────────────────────────────────────────────────────
   // 2026-05-17 health-check F.3: facets endpoint for the Jobs list's
   // Department + Client filter chips. Returns distinct values across the

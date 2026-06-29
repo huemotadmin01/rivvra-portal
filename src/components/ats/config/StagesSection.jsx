@@ -3,29 +3,44 @@ import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import {
   Plus, Edit2, X, Loader2, Trash2,
-  Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye,
+  Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye, Paperclip,
   ToggleLeft, ToggleRight, RotateCcw, Save,
 } from 'lucide-react';
+
+const EMPTY_FORM = { name: '', sequence: 0, foldInKanban: false, isHiredStage: false, requiredAttachments: [] };
 
 export default function StagesSection({ orgSlug, showToast }) {
   const modalRef = useRef(null);
   const [stages, setStages] = useState([]);
+  const [kinds, setKinds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
-  const [form, setForm] = useState({ name: '', sequence: 0, foldInKanban: false, isHiredStage: false });
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  // Label lookup so the table + modal can render kind names from the ids
+  // stored on stage.requiredAttachments[]. Archived kinds still resolve here
+  // (separate active list drives the picker) so existing assignments show.
+  const kindLabel = useCallback(
+    (id) => kinds.find((k) => k._id === id)?.label || 'Unknown',
+    [kinds],
+  );
 
   const fetchStages = useCallback(async () => {
     if (!orgSlug) return;
     try {
       setLoading(true);
-      const res = await atsApi.listStages(orgSlug);
-      if (res.success) {
-        setStages((res.stages || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
+      const [stagesRes, kindsRes] = await Promise.all([
+        atsApi.listStages(orgSlug),
+        atsApi.listAttachmentKinds(orgSlug, true),
+      ]);
+      if (stagesRes.success) {
+        setStages((stagesRes.stages || []).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
       }
+      if (kindsRes.success) setKinds(kindsRes.kinds || []);
     } catch {
       showToast('Failed to load stages', 'error');
     } finally {
@@ -38,7 +53,7 @@ export default function StagesSection({ orgSlug, showToast }) {
   const openAdd = () => {
     setEditingStage(null);
     const nextSeq = stages.length > 0 ? Math.max(...stages.map((s) => s.sequence ?? 0)) + 1 : 1;
-    setForm({ name: '', sequence: nextSeq, foldInKanban: false, isHiredStage: false });
+    setForm({ ...EMPTY_FORM, sequence: nextSeq });
     setShowModal(true);
     setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
   };
@@ -50,6 +65,11 @@ export default function StagesSection({ orgSlug, showToast }) {
       sequence: stage.sequence ?? 0,
       foldInKanban: stage.foldInKanban || false,
       isHiredStage: stage.isHiredStage || false,
+      // ids arrive JSON-serialized as strings; keep them as strings to match
+      // the kinds list _id for checkbox state + render.
+      requiredAttachments: Array.isArray(stage.requiredAttachments)
+        ? stage.requiredAttachments.map(String)
+        : [],
     });
     setShowModal(true);
     setTimeout(() => modalRef.current?.querySelector('input')?.focus(), 50);
@@ -58,7 +78,19 @@ export default function StagesSection({ orgSlug, showToast }) {
   const closeModal = () => {
     setShowModal(false);
     setEditingStage(null);
-    setForm({ name: '', sequence: 0, foldInKanban: false, isHiredStage: false });
+    setForm(EMPTY_FORM);
+  };
+
+  const toggleRequiredKind = (kindId) => {
+    setForm((prev) => {
+      const has = prev.requiredAttachments.includes(kindId);
+      return {
+        ...prev,
+        requiredAttachments: has
+          ? prev.requiredAttachments.filter((id) => id !== kindId)
+          : [...prev.requiredAttachments, kindId],
+      };
+    });
   };
 
   const handleSave = async (e) => {
@@ -71,6 +103,7 @@ export default function StagesSection({ orgSlug, showToast }) {
         sequence: Number(form.sequence) || 0,
         foldInKanban: form.foldInKanban,
         isHiredStage: form.isHiredStage,
+        requiredAttachments: form.requiredAttachments,
       };
       if (editingStage) {
         const res = await atsApi.updateStage(orgSlug, editingStage._id, payload);
@@ -159,6 +192,7 @@ export default function StagesSection({ orgSlug, showToast }) {
                 <tr className="border-b border-dark-700">
                   <th className="text-left px-4 py-2.5 text-dark-400 font-medium w-16">#</th>
                   <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Name</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium hidden md:table-cell">Required Uploads</th>
                   <th className="text-center px-4 py-2.5 text-dark-400 font-medium hidden sm:table-cell">Fold in Kanban</th>
                   <th className="text-center px-4 py-2.5 text-dark-400 font-medium hidden sm:table-cell">Hired Stage</th>
                   <th className="text-right px-4 py-2.5 text-dark-400 font-medium w-24">Actions</th>
@@ -175,6 +209,23 @@ export default function StagesSection({ orgSlug, showToast }) {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-white">{stage.name}</span>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      {Array.isArray(stage.requiredAttachments) && stage.requiredAttachments.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {stage.requiredAttachments.map((id) => (
+                            <span
+                              key={String(id)}
+                              className="inline-flex items-center gap-1 text-xs bg-rivvra-500/10 text-rivvra-300 border border-rivvra-500/20 px-2 py-0.5 rounded-full"
+                            >
+                              <Paperclip size={11} />
+                              {kindLabel(String(id))}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-dark-600">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
                       {stage.foldInKanban ? (
@@ -288,6 +339,43 @@ export default function StagesSection({ orgSlug, showToast }) {
                     <p className="text-xs text-dark-500">Mark candidates in this stage as hired.</p>
                   </div>
                 </label>
+              </div>
+
+              {/* Required attachments — per-stage upload gate */}
+              <div className="pt-1">
+                <label className="block text-sm font-medium text-dark-300 mb-1">
+                  Required Uploads
+                </label>
+                <p className="text-xs text-dark-500 mb-2">
+                  An application can't move <span className="text-dark-300">into</span> this stage until a file of each selected
+                  kind is attached. Manage the list under the <span className="text-dark-300">Attachment Kinds</span> tab.
+                </p>
+                {kinds.filter((k) => !k.archived).length === 0 ? (
+                  <p className="text-xs text-dark-500 italic">
+                    No attachment kinds yet — create one in the Attachment Kinds tab first.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                    {kinds.filter((k) => !k.archived).map((k) => (
+                      <label key={k._id} className="flex items-center gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={form.requiredAttachments.includes(k._id)}
+                          onChange={() => toggleRequiredKind(k._id)}
+                          className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500 focus:ring-offset-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm text-white group-hover:text-rivvra-400 transition-colors truncate">{k.label}</p>
+                          {(k.mime || k.maxSizeMb) && (
+                            <p className="text-xs text-dark-500">
+                              {k.mime || 'Any type'}{k.maxSizeMb ? ` · max ${k.maxSizeMb} MB` : ''}
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Actions */}

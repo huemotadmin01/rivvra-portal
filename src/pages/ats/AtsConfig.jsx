@@ -3,7 +3,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import {
   Layers, Tag, Globe, ThumbsDown, GraduationCap, Briefcase,
-  Zap, Award, BarChart3, Mail, FileCheck,
+  Zap, Award, BarChart3, Mail, FileCheck, Paperclip,
 } from 'lucide-react';
 
 import ConfigSection from '../../components/ats/config/ConfigSection';
@@ -13,6 +13,7 @@ import SkillsSection from '../../components/ats/config/SkillsSection';
 import SkillLevelsSection from '../../components/ats/config/SkillLevelsSection';
 import EmailTemplatesSection from '../../components/ats/config/EmailTemplatesSection';
 import RequiredDocumentsSection from '../../components/ats/config/RequiredDocumentsSection';
+import AttachmentKindsSection from '../../components/ats/config/AttachmentKindsSection';
 
 /**
  * AtsConfig — thin shell that URL-drives a tab strip across the 10 ATS
@@ -27,6 +28,7 @@ import RequiredDocumentsSection from '../../components/ats/config/RequiredDocume
  */
 const TABS = [
   { key: 'stages',           label: 'Stages',           icon: Layers },
+  { key: 'attachment_kinds', label: 'Attachment Kinds', icon: Paperclip },
   { key: 'tags',             label: 'Tags',             icon: Tag },
   { key: 'sources',          label: 'Sources',          icon: Globe },
   { key: 'refuse_reasons',     label: 'Refuse Reasons',     icon: ThumbsDown },
@@ -110,6 +112,7 @@ export default function AtsConfig() {
 
       {/* Tab content */}
       {activeTab === 'stages' && <StagesSection {...sectionProps} />}
+      {activeTab === 'attachment_kinds' && <AttachmentKindsSection {...sectionProps} />}
       {activeTab === 'tags' && <ConfigSection entity="tags" entityLabel="Tags" icon={Tag} {...sectionProps} />}
       {activeTab === 'sources' && <ConfigSection entity="sources" entityLabel="Sources" icon={Globe} {...sectionProps} />}
       {activeTab === 'refuse_reasons' && <ConfigSection entity="refuse_reasons" entityLabel="Refuse Reasons" icon={ThumbsDown} {...sectionProps} />}
