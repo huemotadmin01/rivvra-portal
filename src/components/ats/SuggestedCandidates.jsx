@@ -378,12 +378,12 @@ export default function SuggestedCandidates({
                 {/* Create only when this viewer can actually own the app for
                     this candidate (its manager / their lead / admin). Everyone
                     else recommends — the handoff to the candidate's manager. */}
-                {canRecommend && !(canCreate && c.canCreate) && !c.recommendation && (
+                {canRecommend && !c.recommendation && (
                   <button
                     onClick={() => handleRecommend(c)}
                     disabled={busyId === c._id}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-dark-700 text-rivvra-200 hover:bg-dark-600 disabled:opacity-50 transition-colors"
-                    title="Recommend this candidate to the candidate's manager"
+                    title="Recommend this candidate to their manager (hand off instead of creating yourself)"
                   >
                     {busyId === c._id ? <Loader2 size={12} className="animate-spin" /> : <ThumbsUp size={12} />}
                     Recommend
