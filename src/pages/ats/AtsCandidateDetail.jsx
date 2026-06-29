@@ -299,7 +299,7 @@ export default function AtsCandidateDetail() {
         {/* 2026-05-18 RBAC: Archive available to all recruiters; Unarchive
             stays admin-only. 2026-05-18 PM: action bar hidden entirely for
             non-managers (matches the read-all + manager-write gate). */}
-        {canRecruit && canActOnThis && (
+        {canRecruit && canActOnThis && !isCrossCompany && (
           <div className="flex items-center gap-2 flex-wrap">
             {candidate.archived ? (
               isAdmin && (
