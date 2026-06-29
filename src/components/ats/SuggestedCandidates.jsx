@@ -7,7 +7,7 @@ import employeeApi from '../../utils/employeeApi';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Sparkles, Loader2, Plus, X, ExternalLink, Users, RefreshCw, Undo2,
-  ThumbsUp, CheckCircle2,
+  ThumbsUp, CheckCircle2, Building2,
 } from 'lucide-react';
 
 /**
@@ -236,13 +236,19 @@ export default function SuggestedCandidates({
           {orderedCandidates.map((c, i) => (
             <Fragment key={c._id}>
             {i === firstOtherIndex && otherCompany.length > 0 && (
-              <li className="pt-4 pb-2">
-                <div className="flex items-center gap-2">
-                  <Users size={12} className="text-dark-500" />
-                  <span className="text-[11px] uppercase tracking-wide text-dark-400 font-medium">From other companies in your organization</span>
-                  <div className="flex-1 h-px bg-dark-700" />
+              <li className="pt-5 pb-1">
+                <div className="rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/25 px-3.5 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-500/15 ring-1 ring-amber-500/30">
+                      <Building2 size={13} className="text-amber-300" />
+                    </span>
+                    <span className="text-sm font-semibold text-amber-100">From other companies in your organization</span>
+                    <span className="text-[11px] font-medium text-amber-300/80 bg-amber-500/10 rounded-full px-2 py-0.5">{otherCompany.length}</span>
+                  </div>
+                  <p className="text-[11px] text-amber-200/60 mt-1.5 leading-relaxed">
+                    These candidates belong to a different company in your org. Use <span className="text-amber-200/90 font-medium">Recommend</span> to hand them to their owner — they can't be added to this job directly.
+                  </p>
                 </div>
-                <p className="text-[10px] text-dark-500 mt-1">These candidates belong to another company — coordinate with their owner (Recommend) rather than creating directly.</p>
               </li>
             )}
             <li className="py-3 flex items-start gap-3">
