@@ -105,6 +105,14 @@ export default function RateConfirmationModal({
   // Re-send mode: prior envelope info (state, sent date, signers).
   const [priorEnvelope, setPriorEnvelope] = useState(null);
   const [priorLoading, setPriorLoading] = useState(false);
+  // Re-send UX (2026-06-30): when the prior envelope is still out for
+  // signature, the default action is a reminder on the SAME envelope (no new
+  // document, no duplicate email). Creating a brand-new envelope is gated
+  // behind an explicit opt-in (forceNew) so recruiters stop spamming
+  // candidates. A signed prior requires a separate confirm before replacement.
+  const [forceNew, setForceNew] = useState(false);
+  const [confirmReplaceSigned, setConfirmReplaceSigned] = useState(false);
+  const [reminding, setReminding] = useState(false);
 
   const jobTitle = application?.jobName || application?.jobPositionName || '';
 
@@ -181,6 +189,8 @@ export default function RateConfirmationModal({
     setSubmitAttempted(false);
     userEditsRef.current = {};
     setPriorEnvelope(null);
+    setForceNew(false);
+    setConfirmReplaceSigned(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, application?._id]);
 
@@ -335,6 +345,23 @@ export default function RateConfirmationModal({
     }));
   };
 
+  // Send a reminder on the EXISTING envelope (no new document / email storm).
+  const handleRemind = async () => {
+    const envelopeId = application?.rateConfirmation?.envelopeId;
+    if (!envelopeId) return;
+    setError('');
+    setReminding(true);
+    try {
+      await signApi.remindSigners(orgSlug, envelopeId);
+      if (typeof onSent === 'function') onSent('Reminder sent on the existing Rate Confirmation');
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to send reminder');
+    } finally {
+      setReminding(false);
+    }
+  };
+
   const handleSend = async () => {
     setError('');
     setSubmitAttempted(true);
@@ -372,14 +399,34 @@ export default function RateConfirmationModal({
         envelopeId: String(envelopeId),
       });
 
-      if (typeof onSent === 'function') onSent();
+      if (typeof onSent === 'function') onSent('Rate Confirmation sent for signature');
       onClose();
     } catch (err) {
-      setError(err?.message || 'Failed to send Rate Confirmation');
+      // Server cooldown backstop (409): an active RC envelope already exists.
+      // Surface it and steer the recruiter to the reminder action.
+      if (err?.code === 'RATE_CONFIRMATION_RECENTLY_SENT' || /already out for signature/i.test(err?.message || '')) {
+        setForceNew(false);
+        setError(err?.message || 'A Rate Confirmation is already out for signature — send a reminder instead.');
+      } else {
+        setError(err?.message || 'Failed to send Rate Confirmation');
+      }
     } finally {
       setSending(false);
     }
   };
+
+  // ── Re-send branching ────────────────────────────────────────────────
+  // priorActive = the prior envelope is still out for signature (not in a
+  // terminal state). In that case we default to the reminder flow and hide
+  // the new-envelope form until the recruiter explicitly opts in (forceNew).
+  const PRIOR_TERMINAL = ['signed', 'completed', 'refused', 'cancelled', 'expired', 'declined', 'voided'];
+  const priorState = priorEnvelope?.state || null;
+  const priorActive = isResend && !priorLoading && !!priorEnvelope && !PRIOR_TERMINAL.includes(priorState);
+  const priorSigned = priorState === 'signed' || priorState === 'completed';
+  const showReminderOnly = priorActive && !forceNew;
+  // Hide the new-envelope form while still resolving the prior envelope's
+  // state, so it doesn't flash in before we know a reminder is the right call.
+  const showForm = !showReminderOnly && !(isResend && priorLoading);
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -437,18 +484,62 @@ export default function RateConfirmationModal({
             />
           )}
 
+          {/* Reminder-first: the prior envelope is still out for signature.
+              Default to a reminder (no new envelope, no duplicate email);
+              creating a new one is an explicit opt-in below. */}
+          {showReminderOnly && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2 text-sm text-blue-200 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <Mail size={16} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-medium">This Rate Confirmation is still awaiting signature.</div>
+                  <div className="text-blue-200/80 mt-0.5">
+                    The candidate already received it. Send a reminder on the existing envelope instead of creating a new one — a new envelope would email them again and re-start the signing.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setForceNew(true); setError(''); }}
+                className="text-xs text-dark-400 hover:text-amber-300 underline decoration-dotted underline-offset-2"
+              >
+                Terms changed? Send a new confirmation instead →
+              </button>
+            </div>
+          )}
+
           {/* Warn before re-sending after a prior signed envelope.
-              Sending again will replace the active envelope reference and
-              re-block every forward stage move until the new one is fully
-              signed by both parties. */}
-          {isResend && (priorEnvelope?.state === 'signed' || priorEnvelope?.state === 'completed') && (
+              Sending again replaces the active envelope reference and re-blocks
+              every forward stage move until the new one is fully signed. */}
+          {showForm && priorSigned && (
+            <div className="space-y-2">
+              <div className="flex items-start gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-medium">The previous Rate Confirmation is already fully signed.</div>
+                  <div className="text-amber-200/80 mt-0.5">
+                    Sending a new one replaces the active envelope. Forward stage moves on this application will be blocked again until the new envelope is signed by both parties.
+                  </div>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-amber-200/90 cursor-pointer pl-1">
+                <input
+                  type="checkbox"
+                  checked={confirmReplaceSigned}
+                  onChange={(e) => setConfirmReplaceSigned(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-amber-500/40 bg-dark-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-0"
+                />
+                I understand this replaces the signed confirmation and re-blocks stage moves.
+              </label>
+            </div>
+          )}
+
+          {/* Opted into a new envelope while one is still pending. */}
+          {showForm && priorActive && forceNew && (
             <div className="flex items-start gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-              <div>
-                <div className="font-medium">The previous Rate Confirmation is already fully signed.</div>
-                <div className="text-amber-200/80 mt-0.5">
-                  Sending a new one replaces the active envelope. Forward stage moves on this application will be blocked again until the new envelope is signed by both parties.
-                </div>
+              <div className="text-amber-200/90">
+                You're creating a <span className="font-medium">new</span> envelope. The candidate will be emailed again and the pending one is replaced. Use this only if the rate/terms changed.
               </div>
             </div>
           )}
@@ -486,7 +577,7 @@ export default function RateConfirmationModal({
           )}
 
           {/* Template picker + tag/role preview */}
-          {!loading && !loadError && rateTemplates.length > 0 && (
+          {showForm && !loading && !loadError && rateTemplates.length > 0 && (
             <div className="space-y-2">
               {showTemplatePicker && (
                 <div>
@@ -523,7 +614,7 @@ export default function RateConfirmationModal({
           )}
 
           {/* Signer cards */}
-          {signerSlots.length > 0 && (
+          {showForm && signerSlots.length > 0 && (
             <div>
               <div className="text-xs font-medium text-dark-300 mb-2">Signing order</div>
               <div className="space-y-2">
@@ -545,7 +636,7 @@ export default function RateConfirmationModal({
           )}
 
           {/* Subject + message */}
-          {signerSlots.length > 0 && (
+          {showForm && signerSlots.length > 0 && (
             <>
               <div>
                 <label className="text-xs font-medium text-dark-300 mb-1 block">Subject</label>
@@ -581,19 +672,30 @@ export default function RateConfirmationModal({
         <div className="flex items-center justify-end gap-2 p-4 border-t border-dark-800 sticky bottom-0 bg-dark-900/95 backdrop-blur">
           <button
             onClick={onClose}
-            disabled={sending}
+            disabled={sending || reminding}
             className="px-4 py-2 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-800 disabled:opacity-50"
           >
             Cancel
           </button>
-          <button
-            onClick={handleSend}
-            disabled={sendDisabled}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-400 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-          >
-            {sending ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14} />}
-            {sending ? 'Sending…' : (isResend ? 'Re-send for signature' : 'Send for signature')}
-          </button>
+          {showReminderOnly ? (
+            <button
+              onClick={handleRemind}
+              disabled={reminding}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-400 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            >
+              {reminding ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+              {reminding ? 'Sending reminder…' : 'Send reminder'}
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={sendDisabled || (priorSigned && !confirmReplaceSigned)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-400 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            >
+              {sending ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14} />}
+              {sending ? 'Sending…' : (isResend ? 'Send new for signature' : 'Send for signature')}
+            </button>
+          )}
         </div>
       </div>
     </div>

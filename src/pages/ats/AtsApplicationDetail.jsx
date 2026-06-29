@@ -3716,7 +3716,7 @@ export default function AtsApplicationDetail() {
         application={application}
         recruiterName={authUser?.name || ''}
         recruiterEmail={authUser?.email || ''}
-        onSent={() => { setShowRateConfirmationModal(false); fetchApplication(); }}
+        onSent={(msg) => { setShowRateConfirmationModal(false); fetchApplication(); if (msg) showToast(msg, 'success'); }}
         canBypass={canBypassRcGate && !application?.rateConfirmationGate?.bypassedAt}
         onBypassRequested={() => { setRcBypassReason(''); setShowRcBypassModal(true); }}
       />
