@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
@@ -16,7 +17,7 @@ import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
-  Award, Archive, ArchiveRestore, Briefcase,
+  Award, Archive, ArchiveRestore, Briefcase, Building2,
 } from 'lucide-react';
 
 function formatDate(d) {
@@ -98,8 +99,17 @@ export default function AtsCandidateDetail() {
   }, [slug]);
   const isMine = !!(candidate?.managerId && myEmployeeId && String(candidate.managerId) === String(myEmployeeId));
   const canActOnThis = isAdmin || isMine;
-  const canEdit = canRecruit && canActOnThis && !candidate?.archived;
-  const isViewOnly = !!(canRecruit && candidate && !canActOnThis);
+  // Cross-company: the candidate belongs to a different company in the org
+  // (reached via org-wide / cross-company suggestions). Read-only — edits/
+  // skills/archive would target the wrong company. 2026-06-26.
+  const { currentCompanyId, companies } = useCompany();
+  const isCrossCompany = !!(candidate?.companyId && currentCompanyId
+    && String(candidate.companyId) !== String(currentCompanyId));
+  const crossCompanyName = isCrossCompany
+    ? (companies.find((c) => String(c._id) === String(candidate.companyId))?.name || 'another company')
+    : null;
+  const canEdit = canRecruit && canActOnThis && !candidate?.archived && !isCrossCompany;
+  const isViewOnly = !!(canRecruit && candidate && (!canActOnThis || isCrossCompany));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -252,12 +262,20 @@ export default function AtsCandidateDetail() {
                   <Archive size={11} /> ARCHIVED
                 </span>
               )}
-              {isViewOnly && (
+              {isViewOnly && !isCrossCompany && (
                 <span
                   className="text-xs bg-amber-500/10 text-amber-300 rounded-full px-2 py-0.5 border border-amber-500/30"
                   title="You can view this candidate but only the assigned manager or an admin can edit."
                 >
                   View only
+                </span>
+              )}
+              {isCrossCompany && (
+                <span
+                  className="text-xs bg-amber-500/10 text-amber-300 rounded-full px-2 py-0.5 border border-amber-500/30 inline-flex items-center gap-1"
+                  title="This candidate belongs to another company in your organization. Open them from that company to edit, or use Copy & Create on a job to bring them into this company."
+                >
+                  <Building2 size={11} /> {crossCompanyName} · read-only
                 </span>
               )}
             </div>
