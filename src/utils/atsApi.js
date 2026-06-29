@@ -162,6 +162,13 @@ const atsApi = {
       method: 'DELETE',
     });
   },
+  // Copy a cross-company suggested candidate into the job's company (returns
+  // the in-company candidate id to then create an application against).
+  copyCrossCompanyCandidate(orgSlug, jobId, candidateId) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates/${candidateId}/copy`, {
+      method: 'POST',
+    });
+  },
 
   // ── Applications ──────────────────────────────────────────────────────
   // 2026-05-17 health-check: _requestKey is stripped from query string and

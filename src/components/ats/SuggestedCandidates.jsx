@@ -127,6 +127,34 @@ export default function SuggestedCandidates({
     }
   };
 
+  // --- Cross-company: copy the candidate into this company, then create ---
+  const handleCopyCreate = async (cand) => {
+    try {
+      setBusyId(cand._id);
+      const copy = await atsApi.copyCrossCompanyCandidate(orgSlug, jobId, String(cand._id));
+      await atsApi.createApplication(orgSlug, {
+        candidateId: copy.candidateId,
+        candidateName: copy.candidateName || cand.name,
+        email: copy.email || null,
+        phone: copy.phone || null,
+        linkedinProfile: copy.linkedinProfile || null,
+        jobPositionId: jobId,
+        // The copy is now owned in THIS company by the acting recruiter.
+        recruiterId: myEmployee?.id || job?.recruiterId || null,
+        recruiterName: myEmployee?.name || job?.recruiterName || '',
+      });
+      showToast(`${cand.name} copied to this company and added to the job`);
+      setConfirmId(null);
+      setAvailChecked(false);
+      removeCandidate(cand._id);
+      onCreated?.();
+    } catch (err) {
+      showToast(err.message || 'Failed to copy & create', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   // --- Account owner: recommend to recruiter ---
   const handleRecommend = async (cand) => {
     try {
@@ -323,16 +351,16 @@ export default function SuggestedCandidates({
                         onChange={(e) => setAvailChecked(e.target.checked)}
                         className="mt-0.5 accent-rivvra-500"
                       />
-                      <span>I've confirmed <span className="text-white">{c.name}</span> is still available and interested in this role.</span>
+                      <span>I've confirmed <span className="text-white">{c.name}</span> is still available and interested in this role.{c.company?.isOther ? ' They\'ll be copied into this company.' : ''}</span>
                     </label>
                     <div className="flex items-center gap-2 mt-2">
                       <button
-                        onClick={() => handleCreate(c)}
+                        onClick={() => (c.company?.isOther ? handleCopyCreate(c) : handleCreate(c))}
                         disabled={!availChecked || busyId === c._id}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 disabled:opacity-40 transition-colors"
                       >
                         {busyId === c._id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                        Create application
+                        {c.company?.isOther ? 'Copy & create application' : 'Create application'}
                       </button>
                       <button
                         onClick={() => { setConfirmId(null); setAvailChecked(false); }}
@@ -350,7 +378,7 @@ export default function SuggestedCandidates({
                 {/* Create only when this viewer can actually own the app for
                     this candidate (its manager / their lead / admin). Everyone
                     else recommends — the handoff to the candidate's manager. */}
-                {canRecommend && !(canCreate && c.canCreate) && !c.recommendation && (
+                {canRecommend && !(canCreate && c.canCreate) && !(canCreate && c.company?.isOther) && !c.recommendation && (
                   <button
                     onClick={() => handleRecommend(c)}
                     disabled={busyId === c._id}
@@ -368,6 +396,15 @@ export default function SuggestedCandidates({
                     title="Create an application (after confirming availability)"
                   >
                     <Plus size={12} /> Create
+                  </button>
+                )}
+                {canCreate && c.company?.isOther && confirmId !== c._id && (
+                  <button
+                    onClick={() => { setConfirmId(c._id); setAvailChecked(false); }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-rivvra-500 text-dark-950 hover:bg-rivvra-400 transition-colors"
+                    title="Copy this candidate into this company and create an application"
+                  >
+                    <Plus size={12} /> Copy &amp; Create
                   </button>
                 )}
                 <button
