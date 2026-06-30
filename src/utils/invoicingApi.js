@@ -32,6 +32,12 @@ const invoicingApi = {
   deleteProfitAdjustment(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/profitability/adjustments/${id}`, { method: 'DELETE' });
   },
+  getProfitabilityAccess(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability/access`);
+  },
+  setProfitabilityAccess(orgSlug, userId, granted) {
+    return api.request(`/api/org/${orgSlug}/invoicing/profitability/access`, { method: 'POST', body: JSON.stringify({ userId, granted }) });
+  },
 
   // ---------- INVOICES ----------
   listInvoices(orgSlug, params = {}) {

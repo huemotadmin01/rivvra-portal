@@ -18,7 +18,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import {
-  Loader2, ArrowLeft, Lock, Info, X, TrendingUp, SlidersHorizontal,
+  Loader2, ArrowLeft, Lock, Info, X, TrendingUp, SlidersHorizontal, Users,
 } from 'lucide-react';
 
 const GRANULARITIES = [
@@ -303,6 +303,75 @@ function AdjustmentsModal({ orgSlug, fy, currency, months, onClose, onSaved }) {
   );
 }
 
+// Owner-only: grant/revoke per-user access to the Profitability tab.
+function AccessModal({ orgSlug, onClose }) {
+  const [members, setMembers] = useState(null);
+  const [error, setError] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+
+  const load = useCallback(() => {
+    invoicingApi.getProfitabilityAccess(orgSlug)
+      .then((res) => setMembers(res.members || []))
+      .catch((err) => setError(err.message || 'Failed to load members'));
+  }, [orgSlug]);
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (m) => {
+    if (m.alwaysAllowed) return;
+    setSavingId(m.userId);
+    // optimistic
+    setMembers((prev) => prev.map((x) => (x.userId === m.userId ? { ...x, granted: !x.granted } : x)));
+    try {
+      await invoicingApi.setProfitabilityAccess(orgSlug, m.userId, !m.granted);
+    } catch (err) {
+      setMembers((prev) => prev.map((x) => (x.userId === m.userId ? { ...x, granted: m.granted } : x)));
+      setError(err.message || 'Failed to update access');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-950/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 p-5 border-b border-dark-700">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Profitability access</h3>
+            <p className="text-xs text-dark-400 mt-0.5">Owner &amp; super-admins always have access. Grant specific members below — they also need Invoicing access to open it.</p>
+          </div>
+          <button onClick={onClose} className="ml-auto p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {error && <div className="p-4 text-red-400 text-sm">{error}</div>}
+          {members === null && !error && (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-rivvra-400 animate-spin" /></div>
+          )}
+          {members && members.map((m) => (
+            <div key={m.userId} className="flex items-center gap-3 px-5 py-3 border-b border-dark-700/50">
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{m.name} {m.alwaysAllowed && <span className="text-[11px] text-amber-400 ml-1">{m.orgRole === 'owner' ? 'Owner' : 'Super-admin'}</span>}</p>
+                <p className="text-xs text-dark-400 truncate">{m.email} · {m.orgRole}{!m.invoicingAccess ? ' · no Invoicing access' : ''}</p>
+              </div>
+              <button
+                onClick={() => toggle(m)}
+                disabled={m.alwaysAllowed || savingId === m.userId}
+                title={m.alwaysAllowed ? 'Always has access' : (m.granted ? 'Revoke access' : 'Grant access')}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${m.granted ? 'bg-emerald-500' : 'bg-dark-700'} ${m.alwaysAllowed ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${m.granted ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
+          ))}
+          {members && members.length === 0 && <div className="p-8 text-center text-dark-500 text-sm">No members</div>}
+        </div>
+        <div className="p-4 border-t border-dark-700 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-rivvra-500 text-dark-950 font-medium text-sm hover:bg-rivvra-400">Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Profitability() {
   const navigate = useNavigate();
   const { currentOrg, isOrgOwner, membership } = useOrg();
@@ -319,6 +388,8 @@ export default function Profitability() {
   const [error, setError] = useState(null);
   const [drill, setDrill] = useState(null);
   const [showAdj, setShowAdj] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
+  const canManageAccess = isOrgOwner || user?.superAdmin;
 
   const load = useCallback(() => {
     if (!orgSlug || !allowed) return;
@@ -384,12 +455,22 @@ export default function Profitability() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowAdj(true)}
-            className="ml-auto flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-850 border border-dark-700 text-dark-200 hover:text-white text-sm"
-          >
-            <SlidersHorizontal size={15} /> Other expenses
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {canManageAccess && (
+              <button
+                onClick={() => setShowAccess(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-850 border border-dark-700 text-dark-200 hover:text-white text-sm"
+              >
+                <Users size={15} /> Manage access
+              </button>
+            )}
+            <button
+              onClick={() => setShowAdj(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-850 border border-dark-700 text-dark-200 hover:text-white text-sm"
+            >
+              <SlidersHorizontal size={15} /> Other expenses
+            </button>
+          </div>
         </div>
 
         {/* Controls */}
@@ -455,6 +536,9 @@ export default function Profitability() {
           onClose={() => setShowAdj(false)}
           onSaved={() => { setShowAdj(false); load(); }}
         />
+      )}
+      {showAccess && (
+        <AccessModal orgSlug={orgSlug} onClose={() => setShowAccess(false)} />
       )}
     </div>
   );
