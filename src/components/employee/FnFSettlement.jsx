@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import fnfApi from '../../utils/fnfApi';
 import {
@@ -30,6 +31,7 @@ function fmtDate(d) {
 
 export default function FnFSettlement({ employeeId, employee }) {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [calculation, setCalculation] = useState(null);
@@ -155,6 +157,17 @@ export default function FnFSettlement({ employeeId, employee }) {
       totalDeductions: noticeRec + assetDed + loanRec + otherDed,
       netSettlement: (leaveEnc + otherAdd) - (noticeRec + assetDed + loanRec + otherDed),
     };
+  }
+
+  // F&F (notice recovery, leave encashment) is an India-only settlement
+  // construct — non-India entities shouldn't see it. Mirrors the payroll gate.
+  if (currentCompany && currentCompany.currency !== 'INR') {
+    return (
+      <div className="bg-dark-800/60 border border-dark-700/50 rounded-xl p-4 flex items-start gap-2">
+        <AlertTriangle size={15} className="text-dark-500 mt-0.5 shrink-0" />
+        <span className="text-sm text-dark-400">Full &amp; Final settlement is available for India entities only.</span>
+      </div>
+    );
   }
 
   if (loading) return (
