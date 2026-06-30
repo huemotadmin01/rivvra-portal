@@ -23,7 +23,7 @@ function AppSidebar({ isOpen, onClose, collapsed = false, onToggleCollapsed = ()
   const { user, logout, isImpersonating } = useAuth();
   const { currentApp, orgPath, orgSlug } = usePlatform();
   const { timesheetUser } = useTimesheetContext();
-  const { hasAppAccess, getAppRole, currentOrg, isOrgAdmin, isOrgOwner } = useOrg();
+  const { hasAppAccess, getAppRole, currentOrg, isOrgAdmin, isOrgOwner, membership } = useOrg();
   const { currentCompany } = useCompany();
   const [showWipModal, setShowWipModal] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
@@ -44,7 +44,8 @@ function AppSidebar({ isOpen, onClose, collapsed = false, onToggleCollapsed = ()
     : (currentApp?.id && currentOrg ? getAppRole(currentApp.id) : null);
   // Pass active company so apps can hide entries that don't apply to the
   // current legal entity (e.g. payroll's India-only items for non-INR cos).
-  const sidebarItems = currentApp.getSidebarItems(user, timesheetUser, orgAppRole, currentCompany, isOrgOwner);
+  const canViewProfitability = isOrgOwner || user?.superAdmin || membership?.appAccess?.invoicing?.viewProfitability === true;
+  const sidebarItems = currentApp.getSidebarItems(user, timesheetUser, orgAppRole, currentCompany, isOrgOwner, canViewProfitability);
 
   // Use stripOrgPrefix for active matching so /org/slug/outreach/dashboard matches /outreach/dashboard
   const currentPath = stripOrgPrefix(location.pathname);

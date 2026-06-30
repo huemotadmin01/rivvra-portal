@@ -305,11 +305,12 @@ function AdjustmentsModal({ orgSlug, fy, currency, months, onClose, onSaved }) {
 
 export default function Profitability() {
   const navigate = useNavigate();
-  const { currentOrg, isOrgOwner } = useOrg();
+  const { currentOrg, isOrgOwner, membership } = useOrg();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const orgSlug = currentOrg?.slug;
-  const allowed = isOrgOwner || user?.superAdmin;
+  // Owner / super-admin, or a member explicitly granted profitability access.
+  const allowed = isOrgOwner || user?.superAdmin || membership?.appAccess?.invoicing?.viewProfitability === true;
 
   const [granularity, setGranularity] = useState('month');
   const [fy, setFy] = useState('');
