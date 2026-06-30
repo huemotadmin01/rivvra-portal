@@ -2185,8 +2185,10 @@ export default function InvoiceDetail() {
               </>
             )}
 
-            {/* E-Invoice button — Indian companies only, customer invoices only */}
-            {invoice?.companyGstin && invoice?.type === 'customer_invoice' && !isDraft && (
+            {/* E-Invoice button — Indian companies only, customer invoices only.
+                `isIndia` is belt-and-suspenders on top of the companyGstin check
+                (guards against a GSTIN mis-entered on a non-India company). */}
+            {isIndia && invoice?.companyGstin && invoice?.type === 'customer_invoice' && !isDraft && (
               invoice.eInvoiceStatus === 'generated' ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
                   <ShieldCheck size={13} />
