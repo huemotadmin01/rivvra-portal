@@ -100,6 +100,10 @@ function EngagePage() {
     // "Failed to connect Gmail" toast. Dedupe per code so it runs exactly once.
     if (sessionStorage.getItem('rivvra_gmail_code_used') === gmailCode) return;
     sessionStorage.setItem('rivvra_gmail_code_used', gmailCode);
+    // Mark a connect as in-flight. The token write can lag the OrgRedirect
+    // remount, so a status load on the remounted page retries until the server
+    // reflects it — fixes "had to refresh to see Gmail connected".
+    sessionStorage.setItem('rivvra_gmail_pending_connect', '1');
 
     // Clean up URL first (remove query params) — use window.history to avoid re-render
     const cleanHash = window.location.hash.split('?')[0];
@@ -110,16 +114,20 @@ function EngagePage() {
     (async () => {
       try {
         const connectRes = await api.connectGmail(gmailCode);
-        if (!active) return;
         if (connectRes.success) {
+          sessionStorage.removeItem('rivvra_gmail_pending_connect');
+          if (!active) return; // remounted — the new mount's status load reflects it
           setGmailStatus({ connected: true, email: connectRes.gmailEmail });
           setGmailLoading(false);
           loadSetupStatus();
           showToast('Gmail connected successfully!', 'success');
         } else {
+          sessionStorage.removeItem('rivvra_gmail_pending_connect');
+          if (!active) return;
           showToast(connectRes.error || 'Failed to connect Gmail.', 'error');
         }
       } catch (err) {
+        sessionStorage.removeItem('rivvra_gmail_pending_connect');
         if (!active) return;
         console.error('Gmail connect from redirect error:', err);
         showToast('Failed to connect Gmail. Please try again.', 'error');
@@ -129,13 +137,24 @@ function EngagePage() {
     return () => { active = false; };
   }, [location.search]);
 
-  async function loadGmailStatus() {
+  async function loadGmailStatus(retry = 0) {
     try {
       const res = await api.getGmailStatus();
-      if (res.success) setGmailStatus(res);
+      if (res.success) {
+        // A connect just happened (marker set by the OAuth redirect handler) but
+        // the server hasn't reflected the stored token yet — the write can lag
+        // the OrgRedirect remount. Retry briefly instead of showing disconnected.
+        const pending = sessionStorage.getItem('rivvra_gmail_pending_connect');
+        if (pending && !res.connected && retry < 4) {
+          setTimeout(() => loadGmailStatus(retry + 1), 700);
+          return; // keep the loading state during retry
+        }
+        if (res.connected) sessionStorage.removeItem('rivvra_gmail_pending_connect');
+        setGmailStatus(res);
+      }
+      setGmailLoading(false);
     } catch (err) {
       console.error('Gmail status error:', err);
-    } finally {
       setGmailLoading(false);
     }
   }
