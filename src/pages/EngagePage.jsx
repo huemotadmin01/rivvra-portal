@@ -115,19 +115,24 @@ function EngagePage() {
       try {
         const connectRes = await api.connectGmail(gmailCode);
         if (connectRes.success) {
+          // Persist success so the (possibly remounted) page shows connected even
+          // before the server status read catches up — timing-independent.
+          sessionStorage.setItem('rivvra_gmail_connected', connectRes.gmailEmail || '1');
           sessionStorage.removeItem('rivvra_gmail_pending_connect');
-          if (!active) return; // remounted — the new mount's status load reflects it
+          if (!active) return; // remounted — the new mount's status load reflects it via the marker
           setGmailStatus({ connected: true, email: connectRes.gmailEmail });
           setGmailLoading(false);
           loadSetupStatus();
           showToast('Gmail connected successfully!', 'success');
         } else {
           sessionStorage.removeItem('rivvra_gmail_pending_connect');
+          sessionStorage.removeItem('rivvra_gmail_connected');
           if (!active) return;
           showToast(connectRes.error || 'Failed to connect Gmail.', 'error');
         }
       } catch (err) {
         sessionStorage.removeItem('rivvra_gmail_pending_connect');
+        sessionStorage.removeItem('rivvra_gmail_connected');
         if (!active) return;
         console.error('Gmail connect from redirect error:', err);
         showToast('Failed to connect Gmail. Please try again.', 'error');
@@ -141,16 +146,26 @@ function EngagePage() {
     try {
       const res = await api.getGmailStatus();
       if (res.success) {
-        // A connect just happened (marker set by the OAuth redirect handler) but
-        // the server hasn't reflected the stored token yet — the write can lag
-        // the OrgRedirect remount. Retry briefly instead of showing disconnected.
-        const pending = sessionStorage.getItem('rivvra_gmail_pending_connect');
-        if (pending && !res.connected && retry < 4) {
-          setTimeout(() => loadGmailStatus(retry + 1), 700);
-          return; // keep the loading state during retry
+        const connectedMark = sessionStorage.getItem('rivvra_gmail_connected');
+        if (res.connected) {
+          // Server is the source of truth once it confirms — clear transient markers.
+          sessionStorage.removeItem('rivvra_gmail_pending_connect');
+          sessionStorage.removeItem('rivvra_gmail_connected');
+          setGmailStatus(res);
+        } else if (connectedMark) {
+          // A connect succeeded this session but the server read hasn't caught up
+          // (the OrgRedirect remount can outrun the token write). Show connected
+          // optimistically and re-confirm; stop trusting the marker after a while.
+          setGmailStatus({ connected: true, email: connectedMark !== '1' ? connectedMark : (res.email || null) });
+          if (retry < 8) setTimeout(() => loadGmailStatus(retry + 1), 1000);
+          else sessionStorage.removeItem('rivvra_gmail_connected');
+        } else if (sessionStorage.getItem('rivvra_gmail_pending_connect') && retry < 12) {
+          // Exchange still in flight — keep the spinner and retry.
+          setTimeout(() => loadGmailStatus(retry + 1), 800);
+          return;
+        } else {
+          setGmailStatus(res);
         }
-        if (res.connected) sessionStorage.removeItem('rivvra_gmail_pending_connect');
-        setGmailStatus(res);
       }
       setGmailLoading(false);
     } catch (err) {
