@@ -152,11 +152,13 @@ function EngagePage() {
           sessionStorage.removeItem('rivvra_gmail_pending_connect');
           sessionStorage.removeItem('rivvra_gmail_connected');
           setGmailStatus(res);
+          loadSetupStatus(); // refresh the (separate) setup-guide connection state
         } else if (connectedMark) {
           // A connect succeeded this session but the server read hasn't caught up
           // (the OrgRedirect remount can outrun the token write). Show connected
           // optimistically and re-confirm; stop trusting the marker after a while.
           setGmailStatus({ connected: true, email: connectedMark !== '1' ? connectedMark : (res.email || null) });
+          loadSetupStatus(); // the setup guide reads a separate status — keep it in sync
           if (retry < 8) setTimeout(() => loadGmailStatus(retry + 1), 1000);
           else sessionStorage.removeItem('rivvra_gmail_connected');
         } else if (sessionStorage.getItem('rivvra_gmail_pending_connect') && retry < 12) {
@@ -178,7 +180,16 @@ function EngagePage() {
     try {
       const res = await api.getSetupStatus();
       if (res.success) {
-        setSetupStatus(res);
+        // A connect just succeeded this session but the server read hasn't caught
+        // up (the setup guide reads a SEPARATE getSetupStatus, so it must honor the
+        // same optimistic marker as gmail-status — otherwise the guide shows "Gmail
+        // not connected" until a manual refresh). Server value wins once it catches
+        // up (the marker is cleared by loadGmailStatus on confirmation).
+        if (!res.gmailConnected && sessionStorage.getItem('rivvra_gmail_connected')) {
+          setSetupStatus({ ...res, gmailConnected: true, allComplete: res.profileComplete === true });
+        } else {
+          setSetupStatus(res);
+        }
       } else {
         // API returned but not successful — fallback to incomplete
         setSetupStatus({ gmailConnected: false, profileComplete: false, allComplete: false, missingFields: ['senderTitle', 'companyName'] });
