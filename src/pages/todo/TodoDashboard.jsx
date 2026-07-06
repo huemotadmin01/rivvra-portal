@@ -229,6 +229,7 @@ export default function TodoDashboard() {
                   <TaskCard
                     key={task._id}
                     task={task}
+                    orgSlug={orgSlug}
                     onToggleStatus={() => handleToggleStatus(task)}
                     onAccept={task.source === 'ai' && !task.aiMeta?.accepted ? () => handleAcceptAiTask(task._id) : null}
                     onDismiss={task.source === 'ai' && !task.aiMeta?.accepted ? () => handleDismissAiTask(task._id) : null}

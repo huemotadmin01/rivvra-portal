@@ -56,6 +56,21 @@ const todoApi = {
     });
   },
 
+  // ── AI Guide ───────────────────────────────────────────────────────
+  generateGuide(orgSlug, id, regenerate = false) {
+    return api.request(`/api/org/${orgSlug}/todo/tasks/${id}/guide`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate }),
+    });
+  },
+
+  toggleGuideStep(orgSlug, id, index, done) {
+    return api.request(`/api/org/${orgSlug}/todo/tasks/${id}/guide/step`, {
+      method: 'PUT',
+      body: JSON.stringify({ index, done }),
+    });
+  },
+
   // ── Dashboard ──────────────────────────────────────────────────────
   getDashboard(orgSlug) {
     return api.request(`/api/org/${orgSlug}/todo/dashboard`);

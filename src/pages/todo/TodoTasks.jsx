@@ -312,6 +312,7 @@ export default function TodoTasks() {
                   <TaskCard
                     key={task._id}
                     task={task}
+                    orgSlug={orgSlug}
                     selected={selectedIds.has(task._id)}
                     onSelect={() => toggleSelect(task._id)}
                     onToggleStatus={() => handleToggleStatus(task)}

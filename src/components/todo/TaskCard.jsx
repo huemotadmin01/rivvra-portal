@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import {
   CheckCircle2, Circle, Clock, AlertTriangle, Sparkles, Pencil, Trash2,
-  Check, X, Mail,
+  Check, X, Mail, Wand2, ChevronDown, ChevronUp, Loader2, RefreshCw,
 } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+import todoApi from '../../utils/todoApi';
 
 const PRIORITY_STYLES = {
   high: 'bg-red-500/10 text-red-400',
@@ -30,6 +33,7 @@ function formatDate(d) {
 
 export default function TaskCard({
   task,
+  orgSlug,
   selected,
   onSelect,
   onToggleStatus,
@@ -39,9 +43,46 @@ export default function TaskCard({
   onDismiss,
   showCheckbox,
 }) {
+  const { showToast } = useToast();
   const StatusIcon = STATUS_ICONS[task.status] || Circle;
   const dueInfo = formatDate(task.dueDate);
   const isAiSuggestion = task.source === 'ai' && !task.aiMeta?.accepted;
+
+  // AI guide ("Guide me" coach) — kept in local state so generating/toggling
+  // steps doesn't force a full list reload.
+  const [guide, setGuide] = useState(task.guide || null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  useEffect(() => { setGuide(task.guide || null); }, [task.guide]);
+
+  const canGuide = !!orgSlug && !isAiSuggestion;
+  const guideDone = guide?.steps?.filter(s => s.done).length || 0;
+
+  async function handleGenerateGuide(regenerate = false) {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const res = await todoApi.generateGuide(orgSlug, task._id, regenerate);
+      if (res.success && res.guide) {
+        setGuide(res.guide);
+        setGuideOpen(true);
+      }
+    } catch (err) {
+      showToast(err.message || 'Could not generate a guide right now', 'error');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function handleToggleStep(index) {
+    const newDone = !guide.steps[index].done;
+    // Optimistic update; server failure just reverts on next reload.
+    setGuide(prev => ({
+      ...prev,
+      steps: prev.steps.map((s, i) => (i === index ? { ...s, done: newDone } : s)),
+    }));
+    todoApi.toggleGuideStep(orgSlug, task._id, index, newDone).catch(() => {});
+  }
 
   return (
     <div className={`group flex items-start gap-3 px-4 py-3 hover:bg-dark-800/50 transition-colors ${
@@ -126,6 +167,48 @@ export default function TaskCard({
             {dueInfo.text}
           </span>
         )}
+
+        {/* AI guide checklist */}
+        {guide?.steps?.length > 0 && (
+          <div className="mt-1.5">
+            <button
+              onClick={() => setGuideOpen(!guideOpen)}
+              className="flex items-center gap-1 text-[11px] text-teal-400 hover:text-teal-300 font-medium"
+            >
+              <Wand2 size={11} />
+              AI Guide ({guideDone}/{guide.steps.length})
+              {guideOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            </button>
+            {guideOpen && (
+              <div className="mt-1.5 pl-1 space-y-1 border-l-2 border-teal-500/20">
+                {guide.steps.map((step, i) => (
+                  <label key={i} className="flex items-start gap-2 pl-2 cursor-pointer group/step">
+                    <input
+                      type="checkbox"
+                      checked={!!step.done}
+                      onChange={() => handleToggleStep(i)}
+                      className="mt-0.5 w-3.5 h-3.5 rounded border-dark-600 text-teal-500 focus:ring-teal-500 bg-dark-800 flex-shrink-0"
+                    />
+                    <span className={`text-xs leading-snug ${
+                      step.done ? 'line-through text-dark-500' : 'text-dark-300 group-hover/step:text-dark-200'
+                    }`}>
+                      {step.text}
+                    </span>
+                  </label>
+                ))}
+                <button
+                  onClick={() => handleGenerateGuide(true)}
+                  disabled={generating}
+                  className="flex items-center gap-1 pl-2 text-[10px] text-dark-500 hover:text-dark-300 disabled:opacity-50"
+                  title="Regenerate guide"
+                >
+                  {generating ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                  Regenerate
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -147,6 +230,18 @@ export default function TaskCard({
             title="Dismiss suggestion"
           >
             <X size={14} />
+          </button>
+        )}
+
+        {/* Guide me (AI coach) */}
+        {canGuide && !guide?.steps?.length && (
+          <button
+            onClick={() => handleGenerateGuide(false)}
+            disabled={generating}
+            className="p-1.5 text-teal-400 hover:bg-teal-500/10 rounded disabled:opacity-50"
+            title="Guide me — AI breaks this task into simple steps"
+          >
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
           </button>
         )}
 
