@@ -68,7 +68,7 @@ export default function TodoDashboard() {
         .then(res => {
           if (res.success) {
             showToast('Gmail connected: ' + res.gmailEmail, 'success');
-            setGmailStatus({ connected: true, email: res.gmailEmail });
+            setGmailStatus(prev => ({ ...prev, connected: true, email: res.gmailEmail }));
           }
         })
         .catch(() => showToast('Failed to connect Gmail', 'error'))

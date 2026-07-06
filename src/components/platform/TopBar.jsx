@@ -8,6 +8,7 @@ import { usePolicyAck } from '../../context/PolicyAckContext';
 import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard, ShieldCheck, FolderDown } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 import PeriodPicker from './PeriodPicker';
+import NotificationBell from './NotificationBell';
 import { API_BASE_URL } from '../../utils/config';
 import activityApi from '../../utils/activityApi';
 
@@ -221,6 +222,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
         <div className="flex items-center gap-1">
           {/* Period picker (ESS / Payroll) */}
           <PeriodPicker />
+
+          {/* Notification bell (platform-wide) */}
+          <NotificationBell />
 
           {/* Activities dropdown */}
           <div className="relative" ref={actRef}>

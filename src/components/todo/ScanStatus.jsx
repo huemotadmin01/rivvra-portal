@@ -116,10 +116,10 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
   }
 
   // Gmail-to-task scanning needs the restricted gmail.readonly scope, which is
-  // paused until Google CASA verification (backend returns FEATURE_DISABLED).
-  // Hide the connect/scan controls so users don't hit an erroring button.
-  const GMAIL_SCAN_ENABLED = false;
-  if (!GMAIL_SCAN_ENABLED) {
+  // paused until Google CASA verification except for allowlisted internal orgs
+  // (the server's gmail/status endpoint returns featureEnabled per org). Hide
+  // the connect/scan controls so gated users don't hit an erroring button.
+  if (!gmailStatus?.featureEnabled) {
     return (
       <div className="bg-dark-900 rounded-xl border border-dark-800">
         <div className="flex items-center justify-between p-4 border-b border-dark-800">
@@ -255,7 +255,9 @@ export default function ScanStatus({ orgSlug, gmailStatus: initialGmailStatus, l
 
         {!gmailStatus?.connected && (
           <p className="text-[11px] text-dark-500 text-center">
-            Connect your Gmail to enable AI task extraction from your inbox
+            {gmailStatus?.needsReauth
+              ? 'Your Gmail connection expired — please reconnect to resume scanning'
+              : 'Connect your Gmail to enable AI task extraction from your inbox'}
           </p>
         )}
       </div>
