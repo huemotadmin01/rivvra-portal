@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -47,6 +47,7 @@ export default function TodoDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [gmailStatus, setGmailStatus] = useState({ connected: false });
   const { canAssign, assignableEmployees } = useTodoAssign(orgSlug);
+  const processedGmailCode = useRef(null);
 
   useEffect(() => {
     if (orgSlug) loadDashboard();
@@ -66,6 +67,11 @@ export default function TodoDashboard() {
     }
 
     if (code && orgSlug) {
+      // An OAuth code is single-use: if this effect re-fires before the
+      // redirect strips the query (remount, orgSlug transition), the second
+      // exchange fails and used to toast an error over a successful connect.
+      if (processedGmailCode.current === code) return;
+      processedGmailCode.current = code;
       todoApi.connectGmail(orgSlug, code, state)
         .then(res => {
           if (res.success) {
