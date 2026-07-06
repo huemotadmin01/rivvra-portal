@@ -4,6 +4,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import todoApi from '../../utils/todoApi';
+import useTodoAssign from '../../hooks/useTodoAssign';
 import TaskFormModal from '../../components/todo/TaskFormModal';
 import SuggestionsBanner from '../../components/todo/SuggestionsBanner';
 import ScanStatus from '../../components/todo/ScanStatus';
@@ -45,6 +46,7 @@ export default function TodoDashboard() {
   const [lastScan, setLastScan] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [gmailStatus, setGmailStatus] = useState({ connected: false });
+  const { canAssign, assignableEmployees } = useTodoAssign(orgSlug);
 
   useEffect(() => {
     if (orgSlug) loadDashboard();
@@ -256,6 +258,8 @@ export default function TodoDashboard() {
         <TaskFormModal
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateTask}
+          canAssign={canAssign}
+          assignableEmployees={assignableEmployees}
         />
       )}
     </div>

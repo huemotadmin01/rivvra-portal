@@ -430,6 +430,7 @@ export const APP_REGISTRY = {
       return [
         { type: 'item', path: '/todo/dashboard', label: 'Dashboard', icon: Home },
         { type: 'item', path: '/todo/tasks', label: 'All Tasks', icon: CheckSquare },
+        { type: 'item', path: '/todo/team', label: 'Team Tasks', icon: Users },
         ...(isAdmin ? [
           {
             type: 'group', label: 'Configuration', icon: Settings,

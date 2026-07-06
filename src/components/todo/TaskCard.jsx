@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   CheckCircle2, Circle, Clock, AlertTriangle, Sparkles, Pencil, Trash2,
   Check, X, Mail, Wand2, ChevronDown, ChevronUp, Loader2, RefreshCw,
+  Repeat, UserCheck, ArrowRight,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import todoApi from '../../utils/todoApi';
@@ -42,6 +43,7 @@ export default function TaskCard({
   onAccept,
   onDismiss,
   showCheckbox,
+  teamView,
 }) {
   const { showToast } = useToast();
   const StatusIcon = STATUS_ICONS[task.status] || Circle;
@@ -55,8 +57,16 @@ export default function TaskCard({
   const [generating, setGenerating] = useState(false);
   useEffect(() => { setGuide(task.guide || null); }, [task.guide]);
 
-  const canGuide = !!orgSlug && !isAiSuggestion;
+  // The guide belongs to the task owner — in the assigner's team view it is
+  // read-only (generate/toggle routes are owner-scoped).
+  const canGuide = !!orgSlug && !isAiSuggestion && !teamView;
   const guideDone = guide?.steps?.filter(s => s.done).length || 0;
+
+  // Delegated task in the assignee's list: content edits/deletes belong to the
+  // assigner (server enforces; hide the buttons so users don't hit 403s).
+  // `teamView` renders the assigner's perspective (Team Tasks tab).
+  const isDelegated = task.assignedByUserId && task.assignedByUserId !== task.userId;
+  const lockedForAssignee = isDelegated && !teamView;
 
   async function handleGenerateGuide(regenerate = false) {
     if (generating) return;
@@ -136,6 +146,29 @@ export default function TaskCard({
             </span>
           )}
 
+          {/* Recurring badge */}
+          {task.recurrence?.freq && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-400" title={`Repeats ${task.recurrence.freq}`}>
+              <Repeat size={10} />
+              {task.recurrence.freq}
+            </span>
+          )}
+
+          {/* Assignment badge */}
+          {isDelegated && (
+            teamView ? (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400" title="Assigned to">
+                <ArrowRight size={10} />
+                {task.assigneeName || 'Assignee'}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400" title="Assigned to you">
+                <UserCheck size={10} />
+                by {task.assignedByName || 'Manager'}
+              </span>
+            )
+          )}
+
           {/* Labels */}
           {task.labels?.map(label => (
             <span key={label} className="px-1.5 py-0.5 rounded text-[10px] bg-dark-700 text-dark-300">
@@ -186,6 +219,7 @@ export default function TaskCard({
                     <input
                       type="checkbox"
                       checked={!!step.done}
+                      disabled={teamView}
                       onChange={() => handleToggleStep(i)}
                       className="mt-0.5 w-3.5 h-3.5 rounded border-dark-600 text-teal-500 focus:ring-teal-500 bg-dark-800 flex-shrink-0"
                     />
@@ -196,15 +230,17 @@ export default function TaskCard({
                     </span>
                   </label>
                 ))}
-                <button
-                  onClick={() => handleGenerateGuide(true)}
-                  disabled={generating}
-                  className="flex items-center gap-1 pl-2 text-[10px] text-dark-500 hover:text-dark-300 disabled:opacity-50"
-                  title="Regenerate guide"
-                >
-                  {generating ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-                  Regenerate
-                </button>
+                {!teamView && (
+                  <button
+                    onClick={() => handleGenerateGuide(true)}
+                    disabled={generating}
+                    className="flex items-center gap-1 pl-2 text-[10px] text-dark-500 hover:text-dark-300 disabled:opacity-50"
+                    title="Regenerate guide"
+                  >
+                    {generating ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                    Regenerate
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -246,7 +282,7 @@ export default function TaskCard({
         )}
 
         {/* Edit */}
-        {onEdit && (
+        {onEdit && !lockedForAssignee && (
           <button
             onClick={onEdit}
             className="p-1.5 text-dark-400 hover:text-white hover:bg-dark-700 rounded"
@@ -257,7 +293,7 @@ export default function TaskCard({
         )}
 
         {/* Delete */}
-        {onDelete && (
+        {onDelete && !lockedForAssignee && (
           <button
             onClick={onDelete}
             className="p-1.5 text-dark-400 hover:text-red-400 hover:bg-red-500/10 rounded"

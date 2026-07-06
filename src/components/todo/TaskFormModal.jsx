@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { X, Mail } from 'lucide-react';
+import { X, Mail, Users, Repeat } from 'lucide-react';
 
-export default function TaskFormModal({ task, onClose, onSave }) {
+export default function TaskFormModal({ task, onClose, onSave, canAssign, assignableEmployees }) {
   const isEdit = !!task;
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
@@ -13,7 +13,12 @@ export default function TaskFormModal({ task, onClose, onSave }) {
   const [reminderEnabled, setReminderEnabled] = useState(task?.reminder?.enabled || false);
   const [reminderMinutes, setReminderMinutes] = useState(task?.reminder?.minutesBefore || 30);
   const [status, setStatus] = useState(task?.status || 'pending');
+  const [recurrenceFreq, setRecurrenceFreq] = useState(task?.recurrence?.freq || '');
+  const [assigneeEmployeeId, setAssigneeEmployeeId] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Assignment is create-only (reassign by deleting and recreating)
+  const showAssign = !isEdit && canAssign && assignableEmployees?.length > 0;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -27,10 +32,13 @@ export default function TaskFormModal({ task, onClose, onSave }) {
       dueDate: dueDate || null,
       labels: labels ? labels.split(',').map(l => l.trim()).filter(Boolean) : [],
       reminder: { enabled: reminderEnabled, minutesBefore: reminderMinutes },
+      recurrence: recurrenceFreq ? { freq: recurrenceFreq } : null,
     };
 
     if (isEdit) {
       taskData.status = status;
+    } else if (assigneeEmployeeId) {
+      taskData.assigneeEmployeeId = assigneeEmployeeId;
     }
 
     try {
@@ -125,6 +133,47 @@ export default function TaskFormModal({ task, onClose, onSave }) {
             </div>
           </div>
 
+          {/* Repeat & Assign row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
+                <Repeat size={12} /> Repeat
+              </label>
+              <select
+                value={recurrenceFreq}
+                onChange={e => setRecurrenceFreq(e.target.value)}
+                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+              >
+                <option value="">Doesn't repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              {recurrenceFreq && !dueDate && (
+                <p className="text-[10px] text-amber-400 mt-1">Recurring tasks need a due date</p>
+              )}
+            </div>
+            {showAssign && (
+              <div>
+                <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
+                  <Users size={12} /> Assign to
+                </label>
+                <select
+                  value={assigneeEmployeeId}
+                  onChange={e => setAssigneeEmployeeId(e.target.value)}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                >
+                  <option value="">Myself</option>
+                  {assignableEmployees.map(emp => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.fullName}{emp.designation ? ` — ${emp.designation}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           {/* Labels */}
           <div>
             <label className="block text-sm text-dark-400 mb-1">Labels (comma-separated)</label>
@@ -189,7 +238,7 @@ export default function TaskFormModal({ task, onClose, onSave }) {
             </button>
             <button
               type="submit"
-              disabled={saving || !title.trim()}
+              disabled={saving || !title.trim() || (!!recurrenceFreq && !dueDate)}
               className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : isEdit ? 'Update Task' : 'Create Task'}

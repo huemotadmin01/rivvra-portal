@@ -80,6 +80,7 @@ const ExpenseDetail = lazy(() => import('./pages/expenses/ExpenseDetail'));
 // Lazy-loaded: To-Do app pages
 const TodoDashboard = lazy(() => import('./pages/todo/TodoDashboard'));
 const TodoTasks = lazy(() => import('./pages/todo/TodoTasks'));
+const TodoTeamTasks = lazy(() => import('./pages/todo/TodoTeamTasks'));
 
 // Lazy-loaded: Timesheet app pages
 const TimesheetDashboard = lazy(() => import('./pages/timesheet/TimesheetDashboard'));
@@ -600,6 +601,7 @@ function App() {
               <Route element={<AppAccessGate appId="todo" />}>
                 <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><TodoDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/todo/tasks" element={<ErrorBoundary><TodoTasks /></ErrorBoundary>} />
+                <Route path="/org/:slug/todo/team" element={<ErrorBoundary><TodoTeamTasks /></ErrorBoundary>} />
               </Route>
 
               {/* Invoicing app routes — admin only */}

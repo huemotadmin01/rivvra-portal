@@ -56,6 +56,22 @@ const todoApi = {
     });
   },
 
+  // ── Team Tasks (assignment) ────────────────────────────────────────
+  getAssignContext(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/todo/assign-context`);
+  },
+
+  getAssignableEmployees(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/todo/assignable-employees`);
+  },
+
+  getTeamTasks(orgSlug, params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return api.request(`/api/org/${orgSlug}/todo/team-tasks${qs ? '?' + qs : ''}`);
+  },
+
   // ── AI Guide ───────────────────────────────────────────────────────
   generateGuide(orgSlug, id, regenerate = false) {
     return api.request(`/api/org/${orgSlug}/todo/tasks/${id}/guide`, {

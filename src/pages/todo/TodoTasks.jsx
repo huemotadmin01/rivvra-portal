@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import todoApi from '../../utils/todoApi';
+import useTodoAssign from '../../hooks/useTodoAssign';
 import TaskCard from '../../components/todo/TaskCard';
 import TaskFormModal from '../../components/todo/TaskFormModal';
 import {
@@ -48,6 +49,7 @@ export default function TodoTasks() {
   const [editingTask, setEditingTask] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const { canAssign, assignableEmployees } = useTodoAssign(orgSlug);
 
   useEffect(() => {
     if (orgSlug) loadTasks();
@@ -355,6 +357,8 @@ export default function TodoTasks() {
         <TaskFormModal
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateTask}
+          canAssign={canAssign}
+          assignableEmployees={assignableEmployees}
         />
       )}
       {editingTask && (
