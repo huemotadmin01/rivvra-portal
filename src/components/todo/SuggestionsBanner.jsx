@@ -1,5 +1,20 @@
 import { useState } from 'react';
-import { Sparkles, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Check, X, ChevronDown, ChevronUp, Clock, AlertTriangle } from 'lucide-react';
+
+function dueInfo(d) {
+  if (!d) return null;
+  const date = new Date(d);
+  const days = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return { text: `${Math.abs(days)}d overdue`, overdue: true };
+  if (days === 0) return { text: 'Due today', overdue: false };
+  if (days === 1) return { text: 'Due tomorrow', overdue: false };
+  return { text: `Due ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, overdue: false };
+}
+
+function formatEmailDate(d) {
+  if (!d) return null;
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 export default function SuggestionsBanner({ suggestions, onAccept, onDismiss }) {
   const [expanded, setExpanded] = useState(false);
@@ -53,7 +68,10 @@ export default function SuggestionsBanner({ suggestions, onAccept, onDismiss }) 
       {/* Expanded list */}
       {expanded && (
         <div className="border-t border-amber-500/10 divide-y divide-dark-800/50">
-          {suggestions.map(task => (
+          {suggestions.map(task => {
+            const due = dueInfo(task.dueDate);
+            const emailDate = formatEmailDate(task.aiMeta?.emailDate);
+            return (
             <div key={task._id} className="flex items-center justify-between px-4 py-2.5">
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">{task.title}</p>
@@ -62,11 +80,19 @@ export default function SuggestionsBanner({ suggestions, onAccept, onDismiss }) 
                 )}
                 {task.aiMeta?.emailFrom && (
                   <p className="text-[11px] text-dark-500 mt-0.5">
-                    From: {task.aiMeta.emailFrom}
+                    From: {task.aiMeta.emailFrom}{emailDate ? ` — ${emailDate}` : ''}
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-1 ml-3">
+                {due && (
+                  <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${
+                    due.overdue ? 'bg-red-500/10 text-red-400' : 'bg-teal-500/10 text-teal-400'
+                  }`}>
+                    {due.overdue ? <AlertTriangle size={10} /> : <Clock size={10} />}
+                    {due.text}
+                  </span>
+                )}
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${
                   task.priority === 'high' ? 'bg-red-500/10 text-red-400' :
                   task.priority === 'low' ? 'bg-blue-500/10 text-blue-400' :
@@ -90,7 +116,8 @@ export default function SuggestionsBanner({ suggestions, onAccept, onDismiss }) 
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
