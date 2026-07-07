@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import todoApi from '../../utils/todoApi';
@@ -14,8 +15,10 @@ const STATUS_TABS = [
   { key: 'pending', label: 'Pending' },
   { key: 'in-progress', label: 'In Progress' },
   { key: 'done', label: 'Done' },
+  { key: 'overdue', label: 'Overdue' },
   { key: 'ai', label: 'AI Suggestions' },
 ];
+const VALID_STATUS_KEYS = STATUS_TABS.map(t => t.key);
 
 const PRIORITY_OPTIONS = [
   { value: '', label: 'All Priorities' },
@@ -40,7 +43,12 @@ export default function TodoTasks() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
 
-  const [statusFilter, setStatusFilter] = useState('');
+  // Deep-linkable status filter (?status=…) — dashboard tiles land here.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get('status');
+  const [statusFilter, setStatusFilter] = useState(
+    VALID_STATUS_KEYS.includes(urlStatus) ? urlStatus : ''
+  );
   const [priorityFilter, setPriorityFilter] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [search, setSearch] = useState('');
@@ -61,6 +69,8 @@ export default function TodoTasks() {
       const params = { page, limit: 50, sort: sortBy };
       if (statusFilter === 'ai') {
         params.source = 'ai';
+      } else if (statusFilter === 'overdue') {
+        params.overdue = true;
       } else if (statusFilter) {
         params.status = statusFilter;
       }
@@ -208,7 +218,11 @@ export default function TodoTasks() {
         {STATUS_TABS.map(tab => (
           <button
             key={tab.key}
-            onClick={() => { setStatusFilter(tab.key); setPage(1); }}
+            onClick={() => {
+              setStatusFilter(tab.key);
+              setPage(1);
+              setSearchParams(tab.key ? { status: tab.key } : {}, { replace: true });
+            }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               statusFilter === tab.key
                 ? 'border-teal-500 text-teal-400'

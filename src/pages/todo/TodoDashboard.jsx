@@ -14,9 +14,14 @@ import {
   ListTodo, CheckCircle2, ArrowUpCircle,
 } from 'lucide-react';
 
-function StatCard({ label, value, icon: Icon, iconColor }) {
+function StatCard({ label, value, icon: Icon, iconColor, onClick }) {
   return (
-    <div className="bg-dark-900 rounded-xl p-5 border border-dark-800">
+    <button
+      type="button"
+      onClick={onClick}
+      className="bg-dark-900 rounded-xl p-5 border border-dark-800 text-left w-full hover:border-teal-500/40 hover:bg-dark-800/60 transition-colors cursor-pointer"
+      title={`View ${label.toLowerCase()} tasks`}
+    >
       <div className="flex items-center gap-3 mb-2">
         <div className={`p-2 rounded-lg ${iconColor}`}>
           <Icon size={18} />
@@ -24,7 +29,7 @@ function StatCard({ label, value, icon: Icon, iconColor }) {
         <span className="text-sm text-dark-400">{label}</span>
       </div>
       <p className="text-2xl font-bold text-white">{value}</p>
-    </div>
+    </button>
   );
 }
 
@@ -196,11 +201,11 @@ export default function TodoDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <StatCard label="Total Tasks" value={stats.total} icon={ListTodo} iconColor="bg-teal-500/10 text-teal-400" />
-        <StatCard label="Pending" value={stats.pending} icon={Clock} iconColor="bg-amber-500/10 text-amber-400" />
-        <StatCard label="In Progress" value={stats.inProgress} icon={ArrowUpCircle} iconColor="bg-blue-500/10 text-blue-400" />
-        <StatCard label="Done" value={stats.done} icon={CheckCircle2} iconColor="bg-emerald-500/10 text-emerald-400" />
-        <StatCard label="Overdue" value={stats.overdue} icon={AlertTriangle} iconColor="bg-red-500/10 text-red-400" />
+        <StatCard label="Total Tasks" value={stats.total} icon={ListTodo} iconColor="bg-teal-500/10 text-teal-400" onClick={() => navigate(orgPath('/todo/tasks'))} />
+        <StatCard label="Pending" value={stats.pending} icon={Clock} iconColor="bg-amber-500/10 text-amber-400" onClick={() => navigate(orgPath('/todo/tasks?status=pending'))} />
+        <StatCard label="In Progress" value={stats.inProgress} icon={ArrowUpCircle} iconColor="bg-blue-500/10 text-blue-400" onClick={() => navigate(orgPath('/todo/tasks?status=in-progress'))} />
+        <StatCard label="Done" value={stats.done} icon={CheckCircle2} iconColor="bg-emerald-500/10 text-emerald-400" onClick={() => navigate(orgPath('/todo/tasks?status=done'))} />
+        <StatCard label="Overdue" value={stats.overdue} icon={AlertTriangle} iconColor="bg-red-500/10 text-red-400" onClick={() => navigate(orgPath('/todo/tasks?status=overdue'))} />
       </div>
 
       {/* AI Suggestions Banner */}
