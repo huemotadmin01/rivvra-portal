@@ -148,6 +148,25 @@ export default function SettingsTodo() {
             </select>
           </div>
 
+          {/* Scan window */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-white">Scan window</p>
+              <p className="text-xs text-dark-400">How far back in the inbox each scan looks (already-processed emails are always skipped)</p>
+            </div>
+            <select
+              value={orgConfig?.scanWindowDays || 1}
+              onChange={e => handleSaveConfig({ scanWindowDays: parseInt(e.target.value) })}
+              disabled={saving}
+              className="px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+            >
+              <option value={1}>Last 24 hours</option>
+              <option value={2}>Last 2 days</option>
+              <option value={3}>Last 3 days</option>
+              <option value={7}>Last 7 days</option>
+            </select>
+          </div>
+
           {/* Top N */}
           <div className="flex items-center justify-between">
             <div>
