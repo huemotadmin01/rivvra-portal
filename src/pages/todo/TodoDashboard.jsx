@@ -125,7 +125,13 @@ export default function TodoDashboard() {
     }
   }
 
+  // Guard against double-clicks / accept-then-dismiss races on the same
+  // suggestion — the second action would hit an already-mutated task.
+  const processingSuggestionIds = useRef(new Set());
+
   async function handleAcceptAiTask(taskId) {
+    if (processingSuggestionIds.current.has(taskId)) return;
+    processingSuggestionIds.current.add(taskId);
     try {
       await todoApi.acceptAiTask(orgSlug, taskId);
       setAiSuggestions(prev => prev.filter(t => t._id !== taskId));
@@ -135,16 +141,22 @@ export default function TodoDashboard() {
       showToast('Task accepted', 'success');
     } catch {
       showToast('Failed to accept task', 'error');
+    } finally {
+      processingSuggestionIds.current.delete(taskId);
     }
   }
 
   async function handleDismissAiTask(taskId) {
+    if (processingSuggestionIds.current.has(taskId)) return;
+    processingSuggestionIds.current.add(taskId);
     try {
       await todoApi.dismissAiTask(orgSlug, taskId);
       setAiSuggestions(prev => prev.filter(t => t._id !== taskId));
       setRecentTasks(prev => prev.filter(t => t._id !== taskId));
     } catch {
       showToast('Failed to dismiss task', 'error');
+    } finally {
+      processingSuggestionIds.current.delete(taskId);
     }
   }
 

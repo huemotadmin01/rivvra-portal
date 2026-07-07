@@ -86,12 +86,18 @@ export default function TaskCard({
 
   function handleToggleStep(index) {
     const newDone = !guide.steps[index].done;
-    // Optimistic update; server failure just reverts on next reload.
+    // Optimistic update; revert + toast if the server rejects it.
     setGuide(prev => ({
       ...prev,
       steps: prev.steps.map((s, i) => (i === index ? { ...s, done: newDone } : s)),
     }));
-    todoApi.toggleGuideStep(orgSlug, task._id, index, newDone).catch(() => {});
+    todoApi.toggleGuideStep(orgSlug, task._id, index, newDone).catch(() => {
+      setGuide(prev => ({
+        ...prev,
+        steps: prev.steps.map((s, i) => (i === index ? { ...s, done: !newDone } : s)),
+      }));
+      showToast('Could not save the step — please try again', 'error');
+    });
   }
 
   return (
@@ -123,7 +129,7 @@ export default function TaskCard({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-sm font-medium ${
+          <span className={`text-sm font-medium break-words min-w-0 max-w-full ${
             task.status === 'done' ? 'line-through text-dark-500' : 'text-white'
           }`}>
             {task.title}

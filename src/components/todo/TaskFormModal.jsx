@@ -57,7 +57,11 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      onClick={onClose}
+      onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+    >
       <div className="bg-dark-900 rounded-xl border border-dark-800 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-dark-800">

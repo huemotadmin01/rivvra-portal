@@ -91,8 +91,12 @@ export default function TodoTeamTasks() {
     }
   }
 
+  // Overdue = due DATE has passed (same boundary as TaskCard's "Xd overdue"
+  // chips and the server's overdue filter) — not raw timestamp comparison.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const overdueCount = tasks.filter(t =>
-    t.status !== 'done' && t.dueDate && new Date(t.dueDate).getTime() < Date.now()
+    t.status !== 'done' && t.dueDate && new Date(t.dueDate) < startOfToday
   ).length;
 
   return (

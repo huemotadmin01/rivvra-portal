@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
@@ -136,7 +136,12 @@ export default function TodoTasks() {
     }
   }
 
+  // Guard against double-clicks / accept-then-dismiss races on a suggestion.
+  const processingSuggestionIds = useRef(new Set());
+
   async function handleAcceptAiTask(taskId) {
+    if (processingSuggestionIds.current.has(taskId)) return;
+    processingSuggestionIds.current.add(taskId);
     try {
       await todoApi.acceptAiTask(orgSlug, taskId);
       showToast('Task accepted', 'success');
@@ -145,15 +150,21 @@ export default function TodoTasks() {
       ));
     } catch {
       showToast('Failed to accept', 'error');
+    } finally {
+      processingSuggestionIds.current.delete(taskId);
     }
   }
 
   async function handleDismissAiTask(taskId) {
+    if (processingSuggestionIds.current.has(taskId)) return;
+    processingSuggestionIds.current.add(taskId);
     try {
       await todoApi.dismissAiTask(orgSlug, taskId);
       setTasks(prev => prev.filter(t => t._id !== taskId));
     } catch {
       showToast('Failed to dismiss', 'error');
+    } finally {
+      processingSuggestionIds.current.delete(taskId);
     }
   }
 
@@ -288,7 +299,7 @@ export default function TodoTasks() {
           </select>
           <select
             value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
+            onChange={e => { setSortBy(e.target.value); setPage(1); }}
             className="bg-dark-800 border border-dark-700 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-teal-500"
           >
             {SORT_OPTIONS.map(opt => (
@@ -321,7 +332,7 @@ export default function TodoTasks() {
                   onChange={toggleSelectAll}
                   className="w-4 h-4 rounded border-dark-600 text-teal-500 focus:ring-teal-500 bg-dark-800"
                 />
-                <span className="text-xs text-dark-500">Select all</span>
+                <span className="text-xs text-dark-500">Select page</span>
               </div>
               <div className="divide-y divide-dark-800">
                 {filteredTasks.map(task => (
