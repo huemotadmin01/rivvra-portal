@@ -1,5 +1,13 @@
 import { useState } from 'react';
 import { X, Mail, Users, Repeat } from 'lucide-react';
+import ComboSelect from '../ComboSelect';
+
+// Employee → picker label; email fallback so a missing fullName never
+// renders a blank row.
+function employeeLabel(emp) {
+  const name = emp.fullName || emp.email || 'Unnamed';
+  return emp.designation ? `${name} — ${emp.designation}` : name;
+}
 
 export default function TaskFormModal({ task, onClose, onSave, canAssign, assignableEmployees }) {
   const isEdit = !!task;
@@ -154,22 +162,29 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
               )}
             </div>
             {showAssign && (
-              <div>
+              <div
+                // ComboSelect is a text input inside this <form> — Enter while
+                // searching must not submit the task prematurely.
+                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+              >
                 <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
                   <Users size={12} /> Assign to
                 </label>
-                <select
+                <ComboSelect
                   value={assigneeEmployeeId}
-                  onChange={e => setAssigneeEmployeeId(e.target.value)}
-                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
-                >
-                  <option value="">Myself</option>
-                  {assignableEmployees.map(emp => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.fullName}{emp.designation ? ` — ${emp.designation}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  displayValue={
+                    assigneeEmployeeId
+                      ? employeeLabel(assignableEmployees.find(e => e._id === assigneeEmployeeId) || {})
+                      : 'Myself'
+                  }
+                  options={[
+                    { _id: '', name: 'Myself' },
+                    ...assignableEmployees.map(emp => ({ _id: emp._id, name: employeeLabel(emp) })),
+                  ]}
+                  onChange={(id) => setAssigneeEmployeeId(id)}
+                  disableCreate
+                  placeholder="Search employee..."
+                />
               </div>
             )}
           </div>
