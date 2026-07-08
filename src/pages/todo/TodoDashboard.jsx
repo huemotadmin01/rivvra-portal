@@ -72,20 +72,22 @@ export default function TodoDashboard() {
     }
 
     if (code && orgSlug) {
-      // An OAuth code is single-use: if this effect re-fires before the
-      // redirect strips the query (remount, orgSlug transition), the second
-      // exchange fails and used to toast an error over a successful connect.
+      // An OAuth code is single-use. The ref guards re-runs of this instance;
+      // stripping the query BEFORE the async exchange guards route remounts
+      // (org-context load) whose fresh ref would double-exchange the code and
+      // toast a spurious failure over a successful connect.
       if (processedGmailCode.current === code) return;
       processedGmailCode.current = code;
+      navigate(orgPath('/todo/dashboard'), { replace: true });
       todoApi.connectGmail(orgSlug, code, state)
         .then(res => {
           if (res.success) {
             showToast('Gmail connected: ' + res.gmailEmail, 'success');
             setGmailStatus(prev => ({ ...prev, connected: true, email: res.gmailEmail }));
+            loadDashboard();
           }
         })
-        .catch(() => showToast('Failed to connect Gmail', 'error'))
-        .finally(() => navigate(orgPath('/todo/dashboard'), { replace: true }));
+        .catch(() => showToast('Failed to connect Gmail', 'error'));
     }
   }, [location.search, orgSlug]);
 
