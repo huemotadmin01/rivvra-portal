@@ -91,11 +91,26 @@ function processSignatureImage(dataUrl) {
       const img = new Image();
       img.onload = () => {
         try {
+          // Downscale BEFORE re-encoding (2026-07-08). The file-size cap on
+          // upload (2 MB) bounds the JPG, but re-encoding a full-resolution
+          // phone photo (4000×3000px) as lossless PNG balloons it to a
+          // 10-30 MB data URL — the submit then 413s on the API's 10 MB JSON
+          // limit (prod report: candidate couldn't submit an uploaded photo
+          // signature). A signature field renders at a few hundred px, so
+          // cap the working canvas; this also makes the pixel loop below
+          // ~20× cheaper on phone photos.
+          const MAX_W = 1200;
+          const MAX_H = 600;
+          const srcW = img.naturalWidth || img.width;
+          const srcH = img.naturalHeight || img.height;
+          const scale = Math.min(1, MAX_W / (srcW || 1), MAX_H / (srcH || 1));
           const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
+          canvas.width = Math.max(1, Math.round(srcW * scale));
+          canvas.height = Math.max(1, Math.round(srcH * scale));
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const d = imgData.data;
           for (let i = 0; i < d.length; i += 4) {
