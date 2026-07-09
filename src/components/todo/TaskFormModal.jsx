@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Mail, Users, Repeat, Bell } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
 import ComboSelect from '../ComboSelect';
 
 const REMINDER_LABELS = { 15: '15 minutes', 30: '30 minutes', 60: '1 hour', 1440: '1 day' };
@@ -13,6 +14,7 @@ function employeeLabel(emp) {
 
 export default function TaskFormModal({ task, onClose, onSave, canAssign, assignableEmployees }) {
   const isEdit = !!task;
+  const { currentCompany } = useCompany();
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
   const [priority, setPriority] = useState(task?.priority || 'medium');
@@ -245,7 +247,9 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
               />
               <p className="text-[10px] text-dark-500 mt-1">
                 They'll be notified in-app and by email, and the task appears in their All Tasks.
-                Only same-company employees with To-Do app access are listed.
+                {currentCompany?.name
+                  ? ` Showing ${currentCompany.name} employees with To-Do access — someone missing? Switch company in the top bar or check their app access.`
+                  : ' Only same-company employees with To-Do app access are listed.'}
               </p>
             </div>
           )}
