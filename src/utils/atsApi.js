@@ -659,6 +659,15 @@ const atsApi = {
   // 'hr_discussion_evidence'). The API rejects unknown slugs so a typo
   // can't silently bypass the gate.
   uploadAttachment(orgSlug, applicationId, file, isResume = false, kind = null) {
+    // Client-side mirror of the API's 10 MB multer cap. Centralized here so
+    // EVERY upload path (attachments panel, required-documents checklist,
+    // resume gate, stage-attachment gate) gets the friendly rejection —
+    // previously only the panel checked, and the other paths surfaced an
+    // unhandled server MulterError (Sentry NODE-EXPRESS-4, 2026-07-09).
+    // Callers already toast err.message.
+    if (file && file.size > 10 * 1024 * 1024) {
+      return Promise.reject(new Error(`${file.name || 'File'} is too large — maximum 10 MB per file.`));
+    }
     const formData = new FormData();
     formData.append('file', file);
     formData.append('isResume', String(isResume));
