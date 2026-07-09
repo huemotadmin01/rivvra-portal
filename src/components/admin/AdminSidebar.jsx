@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useState } from 'react';
 import {
   LayoutDashboard, Building2, Mail, LogOut, ShieldCheck,
-  Settings, Calculator, Users, ChevronDown, ChevronRight
+  Settings, Calculator, Users, ChevronDown, ChevronRight, Megaphone
 } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
 
@@ -11,6 +11,7 @@ const navItems = [
   { label: 'Overview', path: '/admin', icon: LayoutDashboard },
   { label: 'Workspaces', path: '/admin/workspaces', icon: Building2 },
   { label: 'Email Templates', path: '/admin/email-templates', icon: Mail },
+  { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },
 ];
 
 const settingsItems = [

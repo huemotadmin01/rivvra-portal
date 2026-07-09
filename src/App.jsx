@@ -233,6 +233,7 @@ const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'));
 const AdminWorkspacesPage = lazy(() => import('./pages/admin/AdminWorkspacesPage'));
 const AdminWorkspaceDetailPage = lazy(() => import('./pages/admin/AdminWorkspaceDetailPage'));
 const AdminEmailTemplatesPage = lazy(() => import('./pages/admin/AdminEmailTemplatesPage'));
+const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage'));
 const AdminPayrollSettingsPage = lazy(() => import('./pages/admin/AdminPayrollSettingsPage'));
 const AdminEmployeeSettingsPage = lazy(() => import('./pages/admin/AdminEmployeeSettingsPage'));
 
@@ -724,6 +725,7 @@ function App() {
               <Route path="/admin/workspaces" element={<AdminWorkspacesPage />} />
               <Route path="/admin/workspaces/:orgId" element={<AdminWorkspaceDetailPage />} />
               <Route path="/admin/email-templates" element={<AdminEmailTemplatesPage />} />
+              <Route path="/admin/announcements" element={<AdminAnnouncementsPage />} />
               <Route path="/admin/settings/payroll" element={<AdminPayrollSettingsPage />} />
               <Route path="/admin/settings/employee" element={<AdminEmployeeSettingsPage />} />
             </Route>

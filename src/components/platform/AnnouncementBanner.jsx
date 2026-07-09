@@ -17,23 +17,25 @@ export default function AnnouncementBanner() {
   const { orgPath } = usePlatform();
   const orgSlug = currentOrg?.slug;
 
-  const [announcement, setAnnouncement] = useState(null);
+  const [queue, setQueue] = useState([]);
 
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
     announcementsApi.list(orgSlug)
       .then(res => {
-        if (!cancelled && res?.success) setAnnouncement(res.announcements?.[0] || null);
+        if (!cancelled && res?.success) setQueue(res.announcements || []);
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [orgSlug]);
 
+  const announcement = queue[0];
   if (!announcement) return null;
 
   const dismiss = () => {
-    setAnnouncement(null); // optimistic — banner won't flash back
+    // Optimistic: drop the current one and surface the next (if any)
+    setQueue(prev => prev.slice(1));
     announcementsApi.dismiss(orgSlug, announcement.key).catch(() => {});
   };
 
