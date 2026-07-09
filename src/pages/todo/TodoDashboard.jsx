@@ -91,9 +91,9 @@ export default function TodoDashboard() {
     }
   }, [location.search, orgSlug]);
 
-  async function loadDashboard() {
+  async function loadDashboard(silent = false) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [dashRes, gmailRes] = await Promise.all([
         todoApi.getDashboard(orgSlug),
         todoApi.getGmailStatus(orgSlug),
@@ -137,10 +137,10 @@ export default function TodoDashboard() {
     try {
       await todoApi.acceptAiTask(orgSlug, taskId);
       setAiSuggestions(prev => prev.filter(t => t._id !== taskId));
-      setRecentTasks(prev => prev.map(t =>
-        t._id === taskId ? { ...t, aiMeta: { ...t.aiMeta, accepted: true } } : t
-      ));
       showToast('Task accepted', 'success');
+      // Accepted suggestion becomes a real task — stats and Recent Tasks
+      // change server-side, so refresh (silently, no full-page spinner).
+      loadDashboard(true);
     } catch {
       showToast('Failed to accept task', 'error');
     } finally {
@@ -154,7 +154,7 @@ export default function TodoDashboard() {
     try {
       await todoApi.dismissAiTask(orgSlug, taskId);
       setAiSuggestions(prev => prev.filter(t => t._id !== taskId));
-      setRecentTasks(prev => prev.filter(t => t._id !== taskId));
+      loadDashboard(true);
     } catch {
       showToast('Failed to dismiss task', 'error');
     } finally {

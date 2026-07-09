@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { X, Mail, Users, Repeat } from 'lucide-react';
+import { X, Mail, Users, Repeat, Bell } from 'lucide-react';
 import ComboSelect from '../ComboSelect';
+
+const REMINDER_LABELS = { 15: '15 minutes', 30: '30 minutes', 60: '1 hour', 1440: '1 day' };
 
 // Employee → picker label; email fallback so a missing fullName never
 // renders a blank row.
@@ -28,6 +30,23 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
   // Assignment is create-only (reassign by deleting and recreating)
   const showAssign = !isEdit && canAssign && assignableEmployees?.length > 0;
 
+  // Plain-language recap so nobody has to guess how repeat/reminder/assignment
+  // combine — shown live above the submit button.
+  function summaryText() {
+    const parts = [];
+    parts.push(recurrenceFreq ? `Repeats ${recurrenceFreq}` : 'One-time task');
+    if (dueDate) {
+      const d = new Date(dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      parts.push(`${recurrenceFreq ? 'first one ' : ''}due ${d}`);
+    }
+    if (reminderEnabled && dueDate) parts.push(`reminder ${REMINDER_LABELS[reminderMinutes] || ''} before due`);
+    if (showAssign) {
+      const emp = assignableEmployees.find(e => e._id === assigneeEmployeeId);
+      parts.push(assigneeEmployeeId ? `assigned to ${emp?.fullName || emp?.email || 'employee'}` : 'for myself');
+    }
+    return parts.join(' · ');
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!title.trim()) return;
@@ -39,7 +58,8 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
       priority,
       dueDate: dueDate || null,
       labels: labels ? labels.split(',').map(l => l.trim()).filter(Boolean) : [],
-      reminder: { enabled: reminderEnabled, minutesBefore: reminderMinutes },
+      // A reminder can only fire relative to a due date — never save one without.
+      reminder: { enabled: reminderEnabled && !!dueDate, minutesBefore: reminderMinutes },
       recurrence: recurrenceFreq ? { freq: recurrenceFreq } : null,
     };
 
@@ -120,78 +140,115 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
             />
           </div>
 
-          {/* Priority & Due Date row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-dark-400 mb-1">Priority</label>
-              <select
-                value={priority}
-                onChange={e => setPriority(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
-              >
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
+          {/* Schedule */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-dark-500 mb-2">Schedule</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={e => setDueDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-dark-400 mb-1">Priority</label>
+                <select
+                  value={priority}
+                  onChange={e => setPriority(e.target.value)}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                >
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm text-dark-400 mb-1">Due Date</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
-              />
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
+                  <Repeat size={12} /> Repeat
+                </label>
+                <select
+                  value={recurrenceFreq}
+                  onChange={e => setRecurrenceFreq(e.target.value)}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                >
+                  <option value="">Doesn't repeat</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+                {recurrenceFreq && !dueDate ? (
+                  <p className="text-[10px] text-amber-400 mt-1">Set a due date — repeats are scheduled from it</p>
+                ) : (
+                  <p className="text-[10px] text-dark-500 mt-1">
+                    {recurrenceFreq
+                      ? `A fresh copy is created ${recurrenceFreq} once this one is done or its date passes`
+                      : 'This task happens once'}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
+                  <Bell size={12} /> Reminder
+                </label>
+                <select
+                  value={reminderEnabled && dueDate ? String(reminderMinutes) : ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setReminderEnabled(!!v);
+                    if (v) setReminderMinutes(parseInt(v));
+                  }}
+                  disabled={!dueDate}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500 disabled:opacity-50"
+                >
+                  <option value="">No reminder</option>
+                  <option value="15">15 minutes before due</option>
+                  <option value="30">30 minutes before due</option>
+                  <option value="60">1 hour before due</option>
+                  <option value="1440">1 day before due</option>
+                </select>
+                <p className="text-[10px] text-dark-500 mt-1">
+                  {dueDate ? 'Sends a notification before the due date' : 'Set a due date to enable reminders'}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Repeat & Assign row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          {/* Assign to (create-only, managers/admins) */}
+          {showAssign && (
+            <div
+              // ComboSelect is a text input inside this <form> — Enter while
+              // searching must not submit the task prematurely.
+              onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+            >
               <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
-                <Repeat size={12} /> Repeat
+                <Users size={12} /> Assign to
               </label>
-              <select
-                value={recurrenceFreq}
-                onChange={e => setRecurrenceFreq(e.target.value)}
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
-              >
-                <option value="">Doesn't repeat</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-              {recurrenceFreq && !dueDate && (
-                <p className="text-[10px] text-amber-400 mt-1">Recurring tasks need a due date</p>
-              )}
+              <ComboSelect
+                value={assigneeEmployeeId}
+                displayValue={
+                  assigneeEmployeeId
+                    ? employeeLabel(assignableEmployees.find(e => e._id === assigneeEmployeeId) || {})
+                    : 'Myself'
+                }
+                options={[
+                  { _id: '', name: 'Myself' },
+                  ...assignableEmployees.map(emp => ({ _id: emp._id, name: employeeLabel(emp) })),
+                ]}
+                onChange={(id) => setAssigneeEmployeeId(id)}
+                disableCreate
+                placeholder="Search employee..."
+              />
+              <p className="text-[10px] text-dark-500 mt-1">
+                They'll be notified in-app and by email, and the task appears in their All Tasks.
+                Only same-company employees with To-Do app access are listed.
+              </p>
             </div>
-            {showAssign && (
-              <div
-                // ComboSelect is a text input inside this <form> — Enter while
-                // searching must not submit the task prematurely.
-                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-              >
-                <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
-                  <Users size={12} /> Assign to
-                </label>
-                <ComboSelect
-                  value={assigneeEmployeeId}
-                  displayValue={
-                    assigneeEmployeeId
-                      ? employeeLabel(assignableEmployees.find(e => e._id === assigneeEmployeeId) || {})
-                      : 'Myself'
-                  }
-                  options={[
-                    { _id: '', name: 'Myself' },
-                    ...assignableEmployees.map(emp => ({ _id: emp._id, name: employeeLabel(emp) })),
-                  ]}
-                  onChange={(id) => setAssigneeEmployeeId(id)}
-                  disableCreate
-                  placeholder="Search employee..."
-                />
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Labels */}
           <div>
@@ -203,31 +260,6 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
               placeholder="e.g. Client, Urgent, Internal"
               className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm placeholder-dark-500 focus:outline-none focus:border-teal-500"
             />
-          </div>
-
-          {/* Reminder */}
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={reminderEnabled}
-                onChange={e => setReminderEnabled(e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 text-teal-500 focus:ring-teal-500 bg-dark-800"
-              />
-              <span className="text-sm text-dark-300">Reminder</span>
-            </label>
-            {reminderEnabled && (
-              <select
-                value={reminderMinutes}
-                onChange={e => setReminderMinutes(parseInt(e.target.value))}
-                className="px-2 py-1 bg-dark-800 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
-              >
-                <option value={15}>15 min before</option>
-                <option value={30}>30 min before</option>
-                <option value={60}>1 hour before</option>
-                <option value={1440}>1 day before</option>
-              </select>
-            )}
           </div>
 
           {/* Status (edit only) */}
@@ -245,6 +277,11 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
               </select>
             </div>
           )}
+
+          {/* Plain-language recap */}
+          <div className="text-xs text-dark-300 bg-dark-800/50 border border-dark-700/60 rounded-lg px-3 py-2">
+            {summaryText()}
+          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">

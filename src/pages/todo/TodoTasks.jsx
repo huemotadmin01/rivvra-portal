@@ -145,9 +145,9 @@ export default function TodoTasks() {
     try {
       await todoApi.acceptAiTask(orgSlug, taskId);
       showToast('Task accepted', 'success');
-      setTasks(prev => prev.map(t =>
-        t._id === taskId ? { ...t, aiMeta: { ...t.aiMeta, accepted: true } } : t
-      ));
+      // In the AI Suggestions tab an accepted item no longer belongs to the
+      // view; elsewhere its badge changes. Reload keeps list + total honest.
+      loadTasks();
     } catch {
       showToast('Failed to accept', 'error');
     } finally {
