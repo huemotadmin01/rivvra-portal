@@ -38,10 +38,15 @@ import { ChevronDown } from 'lucide-react';
 export default function ComboSelect({ value, displayValue, options = [], onChange, onCreateNew, onSearch, createLabel = 'Create', placeholder, disabled, disableCreate = false }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(displayValue || '');
+  const [highlightIdx, setHighlightIdx] = useState(0);
   const [coords, setCoords] = useState(null); // { left, top, width }
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  // Latest typed text for the blur handler's timeout (closure would be stale).
+  const inputValueRef = useRef(inputValue);
+  useEffect(() => { inputValueRef.current = inputValue; }, [inputValue]);
 
   // Close on click outside (excluding the portal-rendered dropdown)
   useEffect(() => {
@@ -97,6 +102,35 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
   const filtered = options.filter(o => o.name.toLowerCase().includes(trimmed));
   const exactMatch = options.some(o => o.name.toLowerCase() === trimmed);
 
+  function selectOption(o) {
+    onChange(o._id || '', o.name);
+    setInputValue(o.name);
+    setOpen(false);
+  }
+
+  // disableCreate blur: commit an unambiguous typed match instead of silently
+  // reverting. Typing "ashita" then Tab/click-away used to discard the input
+  // and restore the previous selection — users read that as "my selection
+  // reversed back to Myself". Exact match wins; else a single partial match
+  // commits; only ambiguous/no-match input still restores.
+  function commitOrRestore() {
+    const typed = (inputValueRef.current || '').trim().toLowerCase();
+    const current = displayValueRef.current || '';
+    if (!typed || typed === current.trim().toLowerCase()) {
+      setInputValue(current);
+      return;
+    }
+    const exact = options.find(o => o.name.toLowerCase() === typed);
+    const partial = options.filter(o => o.name.toLowerCase().includes(typed));
+    const pick = exact || (partial.length === 1 ? partial[0] : null);
+    if (pick) {
+      onChange(pick._id || '', pick.name);
+      setInputValue(pick.name);
+    } else {
+      setInputValue(current);
+    }
+  }
+
   // Show dropdown when open AND there's something to render — either
   // matching options, or a typed string that lets us offer "+ Create"
   // (suppressed when disableCreate is set).
@@ -114,6 +148,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
           onChange={(e) => {
             setInputValue(e.target.value);
             setOpen(true);
+            setHighlightIdx(0);
             // Free-text mode: clear the bound value as the user types
             // (so a stale id doesn't survive an unmatched input). In
             // disableCreate mode we never accept free text — keep the
@@ -123,12 +158,30 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
             }
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setOpen(true);
+              setHighlightIdx(i => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setHighlightIdx(i => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter') {
+              // Enter picks the highlighted (or first) match instead of
+              // submitting the surrounding form with a half-made choice.
+              if (open && filtered.length > 0) {
+                e.preventDefault();
+                selectOption(filtered[Math.min(highlightIdx, filtered.length - 1)]);
+              }
+            } else if (e.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
           onBlur={() => {
-            // disableCreate: if the user typed but didn't pick, restore
-            // the previously selected display value on blur. Without
-            // this the input would visibly diverge from the bound value.
+            // disableCreate: commit an unambiguous typed match, else restore
+            // the previous display value (see commitOrRestore above).
             if (disableCreate) {
-              setTimeout(() => setInputValue(displayValueRef.current || ''), 150);
+              setTimeout(commitOrRestore, 150);
             }
           }}
           placeholder={placeholder}
@@ -162,14 +215,14 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
             <button
               key={o._id || `name-${i}`}
               type="button"
-              onClick={() => {
-                onChange(o._id || '', o.name);
-                setInputValue(o.name);
-                setOpen(false);
-              }}
+              // preventDefault keeps focus in the input, so clicking an
+              // option never fires the input's blur → no restore race.
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setHighlightIdx(i)}
+              onClick={() => selectOption(o)}
               className={`w-full text-left px-3 py-2 text-sm hover:bg-dark-700 transition-colors ${
-                o._id === value ? 'text-orange-400 bg-dark-700/50' : 'text-white'
-              }`}
+                i === highlightIdx ? 'bg-dark-700' : ''
+              } ${o._id === value ? 'text-orange-400 bg-dark-700/50' : 'text-white'}`}
             >
               {o.name}
             </button>
@@ -177,6 +230,7 @@ export default function ComboSelect({ value, displayValue, options = [], onChang
           {!disableCreate && inputValue.trim() && !exactMatch && (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 const typed = inputValue.trim();
                 if (onCreateNew) {
