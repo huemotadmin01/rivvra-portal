@@ -3856,7 +3856,9 @@ function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, cus
         )}
       </td>
 
-      {/* Qty */}
+      {/* Qty (+ unit label — printed on the PDF, so it must match what the
+          quantity actually counts: day-prorated monthly consultants are billed
+          in Days even though the product's default unit is Months) */}
       <td className="px-4 py-2.5 text-right w-28">
         {editingField === 'quantity' ? (
           <input
@@ -3877,6 +3879,19 @@ function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, cus
             <span className="text-white text-sm">{Number(line.quantity) || 1}</span>
             <Pencil size={10} className="text-dark-600 opacity-0 group-hover/cell:opacity-100 shrink-0" />
           </div>
+        )}
+        {!isVendorBill && (
+          <select
+            value={line.unit || ''}
+            onChange={(e) => onUpdate(index, 'unit', e.target.value)}
+            className="w-full bg-transparent text-right text-[10px] text-dark-400 hover:text-dark-200 border border-transparent hover:border-dark-600 rounded px-0.5 focus:outline-none cursor-pointer"
+            title="Unit printed on the invoice PDF"
+          >
+            {!line.unit && <option value="" className="bg-dark-800">unit…</option>}
+            {['Days', 'Months', 'Hours', 'Weeks', 'Units']
+              .concat(line.unit && !['Days', 'Months', 'Hours', 'Weeks', 'Units'].includes(line.unit) ? [line.unit] : [])
+              .map((u) => <option key={u} value={u} className="bg-dark-800">{u}</option>)}
+          </select>
         )}
       </td>
 
