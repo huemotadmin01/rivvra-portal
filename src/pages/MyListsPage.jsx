@@ -240,12 +240,14 @@ function MyListsPage() {
         setLists([...lists, { name: newListName.trim(), count: 0 }]);
         setNewListName('');
         setShowCreateModal(false);
+      } else {
+        showToast(res.error || 'Failed to create list', 'error');
       }
     } catch (err) {
+      // Previously this mirrored the success path — the list looked created
+      // until refresh even when the API rejected it. Surface the failure.
       console.error('Failed to create list:', err);
-      setLists([...lists, { name: newListName.trim(), count: 0 }]);
-      setNewListName('');
-      setShowCreateModal(false);
+      showToast(err.message || 'Failed to create list', 'error');
     }
   };
 
@@ -259,12 +261,9 @@ function MyListsPage() {
         setSelectedList(newLists[0]?.name || null);
       }
     } catch (err) {
+      // Don't fake success — leave the list in place and report the error.
       console.error('Failed to delete list:', err);
-      const newLists = lists.filter((_, i) => i !== idx);
-      setLists(newLists);
-      if (selectedList === listName) {
-        setSelectedList(newLists[0]?.name || null);
-      }
+      showToast(err.message || 'Failed to delete list', 'error');
     }
   };
 
@@ -506,7 +505,11 @@ function MyListsPage() {
                         leadsToExport = filteredLeads.filter(l => selectedLeads.includes(l._id));
                       } else {
                         try {
-                          const response = await api.getLeads(selectedList);
+                          // getLeads takes an options object — passing the
+                          // list name as a bare string applied no listName
+                          // filter, so "Export all" dumped the first page of
+                          // ALL contacts instead of this list's.
+                          const response = await api.getLeads({ listName: selectedList, limit: 1000 });
                           leadsToExport = response.leads || [];
                         } catch (err) {
                           console.error('Failed to fetch leads for export:', err);
@@ -772,6 +775,7 @@ function MyListsPage() {
                                     replied: { label: 'Interested', cls: 'bg-emerald-500/10 text-emerald-400' },
                                     replied_not_interested: { label: 'Not Interested', cls: 'bg-purple-500/10 text-purple-400' },
                                     no_response: { label: 'No Response', cls: 'bg-orange-500/10 text-orange-400' },
+                                    lost_no_response: { label: 'Lost / No Response', cls: 'bg-slate-500/10 text-slate-400' },
                                     bounced: { label: 'Bounced', cls: 'bg-red-500/10 text-red-400' },
                                     converted: { label: 'Converted', cls: 'bg-rivvra-500/10 text-rivvra-400' },
                                   };

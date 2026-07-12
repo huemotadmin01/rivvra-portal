@@ -1109,7 +1109,7 @@ function DashboardPage() {
                       {lists.slice(0, 4).map((list, idx) => (
                         <Link
                           key={idx}
-                          to={`/outreach/lists?list=${encodeURIComponent(list.name)}`}
+                          to={orgPath(`/outreach/lists?list=${encodeURIComponent(list.name)}`)}
                           className="flex items-center justify-between p-3 bg-dark-800/30 rounded-lg hover:bg-dark-800/50 transition-colors"
                         >
                           <span className="text-white">{list.name}</span>

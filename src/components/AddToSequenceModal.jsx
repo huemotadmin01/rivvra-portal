@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Send, Mail, Clock, Check, RefreshCw, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
 
@@ -20,11 +20,19 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
   const [leadSearch, setLeadSearch] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const searchDebounceRef = useRef(null);
+  // Monotonic token so an out-of-order search response can't clobber a newer one.
+  const leadReqSeqRef = useRef(0);
 
   useEffect(() => {
     if (isOpen) {
       setSelectedId(preSelectedSequenceId || null);
       setResult(null);
+      // Reset the picker state each open — leads/selection persisted across
+      // reopens otherwise.
+      setLeadSearch('');
+      setLeads([]);
+      setSelectedLeadIds(new Set());
       setLoading(true);
 
       if (preSelectedSequenceId) {
@@ -49,19 +57,29 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
   }, [isOpen]);
 
   async function loadLeads(search = '') {
+    const reqId = ++leadReqSeqRef.current;
     setLeadsLoading(true);
     try {
       const res = search
         ? await api.searchAllLeads({ search, limit: 50 })
         : await api.getLeads();
+      // Ignore a stale response that resolved after a newer request fired.
+      if (reqId !== leadReqSeqRef.current) return;
       if (res.success) {
         setLeads(res.leads || []);
       }
     } catch (err) {
       console.error('Failed to load leads:', err);
     } finally {
-      setLeadsLoading(false);
+      if (reqId === leadReqSeqRef.current) setLeadsLoading(false);
     }
+  }
+
+  // Debounced search — one request per pause, not per keystroke.
+  function handleLeadSearchChange(value) {
+    setLeadSearch(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => loadLeads(value.trim()), 300);
   }
 
   function toggleLeadSelection(leadId) {
@@ -206,7 +224,7 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
                     type="text"
                     placeholder="Search contacts..."
                     value={leadSearch}
-                    onChange={(e) => { setLeadSearch(e.target.value); loadLeads(e.target.value); }}
+                    onChange={(e) => handleLeadSearchChange(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-rivvra-500"
                   />
                   <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
@@ -239,7 +257,7 @@ function AddToSequenceModal({ isOpen, onClose, onEnrolled, leadIds = [], leadNam
                           className="w-3.5 h-3.5 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-0 cursor-pointer"
                         />
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm text-white truncate block">{lead.firstName} {lead.lastName}</span>
+                          <span className="text-sm text-white truncate block">{lead.name || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.email || 'Unnamed'}</span>
                           <span className="text-xs text-dark-500 truncate block">{lead.email || 'No email'} {lead.company ? `· ${lead.company}` : ''}</span>
                         </div>
                         {isSelected && <Check className="w-4 h-4 text-rivvra-400 flex-shrink-0" />}

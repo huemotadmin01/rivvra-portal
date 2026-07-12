@@ -679,6 +679,7 @@ function LeadsPage() {
                                 replied: { label: 'Interested', cls: 'bg-emerald-500/10 text-emerald-400' },
                                 replied_not_interested: { label: 'Not Interested', cls: 'bg-purple-500/10 text-purple-400' },
                                 no_response: { label: 'No Response', cls: 'bg-orange-500/10 text-orange-400' },
+                                lost_no_response: { label: 'Lost / No Response', cls: 'bg-slate-500/10 text-slate-400' },
                                 bounced: { label: 'Bounced', cls: 'bg-red-500/10 text-red-400' },
                                 converted: { label: 'Converted', cls: 'bg-rivvra-500/10 text-rivvra-400' },
                               };

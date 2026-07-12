@@ -446,7 +446,7 @@ export default function TeamDashboardPage() {
                 <div
                   key={i}
                   className={`flex-1 min-w-0 ${step.link ? 'cursor-pointer' : ''}`}
-                  onClick={() => step.link && navigate(step.link)}
+                  onClick={() => step.link && navigate(orgPath(step.link))}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[11px] text-dark-400 truncate">{step.label}</span>
@@ -806,7 +806,7 @@ export default function TeamDashboardPage() {
               return (
                 <button
                   key={key}
-                  onClick={() => navigate(`/outreach/team-contacts?status=${key}`)}
+                  onClick={() => navigate(orgPath(`/outreach/team-contacts?status=${key}`))}
                   className="bg-dark-800/40 rounded-xl p-3.5 border border-dark-700/40 hover:border-dark-500 transition-all cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-1.5 mb-2">

@@ -156,18 +156,28 @@ function SequenceWizardPage() {
     setError('');
     try {
       const payload = buildPayload();
+      // Track whether activation actually succeeded — swallowing the
+      // resumeSequence error and always toasting "activated" told the user
+      // the sequence was live when it was still a draft (e.g. Gmail
+      // disconnected server-side).
+      let activated = false;
+      let activateErr = null;
       if (isEditMode) {
         await api.updateSequence(sequenceId, payload);
-        // If sequence was in draft, activate it
-        try { await api.resumeSequence(sequenceId); } catch {}
-        showToast('Sequence updated and activated');
+        try { await api.resumeSequence(sequenceId); activated = true; }
+        catch (e) { activateErr = e; }
       } else {
         const res = await api.createSequence(payload);
         if (res.success && res.sequence?._id) {
           await uploadPendingAttachments(res.sequence._id);
-          try { await api.resumeSequence(res.sequence._id); } catch {}
+          try { await api.resumeSequence(res.sequence._id); activated = true; }
+          catch (e) { activateErr = e; }
         }
-        showToast('Sequence created and activated');
+      }
+      if (activated) {
+        showToast(isEditMode ? 'Sequence updated and activated' : 'Sequence created and activated');
+      } else {
+        showToast(activateErr?.message || 'Saved as draft — activation failed. Activate it from the Engage page.', 'error');
       }
       navigate(orgPath('/outreach/engage'));
     } catch (err) {

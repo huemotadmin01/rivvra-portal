@@ -506,7 +506,7 @@ function EngagePage() {
             onFilter={setFilterStatus}
             onNewSequence={handleNewSequence}
             onOpenDetail={handleOpenDetail}
-            onEdit={(seq) => { navigate(`/outreach/engage/edit-sequence/${seq._id}`); setActionMenuId(null); }}
+            onEdit={(seq) => { navigate(orgPath(`/outreach/engage/edit-sequence/${seq._id}`)); setActionMenuId(null); }}
             onDuplicate={handleDuplicateSequence}
             onDelete={handleDeleteSequence}
             onShare={handleShareSequence}
