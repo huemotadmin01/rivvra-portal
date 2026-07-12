@@ -35,6 +35,8 @@ const STATUS_META = {
   synced:    { bg: 'bg-emerald-500/10', text: 'text-emerald-400',  dot: 'bg-emerald-500', label: 'Approved & Synced' },
   reimbursed:{ bg: 'bg-violet-500/10',  text: 'text-violet-400',   dot: 'bg-violet-500',  label: 'Reimbursed' },
   rejected:  { bg: 'bg-red-500/10',     text: 'text-red-400',      dot: 'bg-red-500',     label: 'Rejected' },
+  // Legacy imported status — current cancel flow lands on `rejected`.
+  cancelled: { bg: 'bg-red-500/10',     text: 'text-red-400',      dot: 'bg-red-500',     label: 'Cancelled' },
 };
 
 function StatusBadge({ status }) {
@@ -806,7 +808,7 @@ export default function ExpenseDetail() {
                     <button
                       onClick={async () => {
                         try {
-                          await expensesApi.unarchive(orgSlug, expenseId);
+                          await expensesApi.unarchive(orgSlug, expense._id);
                           setExpense((e) => ({ ...e, archived: false }));
                           showToast?.('Unarchived');
                         } catch (err) {
@@ -824,7 +826,7 @@ export default function ExpenseDetail() {
                   <button
                     onClick={async () => {
                       try {
-                        await expensesApi.archive(orgSlug, expenseId);
+                        await expensesApi.archive(orgSlug, expense._id);
                         setExpense((e) => ({ ...e, archived: true }));
                         showToast?.('Archived');
                       } catch (err) {

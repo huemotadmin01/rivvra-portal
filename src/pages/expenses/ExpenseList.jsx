@@ -33,6 +33,9 @@ function StatusBadge({ status }) {
     synced:    { bg: 'bg-emerald-500/10', text: 'text-emerald-400',  dot: 'bg-emerald-500', label: 'Approved & Synced' },
     reimbursed:{ bg: 'bg-violet-500/10',  text: 'text-violet-400',   dot: 'bg-violet-500',  label: 'Reimbursed' },
     rejected:  { bg: 'bg-red-500/10',     text: 'text-red-400',      dot: 'bg-red-500',     label: 'Rejected' },
+    // Legacy imported status — the current cancel flow moves claims to
+    // `rejected`, but a few migrated docs still carry `cancelled`.
+    cancelled: { bg: 'bg-red-500/10',     text: 'text-red-400',      dot: 'bg-red-500',     label: 'Cancelled' },
   };
   const s = map[status] || map.draft;
   return (
