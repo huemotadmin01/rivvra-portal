@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, CheckCircle2, Clock, XCircle, Briefcase } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
@@ -47,7 +47,6 @@ export default function AtsMyApprovals() {
   // F-P2-9: track first-load separately so refetches (e.g. showFull toggle)
   // don't blank-flash the displayed rows. Initial load still shows the
   // skeleton; subsequent refetches keep the prior list visible.
-  const [hasLoaded, setHasLoaded] = useState(false);
   // 2026-05-17 health-check H.3: surface truncation when the API totals
   // exceed what we pulled in the first page. Previously a org with >50
   // approved jobs silently lost rows past the limit; recruiters had no
@@ -57,9 +56,13 @@ export default function AtsMyApprovals() {
   const [decidedTotal, setDecidedTotal] = useState(0);
   const [showFull, setShowFull] = useState(false);
 
+  // `hasLoaded` is read via ref, NOT a dep — with it in the deps, the first
+  // fetch's setHasLoaded(true) recreated this callback and the effect below
+  // re-fired a full second round of the 3 requests on every mount.
+  const hasLoadedRef = useRef(false);
   const fetchLists = useCallback(async () => {
     if (!orgSlug) return;
-    if (!hasLoaded) setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     try {
       const cap = showFull ? 500 : 100;
       const [pRes, aRes, rRes] = await Promise.all([
@@ -78,9 +81,9 @@ export default function AtsMyApprovals() {
       console.error('Failed to load My Approvals:', err);
     } finally {
       setLoading(false);
-      setHasLoaded(true);
+      hasLoadedRef.current = true;
     }
-  }, [orgSlug, showFull, hasLoaded]);
+  }, [orgSlug, showFull]);
 
   useEffect(() => { fetchLists(); }, [fetchLists]);
 

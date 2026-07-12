@@ -253,18 +253,34 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const [signedOfferDocId, setSignedOfferDocId] = useState(initialOffer?.signedOfferDocId || '');
   const [errors, setErrors] = useState({});
 
+  // Re-prefill ONLY when the modal opens. `initialOffer` gets a fresh object
+  // identity on every parent fetchApplication (Send-for-signature and
+  // Disconnect both call onRefresh) — having it as an effect dep wiped the
+  // recruiter's un-submitted edits mid-modal. Read the latest value via a
+  // ref instead.
+  const initialOfferRef = useRef(initialOffer);
+  initialOfferRef.current = initialOffer;
   useEffect(() => {
     if (show) {
-      // Re-prefill on every open. Falls back to defaults when no initialOffer.
-      setJoiningDate(initialOffer?.joiningDate ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10) : today);
-      setCurrency(initialOffer?.offeredCTC?.currency || 'INR');
-      setAmount(initialOffer?.offeredCTC?.amount ? String(initialOffer.offeredCTC.amount) : '');
-      setNoticePeriodDays(initialOffer?.noticePeriodDays != null ? String(initialOffer.noticePeriodDays) : '30');
-      setProbationMonths(initialOffer?.probationMonths != null ? String(initialOffer.probationMonths) : '6');
-      setSignedOfferDocId(initialOffer?.signedOfferDocId || '');
+      const io = initialOfferRef.current;
+      setJoiningDate(io?.joiningDate ? new Date(io.joiningDate).toISOString().slice(0, 10) : today);
+      setCurrency(io?.offeredCTC?.currency || 'INR');
+      setAmount(io?.offeredCTC?.amount ? String(io.offeredCTC.amount) : '');
+      setNoticePeriodDays(io?.noticePeriodDays != null ? String(io.noticePeriodDays) : '30');
+      setProbationMonths(io?.probationMonths != null ? String(io.probationMonths) : '6');
+      setSignedOfferDocId(io?.signedOfferDocId || '');
       setErrors({});
     }
-  }, [show, today, initialOffer]);
+  }, [show, today]);
+  // Keep the signed-doc gate live while open: when the candidate countersigns
+  // and a refresh delivers signedOfferDocId, reflect it without touching the
+  // recruiter's other in-progress fields (primitive dep — no identity churn).
+  useEffect(() => {
+    if (show && initialOffer?.signedOfferDocId) {
+      setSignedOfferDocId(initialOffer.signedOfferDocId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, initialOffer?.signedOfferDocId]);
 
   // Pre-fill subject + body for the Sign email from offer details so
   // the recruiter doesn't retype candidate name, rate, title, joining

@@ -653,7 +653,7 @@ export default function AtsJobDetail() {
         page: appsPage,
         limit: 15,
         sort: 'appliedOn',
-        order: 'desc',
+        dir: 'desc',
       });
       if (res.success) {
         setApplications(res.applications || []);

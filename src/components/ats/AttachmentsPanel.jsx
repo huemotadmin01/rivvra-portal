@@ -75,15 +75,21 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
     if (!files || files.length === 0) return;
     try {
       setUploading(true);
+      let uploaded = 0;
       for (const file of Array.from(files)) {
         if (file.size > 10 * 1024 * 1024) {
           showToast(`${file.name} exceeds 10 MB limit`, 'error');
           continue;
         }
         await atsApi.uploadAttachment(orgSlug, applicationId, file);
+        uploaded += 1;
       }
-      showToast(files.length === 1 ? 'File uploaded' : `${files.length} files uploaded`);
-      fetchAttachments();
+      // Only toast success for files that actually uploaded — when every
+      // file was skipped by the size guard this used to say "File uploaded".
+      if (uploaded > 0) {
+        showToast(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
+        fetchAttachments();
+      }
     } catch (err) {
       showToast(err.message || 'Upload failed', 'error');
     } finally {
@@ -193,7 +199,7 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
             type="file"
             multiple
             className="hidden"
-            onChange={(e) => handleUpload(e.target.files)}
+            onChange={(e) => { handleUpload(e.target.files); e.target.value = ''; }}
           />
           {uploading ? (
             <div className="flex items-center justify-center gap-2">

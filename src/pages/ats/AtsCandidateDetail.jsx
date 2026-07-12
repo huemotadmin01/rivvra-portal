@@ -53,7 +53,6 @@ export default function AtsCandidateDetail() {
 
   const [candidate, setCandidate] = useState(null);
   const [applications, setApplications] = useState([]);
-  const [skills, setSkills] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -127,10 +126,8 @@ export default function AtsCandidateDetail() {
       }
       setCandidate(res.candidate);
       setApplications(res.applications || []);
-      try {
-        const sk = await atsApi.listCandidateSkills(slug, candidateId);
-        if (sk?.success) setSkills(sk.candidateSkills || sk.skills || sk.data || []);
-      } catch { /* skills are optional */ }
+      // (Skills are fetched by SkillsPicker itself — a duplicate
+      // listCandidateSkills call here fed state nothing rendered.)
     } catch (err) {
       console.error('Failed to load candidate:', err);
       showToast(err.message || 'Failed to load candidate', 'error');

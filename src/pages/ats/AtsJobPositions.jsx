@@ -506,12 +506,14 @@ export default function AtsJobPositions() {
                         )}
                       </td>
 
-                      {/* Published */}
+                      {/* Published — publishToCareers is what the careers
+                          publish flow writes; the legacy `published` flag is
+                          never set, so live public jobs showed "No". */}
                       <td className="px-4 py-3 text-center hidden xl:table-cell">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          job.published ? 'bg-emerald-500/10 text-emerald-400' : 'bg-dark-700 text-dark-500'
+                          job.publishToCareers ? 'bg-emerald-500/10 text-emerald-400' : 'bg-dark-700 text-dark-500'
                         }`}>
-                          {job.published ? 'Yes' : 'No'}
+                          {job.publishToCareers ? 'Yes' : 'No'}
                         </span>
                       </td>
 

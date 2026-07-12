@@ -8,6 +8,7 @@ import atsApi from '../../utils/atsApi';
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, KeyboardSensor, useSensor, useSensors,
+  useDroppable,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -278,6 +279,11 @@ function KanbanCardOverlay({ application }) {
 function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoadMore }) {
   const ids = applications.map((a) => a._id);
   const hasMore = totalCount > applications.length;
+  // Register the column itself as a droppable — without this, dropping on
+  // an EMPTY column resolved `over` to null (only cards were droppable via
+  // SortableContext) and the drag silently snapped back. The `col:` prefix
+  // keeps the id namespace distinct from card ids; handleDragEnd strips it.
+  const { setNodeRef } = useDroppable({ id: `col:${stage._id}` });
 
   return (
     <div className="bg-dark-900/50 rounded-lg min-w-[300px] max-w-[300px] flex flex-col max-h-[calc(100vh-220px)]">
@@ -290,7 +296,7 @@ function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoa
       </div>
 
       {/* Droppable card list */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+      <div ref={setNodeRef} className="flex-1 overflow-y-auto p-2 space-y-2">
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {applications.map((app) => (
             <KanbanCard key={app._id} application={app} onClick={onCardClick} />
@@ -341,6 +347,11 @@ export default function AtsPipeline() {
   const [recruiters, setRecruiters] = useState([]);
 
   const debounceRef = useRef(null);
+  // Mirror of `search` readable inside fetchKanban without being a dep —
+  // with `search` in the deps, every keystroke recreated the callback and
+  // the useEffect below fired an IMMEDIATE fetch alongside the debounced
+  // one (2 kanban aggregations per keystroke). Same class as F-P2-4.
+  const searchRef = useRef('');
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
 
@@ -367,7 +378,7 @@ export default function AtsPipeline() {
     let aborted = false;
     try {
       const res = await atsApi.getKanban(orgSlug, {
-        search: params.search !== undefined ? params.search : search,
+        search: params.search !== undefined ? params.search : searchRef.current,
         jobId: params.jobId !== undefined ? params.jobId : jobFilter,
         recruiter: params.recruiter !== undefined ? params.recruiter : recruiterFilter,
         _requestKey: 'ats:kanban',
@@ -383,7 +394,7 @@ export default function AtsPipeline() {
       if (!aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, search, jobFilter, recruiterFilter, showToast]);
+  }, [orgSlug, currentCompany?._id, jobFilter, recruiterFilter, showToast]);
 
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
@@ -415,6 +426,7 @@ export default function AtsPipeline() {
   // Debounced search
   const handleSearchChange = (value) => {
     setSearch(value);
+    searchRef.current = value;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       fetchKanban({ search: value });
@@ -482,8 +494,9 @@ export default function AtsPipeline() {
     if (overInfo) {
       targetStageId = overInfo.stageId;
     } else {
-      // over.id might be a stage/column id
-      targetStageId = over.id;
+      // Column droppable — id is `col:<stageId>` (see KanbanColumnInner).
+      const overId = String(over.id);
+      targetStageId = overId.startsWith('col:') ? overId.slice(4) : overId;
     }
 
     if (!targetStageId || targetStageId === sourceInfo.stageId) return;
