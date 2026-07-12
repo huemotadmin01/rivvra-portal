@@ -494,37 +494,28 @@ export default function AtsApplications() {
     return () => { alive = false; };
   }, [singleJobId, orgSlug]);
 
-  // 2026-05-17 ATS-APP-LIFECYCLE: parallel fetch of all four lifecycle
-  // segment counts so each chip shows its own number. Base filter
-  // (search / stage / job / recruiter / source / employmentType) is
-  // preserved across all four — only the lifecycle clause differs.
+  // 2026-05-17 ATS-APP-LIFECYCLE (reworked 2026-07-12): all four lifecycle
+  // segment counts now come from ONE counts=1 request — the server runs a
+  // single $facet over the shared base filter. Previously this fired four
+  // parallel limit-1 list calls per filter/search change (5 requests per
+  // keystroke together with the list fetch). _requestKey aborts a stale
+  // counts call when the filters change again mid-flight.
   useEffect(() => {
     if (!orgSlug) return;
     let cancelled = false;
-    const baseParams = { ...filterParams, limit: 1, page: 1 };
+    const baseParams = { ...filterParams, limit: 1, page: 1, counts: '1', _requestKey: 'ats:applications:counts' };
     delete baseParams.archived;
     delete baseParams.applicationStatus;
     delete baseParams.hiredOnly;
     delete baseParams.refusedOnly;
     delete baseParams.groupBy;
 
-    const variants = {
-      ongoing:  { ...baseParams, applicationStatus: 'ongoing' },
-      hired:    { ...baseParams, applicationStatus: 'hired' },
-      refused:  { ...baseParams, applicationStatus: 'refused' },
-      archived: { ...baseParams, archived: '1' },
-    };
-
-    Promise.all(
-      Object.entries(variants).map(([k, p]) =>
-        atsApi.listApplications(orgSlug, p)
-          .then(res => [k, res?.success ? (res.total || 0) : null])
-          .catch(() => [k, null])
-      )
-    ).then(entries => {
-      if (cancelled) return;
-      setCounts(Object.fromEntries(entries));
-    });
+    atsApi.listApplications(orgSlug, baseParams)
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.success && res.counts) setCounts(res.counts);
+      })
+      .catch(() => { /* keep previous counts on abort/failure */ });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id, JSON.stringify({ ...filterParams, archived: undefined, applicationStatus: undefined, hiredOnly: undefined, refusedOnly: undefined, groupBy: undefined })]);

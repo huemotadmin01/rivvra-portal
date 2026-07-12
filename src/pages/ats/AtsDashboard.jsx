@@ -1003,7 +1003,10 @@ export default function AtsDashboard() {
             // the per-stage row below, and the rollup was confusing
             // (`Proposal 0 · Signed 1` displaying total=1 read as "1
             // offer in proposal stage"). Deep-link to just Offer Proposal.
-            const id = applicationsByStage.find((s) => s.stageName === 'Offer Proposal')?.stageId;
+            // Match by structural stageKind (rename-proof; server-derived),
+            // falling back to the display name for older API responses.
+            const id = (applicationsByStage.find((s) => s.stageKind === 'offer_proposal')
+              || applicationsByStage.find((s) => s.stageName === 'Offer Proposal'))?.stageId;
             const stageQ = id ? `&stageId=${id}` : '';
             return `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${stageQ}${scopeQuery}`;
           })()}
@@ -1027,13 +1030,20 @@ export default function AtsDashboard() {
           ongoing status, so a recruiter clicking "L1 Interview" sees just
           those 9 candidates. */}
       {applicationsByStageActive.length > 0 && (() => {
-        const stageTile = (name) => {
-          const s = applicationsByStageActive.find((x) => x.stageName === name);
+        // Stages are matched by server-derived structural `stageKind`
+        // (rename-proof), with a display-name fallback for older API
+        // responses that don't carry it yet. The tile label prefers the
+        // stage's ACTUAL name so renames show up instead of zeroing out.
+        const findByKind = (kind, fallbackName) =>
+          applicationsByStageActive.find((x) => x.stageKind === kind)
+          || applicationsByStageActive.find((x) => x.stageName === fallbackName);
+        const stageTile = (kind, fallbackName) => {
+          const s = findByKind(kind, fallbackName);
           const ids = (s?.stageIds && s.stageIds.length) ? s.stageIds : (s?.stageId ? [s.stageId] : []);
           return {
             count: s?.count || 0,
-            stageId: s?.stageId || null,
             stageIds: ids,
+            label: s?.stageName || fallbackName,
           };
         };
         // 2026-06-26: dynamic extra interview rounds (L3, L4 … Ln) — surface
@@ -1041,30 +1051,32 @@ export default function AtsDashboard() {
         // pipeline sequence, inserted right after L2.
         const extraRoundTiles = applicationsByStageActive
           .filter((s) => {
+            const km = /^interview:l(\d+)$/.exec(s.stageKind || '');
+            if (km) return parseInt(km[1], 10) >= 3;
             const m = /^L(\d+)\s+Interview$/i.exec(s.stageName || '');
             return m && parseInt(m[1], 10) >= 3;
           })
           .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-          .map((s) => ({ name: s.stageName, color: 'blue', icon: BarChart3 }));
+          .map((s) => ({ kind: s.stageKind, name: s.stageName, color: 'blue', icon: BarChart3 }));
         const tiles = [
-          { name: 'L1 Interview',         color: 'blue',    icon: BarChart3 },
-          { name: 'L2 Interview',         color: 'blue',    icon: BarChart3 },
+          { kind: 'interview:l1', name: 'L1 Interview',         color: 'blue',    icon: BarChart3 },
+          { kind: 'interview:l2', name: 'L2 Interview',         color: 'blue',    icon: BarChart3 },
           ...extraRoundTiles,
-          { name: 'Documents Collection', color: 'purple',  icon: Users },
-          { name: 'HR Discussion',        color: 'amber',   icon: Clock },
-          { name: 'Offer Signed',         color: 'emerald', icon: UserCheck },
+          { kind: 'documents',    name: 'Documents Collection', color: 'purple',  icon: Users },
+          { kind: 'interview:hr', name: 'HR Discussion',        color: 'amber',   icon: Clock },
+          { kind: 'offer_signed', name: 'Offer Signed',         color: 'emerald', icon: UserCheck },
         ];
         return (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {tiles.map(({ name, color, icon }) => {
-              const t = stageTile(name);
+            {tiles.map(({ kind, name, color, icon }) => {
+              const t = stageTile(kind, name);
               const to = t.stageIds.length
                 ? `/org/${orgSlug}/ats/applications?stageId=${t.stageIds.join(',')}&applicationStatus=ongoing${scopeQuery}`
                 : `/org/${orgSlug}/ats/applications?applicationStatus=ongoing${scopeQuery}`;
               return (
                 <KpiTile
-                  key={name}
-                  label={name}
+                  key={kind || name}
+                  label={t.label}
                   value={t.count}
                   subtitle="currently at this stage"
                   icon={icon}
