@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTimesheetContext } from '../../context/TimesheetContext';
 import { useToast } from '../../context/ToastContext';
 import timesheetApi, { getHolidays, getMyLeaveRequests } from '../../utils/timesheetApi';
@@ -58,6 +58,36 @@ export default function TimesheetEntry() {
 
   const isNonBillable = timesheetUser?.billable === false;
   const hasProjects = projects.length > 0;
+
+  // Only offer projects whose assignment window overlaps the viewed month —
+  // an engagement that ended before this month (or starts after it) is fully
+  // day-gated anyway, so listing it just shows the consultant a stale client
+  // name. Projects without a matching assignment (legacy / shared) stay
+  // visible unchanged.
+  const visibleProjects = useMemo(() => {
+    if (!projects.length) return projects;
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    return projects.filter((p) => {
+      const asgn = timesheetUser?.assignments?.find(
+        (a) => (a.projectId?._id || a.projectId)?.toString() === p._id
+      );
+      if (!asgn) return true;
+      const start = asgn.startDate ? new Date(asgn.startDate) : null;
+      const end = asgn.endDate ? new Date(asgn.endDate) : null;
+      if (start && !Number.isNaN(start.getTime()) && start > monthEnd) return false;
+      if (end && !Number.isNaN(end.getTime()) && end < monthStart) return false;
+      return true;
+    });
+  }, [projects, timesheetUser, month, year]);
+
+  // Keep the selection on a project that's actually offered for this month.
+  useEffect(() => {
+    if (!visibleProjects.length) return;
+    if (!visibleProjects.some((p) => p._id === selectedProject)) {
+      setSelectedProject(visibleProjects[0]._id);
+    }
+  }, [visibleProjects, selectedProject]);
 
   // Load projects (skip for non-billable — they don't need a project)
   useEffect(() => {
@@ -540,17 +570,20 @@ export default function TimesheetEntry() {
             Your last working date is <span className="font-semibold">{lastWorkingDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>. You can log time only up to this date.
           </div>
         )}
-        {hasProjects && (
+        {hasProjects && visibleProjects.length > 0 && (
           <div className="flex justify-center">
             <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
               className="px-3 py-2 bg-dark-800/50 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500 w-full sm:w-auto">
-              {projects.map(p => {
+              {visibleProjects.map(p => {
                 const asgn = timesheetUser?.assignments?.find(a => (a.projectId?._id || a.projectId)?.toString() === p._id);
                 const clientLabel = asgn?.clientName ? ` — ${asgn.clientName}` : '';
                 return <option key={p._id} value={p._id}>{p.name}{clientLabel}</option>;
               })}
             </select>
           </div>
+        )}
+        {hasProjects && visibleProjects.length === 0 && (
+          <p className="text-xs text-dark-500">No assignment covers this month.</p>
         )}
       </div>
 

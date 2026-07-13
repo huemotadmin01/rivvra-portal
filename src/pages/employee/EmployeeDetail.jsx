@@ -505,10 +505,9 @@ export default function EmployeeDetail() {
       showToast('Client is required', 'error');
       return;
     }
-    if (!projectName && !editAssignment.projectId) {
-      showToast('Project is required', 'error');
-      return;
-    }
+    // Project is optional — the server auto-creates/reuses a project named
+    // after the client when none is given (each engagement needs its own
+    // project; it's the timesheet join key).
     if (editAssignment.endDate && editAssignment.startDate && editAssignment.endDate < editAssignment.startDate) {
       showToast('End date cannot be before start date', 'error');
       return;
@@ -2331,9 +2330,10 @@ export default function EmployeeDetail() {
       {editAssignment && (() => {
         const isNewAssignment = !!editAssignment.isNew;
         const hasClient = !!(editAssignment.clientId || (editAssignment.clientName || '').trim());
-        const hasProject = !!(editAssignment.projectId || (editAssignment.projectName || '').trim());
+        // Project intentionally NOT required — server auto-creates a
+        // client-named project when omitted.
         const dateRangeInvalid = !!(editAssignment.endDate && editAssignment.startDate && editAssignment.endDate < editAssignment.startDate);
-        const canSave = hasClient && hasProject && !dateRangeInvalid && !assignmentSaving;
+        const canSave = hasClient && !dateRangeInvalid && !assignmentSaving;
         return (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -2381,16 +2381,18 @@ export default function EmployeeDetail() {
               {/* Project */}
               {isNewAssignment ? (
                 <div>
-                  <label className="block text-sm text-dark-400 mb-1">
-                    Project <span className="text-red-400">*</span>
-                  </label>
+                  <label className="block text-sm text-dark-400 mb-1">Project</label>
                   <ComboSelect
                     value={editAssignment.projectId}
                     displayValue={editAssignment.projectName}
                     options={tsProjects}
                     onChange={(id, name) => setEditAssignment(prev => ({ ...prev, projectId: id, projectName: name }))}
-                    placeholder="Select or create project"
+                    placeholder="Leave blank to auto-create from client"
                   />
+                  <p className="mt-1 text-[11px] text-dark-500">
+                    Optional — left blank, a project named after the client is created/reused.
+                    Each engagement needs its own project (it anchors timesheets, rates and billing).
+                  </p>
                 </div>
               ) : (
                 <div>
