@@ -1765,7 +1765,11 @@ export default function AtsApplicationDetail() {
   // leak the bypass affordance for ~1s on first paint.
   const canBypassRcGate = membershipVerified && isOrgAdmin === true;
   const { user: authUser } = useAuth();
-  const { currentCompany, companies } = useCompany();
+  const { currentCompany, companies, switching: companySwitching } = useCompany();
+  // Read via ref inside fetchApplication's catch so the callback identity
+  // doesn't churn (and refetch) every time a company switch starts/ends.
+  const companySwitchingRef = useRef(companySwitching);
+  companySwitchingRef.current = companySwitching;
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -1965,12 +1969,26 @@ export default function AtsApplicationDetail() {
       }
     } catch (err) {
       if (mySeq !== fetchAppSeq.current) return;
+      // 404 = the application isn't visible under the ACTIVE company. This is
+      // the normal outcome of switching company while sitting on a detail page
+      // (the remount races the list redirect in CompanyContext.switchCompany)
+      // or of opening a cross-company deep link — not a failure. Land on the
+      // list quietly instead of splashing a red error toast.
+      if (err?.status === 404) {
+        // Mid company-switch the redirect is expected — stay quiet. Only a
+        // cross-company deep link (bookmark/shared URL) earns an explanation.
+        if (!companySwitchingRef.current) {
+          showToast('That application belongs to a different company', 'warning');
+        }
+        navigate(`/org/${orgSlug}/ats/applications`, { replace: true });
+        return;
+      }
       console.error('Failed to load application:', err);
       showToast('Failed to load application', 'error');
     } finally {
       if (mySeq === fetchAppSeq.current) setLoading(false);
     }
-  }, [orgSlug, applicationId, showToast]);
+  }, [orgSlug, applicationId, showToast, navigate]);
 
   // 2026-05-28: manual AI re-score (admin-only). Synchronous call —
   // re-fetches the application afterwards to pull the refreshed candidate doc.
