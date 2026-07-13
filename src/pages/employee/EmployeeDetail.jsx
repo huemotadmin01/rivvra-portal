@@ -500,7 +500,6 @@ export default function EmployeeDetail() {
     // Validate: backend silently drops assignments missing client/project, so
     // catch it here and tell the user instead of letting the row vanish.
     const clientName = (editAssignment.clientName || '').trim();
-    const projectName = (editAssignment.projectName || '').trim();
     if (!clientName && !editAssignment.clientId) {
       showToast('Client is required', 'error');
       return;
@@ -2563,7 +2562,7 @@ export default function EmployeeDetail() {
               <button
                 onClick={handleSaveAssignment}
                 disabled={!canSave}
-                title={!hasClient ? 'Client is required' : !hasProject ? 'Project is required' : dateRangeInvalid ? 'Fix the date range' : ''}
+                title={!hasClient ? 'Client is required' : dateRangeInvalid ? 'Fix the date range' : ''}
                 className="px-4 py-2 bg-rivvra-600 text-white rounded-lg hover:bg-rivvra-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {assignmentSaving && <Loader2 size={14} className="animate-spin" />}
