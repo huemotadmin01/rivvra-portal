@@ -9,6 +9,7 @@ import expensesApi from '../../utils/expensesApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import { invalidateExpensesList } from './_listCache';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   ArrowLeft, Save, Send, Trash2, CheckCircle2, XCircle, MessageSquare,
   Paperclip, Upload, Loader2, FileText, Eye, Wallet, AlertCircle, Clock,
@@ -337,6 +338,7 @@ export default function ExpenseDetail() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
+  const handleScoped404 = useCompanyScoped404('expense claim');
 
   const isOrgAdmin = orgRole === 'owner' || orgRole === 'admin';
   const currentUserId = user?._id || user?.id || null;
@@ -420,12 +422,13 @@ export default function ExpenseDetail() {
           : [emptyLine(exp.claimCurrency || 'INR')],
       });
     } catch (err) {
+      if (handleScoped404(err)) return;
       showToast(err.message || 'Failed to load expense', 'error');
       navigate(orgPath('/expenses'));
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, id, isNew, showToast, navigate, orgPath]);
+  }, [orgSlug, id, isNew, showToast, navigate, orgPath, handleScoped404]);
 
   useEffect(() => { loadExpense(); }, [loadExpense]);
 

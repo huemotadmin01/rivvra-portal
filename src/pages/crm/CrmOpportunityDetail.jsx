@@ -11,6 +11,7 @@ import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Building2, User, Briefcase, Trophy, FileText, Tag, MapPin,
@@ -87,6 +88,7 @@ export default function CrmOpportunityDetail() {
   const { opportunityId } = useParams();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const handleScoped404 = useCompanyScoped404('opportunity');
 
   const [opp, setOpp] = useState(null);
   // Bumped after any save that the server may turn into an audit /
@@ -148,12 +150,13 @@ export default function CrmOpportunityDetail() {
       ]);
       if (oppRes.success) setOpp(oppRes.opportunity);
       if (stagesRes.success) setStages(stagesRes.stages || []);
-    } catch {
+    } catch (err) {
+      if (handleScoped404(err)) return;
       addToast('Failed to load opportunity', 'error');
     } finally {
       setLoading(false);
     }
-  }, [slug, opportunityId]);
+  }, [slug, opportunityId, handleScoped404]);
 
   // Targeted refetch used by action handlers. Drops the stages /
   // reasons round-trips since neither changes in response to user

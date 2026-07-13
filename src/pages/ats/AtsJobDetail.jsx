@@ -9,6 +9,7 @@ import employeeApi from '../../utils/employeeApi';
 import contactsApi from '../../utils/contactsApi';
 import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import ActivityPanel from '../../components/shared/ActivityPanel';
@@ -433,6 +434,7 @@ export default function AtsJobDetail() {
   const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
+  const handleScoped404 = useCompanyScoped404('job position');
   const navigate = useNavigate();
 
   const companyCurrency = currentCompany?.currency || 'INR';
@@ -636,12 +638,13 @@ export default function AtsJobDetail() {
         setMissingApprovalFields(Array.isArray(res.missingApprovalFields) ? res.missingApprovalFields : []);
       }
     } catch (err) {
+      if (handleScoped404(err)) return;
       console.error('Failed to load job:', err);
       showToast('Failed to load job position', 'error');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, jobId, showToast]);
+  }, [orgSlug, jobId, showToast, handleScoped404]);
 
   // ── Fetch applications for this job ──────────────────────────────────
   const fetchApplications = useCallback(async () => {

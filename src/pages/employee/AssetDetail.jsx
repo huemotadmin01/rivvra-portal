@@ -4,6 +4,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
 import assetApi from '../../utils/assetApi';
 import employeeApi from '../../utils/employeeApi';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   ArrowLeft, Loader2, User, Calendar, Package, Pencil, RotateCcw, AlertTriangle,
   CheckCircle2, X, Clock, History, IndianRupee, RefreshCw,
@@ -30,6 +31,7 @@ export default function AssetDetail() {
   const { orgSlug, orgPath } = usePlatform();
   const { getAppRole } = useOrg();
   const isAdmin = getAppRole('employee') === 'admin';
+  const handleScoped404 = useCompanyScoped404('asset');
 
   const [asset, setAsset] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,10 @@ export default function AssetDetail() {
       setEmployees((Array.isArray(empList) ? empList : []).filter(e => e.status !== 'separated').sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
       setTypes(typesRes.data || []);
       setEditForm({ name: a.name, modelName: a.modelName || '', condition: a.condition || 'good', notes: a.notes || '', assetTypeId: a.assetTypeId });
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      if (handleScoped404(e)) return;
+      console.error(e);
+    }
     finally { setLoading(false); }
   }
 

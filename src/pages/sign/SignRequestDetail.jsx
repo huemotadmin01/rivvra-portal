@@ -11,6 +11,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 // deadlocking fake worker and the document spinner ran forever.
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   Loader2, FileText, XCircle, Bell,
   Download, User, Calendar, Clock, Send,
@@ -316,6 +317,7 @@ export default function SignRequestDetail() {
   const { showToast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const handleScoped404 = useCompanyScoped404('signature request');
 
   const orgSlug = currentOrg?.slug;
 
@@ -341,12 +343,13 @@ export default function SignRequestDetail() {
       } else {
         showToast('Failed to load request details', 'error');
       }
-    } catch {
+    } catch (err) {
+      if (handleScoped404(err)) return;
       showToast('Failed to load request details', 'error');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, requestId, showToast]);
+  }, [orgSlug, requestId, showToast, handleScoped404]);
 
   useEffect(() => {
     fetchRequest();

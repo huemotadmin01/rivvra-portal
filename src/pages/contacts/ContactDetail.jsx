@@ -20,6 +20,7 @@ import ContactLookup from '../../components/shared/ContactLookup';
 import InlineField from '../../components/shared/InlineField';
 import SectionCard from '../../components/platform/detail/SectionCard';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   Loader2, Trash2, Check, X, Plus, Archive, ArchiveRestore, MoreHorizontal,
   Building2, User, Mail, Phone, MapPin,
@@ -358,6 +359,7 @@ export default function ContactDetail() {
   const { orgPath } = usePlatform();
   const { companyCountry, currentCompany } = useCompany();
   const { showToast } = useToast();
+  const handleScoped404 = useCompanyScoped404('contact');
   const fromInvoice = searchParams.get('from') === 'invoice';
   const fromInvoiceId = searchParams.get('invoiceId');
 
@@ -460,12 +462,13 @@ export default function ContactDetail() {
         setNotFound(true);
       }
     } catch (err) {
+      if (handleScoped404(err)) return;
       showToast('Failed to load contact', 'error');
       setNotFound(true);
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, contactId, currentCompany?._id, showToast]);
+  }, [orgSlug, contactId, currentCompany?._id, showToast, handleScoped404]);
 
   useEffect(() => {
     fetchContact();

@@ -12,6 +12,7 @@ import {
   Trash2, RotateCcw, FileText, History, Tag as TagIcon, Folder, Eye,
 } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 
 function formatSize(n) {
   if (!n && n !== 0) return '';
@@ -29,6 +30,7 @@ export default function DocumentDetail() {
   const { hydrated } = useCompany();
   const { toast } = useToast();
   const isAdmin = getAppRole('documents') === 'admin';
+  const handleScoped404 = useCompanyScoped404('document');
 
   const [doc, setDoc] = useState(null);
   const [folders, setFolders] = useState([]);
@@ -54,12 +56,13 @@ export default function DocumentDetail() {
       if (f.success) setFolders(f.data || []);
       if (t.success) setTags(t.data || []);
     } catch (e) {
+      if (handleScoped404(e)) return;
       toast({ title: 'Failed to load document', description: e.message, variant: 'error' });
       navigate(`/org/${orgSlug}/documents`);
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, id, hydrated, toast, navigate]);
+  }, [orgSlug, id, hydrated, toast, navigate, handleScoped404]);
 
   useEffect(() => { load(); }, [load]);
 

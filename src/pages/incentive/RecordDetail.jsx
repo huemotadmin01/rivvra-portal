@@ -18,6 +18,7 @@ import incentiveApi from '../../utils/incentiveApi';
 import { validateRecordField } from '../../utils/incentiveValidate';
 import InlineField from '../../components/shared/InlineField';
 import InlineComboField from '../../components/shared/InlineComboField';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   ArrowLeft, Loader2, CheckCircle2, XCircle, RotateCcw, RefreshCw,
   Trash2, Undo2, AlertTriangle,
@@ -107,6 +108,7 @@ export default function RecordDetail() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { recordId } = useParams();
+  const handleScoped404 = useCompanyScoped404('incentive record');
   const orgSlug = currentOrg?.slug;
 
   const [loading, setLoading] = useState(true);
@@ -136,13 +138,14 @@ export default function RecordDetail() {
       const resp = await incentiveApi.getRecord(orgSlug, recordId);
       setRecord(resp?.record || resp);
     } catch (e) {
+      if (handleScoped404(e)) return;
       showToast('Failed to load record', 'error');
       console.error(e);
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, recordId]);
+  }, [orgSlug, recordId, handleScoped404]);
 
   useEffect(() => {
     if (orgSlug && recordId) load();

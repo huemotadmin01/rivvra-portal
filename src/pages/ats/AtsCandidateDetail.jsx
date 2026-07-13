@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import InlineField from '../../components/shared/InlineField';
 import RecordMeta from '../../components/shared/RecordMeta';
 import SectionCard from '../../components/platform/detail/SectionCard';
@@ -49,6 +50,7 @@ export default function AtsCandidateDetail() {
   const navigate = useNavigate();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
+  const handleScoped404 = useCompanyScoped404('candidate');
   const { getAppRole } = useOrg();
 
   const [candidate, setCandidate] = useState(null);
@@ -129,13 +131,14 @@ export default function AtsCandidateDetail() {
       // (Skills are fetched by SkillsPicker itself — a duplicate
       // listCandidateSkills call here fed state nothing rendered.)
     } catch (err) {
+      if (handleScoped404(err)) return;
       console.error('Failed to load candidate:', err);
       showToast(err.message || 'Failed to load candidate', 'error');
       navigate(orgPath('/ats/candidates'), { replace: true });
     } finally {
       setLoading(false);
     }
-  }, [slug, candidateId, navigate, orgPath, showToast]);
+  }, [slug, candidateId, navigate, orgPath, showToast, handleScoped404]);
 
   useEffect(() => { load(); }, [load]);
 

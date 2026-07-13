@@ -12,6 +12,7 @@ import timesheetApi from '../../utils/timesheetApi';
 import AssetClearance from '../../components/employee/AssetClearance';
 import FnFSettlement from '../../components/employee/FnFSettlement';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import InlineField from '../../components/shared/InlineField';
 import { getFieldPermission } from '../../config/employeeFieldPermissions';
 import { formatDateUTC, toDateInputValue, todayStr } from '../../utils/dateUtils';
@@ -207,6 +208,7 @@ export default function EmployeeDetail() {
   const { orgPath } = usePlatform();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const handleScoped404 = useCompanyScoped404('employee');
 
   const [employee, setEmployee] = useState(null);
   // Employee records use fullName (not name). Previous `employee?.name`
@@ -630,8 +632,10 @@ export default function EmployeeDetail() {
           setNotFound(true);
         }
       })
-      .catch(() => {
-        if (!cancelled) setNotFound(true);
+      .catch((err) => {
+        if (cancelled) return;
+        if (handleScoped404(err)) return;
+        setNotFound(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -640,7 +644,7 @@ export default function EmployeeDetail() {
     return () => {
       cancelled = true;
     };
-  }, [currentOrg?.slug, employeeId]);
+  }, [currentOrg?.slug, employeeId, handleScoped404]);
 
   // Fetch employee documents
   useEffect(() => {

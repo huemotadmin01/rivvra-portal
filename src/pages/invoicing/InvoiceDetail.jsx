@@ -14,6 +14,7 @@ import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { validateGstin } from '../../utils/gstin';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import { API_BASE_URL } from '../../utils/config';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
@@ -700,6 +701,7 @@ export default function InvoiceDetail() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
+  const handleScoped404 = useCompanyScoped404('invoice');
   const { invoiceId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1454,12 +1456,13 @@ export default function InvoiceDetail() {
         showToast('Invoice not found', 'error');
       }
     } catch (err) {
+      if (handleScoped404(err)) return;
       setError(err.message || 'Failed to load invoice');
       showToast('Failed to load invoice', 'error');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, invoiceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orgSlug, invoiceId, handleScoped404]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fetch attachments ──
   const fetchAttachments = useCallback(async () => {
