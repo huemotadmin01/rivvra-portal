@@ -87,6 +87,11 @@ function ContractorDashboard() {
   const isLeaveEligible = empType && empType !== 'external_consultant'
     && !(empType === 'internal_consultant' && timesheetUser?.billable);
 
+  // Celebrations (birthdays / anniversaries) are internal-team content —
+  // hidden for consultants: external consultants (billable or not) and
+  // billable internal consultants. Same population as the leave exclusion.
+  const showCelebrations = empType !== 'external_consultant' && !isBillableIC;
+
   useEffect(() => {
     setLoading(true);
     setCurrent(null);
@@ -141,13 +146,17 @@ function ContractorDashboard() {
       );
     }
     // Social feed data
+    if (showCelebrations) {
+      fetches.push(
+        timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
+      );
+    }
     fetches.push(
-      timesheetApi.get('/celebrations?days=30', sig).then(r => setCelebrations(r.data?.celebrations || [])).catch(() => {}),
       timesheetApi.get('/posts?limit=10', sig).then(r => setPosts(r.data?.posts || [])).catch(() => {}),
     );
     Promise.all(fetches).finally(() => setLoading(false));
     return () => controller.abort();
-  }, [hideEarnings, isLeaveEligible]);
+  }, [hideEarnings, isLeaveEligible, showCelebrations]);
 
   // Social feed handlers
   const handleCreatePost = async () => {
@@ -240,7 +249,8 @@ function ContractorDashboard() {
         </div>
       </div>
 
-      {/* Celebrations Carousel */}
+      {/* Celebrations Carousel — internal-team content, hidden for consultants */}
+      {showCelebrations && (
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">🎉 Celebrations</h2>
@@ -276,6 +286,7 @@ function ContractorDashboard() {
           </div>
         )}
       </div>
+      )}
 
       {/* Social Feed */}
       <div className="space-y-3">
