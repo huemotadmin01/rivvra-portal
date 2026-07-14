@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import {
-  X, Loader2, Mail, Eye,
+  X, Loader2, Mail, Eye, Edit2,
   ToggleLeft, ToggleRight, RotateCcw, Save,
 } from 'lucide-react';
 
