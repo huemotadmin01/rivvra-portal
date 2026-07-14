@@ -386,7 +386,13 @@ export default function SignRequestDetail() {
       setReminding(true);
       const res = await signApi.remindSigners(orgSlug, requestId);
       if (res.success !== false) {
-        showToast('Reminder sent to pending signers');
+        // Surface the backend's cooldown outcome: it reminds ALL pending
+        // signers and skips any reminded in the last 10 min.
+        if (res.reminded === 0 && res.skipped > 0) {
+          showToast(res.message || 'Reminder already sent recently — try again in a few minutes.', 'error');
+        } else {
+          showToast(res.reminded === 1 ? 'Reminder sent to 1 pending signer' : `Reminder sent to ${res.reminded ?? 'all'} pending signers`);
+        }
       } else {
         showToast(res.message || 'Failed to send reminder', 'error');
       }
@@ -764,9 +770,16 @@ export default function SignRequestDetail() {
                               onClick={async () => {
                                 try {
                                   setRemindingSigner(signer._id || idx);
+                                  // NOTE: the API reminds ALL pending signers
+                                  // (there's no per-signer remind endpoint), so
+                                  // the toast must not claim only this signer.
                                   const res = await signApi.remindSigners(orgSlug, requestId);
                                   if (res.success !== false) {
-                                    showToast(`Reminder sent to ${signer.name}`);
+                                    if (res.reminded === 0 && res.skipped > 0) {
+                                      showToast(res.message || 'Reminder already sent recently — try again in a few minutes.', 'error');
+                                    } else {
+                                      showToast('Reminder sent to all pending signers');
+                                    }
                                   } else {
                                     showToast(res.message || 'Failed to send reminder', 'error');
                                   }
@@ -778,7 +791,7 @@ export default function SignRequestDetail() {
                               }}
                               disabled={remindingSigner === (signer._id || idx)}
                               className="text-dark-400 hover:text-blue-400 transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
-                              title={`Remind ${signer.name}`}
+                              title="Send reminder to all pending signers"
                             >
                               {remindingSigner === (signer._id || idx) ? (
                                 <Loader2 size={14} className="animate-spin" />
