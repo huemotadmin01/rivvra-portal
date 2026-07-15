@@ -13,6 +13,7 @@ import {
   Bell, XCircle, Send, User, Calendar, Clock,
   ArrowRight, ArrowLeft, Check, Mail,
   MessageSquare, GripVertical, Upload, Zap, Users, Download,
+  ArchiveRestore,
 } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -243,7 +244,7 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
 
   useEffect(() => {
     if (show && orgSlug) {
-      setStep(preSelectedTemplateId ? 2 : 1);
+      setStep(1);
       setSelectedTemplate(null);
       setEnvelopeDocs([]);
       setSigners([EMPTY_SIGNER()]);
@@ -257,13 +258,32 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
       Promise.all([
         signApi.listTemplates(orgSlug).then((res) => res.templates || []).catch(() => []),
         signApi.listRoles(orgSlug).then((res) => res.roles || []).catch(() => []),
-      ]).then(([tmpls, rls]) => {
+      ]).then(async ([tmpls, rls]) => {
         setTemplates(tmpls);
         setRoles(rls);
-        // Auto-select template if preSelectedTemplateId is provided
+        // Auto-select template if preSelectedTemplateId is provided. Only
+        // advance to step 2 once we actually have the template object —
+        // landing on step 2 with selectedTemplate null crashes at send.
         if (preSelectedTemplateId) {
           const match = tmpls.find(t => (t._id || t.id) === preSelectedTemplateId);
-          if (match) setSelectedTemplate(match);
+          if (match) {
+            setSelectedTemplate(match);
+            setStep(2);
+          } else {
+            // Not in the first page of templates — fetch it directly.
+            try {
+              const res = await signApi.getTemplate(orgSlug, preSelectedTemplateId);
+              const tpl = res?.template || null;
+              if (res?.success !== false && tpl?._id) {
+                setSelectedTemplate(tpl);
+                setStep(2);
+              } else {
+                showToast('Could not load the selected template — please pick one from the list.', 'error');
+              }
+            } catch {
+              showToast('Could not load the selected template — please pick one from the list.', 'error');
+            }
+          }
         }
       }).finally(() => setLoadingTemplates(false));
     }
@@ -377,7 +397,9 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
         subject: subject.trim() || undefined,
         message: message.trim() || undefined,
         validity: validityDate || undefined,
-        reminderDays: Number(reminderDays) > 0 ? Number(reminderDays) : undefined,
+        // Send 0 explicitly — the backend honors 0 as "no reminders";
+        // omitting the field would fall back to the server default cadence.
+        reminderDays: Number(reminderDays) >= 0 ? Number(reminderDays) : undefined,
         ccEmails: ccEmails.split(',').map((e) => e.trim()).filter(Boolean),
         parallel: parallelSign,
       };
@@ -836,6 +858,9 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
 
   const handleFile = (e) => {
     const f = e.target.files?.[0] || e.dataTransfer?.files?.[0];
+    // Reset the input so picking the same file again (after removing it or a
+    // validation reject) still fires onChange.
+    if (e.target?.files) e.target.value = '';
     if (!f) return;
     const type = (f.type || '').toLowerCase();
     const lname = (f.name || '').toLowerCase();
@@ -1106,6 +1131,18 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
     !templateSearch.trim() || (t.name || '').toLowerCase().includes(templateSearch.trim().toLowerCase())
   );
 
+  // Shared by the file input's onChange and the dropzone's onDrop so both
+  // paths validate identically.
+  const handleCsvFile = (f) => {
+    if (!f) return;
+    const lname = (f.name || '').toLowerCase();
+    if (!lname.endsWith('.csv') && f.type !== 'text/csv') {
+      showToast('Bulk send needs a .csv file (you uploaded ' + (f.type || 'an unknown type') + ').', 'error');
+      return;
+    }
+    setCsvFile(f);
+  };
+
   const handlePreview = async () => {
     if (!csvFile) return;
     setLoading(true);
@@ -1223,6 +1260,8 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
                 </a>
               </p>
               <div className="border-2 border-dashed border-dark-600 hover:border-indigo-500/50 rounded-xl p-6 text-center transition-colors cursor-pointer"
+                onDrop={(e) => { e.preventDefault(); handleCsvFile(e.dataTransfer?.files?.[0]); }}
+                onDragOver={(e) => e.preventDefault()}
                 onClick={() => document.getElementById('bs-csv-input').click()}>
                 {csvFile ? (
                   <div className="flex items-center justify-center gap-3">
@@ -1242,13 +1281,9 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
                   accept=".csv,text/csv"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (!f) return;
-                    const lname = (f.name || '').toLowerCase();
-                    if (!lname.endsWith('.csv') && f.type !== 'text/csv') {
-                      showToast('Bulk send needs a .csv file (you uploaded ' + (f.type || 'an unknown type') + ').', 'error');
-                      return;
-                    }
-                    setCsvFile(f);
+                    // Reset so re-selecting the same file after removal still fires onChange.
+                    e.target.value = '';
+                    handleCsvFile(f);
                   }}
                   className="hidden"
                 />
@@ -1372,7 +1407,7 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
 
 /* ── Main SignRequests Component ───────────────────────────────────────── */
 export default function SignRequests() {
-  const { currentOrg } = useOrg();
+  const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
@@ -1381,6 +1416,9 @@ export default function SignRequests() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const orgSlug = currentOrg?.slug;
+  // Same app-role gate SignConfig uses — destructive bulk actions are
+  // admin-only on the backend, so don't show them to members at all.
+  const isAdmin = getAppRole('sign') === 'admin';
 
   const [requests, setRequests] = useState([]);
   const [total, setTotal] = useState(0);
@@ -1408,6 +1446,7 @@ export default function SignRequests() {
   // Action loading
   const [cancellingId, setCancellingId] = useState(null);
   const [remindingId, setRemindingId] = useState(null);
+  const [unarchivingId, setUnarchivingId] = useState(null);
 
   // Bulk selection — Set of request IDs ticked on the current page. Cleared
   // on filter change, page change, and after a successful bulk action so
@@ -1471,13 +1510,19 @@ export default function SignRequests() {
       // (newest first by createdAt) when no column is selected.
       const sort = searchParams.get('sort') || '';
       const dir = searchParams.get('dir') || '';
+      // 'archived' is a virtual status option: it doesn't map to a DB state,
+      // it flips the archived flag the backend filters on (default view
+      // excludes archived rows entirely).
+      const status = params.status !== undefined ? params.status : statusFilter;
+      const isArchivedView = status === 'archived';
       const res = await signApi.listRequests(orgSlug, {
         page: params.page || page,
         limit: 20,
         search: params.search !== undefined ? params.search : searchRef.current,
-        state: params.status !== undefined ? params.status : statusFilter,
+        state: isArchivedView ? '' : status,
         templateId: params.templateId !== undefined ? params.templateId : templateFilter,
         tagId: params.tagId !== undefined ? params.tagId : tagFilter,
+        ...(isArchivedView && { archived: '1' }),
         ...(sort && { sort, dir: dir || 'asc' }),
       });
       // Discard stale responses if a newer fetch has been kicked off.
@@ -1610,7 +1655,8 @@ export default function SignRequests() {
     try {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
-      if (statusFilter) params.set('state', statusFilter);
+      if (statusFilter === 'archived') params.set('archived', '1');
+      else if (statusFilter) params.set('state', statusFilter);
       if (templateFilter) params.set('templateId', templateFilter);
       if (tagFilter) params.set('tagId', tagFilter);
       const qs = params.toString();
@@ -1657,7 +1703,11 @@ export default function SignRequests() {
         // surface the truthful count so the user knows whether anything went
         // out (e.g. all signers may already have completed).
         const count = typeof res.reminded === 'number' ? res.reminded : null;
-        if (count === 0) {
+        if (count === 0 && res.skipped > 0) {
+          // Cooldown: pending signers exist but were all reminded in the
+          // last 10 min — mirror the detail page's message.
+          showToast(res.message || 'Reminder already sent recently — try again in a few minutes.', 'error');
+        } else if (count === 0) {
           showToast('No pending signers to remind', 'info');
         } else if (count != null) {
           showToast(`Reminder sent to ${count} signer${count === 1 ? '' : 's'}`);
@@ -1671,6 +1721,26 @@ export default function SignRequests() {
       showToast(err.message || 'Failed to send reminder', 'error');
     } finally {
       setRemindingId(null);
+    }
+  };
+
+  // Unarchive — only surfaced in the Archived view (rows elsewhere are
+  // never archived). Mirrors the detail page's Unarchive action.
+  const handleUnarchive = async (e, requestId) => {
+    e.stopPropagation();
+    try {
+      setUnarchivingId(requestId);
+      const res = await signApi.unarchiveRequest(orgSlug, requestId);
+      if (res.success !== false) {
+        showToast('Request unarchived');
+        fetchRequests();
+      } else {
+        showToast(res.message || 'Failed to unarchive', 'error');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Failed to unarchive', 'error');
+    } finally {
+      setUnarchivingId(null);
     }
   };
 
@@ -1711,6 +1781,9 @@ export default function SignRequests() {
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'expired', label: 'Expired' },
     { value: 'refused', label: 'Refused' },
+    // Virtual option — archived rows are excluded from every other view, so
+    // this is the only way to reach (and unarchive) them.
+    { value: 'archived', label: 'Archived' },
   ];
 
   const templateOptions = [
@@ -1870,14 +1943,18 @@ export default function SignRequests() {
                   </button>
                 </span>
               </div>
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-200 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
-                Delete selected
-              </button>
+              {/* Bulk delete is a signAdmin-only endpoint — hide it from
+                  members instead of letting the click 403. */}
+              {isAdmin && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-200 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                  Delete selected
+                </button>
+              )}
             </div>
           )}
           {/* Table */}
@@ -1988,6 +2065,20 @@ export default function SignRequests() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            {statusFilter === 'archived' && (
+                              <button
+                                onClick={(e) => handleUnarchive(e, req._id)}
+                                disabled={unarchivingId === req._id}
+                                className="text-dark-400 hover:text-emerald-400 transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
+                                title="Unarchive request"
+                              >
+                                {unarchivingId === req._id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <ArchiveRestore size={14} />
+                                )}
+                              </button>
+                            )}
                             {req.state === 'sent' && (
                               <>
                                 <button

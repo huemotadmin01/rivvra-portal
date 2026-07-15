@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -253,10 +253,12 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
         onSaved();
         onClose();
       } else {
-        showToast(res.message || 'Failed to upload template', 'error');
+        showToast(res.message || res.error || 'Failed to upload template', 'error');
       }
     } catch (err) {
-      showToast(err.message || 'Failed to upload template', 'error');
+      // Surface the server's error so a 500 doesn't leave the modal open
+      // with no feedback. `finally` re-enables the submit button.
+      showToast(err?.message || err?.error || 'Failed to upload template', 'error');
     } finally {
       setSaving(false);
     }
@@ -311,7 +313,12 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
                 className="hidden"
-                onChange={(e) => handleFileSelect(e.target.files[0])}
+                onChange={(e) => {
+                  handleFileSelect(e.target.files[0]);
+                  // Reset so re-selecting the same file after removing it
+                  // (or after a validation reject) still fires onChange.
+                  e.target.value = '';
+                }}
               />
               {file ? (
                 <div className="flex flex-col items-center gap-2">
@@ -446,13 +453,18 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
 
 /* ── Main SignTemplates Component ──────────────────────────────────────── */
 export default function SignTemplates() {
-  const { currentOrg } = useOrg();
+  const { currentOrg, getAppRole } = useOrg();
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const orgSlug = currentOrg?.slug;
+  // Same app-role gate SignConfig uses — template upload/duplicate/delete
+  // are signAdmin-only endpoints, so hide the buttons from members instead
+  // of letting the click 403.
+  const isAdmin = getAppRole('sign') === 'admin';
 
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -475,6 +487,16 @@ export default function SignTemplates() {
   const TEMPLATES_PAGE_LIMIT = 100;
 
   const debounceRef = useRef(null);
+
+  // Check if ?upload=1 in URL (Dashboard's "Upload Template" button) —
+  // mirrors the ?create/?quicksend param pattern in SignRequests.jsx.
+  useEffect(() => {
+    if (searchParams.get('upload') === '1') {
+      if (isAdmin) setShowUploadModal(true);
+      searchParams.delete('upload');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, isAdmin]);
 
   const fetchTemplates = useCallback(async () => {
     if (!orgSlug) return;
@@ -558,16 +580,20 @@ export default function SignTemplates() {
         <div>
           <h1 className="text-2xl font-bold text-white">Templates</h1>
           <p className="text-dark-400 text-sm mt-1">
-            {templates.length} {templates.length === 1 ? 'template' : 'templates'} total
+            {/* `total` is the server-side count — templates.length is only
+                the current page and undercounts once pagination kicks in. */}
+            {total} {total === 1 ? 'template' : 'templates'} total
           </p>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="btn-primary flex items-center gap-2 self-start"
-        >
-          <Upload size={16} />
-          Upload Template
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="btn-primary flex items-center gap-2 self-start"
+          >
+            <Upload size={16} />
+            Upload Template
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -697,30 +723,36 @@ export default function SignTemplates() {
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
-                            onClick={() => handleDuplicate(tpl._id)}
-                            disabled={duplicating === tpl._id}
-                            className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
-                            title="Duplicate template"
-                          >
-                            {duplicating === tpl._id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Copy size={14} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(tpl._id)}
-                            disabled={deleting === tpl._id}
-                            className="text-dark-400 hover:text-red-400 transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
-                            title="Delete template"
-                          >
-                            {deleting === tpl._id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={14} />
-                            )}
-                          </button>
+                          {/* Duplicate/Delete hit signAdmin-only endpoints —
+                              hidden from members to avoid a guaranteed 403. */}
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => handleDuplicate(tpl._id)}
+                                disabled={duplicating === tpl._id}
+                                className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
+                                title="Duplicate template"
+                              >
+                                {duplicating === tpl._id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Copy size={14} />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(tpl._id)}
+                                disabled={deleting === tpl._id}
+                                className="text-dark-400 hover:text-red-400 transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-30"
+                                title="Delete template"
+                              >
+                                {deleting === tpl._id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

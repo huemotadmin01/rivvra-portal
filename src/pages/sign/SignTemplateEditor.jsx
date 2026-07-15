@@ -183,6 +183,9 @@ export default function SignTemplateEditor() {
   const pdfContainerRef = useRef(null);
   const canvasRefs = useRef({}); // pageIndex → canvas element
   const renderTasksRef = useRef({}); // track in-flight render tasks
+  // Generation counter for renderPages: each run bumps it so stale
+  // (superseded or post-unmount) async runs bail before touching canvases.
+  const renderGenRef = useRef(0);
 
   // ── Selection ───────────────────────────────────────────────────────
   // selectedItemId is the primary (properties-panel) selection.
@@ -213,9 +216,13 @@ export default function SignTemplateEditor() {
   // to [0.5, 2.5].
   const [zoom, setZoom] = useState(1);
 
-  // ── Current page (for the jump bar). Updated by an IntersectionObserver
+  // ── Current page (for the jump bar). Updated by a scroll handler
   // attached after PDF render so scrolling keeps the bar in sync.
   const [currentPage, setCurrentPage] = useState(0);
+  // Draft string for the page-number input so typing (e.g. clearing the
+  // field before entering a new number) doesn't immediately jump pages.
+  // Committed on blur/Enter, null when not editing.
+  const [pageInputDraft, setPageInputDraft] = useState(null);
 
   const jumpToPage = useCallback((idx) => {
     const container = pdfContainerRef.current;
@@ -225,15 +232,21 @@ export default function SignTemplateEditor() {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  // ── Drag / resize state (mouse-based) ───────────────────────────────
+  // ── Drag / resize state (pointer-based) ─────────────────────────────
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
+  // Debounce timer that ends an arrow-key "nudge gesture" so rapid key
+  // repeats coalesce into a single undo step.
+  const nudgeTimerRef = useRef(null);
 
   // ── Undo / redo history (signItems snapshots) ───────────────────────
   // We keep two stacks of cloned signItems arrays. A snapshot is captured
   // automatically by an effect whenever signItems changes, except when we
   // are in the middle of applying an undo/redo (suppress the next push).
-  const historyRef = useRef({ past: [], future: [], suppress: false, lastJSON: '' });
+  // While `gesture` is true (an active drag/resize or a burst of arrow-key
+  // nudges) only ONE snapshot — the pre-gesture state — is recorded, so
+  // Ctrl+Z steps back a whole gesture instead of one mousemove tick.
+  const historyRef = useRef({ past: [], future: [], suppress: false, lastJSON: '', gesture: false, gesturePushed: false });
 
   // Snapshot of signItems as of the last successful load/save. Used to detect
   // unsaved changes when the user clicks Cancel so we can prompt before
@@ -286,7 +299,9 @@ export default function SignTemplateEditor() {
       try {
         const [tmplRes, rolesRes] = await Promise.all([
           signApi.getTemplate(orgSlug, templateId),
-          signApi.listRoles(orgSlug),
+          // A roles-endpoint hiccup must not sink the whole load (QuickSend
+          // derives its signers from the URL anyway) — swallow to empty.
+          signApi.listRoles(orgSlug).catch(() => ({ roles: [] })),
         ]);
 
         if (cancelled) return;
@@ -310,6 +325,7 @@ export default function SignTemplateEditor() {
         } else {
           showToast('Failed to load template', 'error');
           navigate(orgPath('/sign/templates'));
+          return;
         }
 
         let rolesArr = rolesRes.roles || rolesRes.items || [];
@@ -321,7 +337,10 @@ export default function SignTemplateEditor() {
             sequence: i,
           }));
         }
-        if (rolesRes.success && Array.isArray(rolesArr)) {
+        // Apply regardless of rolesRes.success — in QuickSend the signers
+        // come from the URL, and a failed roles fetch must not strand the
+        // editor with no signers.
+        if (Array.isArray(rolesArr)) {
           setRoles(rolesArr);
           if (rolesArr.length > 0) {
             setActiveRoleId(rolesArr[0]._id);
@@ -331,6 +350,9 @@ export default function SignTemplateEditor() {
         console.error('Error loading template:', err);
         if (!cancelled) {
           showToast('Error loading template', 'error');
+          // Don't leave the editor stranded on "No PDF uploaded" — mirror
+          // the success:false branch and go back to the templates list.
+          navigate(orgPath('/sign/templates'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -387,6 +409,7 @@ export default function SignTemplateEditor() {
   // ────────────────────────────────────────────────────────────────────
   const renderPages = useCallback(async () => {
     if (!pdfDoc || pageViewports.length === 0) return;
+    const gen = ++renderGenRef.current;
 
     for (let i = 0; i < pdfDoc.numPages; i++) {
       const canvas = canvasRefs.current[i];
@@ -401,6 +424,9 @@ export default function SignTemplateEditor() {
 
       const scale = (containerWidth * zoom) / vp.origWidth;
       const page = await pdfDoc.getPage(i + 1);
+      // A newer renderPages run (or unmount) superseded us — stop before
+      // resizing the canvas out from under it.
+      if (gen !== renderGenRef.current) return;
       const viewport = page.getViewport({ scale });
 
       // Set canvas size to match the scaled viewport (use device pixel ratio for sharpness)
@@ -428,6 +454,7 @@ export default function SignTemplateEditor() {
           console.error(`Render error page ${i + 1}:`, err);
         }
       }
+      if (gen !== renderGenRef.current) return;
     }
     // Signal that all canvases have been sized — overlay dims will re-compute
     setPagesRenderedKey((k) => k + 1);
@@ -436,6 +463,9 @@ export default function SignTemplateEditor() {
   useEffect(() => {
     renderPages();
   }, [renderPages]);
+
+  // Invalidate any in-flight renderPages run on unmount.
+  useEffect(() => () => { renderGenRef.current += 1; }, []);
 
   // Re-render on window resize
   useEffect(() => {
@@ -505,31 +535,42 @@ export default function SignTemplateEditor() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
 
+  // In-flight save promise. State-based guards (`saving`/`autoSaving`) can
+  // be stale inside closures, so manual save + autosave could race two PUTs
+  // and record savedSignItemsRef out of order. The ref is synchronous:
+  // whichever caller arrives second just returns the in-flight promise.
+  const saveInFlightRef = useRef(null);
+
   const doSave = useCallback(async ({ silent = false } = {}) => {
-    if (saving) return;
+    if (saveInFlightRef.current) return saveInFlightRef.current;
     if (silent) setAutoSaving(true); else setSaving(true);
-    try {
-      const res = await signApi.updateTemplate(orgSlug, templateId, {
-        name: templateName,
-        signItems,
-        numPages,
-        tags: templateTagIds,
-        signingOrder,
-      });
-      if (res.success) {
-        savedSignItemsRef.current = JSON.stringify(signItems);
-        setLastSavedAt(new Date());
-        if (!silent) showToast('Template saved');
-      } else if (!silent) {
-        showToast(res.message || 'Failed to save', 'error');
+    const run = (async () => {
+      try {
+        const res = await signApi.updateTemplate(orgSlug, templateId, {
+          name: templateName,
+          signItems,
+          numPages,
+          tags: templateTagIds,
+          signingOrder,
+        });
+        if (res.success) {
+          savedSignItemsRef.current = JSON.stringify(signItems);
+          setLastSavedAt(new Date());
+          if (!silent) showToast('Template saved');
+        } else if (!silent) {
+          showToast(res.message || 'Failed to save', 'error');
+        }
+      } catch (err) {
+        console.error('Save error:', err);
+        if (!silent) showToast('Failed to save template', 'error');
+      } finally {
+        saveInFlightRef.current = null;
+        if (silent) setAutoSaving(false); else setSaving(false);
       }
-    } catch (err) {
-      console.error('Save error:', err);
-      if (!silent) showToast('Failed to save template', 'error');
-    } finally {
-      if (silent) setAutoSaving(false); else setSaving(false);
-    }
-  }, [orgSlug, templateId, templateName, signItems, numPages, templateTagIds, signingOrder, saving, showToast]);
+    })();
+    saveInFlightRef.current = run;
+    return run;
+  }, [orgSlug, templateId, templateName, signItems, numPages, templateTagIds, signingOrder, showToast]);
 
   const handleSave = useCallback(() => doSave({ silent: false }), [doSave]);
 
@@ -728,6 +769,23 @@ export default function SignTemplateEditor() {
     }
   }, []);
 
+  // A drag cancelled outside the container (Escape, drop elsewhere) never
+  // fires dragleave/drop on it, leaking the scroll interval. dragend always
+  // fires on the drag source, so clear there — and on unmount.
+  useEffect(() => {
+    const stopAutoScroll = () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+    };
+    window.addEventListener('dragend', stopAutoScroll);
+    return () => {
+      window.removeEventListener('dragend', stopAutoScroll);
+      stopAutoScroll();
+    };
+  }, []);
+
   // ────────────────────────────────────────────────────────────────────
   // Click-to-place: click a field type in sidebar, then click on PDF
   // ────────────────────────────────────────────────────────────────────
@@ -749,14 +807,13 @@ export default function SignTemplateEditor() {
 
       const posX = clamp((clickX / dims.width) - defaults.w / 2, 0, 1 - defaults.w);
       const rawClickY = clamp((clickY / dims.height) - defaults.h / 2, 0, 1 - defaults.h);
-      const posY = snapYToSiblings(rawClickY, pageIndex, signItems);
 
       const newItem = {
         id: crypto.randomUUID(),
         type: placingFieldType,
         page: pageIndex,
         posX,
-        posY,
+        posY: rawClickY,
         width: defaults.w,
         height: defaults.h,
         roleId: activeRoleId || (roles[0]?._id ?? null),
@@ -765,7 +822,12 @@ export default function SignTemplateEditor() {
         alignment: 'left',
       };
 
-      setSignItems((prev) => [...prev, newItem]);
+      // Snap inside the functional updater so we read the CURRENT items —
+      // a plain `signItems` closure here goes stale (it isn't a dep).
+      setSignItems((prev) => [
+        ...prev,
+        { ...newItem, posY: snapYToSiblings(rawClickY, pageIndex, prev) },
+      ]);
       setSelectedItemId(newItem.id);
       setPlacingFieldType(null); // one-shot: clear after placing
     },
@@ -773,7 +835,7 @@ export default function SignTemplateEditor() {
   );
 
   // ────────────────────────────────────────────────────────────────────
-  // Move existing field (mouse-based drag)
+  // Move existing field (pointer-based drag — mouse + touch share one path)
   // ────────────────────────────────────────────────────────────────────
   const startFieldDrag = useCallback((e, itemId) => {
     // Prevent if it is actually a resize handle click
@@ -788,6 +850,14 @@ export default function SignTemplateEditor() {
 
     const dims = getPageDims(item.page);
 
+    // Capture the pointer so touch drags keep firing even when the finger
+    // leaves the element; events still bubble to the window listeners.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+
+    // One undo step per gesture — see history effect.
+    historyRef.current.gesture = true;
+    historyRef.current.gesturePushed = false;
+
     dragRef.current = {
       itemId,
       startMouseX: e.clientX,
@@ -799,7 +869,7 @@ export default function SignTemplateEditor() {
       pageHeight: dims.height,
     };
 
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
       const d = dragRef.current;
       if (!d) return;
 
@@ -819,18 +889,24 @@ export default function SignTemplateEditor() {
       );
     }
 
-    function onMouseUp() {
+    function onPointerUp() {
       dragRef.current = null;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      // Clear the gesture flag AFTER the final move tick's effect has
+      // flushed — clearing synchronously lets that effect see gesture=false
+      // and push the last intermediate position as an extra undo step.
+      setTimeout(() => { historyRef.current.gesture = false; }, 0);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     }
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   }, [signItems, getPageDims]);
 
   // ────────────────────────────────────────────────────────────────────
-  // Resize field (mouse-based)
+  // Resize field (pointer-based — mouse + touch share one path)
   // ────────────────────────────────────────────────────────────────────
   // axis: 'both' (corner), 'x' (right edge — width only), 'y' (bottom edge — height only)
   const startFieldResize = useCallback((e, itemId, axis = 'both') => {
@@ -841,6 +917,12 @@ export default function SignTemplateEditor() {
     if (!item) return;
 
     const dims = getPageDims(item.page);
+
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+
+    // One undo step per gesture — see history effect.
+    historyRef.current.gesture = true;
+    historyRef.current.gesturePushed = false;
 
     resizeRef.current = {
       itemId,
@@ -854,7 +936,7 @@ export default function SignTemplateEditor() {
       pageHeight: dims.height,
     };
 
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
       const r = resizeRef.current;
       if (!r) return;
 
@@ -876,14 +958,19 @@ export default function SignTemplateEditor() {
       );
     }
 
-    function onMouseUp() {
+    function onPointerUp() {
       resizeRef.current = null;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      // Deferred for the same reason as the drag handler: the final resize
+      // tick's effect must flush while gesture is still true.
+      setTimeout(() => { historyRef.current.gesture = false; }, 0);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     }
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   }, [signItems, getPageDims]);
 
   // ────────────────────────────────────────────────────────────────────
@@ -933,21 +1020,35 @@ export default function SignTemplateEditor() {
   // so each one becomes an undo step. We compare a JSON serialization to
   // collapse no-op updates and prevent every render from creating a snapshot.
   useEffect(() => {
+    const h = historyRef.current;
     const json = JSON.stringify(signItems);
-    if (historyRef.current.suppress) {
-      historyRef.current.suppress = false;
-      historyRef.current.lastJSON = json;
+    if (h.suppress) {
+      h.suppress = false;
+      h.lastJSON = json;
       return;
     }
-    if (historyRef.current.lastJSON === '') {
-      historyRef.current.lastJSON = json;
+    if (h.lastJSON === '') {
+      h.lastJSON = json;
       return;
     }
-    if (historyRef.current.lastJSON === json) return;
-    historyRef.current.past.push(historyRef.current.lastJSON);
-    if (historyRef.current.past.length > 100) historyRef.current.past.shift();
-    historyRef.current.future = [];
-    historyRef.current.lastJSON = json;
+    if (h.lastJSON === json) return;
+    if (h.gesture) {
+      // Mid drag/resize/nudge-burst: push the pre-gesture state ONCE, then
+      // absorb every intermediate tick into lastJSON so a single Ctrl+Z
+      // rewinds the whole gesture instead of one pixel at a time.
+      if (!h.gesturePushed) {
+        h.past.push(h.lastJSON);
+        if (h.past.length > 100) h.past.shift();
+        h.future = [];
+        h.gesturePushed = true;
+      }
+      h.lastJSON = json;
+      return;
+    }
+    h.past.push(h.lastJSON);
+    if (h.past.length > 100) h.past.shift();
+    h.future = [];
+    h.lastJSON = json;
   }, [signItems]);
 
   const undo = useCallback(() => {
@@ -956,6 +1057,7 @@ export default function SignTemplateEditor() {
     const prev = h.past.pop();
     h.future.push(h.lastJSON);
     h.suppress = true;
+    h.gesture = false;
     setSignItems(JSON.parse(prev));
   }, []);
 
@@ -965,6 +1067,7 @@ export default function SignTemplateEditor() {
     const next = h.future.pop();
     h.past.push(h.lastJSON);
     h.suppress = true;
+    h.gesture = false;
     setSignItems(JSON.parse(next));
   }, []);
 
@@ -1032,6 +1135,17 @@ export default function SignTemplateEditor() {
       const isArrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
       if (isArrow) {
         e.preventDefault();
+        // Coalesce rapid key-repeat nudges into one undo step: treat the
+        // burst as a gesture that ends 400ms after the last keydown.
+        const h = historyRef.current;
+        if (!h.gesture) {
+          h.gesture = true;
+          h.gesturePushed = false;
+        }
+        clearTimeout(nudgeTimerRef.current);
+        nudgeTimerRef.current = setTimeout(() => {
+          historyRef.current.gesture = false;
+        }, 400);
         const step = e.shiftKey ? 0.01 : 0.001;
         setSignItems((prev) =>
           prev.map((si) => {
@@ -1047,28 +1161,61 @@ export default function SignTemplateEditor() {
       }
     }
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      // If a nudge gesture was still pending, close it out so a later
+      // unrelated edit can't get absorbed into it.
+      if (nudgeTimerRef.current) {
+        clearTimeout(nudgeTimerRef.current);
+        nudgeTimerRef.current = null;
+        historyRef.current.gesture = false;
+      }
+    };
   }, [selectedItemId, deleteField, duplicateField, placingFieldType, undo, redo, handleSave, multiSelectIds, allSelectedIds]);
 
-  // Track which page is most-visible in the viewport so the jump bar can
-  // highlight it. Re-attach when pdfDoc changes (page count changes).
+  // Track which page is under the viewport's vertical midpoint so the jump
+  // bar can highlight it. A ratio-threshold IntersectionObserver breaks when
+  // zoomed — a page taller than ~2x the container never reaches 50%
+  // visibility, so the indicator froze. Instead, on scroll (rAF-throttled)
+  // pick the page whose rect spans the container midpoint, falling back to
+  // the page whose nearest edge is closest to it. Works at any zoom.
   useEffect(() => {
-    if (!pdfDoc || !pdfContainerRef.current) return;
-    const pages = pdfContainerRef.current.querySelectorAll('[data-page-index]');
-    if (pages.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
-            const idx = Number(entry.target.getAttribute('data-page-index'));
-            if (!Number.isNaN(idx)) setCurrentPage(idx);
-          }
+    const container = pdfContainerRef.current;
+    if (!pdfDoc || !container) return;
+    let raf = null;
+
+    const update = () => {
+      raf = null;
+      const pages = container.querySelectorAll('[data-page-index]');
+      if (pages.length === 0) return;
+      const rect = container.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      let best = null;
+      let bestDist = Infinity;
+      for (const p of pages) {
+        const r = p.getBoundingClientRect();
+        const dist = (r.top <= midY && r.bottom >= midY)
+          ? 0 // spans the midpoint — winner
+          : Math.min(Math.abs(r.top - midY), Math.abs(r.bottom - midY));
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = Number(p.getAttribute('data-page-index'));
+          if (dist === 0) break;
         }
-      },
-      { root: pdfContainerRef.current, threshold: [0.5] },
-    );
-    pages.forEach((p) => observer.observe(p));
-    return () => observer.disconnect();
+      }
+      if (best !== null && !Number.isNaN(best)) setCurrentPage(best);
+    };
+
+    const onScroll = () => {
+      if (raf == null) raf = requestAnimationFrame(update);
+    };
+
+    container.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (raf != null) cancelAnimationFrame(raf);
+    };
   }, [pdfDoc, pagesRenderedKey]);
 
   // Dismiss context menu on outside click / Escape.
@@ -1091,6 +1238,14 @@ export default function SignTemplateEditor() {
     () => signItems.find((i) => i.id === selectedItemId) || null,
     [signItems, selectedItemId]
   );
+
+  // Draft strings for the Position % inputs (keyed by posX/posY/width/height).
+  // A fully-controlled value={(v*100).toFixed(1)} reformats on every
+  // keystroke and fights the user's typing; instead we hold the raw string
+  // while editing and commit (parse + clamp) on blur/Enter. Resync (drop
+  // drafts) whenever the selected field changes.
+  const [posDrafts, setPosDrafts] = useState({});
+  useEffect(() => { setPosDrafts({}); }, [selectedItemId]);
 
   // ────────────────────────────────────────────────────────────────────
   // Signing order — derived from signItems + the persisted preference
@@ -1153,7 +1308,13 @@ export default function SignTemplateEditor() {
       {contextMenu && (
         <div
           className="fixed z-50 min-w-[180px] bg-dark-900 border border-dark-700 rounded-lg shadow-xl py-1"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          style={{
+            // Clamp to the viewport so a right-click near the bottom/right
+            // edge doesn't render the menu offscreen. 190x84 ≈ menu size
+            // (min-w-[180px] + border, two 38px rows + padding).
+            left: Math.max(0, Math.min(contextMenu.x, window.innerWidth - 190)),
+            top: Math.max(0, Math.min(contextMenu.y, window.innerHeight - 84)),
+          }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
@@ -1604,11 +1765,17 @@ export default function SignTemplateEditor() {
                       type="number"
                       min={1}
                       max={pdfDoc.numPages}
-                      value={currentPage + 1}
-                      onChange={(e) => {
-                        const n = Math.max(1, Math.min(pdfDoc.numPages, Number(e.target.value) || 1));
+                      value={pageInputDraft ?? String(currentPage + 1)}
+                      onChange={(e) => setPageInputDraft(e.target.value)}
+                      onBlur={() => {
+                        if (pageInputDraft == null) return;
+                        const parsed = Math.round(Number(pageInputDraft));
+                        setPageInputDraft(null);
+                        if (!Number.isFinite(parsed) || pageInputDraft.trim() === '') return;
+                        const n = Math.max(1, Math.min(pdfDoc.numPages, parsed));
                         jumpToPage(n - 1);
                       }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                       className="w-10 bg-dark-800 border border-dark-600 rounded text-center text-white text-xs py-0.5 focus:outline-none focus:border-rivvra-500"
                     />
                     of {pdfDoc.numPages}
@@ -1954,15 +2121,26 @@ export default function SignTemplateEditor() {
                         step="0.1"
                         min={(spec.minFn ? spec.minFn() : 0) * 100}
                         max={spec.maxFn() * 100}
-                        value={((selectedItem[spec.key] ?? 0) * 100).toFixed(1)}
-                        onChange={(e) => {
-                          const pct = Number(e.target.value);
+                        value={posDrafts[spec.key] ?? ((selectedItem[spec.key] ?? 0) * 100).toFixed(1)}
+                        onChange={(e) =>
+                          setPosDrafts((d) => ({ ...d, [spec.key]: e.target.value }))
+                        }
+                        onBlur={() => {
+                          const raw = posDrafts[spec.key];
+                          setPosDrafts((d) => {
+                            const next = { ...d };
+                            delete next[spec.key];
+                            return next;
+                          });
+                          if (raw == null || raw.trim() === '') return;
+                          const pct = Number(raw);
                           if (Number.isNaN(pct)) return;
                           const min = spec.minFn ? spec.minFn() : 0;
                           const max = spec.maxFn();
                           const fraction = clamp(pct / 100, min, max);
                           updateItemProp(selectedItem.id, spec.key, fraction);
                         }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         className="w-full bg-transparent text-white text-xs focus:outline-none"
                       />
                       <span className="text-gray-600">%</span>
@@ -2087,7 +2265,13 @@ export default function SignTemplateEditor() {
                       onClick={() => {
                         const d = new Date();
                         d.setDate(d.getDate() + preset.days);
-                        setSendValidity(d.toISOString().slice(0, 10));
+                        // Build the date string from LOCAL parts —
+                        // toISOString() is UTC and lands a day off for
+                        // UTC+ timezones (e.g. IST evenings).
+                        const yyyy = d.getFullYear();
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        setSendValidity(`${yyyy}-${mm}-${dd}`);
                       }}
                       className="px-2 py-1 text-[11px] text-dark-400 hover:text-white bg-dark-800 hover:bg-dark-700 border border-dark-700 rounded transition-colors"
                     >
@@ -2337,6 +2521,14 @@ function FieldOverlay({
     ? `${getRoleName(item.roleId)} · ${meta.label}`
     : meta.label);
 
+  // The visible rectangle renders at TRUE pixel size so the border never
+  // lies about the stamped geometry (a checkbox inflated to 36px wide put
+  // the X left of where the box implied). Tiny fields stay grabbable via a
+  // transparent hit-area child that pads the box out to at least 36x20px
+  // without changing the visible rectangle.
+  const hitPadX = Math.max(0, (36 - pxWidth) / 2);
+  const hitPadY = Math.max(0, (20 - pxHeight) / 2);
+
   return (
     <div
       className={`absolute pointer-events-auto group cursor-move select-none transition-shadow ${
@@ -2349,12 +2541,14 @@ function FieldOverlay({
       style={{
         left: pxLeft,
         top: pxTop,
-        width: Math.max(pxWidth, 36),
-        height: Math.max(pxHeight, 20),
+        width: pxWidth,
+        height: pxHeight,
         border: `1px dashed ${roleColor}`,
         backgroundColor: isSelected ? `${roleColor}14` : 'transparent',
+        // Prevent touch scrolling from hijacking pointer drags.
+        touchAction: 'none',
       }}
-      onMouseDown={(e) => startFieldDrag(e, item.id)}
+      onPointerDown={(e) => startFieldDrag(e, item.id)}
       onClick={(e) => {
         e.stopPropagation();
         if (e.shiftKey && setMultiSelectIds) {
@@ -2372,13 +2566,27 @@ function FieldOverlay({
       }}
       onContextMenu={onContextMenu}
     >
+      {/* Transparent expanded hit-area — pads small fields out to a
+          grabbable ~36x20px without altering the visible rectangle.
+          Sits below the resize handles (z-20) so they stay clickable. */}
+      {(hitPadX > 0 || hitPadY > 0) && (
+        <div
+          className="absolute"
+          style={{
+            left: -hitPadX,
+            right: -hitPadX,
+            top: -hitPadY,
+            bottom: -hitPadY,
+          }}
+        />
+      )}
+
       {/* Label chip — invisible at idle, fully shown on hover or selection.
           When the box is tall enough to comfortably hold the chip (>=22px),
           render INSIDE the top-left corner so it doesn't spill into the
           document line above. Otherwise float just above the box. */}
       {(() => {
-        const visibleH = Math.max(pxHeight, 20);
-        const chipInsideBox = visibleH >= 22;
+        const chipInsideBox = pxHeight >= 22;
         return (
           <div
             className={`absolute left-0 flex items-center gap-1 px-1.5 py-0.5 rounded shadow-sm pointer-events-none whitespace-nowrap transition-opacity ${
@@ -2428,7 +2636,7 @@ function FieldOverlay({
               title="Drag to resize width"
               className={`absolute right-[-4px] top-1/2 -translate-y-1/2 w-2 h-5 rounded cursor-ew-resize ${handleVisible} transition-opacity z-20`}
               style={handleStyle}
-              onMouseDown={(e) => startFieldResize(e, item.id, 'x')}
+              onPointerDown={(e) => startFieldResize(e, item.id, 'x')}
             />
             {/* Bottom-edge handle — height only */}
             <div
@@ -2436,7 +2644,7 @@ function FieldOverlay({
               title="Drag to resize height"
               className={`absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-5 h-2 rounded cursor-ns-resize ${handleVisible} transition-opacity z-20`}
               style={handleStyle}
-              onMouseDown={(e) => startFieldResize(e, item.id, 'y')}
+              onPointerDown={(e) => startFieldResize(e, item.id, 'y')}
             />
             {/* SE corner handle — both axes */}
             <div
@@ -2444,7 +2652,7 @@ function FieldOverlay({
               title="Drag to resize"
               className={`absolute right-[-5px] bottom-[-5px] w-3 h-3 rounded cursor-se-resize ${handleVisible} transition-opacity z-20`}
               style={handleStyle}
-              onMouseDown={(e) => startFieldResize(e, item.id, 'both')}
+              onPointerDown={(e) => startFieldResize(e, item.id, 'both')}
             />
           </>
         );

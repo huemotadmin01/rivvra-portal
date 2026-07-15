@@ -70,6 +70,39 @@ async function generateTypedSignature(text, font, width = 400, height = 150) {
   return canvas.toDataURL('image/png');
 }
 
+// Crop a canvas to its inked (non-transparent) bounding box and return a
+// PNG data URL. Replaces react-signature-canvas's getTrimmedCanvas(), whose
+// trim-canvas dependency fails Vite's CJS interop ("default is not a
+// function") — clicking Adopt after drawing silently did nothing.
+function trimCanvasToDataUrl(sourceCanvas, padding = 8) {
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+  if (!w || !h) return null;
+  const ctx = sourceCanvas.getContext('2d');
+  const data = ctx.getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[(y * w + x) * 4 + 3] > 0) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null; // nothing drawn
+  minX = Math.max(0, minX - padding);
+  minY = Math.max(0, minY - padding);
+  maxX = Math.min(w - 1, maxX + padding);
+  maxY = Math.min(h - 1, maxY + padding);
+  const out = document.createElement('canvas');
+  out.width = maxX - minX + 1;
+  out.height = maxY - minY + 1;
+  out.getContext('2d').drawImage(sourceCanvas, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+  return out.toDataURL('image/png');
+}
+
 // Process an uploaded signature image into a clean, transparent PNG.
 //
 // Two problems with raw uploads (especially JPGs, which are the common case
@@ -232,7 +265,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
       let dataUrl = null;
       if (activeTab === 'draw') {
         if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
-          dataUrl = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
+          dataUrl = trimCanvasToDataUrl(sigCanvasRef.current.getCanvas());
         }
       } else if (activeTab === 'type') {
         if (typedText.trim()) {
@@ -364,10 +397,21 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
               <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50 relative">
                 <SignatureCanvas
                   ref={sigCanvasRef}
+                  // 2026-07-15 draw-offset fix: do NOT pass fixed width/height
+                  // canvas attributes here. When both attrs are set,
+                  // react-signature-canvas skips its internal _resizeCanvas —
+                  // but the CSS width:100% still stretched the bitmap, so the
+                  // ink landed offset/scaled from the pointer (mobile signers
+                  // couldn't reach the right ~43% of the pad; desktop initials
+                  // drew 1.56x away from the cursor). With only CSS sizing,
+                  // the library measures the rendered element itself and sizes
+                  // the bitmap 1:1 (including devicePixelRatio), so strokes
+                  // track the pointer exactly. clearOnResize (library default)
+                  // wipes the pad if the element size changes mid-draw, which
+                  // is the safe behaviour — a resized bitmap would distort the
+                  // existing strokes anyway.
                   canvasProps={{
-                    width: isMobile ? 600 : (type === 'initials' ? 300 : 460),
-                    height: isMobile ? 300 : (type === 'initials' ? 150 : 200),
-                    className: 'w-full cursor-crosshair touch-none',
+                    className: 'w-full cursor-crosshair touch-none block',
                     style: { width: '100%', height: isMobile ? '250px' : (type === 'initials' ? '150px' : '200px') },
                   }}
                   penColor="#0f3a8a"
@@ -479,6 +523,21 @@ function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, confirmLabe
 // ── Inline Field Input ──────────────────────────────────────────────────────
 function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compact = false }) {
   const fieldType = item.type;
+  // 2026-07-15: focus the input as soon as it mounts (the component only
+  // mounts when its field becomes active) so a single tap opens the mobile
+  // keyboard instead of requiring a second tap on the just-rendered input.
+  // preventScroll keeps the browser from yanking the viewport — the caller
+  // already scrolled the field into position (Next Field / fields list).
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (fieldType === 'checkbox') return;
+    try {
+      inputRef.current?.focus({ preventScroll: true });
+    } catch {
+      inputRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (fieldType === 'checkbox') {
     return (
@@ -537,6 +596,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
   if (fieldType === 'date') {
     return (
       <input
+        ref={inputRef}
         type="date"
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
@@ -551,6 +611,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
   if (fieldType === 'multiline') {
     return (
       <textarea
+        ref={inputRef}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
@@ -568,6 +629,7 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
 
   return (
     <input
+      ref={inputRef}
       type={inputType}
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
@@ -738,6 +800,7 @@ function PdfPageWithFields({
   highlightedFieldId = null,
 }) {
   const canvasRef = useRef(null);
+  const renderTaskRef = useRef(null);
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
   const [rendered, setRendered] = useState(false);
 
@@ -767,15 +830,32 @@ function PdfPageWithFields({
         canvas.style.height = `${viewport.height}px`;
         setPageDims({ width: viewport.width, height: viewport.height });
         const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport: hiResViewport }).promise;
+        // A scale change (e.g. fit-to-width kicking in right after the PDF
+        // loads) can re-run this effect while the previous render is still
+        // painting — pdf.js throws "Cannot use the same canvas during
+        // multiple render() operations" and leaves the canvas corrupted.
+        // Cancel the in-flight task before starting a new one.
+        if (renderTaskRef.current) {
+          try { renderTaskRef.current.cancel(); } catch { /* ignore */ }
+        }
+        const task = page.render({ canvasContext: ctx, viewport: hiResViewport });
+        renderTaskRef.current = task;
+        await task.promise;
         if (!cancelled) setRendered(true);
       } catch (err) {
-        if (!cancelled) console.error('Error rendering PDF page', pageNum, err);
+        if (!cancelled && err?.name !== 'RenderingCancelledException') {
+          console.error('Error rendering PDF page', pageNum, err);
+        }
       }
     }
     setRendered(false);
     render();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { /* ignore */ }
+      }
+    };
   }, [pdfDoc, pageNum, scale]);
 
   // Filter sign items for this page
@@ -1079,8 +1159,17 @@ function PdfPageWithFields({
                 onChange={(val) => onFieldChange(item._id || item.id, val)}
                 onFocus={() => {}}
                 onBlur={() => {
-                  // Delay to allow click events to fire first
-                  setTimeout(() => setActiveFieldId(null), 150);
+                  // Delay to allow click events to fire first. Clear
+                  // conditionally: by the time the timeout fires the user may
+                  // have already activated ANOTHER field (tap field B while
+                  // field A's input is focused) — unconditionally nulling
+                  // activeFieldId would immediately close the field they just
+                  // opened. Only deactivate if this field is still the one
+                  // that's active.
+                  const thisFieldId = item._id || item.id;
+                  setTimeout(() => {
+                    setActiveFieldId((curr) => (curr === thisFieldId ? null : curr));
+                  }, 150);
                 }}
                 style={{ left: 0, top: 0, width: '100%', height: visualHeight, position: 'relative' }}
                 compact={isCompactScale}
@@ -1099,18 +1188,39 @@ function PdfPageWithFields({
                         instead of clipping the value with `truncate`.
                         Signer can now see the whole "26 May 2026"
                         instead of just "26 Ma…". title= remains as a
-                        fallback for desktop hover. */}
-                    <span
-                      className="flex-1 min-w-0 overflow-hidden text-gray-900"
-                      title={item.type === 'date' ? formatDisplayDate(fieldValue) : String(fieldValue ?? '')}
-                    >
-                      <FittedText
-                        maxFontSize={filledFontSize}
-                        minFontSize={isCompactScale ? 6 : 10}
+                        fallback for desktop hover.
+                        2026-07-15: multiline fields skip FittedText — its
+                        whitespace-nowrap squeezed a whole paragraph onto
+                        one line. They wrap (pre-wrap) from the TOP of the
+                        box like the textarea they were typed in, clamped
+                        to the lines that fit the box height. */}
+                    {item.type === 'multiline' ? (
+                      <span
+                        className="flex-1 min-w-0 overflow-hidden text-gray-900 self-start"
+                        title={String(fieldValue ?? '')}
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          display: '-webkit-box',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: Math.max(1, Math.floor(visualHeight / (filledFontSize * 1.1))),
+                        }}
                       >
-                        {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
-                      </FittedText>
-                    </span>
+                        {fieldValue}
+                      </span>
+                    ) : (
+                      <span
+                        className="flex-1 min-w-0 overflow-hidden text-gray-900"
+                        title={item.type === 'date' ? formatDisplayDate(fieldValue) : String(fieldValue ?? '')}
+                      >
+                        <FittedText
+                          maxFontSize={filledFontSize}
+                          minFontSize={isCompactScale ? 6 : 10}
+                        >
+                          {item.type === 'date' ? formatDisplayDate(fieldValue) : fieldValue}
+                        </FittedText>
+                      </span>
+                    )}
                     <Check className="w-3 h-3 text-green-600 flex-shrink-0" />
                   </>
                 ) : (
@@ -1153,6 +1263,10 @@ export default function PublicSigningPage() {
   const [orgName, setOrgName] = useState('');
   const [pdfDoc, setPdfDoc] = useState(null);
   const [numPages, setNumPages] = useState(0);
+  // Actual first-page width (in PDF points) of the loaded document, used by
+  // the fit-to-width scale calc. Defaults to US Letter (612pt) until the PDF
+  // loads — A4 (595pt) and custom page sizes would otherwise mis-fit.
+  const [basePageWidth, setBasePageWidth] = useState(612);
   const [values, setValues] = useState({}); // { [signItemId]: value }
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1341,6 +1455,15 @@ export default function PublicSigningPage() {
         if (!cancelled) {
           setPdfDoc(doc);
           setNumPages(doc.numPages);
+          // Measure the real first-page width so fit-to-width scales
+          // correctly for non-US-Letter documents (same approach as the
+          // template editor). Best-effort — the 612pt default stands if
+          // this fails.
+          try {
+            const firstPage = await doc.getPage(1);
+            const vw = firstPage.getViewport({ scale: 1 }).width;
+            if (!cancelled && vw > 0) setBasePageWidth(vw);
+          } catch { /* keep 612 fallback */ }
         }
       } catch (err) {
         clearTimeout(timeoutId);
@@ -1367,16 +1490,16 @@ export default function PublicSigningPage() {
   useEffect(() => {
     function updateScale() {
       const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
-      // Target: PDF page at ~612pt (US Letter). Fit with padding.
+      // Fit the ACTUAL page width (measured from the loaded PDF's first
+      // page, US Letter fallback until then) with padding.
       const availableWidth = containerWidth - 32; // 16px padding each side
-      const baseWidth = 612; // Standard US Letter PDF width in points
-      const newScale = Math.max(0.5, Math.min(2, availableWidth / baseWidth));
+      const newScale = Math.max(0.5, Math.min(2, availableWidth / basePageWidth));
       setScale(newScale);
     }
     updateScale();
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [status]);
+  }, [status, basePageWidth]);
 
   // ── Field value change ───────────────────────────────────────────────
   const handleFieldChange = useCallback((fieldId, value) => {
@@ -1592,7 +1715,12 @@ export default function PublicSigningPage() {
   const totalFieldCount = signItems.length;
   const filledTotalCount = signItems.filter((item) => {
     const v = values[item._id || item.id];
-    return v !== undefined && v !== '' && v !== false && v !== null;
+    if (isFilledValue(v)) return true;
+    // An optional checkbox the signer explicitly toggled off (value ===
+    // false, not undefined) is a decision, not a gap — count it as done so
+    // the progress counter can actually reach N of N. Required checkboxes
+    // still count as unfilled (allRequiredFilled / the dot are unchanged).
+    return item.type === 'checkbox' && v === false && !isItemRequired(item);
   }).length;
   const allRequiredFilled = filledRequiredCount === requiredItems.length;
 
@@ -1712,6 +1840,15 @@ export default function PublicSigningPage() {
             else if (item.type === 'date') nextValues[id] = todayStr();
           });
           setValues(nextValues);
+          // Per-field state from the PREVIOUS document must not leak into
+          // the next one: signatureHashes is keyed by the old doc's field
+          // ids, and a lingering showValidation would paint the fresh doc's
+          // required fields red before the signer has touched anything.
+          // (sigDataUrls / sigHashByType intentionally survive — they power
+          // signature reuse across documents.)
+          setSignatureHashes({});
+          setShowValidation(false);
+          setActiveFieldId(null);
           setPdfDoc(null);
           setNumPages(0);
         }
@@ -1727,7 +1864,15 @@ export default function PublicSigningPage() {
       }
     } catch (err) {
       if (err.name === 'AbortError') return;
-      alert(err.message || 'Failed to submit signature. Please try again.');
+      // Server-side validation caught fields the client check missed (e.g.
+      // requiredIf resolved differently server-side): light up the red
+      // validation styling and walk the signer to the first missing field,
+      // same as the client-side pre-submit path.
+      if (Array.isArray(err.missingFields) && err.missingFields.length > 0) {
+        setShowValidation(true);
+        scrollToNextField(null);
+      }
+      showToast(err.message || 'Failed to submit signature. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -1743,7 +1888,7 @@ export default function PublicSigningPage() {
       setStatus('refused');
     } catch (err) {
       if (err.name === 'AbortError') return;
-      alert(err.message || 'Failed to refuse signature. Please try again.');
+      showToast(err.message || 'Failed to refuse signature. Please try again.', 'error');
     } finally {
       setRefusing(false);
       setShowRefuseConfirm(false);
@@ -1871,8 +2016,6 @@ export default function PublicSigningPage() {
 
   // ── Success state ───────────────────────────────────────────────────
   if (status === 'success') {
-    const signerCount = request?.signers?.length || 0;
-    const completedCount = request?.signers?.filter(s => s.state === 'completed').length || 0;
     // Prefer the server's signedAt — it matches the sealed PDF stamp.
     // formatDisplayDate expects a YYYY-MM-DD string; coerce.
     const signedDate = serverSignedAt
@@ -1906,12 +2049,10 @@ export default function PublicSigningPage() {
               <span className="text-gray-500">Document</span>
               <span className="font-medium text-gray-900 truncate ml-4">{request?.reference || 'Document'}</span>
             </div>
-            {signerCount > 1 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Signers</span>
-                <span className="font-medium text-gray-900">{completedCount + 1} of {signerCount} signed</span>
-              </div>
-            )}
+            {/* 2026-07-15: removed the dead "X of Y signed" row — the verify
+                endpoint never returns request.signers, so signerCount was
+                always 0 and the row never rendered (and would have shown a
+                wrong count if it ever had data). */}
             {signatureHashes && Object.values(signatureHashes)[0] && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Signature ID</span>
@@ -1984,9 +2125,12 @@ export default function PublicSigningPage() {
   // ── Signing state ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Google Fonts for cursive signature typing */}
+      {/* Google Fonts for cursive signature typing — must match
+          CURSIVE_FONTS above (Caveat 600 is the only non-400 weight we
+          render). index.css loads these too; this link just warms them up
+          early so the signature modal previews don't flash the fallback. */}
       <link
-        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Sacramento&family=Pacifico&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Homemade+Apple&family=Allura&family=Alex+Brush&display=swap"
         rel="stylesheet"
       />
 
@@ -2089,10 +2233,12 @@ export default function PublicSigningPage() {
 
       {/* ── PDF Viewer ──────────────────────────────────────────────────── */}
       <div ref={containerRef} className="flex-1 overflow-auto py-6 px-4" onClick={(e) => {
-        // Click on background to deselect active field
-        if (e.target === e.currentTarget || e.target.closest('[data-pdf-container]')) {
-          // Only deselect if clicking on the background, not on a field
-        }
+        // Click on background (or the PDF page itself) deselects the active
+        // field. Clicks that originate inside a field box bubble up here too
+        // — those carry a [data-field-id] ancestor, so skip them or we'd
+        // instantly close the field the user just tapped open.
+        if (e.target instanceof Element && e.target.closest('[data-field-id]')) return;
+        setActiveFieldId(null);
       }}>
         <div className="flex flex-col items-center gap-4" data-pdf-container>
           {pdfDoc ? (

@@ -110,6 +110,7 @@ function RolesSection({ orgSlug, showToast }) {
 
   const handleDelete = async () => {
     if (!editingItem) return;
+    if (!window.confirm('Are you sure you want to delete this role?')) return;
     try {
       setDeleting(true);
       const res = await signApi.deleteRole(orgSlug, editingItem._id);
@@ -404,6 +405,7 @@ function TagsSection({ orgSlug, showToast }) {
 
   const handleDelete = async () => {
     if (!editingItem) return;
+    if (!window.confirm('Are you sure you want to delete this tag?')) return;
     try {
       setDeleting(true);
       const res = await signApi.deleteTag(orgSlug, editingItem._id);

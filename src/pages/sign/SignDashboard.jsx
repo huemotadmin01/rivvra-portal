@@ -14,17 +14,31 @@ import { useAuth } from '../../context/AuthContext';
 
 /* ── Status badge helper ──────────────────────────────────────────────── */
 const STATUS_STYLES = {
-  sent:      'bg-blue-500/10 text-blue-400',
-  signed:    'bg-emerald-500/10 text-emerald-400',
-  cancelled: 'bg-red-500/10 text-red-400',
-  expired:   'bg-orange-500/10 text-orange-400',
-  draft:     'bg-dark-700 text-dark-400',
-  refused:   'bg-red-500/10 text-red-400',
+  sent:        'bg-blue-500/10 text-blue-400',
+  in_progress: 'bg-amber-500/10 text-amber-400',
+  signed:      'bg-emerald-500/10 text-emerald-400',
+  cancelled:   'bg-red-500/10 text-red-400',
+  expired:     'bg-orange-500/10 text-orange-400',
+  draft:       'bg-dark-700 text-dark-400',
+  refused:     'bg-red-500/10 text-red-400',
 };
+
+// Derive a virtual `in_progress` for `sent` rows where some signers have
+// already completed — same derivation the requests list uses, so a
+// partially-signed request reads "In progress" here too.
+function deriveStatus(req) {
+  if (req?.state === 'sent') {
+    const completed = (req.signers || []).filter((s) => s.state === 'completed').length;
+    if (completed > 0) return 'in_progress';
+  }
+  return req?.state || 'draft';
+}
 
 function StatusBadge({ status }) {
   const cls = STATUS_STYLES[status] || STATUS_STYLES.draft;
-  const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Draft';
+  const label = status === 'in_progress'
+    ? 'In progress'
+    : status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Draft';
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
       {label}
@@ -112,7 +126,7 @@ export default function SignDashboard() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <button
-            onClick={() => navigate(orgPath('/sign/templates'))}
+            onClick={() => navigate(orgPath('/sign/templates?upload=1'))}
             className="bg-dark-800 hover:bg-dark-700 text-dark-200 border border-dark-700 rounded-lg px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
           >
             <Upload size={16} />
@@ -219,7 +233,7 @@ export default function SignDashboard() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={req.state} />
+                        <StatusBadge status={deriveStatus(req)} />
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <div className="flex items-center gap-2">

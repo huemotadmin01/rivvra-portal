@@ -491,7 +491,7 @@ export default function SignRequestDetail() {
               'sent' (in progress), Cancel must be used first. Backend
               rejects non-terminal archives with 400 as defense-in-depth. */}
           {(() => {
-            const TERMINAL = ['draft', 'signed', 'refused', 'cancelled'];
+            const TERMINAL = ['draft', 'signed', 'refused', 'cancelled', 'expired', 'voided'];
             const isTerminal = TERMINAL.includes(request.state);
             if (request.archived) {
               return (
