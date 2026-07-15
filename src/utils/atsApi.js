@@ -157,8 +157,10 @@ const atsApi = {
   },
 
   // ── Suggested candidates (rule-based matcher; approved+open jobs only) ──
-  getSuggestedCandidates(orgSlug, jobId, { limit = 10 } = {}) {
-    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates?limit=${limit}`);
+  // refresh=true bypasses the server-side suggestions cache and recomputes
+  // synchronously (slow on a throttled DB tier — used by the Refresh button).
+  getSuggestedCandidates(orgSlug, jobId, { limit = 10, refresh = false } = {}) {
+    return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates?limit=${limit}${refresh ? '&refresh=1' : ''}`);
   },
   dismissSuggestedCandidate(orgSlug, jobId, candidateId) {
     return api.request(`/api/org/${orgSlug}/ats/jobs/${jobId}/suggested-candidates/${candidateId}/dismiss`, {

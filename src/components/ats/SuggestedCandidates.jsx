@@ -62,12 +62,15 @@ export default function SuggestedCandidates({
     return () => { alive = false; };
   }, [orgSlug, canCreate]);
 
-  const fetchSuggestions = useCallback(async () => {
+  const fetchSuggestions = useCallback(async (forceRefresh = false) => {
     if (!orgSlug || !jobId) return;
     try {
       setLoading(true);
       setError(null);
-      const res = await atsApi.getSuggestedCandidates(orgSlug, jobId, { limit });
+      // forceRefresh bypasses the server-side cache (slow full recompute);
+      // normal loads serve the cached list instantly while the server
+      // revalidates stale entries in the background.
+      const res = await atsApi.getSuggestedCandidates(orgSlug, jobId, { limit, refresh: forceRefresh === true });
       setData(res);
     } catch (err) {
       setError(err.message || 'Failed to load suggestions');
@@ -219,10 +222,10 @@ export default function SuggestedCandidates({
           )}
         </div>
         <button
-          onClick={fetchSuggestions}
+          onClick={() => fetchSuggestions(true)}
           disabled={loading}
           className="text-dark-400 hover:text-white text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
-          title="Refresh suggestions"
+          title="Recompute suggestions from scratch (may take up to ~30s)"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
@@ -249,7 +252,7 @@ export default function SuggestedCandidates({
       ) : error ? (
         <div className="py-6 text-center">
           <p className="text-dark-400 text-sm mb-2">{error}</p>
-          <button onClick={fetchSuggestions} className="text-rivvra-300 hover:text-rivvra-200 text-xs">Retry</button>
+          <button onClick={() => fetchSuggestions()} className="text-rivvra-300 hover:text-rivvra-200 text-xs">Retry</button>
         </div>
       ) : candidates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
