@@ -578,7 +578,9 @@ export default function AtsJobPositions() {
 
           {/* Pagination */}
           {!isGrouped && totalPages > 1 && (
-            <div className="flex items-center justify-between">
+            {/* pr clears the floating Ask AI pill (fixed bottom-right on ATS
+                pages) so page-number buttons are never rendered under it. */}
+            <div className="flex items-center justify-between pr-40">
               <p className="text-dark-400 text-sm">
                 Showing {pageStart}–{pageEnd} of {total}
               </p>
