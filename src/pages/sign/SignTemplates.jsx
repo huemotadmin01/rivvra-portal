@@ -59,14 +59,16 @@ function EditTemplateDetailsModal({ template, onClose, onSaved, orgSlug, showToa
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-lg bg-dark-900 border border-dark-700 rounded-xl shadow-2xl overflow-hidden">
+      {/* max-h + scrollable body: a big org tag list used to blow the card
+          past the viewport, clipping both the header and the Save button. */}
+      <div className="w-full max-w-lg bg-dark-900 border border-dark-700 rounded-xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
           <h3 className="text-white font-semibold">Edit template details</h3>
           <button onClick={onClose} className="text-dark-400 hover:text-white p-1 rounded">
             <X size={16} />
           </button>
         </div>
-        <div className="p-5 space-y-5">
+        <div className="p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">
               Template Name <span className="text-red-400">*</span>
@@ -277,7 +279,7 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="upload-modal-title"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg my-8"
+        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg my-8 max-h-[88vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-5">
           <h3 id="upload-modal-title" className="text-lg font-semibold text-white">
@@ -378,7 +380,9 @@ function UploadTemplateModal({ show, onClose, onSaved, orgSlug }) {
             ) : (
               <>
                 {availableTags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
+                  // Cap the tag cloud — 30+ org tags pushed the submit
+                  // button far below the fold (same fix as TagPicker).
+                  <div className="flex flex-wrap gap-2 mb-2 max-h-44 overflow-y-auto pr-1">
                     {availableTags.map((tag) => {
                       const isSelected = selectedTags.includes(tag._id);
                       return (

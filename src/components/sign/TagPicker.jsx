@@ -70,7 +70,10 @@ export default function TagPicker({ orgSlug, value = [], onChange, onError }) {
   return (
     <div className="space-y-2">
       {available.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        // Orgs accumulate dozens of tags — an uncapped cloud blew the parent
+        // modal past the viewport (header and Save button both clipped).
+        // Cap the cloud and let it scroll internally instead.
+        <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto pr-1">
           {available.map((tag) => {
             const isSelected = value.includes(tag._id);
             return (

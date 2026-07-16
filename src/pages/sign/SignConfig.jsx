@@ -231,7 +231,7 @@ function RolesSection({ orgSlug, showToast }) {
             ref={modalRef}
             role="dialog"
             aria-modal="true"
-            className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md"
+            className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md max-h-[85vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-white">
@@ -514,7 +514,7 @@ function TagsSection({ orgSlug, showToast }) {
             ref={modalRef}
             role="dialog"
             aria-modal="true"
-            className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md"
+            className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-md max-h-[85vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-white">
