@@ -894,6 +894,19 @@ function PdfPageWithFields({
         // *and* a mobile-sized viewport. Tailwind `md` breakpoint is
         // 768px which matches our other responsive cutoffs.
         const isCompactScale = scale < 1 && typeof window !== 'undefined' && window.innerWidth < 768;
+        // 2026-07-16 WYSIWYG anchoring (mirrors the active-signer block):
+        // the readability floor on slim text fields must grow UPWARD so the
+        // box bottom — and the bottom-aligned value — stays on the underline
+        // the template author drew. Growing downward pushed the first
+        // signer's values below the underlines when the second signer
+        // viewed them. Signature containers keep their own sizing;
+        // multiline keeps the author's top edge (text flows down from top).
+        const prevVisualHeight = isSignatureDataUrl
+          ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
+          : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36));
+        const prevAnchoredTop = (isSignatureDataUrl || item.type === 'multiline')
+          ? top
+          : top - Math.max(0, prevVisualHeight - height);
 
         return (
           <div
@@ -901,19 +914,13 @@ function PdfPageWithFields({
             className="absolute pointer-events-none rounded overflow-hidden"
             style={{
               left,
-              top,
+              top: prevAnchoredTop,
               width,
-              // Grow text fields downward to a 36px minimum to match the
-              // active-signer's wrapping-div height so previous and current
-              // values render at the same visual size and land on the
-              // underline beneath.
               // 2026-05-27 H5: mirror active-signer's 40px floor on
               // compact so the previous signer's signature image stays
               // visible (the second signer needs to inspect it as
               // legal evidence).
-              height: isSignatureDataUrl
-                ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
-                : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36)),
+              height: prevVisualHeight,
               // 2026-05-23 mobile fix v8: restored the dashed rose
               // frame + white bg on the previous-signer signature
               // container even on compact scales. The frame, label,
