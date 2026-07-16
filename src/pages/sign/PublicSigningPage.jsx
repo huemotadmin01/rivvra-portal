@@ -297,7 +297,12 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-lg overflow-hidden max-h-[90vh] sm:max-h-none">
+      {/* flex-col + scrollable content: on landscape phones (~360px tall,
+          sm: applies) the fixed-height card clipped the Adopt/Cancel footer
+          off-screen with no way to reach it. Header/footer stay pinned; the
+          middle scrolls. dvh tracks the visible viewport when the mobile
+          keyboard is open. */}
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-lg overflow-hidden max-h-[90vh] max-h-[90dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -341,8 +346,8 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-5 sm:p-5 p-3">
+        {/* Content — scrolls between the pinned header and footer */}
+        <div className="p-3 sm:p-5 overflow-y-auto flex-1 min-h-0">
           {activeTab === 'upload' ? (
             <div>
               <input
@@ -441,8 +446,13 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                 value={typedText}
                 onChange={(e) => setTypedText(e.target.value)}
                 placeholder={type === 'initials' ? 'Type your initials' : 'Type your full name'}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                autoFocus
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                // Autofocus only where a hardware keyboard is likely: on
+                // phones it pops the soft keyboard over the font previews
+                // and the Adopt button the moment the modal opens (iOS
+                // doesn't resize the viewport), forcing the signer to
+                // dismiss the keyboard before they can do anything.
+                autoFocus={!isMobile}
               />
               <div className="mt-4 space-y-2">
                 <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Preview</p>
@@ -546,7 +556,13 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
         style={style}
         className="absolute flex items-center justify-center cursor-pointer"
       >
-        <div className={`w-6 h-6 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-colors ${
+        {/* Slim template checkboxes shrink the button to their true size —
+            measured 9x9px on a phone, far below the ~44px tap minimum, so
+            real thumbs miss it. The negative-inset overlay expands the HIT
+            AREA to ~44px without changing the visible checkbox or its
+            document position. */}
+        <span aria-hidden className="absolute -inset-4" />
+        <div className={`relative w-6 h-6 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-colors ${
           value ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-400 hover:border-indigo-400'
         }`}>
           {value && <Check className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-white" />}
@@ -577,9 +593,16 @@ function InlineFieldInput({ item, value, onChange, onFocus, onBlur, style, compa
   // printed underline sits in the source document, and matches the final
   // PDF stamp's positioning.
   const styleHeight = typeof style?.height === 'number' ? style.height : parseFloat(style?.height) || 0;
+  // iOS Safari auto-zooms the whole page (and never zooms back) when a
+  // focused input's font-size is under 16px — the signer loses the sticky
+  // header/action bar and has to pinch out after every field. On mobile
+  // widths, floor the input font at 16px; the box may crop tall glyphs
+  // slightly but the page stays at 1x. (maximum-scale=1 would also work
+  // but breaks accessibility zoom.)
+  const iosZoomSafeFloor = typeof window !== 'undefined' && window.innerWidth < 768 ? 16 : 12;
   const dynamicFontSize = styleHeight > 0
-    ? Math.min(Math.max(styleHeight * 0.5, 12), 16)
-    : 14;
+    ? Math.min(Math.max(styleHeight * 0.5, iosZoomSafeFloor), 16)
+    : Math.max(14, iosZoomSafeFloor);
   // Padding-top pushes the input's text content down so it lands near the
   // bottom edge instead of being vertically centered (default browser
   // behaviour). Caps so a very tall box doesn't get an absurd top gap.
@@ -672,6 +695,23 @@ function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '
   //     a bit without rendering text below 5px. Visually equivalent to
   //     a "condensed" font weight; far better than truncation.
   const [scaleX, setScaleX] = useState(1);
+  // Re-measure when the measured container resizes (rotation, zoom
+  // buttons): the effect deps alone left a previously-fitted value
+  // hard-clipped after landscape→portrait because font clamps kept
+  // maxFontSize identical.
+  const [remeasureTick, setRemeasureTick] = useState(0);
+  useLayoutEffect(() => {
+    const measureEl = containerRef?.current || ref.current?.parentElement;
+    if (!measureEl || typeof ResizeObserver === 'undefined') return;
+    let lastW = measureEl.clientWidth;
+    const ro = new ResizeObserver(() => {
+      const w = measureEl.clientWidth;
+      if (w !== lastW) { lastW = w; setRemeasureTick((t) => t + 1); }
+    });
+    ro.observe(measureEl);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -705,7 +745,7 @@ function FittedText({ children, maxFontSize = 14, minFontSize = 5, className = '
     }
     setFontSize(size);
     setScaleX(sx);
-  }, [children, maxFontSize, minFontSize]);
+  }, [children, maxFontSize, minFontSize, remeasureTick]);
   return (
     <span
       ref={ref}
@@ -743,7 +783,7 @@ function PrevSignerValue({ isCompactScale, height, displayDate }) {
         <span className="bg-white text-gray-800 px-1 inline-block max-w-full align-bottom">
           <FittedText
             maxFontSize={maxFontSize}
-            minFontSize={isCompactScale ? 5 : 10}
+            minFontSize={isCompactScale ? 6 : 10}
             containerRef={containerRef}
           >
             {displayDate}
@@ -893,7 +933,14 @@ function PdfPageWithFields({
         // the mobile field chrome. Require both: a compact render scale
         // *and* a mobile-sized viewport. Tailwind `md` breakpoint is
         // 768px which matches our other responsive cutoffs.
-        const isCompactScale = scale < 1 && typeof window !== 'undefined' && window.innerWidth < 768;
+        // 2026-07-16: ALSO treat coarse-pointer (touch) devices as compact
+        // regardless of width — landscape phones/tablets (768-1024px) with
+        // wide/landscape PDFs hit scale<1 with desktop chrome, whose 36px
+        // floors overlap close-stacked fields. Desktop windows keep a fine
+        // pointer, so the v4 concern (narrow desktop windows flipping into
+        // mobile chrome) stays covered.
+        const isCompactScale = scale < 1 && typeof window !== 'undefined'
+          && (window.innerWidth < 768 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
         // 2026-07-16 WYSIWYG anchoring (mirrors the active-signer block):
         // the readability floor on slim text fields must grow UPWARD so the
         // box bottom — and the bottom-aligned value — stays on the underline
@@ -983,7 +1030,14 @@ function PdfPageWithFields({
         // the mobile field chrome. Require both: a compact render scale
         // *and* a mobile-sized viewport. Tailwind `md` breakpoint is
         // 768px which matches our other responsive cutoffs.
-        const isCompactScale = scale < 1 && typeof window !== 'undefined' && window.innerWidth < 768;
+        // 2026-07-16: ALSO treat coarse-pointer (touch) devices as compact
+        // regardless of width — landscape phones/tablets (768-1024px) with
+        // wide/landscape PDFs hit scale<1 with desktop chrome, whose 36px
+        // floors overlap close-stacked fields. Desktop windows keep a fine
+        // pointer, so the v4 concern (narrow desktop windows flipping into
+        // mobile chrome) stays covered.
+        const isCompactScale = scale < 1 && typeof window !== 'undefined'
+          && (window.innerWidth < 768 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
         const Callout = isHighlighted ? (
           <div
             className="absolute left-0 -top-7 px-2 py-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded shadow-md whitespace-nowrap pointer-events-none animate-bounce z-10"
@@ -1432,6 +1486,19 @@ export default function PublicSigningPage() {
             initialValues[id] = todayStr();
           }
         });
+        // Restore an unsent draft (survives pull-to-refresh / mobile tab
+        // discard — see the draft-persistence effect below). Draft values
+        // win over the auto-fill defaults; a corrupt/absent draft is a
+        // silent no-op.
+        try {
+          const draft = JSON.parse(sessionStorage.getItem(`rivvra-sign-draft-${requestId}-${signerId}`) || 'null');
+          if (draft && typeof draft === 'object') {
+            if (draft.values && typeof draft.values === 'object') Object.assign(initialValues, draft.values);
+            if (draft.sigDataUrls && typeof draft.sigDataUrls === 'object') setSigDataUrls((prev) => ({ ...prev, ...draft.sigDataUrls }));
+            if (draft.signatureHashes && typeof draft.signatureHashes === 'object') setSignatureHashes(draft.signatureHashes);
+            if (draft.sigHashByType && typeof draft.sigHashByType === 'object') setSigHashByType(draft.sigHashByType);
+          }
+        } catch { /* ignore bad drafts */ }
         setValues(initialValues);
         setStatus('signing');
       } catch (err) {
@@ -1442,6 +1509,35 @@ export default function PublicSigningPage() {
     }
     verify();
   }, [requestId, signerId, token]);
+
+  // ── Pull-to-refresh guard ────────────────────────────────────────────
+  // The page column scrolls the BODY, so overscroll-behavior must live on
+  // the root element (a class on our own div does nothing): without it, an
+  // over-scroll flick at the top triggers Chrome-on-Android's
+  // pull-to-refresh and reloads away the signer's progress.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.style.overscrollBehaviorY;
+    root.style.overscrollBehaviorY = 'contain';
+    return () => { root.style.overscrollBehaviorY = prev; };
+  }, []);
+
+  // ── Draft persistence ────────────────────────────────────────────────
+  // 60% of signers are on mobile, where the page scrolls the body: a
+  // Chrome-on-Android pull-to-refresh flick, or Safari discarding the tab
+  // while the signer switches apps, silently wiped every filled field and
+  // drawn signature. Mirror progress into sessionStorage (per request +
+  // signer, cleared on submit/refuse). Skip oversized payloads so a photo
+  // signature can't blow the storage quota.
+  useEffect(() => {
+    if (status !== 'signing') return;
+    try {
+      const draft = JSON.stringify({ values, sigDataUrls, signatureHashes, sigHashByType });
+      if (draft.length < 4_000_000) {
+        sessionStorage.setItem(`rivvra-sign-draft-${requestId}-${signerId}`, draft);
+      }
+    } catch { /* quota exceeded — draft is best-effort */ }
+  }, [status, values, sigDataUrls, signatureHashes, sigHashByType, requestId, signerId]);
 
   // ── Load PDF document ────────────────────────────────────────────────
   useEffect(() => {
@@ -1877,6 +1973,7 @@ export default function PublicSigningPage() {
         // that on the success screen so it matches the sealed PDF.
         setAllPartiesSigned(!!res?.completed);
         if (res?.signedAt) setServerSignedAt(res.signedAt);
+        try { sessionStorage.removeItem(`rivvra-sign-draft-${requestId}-${signerId}`); } catch { /* ignore */ }
         setStatus('success');
       }
     } catch (err) {
@@ -1902,6 +1999,7 @@ export default function PublicSigningPage() {
     setRefusing(true);
     try {
       await signApi.refuseSignature(requestId, signerId, token, reason);
+      try { sessionStorage.removeItem(`rivvra-sign-draft-${requestId}-${signerId}`); } catch { /* ignore */ }
       setStatus('refused');
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -2314,21 +2412,17 @@ export default function PublicSigningPage() {
                     key={id}
                     onClick={() => {
                       setShowFieldsList(false);
-                      // Reuse existing scroll-to-next logic: temporarily
-                      // walk from this item's id by scrolling its page
-                      // and activating it.
-                      const pageIndex = item.page || 0;
-                      const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[pageIndex];
-                      if (pageEl) {
-                        const pageRect = pageEl.getBoundingClientRect();
-                        const containerRect = containerRef.current?.getBoundingClientRect();
-                        const fieldYWithinPage = (item.posY || 0) * pageEl.clientHeight;
-                        const targetY =
-                          (containerRef.current?.scrollTop || 0) +
-                          (pageRect.top - (containerRect?.top || 0)) +
-                          fieldYWithinPage -
-                          (containerRect?.height || window.innerHeight) / 3;
-                        containerRef.current?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+                      // The page column scrolls the BODY, not containerRef
+                      // (min-h-screen column never overflows), so
+                      // containerRef.scrollTo() was a silent no-op — the
+                      // popover jump did nothing. Use scrollIntoView on the
+                      // field element like scrollToNextField does, falling
+                      // back to the page element for unrendered pages.
+                      const fieldEl = containerRef.current?.querySelector(`[data-field-id="${id}"]`);
+                      const pageEl = containerRef.current?.querySelectorAll('[data-page-index]')?.[item.page || 0];
+                      const target = fieldEl || pageEl;
+                      if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         highlightField(id);
                         setTimeout(() => {
                           if (item.type === 'signature' || item.type === 'initials') {
@@ -2361,25 +2455,32 @@ export default function PublicSigningPage() {
 
       {/* ── Bottom Bar ──────────────────────────────────────────────────── */}
       <div className="sticky bottom-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        {/* gap-2/px-2 below sm: the full-width labels + gap-4 overflow a
+            320-390px viewport (envelope mode's "Sign & Next Document" made
+            even 375px overflow), pushing Sign & Submit off-screen. */}
+        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3 flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: Refuse */}
           <button
             onClick={() => setShowRefuseConfirm(true)}
             disabled={refusing}
-            className="text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
+            className="text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-2 sm:px-3 py-2 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
           >
             {refusing ? (
               <span className="flex items-center gap-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Refusing...
+                <span className="hidden sm:inline">Refusing...</span>
               </span>
             ) : (
-              'Refuse to Sign'
+              <>
+                <span className="hidden sm:inline">Refuse to Sign</span>
+                <span className="sm:hidden">Refuse</span>
+              </>
             )}
           </button>
 
-          {/* Zoom controls — desktop only; mobile pinches the screen instead */}
-          <div className="hidden md:flex items-center gap-1 mr-2 text-gray-600">
+          {/* Zoom controls — pinch-zooming detaches the sticky bars from the
+              visual viewport, so mobile needs in-app zoom buttons too. */}
+          <div className="flex items-center gap-1 sm:mr-2 text-gray-600">
             <button
               onClick={() => setUserZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
               disabled={userZoom <= 0.5}
@@ -2413,7 +2514,10 @@ export default function PublicSigningPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-full transition-colors"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
+                {/* A bare arrow was the only label on phones — the primary
+                    mobile control deserves a word. */}
                 <span className="hidden sm:inline">Next Field</span>
+                <span className="sm:hidden">Next</span>
               </button>
             )}
             <button
@@ -2443,7 +2547,7 @@ export default function PublicSigningPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 sm:px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
           >
             {submitting ? (
               <>
@@ -2453,12 +2557,14 @@ export default function PublicSigningPage() {
             ) : envelope && currentDocIndex < envelope.totalDocuments - 1 ? (
               <>
                 <Check className="w-4 h-4" />
-                Sign & Next Document
+                <span className="hidden sm:inline">Sign & Next Document</span>
+                <span className="sm:hidden">Sign & Next</span>
               </>
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                Sign & Submit
+                <span className="hidden sm:inline">Sign & Submit</span>
+                <span className="sm:hidden">Sign</span>
               </>
             )}
           </button>
@@ -2491,7 +2597,7 @@ export default function PublicSigningPage() {
               onChange={(e) => setRefuseReason(e.target.value.slice(0, 500))}
               rows={4}
               placeholder="e.g. I don't agree to clause 4.2 / the rate is incorrect / wrong candidate"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
               autoFocus
               disabled={refusing}
             />

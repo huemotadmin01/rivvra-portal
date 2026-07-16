@@ -49,6 +49,11 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
+          # Pages artifacts are only needed for the minutes between build
+          # and deploy — the 90-day default retention piled up one ~10-50MB
+          # artifact per deploy and filled the account's 0.5GB Actions
+          # storage quota (GitHub alert 2026-07-15).
+          retention-days: 1
 
   deploy:
     environment:
