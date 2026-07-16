@@ -951,7 +951,7 @@ function PdfPageWithFields({
         const prevVisualHeight = isSignatureDataUrl
           ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
           : (isCompactScale ? Math.max(height, 18) : Math.max(height, 36));
-        const prevAnchoredTop = (isSignatureDataUrl || item.type === 'multiline')
+        const prevAnchoredTop = item.type === 'multiline'
           ? top
           : top - Math.max(0, prevVisualHeight - height);
 
@@ -1069,13 +1069,21 @@ function PdfPageWithFields({
           // pen icon + label without inflating the box past close-stacked
           // PDF gaps.
           const unfilledHeight = isCompactScale ? Math.max(height, 22) : Math.max(height, 44);
+          // WYSIWYG anchor (2026-07-16, matches the sealer): authors align
+          // the signature box's BOTTOM just above the printed line, so any
+          // floor/stamp growth must extend UPWARD — growing downward draped
+          // the stamp frame + hash over the line and the fields below it.
+          const sigVisualHeight = isFilled
+            ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
+            : unfilledHeight;
+          const sigAnchoredTop = top - Math.max(0, sigVisualHeight - height);
           return (
             <div
               key={fieldId}
               data-field-id={fieldId}
               className={`absolute cursor-pointer rounded transition-all overflow-visible ${highlightRing}`}
               style={{
-                left, top, width,
+                left, top: sigAnchoredTop, width,
                 // 2026-05-27 H5: previous version (+8 on compact) was
                 // tight enough that on small signature fields the
                 // SignatureStamp layout (label + image + hash, vertical)
@@ -1085,9 +1093,7 @@ function PdfPageWithFields({
                 // appeared missing. Floor the container at 40px on
                 // compact so the image always has ≥20px to render in
                 // (label + hash combined are ~20px).
-                height: isFilled
-                  ? Math.max(height + (isCompactScale ? 8 : 20), isCompactScale ? 40 : 0)
-                  : unfilledHeight,
+                height: sigVisualHeight,
                 border: isFilled ? '2px dashed #d4a0a0' : undefined,
                 backgroundColor: isFilled ? '#ffffff' : undefined,
                 scrollMarginTop: 120,
