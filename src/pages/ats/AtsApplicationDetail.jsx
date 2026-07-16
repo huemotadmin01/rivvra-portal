@@ -1779,8 +1779,11 @@ export default function AtsApplicationDetail() {
   // skips existing rows on re-run, so backfilling those legacy zeros
   // here is the cheapest fix. Legitimate "0 expected" is not a real
   // staffing case at Huemot — confirmed before shipping.
-  const fmtSalary = (v) =>
-    v == null || v === '' || Number(v) === 0 ? null : formatCurrency(v, companyCurrency);
+  // Salary figures render in the application's compensationCurrency when set
+  // (e.g. an India-based candidate on a US-company req quotes INR); null falls
+  // back to the company currency — the pre-existing behavior.
+  const fmtSalary = (v, currency) =>
+    v == null || v === '' || Number(v) === 0 ? null : formatCurrency(v, currency || companyCurrency);
 
   const [application, setApplication] = useState(null);
   usePageTitle(application?.candidateName);
@@ -3313,6 +3316,26 @@ export default function AtsApplicationDetail() {
           </SectionCard>
 
           <SectionCard title="Compensation" icon={DollarSign}>
+            {/* One currency for both figures — expected and proposed are a
+                negotiation over the same money. Blank = company currency, so
+                records created before this field behave exactly as before. */}
+            <InlineField
+              label="Currency"
+              field="compensationCurrency"
+              type="select"
+              value={application.compensationCurrency || ''}
+              editable={canEdit}
+              onSave={saveField}
+              options={[
+                { value: '', label: `Company default (${companyCurrency})` },
+                { value: 'INR', label: 'INR — Indian Rupee' },
+                { value: 'USD', label: 'USD — US Dollar' },
+                { value: 'CAD', label: 'CAD — Canadian Dollar' },
+                { value: 'EUR', label: 'EUR — Euro' },
+                { value: 'GBP', label: 'GBP — British Pound' },
+                { value: 'AED', label: 'AED — UAE Dirham' },
+              ]}
+            />
             <InlineField
               label="Salary Expected"
               field="salaryExpected"
@@ -3320,7 +3343,7 @@ export default function AtsApplicationDetail() {
               editable={canEdit}
               onSave={saveField}
               placeholder="0"
-              displayValue={fmtSalary(application.salaryExpected) || undefined}
+              displayValue={fmtSalary(application.salaryExpected, application.compensationCurrency) || undefined}
             />
             <InlineField
               label="Salary Proposed"
@@ -3329,7 +3352,7 @@ export default function AtsApplicationDetail() {
               editable={canEdit}
               onSave={saveField}
               placeholder="0"
-              displayValue={fmtSalary(application.salaryProposed) || undefined}
+              displayValue={fmtSalary(application.salaryProposed, application.compensationCurrency) || undefined}
             />
           </SectionCard>
 
