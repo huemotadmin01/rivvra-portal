@@ -1101,6 +1101,16 @@ function PdfPageWithFields({
         // so the box doesn't read as a horizontal bar erasing document
         // text underneath.
         const visualHeight = isCompactScale ? Math.max(height, 18) : Math.max(height, 36);
+        // 2026-07-16 WYSIWYG anchoring: template authors align the BOTTOM of
+        // the field box to the printed underline, so when the touch-target
+        // floor inflates a slim box the extra height must grow UPWARD —
+        // growing downward pushed the typed value below the underline (and
+        // the sealed PDF even further, since its floor is in points). Keep
+        // the box's bottom edge exactly where the author drew it. Multiline
+        // is top-anchored (text flows down from the top edge), so it keeps
+        // the author's top edge instead.
+        const inflation = Math.max(0, visualHeight - height);
+        const anchoredTop = item.type === 'multiline' ? top : top - inflation;
         // Floor on the filled font size: 12 on compact (matches the 18px
         // visualHeight floor) and 14 on desktop (matches the 36px floor).
         // Keeps glyph cleanly inside the box on both paths.
@@ -1146,7 +1156,7 @@ function PdfPageWithFields({
                       ? requiredClass
                       : optionalClass
             }`}
-            style={{ left, top, width, height: visualHeight, scrollMarginTop: 120, scrollMarginBottom: 100 }}
+            style={{ left, top: anchoredTop, width, height: visualHeight, scrollMarginTop: 120, scrollMarginBottom: 100 }}
             onClick={() => {
               if (!isActive) setActiveFieldId(item._id || item.id);
             }}
