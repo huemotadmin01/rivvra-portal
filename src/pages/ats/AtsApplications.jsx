@@ -1105,9 +1105,9 @@ export default function AtsApplications() {
               filtered set so grouping is correct; pagination would
               fragment groups). */}
           {!isGrouped && totalPages > 1 && (
-            {/* pr clears the floating Ask AI pill (fixed bottom-right on ATS
-                pages) so page-number buttons are never rendered under it. */}
             <div className="flex items-center justify-between pr-40">
+              {/* pr-40 clears the floating Ask AI pill (fixed bottom-right on
+                  ATS pages) so page-number buttons are never rendered under it. */}
               <p className="text-dark-400 text-sm">
                 {/* 2026-05-17 Phase L: literal "\u2013" was rendering as backslash-u text
                     in production JSX (escape not interpreted in JSX children). */}
