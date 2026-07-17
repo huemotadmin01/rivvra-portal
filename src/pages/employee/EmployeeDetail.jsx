@@ -290,7 +290,6 @@ export default function EmployeeDetail() {
   const [editAssignment, setEditAssignment] = useState(null); // { index, ...assignmentData }
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [tsClients, setTsClients] = useState([]);
-  const [tsProjects, setTsProjects] = useState([]);
   const [quickAddClient, setQuickAddClient] = useState(null); // { name } when sub-modal is open
 
   // Rate revision state
@@ -410,7 +409,6 @@ export default function EmployeeDetail() {
         .then(res => {
           if (res.success) {
             setTsClients((res.clients || []).map(c => ({ _id: c._id, name: c.name, defaultCurrency: c.defaultCurrency || null })));
-            setTsProjects((res.projects || []).map(p => ({ _id: p._id, name: p.name })));
           }
         })
         .catch(() => {});
@@ -2377,28 +2375,18 @@ export default function EmployeeDetail() {
                 />
               </div>
 
-              {/* Project */}
+              {/* Project — fully automatic (org convention: project = client
+                  name, always). The server creates/reuses a project named
+                  after the client, suffixing "(2)" on re-engagements. No
+                  picker: General/Internal remain only on historical
+                  assignments; a client engagement can no longer be parked on
+                  a generic project. */}
               {isNewAssignment ? (
                 <div>
                   <label className="block text-sm text-dark-400 mb-1">Project</label>
-                  {/* Restricted to the two generic projects; client engagements
-                      always use the auto-created client-named project (leave
-                      blank). Free-text creation is disabled — a typo here used
-                      to mint a junk project that anchored the consultant's
-                      timesheets ("Genera"). Deliberate custom projects are
-                      still managed under Timesheet → Projects. */}
-                  <ComboSelect
-                    value={editAssignment.projectId}
-                    displayValue={editAssignment.projectName}
-                    options={tsProjects.filter(p => /^(general|internal)$/i.test((p.name || '').trim()))}
-                    onChange={(id, name) => setEditAssignment(prev => ({ ...prev, projectId: id, projectName: name }))}
-                    placeholder="Leave blank to auto-create from client"
-                    disableCreate
-                  />
-                  <p className="mt-1 text-[11px] text-dark-500">
-                    Leave blank (recommended) — a project named after the client is created/reused
-                    automatically. Pick Internal/General only for non-client work.
-                  </p>
+                  <div className="text-dark-300 text-sm bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2">
+                    Automatic — a project named after the client is created/reused when you save.
+                  </div>
                 </div>
               ) : (
                 <div>
