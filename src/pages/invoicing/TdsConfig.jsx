@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
-  Loader2, Plus, Pencil, Trash2, Percent, X, Check, Sparkles, Search,
+  Loader2, Plus, Pencil, Trash2, Percent, X, Check, Sparkles, Search, ShieldCheck,
 } from 'lucide-react';
 
 const APPLICABLE_OPTIONS = [
@@ -39,7 +39,7 @@ function formatAmount(n) {
 
 export default function TdsConfig() {
   const { orgSlug } = usePlatform();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companyCountry } = useCompany();
   const { showToast } = useToast();
 
   const [rows, setRows] = useState([]);
@@ -115,6 +115,20 @@ export default function TdsConfig() {
       showToast('Select a company from the header first', 'error');
       return;
     }
+    // Rates are percentages — reject junk / out-of-range values before save.
+    const rateChecks = [
+      ['Individual rate', form.rateIndividual],
+      ['Company rate', form.rateCompany],
+      ['No-PAN rate', form.ratePanMissing],
+    ];
+    for (const [label, raw] of rateChecks) {
+      if (raw === '' || raw == null) continue; // blank falls back to 0 / 20 defaults
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        showToast(`${label} must be a number between 0 and 100`, 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const payload = {
@@ -169,9 +183,11 @@ export default function TdsConfig() {
   }
 
   async function toggleActive(row) {
+    const isActive = row.active !== false;
     try {
-      await invoicingApi.updateTdsConfig(orgSlug, row._id, { active: !row.active });
-      setRows(prev => prev.map(r => r._id === row._id ? { ...r, active: !r.active } : r));
+      await invoicingApi.updateTdsConfig(orgSlug, row._id, { active: !isActive });
+      setRows(prev => prev.map(r => r._id === row._id ? { ...r, active: !isActive } : r));
+      showToast(isActive ? 'TDS section deactivated' : 'TDS section activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -197,9 +213,13 @@ export default function TdsConfig() {
   const inputCls = 'w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500';
   const selectCls = 'px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500';
 
-  function FormRow() {
+  // Rendered as a plain function call — {FormRow()} — NOT as <FormRow />.
+  // Declaring a component inside the page and rendering it as JSX makes React
+  // treat it as a new component type on every render, remounting the row and
+  // dropping input focus on each keystroke.
+  function FormRow(rowKey) {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/80">
+      <tr key={rowKey} className="border-b border-dark-700/50 bg-dark-800/80">
         <td className="px-4 py-3">
           <input
             value={form.sectionCode}
@@ -303,6 +323,21 @@ export default function TdsConfig() {
     );
   }
 
+  // TDS (tax deducted at source under the Indian IT Act) only applies to
+  // Indian companies — mirror GstReconciliation's India-only screen. Placed
+  // after all hooks so hook order stays stable across renders.
+  if (companyCountry !== 'IN') {
+    return (
+      <div className="p-4 sm:p-6">
+        <div className="max-w-md mx-auto mt-20 text-center">
+          <ShieldCheck size={40} className="mx-auto mb-4 text-dark-600" />
+          <h2 className="text-lg font-semibold text-white mb-2">India-only feature</h2>
+          <p className="text-dark-400 text-sm">TDS sections are available only for companies registered in India. Switch to an Indian company to use them.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-5">
       <ConfirmDialog
@@ -400,7 +435,7 @@ export default function TdsConfig() {
                 </tr>
               </thead>
               <tbody>
-                {editingId === 'new' && <FormRow />}
+                {editingId === 'new' && FormRow()}
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
@@ -416,7 +451,7 @@ export default function TdsConfig() {
                   </tr>
                 ) : (
                   filtered.map(row => {
-                    if (editingId === row._id) return <FormRow key={row._id} />;
+                    if (editingId === row._id) return FormRow(row._id);
                     const appSt = APPLICABLE_STYLES[row.applicableTo] || APPLICABLE_STYLES.all;
                     return (
                       <tr

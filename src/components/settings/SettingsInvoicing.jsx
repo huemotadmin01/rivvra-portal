@@ -171,6 +171,16 @@ export default function SettingsInvoicing() {
 
     const fetchAll = async () => {
       setLoading(true);
+      // Reset on company switch so the previous company's settings and
+      // reference data don't linger if the new fetch fails or returns nothing.
+      setPaymentTerms([]);
+      setTaxes([]);
+      setSequences([]);
+      setSettings(prev => ({
+        ...prev,
+        defaultPaymentTermId: '',
+        defaultTaxIds: [],
+      }));
       try {
         const [settingsRes, termsRes, taxesRes, seqRes] = await Promise.all([
           invoicingApi.getSettings(orgSlug),
@@ -212,7 +222,9 @@ export default function SettingsInvoicing() {
 
     fetchAll();
     return () => { cancelled = true; };
-  }, [orgSlug, showToast]);
+  // companyId: settings / terms / taxes / sequences are all company-scoped —
+  // refetch when the active company changes.
+  }, [orgSlug, showToast, companyId]);
 
   // ─── Update helpers ─────────────────────────────────────────────────────────
 

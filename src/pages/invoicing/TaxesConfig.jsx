@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   Loader2, Plus, Pencil, Trash2, Percent, X, Check,
-  ToggleLeft, ToggleRight, Search,
+  ToggleLeft, ToggleRight, Search, RefreshCw,
 } from 'lucide-react';
 
 const TAX_TYPE_OPTIONS = [
@@ -36,28 +38,37 @@ const EMPTY_TAX = {
 
 export default function TaxesConfig() {
   const { orgSlug } = usePlatform();
+  const { currentCompany } = useCompany();
   const { showToast } = useToast();
 
   const [taxes, setTaxes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
 
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_TAX });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    // Reset on company switch so the previous company's taxes don't linger
+    // if the new fetch returns nothing.
+    setTaxes([]);
     try {
       const res = await invoicingApi.listTaxes(orgSlug);
       setTaxes(res.taxes || res.data || []);
     } catch (err) {
+      setLoadError(err.message || 'Failed to load taxes');
       showToast(err.message || 'Failed to load taxes', 'error');
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => {
     if (orgSlug) loadData();
@@ -107,9 +118,18 @@ export default function TaxesConfig() {
       showToast('Rate cannot be negative', 'error');
       return;
     }
-    if (rateNum > 100) {
+    // The 100 cap only makes sense for percentage taxes — a fixed-amount tax
+    // can legitimately exceed 100 (it's money, not a percent).
+    if (form.type === 'percentage' && rateNum > 100) {
       showToast('Rate cannot exceed 100%', 'error');
       return;
+    }
+    if (editingId === 'new') {
+      const nameLc = form.name.trim().toLowerCase();
+      if (taxes.some(t => (t.name || '').trim().toLowerCase() === nameLc)) {
+        showToast('A tax with this name already exists', 'error');
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -139,27 +159,37 @@ export default function TaxesConfig() {
     }
   }
 
-  async function handleDelete(taxId) {
-    setDeletingId(taxId);
+  function requestDelete(tax) {
+    setConfirmDelete({ tax, busy: false });
+  }
+
+  async function runDelete() {
+    if (!confirmDelete?.tax) return;
+    const tax = confirmDelete.tax;
+    setConfirmDelete((c) => (c ? { ...c, busy: true } : null));
+    setDeletingId(tax._id);
     try {
-      await invoicingApi.deleteTax(orgSlug, taxId);
+      await invoicingApi.deleteTax(orgSlug, tax._id);
       showToast('Tax deleted');
-      setTaxes(prev => prev.filter(t => t._id !== taxId));
-      if (editingId === taxId) cancelEdit();
+      setTaxes(prev => prev.filter(t => t._id !== tax._id));
+      if (editingId === tax._id) cancelEdit();
+      setConfirmDelete(null);
     } catch (err) {
       showToast(err.message || 'Failed to delete tax', 'error');
+      setConfirmDelete((c) => (c ? { ...c, busy: false } : null));
     } finally {
       setDeletingId(null);
     }
   }
 
   async function toggleActive(tax) {
+    const isActive = tax.active !== false;
     try {
-      await invoicingApi.updateTax(orgSlug, tax._id, { active: !tax.active });
+      await invoicingApi.updateTax(orgSlug, tax._id, { active: !isActive });
       setTaxes(prev =>
-        prev.map(t => t._id === tax._id ? { ...t, active: !t.active } : t)
+        prev.map(t => t._id === tax._id ? { ...t, active: !isActive } : t)
       );
-      showToast(tax.active ? 'Tax deactivated' : 'Tax activated');
+      showToast(isActive ? 'Tax deactivated' : 'Tax activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -168,9 +198,13 @@ export default function TaxesConfig() {
   const inputCls = 'w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500';
   const selectCls = 'px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500';
 
-  function FormRow() {
+  // Rendered as a plain function call — {FormRow()} — NOT as <FormRow />.
+  // Declaring a component inside the page and rendering it as JSX makes React
+  // treat it as a new component type on every render, remounting the row and
+  // dropping input focus on each keystroke.
+  function FormRow(rowKey) {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/80">
+      <tr key={rowKey} className="border-b border-dark-700/50 bg-dark-800/80">
         <td className="px-4 py-3">
           <input
             value={form.name}
@@ -264,6 +298,20 @@ export default function TaxesConfig() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete tax?"
+        message={
+          confirmDelete?.tax
+            ? `Delete "${confirmDelete.tax.name}"? This permanently removes the tax. If invoices reference it, deletion will be refused — deactivate the tax instead to hide it.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={runDelete}
+      />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -315,7 +363,7 @@ export default function TaxesConfig() {
                     <span className="text-xs font-medium text-dark-400">Name</span>
                   </th>
                   <th className="text-right px-4 py-3">
-                    <span className="text-xs font-medium text-dark-400">Rate (%)</span>
+                    <span className="text-xs font-medium text-dark-400">Rate</span>
                   </th>
                   <th className="text-left px-4 py-3">
                     <span className="text-xs font-medium text-dark-400">Type</span>
@@ -335,29 +383,44 @@ export default function TaxesConfig() {
                 </tr>
               </thead>
               <tbody>
-                {editingId === 'new' && <FormRow />}
+                {editingId === 'new' && FormRow()}
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
                     <td colSpan={7} className="text-center py-16">
-                      <Percent size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
-                      <p className="text-sm text-dark-500">
-                        {taxes.length === 0 ? 'No taxes configured yet' : 'No taxes match your search'}
-                      </p>
-                      {taxes.length === 0 && (
-                        <button
-                          onClick={startAdd}
-                          className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
-                        >
-                          Add your first tax
-                        </button>
+                      {loadError ? (
+                        <>
+                          <Percent size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
+                          <p className="text-sm text-red-400">{loadError}</p>
+                          <button
+                            onClick={loadData}
+                            className="mt-3 inline-flex items-center gap-1.5 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                          >
+                            <RefreshCw size={14} /> Retry
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Percent size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
+                          <p className="text-sm text-dark-500">
+                            {taxes.length === 0 ? 'No taxes configured yet' : 'No taxes match your search'}
+                          </p>
+                          {taxes.length === 0 && (
+                            <button
+                              onClick={startAdd}
+                              className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                            >
+                              Add your first tax
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
                 ) : (
                   filtered.map(tax => {
                     if (editingId === tax._id) {
-                      return <FormRow key={tax._id} />;
+                      return FormRow(tax._id);
                     }
                     const scopeSt = SCOPE_STYLES[tax.scope] || SCOPE_STYLES.both;
                     return (
@@ -369,7 +432,9 @@ export default function TaxesConfig() {
                           <p className="font-medium text-white">{tax.name}</p>
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-white">
-                          {tax.rate != null ? `${tax.rate}%` : '-'}
+                          {tax.rate != null
+                            ? (tax.type === 'fixed' ? tax.rate : `${tax.rate}%`)
+                            : '-'}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-dark-300 capitalize">{tax.type || 'percentage'}</span>
@@ -414,7 +479,7 @@ export default function TaxesConfig() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(tax._id)}
+                              onClick={() => requestDelete(tax)}
                               disabled={deletingId === tax._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"

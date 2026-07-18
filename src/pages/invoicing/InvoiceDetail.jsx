@@ -13,9 +13,9 @@ import invoicingApi from '../../utils/invoicingApi';
 import contactsApi from '../../utils/contactsApi';
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { SUPPORTED_CURRENCIES } from '../../utils/currency';
 import { validateGstin } from '../../utils/gstin';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
-import { API_BASE_URL } from '../../utils/config';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import RecordMeta from '../../components/shared/RecordMeta';
@@ -87,7 +87,9 @@ const GST_TREATMENTS = [
   'SEZ',
 ];
 
-const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
+// Shared platform list (INR/USD/CAD/AUD/SGD/EUR/GBP/AED) — single source of
+// truth in utils/currency.js, kept in sync with the API's SUPPORTED_CURRENCIES.
+const CURRENCIES = SUPPORTED_CURRENCIES;
 
 // ── Debounce hook ──
 function useDebounce(callback, delay) {
@@ -340,7 +342,7 @@ function ContactLookup({ orgSlug, currentName, onSelect, onClose }) {
 // ProductSearch — searchable product dropdown for line items
 // ============================================================================
 
-function ProductSearch({ orgSlug, onSelect, onClose, triggerRef }) {
+function ProductSearch({ orgSlug, currency, onSelect, onClose, triggerRef }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -431,7 +433,7 @@ function ProductSearch({ orgSlug, onSelect, onClose, triggerRef }) {
               <span className="text-sm text-white">{p.name}</span>
             </div>
             {p.defaultPrice != null && (
-              <p className="text-xs text-dark-400 mt-0.5 ml-5">{formatCurrency(p.defaultPrice)}</p>
+              <p className="text-xs text-dark-400 mt-0.5 ml-5">{formatCurrency(p.defaultPrice, currency)}</p>
             )}
           </button>
         ))}
@@ -843,6 +845,10 @@ export default function InvoiceDetail() {
         placeOfSupply: invoice.placeOfSupply || '',
         customerGstin: invoice.customerGstin || '',
         vendorGstin: invoice.vendorGstin || '',
+        vendorInvoiceNumber: invoice.vendorInvoiceNumber || '',
+        tdsConfigId: invoice.tdsConfigId || '',
+        tdsSection: invoice.tdsSection || '',
+        tdsRate: invoice.tdsRate ?? 0,
         journalId: invoice.journalId || '',
         journalCode: invoice.journalCode || '',
         journalName: invoice.journalName || '',
@@ -1170,7 +1176,9 @@ export default function InvoiceDetail() {
     } finally {
       setSaving(false);
     }
-  }, [orgSlug, invoiceId, showToast]);
+    // editForm + paymentTermsList were missing here, so the closure captured
+    // their initial (empty) values and the due-date auto-calc never fired.
+  }, [orgSlug, invoiceId, showToast, editForm, invoice, paymentTermsList]);
 
   // ── Line item helpers ──
 
@@ -1443,12 +1451,17 @@ export default function InvoiceDetail() {
   }, [taxMapById]);
 
   // ── Fetch invoice ──
+  // Monotonic sequence guards against a stale response (e.g. rapid navigation
+  // between invoices) clobbering the newer invoice's state.
+  const fetchSeqRef = useRef(0);
   const fetchInvoice = useCallback(async () => {
     if (!orgSlug || !invoiceId) return;
+    const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
       setError(null);
       const res = await invoicingApi.getInvoice(orgSlug, invoiceId);
+      if (seq !== fetchSeqRef.current) return; // stale — a newer fetch started
       if (res?.invoice) {
         setInvoice({ ...res.invoice, payments: res.payments || res.invoice.payments || [] });
       } else {
@@ -1456,11 +1469,12 @@ export default function InvoiceDetail() {
         showToast('Invoice not found', 'error');
       }
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       if (handleScoped404(err)) return;
       setError(err.message || 'Failed to load invoice');
       showToast('Failed to load invoice', 'error');
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   }, [orgSlug, invoiceId, handleScoped404]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1619,6 +1633,8 @@ export default function InvoiceDetail() {
 
   // E-Invoice: cancel IRN at IRP (within 24 hours)
   const [cancelEInvoiceModal, setCancelEInvoiceModal] = useState(null);
+  // GST payment-hold reason prompt (replaces the old window.prompt)
+  const [gstHoldModal, setGstHoldModal] = useState(null); // { reason } | null
   const handleCancelEInvoice = () => {
     setCancelEInvoiceModal({ reason: 'Data Entry Mistake', remarks: '' });
   };
@@ -1649,7 +1665,7 @@ export default function InvoiceDetail() {
     setVoidPaymentId(null);
     try {
       setActionLoading('voidPayment');
-      await invoicingApi.deletePayment(orgSlug, paymentId);
+      await invoicingApi.deletePayment(orgSlug, pid);
       showToast('Payment voided');
       fetchInvoice();
     } catch (err) {
@@ -2003,9 +2019,12 @@ export default function InvoiceDetail() {
   const isReversed = Boolean(invoice.reversedByCreditNoteId);
   const isCreditNote = invoice.type === 'credit_note';
   const isActionablePosted = isLifecyclePosted && !isCancelled && !isFullyPaid && !isReversed && !isCreditNote;
+  // Compare against end-of-day so an invoice due TODAY is not flagged overdue.
+  const dueEndOfDay = invoice.dueDate ? new Date(invoice.dueDate) : null;
+  if (dueEndOfDay) dueEndOfDay.setHours(23, 59, 59, 999);
   const isOverdue = Boolean(
-    invoice.dueDate
-    && new Date(invoice.dueDate) < new Date()
+    dueEndOfDay
+    && dueEndOfDay < new Date()
     && !isFullyPaid
     && !isCancelled
     && !isReversed
@@ -2045,18 +2064,23 @@ export default function InvoiceDetail() {
 
   // Soft GST payment-hold toggle (vendor bills). Manual holds win over the
   // reconciliation auto-hold. Does not block recording a payment — just warns.
-  const handleToggleGstHold = async () => {
-    const held = !!invoice.gstHold?.onHold;
-    let reason = '';
-    if (!held) {
-      reason = window.prompt('Reason for holding this payment?', 'GST not yet filed by vendor (not in 2B)');
-      if (reason === null) return; // cancelled
-    }
+  const submitGstHold = async (onHoldFlag, reason) => {
     try {
-      const res = await invoicingApi.setGstHold(orgSlug, invoiceId, { onHold: !held, reason });
+      setActionLoading('gstHold');
+      const res = await invoicingApi.setGstHold(orgSlug, invoiceId, { onHold: onHoldFlag, reason });
       setInvoice(prev => ({ ...prev, gstHold: res.gstHold }));
-      showToast(held ? 'Payment hold released' : 'Payment held', 'success');
+      setGstHoldModal(null);
+      showToast(onHoldFlag ? 'Payment held' : 'Payment hold released', 'success');
     } catch (e) { showToast(e.message || 'Failed to update hold', 'error'); }
+    finally { setActionLoading(null); }
+  };
+  const handleToggleGstHold = () => {
+    const held = !!invoice.gstHold?.onHold;
+    if (held) {
+      submitGstHold(false, '');
+    } else {
+      setGstHoldModal({ reason: 'GST not yet filed by vendor (not in 2B)' });
+    }
   };
   const onHold = !!invoice.gstHold?.onHold;
 
@@ -2684,7 +2708,7 @@ export default function InvoiceDetail() {
                         { value: '', label: 'No TDS' },
                         ...tdsConfigs.map(t => ({
                           value: t._id,
-                          label: `${t.section} @ ${t.rate}% — ${t.description || ''}`.trim(),
+                          label: `${t.sectionCode} @ ${t.rateIndividual}% — ${t.description || ''}`.trim(),
                         })),
                       ]}
                       editable={isDraft}
@@ -2697,10 +2721,12 @@ export default function InvoiceDetail() {
                       }
                       onSave={async (_field, value) => {
                         const cfg = tdsConfigs.find(t => t._id === value);
+                        // TDS config docs use sectionCode/rateIndividual (see
+                        // TdsConfig.jsx + API invoicingTds.js) — not section/rate.
                         const updates = {
                           tdsConfigId: value || null,
-                          tdsSection: cfg?.section || null,
-                          tdsRate: cfg ? Number(cfg.rate) || 0 : 0,
+                          tdsSection: cfg?.sectionCode || null,
+                          tdsRate: cfg ? Number(cfg.rateIndividual) || 0 : 0,
                         };
                         setEditForm(prev => ({ ...prev, ...updates }));
                         try {
@@ -2725,7 +2751,7 @@ export default function InvoiceDetail() {
                     value={isDraft ? editForm.currency : currency}
                     field="currency"
                     type="select"
-                    options={CURRENCIES}
+                    options={currency && !CURRENCIES.includes(currency) ? [currency, ...CURRENCIES] : CURRENCIES}
                     editable={isDraft}
                     onSave={saveField}
                   />
@@ -2927,9 +2953,14 @@ export default function InvoiceDetail() {
                               const paymentLabel = li.paymentMode
                                 ? li.paymentMode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
                                 : null;
-                              const receiptHref = li.receiptId
-                                ? `${API_BASE_URL}/api/org/${orgSlug}/invoicing/invoices/${invoice._id}/attachments/${li.receiptId}`
+                              // Receipt is served from a Bearer-auth route — a bare
+                              // <a href> 401s (no headers on a plain link click), so
+                              // go through the auth-fetch preview/download helpers.
+                              const receiptUrl = li.receiptId
+                                ? invoicingApi.getAttachmentUrl(orgSlug, invoiceId, li.receiptId)
                                 : null;
+                              const receiptFilename = li.receiptFilename || 'receipt';
+                              const receiptPreviewable = /\.(pdf|png|jpg|jpeg|gif|webp|svg)$/i.test(receiptFilename);
                               return (
                                 <tr key={li._id || i} className="border-b border-dark-700/50 hover:bg-dark-800/30">
                                   <td className="px-6 py-3 text-white">
@@ -2968,16 +2999,17 @@ export default function InvoiceDetail() {
                                     )}
                                   </td>
                                   <td className="px-4 py-3 text-center">
-                                    {receiptHref ? (
-                                      <a
-                                        href={receiptHref}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                    {receiptUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => receiptPreviewable
+                                          ? setPreviewDoc({ filename: receiptFilename, mimeType: li.receiptMimeType, url: receiptUrl })
+                                          : handleDownloadAttachment(li.receiptId, receiptFilename)}
                                         title={li.receiptFilename || 'View receipt'}
                                         className="inline-flex items-center justify-center text-rivvra-400 hover:text-rivvra-300 transition-colors"
                                       >
                                         <Paperclip size={14} />
-                                      </a>
+                                      </button>
                                     ) : (
                                       <span className="text-dark-700 italic text-xs">—</span>
                                     )}
@@ -3656,6 +3688,16 @@ export default function InvoiceDetail() {
         />
       )}
 
+      {gstHoldModal && (
+        <GstHoldModal
+          reason={gstHoldModal.reason}
+          loading={actionLoading === 'gstHold'}
+          onChange={(patch) => setGstHoldModal((m) => (m ? { ...m, ...patch } : m))}
+          onConfirm={() => submitGstHold(true, gstHoldModal.reason || '')}
+          onCancel={() => setGstHoldModal(null)}
+        />
+      )}
+
       {previewDoc && (
         <DocumentPreviewModal
           filename={previewDoc.filename}
@@ -3746,6 +3788,7 @@ function InlineLineRow({ line, index, currency, countryCode = 'IN', orgSlug, cus
             {showProductSearch && (
               <ProductSearch
                 orgSlug={orgSlug}
+                currency={currency}
                 triggerRef={productTriggerRef}
                 onSelect={(p) => onProductSelect(index, p)}
                 onClose={() => setShowProductSearch(false)}
@@ -4090,12 +4133,22 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
         return;
       }
     }
+    // Block overpayment — payment (+ TDS) must not exceed the amount due.
+    const settling = (Number(form.amount) || 0) + (tdsEnabled ? tdsAmount : 0);
+    if (settling > (Number(amountDue) || 0) + 0.005) {
+      showToast(`Total exceeds amount due (${formatCurrency(amountDue, currency)}). Reduce the amount.`, 'error');
+      return;
+    }
 
     try {
       setSaving(true);
 
+      // NOTE: two sequential calls — the durable fix is a single server-side
+      // "payment + TDS" endpoint. Until then, roll back the TDS payment
+      // client-side if the net-payment call fails after it.
+      let tdsPaymentId = null;
       if (tdsEnabled && selectedTds) {
-        await invoicingApi.recordPayment(orgSlug, {
+        const tdsRes = await invoicingApi.recordPayment(orgSlug, {
           invoiceId,
           amount: tdsAmount,
           method: 'tds',
@@ -4112,17 +4165,38 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
             deductedAt: form.date,
           },
         });
+        tdsPaymentId = tdsRes?.payment?._id || null;
       }
 
-      await invoicingApi.recordPayment(orgSlug, {
-        invoiceId,
-        amount: Number(form.amount),
-        method: form.method,
-        journal: selectedJournal?.name || '',
-        date: form.date,
-        reference: form.memo || invoiceNumber || '',
-        notes: '',
-      });
+      try {
+        await invoicingApi.recordPayment(orgSlug, {
+          invoiceId,
+          amount: Number(form.amount),
+          method: form.method,
+          journal: selectedJournal?.name || '',
+          date: form.date,
+          reference: form.memo || invoiceNumber || '',
+          notes: '',
+        });
+      } catch (netErr) {
+        if (tdsPaymentId) {
+          try {
+            await invoicingApi.deletePayment(orgSlug, tdsPaymentId);
+            // Rollback succeeded — nothing landed; keep the modal open to retry.
+            showToast(`Payment failed — the TDS entry was rolled back. ${netErr.message || ''}`.trim(), 'error');
+          } catch {
+            // Orphan TDS payment left behind — surface it and refresh the page
+            // state so the user can void it manually from the payments list.
+            showToast(
+              `Payment failed AFTER the TDS entry of ${formatCurrency(tdsAmount, currency)} was recorded, and it could not be rolled back. Void the TDS payment on this ${isVendorBill ? 'bill' : 'invoice'} manually, then retry.`,
+              'error'
+            );
+            onSuccess();
+          }
+          return;
+        }
+        throw netErr;
+      }
 
       showToast(tdsEnabled ? 'Payment + TDS recorded' : 'Payment recorded');
       onSuccess();
@@ -4137,7 +4211,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
   const remaining = Math.max(0, Math.round(((Number(amountDue) || 0) - totalSettled) * 100) / 100);
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={onClose} dismissable={!saving}>
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 bg-dark-850 z-10">
           <div>
@@ -4445,6 +4519,9 @@ function EmployeeBillRecordPaymentModal({
     e.preventDefault();
     if (!form.journalId) return showToast('Select a journal', 'error');
     if (!form.amount || Number(form.amount) <= 0) return showToast('Enter a valid payment amount', 'error');
+    if (Number(form.amount) > (Number(amountDue) || 0) + 0.005) {
+      return showToast(`Amount exceeds amount due (${formatCurrency(amountDue, currency)}).`, 'error');
+    }
     if (isCheque && !form.chequeNumber.trim()) return showToast('Cheque number is required', 'error');
 
     try {
@@ -4484,7 +4561,7 @@ function EmployeeBillRecordPaymentModal({
   };
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={onClose} dismissable={!saving}>
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 bg-dark-850 z-10">
           <div>
@@ -4512,13 +4589,13 @@ function EmployeeBillRecordPaymentModal({
                   <span>{employee.fullName || '—'}</span>
                   {employee.designation && <span className="text-dark-500">· {employee.designation}</span>}
                 </div>
-                {employee.bankName || employee.accountNumber ? (
+                {employee.bankName || employee.accountNumberMasked ? (
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-dark-400">
                     {employee.bankName && (
                       <div><span className="text-dark-500">Bank:</span> <span className="text-dark-200">{employee.bankName}</span></div>
                     )}
-                    {employee.accountNumber && (
-                      <div><span className="text-dark-500">A/c:</span> <span className="text-dark-200 font-mono">{employee.accountNumber}</span></div>
+                    {employee.accountNumberMasked && (
+                      <div><span className="text-dark-500">A/c:</span> <span className="text-dark-200 font-mono">{employee.accountNumberMasked}</span></div>
                     )}
                     {employee.ifsc && (
                       <div><span className="text-dark-500">IFSC:</span> <span className="text-dark-200 font-mono">{employee.ifsc}</span></div>
@@ -4766,7 +4843,7 @@ function EmailInvoiceModal({ orgSlug, invoiceId, customerEmail, invoiceNumber, o
   };
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={onClose} dismissable={!sending}>
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
           <h2 className="text-lg font-bold text-white">Email Invoice</h2>
@@ -4864,7 +4941,7 @@ function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClo
   };
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={onClose} dismissable={!saving}>
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
           <h2 className="text-lg font-bold text-white">Credit Note</h2>
@@ -4904,7 +4981,7 @@ function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClo
 
 function ConfirmModal({ title, message, confirmLabel, danger, loading, onConfirm, onCancel }) {
   return (
-    <ModalOverlay onClose={onCancel}>
+    <ModalOverlay onClose={onCancel} dismissable={!loading}>
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl">
         <div className="p-5">
           <div className="flex items-start gap-3 mb-4">
@@ -4957,7 +5034,7 @@ const E_INVOICE_CANCEL_REASONS = [
 
 function CancelEInvoiceModal({ reason, remarks, loading, onChange, onConfirm, onCancel }) {
   return (
-    <ModalOverlay onClose={onCancel}>
+    <ModalOverlay onClose={onCancel} dismissable={!loading}>
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
         <div className="p-5">
           <div className="flex items-start gap-3 mb-4">
@@ -5033,13 +5110,77 @@ function CancelEInvoiceModal({ reason, remarks, loading, onChange, onConfirm, on
 }
 
 // ============================================================================
+// GstHoldModal — reason form for putting a vendor-bill payment on GST hold
+// (same shell as CancelEInvoiceModal; replaces the old window.prompt)
+// ============================================================================
+
+function GstHoldModal({ reason, loading, onChange, onConfirm, onCancel }) {
+  return (
+    <ModalOverlay onClose={onCancel} dismissable={!loading}>
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
+        <div className="p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-amber-500/15">
+              <AlertTriangle size={20} className="text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Hold Payment?</h2>
+              <p className="text-sm text-dark-400 mt-1">
+                A soft warning is shown when recording a payment on this bill.
+                You can release the hold at any time.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-dark-300 mb-1.5">
+              Reason <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => onChange({ reason: e.target.value })}
+              rows={3}
+              placeholder="Why is this payment being held?"
+              className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500 resize-none"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-dark-700">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg border border-dark-600 text-dark-300 hover:text-white hover:border-dark-500 text-sm transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={loading || !(reason || '').trim()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+            >
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              Hold Payment
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ============================================================================
 // ModalOverlay
 // ============================================================================
 
-function ModalOverlay({ children, onClose }) {
+function ModalOverlay({ children, onClose, dismissable = true }) {
+  // dismissable={false} while a save is in flight — a stray backdrop click
+  // mid-request would otherwise close the modal and hide the outcome.
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismissable ? onClose : undefined} />
       <div className="relative z-10">{children}</div>
     </div>
   );

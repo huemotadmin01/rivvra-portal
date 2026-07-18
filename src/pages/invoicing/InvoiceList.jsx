@@ -79,7 +79,10 @@ function StatusChips({ invoice }) {
   }
 
   const isCreditNote = invoice?.type === 'credit_note';
-  const isOverdue = !isCreditNote && invoice?.dueDate && new Date(invoice.dueDate) < new Date() && paymentStatus !== 'paid';
+  // End-of-day compare so an invoice due TODAY is not flagged overdue.
+  const dueEnd = invoice?.dueDate ? new Date(invoice.dueDate) : null;
+  if (dueEnd) dueEnd.setHours(23, 59, 59, 999);
+  const isOverdue = !isCreditNote && dueEnd && dueEnd < new Date() && paymentStatus !== 'paid';
   // Credit notes never receive payment — relabel paid/partial as Applied/Open.
   const cnLabel = { paid: 'Applied', partial: 'Partially Applied', not_paid: 'Open' };
   const cnStyle = { paid: 'bg-purple-500/10 text-purple-400', partial: 'bg-amber-500/10 text-amber-400', not_paid: 'bg-blue-500/10 text-blue-400' };
@@ -113,15 +116,18 @@ export default function InvoiceList() {
   const { currentCompany } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const journalCode = searchParams.get('journalCode');
   const rawStatus = searchParams.get('status');
   const rawPaymentStatus = searchParams.get('paymentStatus');
   const rawOverdue = searchParams.get('overdue');
+  const rawType = searchParams.get('type');
   // Translate URL params to a tab key. Legacy ?status=unpaid redirects to
   // Not Paid.
   const initialTab = (() => {
     if (rawOverdue === 'true') return 'overdue';
+    if (rawType === 'customer_invoice') return 'invoices';
+    if (rawType === 'credit_note') return 'credit_notes';
     if (rawPaymentStatus === 'paid') return 'paid';
     if (rawPaymentStatus === 'partial') return 'partial';
     if (rawPaymentStatus === 'not_paid') return 'not_paid';
@@ -215,10 +221,24 @@ export default function InvoiceList() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  // Tab change resets page
+  // Tab change resets page and mirrors the tab into the URL so refresh /
+  // back-forward / shared links restore the same view (matches resolveInitialTab).
   function handleTabChange(key) {
     setStatusFilter(key);
     setPage(1);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('status');
+      next.delete('paymentStatus');
+      next.delete('overdue');
+      next.delete('type');
+      const tab = STATUS_TABS.find(t => t.key === key);
+      if (tab?.filterKind === 'status') next.set('status', tab.value);
+      else if (tab?.filterKind === 'paymentStatus') next.set('paymentStatus', tab.value);
+      else if (tab?.filterKind === 'overdue') next.set('overdue', tab.value);
+      else if (tab?.filterKind === 'type') next.set('type', tab.value);
+      return next;
+    }, { replace: true });
   }
 
   function getTabCount(key) {

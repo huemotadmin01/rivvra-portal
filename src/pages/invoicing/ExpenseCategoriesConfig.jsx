@@ -82,6 +82,13 @@ export default function ExpenseCategoriesConfig() {
       showToast('Category name is required', 'error');
       return;
     }
+    if (editingId === 'new') {
+      const nameLc = form.name.trim().toLowerCase();
+      if (categories.some(c => (c.name || '').trim().toLowerCase() === nameLc)) {
+        showToast('An expense category with this name already exists', 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const payload = {
@@ -126,12 +133,13 @@ export default function ExpenseCategoriesConfig() {
   }
 
   async function toggleActive(cat) {
+    const isActive = cat.active !== false;
     try {
-      await invoicingApi.updateExpenseCategory(orgSlug, cat._id, { active: !cat.active });
+      await invoicingApi.updateExpenseCategory(orgSlug, cat._id, { active: !isActive });
       setCategories(prev =>
-        prev.map(c => c._id === cat._id ? { ...c, active: !c.active } : c)
+        prev.map(c => c._id === cat._id ? { ...c, active: !isActive } : c)
       );
-      showToast(cat.active ? 'Category deactivated' : 'Category activated');
+      showToast(isActive ? 'Category deactivated' : 'Category activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -139,9 +147,13 @@ export default function ExpenseCategoriesConfig() {
 
   const inputCls = 'w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500';
 
-  function FormRow() {
+  // Rendered as a plain function call — {FormRow()} — NOT as <FormRow />.
+  // Declaring a component inside the page and rendering it as JSX makes React
+  // treat it as a new component type on every render, remounting the row and
+  // dropping input focus on each keystroke.
+  function FormRow(rowKey) {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/80">
+      <tr key={rowKey} className="border-b border-dark-700/50 bg-dark-800/80">
         <td className="px-4 py-3">
           <input
             value={form.name}
@@ -270,7 +282,7 @@ export default function ExpenseCategoriesConfig() {
                 </tr>
               </thead>
               <tbody>
-                {editingId === 'new' && <FormRow />}
+                {editingId === 'new' && FormRow()}
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
@@ -292,7 +304,7 @@ export default function ExpenseCategoriesConfig() {
                 ) : (
                   filtered.map(cat => {
                     if (editingId === cat._id) {
-                      return <FormRow key={cat._id} />;
+                      return FormRow(cat._id);
                     }
                     return (
                       <tr

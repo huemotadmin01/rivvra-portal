@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
+import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
@@ -229,6 +230,7 @@ function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
 
 // Manual "other expenses" editor — one amount per month for the primary currency.
 function AdjustmentsModal({ orgSlug, fy, currency, months, onClose, onSaved }) {
+  const { showToast } = useToast();
   const [values, setValues] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -257,6 +259,9 @@ function AdjustmentsModal({ orgSlug, fy, currency, months, onClose, onSaved }) {
         await invoicingApi.saveProfitAdjustment(orgSlug, { year: mo.year, month: mo.month, currency, amount, note: '' });
       }
       onSaved();
+    } catch (err) {
+      // Keep the modal open so the user can retry without re-typing.
+      showToast(err.message || 'Failed to save adjustments', 'error');
     } finally {
       setSaving(false);
     }

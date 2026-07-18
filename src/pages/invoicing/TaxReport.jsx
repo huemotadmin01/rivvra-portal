@@ -11,13 +11,19 @@ import { Loader2, ArrowLeft, Receipt, Search } from 'lucide-react';
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Build YYYY-MM-DD from LOCAL date parts. toISOString() converts to UTC
+// first, which shifts the date a day back for ahead-of-UTC timezones (IST).
+function toLocalYMD(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getDefaultDateRange() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   return {
-    from: from.toISOString().split('T')[0],
-    to: to.toISOString().split('T')[0],
+    from: toLocalYMD(from),
+    to: toLocalYMD(to),
   };
 }
 

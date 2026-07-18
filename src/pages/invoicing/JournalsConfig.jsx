@@ -3,10 +3,11 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import { SUPPORTED_CURRENCIES } from '../../utils/currency';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   Loader2, Plus, Pencil, Trash2, FileText, X, Check,
-  ToggleLeft, ToggleRight, Search, Star,
+  ToggleLeft, ToggleRight, Search, Star, RefreshCw,
 } from 'lucide-react';
 
 const TYPE_STYLES = {
@@ -26,8 +27,6 @@ function TypeBadge({ type }) {
   );
 }
 
-const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
-
 const EMPTY_JOURNAL = {
   name: '',
   code: '',
@@ -44,6 +43,7 @@ export default function JournalsConfig() {
 
   const [journals, setJournals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
@@ -55,6 +55,7 @@ export default function JournalsConfig() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     // Reset on company switch so the previous company's journals don't linger
     // if the new fetch returns nothing.
     setJournals([]);
@@ -62,6 +63,7 @@ export default function JournalsConfig() {
       const res = await invoicingApi.listJournals(orgSlug);
       setJournals(res.journals || res.data || []);
     } catch (err) {
+      setLoadError(err.message || 'Failed to load journals');
       showToast(err.message || 'Failed to load journals', 'error');
     } finally {
       setLoading(false);
@@ -87,7 +89,8 @@ export default function JournalsConfig() {
 
   function startAdd() {
     setEditingId('new');
-    setForm({ ...EMPTY_JOURNAL });
+    // New journals default to the active company's currency, not INR.
+    setForm({ ...EMPTY_JOURNAL, currency: currentCompany?.currency || 'INR' });
   }
 
   function startEdit(journal) {
@@ -96,7 +99,7 @@ export default function JournalsConfig() {
       name: journal.name || '',
       code: journal.code || '',
       type: journal.type || 'sale',
-      currency: journal.currency || 'INR',
+      currency: journal.currency || currentCompany?.currency || 'INR',
       active: journal.active !== false,
       isDefault: !!journal.isDefault,
     });
@@ -115,6 +118,13 @@ export default function JournalsConfig() {
     if (!form.code.trim()) {
       showToast('Short code is required', 'error');
       return;
+    }
+    if (editingId === 'new') {
+      const nameLc = form.name.trim().toLowerCase();
+      if (journals.some(j => (j.name || '').trim().toLowerCase() === nameLc)) {
+        showToast('A journal with this name already exists', 'error');
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -168,12 +178,13 @@ export default function JournalsConfig() {
   }
 
   async function toggleActive(journal) {
+    const isActive = journal.active !== false;
     try {
-      await invoicingApi.updateJournal(orgSlug, journal._id, { active: !journal.active });
+      await invoicingApi.updateJournal(orgSlug, journal._id, { active: !isActive });
       setJournals(prev =>
-        prev.map(j => j._id === journal._id ? { ...j, active: !j.active } : j)
+        prev.map(j => j._id === journal._id ? { ...j, active: !isActive } : j)
       );
-      showToast(journal.active ? 'Journal deactivated' : 'Journal activated');
+      showToast(isActive ? 'Journal deactivated' : 'Journal activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -198,9 +209,13 @@ export default function JournalsConfig() {
   const inputCls = 'w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500';
   const selectCls = 'px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-rivvra-500';
 
-  function FormRow() {
+  // Rendered as a plain function call — {FormRow()} — NOT as <FormRow />.
+  // Declaring a component inside the page and rendering it as JSX makes React
+  // treat it as a new component type on every render, remounting the row and
+  // dropping input focus on each keystroke.
+  function FormRow(rowKey) {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/80">
+      <tr key={rowKey} className="border-b border-dark-700/50 bg-dark-800/80">
         <td className="px-4 py-3">
           <input
             value={form.name}
@@ -238,7 +253,7 @@ export default function JournalsConfig() {
             onChange={e => setForm(prev => ({ ...prev, currency: e.target.value }))}
             className={selectCls}
           >
-            {CURRENCIES.map(c => (
+            {SUPPORTED_CURRENCIES.map(c => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -386,29 +401,44 @@ export default function JournalsConfig() {
                 </tr>
               </thead>
               <tbody>
-                {editingId === 'new' && <FormRow />}
+                {editingId === 'new' && FormRow()}
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
                     <td colSpan={6} className="text-center py-16">
-                      <FileText size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
-                      <p className="text-sm text-dark-500">
-                        {journals.length === 0 ? 'No journals yet' : 'No journals match your filters'}
-                      </p>
-                      {journals.length === 0 && (
-                        <button
-                          onClick={startAdd}
-                          className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
-                        >
-                          Add your first journal
-                        </button>
+                      {loadError ? (
+                        <>
+                          <FileText size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
+                          <p className="text-sm text-red-400">{loadError}</p>
+                          <button
+                            onClick={loadData}
+                            className="mt-3 inline-flex items-center gap-1.5 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                          >
+                            <RefreshCw size={14} /> Retry
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <FileText size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
+                          <p className="text-sm text-dark-500">
+                            {journals.length === 0 ? 'No journals yet' : 'No journals match your filters'}
+                          </p>
+                          {journals.length === 0 && (
+                            <button
+                              onClick={startAdd}
+                              className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                            >
+                              Add your first journal
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
                 ) : (
                   filtered.map(journal => {
                     if (editingId === journal._id) {
-                      return <FormRow key={journal._id} />;
+                      return FormRow(journal._id);
                     }
                     return (
                       <tr
@@ -437,7 +467,7 @@ export default function JournalsConfig() {
                           <TypeBadge type={journal.type} />
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-dark-300">{journal.currency || 'INR'}</span>
+                          <span className="text-dark-300">{journal.currency || currentCompany?.currency || 'INR'}</span>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button

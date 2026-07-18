@@ -14,11 +14,12 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// en-IN format matches the sibling invoicing pages (InvoiceList etc.).
 function formatDate(dateStr) {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('en-US', {
+  return new Date(dateStr).toLocaleDateString('en-IN', {
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
     year: 'numeric',
   });
 }
@@ -406,7 +407,7 @@ export default function FollowUps() {
                         {inv.contactName || inv.customerName || inv.customer?.name || '-'}
                       </td>
                       <td className="px-4 py-3 text-right text-white font-medium">
-                        {formatCurrency(inv.amountDue ?? inv.total)}
+                        {formatCurrency(inv.amountDue ?? inv.total, inv.currency)}
                       </td>
                       <td className="px-4 py-3 text-dark-300">
                         {formatDate(inv.dueDate)}

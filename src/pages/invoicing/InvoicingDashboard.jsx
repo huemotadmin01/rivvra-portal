@@ -207,6 +207,9 @@ function JournalCard({ journal, orgPath, navigate }) {
   const rows = Array.isArray(journal.byCurrency) ? journal.byCurrency : [];
   const newPath = newUrlFor(journal);
   const showLabels = rows.length > 1;
+  // EMPBI bills are created automatically from approved expense claims —
+  // no manual "New" on the Employee Bills journal.
+  const canCreate = journal.code !== 'EMPBI';
 
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 hover:border-dark-600 transition-all group">
@@ -217,12 +220,14 @@ function JournalCard({ journal, orgPath, navigate }) {
         >
           {name}
         </h3>
-        <button
-          onClick={() => navigate(orgPath(newPath))}
-          className="bg-rivvra-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-rivvra-600 transition-colors shrink-0 ml-3"
-        >
-          New
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => navigate(orgPath(newPath))}
+            className="bg-rivvra-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-rivvra-600 transition-colors shrink-0 ml-3"
+          >
+            New
+          </button>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -256,6 +261,8 @@ function JournalCard({ journal, orgPath, navigate }) {
 function CompactJournalCard({ journal, orgPath, navigate }) {
   const { name } = journal;
   const newPath = newUrlFor(journal);
+  // Same rule as JournalCard: EMPBI bills come from approved expense claims.
+  const canCreate = journal.code !== 'EMPBI';
 
   return (
     <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 hover:border-dark-600 transition-all flex items-center justify-between">
@@ -265,12 +272,14 @@ function CompactJournalCard({ journal, orgPath, navigate }) {
       >
         {name}
       </h3>
-      <button
-        onClick={() => navigate(orgPath(newPath))}
-        className="bg-dark-700 text-dark-300 text-xs px-2.5 py-1 rounded-lg hover:bg-dark-600 transition-colors shrink-0 ml-3"
-      >
-        New
-      </button>
+      {canCreate && (
+        <button
+          onClick={() => navigate(orgPath(newPath))}
+          className="bg-dark-700 text-dark-300 text-xs px-2.5 py-1 rounded-lg hover:bg-dark-600 transition-colors shrink-0 ml-3"
+        >
+          New
+        </button>
+      )}
     </div>
   );
 }

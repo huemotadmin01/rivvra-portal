@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { SUPPORTED_CURRENCIES } from '../../utils/currency';
 import {
   Loader2, Plus, ChevronDown, ChevronRight, Landmark,
   CheckCircle2, Clock, RefreshCw, X, ArrowDownLeft, ArrowUpRight,
@@ -46,12 +47,13 @@ function StatusBadge({ status }) {
 // New Statement Form
 // ---------------------------------------------------------------------------
 
-function NewStatementForm({ onSave, onCancel, saving }) {
+function NewStatementForm({ onSave, onCancel, saving, defaultCurrency }) {
   const [form, setForm] = useState({
     name: '',
     date: '',
     startBalance: '',
     endBalance: '',
+    currency: defaultCurrency || 'INR',
   });
 
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -63,6 +65,7 @@ function NewStatementForm({ onSave, onCancel, saving }) {
       date: form.date,
       startBalance: parseFloat(form.startBalance) || 0,
       endBalance: parseFloat(form.endBalance) || 0,
+      currency: form.currency,
     });
   };
 
@@ -115,6 +118,18 @@ function NewStatementForm({ onSave, onCancel, saving }) {
             className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-rivvra-500"
           />
         </div>
+        <div>
+          <label className="block text-sm text-dark-300 mb-1">Currency</label>
+          <select
+            value={form.currency}
+            onChange={e => update('currency', e.target.value)}
+            className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-rivvra-500"
+          >
+            {SUPPORTED_CURRENCIES.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="flex items-center gap-3 mt-4">
         <button
@@ -141,7 +156,7 @@ function NewStatementForm({ onSave, onCancel, saving }) {
 // Match Modal
 // ---------------------------------------------------------------------------
 
-function MatchModal({ line, suggestions, onMatch, onClose, matching }) {
+function MatchModal({ line, suggestions, onMatch, onClose, matching, currency }) {
   if (!line) return null;
 
   return (
@@ -151,7 +166,7 @@ function MatchModal({ line, suggestions, onMatch, onClose, matching }) {
           <div>
             <h3 className="text-white font-semibold">Match Transaction</h3>
             <p className="text-sm text-dark-400 mt-1">
-              {formatDate(line.date)} &mdash; {line.description} &mdash; {formatCurrency(line.amount)}
+              {formatDate(line.date)} &mdash; {line.description} &mdash; {formatCurrency(line.amount, currency)}
             </p>
           </div>
           <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
@@ -174,7 +189,7 @@ function MatchModal({ line, suggestions, onMatch, onClose, matching }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-white text-sm font-medium">{formatCurrency(s.amount)}</span>
+                  <span className="text-white text-sm font-medium">{formatCurrency(s.amount, s.currency || currency)}</span>
                   <button
                     onClick={() => onMatch(line._id || line.id, s._id || s.id)}
                     disabled={matching}
@@ -202,7 +217,10 @@ function MatchModal({ line, suggestions, onMatch, onClose, matching }) {
 // Statement Row (expandable)
 // ---------------------------------------------------------------------------
 
-function StatementRow({ statement, orgSlug, showToast, onRefresh }) {
+function StatementRow({ statement, orgSlug, showToast, onRefresh, fallbackCurrency }) {
+  // Older statements were saved without a currency — fall back to the active
+  // company's currency rather than hardcoding ₹.
+  const currency = statement.currency || fallbackCurrency;
   const [expanded, setExpanded] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState({});
@@ -276,11 +294,11 @@ function StatementRow({ statement, orgSlug, showToast, onRefresh }) {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-dark-400 text-xs">Start</p>
-              <p className="text-white text-sm font-medium">{formatCurrency(statement.startBalance)}</p>
+              <p className="text-white text-sm font-medium">{formatCurrency(statement.startBalance, currency)}</p>
             </div>
             <div className="text-right hidden sm:block">
               <p className="text-dark-400 text-xs">End</p>
-              <p className="text-white text-sm font-medium">{formatCurrency(statement.endBalance)}</p>
+              <p className="text-white text-sm font-medium">{formatCurrency(statement.endBalance, currency)}</p>
             </div>
             <StatusBadge status={statement.status} />
           </div>
@@ -337,7 +355,7 @@ function StatementRow({ statement, orgSlug, showToast, onRefresh }) {
                           <td className="px-4 py-3 text-right">
                             <span className={`inline-flex items-center gap-1 font-medium ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
                               {isCredit ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}
-                              {formatCurrency(Math.abs(line.amount))}
+                              {formatCurrency(Math.abs(line.amount), currency)}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -388,6 +406,7 @@ function StatementRow({ statement, orgSlug, showToast, onRefresh }) {
           onMatch={handleMatch}
           onClose={() => setMatchLine(null)}
           matching={matching}
+          currency={currency}
         />
       )}
     </>
@@ -468,6 +487,7 @@ export default function BankReconciliation() {
           onSave={handleCreateStatement}
           onCancel={() => setShowForm(false)}
           saving={saving}
+          defaultCurrency={currentCompany?.currency}
         />
       )}
 
@@ -502,6 +522,7 @@ export default function BankReconciliation() {
               orgSlug={orgSlug}
               showToast={showToast}
               onRefresh={fetchStatements}
+              fallbackCurrency={currentCompany?.currency}
             />
           ))}
         </div>

@@ -44,6 +44,7 @@ export default function ProductCatalog() {
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [taxes, setTaxes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -67,7 +68,9 @@ export default function ProductCatalog() {
         invoicingApi.listProducts(orgSlug, { limit: 500 }),
         invoicingApi.listTaxes(orgSlug),
       ]);
-      setProducts(prodRes.products || prodRes.data || []);
+      const list = prodRes.products || prodRes.data || [];
+      setProducts(list);
+      setTotalCount(typeof prodRes.total === 'number' ? prodRes.total : list.length);
       setTaxes(taxRes.taxes || taxRes.data || []);
     } catch (err) {
       showToast(err.message || 'Failed to load products', 'error');
@@ -124,6 +127,13 @@ export default function ProductCatalog() {
       showToast('Product name is required', 'error');
       return;
     }
+    if (editingId === 'new') {
+      const nameLc = form.name.trim().toLowerCase();
+      if (products.some(p => (p.name || '').trim().toLowerCase() === nameLc)) {
+        showToast('A product with this name already exists', 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const payload = {
@@ -179,12 +189,13 @@ export default function ProductCatalog() {
   }
 
   async function toggleActive(product) {
+    const isActive = product.active !== false;
     try {
-      await invoicingApi.updateProduct(orgSlug, product._id, { active: !product.active });
+      await invoicingApi.updateProduct(orgSlug, product._id, { active: !isActive });
       setProducts(prev =>
-        prev.map(p => p._id === product._id ? { ...p, active: !p.active } : p)
+        prev.map(p => p._id === product._id ? { ...p, active: !isActive } : p)
       );
-      showToast(product.active ? 'Product deactivated' : 'Product activated');
+      showToast(isActive ? 'Product deactivated' : 'Product activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -202,10 +213,14 @@ export default function ProductCatalog() {
     return ratePat.test(tax.name) ? tax.name : `${tax.name} (${tax.rate}%)`;
   }
 
-  // Inline edit panel — spans full row to avoid cramped 9-col layout
-  function FormRow() {
+  // Inline edit panel — spans full row to avoid cramped 9-col layout.
+  // Rendered as a plain function call — {FormRow()} — NOT as <FormRow />.
+  // Declaring a component inside the page and rendering it as JSX makes React
+  // treat it as a new component type on every render, remounting the row and
+  // dropping input focus on each keystroke.
+  function FormRow(rowKey) {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/60">
+      <tr key={rowKey} className="border-b border-dark-700/50 bg-dark-800/60">
         <td colSpan={9} className="px-4 py-4">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -405,6 +420,14 @@ export default function ProductCatalog() {
         )}
       </div>
 
+      {/* Truncation note — the list call caps at 500; tell the user when
+          there's more instead of silently hiding the rest. */}
+      {!loading && totalCount > products.length && (
+        <p className="text-xs text-amber-400">
+          Showing the first {products.length} of {totalCount} products. Refine the search to find the rest.
+        </p>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="flex items-center justify-center min-h-[300px]">
@@ -447,7 +470,7 @@ export default function ProductCatalog() {
               </thead>
               <tbody>
                 {/* New product row at top */}
-                {editingId === 'new' && <FormRow />}
+                {editingId === 'new' && FormRow()}
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
@@ -469,7 +492,7 @@ export default function ProductCatalog() {
                 ) : (
                   filtered.map(product => {
                     if (editingId === product._id) {
-                      return <FormRow key={product._id} />;
+                      return FormRow(product._id);
                     }
                     return (
                       <tr

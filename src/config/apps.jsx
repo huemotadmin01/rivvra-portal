@@ -456,40 +456,47 @@ export const APP_REGISTRY = {
     derivedRoles: true,
     // 5th/6th args (isOrgOwner, canViewProfitability) passed by AppSidebar so
     // net-profit stays owner / super-admin / explicitly-granted only.
-    getSidebarItems: (user, _ts, _role, _company, isOrgOwner, canViewProfitability) => [
-      { type: 'item', path: '/invoicing/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { type: 'item', path: '/invoicing/invoices', label: 'Customer Invoices', icon: FileText },
-      { type: 'item', path: '/invoicing/bills', label: 'Vendor Bills', icon: Wallet },
-      { type: 'item', path: '/invoicing/employee-bills', label: 'Employee Bills', icon: User },
-      { type: 'item', path: '/invoicing/payments', label: 'Payments', icon: CreditCard },
-      {
-        type: 'group', label: 'Reports', icon: BarChart3,
-        children: [
-          { path: '/invoicing/reports/receivables', label: 'Aged Receivables', icon: Clock },
-          { path: '/invoicing/reports/payables', label: 'Aged Payables', icon: Clock },
-          { path: '/invoicing/reports/tax', label: 'Tax Report', icon: Shield },
-          { path: '/invoicing/reports/gst-2b', label: 'GST 2B Recon', icon: Shield },
-          { path: '/invoicing/reports/analysis', label: 'Invoice Analysis', icon: BarChart3 },
-          // Net profit is sensitive P&L: owner / super-admin / explicitly granted.
-          ...((isOrgOwner || user?.superAdmin || canViewProfitability)
-            ? [{ path: '/invoicing/reports/profitability', label: 'Profitability', icon: TrendingUp }]
-            : []),
-        ],
-      },
-      { type: 'item', path: '/invoicing/reconciliation', label: 'Bank Reconciliation', icon: Landmark },
-      { type: 'item', path: '/invoicing/follow-ups', label: 'Follow-ups', icon: Mail },
-      {
-        type: 'group', label: 'Configuration', icon: Settings,
-        children: [
-          { path: '/invoicing/config/products', label: 'Products', icon: Package },
-          { path: '/invoicing/config/taxes', label: 'Taxes', icon: Shield },
-          { path: '/invoicing/config/tds', label: 'TDS', icon: Percent },
-          { path: '/invoicing/config/expense-categories', label: 'Expense Categories', icon: Tag },
-          { path: '/invoicing/config/journals', label: 'Journals', icon: FileText },
-          { path: '/invoicing/config/settings', label: 'Settings', icon: Settings },
-        ],
-      },
-    ],
+    getSidebarItems: (user, _ts, _role, currentCompany, isOrgOwner, canViewProfitability) => {
+      // TDS and GSTR-2B reconciliation are Indian statutory features (IT Act /
+      // GST). Mirror the payroll module's India gate: hide these entries for
+      // non-INR active companies (the pages also guard themselves).
+      const isIndia = currentCompany?.currency === 'INR';
+      return [
+        { type: 'item', path: '/invoicing/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { type: 'item', path: '/invoicing/invoices', label: 'Customer Invoices', icon: FileText },
+        { type: 'item', path: '/invoicing/bills', label: 'Vendor Bills', icon: Wallet },
+        { type: 'item', path: '/invoicing/employee-bills', label: 'Employee Bills', icon: User },
+        { type: 'item', path: '/invoicing/payments', label: 'Payments', icon: CreditCard },
+        {
+          type: 'group', label: 'Reports', icon: BarChart3,
+          children: [
+            { path: '/invoicing/reports/receivables', label: 'Aged Receivables', icon: Clock },
+            { path: '/invoicing/reports/payables', label: 'Aged Payables', icon: Clock },
+            { path: '/invoicing/reports/tax', label: 'Tax Report', icon: Shield },
+            ...(isIndia ? [{ path: '/invoicing/reports/gst-2b', label: 'GST 2B Recon', icon: Shield }] : []),
+            { path: '/invoicing/reports/analysis', label: 'Invoice Analysis', icon: BarChart3 },
+            // Net profit is sensitive P&L: owner / super-admin / explicitly granted.
+            ...((isOrgOwner || user?.superAdmin || canViewProfitability)
+              ? [{ path: '/invoicing/reports/profitability', label: 'Profitability', icon: TrendingUp }]
+              : []),
+          ],
+        },
+        { type: 'item', path: '/invoicing/reconciliation', label: 'Bank Reconciliation', icon: Landmark },
+        { type: 'item', path: '/invoicing/follow-ups', label: 'Follow-ups', icon: Mail },
+        {
+          type: 'group', label: 'Configuration', icon: Settings,
+          children: [
+            { path: '/invoicing/config/products', label: 'Products', icon: Package },
+            { path: '/invoicing/config/taxes', label: 'Taxes', icon: Shield },
+            ...(isIndia ? [{ path: '/invoicing/config/tds', label: 'TDS', icon: Percent }] : []),
+            { path: '/invoicing/config/payment-terms', label: 'Payment Terms', icon: Clock },
+            { path: '/invoicing/config/expense-categories', label: 'Expense Categories', icon: Tag },
+            { path: '/invoicing/config/journals', label: 'Journals', icon: FileText },
+            { path: '/invoicing/config/settings', label: 'Settings', icon: Settings },
+          ],
+        },
+      ];
+    },
   },
 
   expenses: {

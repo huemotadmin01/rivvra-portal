@@ -3,9 +3,10 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import {
   Loader2, Plus, Pencil, Trash2, Clock, X, Check,
-  ToggleLeft, ToggleRight, Star, Search,
+  ToggleLeft, ToggleRight, Star, Search, RefreshCw,
 } from 'lucide-react';
 
 const EMPTY_TERM = {
@@ -22,20 +23,24 @@ export default function PaymentTermsConfig() {
 
   const [terms, setTerms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
 
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_TERM });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     setTerms([]);
     try {
       const res = await invoicingApi.listPaymentTerms(orgSlug);
       setTerms(res.paymentTerms || res.data || []);
     } catch (err) {
+      setLoadError(err.message || 'Failed to load payment terms');
       showToast(err.message || 'Failed to load payment terms', 'error');
     } finally {
       setLoading(false);
@@ -84,6 +89,13 @@ export default function PaymentTermsConfig() {
       showToast('A valid number of days is required', 'error');
       return;
     }
+    if (editingId === 'new') {
+      const nameLc = form.name.trim().toLowerCase();
+      if (terms.some(t => (t.name || '').trim().toLowerCase() === nameLc)) {
+        showToast('A payment term with this name already exists', 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const payload = {
@@ -110,27 +122,37 @@ export default function PaymentTermsConfig() {
     }
   }
 
-  async function handleDelete(termId) {
-    setDeletingId(termId);
+  function requestDelete(term) {
+    setConfirmDelete({ term, busy: false });
+  }
+
+  async function runDelete() {
+    if (!confirmDelete?.term) return;
+    const term = confirmDelete.term;
+    setConfirmDelete((c) => (c ? { ...c, busy: true } : null));
+    setDeletingId(term._id);
     try {
-      await invoicingApi.deletePaymentTerm(orgSlug, termId);
+      await invoicingApi.deletePaymentTerm(orgSlug, term._id);
       showToast('Payment term deleted');
-      setTerms(prev => prev.filter(t => t._id !== termId));
-      if (editingId === termId) cancelEdit();
+      setTerms(prev => prev.filter(t => t._id !== term._id));
+      if (editingId === term._id) cancelEdit();
+      setConfirmDelete(null);
     } catch (err) {
       showToast(err.message || 'Failed to delete payment term', 'error');
+      setConfirmDelete((c) => (c ? { ...c, busy: false } : null));
     } finally {
       setDeletingId(null);
     }
   }
 
   async function toggleActive(term) {
+    const isActive = term.active !== false;
     try {
-      await invoicingApi.updatePaymentTerm(orgSlug, term._id, { active: !term.active });
+      await invoicingApi.updatePaymentTerm(orgSlug, term._id, { active: !isActive });
       setTerms(prev =>
-        prev.map(t => t._id === term._id ? { ...t, active: !t.active } : t)
+        prev.map(t => t._id === term._id ? { ...t, active: !isActive } : t)
       );
-      showToast(term.active ? 'Payment term deactivated' : 'Payment term activated');
+      showToast(isActive ? 'Payment term deactivated' : 'Payment term activated');
     } catch (err) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -155,9 +177,13 @@ export default function PaymentTermsConfig() {
 
   const inputCls = 'w-full px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500';
 
-  function FormRow() {
+  // Rendered as a plain function call — {FormRow()} — NOT as <FormRow />.
+  // Declaring a component inside the page and rendering it as JSX makes React
+  // treat it as a new component type on every render, remounting the row and
+  // dropping input focus on each keystroke.
+  function FormRow(rowKey) {
     return (
-      <tr className="border-b border-dark-700/50 bg-dark-800/80">
+      <tr key={rowKey} className="border-b border-dark-700/50 bg-dark-800/80">
         <td className="px-4 py-3">
           <input
             value={form.name}
@@ -227,6 +253,20 @@ export default function PaymentTermsConfig() {
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete payment term?"
+        message={
+          confirmDelete?.term
+            ? `Delete "${confirmDelete.term.name}"? This permanently removes the payment term. Invoices already using it are unaffected, but new invoices can no longer select it — deactivate it instead to hide it.`
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={!!confirmDelete?.busy}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={runDelete}
+      />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -292,29 +332,44 @@ export default function PaymentTermsConfig() {
                 </tr>
               </thead>
               <tbody>
-                {editingId === 'new' && <FormRow />}
+                {editingId === 'new' && FormRow()}
 
                 {filtered.length === 0 && editingId !== 'new' ? (
                   <tr>
                     <td colSpan={5} className="text-center py-16">
-                      <Clock size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
-                      <p className="text-sm text-dark-500">
-                        {terms.length === 0 ? 'No payment terms yet' : 'No payment terms match your search'}
-                      </p>
-                      {terms.length === 0 && (
-                        <button
-                          onClick={startAdd}
-                          className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
-                        >
-                          Add your first payment term
-                        </button>
+                      {loadError ? (
+                        <>
+                          <Clock size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
+                          <p className="text-sm text-red-400">{loadError}</p>
+                          <button
+                            onClick={loadData}
+                            className="mt-3 inline-flex items-center gap-1.5 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                          >
+                            <RefreshCw size={14} /> Retry
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Clock size={48} className="mx-auto mb-3 opacity-30 text-dark-500" />
+                          <p className="text-sm text-dark-500">
+                            {terms.length === 0 ? 'No payment terms yet' : 'No payment terms match your search'}
+                          </p>
+                          {terms.length === 0 && (
+                            <button
+                              onClick={startAdd}
+                              className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+                            >
+                              Add your first payment term
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
                 ) : (
                   filtered.map(term => {
                     if (editingId === term._id) {
-                      return <FormRow key={term._id} />;
+                      return FormRow(term._id);
                     }
                     return (
                       <tr
@@ -369,7 +424,7 @@ export default function PaymentTermsConfig() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(term._id)}
+                              onClick={() => requestDelete(term)}
                               disabled={deletingId === term._id}
                               className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700 transition-colors disabled:opacity-30"
                               title="Delete"

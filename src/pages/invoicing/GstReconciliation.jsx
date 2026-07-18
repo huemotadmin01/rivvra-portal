@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -42,6 +43,7 @@ const periodLabel = (p) => {
 export default function GstReconciliation() {
   const { orgSlug } = useOrg();
   const { orgPath } = usePlatform();
+  const { currentCompany, companyCountry } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const fileRef = useRef(null);
@@ -61,6 +63,10 @@ export default function GstReconciliation() {
   const load = useCallback(async () => {
     if (!orgSlug || !period) return;
     setLoading(true);
+    // Reset on company switch so the previous company's imports/recon don't
+    // linger if the new fetch returns nothing.
+    setImports([]);
+    setRecon(null);
     try {
       const [impRes, recRes] = await Promise.all([
         invoicingApi.listGstr2bImports(orgSlug),
@@ -75,7 +81,8 @@ export default function GstReconciliation() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, period, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, period, showToast, currentCompany?._id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -137,7 +144,9 @@ export default function GstReconciliation() {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
-  if (indiaBlocked) {
+  // Block on the client-side company-country check too, so the guard doesn't
+  // depend solely on regexing the server's error-message wording.
+  if (indiaBlocked || companyCountry !== 'IN') {
     return (
       <div className="bg-dark-900 min-h-screen p-6">
         <button onClick={() => navigate(orgPath('/invoicing/dashboard'))} className="flex items-center gap-2 text-dark-400 hover:text-white mb-6 text-sm">

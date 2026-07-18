@@ -68,7 +68,10 @@ function StatusChips({ bill }) {
     paid:     { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500', label: 'Paid' },
   };
   const st = paymentStyles[paymentStatus] || paymentStyles.not_paid;
-  const isOverdue = bill?.dueDate && new Date(bill.dueDate) < new Date() && paymentStatus !== 'paid';
+  // End-of-day compare so a bill due TODAY is not flagged overdue.
+  const dueEnd = bill?.dueDate ? new Date(bill.dueDate) : null;
+  if (dueEnd) dueEnd.setHours(23, 59, 59, 999);
+  const isOverdue = dueEnd && dueEnd < new Date() && paymentStatus !== 'paid';
   return (
     <span className="inline-flex items-center gap-1">
       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${st.bg} ${st.text}`}>
@@ -109,6 +112,7 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [activeTab, setActiveTab] = useState(initialTab);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -146,16 +150,21 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
   const [aiStep, setAiStep] = useState('idle'); // idle | extracting | choose | creating
   const [aiPayload, setAiPayload] = useState(null); // { extracted, vendorMatch, file }
 
+  // Debounce search input — one fetch per settled query instead of per
+  // keystroke (mirrors InvoiceList).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Guard against out-of-order responses clobbering a newer fetch's rows.
+  const loadSeqRef = useRef(0);
   const loadBills = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
-    // Reset on company switch so the previous company's bills don't linger
-    // if the new fetch returns nothing.
-    setBills([]);
-    setTotal(0);
-    setTotalPages(1);
-    setStatusCounts({});
-    setPaymentStatusCounts({});
-    setOverdueCount(0);
     try {
       const params = {
         page,
@@ -183,6 +192,9 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       }
 
       const res = await invoicingApi.listBills(orgSlug, params);
+      if (seq !== loadSeqRef.current) return; // stale response
+      // Rows are only swapped once results arrive — no empty-list flash
+      // between keystrokes / filter changes.
       setBills(res.bills || res.data || []);
       setTotalPages(
         res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / pageSize))
@@ -192,9 +204,18 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
       if (res.paymentStatusCounts) setPaymentStatusCounts(res.paymentStatusCounts);
       if (res.overdueCount != null) setOverdueCount(res.overdueCount);
     } catch (err) {
+      if (seq !== loadSeqRef.current) return;
+      // Clear on error so the previous company's bills don't linger after a
+      // company switch whose fetch failed.
+      setBills([]);
+      setTotal(0);
+      setTotalPages(1);
+      setStatusCounts({});
+      setPaymentStatusCounts({});
+      setOverdueCount(0);
       showToast(err.message || 'Failed to load bills', 'error');
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [orgSlug, currentCompany?._id, page, activeTab, search, sortField, sortOrder, isEmployeeMode, submitterEmployeeId, approverEmployeeId, pageSize, fy.dateFrom, fy.dateTo]);
 
@@ -306,7 +327,9 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
         vendorInvoiceNumber: extracted?.invoice?.number || undefined,
         placeOfSupply: extracted?.invoice?.placeOfSupply || undefined,
         gstTreatment: extracted?.invoice?.gstTreatment || undefined,
-        customerGstin: extracted?.vendor?.gstin || undefined,
+        // Extracted GSTIN belongs to the VENDOR (this is a vendor bill) — store
+        // it as vendorGstin for GSTR-2B reconciliation, not customerGstin.
+        vendorGstin: extracted?.vendor?.gstin || undefined,
         tdsRate: Number(extracted?.tds?.rate) > 0 ? Number(extracted.tds.rate) : undefined,
         tdsSection: extracted?.tds?.section || undefined,
         lines,
@@ -428,11 +451,12 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
     return 'outstanding';
   })();
 
-  const hasActiveFilters = Boolean(activeTab || search || fy.preset !== 'all' || submitterEmployeeId || approverEmployeeId);
+  const hasActiveFilters = Boolean(activeTab || search || searchInput || fy.preset !== 'all' || submitterEmployeeId || approverEmployeeId);
 
   function clearAllFilters() {
     setActiveTab('');
     setSearch('');
+    setSearchInput('');
     setSubmitterEmployeeId('');
     setApproverEmployeeId('');
     setFy({ preset: 'all', dateFrom: null, dateTo: null });
@@ -528,12 +552,16 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
               <Sparkles size={14} /> Import from PDF
             </button>
           )}
-          <button
-            onClick={() => navigate(orgPath('/invoicing/bills/new'))}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors"
-          >
-            <Plus size={16} /> Create Bill
-          </button>
+          {/* Employee Bills are created automatically from approved expense
+              claims — no manual "Create Bill" in employee mode. */}
+          {!isEmployeeMode && (
+            <button
+              onClick={() => navigate(orgPath('/invoicing/bills/new'))}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium transition-colors"
+            >
+              <Plus size={16} /> Create Bill
+            </button>
+          )}
         </div>
       </div>
 
@@ -639,8 +667,8 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
             <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
               placeholder={isEmployeeMode ? 'Search by number, employee…' : 'Search by number, vendor, reference…'}
               className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
             />
@@ -704,12 +732,18 @@ export default function VendorBillList({ mode = 'vendor' } = {}) {
           <FileText size={48} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">{search || activeTab ? 'No bills match your filters' : emptyHint}</p>
           {!search && !activeTab && (
-            <button
-              onClick={() => navigate(orgPath('/invoicing/bills/new'))}
-              className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
-            >
-              Create your first bill
-            </button>
+            isEmployeeMode ? (
+              <p className="mt-3 text-xs text-dark-500">
+                Employee bills are created automatically when expense claims are approved.
+              </p>
+            ) : (
+              <button
+                onClick={() => navigate(orgPath('/invoicing/bills/new'))}
+                className="mt-3 text-sm text-rivvra-400 hover:text-rivvra-300 transition-colors"
+              >
+                Create your first bill
+              </button>
+            )
           )}
         </div>
       ) : (

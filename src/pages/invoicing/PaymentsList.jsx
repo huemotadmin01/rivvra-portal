@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
@@ -12,13 +12,19 @@ import {
   Calendar, Filter,
 } from 'lucide-react';
 
+// Keys mirror what RecordPaymentModal actually records (bank_transfer / upi /
+// cheque / cash / manual / other) plus the system-stamped methods (tds,
+// stripe). The old list filtered on 'check'/'credit_card', which no payment
+// ever stores, so those filters silently returned nothing.
 const PAYMENT_METHODS = [
   { key: '', label: 'All Methods' },
   { key: 'bank_transfer', label: 'Bank Transfer' },
-  { key: 'cash', label: 'Cash' },
-  { key: 'check', label: 'Check' },
-  { key: 'credit_card', label: 'Credit Card' },
   { key: 'upi', label: 'UPI' },
+  { key: 'cheque', label: 'Cheque' },
+  { key: 'cash', label: 'Cash' },
+  { key: 'manual', label: 'Manual' },
+  { key: 'tds', label: 'TDS' },
+  { key: 'stripe', label: 'Stripe' },
   { key: 'other', label: 'Other' },
 ];
 
@@ -56,6 +62,7 @@ export default function PaymentsList() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -68,11 +75,21 @@ export default function PaymentsList() {
   const [showFilters, setShowFilters] = useState(false);
   const limit = 20;
 
+  // Debounce search input — one fetch per settled query instead of per
+  // keystroke (mirrors InvoiceList).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Guard against out-of-order responses clobbering a newer fetch's rows.
+  const loadSeqRef = useRef(0);
   const loadPayments = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
-    setPayments([]);
-    setTotal(0);
-    setTotalPages(1);
     try {
       const params = {
         page,
@@ -87,15 +104,23 @@ export default function PaymentsList() {
       if (dateTo) params.dateTo = dateTo;
 
       const res = await invoicingApi.listPayments(orgSlug, params);
+      if (seq !== loadSeqRef.current) return; // stale response
+      // Rows only swap once results arrive — no empty-list flash mid-search.
       setPayments(res.payments || res.data || []);
       setTotalPages(
         res.totalPages || res.pages || Math.max(1, Math.ceil((res.total || 0) / limit))
       );
       setTotal(res.total || 0);
     } catch (err) {
+      if (seq !== loadSeqRef.current) return;
+      // Clear on error so a failed fetch (e.g. mid company-switch) doesn't
+      // leave the previous company's payments on screen.
+      setPayments([]);
+      setTotal(0);
+      setTotalPages(1);
       showToast(err.message || 'Failed to load payments', 'error');
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, page, typeFilter, methodFilter, search, dateFrom, dateTo, sortField, sortOrder, currentCompany?._id]);
@@ -119,13 +144,14 @@ export default function PaymentsList() {
 
   function clearFilters() {
     setSearch('');
+    setSearchInput('');
     setTypeFilter('');
     setMethodFilter('');
     setDateFrom('');
     setDateTo('');
   }
 
-  const hasActiveFilters = search || typeFilter || methodFilter || dateFrom || dateTo;
+  const hasActiveFilters = search || searchInput || typeFilter || methodFilter || dateFrom || dateTo;
 
   function SortHeader({ field, children }) {
     const active = sortField === field;
@@ -155,8 +181,8 @@ export default function PaymentsList() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
           <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
             placeholder="Search payments..."
             className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500"
           />
