@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -728,6 +728,12 @@ function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, render
   const list = Array.isArray(items) ? items : [];
   const visible = list.slice(0, 5);
   const overflow = list.length > 5;
+  // 2026-07-18 audit D10: the server caps each alert list at 25 and does
+  // not return a true total — when we're at the cap, "View all 25" (and
+  // the count badge) undercounts. Render "25+" so the number is honest.
+  const SERVER_CAP = 25;
+  const atCap = list.length >= SERVER_CAP;
+  const countLabel = atCap ? `${SERVER_CAP}+` : String(list.length);
   return (
     <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
       <div className="flex items-start justify-between mb-3 gap-3">
@@ -741,7 +747,7 @@ function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, render
           </div>
         </div>
         <span className={`text-xl font-bold ${list.length > 0 ? 'text-amber-400' : 'text-dark-500'}`}>
-          {list.length}
+          {countLabel}
         </span>
       </div>
       {list.length === 0 ? (
@@ -756,7 +762,7 @@ function AlertCard({ title, icon: Icon, iconColor, thresholdLabel, items, render
               to={viewAllPath}
               className="flex items-center justify-end gap-1 mt-3 text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors"
             >
-              View all {list.length} <ArrowRight size={12} />
+              View all {countLabel} <ArrowRight size={12} />
             </Link>
           )}
         </>
@@ -783,6 +789,13 @@ export default function AtsDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
+  // 2026-07-18 audit D11: fetch-error message for the no-data state's
+  // Retry affordance.
+  const [fetchError, setFetchError] = useState(null);
+  // Which company the on-screen `data` belongs to. If a refetch for a
+  // DIFFERENT company fails, we must clear the stale numbers instead of
+  // silently presenting the previous company's dashboard.
+  const dataCompanyRef = useRef(null);
   // Sticky per-user range. Lazy init reads localStorage; falls back to 30d.
   const [rangeKey, setRangeKey] = useState(() => readStoredRange());
   // Submissions tables grouping: 'team' (default) or 'source'. Shared so
@@ -795,17 +808,32 @@ export default function AtsDashboard() {
     // small spinner only, dashboard stays rendered.
     if (silent || data) setRefreshing(true);
     else setLoading(true);
+    const fetchCompanyId = currentCompany?._id || null;
     try {
       const res = await atsApi.getDashboard(orgSlug, rangeToDates(rangeKey));
       if (res.success) {
         setData(res);
+        setFetchError(null);
+        dataCompanyRef.current = fetchCompanyId;
       } else {
         showToast(res?.error || 'Failed to load reporting data', 'error');
+        // D11: same stale-company guard as the catch below.
+        if (dataCompanyRef.current !== fetchCompanyId) {
+          setData(null);
+          setFetchError(res?.error || 'Failed to load reporting data');
+        }
       }
     } catch (err) {
       // Surface the actual server error so we can diagnose post-deploy
       // instead of staring at a generic "Failed" toast.
       showToast(err?.message || 'Failed to load reporting data', 'error');
+      // D11: if this fetch was for a different company than the data on
+      // screen (i.e. a company-switch refetch failed), clear the previous
+      // company's numbers and fall through to the error/retry state.
+      if (dataCompanyRef.current !== fetchCompanyId) {
+        setData(null);
+        setFetchError(err?.message || 'Failed to load reporting data');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -830,14 +858,31 @@ export default function AtsDashboard() {
     );
   }
 
-  // Empty / no data state
+  // Empty / no data state. D11: when the last fetch FAILED (vs. genuinely
+  // no data), say so and offer Retry instead of a misleading "No data yet".
   if (!data) {
     return (
       <div className="p-4 max-w-6xl mx-auto">
         <div className="flex flex-col items-center justify-center py-20 text-dark-400">
           <FileBarChart size={40} className="mb-3 opacity-40" />
-          <p className="text-sm text-dark-300">No data yet</p>
-          <p className="text-xs text-dark-500 mt-1">Reporting data will appear once there are applications.</p>
+          {fetchError ? (
+            <>
+              <p className="text-sm text-dark-300">Couldn't load reporting data</p>
+              <p className="text-xs text-dark-500 mt-1">{fetchError}</p>
+              <button
+                type="button"
+                onClick={() => fetchDashboard()}
+                className="mt-4 px-4 py-2 rounded-lg bg-rivvra-500/10 text-rivvra-300 ring-1 ring-rivvra-500/30 text-sm font-medium hover:bg-rivvra-500/20 transition-colors"
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-dark-300">No data yet</p>
+              <p className="text-xs text-dark-500 mt-1">Reporting data will appear once there are applications.</p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1117,7 +1162,11 @@ export default function AtsDashboard() {
         />
         <DonutChart
           title="Open Jobs by Client"
-          data={jobsByClient.map((r) => ({ label: r.client, value: r.count }))}
+          // 2026-07-18 audit D9: slice at the call site (same as the
+          // recruiter donut above). DonutChart draws arcs for EVERY row but
+          // its legend caps at 12 — an unsliced jobsByClient produced arcs
+          // with no matching legend entry.
+          data={jobsByClient.slice(0, 12).map((r) => ({ label: r.client, value: r.count }))}
           centerLabel="open jobs"
           onSliceClick={(d) => {
             if (d.label && d.label !== 'Others' && d.label !== 'Internal / No Client') {
@@ -1231,9 +1280,13 @@ export default function AtsDashboard() {
                       {/* 2026-05-17 health-check I.2: format with the
                           company's currency to match AtsJobDetail; raw
                           number had no symbol and made "1.8" ambiguous
-                          (LPA? thousands? actual rupees?). */}
+                          (LPA? thousands? actual rupees?).
+                          2026-07-18 audit D14: never hardcode INR — fall
+                          back company → org currency, else plain number. */}
                       {Number.isFinite(Number(j.clientBudget)) && Number(j.clientBudget) > 0
-                        ? formatCurrency(j.clientBudget, currentCompany?.currency || 'INR')
+                        ? ((currentCompany?.currency || currentOrg?.currency)
+                          ? formatCurrency(j.clientBudget, currentCompany?.currency || currentOrg?.currency)
+                          : Number(j.clientBudget).toLocaleString())
                         : '—'}
                     </td>
                     <td className="px-3 py-2 text-right text-dark-300">{j.expectedHires || 1}</td>
@@ -1270,7 +1323,7 @@ export default function AtsDashboard() {
           thresholdLabel={`> ${alerts.stale?.threshold ?? 14} days in same stage`}
           items={alerts.stale?.items || []}
           emptyMessage="No stale applications."
-          viewAllPath={orgPath(`/ats/applications${scopeQuery ? `?${scopeQuery.slice(1)}` : ''}`)}
+          viewAllPath={orgPath(`/ats/applications?applicationStatus=ongoing${scopeQuery}`)}
           renderItem={(item) => (
             <li key={item.applicationId}>
               <Link
@@ -1295,7 +1348,7 @@ export default function AtsDashboard() {
           thresholdLabel={`> ${alerts.awaiting?.threshold ?? 3} days since interview`}
           items={alerts.awaiting?.items || []}
           emptyMessage="No outstanding results."
-          viewAllPath={orgPath(`/ats/applications${scopeQuery ? `?${scopeQuery.slice(1)}` : ''}`)}
+          viewAllPath={orgPath(`/ats/applications?applicationStatus=ongoing${scopeQuery}`)}
           renderItem={(item) => (
             <li key={item.applicationId}>
               <Link

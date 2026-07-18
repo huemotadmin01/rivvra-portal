@@ -182,10 +182,13 @@ export default function BulkImportModal({
   }, [dataRows, mapping, fields, step]);
 
   // Client-side preview validation (guidance only; server re-validates).
+  // `rows` is the valid/deduped subset — the set actually posted, so the
+  // "Import {valid}" button label always matches what gets sent.
   const preview = useMemo(() => {
     const requiredKeys = fields.filter((f) => f.required).map((f) => f.key);
     const emailKey = fields.find((f) => /email/i.test(f.key))?.key;
-    let valid = 0, invalid = 0, dupes = 0;
+    let invalid = 0, dupes = 0;
+    const rows = [];
     const seen = new Set();
     for (const row of mappedRows) {
       let ok = true;
@@ -197,9 +200,9 @@ export default function BulkImportModal({
         if (seen.has(e)) { dupes++; continue; }
         seen.add(e);
       }
-      valid++;
+      rows.push(row);
     }
-    return { valid, invalid, dupes, total: mappedRows.length };
+    return { valid: rows.length, invalid, dupes, total: mappedRows.length, rows };
   }, [mappedRows, fields]);
 
   const requiredUnmapped = fields.filter((f) => f.required && (mapping[f.key] == null || mapping[f.key] < 0));
@@ -207,7 +210,7 @@ export default function BulkImportModal({
   const handleImport = async () => {
     setImporting(true);
     try {
-      const res = await onImport(mappedRows);
+      const res = await onImport(preview.rows);
       setResult(res);
       setStep('result');
       if (res?.summary?.created > 0) onDone?.();
@@ -352,6 +355,15 @@ export default function BulkImportModal({
           )}
 
           {/* STEP 3 — RESULT */}
+          {step === 'result' && !result?.summary && (
+            // Server responded without a summary (unexpected shape) — say so
+            // instead of rendering an empty body under the footer buttons.
+            <div className="flex flex-col items-center text-center py-6">
+              <AlertTriangle className="w-10 h-10 text-amber-400 mb-2" />
+              <p className="text-white font-semibold">Import finished, but no summary was returned</p>
+              <p className="text-sm text-dark-400 mt-1">Reload the list to check what was imported.</p>
+            </div>
+          )}
           {step === 'result' && result?.summary && (
             <div className="space-y-4">
               <div className="flex flex-col items-center text-center py-2">

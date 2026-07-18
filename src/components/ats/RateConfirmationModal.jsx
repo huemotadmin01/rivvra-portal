@@ -293,7 +293,26 @@ export default function RateConfirmationModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signerSlots, messageDirty]);
 
+  // ── Dismissal gating (2026-07-18) ─────────────────────────────────
+  // The modal must not be dismissable mid-send/mid-remind — closing while
+  // the envelope create was in flight orphaned the recruiter from the
+  // success/failure outcome. Escape closes it when idle. Read busy via a
+  // ref so the keydown listener doesn't re-bind on every state flip.
+  const busyRef = useRef(false);
+  busyRef.current = sending || reminding;
+  useEffect(() => {
+    if (!show) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !busyRef.current) onClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [show, onClose]);
+
   if (!show) return null;
+
+  const busy = sending || reminding;
+  const handleDismiss = () => { if (!busy) onClose?.(); };
 
   // ── Derived UI state ──────────────────────────────────────────────
   const showTemplatePicker = rateTemplates.length > 1;
@@ -430,7 +449,7 @@ export default function RateConfirmationModal({
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={handleDismiss}>
       <div
         className="bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -458,14 +477,19 @@ export default function RateConfirmationModal({
             {canBypass && (
               <button
                 type="button"
-                onClick={() => { onClose?.(); onBypassRequested?.(); }}
-                className="px-2.5 py-1 text-xs font-medium rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition-colors"
+                disabled={busy}
+                onClick={() => { if (busy) return; onClose?.(); onBypassRequested?.(); }}
+                className="px-2.5 py-1 text-xs font-medium rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Lift the signed-RC requirement on this application"
               >
                 Bypass instead
               </button>
             )}
-            <button onClick={onClose} className="text-dark-400 hover:text-white p-1 rounded-md hover:bg-dark-800">
+            <button
+              onClick={handleDismiss}
+              disabled={busy}
+              className="text-dark-400 hover:text-white p-1 rounded-md hover:bg-dark-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               <X size={18} />
             </button>
           </div>

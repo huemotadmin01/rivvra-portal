@@ -18,6 +18,10 @@ import {
   Mail, Phone, Linkedin, ExternalLink, Upload,
 } from 'lucide-react';
 
+// Explicit page size — passed to the API and used for the "Showing x–y"
+// label so the two can never drift (API default is 25).
+const PAGE_SIZE = 25;
+
 const GROUP_BY_OPTIONS = [
   { value: '', label: 'None' },
   { value: 'manager', label: 'Manager' },
@@ -156,8 +160,6 @@ export default function AtsCandidates() {
   const debounceRef = useRef(null);
   const orgSlug = currentOrg?.slug;
   const isAdmin = getAppRole('ats') === 'admin';
-  // 2026-05-18 RBAC two-tier: any ATS user can add candidates.
-  const canRecruit = !!getAppRole('ats');
 
   const setPage = (next) => {
     const np = new URLSearchParams(searchParams);
@@ -186,7 +188,7 @@ export default function AtsCandidates() {
       const searchActive = !!(filterParams.search && filterParams.search.trim());
       const res = await atsApi.listCandidates(orgSlug, {
         page: isGrouped ? 1 : page,
-        ...(isGrouped ? { limit: 5000 } : {}),
+        limit: isGrouped ? 5000 : PAGE_SIZE,
         ...(searchActive ? { withSkills: '1' } : {}),
         ...filterParams,
         _requestKey: 'ats:candidates:list',
@@ -195,6 +197,8 @@ export default function AtsCandidates() {
         setCandidates(res.candidates || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
+      } else {
+        showToast(res.error || 'Failed to load candidates', 'error');
       }
     } catch (err) {
       if (err?.name === 'AbortError') { aborted = true; return; }
@@ -312,7 +316,7 @@ export default function AtsCandidates() {
   // Format date
   const formatDate = (dateStr) => {
     if (!dateStr) return '\u2014';
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    return new Date(dateStr).toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -320,8 +324,8 @@ export default function AtsCandidates() {
   };
 
   // Pagination
-  const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
-  const pageEnd = Math.min(page * 20, total);
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
 
   return (
     <div className="p-6 md:p-8 space-y-6">

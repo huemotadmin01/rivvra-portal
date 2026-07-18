@@ -516,8 +516,8 @@ const atsApi = {
     return api.request(`/api/org/${orgSlug}/ats/candidates${qs ? '?' + qs : ''}`, _requestKey ? { _requestKey } : {});
   },
 
-  getCandidate(orgSlug, id) {
-    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}`);
+  getCandidate(orgSlug, id, { _requestKey } = {}) {
+    return api.request(`/api/org/${orgSlug}/ats/candidates/${id}`, _requestKey ? { _requestKey } : {});
   },
 
   createCandidate(orgSlug, data) {
@@ -559,7 +559,7 @@ const atsApi = {
 
   // ── Activities ────────────────────────────────────────────────────────
   listActivities(orgSlug, applicationId) {
-    return api.request(`/api/org/${orgSlug}/ats/activities?applicationId=${applicationId}`);
+    return api.request(`/api/org/${orgSlug}/ats/activities?applicationId=${encodeURIComponent(applicationId)}`);
   },
 
   createActivity(orgSlug, data) {
@@ -789,9 +789,11 @@ const atsApi = {
       method: 'PUT', body: JSON.stringify(data),
     });
   },
-  previewEmailTemplate(orgSlug, key, sampleData) {
+  // `draft` ({ subject, htmlBody }) is optional — when present the server
+  // merges it over the stored template so unsaved edits preview correctly.
+  previewEmailTemplate(orgSlug, key, sampleData, draft) {
     return api.request(`/api/org/${orgSlug}/ats/config/email-templates/${key}/preview`, {
-      method: 'POST', body: JSON.stringify({ sampleData }),
+      method: 'POST', body: JSON.stringify({ sampleData, ...(draft ? { draft } : {}) }),
     });
   },
   deleteEmailTemplate(orgSlug, key) {

@@ -3,9 +3,7 @@ import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import ConfirmDialog from '../../shared/ConfirmDialog';
 import {
-  Plus, Edit2, X, Loader2, Trash2,
-  Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye,
-  ToggleLeft, ToggleRight, RotateCcw, Save, Search,
+  Plus, Edit2, X, Loader2, Trash2, Award, Search,
 } from 'lucide-react';
 
 export default function SkillsSection({ orgSlug, showToast }) {

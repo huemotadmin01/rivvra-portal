@@ -157,17 +157,12 @@ export default function AtsJobPositions() {
     // that the user is driving the URL and skip default-injection
     // entirely. Within-route entries (sidebar re-click) preserve the
     // user's URL; a fresh /ats/jobs visit still gets all three defaults.
-    const userHasFilters = (
-      searchParams.has('status')
-      || searchParams.has('approvalStatus')
-      || searchParams.has('groupBy')
-      || searchParams.has('search')
-      || searchParams.has('hiringMode')
-      || searchParams.has('requiredExperience')
-      || searchParams.has('recruiter')
-      || searchParams.has('clientName')
-      || searchParams.has('archived')
-    );
+    // 2026-07-18 audit D1: the previous explicit-key list missed
+    // department/sort/dir/page, so a deep link like
+    // `/ats/jobs?department=Engineering&sort=name` still had the three
+    // defaults slammed on top, narrowing the view. ANY present query key
+    // now counts as user intent and skips default-injection entirely.
+    const userHasFilters = [...searchParams.keys()].length > 0;
     if (userHasFilters) return;
     const np = new URLSearchParams(searchParams);
     np.set('status', 'open');

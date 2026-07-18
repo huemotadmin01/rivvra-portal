@@ -23,6 +23,7 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
   const [kinds, setKinds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -72,7 +73,9 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
     const payload = {
       label: form.label.trim(),
       mime: form.mime || null,
-      maxSizeMb: form.maxSizeMb === '' || form.maxSizeMb == null ? null : Number(form.maxSizeMb),
+      // Server/upload pipeline hard-caps at 10 MB — clamp so the stored
+      // limit never promises more than uploads actually accept.
+      maxSizeMb: form.maxSizeMb === '' || form.maxSizeMb == null ? null : Math.min(10, Number(form.maxSizeMb)),
     };
     try {
       setSaving(true);
@@ -94,6 +97,8 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
   };
 
   const toggleArchive = async (kind) => {
+    if (togglingId) return; // one toggle in flight at a time
+    setTogglingId(kind._id);
     try {
       const res = await atsApi.updateAttachmentKind(orgSlug, kind._id, { archived: !kind.archived });
       if (res.success) {
@@ -104,6 +109,8 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
       }
     } catch (err) {
       showToast(err.message || 'Failed', 'error');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -180,10 +187,13 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
                         </button>
                         <button
                           onClick={() => toggleArchive(kind)}
-                          className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700"
+                          disabled={!!togglingId}
+                          className="text-dark-400 hover:text-white transition-colors p-1.5 rounded hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           title={kind.archived ? 'Restore' : 'Archive'}
                         >
-                          {kind.archived ? <RotateCcw size={14} /> : <Archive size={14} />}
+                          {togglingId === kind._id
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : kind.archived ? <RotateCcw size={14} /> : <Archive size={14} />}
                         </button>
                       </div>
                     </td>
@@ -249,13 +259,13 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
                 <input
                   type="number"
                   min="1"
-                  max="25"
+                  max="10"
                   value={form.maxSizeMb}
                   onChange={(e) => setForm({ ...form, maxSizeMb: e.target.value })}
                   placeholder="No limit"
                   className="input-field"
                 />
-                <p className="text-dark-500 text-xs mt-1">Hard cap is 25 MB per file. Leave blank for no kind-specific limit.</p>
+                <p className="text-dark-500 text-xs mt-1">Hard cap is 10 MB per file. Leave blank for no kind-specific limit.</p>
               </div>
 
               <div className="flex items-center gap-3 pt-2">

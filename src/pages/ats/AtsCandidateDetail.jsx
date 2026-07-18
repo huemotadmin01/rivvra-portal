@@ -60,6 +60,7 @@ export default function AtsCandidateDetail() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archivePreview, setArchivePreview] = useState(null);
   const [archiving, setArchiving] = useState(false);
+  const [unarchiving, setUnarchiving] = useState(false);
   const [aiRescoring, setAiRescoring] = useState(false);
 
   const handleAiRescore = useCallback(async () => {
@@ -119,8 +120,12 @@ export default function AtsCandidateDetail() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // _requestKey dedups rapid re-loads (route param churn / company switch)
+    // by aborting the stale in-flight request — mirrors the list pages.
+    // aborted-flag so finally skips setLoading(false) for the cancelled call.
+    let aborted = false;
     try {
-      const res = await atsApi.getCandidate(slug, candidateId);
+      const res = await atsApi.getCandidate(slug, candidateId, { _requestKey: 'ats:candidate:detail' });
       if (!res?.success || !res.candidate) {
         showToast('Candidate not found', 'error');
         navigate(orgPath('/ats/candidates'), { replace: true });
@@ -131,12 +136,13 @@ export default function AtsCandidateDetail() {
       // (Skills are fetched by SkillsPicker itself — a duplicate
       // listCandidateSkills call here fed state nothing rendered.)
     } catch (err) {
+      if (err?.name === 'AbortError') { aborted = true; return; }
       if (handleScoped404(err)) return;
       console.error('Failed to load candidate:', err);
       showToast(err.message || 'Failed to load candidate', 'error');
       navigate(orgPath('/ats/candidates'), { replace: true });
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
   }, [slug, candidateId, navigate, orgPath, showToast, handleScoped404]);
 
@@ -224,12 +230,16 @@ export default function AtsCandidateDetail() {
   };
 
   const handleUnarchive = async () => {
+    if (unarchiving) return; // in-flight guard — double-click fired twice
+    setUnarchiving(true);
     try {
       await atsApi.unarchiveCandidate(slug, candidateId);
       setCandidate((c) => ({ ...c, archived: false }));
       showToast('Unarchived', 'success');
     } catch (err) {
       showToast(err.message || 'Failed to unarchive', 'error');
+    } finally {
+      setUnarchiving(false);
     }
   };
 
@@ -301,28 +311,6 @@ export default function AtsCandidateDetail() {
           </div>
         </div>
 
-        {/* Cross-company: this candidate's applications, skills and edits live
-            in their own company. The counts here read 0 because the page is
-            scoped to the active company — prompt the user to switch. */}
-        {isCrossCompany && (
-          <div className="mb-4 rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/25 px-4 py-3 flex items-start gap-3">
-            <Building2 size={16} className="text-amber-300 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm text-amber-100 font-medium">This candidate belongs to {crossCompanyName}</p>
-              <p className="text-xs text-amber-200/70 mt-0.5">
-                You're viewing them read-only from {companies.find((c) => String(c._id) === String(currentCompanyId))?.name || 'your current company'}.
-                Their applications, skills and full history live in {crossCompanyName} — switch companies to see and edit them.
-              </p>
-            </div>
-            <button
-              onClick={() => switchCompany(String(candidate.companyId))}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/30 hover:bg-amber-500/25 transition-colors"
-            >
-              <Building2 size={13} /> Switch to {crossCompanyName}
-            </button>
-          </div>
-        )}
-
         {/* 2026-05-18 RBAC: Archive available to all recruiters; Unarchive
             stays admin-only. 2026-05-18 PM: action bar hidden entirely for
             non-managers (matches the read-all + manager-write gate). */}
@@ -332,9 +320,10 @@ export default function AtsCandidateDetail() {
               isAdmin && (
                 <button
                   onClick={handleUnarchive}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                  disabled={unarchiving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ArchiveRestore size={14} /> Unarchive
+                  {unarchiving ? <Loader2 size={14} className="animate-spin" /> : <ArchiveRestore size={14} />} Unarchive
                 </button>
               )
             ) : (
@@ -348,6 +337,30 @@ export default function AtsCandidateDetail() {
           </div>
         )}
       </div>
+
+      {/* Cross-company: this candidate's applications, skills and edits live
+          in their own company. The counts here read 0 because the page is
+          scoped to the active company — prompt the user to switch. Rendered
+          full-width below the header (not inside its flex row, where it got
+          squeezed between the title and the action buttons). */}
+      {isCrossCompany && (
+        <div className="rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/25 px-4 py-3 flex flex-col sm:flex-row sm:items-start gap-3">
+          <Building2 size={16} className="text-amber-300 mt-0.5 shrink-0 hidden sm:block" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-amber-100 font-medium">This candidate belongs to {crossCompanyName}</p>
+            <p className="text-xs text-amber-200/70 mt-0.5">
+              You're viewing them read-only from {companies.find((c) => String(c._id) === String(currentCompanyId))?.name || 'your current company'}.
+              Their applications, skills and full history live in {crossCompanyName} — switch companies to see and edit them.
+            </p>
+          </div>
+          <button
+            onClick={() => switchCompany(String(candidate.companyId))}
+            className="shrink-0 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/30 hover:bg-amber-500/25 transition-colors"
+          >
+            <Building2 size={13} /> Switch to {crossCompanyName}
+          </button>
+        </div>
+      )}
 
       {/* Body: main + sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

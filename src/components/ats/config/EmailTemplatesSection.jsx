@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { InlineSkeleton } from '../../Skeletons';
+import { useState, useEffect, useCallback } from 'react';
 import atsApi from '../../../utils/atsApi';
 import {
   X, Loader2, Mail, Eye, Edit2,
@@ -71,35 +70,45 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
         showToast('Email template saved', 'success');
         setEditingKey(null);
         loadData();
+      } else {
+        showToast(res.error || 'Failed to save template', 'error');
       }
     } catch (err) {
-      showToast('Failed to save template', 'error');
+      showToast(err.message || 'Failed to save template', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleRevert = async (key) => {
+    const label = TEMPLATE_LABELS[key] || key;
+    if (!window.confirm(`Revert "${label}" to the system default? Your custom subject and body will be deleted. This cannot be undone.`)) return;
     try {
       const res = await atsApi.deleteEmailTemplate(orgSlug, key);
       if (res.success) {
         showToast('Reverted to system default', 'success');
         loadData();
+      } else {
+        showToast(res.error || 'Failed to revert template', 'error');
       }
-    } catch {
-      showToast('No custom override to revert', 'error');
+    } catch (err) {
+      showToast(err.message || 'Failed to revert template', 'error');
     }
   };
 
-  const handlePreview = async (key) => {
+  // `draft` ({ subject, htmlBody }) — passed when previewing from the edit
+  // modal so unsaved edits render; omitted elsewhere (previews saved version).
+  const handlePreview = async (key, draft) => {
     setPreviewLoading(true);
     try {
-      const res = await atsApi.previewEmailTemplate(orgSlug, key);
+      const res = await atsApi.previewEmailTemplate(orgSlug, key, undefined, draft);
       if (res.success) {
         setPreviewHtml(res.html);
+      } else {
+        showToast(res.error || 'Preview failed', 'error');
       }
-    } catch {
-      showToast('Preview failed', 'error');
+    } catch (err) {
+      showToast(err.message || 'Preview failed', 'error');
     } finally {
       setPreviewLoading(false);
     }
@@ -352,7 +361,7 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
 
             <div className="flex items-center justify-between p-5 border-t border-dark-700">
               <button
-                onClick={() => handlePreview(editingKey)}
+                onClick={() => handlePreview(editingKey, { subject: editForm.subject, htmlBody: editForm.htmlBody })}
                 disabled={previewLoading}
                 className="flex items-center gap-2 px-4 py-2 text-sm bg-dark-700 text-dark-200 rounded-lg hover:bg-dark-600 transition-colors"
               >
@@ -393,6 +402,7 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
             <div className="overflow-y-auto max-h-[80vh]">
               <iframe
                 srcDoc={previewHtml}
+                sandbox=""
                 className="w-full h-[600px] border-0"
                 title="Email Preview"
               />

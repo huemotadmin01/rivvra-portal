@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, CheckCircle2, Clock, XCircle, Briefcase } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, XCircle, Briefcase, AlertTriangle } from 'lucide-react';
 import { useOrg } from '../../context/OrgContext';
+import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import atsApi from '../../utils/atsApi';
@@ -35,6 +36,7 @@ function hoursSince(iso) {
 export default function AtsMyApprovals() {
   usePageTitle('My Approvals');
   const { currentOrg } = useOrg();
+  const { currentCompany } = useCompany();
   const { orgPath } = usePlatform();
   const orgSlug = currentOrg?.slug;
 
@@ -55,6 +57,14 @@ export default function AtsMyApprovals() {
   const [pendingTotal, setPendingTotal] = useState(0);
   const [decidedTotal, setDecidedTotal] = useState(0);
   const [showFull, setShowFull] = useState(false);
+  // 2026-07-18 audit D2: surface fetch failures instead of a false
+  // "Nothing waiting on you" empty state.
+  const [error, setError] = useState(null);
+  // 2026-07-18 audit D15: track background refetches (showFull toggle,
+  // company switch) separately from the first load so the truncation
+  // footer knows when "Show all" finished — beyond 500 rows the button
+  // previously stuck at "Loading…" forever.
+  const [refetching, setRefetching] = useState(false);
 
   // `hasLoaded` is read via ref, NOT a dep — with it in the deps, the first
   // fetch's setHasLoaded(true) recreated this callback and the effect below
@@ -62,7 +72,8 @@ export default function AtsMyApprovals() {
   const hasLoadedRef = useRef(false);
   const fetchLists = useCallback(async () => {
     if (!orgSlug) return;
-    if (!hasLoadedRef.current) setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true); else setRefetching(true);
+    setError(null);
     try {
       const cap = showFull ? 500 : 100;
       const [pRes, aRes, rRes] = await Promise.all([
@@ -79,11 +90,18 @@ export default function AtsMyApprovals() {
       setDecidedTotal((aRes?.total ?? a.length) + (rRes?.total ?? r.length));
     } catch (err) {
       console.error('Failed to load My Approvals:', err);
+      // D2: keep any previously loaded rows off-screen replacement — show
+      // an explicit error + Retry instead of the empty state.
+      setError(err?.message || 'Failed to load approvals');
     } finally {
       setLoading(false);
+      setRefetching(false);
       hasLoadedRef.current = true;
     }
-  }, [orgSlug, showFull]);
+    // D3: currentCompany?._id is a dep so a company switch refetches —
+    // approvals are company-scoped server-side via the session company.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, showFull, currentCompany?._id]);
 
   useEffect(() => { fetchLists(); }, [fetchLists]);
 
@@ -122,6 +140,21 @@ export default function AtsMyApprovals() {
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
+        </div>
+      ) : error ? (
+        /* 2026-07-18 audit D2: fetch failure previously fell through to the
+           "Nothing waiting on you" empty state. Show the error + Retry. */
+        <div className="card p-10 flex flex-col items-center justify-center text-center">
+          <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+          <h3 className="text-base font-semibold text-white mb-1">Couldn't load your approvals</h3>
+          <p className="text-sm text-dark-400 max-w-md mb-4">{error}</p>
+          <button
+            type="button"
+            onClick={() => fetchLists()}
+            className="px-4 py-2 rounded-lg bg-rivvra-500/10 text-rivvra-300 ring-1 ring-rivvra-500/30 text-sm font-medium hover:bg-rivvra-500/20 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       ) : rows.length === 0 ? (
         <div className="card p-10 flex flex-col items-center justify-center text-center">
@@ -182,14 +215,22 @@ export default function AtsMyApprovals() {
             return (
               <div className="flex items-center justify-between px-4 py-2 text-[11px] text-dark-400 border-t border-dark-800 bg-dark-900/40">
                 <span>Showing first {shown} of {total}.</span>
-                <button
-                  type="button"
-                  onClick={() => setShowFull(true)}
-                  disabled={showFull}
-                  className="text-rivvra-400 hover:text-rivvra-300 disabled:opacity-40"
-                >
-                  {showFull ? 'Loading…' : 'Show all'}
-                </button>
+                {/* 2026-07-18 audit D15: once the full-cap fetch has
+                    completed (showFull && !refetching) there is nothing
+                    more to load — beyond 500 rows the button used to
+                    stick at "Loading…" forever. Show a static note. */}
+                {showFull && !refetching ? (
+                  <span className="text-dark-500">Showing the maximum of {shown} rows</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowFull(true)}
+                    disabled={showFull}
+                    className="text-rivvra-400 hover:text-rivvra-300 disabled:opacity-40"
+                  >
+                    {showFull ? 'Loading…' : 'Show all'}
+                  </button>
+                )}
               </div>
             );
           })()}

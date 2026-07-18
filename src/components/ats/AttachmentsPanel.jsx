@@ -34,7 +34,9 @@ function formatSize(bytes) {
 
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Browser locale (undefined) — platform convention; hardcoding 'en-US'
+  // clashed with the viewer-locale dates elsewhere in ATS.
+  return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /**
@@ -73,28 +75,33 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
 
   const handleUpload = async (files) => {
     if (!files || files.length === 0) return;
-    try {
-      setUploading(true);
-      let uploaded = 0;
-      for (const file of Array.from(files)) {
-        if (file.size > 10 * 1024 * 1024) {
-          showToast(`${file.name} exceeds 10 MB limit`, 'error');
-          continue;
-        }
+    setUploading(true);
+    let uploaded = 0;
+    // Per-file try/catch — one failed upload used to abort the whole loop,
+    // silently dropping every remaining file with no per-file feedback.
+    const failures = [];
+    for (const file of Array.from(files)) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast(`${file.name} exceeds 10 MB limit`, 'error');
+        continue;
+      }
+      try {
         await atsApi.uploadAttachment(orgSlug, applicationId, file);
         uploaded += 1;
+      } catch (err) {
+        failures.push(file.name);
       }
-      // Only toast success for files that actually uploaded — when every
-      // file was skipped by the size guard this used to say "File uploaded".
-      if (uploaded > 0) {
-        showToast(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
-        fetchAttachments();
-      }
-    } catch (err) {
-      showToast(err.message || 'Upload failed', 'error');
-    } finally {
-      setUploading(false);
     }
+    if (failures.length > 0) {
+      showToast(`Failed to upload: ${failures.join(', ')}`, 'error');
+    }
+    // Only toast success for files that actually uploaded — when every
+    // file was skipped by the size guard this used to say "File uploaded".
+    if (uploaded > 0) {
+      showToast(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
+      fetchAttachments();
+    }
+    setUploading(false);
   };
 
   const handleToggleResume = async (att) => {
@@ -252,7 +259,9 @@ export default function AttachmentsPanel({ orgSlug, applicationId, readOnly = fa
                     {att.uploaderName && ` · ${att.uploaderName}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                {/* group-focus-within keeps the actions reachable by keyboard —
+                    hover-only opacity hid them from Tab navigation. */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
                   {canPreview && (
                     <button
                       onClick={() => setPreviewDoc(att)}

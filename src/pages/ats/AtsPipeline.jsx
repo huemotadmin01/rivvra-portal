@@ -276,7 +276,7 @@ function KanbanCardOverlay({ application }) {
 // 2026-05-17 health-check E.1: memoized below. Re-renders only when its
 // stage/applications array identity changes — sibling-column drag activity
 // no longer ripples through every column.
-function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoadMore }) {
+function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoadMore, isLoadingMore }) {
   const ids = applications.map((a) => a._id);
   const hasMore = totalCount > applications.length;
   // Register the column itself as a droppable — without this, dropping on
@@ -312,9 +312,12 @@ function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoa
         {hasMore && (
           <button
             onClick={() => onLoadMore?.(stage._id)}
-            className="w-full py-2 text-xs text-dark-400 hover:text-rivvra-400 transition-colors rounded-lg hover:bg-dark-800"
+            disabled={isLoadingMore}
+            className="w-full py-2 text-xs text-dark-400 hover:text-rivvra-400 transition-colors rounded-lg hover:bg-dark-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Load more ({totalCount - applications.length} remaining)
+            {isLoadingMore
+              ? 'Loading…'
+              : `Load more (${totalCount - applications.length} remaining)`}
           </button>
         )}
       </div>
@@ -342,9 +345,14 @@ export default function AtsPipeline() {
   const [openFilter, setOpenFilter] = useState(null);
 
   // Dropdown data
+  // 2026-07-18 audit D8: dead `stages` state removed — the kanban payload
+  // itself carries the resolved (job-aware) columns; nothing consumed it.
   const [jobs, setJobs] = useState([]);
-  const [stages, setStages] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
+  // 2026-07-18 audit D6: per-column in-flight map so a double-click on
+  // "Load more" can't fire two overlapping offset fetches and append
+  // duplicate cards.
+  const [loadingMore, setLoadingMore] = useState({});
 
   const debounceRef = useRef(null);
   // Mirror of `search` readable inside fetchKanban without being a dep —
@@ -399,26 +407,23 @@ export default function AtsPipeline() {
   // ── Fetch dropdown data ────────────────────────────────────────────────
   const fetchDropdowns = useCallback(async () => {
     if (!orgSlug) return;
-    setJobs([]);
-    setStages([]);
-    setRecruiters([]);
+    // 2026-07-18 audit D7: do NOT clear jobs/recruiters here — blanking
+    // them on every refetch (e.g. jobFilter change) made the selected
+    // job/recruiter chip label flicker back to the generic placeholder
+    // until the round-trip finished. Stale options during a refetch are
+    // harmless; success below replaces them.
     try {
-      const [jobsRes, stagesRes, recruitersRes] = await Promise.all([
+      const [jobsRes, recruitersRes] = await Promise.all([
         atsApi.listJobs(orgSlug, { limit: 200 }),
-        // 2026-06-26: when filtered to a single position, fetch that job's
-        // resolved pipeline (incl. its extra interview rounds) so DnD
-        // target columns line up with the job-aware kanban board.
-        atsApi.listStages(orgSlug, jobFilter || undefined),
         atsApi.listRecruiters(orgSlug),
       ]);
       if (jobsRes.success) setJobs(jobsRes.jobs || []);
-      if (stagesRes.success) setStages(stagesRes.stages || []);
       if (recruitersRes.success) setRecruiters(recruitersRes.recruiters || recruitersRes.members || []);
     } catch (err) {
       console.error('Failed to load dropdowns:', err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id, jobFilter]);
+  }, [orgSlug, currentCompany?._id]);
 
   useEffect(() => { fetchKanban(); }, [fetchKanban]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
@@ -546,9 +551,14 @@ export default function AtsPipeline() {
   // Load more for a column
   const handleLoadMore = async (stageId) => {
     if (!orgSlug) return;
+    // D6: ignore clicks while this column's page fetch is in flight —
+    // a double-click used to fire two identical offset requests and
+    // append the same page of cards twice.
+    if (loadingMore[stageId]) return;
     const col = columns.find((c) => (c.stage?._id || c._id) === stageId);
     if (!col) return;
     const currentCount = (col.applications || []).length;
+    setLoadingMore((prev) => ({ ...prev, [stageId]: true }));
 
     try {
       const res = await atsApi.getKanban(orgSlug, {
@@ -577,6 +587,8 @@ export default function AtsPipeline() {
       }
     } catch (err) {
       showToast('Failed to load more applications', 'error');
+    } finally {
+      setLoadingMore((prev) => ({ ...prev, [stageId]: false }));
     }
   };
 
@@ -631,7 +643,11 @@ export default function AtsPipeline() {
       </div>
 
       {/* Kanban board */}
-      {loading ? (
+      {/* 2026-07-18 audit D5: only show the full-page spinner when there is
+          no prior board to keep on screen — refetches (filter change,
+          debounced search) keep the current columns visible instead of
+          blanking to a spinner (mirrors AtsDashboard's `loading && !data`). */}
+      {loading && columns.length === 0 ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
         </div>
@@ -665,6 +681,7 @@ export default function AtsPipeline() {
                   totalCount={col.totalCount || (col.applications || []).length}
                   onCardClick={handleCardClick}
                   onLoadMore={handleLoadMore}
+                  isLoadingMore={!!loadingMore[stageId]}
                 />
               );
             })}

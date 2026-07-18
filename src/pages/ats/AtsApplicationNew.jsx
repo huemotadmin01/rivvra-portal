@@ -8,6 +8,7 @@ import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
 import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
   ChevronLeft, ChevronRight, Loader2, User, Search, Plus, Briefcase,
   Mail, Phone as PhoneIcon, Linkedin, Building2, GitBranch, Users,
@@ -38,6 +39,11 @@ export default function AtsApplicationNew() {
   const { orgPath } = usePlatform();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  // Company-switch graceful 404 (mirrors AtsApplicationDetail): a 404 on
+  // the parent job mid-switch redirects silently; a cross-company deep
+  // link gets the amber toast. /applications/new isn't an id-suffixed
+  // path, so pass the jobs list as the explicit fallback.
+  const handleScoped404 = useCompanyScoped404('job position', orgPath('/ats/jobs'));
 
   const orgSlug = currentOrg?.slug;
 
@@ -181,6 +187,7 @@ export default function AtsApplicationNew() {
         }));
       } catch (err) {
         if (!cancelled) {
+          if (handleScoped404(err)) return;
           showToast(err?.message || 'Failed to load job', 'error');
           navigate(orgPath('/ats/jobs'), { replace: true });
         }
@@ -570,7 +577,14 @@ export default function AtsApplicationNew() {
   // only counts after the recruiter explicitly confirms it (was silently
   // attaching prior-application files before 2026-05-13).
   const hasResume = !!resumeFile || (!!existingResume && resumeConfirmed);
-  const blockedByDuplicate = !!existingAppOnThisJob;
+  // Hard-block only when the prior application is live (ongoing) or already
+  // hired. Refused / archived priors keep the informational banner but leave
+  // Create enabled — re-applying after a refusal is legitimate, and the
+  // server-side 409 remains the backstop for true duplicates.
+  const dupStatus = existingAppOnThisJob?.applicationStatus || 'ongoing';
+  const blockedByDuplicate = !!existingAppOnThisJob
+    && !existingAppOnThisJob.archived
+    && (dupStatus === 'ongoing' || dupStatus === 'hired');
   const canSubmit = !!trimmedName && hasContact && hasRecruiter && hasResume
     && !blockedByDuplicate && !saving && !loadingJob && !!job;
 
@@ -747,7 +761,18 @@ export default function AtsApplicationNew() {
                         setCandQuery(e.target.value);
                         setCandDropdownOpen(true);
                         if (form.candidateId) {
-                          setForm((p) => ({ ...p, candidateId: '' }));
+                          // Blank contact fields that still hold the picked
+                          // candidate's values — user-typed overrides (which
+                          // flip the inherited flag off) are kept. Leaving
+                          // them would let the server's email-dedupe attach
+                          // this application to the wrong candidate.
+                          setForm((p) => ({
+                            ...p,
+                            candidateId: '',
+                            email: inheritedFromPick.email ? '' : p.email,
+                            phone: inheritedFromPick.phone ? '' : p.phone,
+                            linkedinProfile: inheritedFromPick.linkedin ? '' : p.linkedinProfile,
+                          }));
                           setInheritedFromPick({ email: false, phone: false, linkedin: false });
                           setInheritedSkills([]);
                           setExistingResume(null);
@@ -1337,7 +1362,16 @@ export default function AtsApplicationNew() {
             <button
               type="button"
               onClick={() => {
-                setForm((p) => ({ ...p, candidateId: '', candidateName: candQuery.trim() }));
+                // Same inherited-field blanking as the retype path above —
+                // keep only values the user typed themselves.
+                setForm((p) => ({
+                  ...p,
+                  candidateId: '',
+                  candidateName: candQuery.trim(),
+                  email: inheritedFromPick.email ? '' : p.email,
+                  phone: inheritedFromPick.phone ? '' : p.phone,
+                  linkedinProfile: inheritedFromPick.linkedin ? '' : p.linkedinProfile,
+                }));
                 setInheritedFromPick({ email: false, phone: false, linkedin: false });
                 setInheritedSkills([]);
                 setExistingResume(null);

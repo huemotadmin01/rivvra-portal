@@ -96,6 +96,8 @@ export default function RequiredDocumentsSection({ orgSlug, showToast }) {
         showToast('Required document deleted');
         closeModal();
         fetchItems();
+      } else {
+        showToast(res.error || 'Failed to delete', 'error');
       }
     } catch (err) {
       showToast(err.message || 'Failed to delete', 'error');

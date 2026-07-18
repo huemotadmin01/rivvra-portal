@@ -437,7 +437,10 @@ export default function AtsJobDetail() {
   const handleScoped404 = useCompanyScoped404('job position');
   const navigate = useNavigate();
 
-  const companyCurrency = currentCompany?.currency || 'INR';
+  // 2026-07-18 audit D14: never hardcode an INR fallback — a US/CA company
+  // with no currency set was rendering ₹. Fall back company → org currency;
+  // when neither exists fmtBudget degrades to a plain formatted number.
+  const companyCurrency = currentCompany?.currency || currentOrg?.currency || null;
 
   const [job, setJob] = useState(null);
   // Server-computed list of required-field labels still missing on the
@@ -627,6 +630,20 @@ export default function AtsJobDetail() {
     }
   };
 
+  // 2026-07-18 audit D13: explicit clear path. handleClientSelect's blank
+  // guard (needed so closing the picker without choosing doesn't wipe the
+  // field) meant the client could never be REMOVED once set — this handler
+  // is wired to a dedicated clear (X) button next to the client name.
+  const handleClientClear = async () => {
+    setEditingClient(false);
+    try {
+      await atsApi.updateJob(orgSlug, jobId, { clientContactId: null, clientName: '' });
+      setJob((prev) => ({ ...prev, clientContactId: null, clientName: '' }));
+    } catch (err) {
+      showToast(err.message || 'Failed to clear client', 'error');
+    }
+  };
+
   // ── Fetch job ─────────────────────────────────────────────────────────
   const fetchJob = useCallback(async () => {
     if (!orgSlug || !jobId) return;
@@ -696,6 +713,25 @@ export default function AtsJobDetail() {
       .catch(() => {});
   }, [orgSlug]);
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
+
+  // 2026-07-18 audit D4: reset applications pagination when navigating to a
+  // different job — the old page index used to survive the jobId change and
+  // could land past the new job's last page (blank table).
+  useEffect(() => { setAppsPage(1); }, [jobId]);
+
+  // 2026-07-18 audit D12: Escape dismisses the Archive/Delete confirmation
+  // modals (backdrop click added on the overlays below). Blocked while the
+  // action is in flight so a stray keypress can't hide an active operation.
+  useEffect(() => {
+    if (!showArchiveModal && !showDeleteModal) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (!archiving) setShowArchiveModal(false);
+      if (!deleting) setShowDeleteModal(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showArchiveModal, showDeleteModal, archiving, deleting]);
 
   // Resolve current user → employee _id once per org. Same pattern as
   // EmployeeDetail.jsx:367. Used to gate the Approval Decision panel.
@@ -957,7 +993,9 @@ export default function AtsJobDetail() {
   // 2026-05-18: recruiters (not just admins) can create applications.
   // API allows POST /applications for any ATS access role.
   const canCreateApplication = canRecruit && !job.archived && isApproved && (statusKey === 'open' || statusKey === 'on_hold');
-  const fmtBudget = (v) => (v == null || v === '' ? null : formatCurrency(v, companyCurrency));
+  const fmtBudget = (v) => (v == null || v === ''
+    ? null
+    : (companyCurrency ? formatCurrency(v, companyCurrency) : Number(v).toLocaleString()));
   const hiringModeFull = HIRING_MODE_FULL[job.hiringMode] || job.hiringMode;
   // Odoo imports arrive as "7-8" / "5+" without a unit suffix; the
   // dropdown options carry "Years" baked in. Normalize the display so a
@@ -1779,14 +1817,27 @@ export default function AtsJobDetail() {
                       <span className="text-white truncate">{job.clientName}</span>
                     )}
                     {canEdit && job.isClientRole && (
-                      <button
-                        onClick={() => setEditingClient(true)}
-                        className="text-dark-500 hover:text-dark-300 flex-shrink-0"
-                        title="Change client"
-                        aria-label="Change client"
-                      >
-                        <ChevronDown size={14} />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setEditingClient(true)}
+                          className="text-dark-500 hover:text-dark-300 flex-shrink-0"
+                          title="Change client"
+                          aria-label="Change client"
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                        {/* D13: dedicated clear affordance — the picker's
+                            blank-guard makes selection-only clearing
+                            impossible. */}
+                        <button
+                          onClick={handleClientClear}
+                          className="text-dark-500 hover:text-red-300 flex-shrink-0"
+                          title="Clear client"
+                          aria-label="Clear client"
+                        >
+                          <XCircle size={13} />
+                        </button>
+                      </>
                     )}
                   </div>
                 ) : (
@@ -1854,8 +1905,14 @@ export default function AtsJobDetail() {
 
       {/* Archive Confirmation Modal */}
       {showArchiveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => { if (!archiving) setShowArchiveModal(false); }}
+        >
+          <div
+            className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
               <Archive size={16} /> Archive Job Position
             </h2>
@@ -1920,8 +1977,14 @@ export default function AtsJobDetail() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => { if (!deleting) setShowDeleteModal(false); }}
+        >
+          <div
+            className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-sm font-semibold text-dark-100 mb-2">Delete Job Position</h2>
             <p className="text-xs text-dark-400 mb-1">
               Are you sure you want to permanently delete <span className="text-dark-200 font-medium">{job.name}</span>?

@@ -59,19 +59,27 @@ function KanbanDot({ state = 'normal', onClick }) {
 }
 
 /* ── Stage Progression Bar ────────────────────────────────────────────── */
-function StageBar({ stages, currentStageId, onStageClick }) {
+function StageBar({ stages, currentStageId, onStageClick, disabled = false }) {
   const currentIdx = stages.findIndex((s) => s._id === currentStageId);
   return (
     <div className="flex items-center gap-1 overflow-x-auto pb-1">
       {stages.map((stage, idx) => {
+        const isCurrent = idx === currentIdx;
         let cls = 'bg-dark-700 text-dark-400';
         if (idx < currentIdx) cls = 'bg-emerald-500/20 text-emerald-400';
-        if (idx === currentIdx) cls = 'bg-rivvra-500 text-white';
+        if (isCurrent) cls = 'bg-rivvra-500 text-white';
+        // Chips are inert while a move is in flight (disabled) and the
+        // current-stage chip is never clickable — clicking it re-fired a
+        // no-op /stage call and double-clicks queued duplicate moves.
+        const inert = disabled || isCurrent;
         return (
           <button
             key={stage._id}
-            onClick={() => onStageClick?.(stage._id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all hover:opacity-80 ${cls}`}
+            disabled={inert}
+            onClick={() => { if (!inert) onStageClick?.(stage._id); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              disabled ? 'opacity-60 cursor-not-allowed' : isCurrent ? 'cursor-default' : 'hover:opacity-80'
+            } ${cls}`}
           >
             {stage.name}
           </button>
@@ -106,7 +114,7 @@ function StageBar({ stages, currentStageId, onStageClick }) {
  * (Q9.2-C) — many IN contract hires don't have a signed PDF day-1; we
  * surface a soft warning after submit instead of hard-blocking on /hire.
  */
-function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStageName, requireSignedDoc = false, initialOffer = null, application = null, companies = [], orgSlug = null, offerLevel = 'full', onRefresh = null }) {
+function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOffer = null, application = null, companies = [], orgSlug = null, onRefresh = null }) {
   // Phase-1 / Q21+Q22 (2026-05-10): the salary input adapts to the
   // application's employment type. Contract → "Day rate" + per_day unit;
   // Full-Time / Internal Consultant → "Annual CTC (LPA)" + lpa unit.
@@ -116,14 +124,10 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const salaryLabel = empMeta.salaryLabel;
   const salaryInputCfg = SALARY_UNIT_INPUT[salaryUnit] || SALARY_UNIT_INPUT.lpa;
 
-  // Phase-1 / Q23 (2026-05-10): progressive offer gate. Only the salary
-  // block is required at the L1 Interview gate (offerLevel='salary');
-  // joining date / notice / probation become required at Offer Proposal
-  // (offerLevel='full'); signed-doc is required at Offer Signed
-  // (offerLevel='signed') and at the Hire button. The Hire button passes
-  // mode='hire' which always requires the full offer.
-  const fullOfferRequired = mode === 'hire' || offerLevel !== 'salary';
-  const signedDocRequiredEffective = (mode === 'offer' && offerLevel === 'signed') || requireSignedDoc;
+  // 2026-07-18: the progressive offerLevel gate ('salary' / 'signed'
+  // variants) was removed with the dead pendingStageMove path — both
+  // remaining entry points (header Offer button, Hire button) always
+  // capture the full offer, with the signed doc optional (soft warning).
 
   // 2026-05-18: detect applications that arrived at Offer Signed via an
   // external flow (Odoo import, manual stage move with no Rivvra envelope).
@@ -238,11 +242,14 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   };
-  // 2026-05-17 health-check G.2: useMemo. `today` was recomputed every
-  // render and used as a useEffect dep below, causing a fresh state
-  // re-init on every parent re-render. Memo gives stable identity for
-  // the lifetime of the modal mount.
-  const today = useMemo(() => ymdLocal(new Date()), []);
+  // 2026-05-17 health-check G.2: useMemo so `today` isn't recomputed every
+  // render (it's a useEffect dep below — identity churn re-initialised
+  // state on every parent re-render). 2026-07-18: keyed on `show` instead
+  // of memoised once — a page left mounted past midnight otherwise pinned
+  // the joining-date `min` (and the past-date guard) to yesterday. Still
+  // stable for the whole time the modal is open.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const today = useMemo(() => ymdLocal(new Date()), [show]);
   const initJoining = initialOffer?.joiningDate
     ? new Date(initialOffer.joiningDate).toISOString().slice(0, 10)
     : today;
@@ -339,8 +346,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     const terms = [];
     if (rate) terms.push(`Compensation: ${rate}`);
     if (join) terms.push(`Joining date: ${join}`);
-    if (fullOfferRequired && Number.isFinite(np) && np >= 0) terms.push(`Notice period: ${np} days`);
-    if (fullOfferRequired && Number.isFinite(pm) && pm > 0) terms.push(`Probation: ${pm} months`);
+    if (Number.isFinite(np) && np >= 0) terms.push(`Notice period: ${np} days`);
+    if (Number.isFinite(pm) && pm > 0) terms.push(`Probation: ${pm} months`);
     const termsBlock = terms.length ? `\n\n${terms.join('\n')}` : '';
     return (
       `Hi ${fn},\n\n`
@@ -364,7 +371,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
     if (!signSubjectDirty) setSignSubject(defaultSubject());
     if (!signMessageDirty) setSignMessage(defaultMessage());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, candSignName, application?.candidateName, jobTitle, orgCompanyName, amount, currency, salaryUnit, joiningDate, noticePeriodDays, probationMonths, fullOfferRequired]);
+  }, [show, candSignName, application?.candidateName, jobTitle, orgCompanyName, amount, currency, salaryUnit, joiningDate, noticePeriodDays, probationMonths]);
 
   useEffect(() => {
     if (!show) return;
@@ -423,19 +430,11 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   };
 
   const isOfferMode = mode === 'offer';
-  const isSalaryOnlyMode = isOfferMode && offerLevel === 'salary';
-  const headerTitle = isSalaryOnlyMode
-    ? 'Salary Proposed'
-    : (isOfferMode ? 'Offer Details' : 'Confirm Hire');
-  const headerSub = isSalaryOnlyMode
-    ? (targetStageName ? `Capture salary proposed to move to ${targetStageName}` : 'Capture salary proposed')
-    : isOfferMode
-      ? (targetStageName ? `Capture offer details to move to ${targetStageName}` : 'Capture offer details')
-      : 'Capture offer details before marking as hired';
-  // Phase-1 / Q23 (2026-05-10): the L1-gate variant of the modal is a
-  // "Salary Proposed" capture, not a full offer. Title and submit
-  // label adapt accordingly.
-  const submitLabel = isSalaryOnlyMode ? 'Save Salary Proposed' : (isOfferMode ? 'Save Offer Details' : 'Confirm Hire');
+  const headerTitle = isOfferMode ? 'Offer Details' : 'Confirm Hire';
+  const headerSub = isOfferMode
+    ? 'Capture offer details'
+    : 'Capture offer details before marking as hired';
+  const submitLabel = isOfferMode ? 'Save Offer Details' : 'Confirm Hire';
   const submitClass = isOfferMode
     ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30'
     : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
@@ -465,37 +464,25 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
   const handleSubmit = (e) => {
     e.preventDefault();
     const errs = {};
-    // Salary block — required at every level (L1 gate, Offer Proposal, Hire).
+    // Salary block — required at every level (Offer Proposal, Hire).
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) errs.amount = 'Must be > 0';
 
-    // Joining date / notice / probation only required when fullOfferRequired.
-    if (fullOfferRequired) {
-      if (!joiningDate || !/^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) errs.joiningDate = 'Required';
-      const np = Number(noticePeriodDays);
-      if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
-      const pm = Number(probationMonths);
-      if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
-    }
-    if (signedDocRequiredEffective && !signedOfferDocId.trim()) {
-      errs.signedOfferDocId = 'Signed offer document is required for this stage';
-    }
+    if (!joiningDate || !/^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) errs.joiningDate = 'Required';
+    const np = Number(noticePeriodDays);
+    if (!Number.isFinite(np) || np < 0) errs.noticePeriodDays = '0 or more';
+    const pm = Number(probationMonths);
+    if (!Number.isFinite(pm) || pm < 0) errs.probationMonths = '0 or more';
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     onConfirm({
       offer: {
-        // Salary always sent; other fields only when the user filled them
-        // (lets the L1-gate save just-the-salary without overwriting any
-        // joiningDate/notice/probation that may already exist on the
-        // application's offer subdoc — /offer endpoint handles partial).
         offeredCTC: { currency, amount: amt, unit: salaryUnit },
-        ...(fullOfferRequired ? {
-          joiningDate,
-          noticePeriodDays: Number(noticePeriodDays),
-          probationMonths: Number(probationMonths),
-          signedOfferDocId: signedOfferDocId.trim() || null,
-        } : {}),
+        joiningDate,
+        noticePeriodDays: Number(noticePeriodDays),
+        probationMonths: Number(probationMonths),
+        signedOfferDocId: signedOfferDocId.trim() || null,
       },
     });
   };
@@ -526,11 +513,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
         </div>
 
         <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-        {fullOfferRequired && (
-          <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer terms</div>
-        )}
+        <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer terms</div>
         <div className="grid grid-cols-2 gap-4">
-          {fullOfferRequired && (
             <div className="col-span-2">
               <label className="block text-sm font-medium text-dark-300 mb-1">Joining date <span className="text-red-400">*</span></label>
               <input
@@ -542,7 +526,6 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
               />
               {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
             </div>
-          )}
 
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">Currency</label>
@@ -574,7 +557,6 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
             {errors.amount && <p className="text-xs text-red-400 mt-1">{errors.amount}</p>}
           </div>
 
-          {fullOfferRequired && (
             <>
               <div>
                 <label className="block text-sm font-medium text-dark-300 mb-1">Notice period (days) <span className="text-red-400">*</span></label>
@@ -602,17 +584,11 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                 {errors.probationMonths && <p className="text-xs text-red-400 mt-1">{errors.probationMonths}</p>}
               </div>
             </>
-          )}
 
-          {fullOfferRequired && (
           <div className="col-span-2 pt-3 mt-1 border-t border-dark-700/60">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer signature</div>
-              <div className="text-[11px] text-dark-500">
-                {signedDocRequiredEffective
-                  ? <span className="text-red-400">Required</span>
-                  : 'Optional'}
-              </div>
+              <div className="text-[11px] text-dark-500">Optional</div>
             </div>
 
             {alreadyAtOfferSigned && !signedOfferDocId && !application?.offer?.signEnvelopeId ? (
@@ -838,7 +814,6 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                 </div>
 
                 {signError && <p className="text-xs text-red-400">{signError}</p>}
-                {errors.signedOfferDocId && !signError && <p className="text-xs text-red-400">{errors.signedOfferDocId}</p>}
 
                 <button
                   type="button"
@@ -867,18 +842,10 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', targetStag
                 </details>
               </div>
             )}
-            {!signedDocRequiredEffective && !signedOfferDocId && (
+            {!signedOfferDocId && (
               <p className="text-xs text-dark-500 mt-1.5">If blank, the application will show a "signed offer missing" warning until added.</p>
             )}
           </div>
-          )}
-          {isSalaryOnlyMode && (
-            <div className="col-span-2 rounded-md border border-dark-700 bg-dark-900/40 p-2.5">
-              <p className="text-[11px] text-dark-400">
-                Just the salary is needed at this stage. Joining date, notice period and offer signature will be captured later when moving to <span className="text-dark-200">Offer Proposal</span>.
-              </p>
-            </div>
-          )}
         </div>
         </div>
 
@@ -1325,12 +1292,29 @@ function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageNa
   const acceptAttr = missingAttachment.mime === 'image/*' ? 'image/*'
     : missingAttachment.mime === 'application/pdf' ? '.pdf,application/pdf'
     : missingAttachment.mime || undefined;
-  const maxBytes = missingAttachment.maxSizeMb ? missingAttachment.maxSizeMb * 1024 * 1024 : null;
+  // Default to the platform-wide 10 MB ceiling when the kind doesn't set
+  // its own limit — a null maxSizeMb used to disable the guard entirely
+  // and let oversized files bounce off the server's 413 instead.
+  const maxSizeMb = missingAttachment.maxSizeMb || 10;
+  const maxBytes = maxSizeMb * 1024 * 1024;
+  // Friendly type labels — showing the raw MIME string ("application/
+  // vnd.openxmlformats-officedocument…") read like an error to recruiters.
+  const MIME_LABELS = {
+    'image/*': 'Images',
+    'application/pdf': 'PDF',
+    'application/msword': 'DOC',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+  };
+  const typeLabel = missingAttachment.mime
+    ? missingAttachment.mime.split(',')
+      .map((m) => MIME_LABELS[m.trim()] || (m.trim().split('/').pop() || m.trim()).toUpperCase())
+      .join(', ')
+    : 'Any file type';
 
   const handleFile = (f) => {
     if (!f) { setFile(null); return; }
-    if (maxBytes && f.size > maxBytes) {
-      setError(`File is larger than ${missingAttachment.maxSizeMb} MB`);
+    if (f.size > maxBytes) {
+      setError(`File is larger than ${maxSizeMb} MB`);
       setFile(null);
       return;
     }
@@ -1386,8 +1370,7 @@ function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageNa
               <UserPlus size={20} className="mx-auto text-dark-500 mb-1.5" />
               <div className="text-sm text-dark-300">Click or drag a file here</div>
               <div className="text-xs text-dark-500 mt-1">
-                {missingAttachment.mime || 'Any type'}
-                {missingAttachment.maxSizeMb ? ` · max ${missingAttachment.maxSizeMb} MB` : ''}
+                {typeLabel} · max {maxSizeMb} MB
               </div>
             </div>
           )}
@@ -1712,12 +1695,13 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
 }
 
 /* ── Move-to-Stage Dropdown ───────────────────────────────────────────── */
-function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect }) {
+function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect, disabled = false }) {
   return (
     <div className="relative">
       <button
         onClick={onToggle}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600 hover:text-dark-200"
+        disabled={disabled}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all bg-dark-800 border-dark-700 text-dark-300 hover:border-dark-600 hover:text-dark-200 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Move to...
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -1729,8 +1713,9 @@ function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect 
             {stages.filter((s) => s._id !== currentStageId).map((s) => (
               <button
                 key={s._id}
-                onClick={() => onSelect(s._id)}
-                className="w-full text-left px-3 py-2 text-sm text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
+                disabled={disabled}
+                onClick={() => { if (!disabled) onSelect(s._id); }}
+                className="w-full text-left px-3 py-2 text-sm text-dark-300 hover:bg-dark-700 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {s.name}
               </button>
@@ -1804,13 +1789,9 @@ export default function AtsApplicationDetail() {
   // recruiter can view / edit / Revise the offer (including
   // already-signed ones) without having to drag the chip past a gate.
   const [editOfferOnly, setEditOfferOnly] = useState(false);
-  // P0.2 (2026-05-10): when a stage transition into Offer Proposal /
-  // Offer Signed is rejected by the API gate, we open the same HireModal
-  // in 'offer' mode so the recruiter can capture the data and we then
-  // re-fire the original transition. `pendingStageMove` carries the
-  // target stage so the success handler knows what to retry.
-  //   { stageId, stageName, requireSignedDoc } | null
-  const [pendingStageMove, setPendingStageMove] = useState(null);
+  // (pendingStageMove removed 2026-07-18 — since the 2026-05-13 change
+  // that stopped auto-opening the HireModal on requiresOffer, it was
+  // never set to a non-null value; the branch was dead code.)
   // Phase-1 / Q13 (2026-05-10): backward stage moves require a reason.
   // When the API rejects with requiresBackwardReason, we open the
   // BackwardMoveReasonModal and remember the target stage so the
@@ -2325,6 +2306,12 @@ export default function AtsApplicationDetail() {
   const [previewDoc, setPreviewDoc] = useState(null);
   const handleUploadDocument = async (name, file) => {
     if (!file) return;
+    // FE mirror of the server's 10 MB multer cap — fail fast with a
+    // friendly message instead of a 413 after the full upload attempt.
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(`${file.name} exceeds the 10 MB upload limit`, 'error');
+      return;
+    }
     try {
       setUploadingDoc(name);
       const up = await atsApi.uploadAttachment(orgSlug, applicationId, file);
@@ -2413,37 +2400,23 @@ export default function AtsApplicationDetail() {
   };
 
   // P0.1+P0.2 (2026-05-10): single submit handler for the HireModal,
-  // which now operates in two modes. When pendingStageMove is set, the
-  // modal is being shown to satisfy a stage gate (Offer Proposal /
-  // Offer Signed) — save via /offer then re-fire the original stage
-  // transition. Otherwise it's the Hire flow — call /hire as before.
+  // which operates in two modes. editOfferOnly (the header "Offer"
+  // button) saves via /offer and closes. Otherwise it's the Hire flow
+  // — call /hire as before.
   const handleHire = async (payload) => {
-    const isOfferOnly = !!pendingStageMove || editOfferOnly;
+    const isOfferOnly = editOfferOnly;
     try {
       setActionSaving(true);
       if (isOfferOnly) {
         const res = await atsApi.updateOffer(orgSlug, applicationId, payload);
         const warns = Array.isArray(res?.warnings) ? res.warnings : [];
-        if (warns.includes('signed_offer_missing') && !pendingStageMove?.requireSignedDoc) {
+        if (warns.includes('signed_offer_missing')) {
           showToast('Offer details saved — signed offer still missing.', 'warning');
         } else {
           showToast('Offer details saved');
         }
-        // Retry the original stage transition only when this save was
-        // triggered by a stage gate. The standalone "Offer" entry
-        // point (editOfferOnly) just saves and closes.
-        const targetId = pendingStageMove?.stageId || null;
-        setPendingStageMove(null);
         setEditOfferOnly(false);
         setShowHireModal(false);
-        if (targetId) {
-          // 2026-05-12: route the retry through handleMoveStage so a
-          // subsequent gate failure opens the next modal automatically
-          // instead of dead-ending in a toast. Was: atsApi.moveStage
-          // direct → 400 with requiresInterview just rendered as a
-          // generic toast, recruiter had to click Move again.
-          await handleMoveStage(targetId);
-        }
         // Q24+race-fix (2026-05-10): await the refetch so React state is
         // current before the user's next click. Without this, clicking
         // a subsequent stage chip immediately would open the next gate
@@ -2881,6 +2854,7 @@ export default function AtsApplicationDetail() {
                   isOpen={showMoveDropdown}
                   onToggle={() => setShowMoveDropdown((p) => !p)}
                   onSelect={handleMoveStage}
+                  disabled={actionSaving}
                 />
                 {/* 2026-05-19: Send Rate Confirmation — required on every
                     employment type now that forward stage moves are gated on
@@ -3161,6 +3135,7 @@ export default function AtsApplicationDetail() {
           stages={stages}
           currentStageId={currentStageId}
           onStageClick={canEdit ? handleMoveStage : undefined}
+          disabled={actionSaving}
         />
       )}
 
@@ -3764,13 +3739,10 @@ export default function AtsApplicationDetail() {
       />
       <HireModal
         show={showHireModal}
-        onClose={() => { setShowHireModal(false); setPendingStageMove(null); setEditOfferOnly(false); }}
+        onClose={() => { setShowHireModal(false); setEditOfferOnly(false); }}
         onConfirm={handleHire}
         saving={actionSaving}
-        mode={(pendingStageMove || editOfferOnly) ? 'offer' : 'hire'}
-        targetStageName={pendingStageMove?.stageName}
-        requireSignedDoc={pendingStageMove?.requireSignedDoc === true}
-        offerLevel={pendingStageMove?.offerLevel || 'full'}
+        mode={editOfferOnly ? 'offer' : 'hire'}
         initialOffer={application?.offer || null}
         application={application}
         companies={companies}
@@ -3808,7 +3780,7 @@ export default function AtsApplicationDetail() {
         onConfirm={handleResumeUpload}
         saving={actionSaving}
         targetStageName={pendingResumeMove?.targetStageName}
-        missingAttachment={{ slug: 'resume', label: 'Resume', mime: 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document', maxSizeMb: null }}
+        missingAttachment={{ slug: 'resume', label: 'Resume', mime: 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document', maxSizeMb: 10 }}
       />
       <InterviewScheduleModal
         show={!!pendingInterviewMove}

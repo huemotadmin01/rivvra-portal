@@ -132,7 +132,8 @@ function formatDateTimeShort(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  // Browser locale (undefined) — platform convention, no hardcoded locale.
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 function legacyToRec(legacy) {
   if (!legacy || typeof legacy !== 'string') return null;
@@ -278,6 +279,10 @@ export default function AtsApplications() {
   const [counts, setCounts] = useState({ ongoing: null, hired: null, refused: null, archived: null });
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  // 2026-07-18: non-abort fetch failure. Drives an inline error state with
+  // a Retry button — before this, a failed first load rendered the "No
+  // applications found" empty state with no way back besides a reload.
+  const [fetchError, setFetchError] = useState(null);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
 
   // Dropdown data
@@ -420,12 +425,14 @@ export default function AtsApplications() {
         setApplications(res.applications || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
+        setFetchError(null);
       }
     } catch (err) {
       // AbortError fires when the api util cancels this fetch in favour
       // of a newer one — don't toast or clear state on it.
       if (err?.name === 'AbortError') { aborted = true; return; }
       console.error('Failed to load applications:', err);
+      setFetchError(err?.message || 'Failed to load applications');
       showToast('Failed to load applications', 'error');
     } finally {
       if (!aborted) setLoading(false);
@@ -709,7 +716,7 @@ export default function AtsApplications() {
   // Format date
   const formatDate = (dateStr) => {
     if (!dateStr) return '\u2014';
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    return new Date(dateStr).toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -792,6 +799,23 @@ export default function AtsApplications() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-dark-400" />
+        </div>
+      ) : fetchError && applications.length === 0 ? (
+        // Fetch failed with nothing to show — offer a one-click Retry
+        // instead of the misleading "No applications found" empty state.
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-dark-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">Couldn't load applications</h3>
+          <p className="text-dark-400 text-sm text-center max-w-sm mb-4">{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => fetchApplications()}
+            className="text-xs text-rivvra-400 hover:text-rivvra-300 underline underline-offset-2"
+          >
+            Retry
+          </button>
         </div>
       ) : applications.length === 0 ? (
         // 2026-05-17 health-check H.2: when filters are active and the

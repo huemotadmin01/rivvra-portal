@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import {
   Plus, Edit2, X, Loader2, Trash2,
-  Layers, GripVertical, Check, Zap, Award, BarChart3, Mail, Eye, Paperclip,
-  ToggleLeft, ToggleRight, RotateCcw, Save,
+  Layers, GripVertical, Check, Paperclip,
 } from 'lucide-react';
 
 const EMPTY_FORM = { name: '', sequence: 0, foldInKanban: false, isHiredStage: false, requiredAttachments: [] };
@@ -20,6 +18,11 @@ export default function StagesSection({ orgSlug, showToast }) {
   const [showModal, setShowModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  // Drag-reorder state (rows are draggable via the grip column).
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [reordering, setReordering] = useState(false);
 
   // Label lookup so the table + modal can render kind names from the ids
   // stored on stage.requiredAttachments[]. Archived kinds still resolve here
@@ -141,11 +144,50 @@ export default function StagesSection({ orgSlug, showToast }) {
         showToast('Stage deleted');
         closeModal();
         fetchStages();
+      } else {
+        showToast(res.error || 'Failed to delete stage', 'error');
       }
     } catch (err) {
       showToast(err.message || 'Failed to delete stage', 'error');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // ── Drag-reorder ─────────────────────────────────────────────────────
+  // Optimistic: re-sequence locally (1..n), PUT /stages/reorder, roll back
+  // the previous order if the server rejects it.
+  const handleDrop = async (targetIndex) => {
+    const fromIndex = dragIndex;
+    setDragIndex(null);
+    setDragOverIndex(null);
+    if (fromIndex == null || fromIndex === targetIndex || reordering) return;
+    const prev = stages;
+    const next = [...stages];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    const resequenced = next.map((s, i) => ({ ...s, sequence: i + 1 }));
+    setStages(resequenced);
+    setReordering(true);
+    try {
+      const res = await atsApi.reorderStages(
+        orgSlug,
+        resequenced.map((s) => ({ _id: s._id, sequence: s.sequence })),
+      );
+      if (res.success) {
+        if (Array.isArray(res.stages)) {
+          setStages([...res.stages].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)));
+        }
+        showToast('Stages reordered');
+      } else {
+        setStages(prev);
+        showToast(res.error || 'Failed to reorder stages', 'error');
+      }
+    } catch (err) {
+      setStages(prev);
+      showToast(err.message || 'Failed to reorder stages', 'error');
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -199,11 +241,24 @@ export default function StagesSection({ orgSlug, showToast }) {
                 </tr>
               </thead>
               <tbody>
-                {stages.map((stage) => (
-                  <tr key={stage._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
+                {stages.map((stage, index) => (
+                  <tr
+                    key={stage._id}
+                    draggable={!reordering}
+                    onDragStart={() => setDragIndex(index)}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index); }}
+                    onDragLeave={() => setDragOverIndex((cur) => (cur === index ? null : cur))}
+                    onDrop={(e) => { e.preventDefault(); handleDrop(index); }}
+                    onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                    className={`border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors ${
+                      dragOverIndex === index && dragIndex !== null && dragIndex !== index ? 'bg-rivvra-500/5' : ''
+                    } ${dragIndex === index ? 'opacity-50' : ''}`}
+                  >
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <GripVertical size={14} className="text-dark-600" />
+                      <div className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing" title="Drag to reorder">
+                        {reordering && dragIndex === null
+                          ? <Loader2 size={14} className="animate-spin text-dark-600" />
+                          : <GripVertical size={14} className="text-dark-600" />}
                         <span className="text-dark-400 text-xs font-mono">{stage.sequence ?? 0}</span>
                       </div>
                     </td>
@@ -294,6 +349,11 @@ export default function StagesSection({ orgSlug, showToast }) {
                   placeholder="e.g. Screening, Interview, Offer"
                   className="input-field"
                 />
+                {editingStage && (
+                  <p className="text-dark-500 text-xs mt-1">
+                    Renaming updates existing applications' stage labels.
+                  </p>
+                )}
               </div>
 
               {/* Sequence */}

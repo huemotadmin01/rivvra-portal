@@ -18,6 +18,7 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
   const [skillLevels, setSkillLevels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
 
   // Add-skill form state
   const [showAdd, setShowAdd] = useState(false);
@@ -147,12 +148,16 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
   })();
 
   const handleRemove = async (assignmentId) => {
+    if (removingId) return; // one removal in flight at a time
+    setRemovingId(assignmentId);
     try {
       await atsApi.removeCandidateSkill(orgSlug, candidateId, assignmentId);
       showToast('Skill removed');
       fetchSkills();
     } catch (err) {
       showToast(err.message || 'Failed to remove skill', 'error');
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -309,10 +314,11 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
                     {!readOnly && (
                       <button
                         onClick={() => handleRemove(s._id)}
-                        className="text-dark-500 hover:text-red-400 transition-colors ml-0.5 opacity-0 group-hover:opacity-100"
+                        disabled={!!removingId}
+                        className="text-dark-500 hover:text-red-400 transition-colors ml-0.5 opacity-0 group-hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Remove skill"
                       >
-                        <X size={10} />
+                        {removingId === s._id ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />}
                       </button>
                     )}
                   </span>
