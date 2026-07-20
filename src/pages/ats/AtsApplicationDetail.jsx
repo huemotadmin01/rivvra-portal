@@ -929,7 +929,17 @@ function FieldLabel({ children, required, hint }) {
 
 function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, companies, orgSlug }) {
   const personalEmail = application?.email || '';
-  const defaultCompanyId = companies && companies[0] ? String(companies[0]._id) : '';
+  // The employee must be filed under the SAME internal company as the
+  // application, otherwise the "Employee" button (which fetches under the
+  // active-company header = the application's company) 404s and the detail
+  // page shows "belongs to a different company". Default to the application's
+  // company; only fall back to the first company when the app has none or its
+  // company isn't in the current list. HR can still override via the dropdown.
+  const appCompanyId = application?.companyId ? String(application.companyId) : '';
+  const defaultCompanyId =
+    (appCompanyId && Array.isArray(companies) && companies.some((c) => String(c._id) === appCompanyId))
+      ? appCompanyId
+      : (companies && companies[0] ? String(companies[0]._id) : '');
   // Strip a trailing requisition suffix like " - 1R" / " - CM" from the
   // job position name so the default Designation reads cleanly. HR can
   // still edit if our heuristic is wrong (B4 mitigation).
