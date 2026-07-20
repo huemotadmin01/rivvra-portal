@@ -609,6 +609,10 @@ export const APP_REGISTRY = {
     color: 'sky',
     basePath: '/knowledge-base',
     status: 'active',
+    // Not adminOnly (members can be granted it), but NOT visible to everyone by
+    // default either — the launcher/sidebar show it only to org admins/owners or
+    // members explicitly granted the app (appAccess.knowledgeBase.enabled).
+    requiresAccess: true,
     defaultRoute: '/knowledge-base',
     derivedRoles: true,
     getSidebarItems: () => [
@@ -681,10 +685,14 @@ export function getActiveApps(user, orgMembership) {
   // When no user given, return all active apps
   if (!user) return Object.values(APP_REGISTRY).filter(app => app.status === 'active');
   const orgRole = orgMembership?.orgRole;
-  // adminOnly apps visible if: org admin/owner OR user has explicit app access
+  // adminOnly / requiresAccess apps are visible only to org admins/owners OR a
+  // member with explicit app access. All other active apps are visible to all.
   return Object.values(APP_REGISTRY).filter(app =>
-    app.status === 'active' && (!app.adminOnly || orgRole === 'admin' || orgRole === 'owner'
-    || orgMembership?.appAccess?.[app.id]?.enabled)
+    app.status === 'active' && (
+      (!app.adminOnly && !app.requiresAccess)
+      || orgRole === 'admin' || orgRole === 'owner'
+      || orgMembership?.appAccess?.[app.id]?.enabled
+    )
   );
 }
 
