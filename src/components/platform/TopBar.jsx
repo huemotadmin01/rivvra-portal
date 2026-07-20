@@ -7,6 +7,7 @@ import { useOrg } from '../../context/OrgContext';
 import { usePolicyAck } from '../../context/PolicyAckContext';
 import { LayoutGrid, LogOut, Settings, Building2, UserCircle, Menu, X, ChevronDown, Check, Clock, Calendar, AlertTriangle, CreditCard, ShieldCheck, FolderDown } from 'lucide-react';
 import RivvraLogo from '../RivvraLogo';
+import KbHelpButton from '../KbHelpButton';
 import PeriodPicker from './PeriodPicker';
 import NotificationBell from './NotificationBell';
 import { API_BASE_URL } from '../../utils/config';
@@ -55,9 +56,14 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const { user, logout, isImpersonating } = useAuth();
   const { currentApp, orgPath } = usePlatform();
   const { companies, currentCompany, switchCompany, hasMultipleCompanies, switching } = useCompany();
-  const { currentOrg, isOrgAdmin } = useOrg();
+  const { currentOrg, isOrgAdmin, getAppRole } = useOrg();
   const { pendingCount: policyPending } = usePolicyAck();
   const orgPlan = currentOrg?.plan || 'free';
+  // Contextual help (?) is shown only to users who can actually open the KB
+  // (grant-gated), so it never dead-ends on an "access required" screen. Hidden
+  // for the KB app itself and Settings.
+  const canSeeKb = isOrgAdmin || !!getAppRole('knowledgeBase');
+  const showHelp = canSeeKb && currentApp && !['knowledgeBase', 'settings'].includes(currentApp.id);
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
@@ -222,6 +228,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
         <div className="flex items-center gap-1">
           {/* Period picker (ESS / Payroll) */}
           <PeriodPicker />
+
+          {/* Contextual help — jumps to the current app's Knowledge Base section */}
+          {showHelp && <KbHelpButton appId={currentApp.id} />}
 
           {/* Notification bell (platform-wide) */}
           <NotificationBell />
