@@ -491,11 +491,12 @@ function App() {
               <Route path="/org/:slug/timesheet/pay-config" element={<Navigate to="../../payroll/pay-overview" replace />} />
 
 
-              {/* Knowledge Base — admin-only reader for platform guides.
-                  Uses AppRoleGate so org owners/admins automatically have
-                  access without needing an explicit appAccess membership
-                  entry (matches the pattern payroll uses). */}
-              <Route element={<AppRoleGate appId="knowledgeBase" requiredRole="admin" />}>
+              {/* Knowledge Base — readable by any member with the app enabled
+                  (requiredRole="member"); org owners/admins pass automatically
+                  via AppRoleGate's isOrgAdmin bypass. Article visibility is
+                  further filtered per-app server-side, and authoring stays
+                  admin-gated within the page. */}
+              <Route element={<AppRoleGate appId="knowledgeBase" requiredRole="member" />}>
                 <Route path="/org/:slug/knowledge-base" element={<ErrorBoundary><KnowledgeBasePage /></ErrorBoundary>} />
                 <Route path="/org/:slug/knowledge-base/:articleSlug" element={<ErrorBoundary><KnowledgeBasePage /></ErrorBoundary>} />
               </Route>

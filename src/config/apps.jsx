@@ -604,12 +604,11 @@ export const APP_REGISTRY = {
   knowledgeBase: {
     id: 'knowledgeBase',
     name: 'Knowledge Base',
-    description: 'Admin guides & workflow walkthroughs',
+    description: 'How-to guides & workflow walkthroughs',
     icon: BookOpen,
     color: 'sky',
     basePath: '/knowledge-base',
     status: 'active',
-    adminOnly: true,
     defaultRoute: '/knowledge-base',
     derivedRoles: true,
     getSidebarItems: () => [
