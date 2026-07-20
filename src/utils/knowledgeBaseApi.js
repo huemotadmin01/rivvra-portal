@@ -54,6 +54,26 @@ const knowledgeBaseApi = {
   remove(orgSlug, id) {
     return api.request(`${base(orgSlug)}/articles/${id}`, { method: 'DELETE' });
   },
+
+  // ── Super-admin: platform-doc review + draft-approval queue ───────────
+  adminReview() {
+    return api.request('/api/superadmin/kb/review');
+  },
+
+  adminDrafts() {
+    return api.request('/api/superadmin/kb/drafts');
+  },
+
+  adminApproveDraft(id) {
+    return api.request(`/api/superadmin/kb/drafts/${id}/approve`, { method: 'POST' });
+  },
+
+  adminRejectDraft(id, note) {
+    return api.request(`/api/superadmin/kb/drafts/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || '' }),
+    });
+  },
 };
 
 export default knowledgeBaseApi;
