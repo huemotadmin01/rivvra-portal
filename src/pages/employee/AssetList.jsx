@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useOrg } from '../../context/OrgContext';
@@ -66,15 +66,25 @@ export default function AssetList() {
     loadAll();
   }, [orgSlug]);
 
-  // Load employees when add modal opens
+  // Employee search for the "Assign To" picker — server-side + debounced.
+  // A flat limit:100 fetch silently truncated large companies (e.g. Huemot
+  // Pvt Ltd has 140+ employees): anyone past the first 100 alphabetically was
+  // invisible here and couldn't be assigned an asset. Delegate the filtering
+  // to the backend's `search` param instead so any employee is reachable.
+  const empSearchTimer = useRef(null);
   useEffect(() => {
-    if (showAdd && employees.length === 0) {
-      employeeApi.list(orgSlug, { limit: 100 }).then(res => {
-        const list = (res.employees || res.data || []).filter(e => e.status !== 'separated');
-        setEmployees(list.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
-      }).catch(() => {});
-    }
-  }, [showAdd]);
+    if (!showAdd) return;
+    if (empSearchTimer.current) clearTimeout(empSearchTimer.current);
+    empSearchTimer.current = setTimeout(() => {
+      employeeApi.list(orgSlug, { search: empSearch.trim() || undefined, limit: 50 })
+        .then(res => {
+          const list = (res.employees || res.data || []).filter(e => e.status !== 'separated');
+          setEmployees(list.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '')));
+        })
+        .catch(() => {});
+    }, 250);
+    return () => { if (empSearchTimer.current) clearTimeout(empSearchTimer.current); };
+  }, [showAdd, empSearch, orgSlug]);
 
   async function loadAll() {
     setLoading(true);
@@ -112,7 +122,7 @@ export default function AssetList() {
     if (!addForm.assetTypeId || !addForm.name.trim()) return;
     setSaving(true);
     try {
-      const { assignTo, ...createData } = addForm;
+      const { assignTo, assignToName, ...createData } = addForm;
       const created = await assetApi.create(orgSlug, createData);
       // If employee selected, assign immediately
       if (assignTo && created?.data?._id) {
@@ -297,9 +307,9 @@ export default function AssetList() {
                   <div className="flex items-center justify-between px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg">
                     <div className="flex items-center gap-2">
                       <User size={14} className="text-rivvra-400" />
-                      <span className="text-sm text-white">{employees.find(e => e._id === addForm.assignTo)?.fullName || 'Selected'}</span>
+                      <span className="text-sm text-white">{addForm.assignToName || employees.find(e => e._id === addForm.assignTo)?.fullName || 'Selected'}</span>
                     </div>
-                    <button onClick={() => { setAddForm(f => ({ ...f, assignTo: '' })); setEmpSearch(''); }}
+                    <button onClick={() => { setAddForm(f => ({ ...f, assignTo: '', assignToName: '' })); setEmpSearch(''); }}
                       className="text-dark-400 hover:text-white"><X size={14} /></button>
                   </div>
                 ) : (
@@ -314,25 +324,16 @@ export default function AssetList() {
                     {showEmpDropdown && (
                       <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-dark-900 border border-dark-700 rounded-lg shadow-xl">
                         {employees
-                          .filter(e => {
-                            if (!empSearch.trim()) return true;
-                            const q = empSearch.toLowerCase();
-                            return (e.fullName || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
-                          })
                           .slice(0, 20)
                           .map(e => (
                             <button key={e._id} type="button"
-                              onClick={() => { setAddForm(f => ({ ...f, assignTo: e._id })); setEmpSearch(''); setShowEmpDropdown(false); }}
+                              onClick={() => { setAddForm(f => ({ ...f, assignTo: e._id, assignToName: e.fullName || e.name })); setEmpSearch(''); setShowEmpDropdown(false); }}
                               className="w-full text-left px-3 py-2 hover:bg-dark-750 transition-colors">
                               <p className="text-sm text-white">{e.fullName || e.name}</p>
                               <p className="text-[10px] text-dark-500">{e.email}</p>
                             </button>
                           ))}
-                        {employees.filter(e => {
-                          if (!empSearch.trim()) return true;
-                          const q = empSearch.toLowerCase();
-                          return (e.fullName || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
-                        }).length === 0 && (
+                        {employees.length === 0 && (
                           <p className="px-3 py-2 text-xs text-dark-500">No employees found</p>
                         )}
                       </div>
