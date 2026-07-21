@@ -43,6 +43,7 @@ export default function KbArticleEditor({ orgSlug, existing, onSaved, onDeleted,
   const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState(null);
 
   const payload = () => ({
@@ -72,8 +73,10 @@ export default function KbArticleEditor({ orgSlug, existing, onSaved, onDeleted,
     }
   };
 
-  const remove = async () => {
-    if (!isEdit || !window.confirm('Delete this article? This cannot be undone.')) return;
+  const remove = () => { if (isEdit) setConfirmOpen(true); };
+
+  const doDelete = async () => {
+    setConfirmOpen(false);
     setDeleting(true);
     setError(null);
     try {
@@ -169,6 +172,26 @@ export default function KbArticleEditor({ orgSlug, existing, onSaved, onDeleted,
           </button>
         )}
       </div>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmOpen(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-dark-900 border border-dark-700 p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                <Trash2 size={16} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-dark-100">Delete this article?</h3>
+                <p className="text-xs text-dark-400 mt-0.5">“{title || 'Untitled'}” will be permanently removed. This can’t be undone.</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setConfirmOpen(false)} className="px-3 py-1.5 rounded-lg text-sm text-dark-300 border border-dark-800 hover:border-dark-600">Cancel</button>
+              <button type="button" onClick={doDelete} className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-red-500 text-white hover:bg-red-400">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

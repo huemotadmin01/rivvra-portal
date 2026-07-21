@@ -106,7 +106,9 @@ export default function KnowledgeBasePage() {
 
   const loadList = useCallback(() => {
     setListLoading(true);
-    return knowledgeBaseApi.listArticles(orgSlug)
+    // includeDrafts is server-gated to authors, so it's safe to always request —
+    // members still get published-only; authors also see their own drafts.
+    return knowledgeBaseApi.listArticles(orgSlug, { includeDrafts: true })
       .then((res) => { setList(res.articles || []); setCanAuthor(!!res.canAuthor); setListError(null); })
       .catch(() => setListError('Failed to load the knowledge base.'))
       .finally(() => setListLoading(false));
@@ -260,6 +262,7 @@ export default function KnowledgeBasePage() {
                           >
                             <FileText size={14} className={`mt-0.5 shrink-0 ${active ? 'text-sky-400' : 'text-dark-500'}`} />
                             <span className="text-sm leading-tight flex-1">{a.title}</span>
+                            {a.status === 'draft' && <span className="mt-0.5 shrink-0 px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[9px] font-semibold uppercase tracking-wide">Draft</span>}
                             {a.scope === 'org' && <Building2 size={11} className="mt-1 shrink-0 text-emerald-500/70" title="Your organization’s article" />}
                           </button>
                         );
