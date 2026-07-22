@@ -37,6 +37,18 @@ import {
 import { formatDateUTC } from '../../utils/dateUtils';
 import { getEmploymentTypeMeta, SALARY_UNIT_INPUT } from '../../utils/atsEmploymentTypes';
 
+// Real EVENT timestamps (sent-at, signed-at, received-at) are true moments in
+// time — render them in the viewer's local timezone. formatDateUTC is only for
+// date-only fields (joiningDate, appliedOn, hireDate) where UTC-normalizing
+// avoids an off-by-one day; using it on an event stamp shows the prior day for
+// IST viewers late at night. Viewer-locale (undefined) keeps ATS date style.
+function formatEventDateTime(d) {
+  if (!d) return '';
+  try {
+    return new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch { return String(d); }
+}
+
 /* ── Kanban State Dot ─────────────────────────────────────────────────── */
 const KANBAN_STATES = ['normal', 'done', 'blocked'];
 const KANBAN_COLORS = { normal: 'bg-gray-400', done: 'bg-emerald-400', blocked: 'bg-red-400' };
@@ -233,11 +245,12 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
     setSignError('');
   }, [show, seededDirectorName, seededDirectorEmail, application?.candidateName, application?.email]);
 
-  // Local-TZ YYYY-MM-DD so the `min` on the date input and the
-  // "cannot be in the past" guard agree with what the recruiter sees
-  // in their browser. Using new Date().toISOString() was UTC-based,
-  // which marked today as past for users west of UTC and let users
-  // east of UTC pick yesterday.
+  // Local-TZ YYYY-MM-DD used as the joining-date default and to detect a
+  // stale (past) prefill for the passive amber note below. There is
+  // deliberately NO hard past-date block — it was declined; the note just
+  // warns because the date prints on the welcome email. Using
+  // new Date().toISOString() was UTC-based, which marked today as past for
+  // users west of UTC and yesterday-selectable for users east of UTC.
   const ymdLocal = (d) => {
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -246,8 +259,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
   // render (it's a useEffect dep below — identity churn re-initialised
   // state on every parent re-render). 2026-07-18: keyed on `show` instead
   // of memoised once — a page left mounted past midnight otherwise pinned
-  // the joining-date `min` (and the past-date guard) to yesterday. Still
-  // stable for the whole time the modal is open.
+  // `today` (and the stale-prefill note) to yesterday. Still stable for the
+  // whole time the modal is open.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const today = useMemo(() => ymdLocal(new Date()), [show]);
   const initJoining = initialOffer?.joiningDate
@@ -490,8 +503,8 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onClick={(e) => { if (saving) return; if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { if (saving) return; onClose(); } }}
     >
       <form
         role="dialog"
@@ -525,6 +538,16 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
                 required
               />
               {errors.joiningDate && <p className="text-xs text-red-400 mt-1">{errors.joiningDate}</p>}
+              {/* Passive note (not a block — a hard past-date guard was
+                  intentionally declined): the joining date prefills from a
+                  possibly-stale prior offer capture and prints verbatim on the
+                  welcome email, so flag when it's already in the past. */}
+              {initialOffer?.joiningDate && joiningDate && joiningDate < today && (
+                <p className="text-xs text-amber-400 mt-1 flex items-start gap-1">
+                  <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                  <span>Joining date is from the earlier offer capture — confirm before hiring; it prints on the welcome email.</span>
+                </p>
+              )}
             </div>
 
           <div>
@@ -640,7 +663,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
                     <div className="text-xs text-dark-400 mt-0.5 font-mono truncate">{application.offer.signEnvelopeId}</div>
                     {application.offer.signEnvelopeSentAt && (
                       <div className="text-[11px] text-dark-500 mt-0.5">
-                        Sent {formatDateUTC(application.offer.signEnvelopeSentAt)}
+                        Sent {formatEventDateTime(application.offer.signEnvelopeSentAt)}
                       </div>
                     )}
                   </div>
@@ -1029,8 +1052,8 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
   return (
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onClick={(e) => { if (saving) return; if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { if (saving) return; onClose(); } }}
     >
       <form
         role="dialog"
@@ -1227,8 +1250,8 @@ function BackwardMoveReasonModal({ show, onClose, onConfirm, saving, fromStage, 
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onClick={(e) => { if (saving) return; if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { if (saving) return; onClose(); } }}
     >
       <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg">
         <div className="flex items-center justify-between mb-4">
@@ -1341,8 +1364,8 @@ function AttachmentUploadModal({ show, onClose, onConfirm, saving, targetStageNa
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onClick={(e) => { if (saving) return; if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { if (saving) return; onClose(); } }}
     >
       <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg">
         <div className="flex items-start justify-between gap-4 mb-4">
@@ -1463,8 +1486,8 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onClick={(e) => { if (saving) return; if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { if (saving) return; onClose(); } }}
     >
       <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-xl">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -1619,8 +1642,8 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onClick={(e) => { if (saving) return; if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { if (saving) return; onClose(); } }}
     >
       <form role="dialog" aria-modal="true" onSubmit={submit} className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-lg">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -2129,7 +2152,10 @@ export default function AtsApplicationDetail() {
       // Backward-reason flow finished — clear the pending state so a
       // fresh click on a different chip starts clean.
       if (pendingBackwardMove) setPendingBackwardMove(null);
-      fetchApplication();
+      // Await the refetch before the finally re-enables the StageBar, otherwise
+      // actionSaving clears while `application` still holds the old stage —
+      // opening a window where a click re-fires the move against stale data.
+      await fetchApplication();
     } catch (err) {
       // 2026-05-19: Rate Confirmation gate fires before every other check
       // on forward moves. Toast keyed to the specific code, then auto-open
@@ -2894,7 +2920,7 @@ export default function AtsApplicationDetail() {
                   <Link
                     to={orgPath(`/sign/requests/${application.rateConfirmation.envelopeId}`)}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-colors"
-                    title={`View the signed Rate Confirmation${application.rateConfirmation.reusedFromJobName ? ` (reused from ${application.rateConfirmation.reusedFromJobName})` : ''}${application.rateConfirmation.signedAt ? ` — signed ${formatDateUTC(application.rateConfirmation.signedAt)}` : ''}`}
+                    title={`View the signed Rate Confirmation${application.rateConfirmation.reusedFromJobName ? ` (reused from ${application.rateConfirmation.reusedFromJobName})` : ''}${application.rateConfirmation.signedAt ? ` — signed ${formatEventDateTime(application.rateConfirmation.signedAt)}` : ''}`}
                   >
                     <Check size={12} />
                     View reused Rate Confirmation
@@ -2907,7 +2933,7 @@ export default function AtsApplicationDetail() {
                 {application?.rateConfirmationGate?.bypassedAt && (
                   <span
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 border border-amber-500/30 text-amber-300"
-                    title={`Bypassed by ${application.rateConfirmationGate.bypassedByName || 'admin'} on ${formatDateUTC(application.rateConfirmationGate.bypassedAt)} — ${application.rateConfirmationGate.reason}`}
+                    title={`Bypassed by ${application.rateConfirmationGate.bypassedByName || 'admin'} on ${formatEventDateTime(application.rateConfirmationGate.bypassedAt)} — ${application.rateConfirmationGate.reason}`}
                   >
                     <ShieldOff size={12} />
                     RC gate bypassed
@@ -3352,7 +3378,7 @@ export default function AtsApplicationDetail() {
 
           <SectionCard title="Skills" icon={Award}>
             {application.candidateId ? (
-              <SkillsPicker orgSlug={orgSlug} candidateId={application.candidateId} readOnly={!canRecruit} />
+              <SkillsPicker orgSlug={orgSlug} candidateId={application.candidateId} readOnly={!canEdit} />
             ) : (
               <p className="text-dark-500 text-sm py-2">No candidate linked.</p>
             )}
@@ -3454,7 +3480,7 @@ export default function AtsApplicationDetail() {
                               </div>
                               {received && doc.receivedByName && (
                                 <div className="text-xs text-dark-400 mt-0.5">
-                                  {hasFile ? 'Uploaded' : 'Marked received'} {formatDateUTC(doc.receivedAt)} · {doc.receivedByName}
+                                  {hasFile ? 'Uploaded' : 'Marked received'} {formatEventDateTime(doc.receivedAt)} · {doc.receivedByName}
                                 </div>
                               )}
                               {isRequired && !hasFile && (
@@ -3538,7 +3564,7 @@ export default function AtsApplicationDetail() {
           )}
 
           <SectionCard title="Attachments" icon={FileSignature}>
-            <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!canRecruit} />
+            <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!canEdit} />
           </SectionCard>
 
           {/* SignRequestWidget brings its own card styling, header, list,
@@ -3608,9 +3634,16 @@ export default function AtsApplicationDetail() {
         {/* Sidebar */}
         <div className="space-y-5">
           <SectionCard title="Tags" icon={Tag}>
-            {(application.tags && application.tags.length > 0) ? (
+            {(() => {
+              // Prefer the server's name-resolved tags (Odoo-imported apps
+              // store tag ObjectIds in application.tags, which rendered as
+              // raw hex chips). Fall back to raw tags for legacy responses.
+              const tagList = (application.tagsResolved && application.tagsResolved.length > 0)
+                ? application.tagsResolved
+                : (application.tags || []);
+              return tagList.length > 0 ? (
               <div className="flex flex-wrap gap-1.5 py-2">
-                {application.tags.map((tag, i) => (
+                {tagList.map((tag, i) => (
                   <span key={i} className="px-2 py-0.5 rounded-full text-xs font-medium bg-dark-700 text-dark-300">
                     {typeof tag === 'string' ? tag : tag.name}
                   </span>
@@ -3618,7 +3651,8 @@ export default function AtsApplicationDetail() {
               </div>
             ) : (
               <p className="text-dark-500 text-xs py-1">No tags.</p>
-            )}
+            );
+            })()}
           </SectionCard>
 
           {appStatus === 'refused' && (
@@ -3860,7 +3894,7 @@ function InterviewRoundCard({
     if (!datetimeRaw) return '';
     const d = new Date(datetimeRaw);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleString('en-IN', {
+    return d.toLocaleString(undefined, {
       day: 'numeric', month: 'short', year: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: true,
     });

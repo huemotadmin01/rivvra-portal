@@ -156,6 +156,16 @@ export default function AtsCandidateDetail() {
       .catch(() => { /* non-fatal */ });
   }, [slug]);
 
+  // Escape dismisses the Archive modal (backdrop click added on the overlay
+  // below). Mirrors AtsJobDetail.jsx — blocked while the archive is in flight
+  // so a stray keypress can't hide an active operation.
+  useEffect(() => {
+    if (!showArchiveModal) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape' && !archiving) setShowArchiveModal(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showArchiveModal, archiving]);
+
   const recruiterOptions = useMemo(
     () => recruiters.map((r) => ({ value: r._id, label: r.name || r.email || r._id })),
     [recruiters]
@@ -516,7 +526,10 @@ export default function AtsCandidateDetail() {
 
       {/* Archive Confirmation Modal */}
       {showArchiveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={(e) => { if (e.target === e.currentTarget && !archiving) setShowArchiveModal(false); }}
+        >
           <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-sm mx-4 shadow-2xl p-5">
             <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
               <Archive size={16} /> Archive Candidate

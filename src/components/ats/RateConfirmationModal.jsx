@@ -371,7 +371,15 @@ export default function RateConfirmationModal({
     setError('');
     setReminding(true);
     try {
-      await signApi.remindSigners(orgSlug, envelopeId);
+      const res = await signApi.remindSigners(orgSlug, envelopeId);
+      // The remind endpoint returns success:true with reminded:0 and a cooldown
+      // message when every signer is still within the 10-min cooldown. Don't
+      // report a false "reminder sent" in that case — surface the reason and
+      // leave the modal open so the recruiter can retry later.
+      if (!res || res.reminded === 0) {
+        setError(res?.message || 'Reminder already sent recently — try again in a few minutes.');
+        return;
+      }
       if (typeof onSent === 'function') onSent('Reminder sent on the existing Rate Confirmation');
       onClose();
     } catch (err) {
@@ -421,6 +429,29 @@ export default function RateConfirmationModal({
       if (typeof onSent === 'function') onSent('Rate Confirmation sent for signature');
       onClose();
     } catch (err) {
+      // Self-heal the back-link. Two failure modes can leave the envelope
+      // created+emailed but unlinked to the application (no envelopeId on the
+      // record), which strands the recruiter — they can neither remind nor
+      // resend for the cooldown window:
+      //   1. createRequest succeeded but recordRateConfirmation threw.
+      //   2. A retry hit the 409 RATE_CONFIRMATION_RECENTLY_SENT backstop.
+      // Both paths carry the existing envelopeId on the thrown error (api.js
+      // copies the response envelope keys onto the Error). If we have one,
+      // record it against the application so the reminder flow lights up.
+      const healEnvelopeId = err?.envelopeId;
+      if (
+        healEnvelopeId &&
+        (err?.code === 'RATE_CONFIRMATION_RECENTLY_SENT' || /already out for signature/i.test(err?.message || ''))
+      ) {
+        try {
+          await atsApi.recordRateConfirmation(orgSlug, application._id, {
+            envelopeId: String(healEnvelopeId),
+          });
+          if (typeof onSent === 'function') onSent('Rate Confirmation is already out for signature — linked to this application');
+          onClose();
+          return;
+        } catch { /* fall through to the cooldown message below */ }
+      }
       // Server cooldown backstop (409): an active RC envelope already exists.
       // Surface it and steer the recruiter to the reminder action.
       if (err?.code === 'RATE_CONFIRMATION_RECENTLY_SENT' || /already out for signature/i.test(err?.message || '')) {

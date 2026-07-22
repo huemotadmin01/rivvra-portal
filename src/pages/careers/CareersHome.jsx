@@ -61,6 +61,17 @@ export default function CareersHome() {
   const [empType, setEmpType] = useState('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Stash any recruiter-referral ?ref=<empId> on entry, keyed by orgSlug, so
+  // it survives SPA nav to a job page even though the internal job Links drop
+  // the query string. CareersJobDetail's apply flow reads URL-first, then
+  // this stash. Best-effort — private-mode storage failures are swallowed.
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref');
+      if (ref && ref.trim()) sessionStorage.setItem(`careers-ref-${orgSlug}`, ref.trim());
+    } catch { /* storage disabled — attribution is best-effort */ }
+  }, [orgSlug]);
+
   // Hard-isolate from the portal's dark theme. Restore on unmount.
   useEffect(() => {
     document.title = 'Careers';

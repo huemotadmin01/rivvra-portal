@@ -237,6 +237,11 @@ export default function AtsApplications() {
     // still on the org default / "HR Team" holding account) so recruiters
     // can find leads to claim instead of stumbling onto them.
     'unclaimed',
+    // 2026-07-22: aiScoreMin is written by the "AI Fit ≥" MoreFilters chip.
+    // Without it here, useFilterParams stripped it from filterParams so the
+    // param never reached the API and the fetch effect (keyed on
+    // JSON.stringify(filterParams)) never refetched — a silent no-op filter.
+    'aiScoreMin',
   ]);
   const { density, setDensity } = useDensity('ats:applications');
   // 2026-05-17 Phase L: harden page-param parsing. parseInt('abc') returns
@@ -752,7 +757,7 @@ export default function AtsApplications() {
       {/* Filters — URL-driven via shared FilterBar */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
-          <FilterBar searchPlaceholder="Search by candidate name, email, or job position…">
+          <FilterBar searchPlaceholder="Search by candidate name or email…">
             <FilterChip type="select" paramKey="stageId" label="Stage" options={stageOptions} />
             <FilterChip type="select" paramKey="jobId" label="Job Position" options={jobOptions} />
             <FilterChip type="select" paramKey="recruiter" label="Recruiter" options={recruiterOptions} />

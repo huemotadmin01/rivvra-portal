@@ -50,7 +50,11 @@ export default function ConfigSection({ entity, entityLabel, icon: TabIcon = Tag
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, apiEntity, entity, entityLabel, showToast]);
+    // currentCompany?._id in deps so the list refetches on company switch —
+    // the request header reads the active company from localStorage at call
+    // time, so without this the previous company's items stay on screen while
+    // writes land on the new company. See AtsJobPositions.jsx fetchJobs.
+  }, [orgSlug, apiEntity, entity, entityLabel, currentCompany?._id, showToast]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import atsApi from '../../../utils/atsApi';
+import { useCompany } from '../../../context/CompanyContext';
 import {
   X, Loader2, Mail, Eye, Edit2,
   ToggleLeft, ToggleRight, RotateCcw, Save,
@@ -15,11 +16,13 @@ const TEMPLATE_LABELS = {
   ats_refused: 'Application Refused',
   ats_job_approval_request: 'Job Approval Request',
   ats_job_approved: 'Job Approved',
+  ats_job_rejected: 'Job Rejected',
 };
 
-const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_job_approval_request', 'ats_job_approved'];
+const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_job_approval_request', 'ats_job_approved', 'ats_job_rejected'];
 
 export default function EmailTemplatesSection({ orgSlug, showToast }) {
+  const { currentCompany } = useCompany();
   const [templates, setTemplates] = useState([]);
   const [stages, setStages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +47,9 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // currentCompany?._id: refetch on company switch (header reads active
+    // company from localStorage at request time). See AtsJobPositions.jsx.
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -268,6 +273,7 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
                   ats_refused: 'Candidate',
                   ats_job_approval_request: 'Approver',
                   ats_job_approved: 'Recruiter',
+                  ats_job_rejected: 'Recruiter',
                 };
                 return (
                   <tr key={key} className="border-b border-dark-700/50 hover:bg-dark-750/30">

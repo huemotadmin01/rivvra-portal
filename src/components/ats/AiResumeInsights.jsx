@@ -111,8 +111,8 @@ export default function AiResumeInsights({
         {Array.isArray(candidate?.aiSkills) && candidate.aiSkills.length > 0 && (
           <Section title="Extracted skills">
             <div className="flex flex-wrap gap-1">
-              {candidate.aiSkills.slice(0, expanded ? undefined : 8).map((s) => (
-                <span key={s} className="text-[11px] px-1.5 py-0.5 rounded bg-dark-700/60 text-dark-300">{s}</span>
+              {candidate.aiSkills.slice(0, expanded ? undefined : 8).map((s, i) => (
+                <span key={`${s}-${i}`} className="text-[11px] px-1.5 py-0.5 rounded bg-dark-700/60 text-dark-300">{s}</span>
               ))}
               {!expanded && candidate.aiSkills.length > 8 && (
                 <button type="button" onClick={() => setExpanded(true)} className="text-[11px] text-dark-500 hover:text-dark-300">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import atsApi from '../../../utils/atsApi';
+import { useCompany } from '../../../context/CompanyContext';
 import {
   Plus, Edit2, X, Loader2, Trash2, FileCheck,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import {
 const ENTITY_PATH = 'required-documents';
 
 export default function RequiredDocumentsSection({ orgSlug, showToast }) {
+  const { currentCompany } = useCompany();
   const modalRef = useRef(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,9 @@ export default function RequiredDocumentsSection({ orgSlug, showToast }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // currentCompany?._id: refetch on company switch (header reads active
+    // company from localStorage at request time). See AtsJobPositions.jsx.
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 

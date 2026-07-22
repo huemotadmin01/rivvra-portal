@@ -798,6 +798,12 @@ export default function AtsDashboard() {
   const dataCompanyRef = useRef(null);
   // Sticky per-user range. Lazy init reads localStorage; falls back to 30d.
   const [rangeKey, setRangeKey] = useState(() => readStoredRange());
+  // 2026-07-22 audit fix #6: rangeToDates(rangeKey) mints fresh Date objects
+  // (new ISO strings) on every call. Passing it inline to MyTeamWidget gave
+  // it new dateFrom/dateTo identities on every dashboard re-render (group-by
+  // toggle, refresh, any toast) — its fetch effect keys on those, so it
+  // refetched constantly. Memoize on rangeKey so the identities are stable.
+  const rangeDates = useMemo(() => rangeToDates(rangeKey), [rangeKey]);
   // Submissions tables grouping: 'team' (default) or 'source'. Shared so
   // Today's + Last Working Day toggle together.
   const [submissionsGroupBy, setSubmissionsGroupBy] = useState('team');
@@ -1309,8 +1315,8 @@ export default function AtsDashboard() {
           dashboard picker changes. */}
       <MyTeamWidget
         type="ats"
-        dateFrom={rangeToDates(rangeKey).dateFrom}
-        dateTo={rangeToDates(rangeKey).dateTo}
+        dateFrom={rangeDates.dateFrom}
+        dateTo={rangeDates.dateTo}
         rangeLabel={TIME_RANGE_OPTIONS.find(o => o.key === rangeKey)?.label}
       />
 

@@ -37,6 +37,52 @@ const LINKEDIN_RE = /linkedin\.com\/(in|pub)\//i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_ACCENT = '#5b6cff';
 
+// sessionStorage key for recruiter-referral (?ref=<empId>) attribution. The
+// ref only rides the first URL a candidate lands on; stashing it survives
+// SPA navigation between the careers home and job pages so the recruiter
+// still gets credit at submit time. See stashCareersRef / readCareersRef.
+const CAREERS_REF_KEY = (orgSlug) => `careers-ref-${orgSlug}`;
+const stashCareersRef = (orgSlug) => {
+  try {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref && ref.trim()) sessionStorage.setItem(CAREERS_REF_KEY(orgSlug), ref.trim());
+  } catch { /* private-mode / disabled storage — attribution is best-effort */ }
+};
+const readCareersRef = (orgSlug) => {
+  // Prefer the live URL param; fall back to the stashed value from an earlier
+  // page in this session.
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('ref');
+    if (fromUrl && fromUrl.trim()) return fromUrl.trim();
+  } catch { /* ignore */ }
+  try {
+    const stashed = sessionStorage.getItem(CAREERS_REF_KEY(orgSlug));
+    if (stashed && stashed.trim()) return stashed.trim();
+  } catch { /* ignore */ }
+  return '';
+};
+
+// Load the Cloudflare Turnstile script once (explicit-render mode). Resolves
+// with window.turnstile when ready. Only ever called when the job endpoint
+// reports turnstile.enabled + siteKey, so the flag-off path never touches the
+// network.
+let turnstileScriptPromise = null;
+function loadTurnstileScript() {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  if (turnstileScriptPromise) return turnstileScriptPromise;
+  turnstileScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true;
+    s.defer = true;
+    s.onload = () => resolve(window.turnstile || null);
+    s.onerror = () => { turnstileScriptPromise = null; reject(new Error('Failed to load Turnstile')); };
+    document.head.appendChild(s);
+  });
+  return turnstileScriptPromise;
+}
+
 export default function CareersJobDetail() {
   const { orgSlug, publicSlug } = useParams();
   const [loading, setLoading] = useState(true);
@@ -45,6 +91,10 @@ export default function CareersJobDetail() {
   const [org, setOrg] = useState(null);
   const [turnstile, setTurnstile] = useState({ enabled: false, siteKey: null });
   const [mobileApplyOpen, setMobileApplyOpen] = useState(false);
+
+  // Stash any recruiter-referral ?ref= on entry so it survives SPA nav to
+  // other careers pages (the submit reads URL-first, stash-fallback).
+  useEffect(() => { stashCareersRef(orgSlug); }, [orgSlug]);
 
   useEffect(() => {
     const prevHtml = document.documentElement.style.background;
@@ -242,6 +292,53 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
   const [form, setForm] = useState({ name: '', email: '', phone: '', linkedinUrl: '' });
   const [resumeFile, setResumeFile] = useState(null);
 
+  // Cloudflare Turnstile. Only active when the job endpoint reports both
+  // enabled + siteKey; otherwise every path below is a no-op and the form
+  // behaves exactly as it did before (flag currently off in prod). The
+  // backend fails closed when CAREERS_TURNSTILE_ENABLED=true, so when active
+  // we must actually load the widget and send the solved token.
+  const turnstileActive = !!(turnstile?.enabled && turnstile?.siteKey);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const turnstileRef = useRef(null);
+  const turnstileWidgetId = useRef(null);
+
+  useEffect(() => {
+    if (!turnstileActive) return undefined;
+    let cancelled = false;
+    loadTurnstileScript()
+      .then((ts) => {
+        if (cancelled || !ts || !turnstileRef.current) return;
+        if (turnstileWidgetId.current != null) return; // guard double-render
+        turnstileWidgetId.current = ts.render(turnstileRef.current, {
+          sitekey: turnstile.siteKey,
+          callback: (token) => setTurnstileToken(token),
+          'expired-callback': () => setTurnstileToken(''),
+          'error-callback': () => setTurnstileToken(''),
+        });
+      })
+      .catch(() => { /* script blocked — submit stays disabled, fail closed */ });
+    return () => {
+      cancelled = true;
+      try {
+        if (window.turnstile && turnstileWidgetId.current != null) {
+          window.turnstile.remove(turnstileWidgetId.current);
+        }
+      } catch { /* ignore */ }
+      turnstileWidgetId.current = null;
+    };
+  }, [turnstileActive, turnstile?.siteKey]);
+
+  // Reset the widget after a submit attempt — Turnstile tokens are
+  // single-use, so a failed submit needs a fresh challenge to retry.
+  const resetTurnstile = () => {
+    setTurnstileToken('');
+    try {
+      if (window.turnstile && turnstileWidgetId.current != null) {
+        window.turnstile.reset(turnstileWidgetId.current);
+      }
+    } catch { /* ignore */ }
+  };
+
   const setField = (k) => (e) => {
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
     if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: undefined }));
@@ -285,9 +382,12 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
       // Referral attribution: if the candidate arrived via a recruiter's
       // personal link (?ref=<empId>), forward that to the backend so the
       // application's recruiterId becomes the link owner instead of the
-      // org default. Invalid/missing → backend silently falls back.
-      const refParam = new URLSearchParams(window.location.search).get('ref');
-      if (refParam) fd.append('ref', refParam.trim());
+      // org default. Reads URL-first, then the session-stashed value from an
+      // earlier careers page. Invalid/missing → backend silently falls back.
+      const refParam = readCareersRef(orgSlug);
+      if (refParam) fd.append('ref', refParam);
+      // Cloudflare Turnstile token — only sent when the challenge is active.
+      if (turnstileActive && turnstileToken) fd.append('turnstileToken', turnstileToken);
       const res = await fetch(
         `${API_BASE_URL}/api/public/careers/${encodeURIComponent(orgSlug)}/jobs/${encodeURIComponent(publicSlug)}/apply`,
         { method: 'POST', body: fd },
@@ -296,11 +396,13 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
       if (!res.ok || !j.success) {
         if (j.fieldErrors) setFieldErrors(j.fieldErrors);
         setServerError(j.error || `Submission failed (HTTP ${res.status}).`);
+        if (turnstileActive) resetTurnstile(); // token consumed — get a fresh one
         return;
       }
       setDone({ ref: j.applicationRef || '—' });
     } catch (err) {
       setServerError(err.message || 'Network error. Please try again.');
+      if (turnstileActive) resetTurnstile();
     } finally {
       setSubmitting(false);
     }
@@ -422,13 +524,18 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
           {fieldErrors.resume && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.resume}</p>}
         </div>
 
-        {turnstile?.enabled && (
-          <p className="text-xs text-zinc-500">Protected by Cloudflare Turnstile.</p>
+        {turnstileActive && (
+          <div>
+            {/* Explicit-render Turnstile widget mounts here once the script
+                loads. Submit stays disabled until it produces a token. */}
+            <div ref={turnstileRef} />
+            <p className="mt-1.5 text-[11px] text-zinc-400">Protected by Cloudflare Turnstile.</p>
+          </div>
         )}
 
         <motion.button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || (turnstileActive && !turnstileToken)}
           whileTap={{ scale: 0.98 }}
           className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm font-medium text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ background: accent }}

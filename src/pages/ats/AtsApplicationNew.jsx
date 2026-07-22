@@ -358,7 +358,11 @@ export default function AtsApplicationNew() {
     || !!form.email?.trim()
     || !!form.phone?.trim()
     || !!form.linkedinProfile?.trim()
-    || !!form.recruiterId
+    // recruiterId auto-populates from the logged-in employee on load, so it's
+    // "dirty" on an untouched form — only count it once the user has actually
+    // changed it (recruiterOverridden), otherwise the leave-site prompt fires
+    // on a pristine page.
+    || (recruiterOverridden && !!form.recruiterId)
     || (Array.isArray(pickedSkills) && pickedSkills.length > 0)
     || !!resumeFile
   );

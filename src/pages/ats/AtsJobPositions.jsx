@@ -12,6 +12,11 @@ import DensityToggle from '../../components/shared/DensityToggle';
 import SortableHeader from '../../components/shared/SortableHeader';
 import GroupedHeader from '../../components/shared/GroupedHeader';
 
+// Non-grouped page size. Must match the value passed to listJobs so the
+// "Showing x–y" label lines up with what the server actually returned —
+// previously the label hardcoded 20 while the API defaulted to 25.
+const PAGE_SIZE = 25;
+
 const JOB_GROUP_BY_OPTIONS = [
   { value: '', label: 'None' },
   { value: 'client', label: 'Client' },
@@ -192,7 +197,7 @@ export default function AtsJobPositions() {
       // grouped buckets.
       const res = await atsApi.listJobs(orgSlug, {
         page: isGrouped ? 1 : page,
-        ...(isGrouped ? { limit: 5000 } : {}),
+        ...(isGrouped ? { limit: 5000 } : { limit: PAGE_SIZE }),
         ...filterParams,
         _requestKey: 'ats:jobs:list',
       });
@@ -311,8 +316,8 @@ export default function AtsJobPositions() {
   };
 
   // Pagination
-  const pageStart = total === 0 ? 0 : (page - 1) * 20 + 1;
-  const pageEnd = Math.min(page * 20, total);
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
 
   // Format date
   const formatDate = (dateStr) => {

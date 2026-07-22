@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { InlineSkeleton } from '../../Skeletons';
 import atsApi from '../../../utils/atsApi';
 import ConfirmDialog from '../../shared/ConfirmDialog';
+import { useCompany } from '../../../context/CompanyContext';
 import {
   Plus, Edit2, X, Loader2, Trash2,
-  GripVertical, BarChart3,
+  BarChart3,
 } from 'lucide-react';
 
 export default function SkillLevelsSection({ orgSlug, showToast }) {
+  const { currentCompany } = useCompany();
   const modalRef = useRef(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,9 @@ export default function SkillLevelsSection({ orgSlug, showToast }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // currentCompany?._id: refetch on company switch (header reads active
+    // company from localStorage at request time). See AtsJobPositions.jsx.
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -121,10 +125,7 @@ export default function SkillLevelsSection({ orgSlug, showToast }) {
                 {items.map((item) => (
                   <tr key={item._id} className="border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <GripVertical size={14} className="text-dark-600" />
-                        <span className="text-dark-400 text-xs font-mono">{item.sequence ?? 0}</span>
-                      </div>
+                      <span className="text-dark-400 text-xs font-mono">{item.sequence ?? 0}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

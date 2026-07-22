@@ -118,9 +118,12 @@ export default function AtsMyApprovals() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-dark-700">
+        {/* 2026-07-22 audit fix #7: badge the real server totals, not the
+            (capped) loaded-row counts — otherwise the tab said "(100)" while
+            the footer correctly showed "showing 100 of 240". */}
         {[
-          { key: 'pending', label: 'Pending', count: pending.length },
-          { key: 'decided', label: 'Decided', count: decided.length },
+          { key: 'pending', label: 'Pending', count: pendingTotal },
+          { key: 'decided', label: 'Decided', count: decidedTotal },
         ].map((t) => (
           <button
             key={t.key}

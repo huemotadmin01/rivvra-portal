@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import atsApi from '../../../utils/atsApi';
+import { useCompany } from '../../../context/CompanyContext';
 import {
   Plus, Edit2, X, Loader2, Trash2,
   Layers, GripVertical, Check, Paperclip,
@@ -8,6 +9,7 @@ import {
 const EMPTY_FORM = { name: '', sequence: 0, foldInKanban: false, isHiredStage: false, requiredAttachments: [] };
 
 export default function StagesSection({ orgSlug, showToast }) {
+  const { currentCompany } = useCompany();
   const modalRef = useRef(null);
   const [stages, setStages] = useState([]);
   const [kinds, setKinds] = useState([]);
@@ -49,7 +51,9 @@ export default function StagesSection({ orgSlug, showToast }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // currentCompany?._id: refetch on company switch (header reads active
+    // company from localStorage at request time). See AtsJobPositions.jsx.
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => { fetchStages(); }, [fetchStages]);
 

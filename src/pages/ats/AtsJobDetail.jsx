@@ -617,14 +617,33 @@ export default function AtsJobDetail() {
     } catch {}
   };
 
+  // Apply a PUT /jobs/:id response the same way saveField does: prefer the
+  // server's canonical job, refresh missingApprovalFields, and surface the
+  // auto-reapproval toast + activity refresh. clientName is a reapproval
+  // trigger, so changing/clearing the client on an approved job can flip it
+  // to pending — without this the UI kept showing "approved" with stale
+  // missing-field state until a manual reload.
+  const applyJobUpdateResult = (res, fallbackPatch) => {
+    if (res?.job) setJob(res.job);
+    else setJob((prev) => ({ ...prev, ...fallbackPatch }));
+    if (Array.isArray(res?.missingApprovalFields)) {
+      setMissingApprovalFields(res.missingApprovalFields);
+    }
+    if (res?.triggeredReapproval) {
+      showToast('Approval reset — change requires re-approval', 'info');
+      setActivityRefreshKey(k => k + 1);
+      setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
+    }
+  };
+
   // Save client picker selection — writes both clientContactId + clientName
   // so the page label stays in sync with the linked contact.
   const handleClientSelect = async (id, name) => {
     setEditingClient(false);
     if (!id && !name) return;
     try {
-      await atsApi.updateJob(orgSlug, jobId, { clientContactId: id || null, clientName: name || '' });
-      setJob((prev) => ({ ...prev, clientContactId: id || null, clientName: name || '' }));
+      const res = await atsApi.updateJob(orgSlug, jobId, { clientContactId: id || null, clientName: name || '' });
+      applyJobUpdateResult(res, { clientContactId: id || null, clientName: name || '' });
     } catch (err) {
       showToast(err.message || 'Failed to update client', 'error');
     }
@@ -637,8 +656,8 @@ export default function AtsJobDetail() {
   const handleClientClear = async () => {
     setEditingClient(false);
     try {
-      await atsApi.updateJob(orgSlug, jobId, { clientContactId: null, clientName: '' });
-      setJob((prev) => ({ ...prev, clientContactId: null, clientName: '' }));
+      const res = await atsApi.updateJob(orgSlug, jobId, { clientContactId: null, clientName: '' });
+      applyJobUpdateResult(res, { clientContactId: null, clientName: '' });
     } catch (err) {
       showToast(err.message || 'Failed to clear client', 'error');
     }
@@ -811,6 +830,18 @@ export default function AtsJobDetail() {
       setActivityRefreshKey(k => k + 1);
       setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
     }
+  };
+
+  // Work Location save — writes BOTH clientJobLocation (the internal field
+  // this editor owns) and location (what the public careers site reads). The
+  // careers page only picks up `location`, set at creation, so editing just
+  // clientJobLocation never reached the public listing. Mirror both.
+  const saveWorkLocation = async (_field, value) => {
+    const res = await atsApi.updateJob(orgSlug, jobId, {
+      clientJobLocation: value,
+      location: value,
+    });
+    applyJobUpdateResult(res, { clientJobLocation: value, location: value });
   };
 
   // Persist the job's structured required skills (drives the Suggested
@@ -1410,7 +1441,7 @@ export default function AtsJobDetail() {
               field="clientJobLocation"
               value={job.clientJobLocation}
               editable={canEdit}
-              onSave={saveField}
+              onSave={saveWorkLocation}
               placeholder="e.g. Remote, Bangalore on-site"
             />
             <InlineField

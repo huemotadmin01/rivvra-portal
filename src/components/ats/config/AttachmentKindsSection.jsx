@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import atsApi from '../../../utils/atsApi';
+import { useCompany } from '../../../context/CompanyContext';
 import {
   Plus, Edit2, X, Loader2, Paperclip, Check, Archive, RotateCcw,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ const MIME_PRESETS = [
 ];
 
 export default function AttachmentKindsSection({ orgSlug, showToast }) {
+  const { currentCompany } = useCompany();
   const modalRef = useRef(null);
   const [kinds, setKinds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,9 @@ export default function AttachmentKindsSection({ orgSlug, showToast }) {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug, showToast]);
+    // currentCompany?._id: refetch on company switch (header reads active
+    // company from localStorage at request time). See AtsJobPositions.jsx.
+  }, [orgSlug, currentCompany?._id, showToast]);
 
   useEffect(() => { fetchKinds(); }, [fetchKinds]);
 

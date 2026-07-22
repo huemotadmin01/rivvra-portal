@@ -5,6 +5,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
+import employeeApi from '../../utils/employeeApi';
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -131,7 +132,7 @@ function EvalStars({ value = 0, max = 3, onChange }) {
 // stages × M cards each parent state change (filter, search, drag) used to
 // re-render every card and re-run dnd-kit's useSortable. Memo cuts the work
 // to only the card whose props actually changed.
-function KanbanCardInner({ application, onClick }) {
+function KanbanCardInner({ application, onClick, canDrag = true }) {
   const {
     attributes,
     listeners,
@@ -139,7 +140,7 @@ function KanbanCardInner({ application, onClick }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: application._id });
+  } = useSortable({ id: application._id, disabled: !canDrag });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -158,25 +159,40 @@ function KanbanCardInner({ application, onClick }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-dark-800 rounded-lg p-3 border border-dark-700 hover:border-dark-600 cursor-grab active:cursor-grabbing transition-colors group ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      className={`bg-dark-800 rounded-lg p-3 border border-dark-700 hover:border-dark-600 transition-colors group ${
+        canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+      } ${isDragging ? 'opacity-50' : ''}`}
       onClick={(e) => {
         // Don't navigate when dragging
         if (!isDragging) onClick?.(application);
       }}
     >
       <div className="flex items-start gap-2">
-        <div
-          {...attributes}
-          {...listeners}
-          role="button"
-          aria-label="Drag to reorder"
-          tabIndex={-1}
-          className="mt-0.5 text-dark-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-        >
-          <GripVertical size={14} />
-        </div>
+        {/* Drag handle. Non-owned cards (not the assigned recruiter, caller
+            not an ATS admin) are read-only here: stage writes are team-scoped
+            server-side and would 404, so we drop the drag listeners rather
+            than let the card snap back. 2026-07-22 audit fix #4/#5:
+            {...attributes} sets tabIndex:0 for the KeyboardSensor — do NOT
+            override it back to -1 or keyboard drag can never activate. */}
+        {canDrag ? (
+          <div
+            {...attributes}
+            {...listeners}
+            role="button"
+            aria-label="Drag to reorder"
+            className="mt-0.5 text-dark-600 opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0"
+          >
+            <GripVertical size={14} />
+          </div>
+        ) : (
+          <div
+            aria-hidden="true"
+            title="Only the assigned recruiter or an admin can move this application."
+            className="mt-0.5 text-dark-700 opacity-30 flex-shrink-0 cursor-not-allowed"
+          >
+            <GripVertical size={14} />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium text-sm truncate flex items-center gap-1.5">
             {application.candidateName || 'Unnamed'}
@@ -276,7 +292,7 @@ function KanbanCardOverlay({ application }) {
 // 2026-05-17 health-check E.1: memoized below. Re-renders only when its
 // stage/applications array identity changes — sibling-column drag activity
 // no longer ripples through every column.
-function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoadMore, isLoadingMore }) {
+function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoadMore, isLoadingMore, canDragCard }) {
   const ids = applications.map((a) => a._id);
   const hasMore = totalCount > applications.length;
   // Register the column itself as a droppable — without this, dropping on
@@ -299,7 +315,12 @@ function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoa
       <div ref={setNodeRef} className="flex-1 overflow-y-auto p-2 space-y-2">
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {applications.map((app) => (
-            <KanbanCard key={app._id} application={app} onClick={onCardClick} />
+            <KanbanCard
+              key={app._id}
+              application={app}
+              onClick={onCardClick}
+              canDrag={canDragCard ? canDragCard(app) : true}
+            />
           ))}
         </SortableContext>
 
@@ -362,6 +383,26 @@ export default function AtsPipeline() {
   const searchRef = useRef('');
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
+
+  // 2026-07-22 audit fix #4: the board reads all org apps (readAll) but stage
+  // writes are team-scoped — dragging a colleague's card 404s ("Application
+  // not found"). Resolve the caller's employee id so non-owned cards can be
+  // rendered non-draggable up front (same getMyProfile pattern as
+  // AtsApplications.jsx).
+  const [myEmployeeId, setMyEmployeeId] = useState(null);
+  useEffect(() => {
+    if (!orgSlug) return;
+    employeeApi.getMyProfile(orgSlug)
+      .then((res) => { if (res?.success && res.employee) setMyEmployeeId(res.employee._id); })
+      .catch(() => {});
+  }, [orgSlug]);
+  // Admins can move any card; everyone else only the applications they own.
+  // useCallback so the memoized KanbanColumn doesn't re-render every parent
+  // state change (identity is stable across drags/filters).
+  const canDragCard = useCallback(
+    (app) => isAdmin || (!!app?.recruiterId && !!myEmployeeId && String(app.recruiterId) === String(myEmployeeId)),
+    [isAdmin, myEmployeeId],
+  );
 
   // DnD sensors
   // KeyboardSensor added 2026-05-25 health-check F-P2-2 so stage moves
@@ -533,7 +574,54 @@ export default function AtsPipeline() {
       await atsApi.moveStage(orgSlug, active.id, targetStageId);
       showToast('Application moved');
     } catch (err) {
-      // Revert on error
+      // 2026-07-22 audit fix #3: the server /stage endpoint enforces the same
+      // gates as the detail-page wizard and 400s on unmet ones. The board
+      // can't run those wizards, so classify the error instead of dumping a
+      // raw toast + snap-back.
+
+      // (a) Backward move needs an audit reason. Collect it with a prompt and
+      //     retry in place — keep the optimistic move on success. (The detail
+      //     page uses a proper BackwardMoveReasonModal; a prompt is the
+      //     lightweight board equivalent.)
+      if (err?.requiresBackwardReason) {
+        const from = err.currentStageName || sourceInfo.app?.stageName || 'current stage';
+        const to = err.targetStageName || 'the earlier stage';
+        const reason = window.prompt(`Moving ${from} → ${to} back a stage requires a reason (recorded in the history):`);
+        if (reason && reason.trim()) {
+          try {
+            await atsApi.moveStage(orgSlug, active.id, targetStageId, { reason: reason.trim() });
+            showToast('Application moved');
+            return;
+          } catch (retryErr) {
+            setColumns(prevColumns);
+            showToast(retryErr?.message || 'Failed to move application', 'error');
+            return;
+          }
+        }
+        // Cancelled / blank — abandon the move.
+        setColumns(prevColumns);
+        return;
+      }
+
+      // (b) Gate failures (resume / documents / offer / RC / interview /
+      //     sequential / hire). These need the stage-transition wizard, which
+      //     only lives on the detail page — revert, explain, and offer to jump
+      //     there. The toast is click-to-dismiss and the navigate lands the
+      //     user on the wizard's own affordances.
+      const isGateFailure = err?.requiresResume || err?.requiresAttachment
+        || err?.requiresInterview || err?.requiresInterviewResult
+        || err?.requiresSequentialMove || err?.requiresHire
+        || err?.requiresOffer || err?.requiresDocuments || err?.requiresRateConfirmation
+        || (typeof err?.code === 'string' && err.code.startsWith('RATE_CONFIRMATION_'));
+      if (isGateFailure) {
+        setColumns(prevColumns);
+        showToast(`${err.message || 'This move needs extra steps'} — opening the application to continue…`, 'warning');
+        navigate(orgPath(`/ats/applications/${active.id}`));
+        return;
+      }
+
+      // (c) Everything else (incl. the 404 a colleague's card would throw if
+      //     it slipped past the non-draggable guard) → revert + raw message.
       setColumns(prevColumns);
       showToast(err.message || 'Failed to move application', 'error');
     }
@@ -682,6 +770,7 @@ export default function AtsPipeline() {
                   onCardClick={handleCardClick}
                   onLoadMore={handleLoadMore}
                   isLoadingMore={!!loadingMore[stageId]}
+                  canDragCard={canDragCard}
                 />
               );
             })}
