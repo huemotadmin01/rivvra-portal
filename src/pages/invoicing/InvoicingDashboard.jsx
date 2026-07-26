@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, Plus, FileText, Sparkles, CheckCircle2, ArrowRight, Settings2 } from 'lucide-react';
+import StatutoryDuesCard from '../../components/invoicing/StatutoryDuesCard';
 import { Link } from 'react-router-dom';
 
 // ---------------------------------------------------------------------------
@@ -465,6 +466,9 @@ export default function InvoicingDashboard() {
             <KPIStrip kpis={kpis} />
           </div>
         )}
+
+        {/* ---- Statutory dues (GST/TDS deadlines — India companies only) ---- */}
+        <StatutoryDuesCard />
 
         {/* ---- Top row: Purchase + Bank journals ---- */}
         {topRowJournals.length > 0 && (

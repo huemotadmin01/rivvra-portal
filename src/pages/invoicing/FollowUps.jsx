@@ -5,6 +5,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
+import StatutoryDuesCard from '../../components/invoicing/StatutoryDuesCard';
 import {
   Loader2, Send, ChevronDown, ChevronRight, AlertTriangle,
   Clock, Mail, Settings2, Save, History, RefreshCw,
@@ -353,6 +354,11 @@ export default function FollowUps() {
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           Refresh
         </button>
+      </div>
+
+      {/* Statutory deadlines (GST/TDS — India companies only, self-hiding) */}
+      <div className="mb-6">
+        <StatutoryDuesCard />
       </div>
 
       {/* Overdue invoices table */}

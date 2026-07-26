@@ -203,6 +203,7 @@ const FollowUps = lazy(() => import('./pages/invoicing/FollowUps'));
 const AgedReceivables = lazy(() => import('./pages/invoicing/AgedReceivables'));
 const AgedPayables = lazy(() => import('./pages/invoicing/AgedPayables'));
 const TaxReportInv = lazy(() => import('./pages/invoicing/TaxReport'));
+const TdsReportInv = lazy(() => import('./pages/invoicing/TdsReport'));
 const GstReconciliation = lazy(() => import('./pages/invoicing/GstReconciliation'));
 const InvoiceAnalysis = lazy(() => import('./pages/invoicing/InvoiceAnalysis'));
 const Profitability = lazy(() => import('./pages/invoicing/Profitability'));
@@ -626,6 +627,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><AgedReceivables /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><AgedPayables /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/tax" element={<ErrorBoundary><TaxReportInv /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/tds" element={<ErrorBoundary><TdsReportInv /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/gst-2b" element={<ErrorBoundary><GstReconciliation /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><InvoiceAnalysis /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/profitability" element={<ErrorBoundary><Profitability /></ErrorBoundary>} />

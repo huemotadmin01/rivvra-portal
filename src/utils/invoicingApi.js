@@ -306,6 +306,25 @@ const invoicingApi = {
     return api.request(`/api/org/${orgSlug}/invoicing/reports/pnl-summary${qs ? '?' + qs : ''}`);
   },
 
+  // ---------- STATUTORY (GST / TDS — India companies only) ----------
+  getGstReport(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/gst-report${qs ? '?' + qs : ''}`);
+  },
+  getTdsReport(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/tds-report${qs ? '?' + qs : ''}`);
+  },
+  saveStatutoryFiling(orgSlug, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/filings`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  deleteStatutoryFiling(orgSlug, id) {
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/filings/${id}`, { method: 'DELETE' });
+  },
+  getStatutoryDues(orgSlug) {
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/dues`);
+  },
+
   // ---------- E-INVOICE ----------
   generateEInvoice(orgSlug, id) {
     return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/e-invoice`, { method: 'POST' });

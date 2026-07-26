@@ -6,6 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, ArrowLeft, Receipt, Search } from 'lucide-react';
+import GstReport from './GstReport';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,7 +32,16 @@ function getDefaultDateRange() {
 // Main Component
 // ---------------------------------------------------------------------------
 
-export default function TaxReport() {
+// Indian (INR) companies get the statutory GST Report on this route; other
+// companies keep the generic collected-vs-paid tax report below. Separate
+// components so switching companies remounts cleanly (no conditional hooks).
+export default function TaxReportSwitch() {
+  const { currentCompany } = useCompany();
+  if (currentCompany?.currency === 'INR') return <GstReport />;
+  return <LegacyTaxReport />;
+}
+
+function LegacyTaxReport() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const { isMobile } = usePlatform();

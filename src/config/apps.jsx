@@ -472,8 +472,11 @@ export const APP_REGISTRY = {
           children: [
             { path: '/invoicing/reports/receivables', label: 'Aged Receivables', icon: Clock },
             { path: '/invoicing/reports/payables', label: 'Aged Payables', icon: Clock },
-            { path: '/invoicing/reports/tax', label: 'Tax Report', icon: Shield },
-            ...(isIndia ? [{ path: '/invoicing/reports/gst-2b', label: 'GST 2B Recon', icon: Shield }] : []),
+            { path: '/invoicing/reports/tax', label: isIndia ? 'GST Report' : 'Tax Report', icon: Shield },
+            ...(isIndia ? [
+              { path: '/invoicing/reports/tds', label: 'TDS Report', icon: Percent },
+              { path: '/invoicing/reports/gst-2b', label: 'GST 2B Recon', icon: Shield },
+            ] : []),
             { path: '/invoicing/reports/analysis', label: 'Invoice Analysis', icon: BarChart3 },
             // Net profit is sensitive P&L: owner / super-admin / explicitly granted.
             ...((isOrgOwner || user?.superAdmin || canViewProfitability)
