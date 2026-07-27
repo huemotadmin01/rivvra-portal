@@ -20,9 +20,13 @@ function toLocalYMD(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function StatutoryFilingModal({ orgSlug, kind, year, month, periodLabel, existing, suggestedAmount, onClose, onSaved }) {
+export default function StatutoryFilingModal({ orgSlug, kind, year, month, periodLabel, existing, suggestedAmount, initialDate, onClose, onSaved }) {
   const { showToast } = useToast();
-  const [filedOn, setFiledOn] = useState(existing?.filedOn ? toLocalYMD(new Date(existing.filedOn)) : toLocalYMD(new Date()));
+  // Priority: saved entry date → GSTN's date-of-filing (initialDate) → today.
+  const [filedOn, setFiledOn] = useState(
+    existing?.filedOn ? toLocalYMD(new Date(existing.filedOn))
+      : initialDate || toLocalYMD(new Date()),
+  );
   const [amountPaid, setAmountPaid] = useState(
     existing?.amountPaid != null ? String(existing.amountPaid)
       : suggestedAmount != null && suggestedAmount > 0 ? String(suggestedAmount) : '',

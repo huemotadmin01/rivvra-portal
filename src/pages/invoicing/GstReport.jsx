@@ -12,7 +12,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
-import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download } from 'lucide-react';
+import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download, RefreshCw } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -24,7 +24,7 @@ const GRANULARITIES = [
 
 function monthLabel(row) { return `${MONTH_ABBR[row.month - 1]} ${row.year}`; }
 
-export function StatusChip({ status, due }) {
+export function StatusChip({ status, due, note }) {
   const map = {
     filed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -32,12 +32,19 @@ export function StatusChip({ status, due }) {
     none: 'bg-dark-800 text-dark-500 border-dark-700',
   };
   const label = { filed: 'Filed', pending: 'Pending', overdue: 'Overdue', none: '—' }[status] || status;
-  const title = due && status !== 'filed' ? `Due ${new Date(due).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : undefined;
+  const title = note || (due && status !== 'filed' ? `Due ${new Date(due).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : undefined);
   return (
     <span title={title} className={`inline-block px-2 py-0.5 rounded-md border text-[11px] font-medium ${map[status] || map.none}`}>
       {label}
     </span>
   );
+}
+
+// Tooltip text for a chip backed by the GST portal's public filing data.
+function gstnNote(gstnRow) {
+  if (!gstnRow?.dof) return undefined;
+  const d = new Date(gstnRow.dof).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `Filed per GSTN on ${d}${gstnRow.arn ? ` · ARN ${gstnRow.arn}` : ''} — click to add challan details`;
 }
 
 function Kpi({ label, amount, tone = 'blue', hint }) {
@@ -88,15 +95,16 @@ export default function GstReport() {
   // Drop stale responses: switching granularity/FY mid-flight must not let an
   // older (slower) request's data render under the newer selection.
   const seqRef = useRef(0);
-  const load = useCallback(() => {
+  const [syncing, setSyncing] = useState(false);
+  const load = useCallback((refreshGstn = false) => {
     if (!orgSlug) return;
     const seq = ++seqRef.current;
-    setLoading(true);
+    if (refreshGstn) setSyncing(true); else setLoading(true);
     setError(null);
-    invoicingApi.getGstReport(orgSlug, { fy: fy || undefined, granularity })
+    invoicingApi.getGstReport(orgSlug, { fy: fy || undefined, granularity, ...(refreshGstn ? { refreshGstn: 1 } : {}) })
       .then((res) => { if (seq === seqRef.current) setData(res.data); })
       .catch((err) => { if (seq === seqRef.current) setError(err.message || 'Failed to load GST report'); })
-      .finally(() => { if (seq === seqRef.current) setLoading(false); });
+      .finally(() => { if (seq === seqRef.current) { setLoading(false); setSyncing(false); } });
   }, [orgSlug, fy, granularity, currentCompany?._id]);
 
   useEffect(() => { load(); }, [load]);
@@ -108,10 +116,12 @@ export default function GstReport() {
 
   const openFiling = (kind, row) => {
     if (!isAdmin) return;
+    const gstnRow = kind === 'gstr1' ? row.gstr1Gstn : row.gstr3bGstn;
     setFilingModal({
       kind, year: row.year, month: row.month,
       existing: kind === 'gstr1' ? row.gstr1 : row.gstr3b,
       suggestedAmount: kind === 'gstr3b' ? Math.max(0, row.netPayable) : null,
+      initialDate: gstnRow?.dof || null, // GSTN's date of filing pre-fills the form
       periodLabel: monthLabel(row),
     });
   };
@@ -134,6 +144,15 @@ export default function GstReport() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {data?.gstn?.enabled && (
+              <button onClick={() => load(true)} disabled={syncing || loading}
+                title={data.gstn.fetchedAt
+                  ? `${data.gstn.stale ? 'GSTN unreachable — showing cached status from ' : 'Filing status from GSTN as of '}${new Date(data.gstn.fetchedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                  : 'Fetch GSTR-1/3B filing status from the GST portal'}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:bg-dark-800 disabled:opacity-50 text-xs transition-colors">
+                {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync GSTN
+              </button>
+            )}
             <div className="flex rounded-lg border border-dark-700 overflow-hidden">
               {GRANULARITIES.map((g) => (
                 <button key={g.key} onClick={() => setGranularity(g.key)}
@@ -154,7 +173,7 @@ export default function GstReport() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-400 flex items-center justify-between gap-4">
             <span>{error}</span>
-            <button onClick={load} className="px-3 py-1.5 rounded-lg border border-red-500/30 hover:bg-red-500/10 text-sm shrink-0">Retry</button>
+            <button onClick={() => load()} className="px-3 py-1.5 rounded-lg border border-red-500/30 hover:bg-red-500/10 text-sm shrink-0">Retry</button>
           </div>
         )}
         {loading && <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-blue-400 animate-spin" /></div>}
@@ -227,12 +246,14 @@ export default function GstReport() {
                         {granularity === 'month' && <>
                           <td className="px-4 py-3 text-center">
                             <button onClick={() => openFiling('gstr1', row)} disabled={!isAdmin} className={isAdmin ? 'cursor-pointer' : 'cursor-default'}>
-                              <StatusChip status={row.gstr1Status} due={row.gstr1Due} />
+                              <StatusChip status={row.gstr1Status} due={row.gstr1Due} note={gstnNote(row.gstr1Gstn)} />
+                              {row.gstr1Source === 'gstn' && <div className="text-[9px] text-cyan-500/80 mt-0.5">via GSTN</div>}
                             </button>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <button onClick={() => openFiling('gstr3b', row)} disabled={!isAdmin} className={isAdmin ? 'cursor-pointer' : 'cursor-default'}>
-                              <StatusChip status={row.gstr3bStatus} due={row.gstr3bDue} />
+                              <StatusChip status={row.gstr3bStatus} due={row.gstr3bDue} note={gstnNote(row.gstr3bGstn)} />
+                              {row.gstr3bSource === 'gstn' && <div className="text-[9px] text-cyan-500/80 mt-0.5">via GSTN</div>}
                             </button>
                           </td>
                           <td className="px-4 py-3 text-center">
