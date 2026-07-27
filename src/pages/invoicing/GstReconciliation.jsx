@@ -21,7 +21,13 @@ const BUCKETS = {
   missing_in_2b:    { label: 'Missing in 2B',   color: 'red',     help: 'In your books, not filed by vendor — ITC at risk' },
   no_gstin:         { label: 'No GSTIN',         color: 'orange',  help: 'Bill has no vendor GSTIN — cannot reconcile' },
   missing_in_books: { label: 'Missing in books', color: 'purple', help: 'In 2B, not recorded in your books' },
+  // Cross-period pass: vendor filed late/early, invoice found in another
+  // uploaded period's 2B (or the 2B row belongs to a bill from another month).
+  matched_other_period: { label: 'Matched · other period', color: 'cyan', help: 'Vendor reported this in a different month\'s 2B — ITC claimable in that month, not at risk' },
+  in_books_other_month: { label: 'Booked other month', color: 'cyan', help: 'This 2B invoice matches a bill dated in another month — nothing to enter' },
 };
+// Buckets whose summary card only appears when non-zero (cross-period cases).
+const OPTIONAL_BUCKETS = ['matched_other_period', 'in_books_other_month'];
 const CHIP = {
   emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   blue:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -29,6 +35,7 @@ const CHIP = {
   red:     'bg-red-500/10 text-red-400 border-red-500/20',
   orange:  'bg-orange-500/10 text-orange-400 border-orange-500/20',
   purple:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  cyan:    'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
 };
 
 // "2026-04" (month input) <-> "042026" (GST return period MMYYYY)
@@ -246,7 +253,9 @@ export default function GstReconciliation() {
               const count = summary[{
                 matched: 'matched', probable: 'probable', mismatch: 'mismatch',
                 missing_in_2b: 'missingIn2b', no_gstin: 'noGstin', missing_in_books: 'missingInBooks',
+                matched_other_period: 'matchedOtherPeriod', in_books_other_month: 'inBooksOtherMonth',
               }[key]] || 0;
+              if (OPTIONAL_BUCKETS.includes(key) && count === 0) return null;
               const active = filter === key;
               return (
                 <button key={key} onClick={() => setFilter(active ? 'all' : key)}
@@ -288,7 +297,7 @@ export default function GstReconciliation() {
                   <tr><td colSpan={7} className="text-center py-10 text-dark-500">No rows in this bucket.</td></tr>
                 ) : shown.map((r, i) => {
                   const cfg = BUCKETS[r.match] || { label: r.match, color: 'blue' };
-                  const inBooks = r.match !== 'missing_in_books';
+                  const inBooks = r.match !== 'missing_in_books' && r.match !== 'in_books_other_month';
                   return (
                     <tr key={r.billId || `mib-${i}`} className="border-b border-dark-800 hover:bg-dark-800/40">
                       <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full border ${CHIP[cfg.color]}`}>{cfg.label}</span></td>
@@ -302,12 +311,21 @@ export default function GstReconciliation() {
                           <>
                             <div className="text-white">{r.twoB?.supplierName || '—'}</div>
                             <div className="text-dark-400 text-xs">2B inv {r.twoB?.inum || '—'}</div>
+                            {r.bookBill?.number && (
+                              <div className="text-cyan-400 text-xs mt-0.5">
+                                Booked as {r.bookBill.number}
+                                {r.bookBill.date ? ` (${new Date(r.bookBill.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })})` : ''}
+                              </div>
+                            )}
                           </>
                         )}
                       </td>
                       <td className="px-4 py-3 text-dark-300 font-mono text-xs">{inBooks ? (r.vendorGstin || '—') : (r.twoB?.ctin || '—')}</td>
                       <td className="px-4 py-3 text-right text-dark-200">{inBooks ? `${formatCurrency(r.billTaxable, 'INR')} / ${formatCurrency(r.billTax, 'INR')}` : '—'}</td>
-                      <td className="px-4 py-3 text-right text-dark-200">{r.twoB ? `${formatCurrency(r.twoB.txval, 'INR')} / ${formatCurrency(r.twoB.tax, 'INR')}` : '—'}</td>
+                      <td className="px-4 py-3 text-right text-dark-200">
+                        {r.twoB ? `${formatCurrency(r.twoB.txval, 'INR')} / ${formatCurrency(r.twoB.tax, 'INR')}` : '—'}
+                        {r.twoBPeriod && <div className="text-cyan-400 text-xs">in {periodLabel(r.twoBPeriod)} 2B</div>}
+                      </td>
                       <td className="px-4 py-3 text-right text-xs">
                         {r.deltas ? (
                           <span className={Math.abs(r.deltas.tax) > 1 || Math.abs(r.deltas.taxable) > 1 ? 'text-amber-400' : 'text-dark-500'}>
