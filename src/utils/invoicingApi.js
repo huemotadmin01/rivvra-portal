@@ -324,6 +324,12 @@ const invoicingApi = {
   getStatutoryDues(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/statutory/dues`);
   },
+  // Correct the vendor-reference fields on a posted/paid vendor bill (the
+  // GSTR-2B matching key) — narrow admin-only PATCH, amounts untouched.
+  updateBillReference(orgSlug, id, data) {
+    return api.request(`/api/org/${orgSlug}/invoicing/invoices/${id}/bill-reference`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+
   // kind: 'gstr1' | 'tds26q' | 'tds24q'. Authenticated fetch → blob download
   // (a bare <a href> would 401; the auth + company headers must be sent).
   async downloadStatutoryCsv(orgSlug, kind, params = {}, fallbackName = 'export.csv') {

@@ -11,7 +11,61 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { Loader2, ArrowLeft, Upload, AlertTriangle, Download, ShieldCheck } from 'lucide-react';
+import { Loader2, ArrowLeft, Upload, AlertTriangle, Download, ShieldCheck, Pencil, X } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Inline editor for a bill's vendor-reference (the 2B matching key). Opened
+// from mismatch / missing-in-2B rows — the two buckets a typo'd reference
+// lands in. Saving re-reconciles the period so the row re-buckets instantly.
+// ---------------------------------------------------------------------------
+function EditReferenceModal({ row, suggestion, saving, onSave, onClose }) {
+  const [ref, setRef] = useState(row.vendorInvoiceNumber || '');
+  const inputRef = useRef(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-dark-850 border border-dark-700 rounded-2xl w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Edit bill reference</h3>
+            <p className="text-dark-400 text-sm mt-0.5">{row.number} · {row.contactName}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 transition-colors"><X size={18} /></button>
+        </div>
+        <div>
+          <label className="block text-dark-300 text-xs font-medium mb-1.5 uppercase tracking-wider">Vendor invoice number (as printed on their invoice)</label>
+          <input ref={inputRef} type="text" value={ref} onChange={(e) => setRef(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && ref.trim()) onSave(ref.trim()); }}
+            className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+          {suggestion && suggestion !== (row.vendorInvoiceNumber || '') && (
+            <button onClick={() => setRef(suggestion)}
+              className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
+              Use 2B's number: {suggestion}
+            </button>
+          )}
+        </div>
+        <p className="text-dark-500 text-xs">
+          This is the GSTR-2B matching key. Amounts, numbering and payments are not affected; the period re-reconciles after saving.
+        </p>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-dark-300 hover:text-white transition-colors">Cancel</button>
+          <button onClick={() => onSave(ref.trim())} disabled={saving || !ref.trim()}
+            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            Save &amp; re-reconcile
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Match buckets → label, colour, and short help.
 const BUCKETS = {
@@ -48,7 +102,8 @@ const periodLabel = (p) => {
 };
 
 export default function GstReconciliation() {
-  const { orgSlug } = useOrg();
+  const { orgSlug, getAppRole } = useOrg();
+  const isAdmin = getAppRole('invoicing') === 'admin';
   const { orgPath } = usePlatform();
   const { currentCompany, companyCountry } = useCompany();
   const { showToast } = useToast();
@@ -134,6 +189,25 @@ export default function GstReconciliation() {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const [editRef, setEditRef] = useState(null); // recon row being edited
+  const [savingRef, setSavingRef] = useState(false);
+  const saveReference = async (ref) => {
+    if (!editRef?.billId) return;
+    setSavingRef(true);
+    try {
+      // Both fields — vendorInvoiceNumber is canonical, vendorBillRef legacy;
+      // keeping them identical means every reader agrees.
+      await invoicingApi.updateBillReference(orgSlug, editRef.billId, { vendorInvoiceNumber: ref, vendorBillRef: ref });
+      showToast('Reference updated — re-reconciling…', 'success');
+      setEditRef(null);
+      await runReconcile(period);
+    } catch (e) {
+      showToast(e.message || 'Failed to update reference', 'error');
+    } finally {
+      setSavingRef(false);
     }
   };
 
@@ -316,7 +390,16 @@ export default function GstReconciliation() {
                         {inBooks ? (
                           <>
                             <div className="text-white">{r.number || '—'}</div>
-                            <div className="text-dark-400 text-xs">{r.contactName} · inv {r.vendorInvoiceNumber || '—'}</div>
+                            <div className="text-dark-400 text-xs flex items-center gap-1">
+                              {r.contactName} · inv {r.vendorInvoiceNumber || '—'}
+                              {isAdmin && r.billId && (r.match === 'mismatch' || r.match === 'missing_in_2b') && (
+                                <button onClick={() => setEditRef(r)}
+                                  title="Edit the vendor invoice number (2B matching key)"
+                                  className="p-0.5 rounded text-dark-500 hover:text-white hover:bg-dark-700 transition-colors">
+                                  <Pencil size={11} />
+                                </button>
+                              )}
+                            </div>
                           </>
                         ) : (
                           <>
@@ -357,6 +440,16 @@ export default function GstReconciliation() {
             </table>
           </div>
         </>
+      )}
+
+      {editRef && (
+        <EditReferenceModal
+          row={editRef}
+          suggestion={editRef.twoB?.inum || null}
+          saving={savingRef}
+          onSave={saveReference}
+          onClose={() => setEditRef(null)}
+        />
       )}
     </div>
   );
