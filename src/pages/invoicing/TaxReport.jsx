@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -55,8 +55,11 @@ function LegacyTaxReport() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Drop stale responses on rapid Generate clicks / date edits mid-flight.
+  const seqRef = useRef(0);
   const fetchReport = () => {
     if (!orgSlug) return;
+    const seq = ++seqRef.current;
     setLoading(true);
     setError(null);
     // Reset on company switch so the previous company's tax totals don't
@@ -64,9 +67,9 @@ function LegacyTaxReport() {
     setData(null);
     invoicingApi
       .getTaxReport(orgSlug, { from: fromDate, to: toDate })
-      .then((res) => setData(res))
-      .catch((err) => setError(err.message || 'Failed to load tax report'))
-      .finally(() => setLoading(false));
+      .then((res) => { if (seq === seqRef.current) setData(res); })
+      .catch((err) => { if (seq === seqRef.current) setError(err.message || 'Failed to load tax report'); })
+      .finally(() => { if (seq === seqRef.current) setLoading(false); });
   };
 
   useEffect(() => {

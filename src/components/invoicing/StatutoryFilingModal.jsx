@@ -2,7 +2,7 @@
 // StatutoryFilingModal — record a GSTR-1 / GSTR-3B filing or a TDS deposit
 // for one tax period (month). Upserts via /invoicing/statutory/filings.
 // ============================================================================
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import invoicingApi from '../../utils/invoicingApi';
 import { useToast } from '../../context/ToastContext';
 import { Loader2, X, Trash2 } from 'lucide-react';
@@ -31,10 +31,25 @@ export default function StatutoryFilingModal({ orgSlug, kind, year, month, perio
   const [note, setNote] = useState(existing?.note || '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const firstFieldRef = useRef(null);
+
+  // Escape closes; first field gets focus on open. Backdrop clicks deliberately
+  // do NOT close — a stray click must not discard typed challan details.
+  useEffect(() => {
+    firstFieldRef.current?.focus();
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const save = async () => {
-    if (HAS_AMOUNT[kind] && amountPaid !== '' && !Number.isFinite(Number(amountPaid))) {
-      showToast('Amount must be a number', 'error');
+    if (!filedOn) {
+      showToast(kind.startsWith('tds') ? 'Deposit date is required' : 'Filing date is required', 'error');
+      return;
+    }
+    if (HAS_AMOUNT[kind] && amountPaid !== '' && (!Number.isFinite(Number(amountPaid)) || Number(amountPaid) < 0)) {
+      showToast('Amount must be a non-negative number', 'error');
       return;
     }
     setSaving(true);
@@ -73,8 +88,8 @@ export default function StatutoryFilingModal({ orgSlug, kind, year, month, perio
   const labelCls = 'block text-dark-300 text-xs font-medium mb-1.5 uppercase tracking-wider';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-dark-850 border border-dark-700 rounded-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-dark-850 border border-dark-700 rounded-2xl w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-white">{KIND_LABELS[kind] || kind}</h3>
@@ -87,7 +102,7 @@ export default function StatutoryFilingModal({ orgSlug, kind, year, month, perio
 
         <div>
           <label className={labelCls}>{kind.startsWith('tds') ? 'Deposited on' : 'Filed on'}</label>
-          <input type="date" value={filedOn} onChange={(e) => setFiledOn(e.target.value)} className={inputCls} />
+          <input ref={firstFieldRef} type="date" value={filedOn} onChange={(e) => setFiledOn(e.target.value)} className={inputCls} />
         </div>
         {HAS_AMOUNT[kind] && (
           <div>

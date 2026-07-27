@@ -6,7 +6,7 @@
 // Deposit entries (challan) recorded per month for 26Q / 24Q streams.
 // Backend: GET /invoicing/statutory/tds-report, POST/DELETE .../filings.
 // ============================================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -48,14 +48,18 @@ export default function TdsReport() {
   const [error, setError] = useState(null);
   const [filingModal, setFilingModal] = useState(null);
 
+  // Drop stale responses when FY changes mid-flight (throttled cluster makes
+  // the out-of-order window seconds long).
+  const seqRef = useRef(0);
   const load = useCallback(() => {
     if (!orgSlug) return;
+    const seq = ++seqRef.current;
     setLoading(true);
     setError(null);
     invoicingApi.getTdsReport(orgSlug, { fy: fy || undefined })
-      .then((res) => setData(res.data))
-      .catch((err) => setError(err.message || 'Failed to load TDS report'))
-      .finally(() => setLoading(false));
+      .then((res) => { if (seq === seqRef.current) setData(res.data); })
+      .catch((err) => { if (seq === seqRef.current) setError(err.message || 'Failed to load TDS report'); })
+      .finally(() => { if (seq === seqRef.current) setLoading(false); });
   }, [orgSlug, fy, currentCompany?._id]);
 
   useEffect(() => { load(); }, [load]);
@@ -90,13 +94,20 @@ export default function TdsReport() {
               Deducted, deposited and receivable TDS for {data?.company?.name || currentCompany?.name || 'this company'}
             </p>
           </div>
-          <select value={fy || data?.fy || ''} onChange={(e) => setFy(e.target.value)}
-            className="px-3 py-2 bg-dark-850 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            {(data?.fyOptions || (data?.fy ? [data.fy] : [])).map((o) => <option key={o} value={o}>FY {o}</option>)}
-          </select>
+          {data && (
+            <select value={fy || data.fy || ''} onChange={(e) => setFy(e.target.value)}
+              className="px-3 py-2 bg-dark-850 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
+              {(data.fyOptions || (data.fy ? [data.fy] : [])).map((o) => <option key={o} value={o}>FY {o}</option>)}
+            </select>
+          )}
         </div>
 
-        {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-400">{error}</div>}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-400 flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <button onClick={load} className="px-3 py-1.5 rounded-lg border border-red-500/30 hover:bg-red-500/10 text-sm shrink-0">Retry</button>
+          </div>
+        )}
         {loading && <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-blue-400 animate-spin" /></div>}
 
         {!loading && !error && data && (

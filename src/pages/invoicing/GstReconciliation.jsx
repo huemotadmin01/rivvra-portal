@@ -66,27 +66,36 @@ export default function GstReconciliation() {
   const [uploading, setUploading] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [filter, setFilter] = useState('all');
+  // Monotonic sequence: every recon-state writer takes a ticket, and stale
+  // async responses (slow load racing an upload+reconcile, rapid period
+  // switches on the throttled cluster) are dropped instead of clobbering
+  // newer state.
+  const seqRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!orgSlug || !period) return;
+    const seq = ++seqRef.current;
     setLoading(true);
     // Reset on company switch so the previous company's imports/recon don't
     // linger if the new fetch returns nothing.
     setImports([]);
     setRecon(null);
+    setFilter('all'); // a bucket filter from another period may not exist here
     try {
       const [impRes, recRes] = await Promise.all([
         invoicingApi.listGstr2bImports(orgSlug),
         invoicingApi.getGstr2bRecon(orgSlug, period),
       ]);
+      if (seq !== seqRef.current) return; // superseded by a newer load/reconcile
       setImports(impRes?.imports || []);
       setRecon(recRes?.recon || null);
       setIndiaBlocked(false);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (/indian companies/i.test(e.message || '')) setIndiaBlocked(true);
       else showToast(e.message || 'Failed to load', 'error');
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, period, showToast, currentCompany?._id]);
@@ -97,7 +106,9 @@ export default function GstReconciliation() {
     setReconciling(true);
     try {
       const res = await invoicingApi.reconcileGstr2b(orgSlug, p);
+      seqRef.current += 1; // invalidate any in-flight load so it can't overwrite this
       setRecon({ _id: res.reconId, results: res.results, summary: res.summary, generatedDate: res.generatedDate });
+      setLoading(false);
       showToast('Reconciliation complete', 'success');
     } catch (e) {
       showToast(e.message || 'Reconcile failed', 'error');
@@ -193,12 +204,12 @@ export default function GstReconciliation() {
           </label>
           <input ref={fileRef} type="file" accept=".json,application/json" className="hidden"
             onChange={(e) => handleUpload(e.target.files?.[0])} />
-          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          <button onClick={() => fileRef.current?.click()} disabled={uploading || reconciling}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rivvra-500 hover:bg-rivvra-600 text-white text-sm font-medium disabled:opacity-50">
             {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Upload GSTR-2B JSON
           </button>
           {hasImportForPeriod && (
-            <button onClick={() => runReconcile(period)} disabled={reconciling}
+            <button onClick={() => runReconcile(period)} disabled={reconciling || uploading}
               className="px-4 py-2 rounded-lg border border-dark-600 hover:bg-dark-800 text-white text-sm font-medium disabled:opacity-50">
               {reconciling ? 'Reconciling…' : 'Re-reconcile'}
             </button>
