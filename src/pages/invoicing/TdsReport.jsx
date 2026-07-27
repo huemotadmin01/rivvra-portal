@@ -14,7 +14,8 @@ import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
 import { StatusChip } from './GstReport';
-import { Loader2, ArrowLeft, Percent, Info } from 'lucide-react';
+import { Loader2, ArrowLeft, Percent, Info, Download } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthLabel = (row) => `${MONTH_ABBR[row.month - 1]} ${row.year}`;
@@ -47,6 +48,19 @@ export default function TdsReport() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filingModal, setFilingModal] = useState(null);
+  const [exporting, setExporting] = useState(null); // 'tds26q' | 'tds24q'
+  const { showToast } = useToast();
+
+  const exportCsv = async (kind) => {
+    setExporting(kind);
+    try {
+      await invoicingApi.downloadStatutoryCsv(orgSlug, kind, { fy: fy || data?.fy || '' }, `${kind.toUpperCase()}.csv`);
+    } catch (err) {
+      showToast(err.message || 'Export failed', 'error');
+    } finally {
+      setExporting(null);
+    }
+  };
 
   // Drop stale responses when FY changes mid-flight (throttled cluster makes
   // the out-of-order window seconds long).
@@ -95,10 +109,22 @@ export default function TdsReport() {
             </p>
           </div>
           {data && (
-            <select value={fy || data.fy || ''} onChange={(e) => setFy(e.target.value)}
-              className="px-3 py-2 bg-dark-850 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-              {(data.fyOptions || (data.fy ? [data.fy] : [])).map((o) => <option key={o} value={o}>FY {o}</option>)}
-            </select>
+            <div className="flex items-center gap-2">
+              <select value={fy || data.fy || ''} onChange={(e) => setFy(e.target.value)}
+                className="px-3 py-2 bg-dark-850 border border-dark-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
+                {(data.fyOptions || (data.fy ? [data.fy] : [])).map((o) => <option key={o} value={o}>FY {o}</option>)}
+              </select>
+              <button onClick={() => exportCsv('tds26q')} disabled={!!exporting}
+                title="Vendor TDS deductee rows for the FY, with a Quarter column"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:bg-dark-800 disabled:opacity-50 text-xs transition-colors">
+                {exporting === 'tds26q' ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} 26Q CSV
+              </button>
+              <button onClick={() => exportCsv('tds24q')} disabled={!!exporting}
+                title="Employee-wise salary TDS for the FY, with a Quarter column"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dark-700 text-dark-300 hover:text-white hover:bg-dark-800 disabled:opacity-50 text-xs transition-colors">
+                {exporting === 'tds24q' ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} 24Q CSV
+              </button>
+            </div>
           )}
         </div>
 

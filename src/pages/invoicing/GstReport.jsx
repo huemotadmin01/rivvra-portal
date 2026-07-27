@@ -12,7 +12,8 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
-import { Loader2, ArrowLeft, Receipt, Info, Columns3 } from 'lucide-react';
+import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GRANULARITIES = [
@@ -69,6 +70,20 @@ export default function GstReport() {
   const [error, setError] = useState(null);
   const [showSplit, setShowSplit] = useState(false);
   const [filingModal, setFilingModal] = useState(null); // { kind, year, month, existing, suggestedAmount }
+  const [exportingKey, setExportingKey] = useState(null); // month key being exported
+  const { showToast } = useToast();
+
+  const exportGstr1 = async (row) => {
+    const key = row.key;
+    setExportingKey(key);
+    try {
+      await invoicingApi.downloadStatutoryCsv(orgSlug, 'gstr1', { month: key }, `GSTR1_${key}.csv`);
+    } catch (err) {
+      showToast(err.message || 'Export failed', 'error');
+    } finally {
+      setExportingKey(null);
+    }
+  };
 
   // Drop stale responses: switching granularity/FY mid-flight must not let an
   // older (slower) request's data render under the newer selection.
@@ -189,6 +204,7 @@ export default function GstReport() {
                       {granularity === 'month' && <>
                         <th className="text-center px-4 py-3 font-medium">GSTR-1</th>
                         <th className="text-center px-4 py-3 font-medium">GSTR-3B</th>
+                        <th className="text-center px-4 py-3 font-medium" title="Download GSTR-1 CSV">CSV</th>
                       </>}
                     </tr>
                   </thead>
@@ -219,6 +235,13 @@ export default function GstReport() {
                               <StatusChip status={row.gstr3bStatus} due={row.gstr3bDue} />
                             </button>
                           </td>
+                          <td className="px-4 py-3 text-center">
+                            <button onClick={() => exportGstr1(row)} disabled={exportingKey === row.key}
+                              title={`Download GSTR-1 CSV for ${monthLabel(row)}`}
+                              className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-50 transition-colors">
+                              {exportingKey === row.key ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                            </button>
+                          </td>
                         </>}
                       </tr>
                     ))}
@@ -235,7 +258,7 @@ export default function GstReport() {
                         <td className={numCls + ' text-blue-400'}>{formatCurrency(totals.itc2b, 'INR')}</td>
                         <td className={numCls + ' text-amber-400'}>{formatCurrency(totals.netPayable, 'INR')}</td>
                         <td className={numCls + ' text-dark-200'}>{formatCurrency(totals.amountPaid, 'INR')}</td>
-                        {granularity === 'month' && <td colSpan={2} />}
+                        {granularity === 'month' && <td colSpan={3} />}
                       </tr>
                     </tfoot>
                   )}

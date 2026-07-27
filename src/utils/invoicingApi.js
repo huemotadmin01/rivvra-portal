@@ -2,7 +2,7 @@
 // invoicingApi.js — Invoicing API client
 // ============================================================================
 
-import api from './api';
+import api, { getActiveCompanyId } from './api';
 
 const invoicingApi = {
   // ---------- DASHBOARD ----------
@@ -323,6 +323,38 @@ const invoicingApi = {
   },
   getStatutoryDues(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/statutory/dues`);
+  },
+  // kind: 'gstr1' | 'tds26q' | 'tds24q'. Authenticated fetch → blob download
+  // (a bare <a href> would 401; the auth + company headers must be sent).
+  async downloadStatutoryCsv(orgSlug, kind, params = {}, fallbackName = 'export.csv') {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    const token = localStorage.getItem('rivvra_token');
+    const companyId = getActiveCompanyId();
+    const response = await fetch(`${api.baseUrl}/api/org/${orgSlug}/invoicing/statutory/export/${kind}${qs ? '?' + qs : ''}`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(companyId ? { 'X-Company-Id': companyId } : {}),
+      },
+    });
+    if (!response.ok) {
+      const ct = response.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await response.json();
+        throw new Error(data.error || `Export failed (${response.status})`);
+      }
+      throw new Error(`Export failed (${response.status})`);
+    }
+    const cd = response.headers.get('content-disposition') || '';
+    const nameMatch = cd.match(/filename="([^"]+)"/);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nameMatch ? nameMatch[1] : fallbackName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   },
 
   // ---------- E-INVOICE ----------
