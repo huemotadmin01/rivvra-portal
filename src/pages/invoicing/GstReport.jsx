@@ -290,9 +290,9 @@ export default function GstReport() {
                           {formatCurrency(row.netPayable, 'INR')}
                           {row.key && row.itcUnbooked > 0 && (
                             <button onClick={() => openDrill('itcunbooked', row)}
-                              title={`If the ${formatCurrency(row.itcUnbooked, 'INR')} of unbooked 2B credit is booked, net payable drops to ${formatCurrency(row.netPayable - row.itcUnbooked, 'INR')} — view the bills to book`}
+                              title={`Projected 3B payable = Output GST ${formatCurrency(row.outputTax, 'INR')} − (2B-verified ITC ${formatCurrency(row.itc2b, 'INR')} + unbooked 2B credit ${formatCurrency(row.itcUnbooked, 'INR')}) once those bills are booked — click to view them`}
                               className="block w-full text-right text-[10px] font-normal text-cyan-400 hover:text-cyan-300 mt-0.5 transition-colors">
-                              {formatCurrency(row.netPayable - row.itcUnbooked, 'INR')} after booking
+                              {formatCurrency(row.outputTax - (row.itc2b + row.itcUnbooked), 'INR')} after booking
                             </button>
                           )}
                         </td>
