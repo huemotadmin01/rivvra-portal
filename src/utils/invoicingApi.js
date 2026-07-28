@@ -324,6 +324,15 @@ const invoicingApi = {
   getStatutoryDues(orgSlug) {
     return api.request(`/api/org/${orgSlug}/invoicing/statutory/dues`);
   },
+  getGstReportRecords(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/gst-report/records${qs ? '?' + qs : ''}`);
+  },
+  getTdsReportRecords(orgSlug, params = {}) {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))).toString();
+    return api.request(`/api/org/${orgSlug}/invoicing/statutory/tds-report/records${qs ? '?' + qs : ''}`);
+  },
+
   // Correct the vendor-reference fields on a posted/paid vendor bill (the
   // GSTR-2B matching key) — narrow admin-only PATCH, amounts untouched.
   updateBillReference(orgSlug, id, data) {

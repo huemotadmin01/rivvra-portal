@@ -13,6 +13,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
+import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
 import { StatusChip } from './GstReport';
 import { Loader2, ArrowLeft, Percent, Info, Download } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
@@ -49,7 +50,14 @@ export default function TdsReport() {
   const [error, setError] = useState(null);
   const [filingModal, setFilingModal] = useState(null);
   const [exporting, setExporting] = useState(null); // 'tds26q' | 'tds24q'
+  const [drill, setDrill] = useState(null); // { bucket, monthKey, title, subtitle }
   const { showToast } = useToast();
+
+  const DRILL_TITLES = { vendor: 'Vendor TDS — bills (26Q)', salary: 'Salary TDS — employees (24Q)', customer: 'TDS deducted by customers' };
+  const openDrill = (bucket, row) => setDrill({
+    bucket, monthKey: row.key, title: DRILL_TITLES[bucket], subtitle: `${monthLabel(row)} · INR`,
+  });
+  const drillCls = 'underline decoration-dotted decoration-dark-500 underline-offset-4 hover:decoration-current cursor-pointer';
 
   const exportCsv = async (kind) => {
     setExporting(kind);
@@ -169,20 +177,28 @@ export default function TdsReport() {
                     {months.map((row) => (
                       <tr key={row.key} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                         <td className="px-4 py-3 text-white font-medium">{monthLabel(row)} <span className="text-dark-500 text-xs">Q{row.quarter}</span></td>
-                        <td className={`${numCls} text-blue-400`}>{formatCurrency(row.vendorTds, 'INR')}<span className="text-dark-500 text-xs ml-1">({row.vendorBills})</span></td>
+                        <td className={`${numCls} text-blue-400`}>
+                          <button className={drillCls} title="View TDS-deducted vendor bills" onClick={() => openDrill('vendor', row)}>{formatCurrency(row.vendorTds, 'INR')}</button>
+                          <span className="text-dark-500 text-xs ml-1">({row.vendorBills})</span>
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <button onClick={() => openDeposit('tds26q', row)} disabled={!isAdmin} className={isAdmin ? 'cursor-pointer' : 'cursor-default'}>
                             <StatusChip status={row.deposit26qStatus} due={row.depositDueDate} />
                           </button>
                         </td>
-                        <td className={`${numCls} text-purple-400`}>{formatCurrency(row.salaryTds, 'INR')}<span className="text-dark-500 text-xs ml-1">({row.salaryEmployees})</span></td>
+                        <td className={`${numCls} text-purple-400`}>
+                          <button className={drillCls} title="View employee-wise salary TDS" onClick={() => openDrill('salary', row)}>{formatCurrency(row.salaryTds, 'INR')}</button>
+                          <span className="text-dark-500 text-xs ml-1">({row.salaryEmployees})</span>
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <button onClick={() => openDeposit('tds24q', row)} disabled={!isAdmin} className={isAdmin ? 'cursor-pointer' : 'cursor-default'}>
                             <StatusChip status={row.deposit24qStatus} due={row.depositDueDate} />
                           </button>
                         </td>
                         <td className={`${numCls} font-semibold text-amber-400`}>{formatCurrency(row.depositDue, 'INR')}</td>
-                        <td className={`${numCls} text-emerald-400`}>{formatCurrency(row.customerTds, 'INR')}</td>
+                        <td className={`${numCls} text-emerald-400`}>
+                          <button className={drillCls} title="View customer-deducted TDS payments" onClick={() => openDrill('customer', row)}>{formatCurrency(row.customerTds, 'INR')}</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -283,6 +299,9 @@ export default function TdsReport() {
 
         {filingModal && (
           <StatutoryFilingModal orgSlug={orgSlug} {...filingModal} onClose={() => setFilingModal(null)} onSaved={load} />
+        )}
+        {drill && (
+          <StatutoryRecordsModal orgSlug={orgSlug} report="tds" {...drill} onClose={() => setDrill(null)} />
         )}
       </div>
     </div>

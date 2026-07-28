@@ -12,6 +12,7 @@ import { useCompany } from '../../context/CompanyContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
+import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
 import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download, RefreshCw } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
@@ -78,7 +79,19 @@ export default function GstReport() {
   const [showSplit, setShowSplit] = useState(false);
   const [filingModal, setFilingModal] = useState(null); // { kind, year, month, existing, suggestedAmount }
   const [exportingKey, setExportingKey] = useState(null); // month key being exported
+  const [drill, setDrill] = useState(null); // { bucket, monthKey, title, subtitle }
   const { showToast } = useToast();
+
+  const DRILL_TITLES = {
+    output: 'Output GST — taxed sales', exports: 'Exports / zero-rated turnover',
+    itc: 'ITC (books) — vendor bills', itc2b: 'ITC matched in 2B',
+  };
+  const openDrill = (bucket, row) => setDrill({
+    bucket, monthKey: row.key,
+    title: DRILL_TITLES[bucket], subtitle: `${monthLabel(row)} · INR`,
+  });
+  // Drillable amount cell: underlines on hover, keyboard-accessible.
+  const drillCls = 'underline decoration-dotted decoration-dark-500 underline-offset-4 hover:decoration-current cursor-pointer';
 
   const exportGstr1 = async (row) => {
     const key = row.key;
@@ -232,15 +245,31 @@ export default function GstReport() {
                       <tr key={row.key || row.label || i} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                         <td className="px-4 py-3 text-white font-medium">{row.label || monthLabel(row)}</td>
                         <td className={`${numCls} text-dark-200`}>{formatCurrency(row.taxableTurnover, 'INR')}</td>
-                        <td className={`${numCls} text-dark-400`}>{formatCurrency(row.exportsTurnover, 'INR')}</td>
-                        <td className={`${numCls} text-emerald-400`}>{formatCurrency(row.outputTax, 'INR')}</td>
+                        <td className={`${numCls} text-dark-400`}>
+                          {row.key
+                            ? <button className={drillCls} title="View export invoices" onClick={() => openDrill('exports', row)}>{formatCurrency(row.exportsTurnover, 'INR')}</button>
+                            : formatCurrency(row.exportsTurnover, 'INR')}
+                        </td>
+                        <td className={`${numCls} text-emerald-400`}>
+                          {row.key
+                            ? <button className={drillCls} title="View taxed sales invoices" onClick={() => openDrill('output', row)}>{formatCurrency(row.outputTax, 'INR')}</button>
+                            : formatCurrency(row.outputTax, 'INR')}
+                        </td>
                         {showSplit && granularity === 'month' && <>
                           <td className={`${numCls} text-dark-400`}>{formatCurrency(row.outputSplit?.cgst || 0, 'INR')}</td>
                           <td className={`${numCls} text-dark-400`}>{formatCurrency(row.outputSplit?.sgst || 0, 'INR')}</td>
                           <td className={`${numCls} text-dark-400`}>{formatCurrency(row.outputSplit?.igst || 0, 'INR')}</td>
                         </>}
-                        <td className={`${numCls} text-blue-400`}>{formatCurrency(row.itcBooks, 'INR')}</td>
-                        <td className={`${numCls} ${row.itc2b < row.itcBooks ? 'text-amber-400' : 'text-blue-400'}`}>{formatCurrency(row.itc2b, 'INR')}</td>
+                        <td className={`${numCls} text-blue-400`}>
+                          {row.key
+                            ? <button className={drillCls} title="View vendor bills with GST" onClick={() => openDrill('itc', row)}>{formatCurrency(row.itcBooks, 'INR')}</button>
+                            : formatCurrency(row.itcBooks, 'INR')}
+                        </td>
+                        <td className={`${numCls} ${row.itc2b < row.itcBooks ? 'text-amber-400' : 'text-blue-400'}`}>
+                          {row.key
+                            ? <button className={drillCls} title="View 2B-matched bills" onClick={() => openDrill('itc2b', row)}>{formatCurrency(row.itc2b, 'INR')}</button>
+                            : formatCurrency(row.itc2b, 'INR')}
+                        </td>
                         <td className={`${numCls} font-semibold ${row.netPayable > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{formatCurrency(row.netPayable, 'INR')}</td>
                         <td className={`${numCls} text-dark-200`}>{row.amountPaid != null ? formatCurrency(row.amountPaid, 'INR') : '—'}</td>
                         {granularity === 'month' && <>
@@ -307,6 +336,9 @@ export default function GstReport() {
             onClose={() => setFilingModal(null)}
             onSaved={load}
           />
+        )}
+        {drill && (
+          <StatutoryRecordsModal orgSlug={orgSlug} report="gst" {...drill} onClose={() => setDrill(null)} />
         )}
       </div>
     </div>
