@@ -86,6 +86,7 @@ export default function GstReport() {
     output: 'Output GST — taxed sales', exports: 'Exports / zero-rated turnover',
     itc: 'ITC (books) — vendor bills', itc2b: 'ITC matched in 2B',
     itcgap: 'Booked but not matched in 2B',
+    itcunbooked: 'In 2B but not in your books',
   };
   const openDrill = (bucket, row) => setDrill({
     bucket, monthKey: row.key,
@@ -275,6 +276,13 @@ export default function GstReport() {
                               title={`${formatCurrency(row.itcBooks - row.itc2b, 'INR')} of booked ITC not yet matched in 2B — view which bills and why`}
                               className="ml-1.5 text-amber-400 hover:text-amber-300 align-middle transition-colors">
                               <AlertTriangle size={12} />
+                            </button>
+                          )}
+                          {row.key && row.itcUnbooked > 0 && (
+                            <button onClick={() => openDrill('itcunbooked', row)}
+                              title={`${formatCurrency(row.itcUnbooked, 'INR')} of credit is in your 2B but has no bill in the books — book those bills to claim it`}
+                              className="block w-full text-right text-[10px] text-cyan-400 hover:text-cyan-300 mt-0.5 transition-colors">
+                              +{formatCurrency(row.itcUnbooked, 'INR')} unbooked
                             </button>
                           )}
                         </td>
