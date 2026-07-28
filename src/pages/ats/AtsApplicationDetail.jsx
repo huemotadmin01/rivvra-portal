@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../utils/formatCurrency';
 import atsApi from '../../utils/atsApi';
+import signApi from '../../utils/signApi';
 import employeeApi from '../../utils/employeeApi';
 import ActivityPanel from '../../components/shared/ActivityPanel';
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
@@ -164,6 +165,14 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
   const [signError, setSignError] = useState('');
   // 2026-05-17 health-check D.2: two-stage confirm for envelope disconnect.
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
+  // One outstanding offer per application (2026-07-28). Set from the server's
+  // 409 OFFER_ALREADY_OUTSTANDING when an offer envelope is still awaiting
+  // signature — including one orphaned by an older Disconnect, which clears
+  // application.offer.signEnvelopeId but left the envelope live and signable.
+  // In that case the picker is showing and only the server knows.
+  const [outstandingEnvelope, setOutstandingEnvelope] = useState(null);
+  const [reminding, setReminding] = useState(false);
+  const [cancellingEnv, setCancellingEnv] = useState(false);
   const [signTemplateId, setSignTemplateId] = useState('');
   const [directorName, setDirectorName] = useState('');
   const [directorEmail, setDirectorEmail] = useState('');
@@ -390,6 +399,10 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
     if (!show) return;
     setSignSubjectDirty(false);
     setSignMessageDirty(false);
+    // Re-discovered on each send attempt; a stale one would wrongly hide the
+    // picker after the recruiter cancels the outstanding envelope elsewhere.
+    setOutstandingEnvelope(null);
+    setDisconnectConfirm(false);
   }, [show]);
 
   if (!show) return null;
@@ -434,11 +447,68 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
         try { await onRefresh(); } catch { /* ignore */ }
       }
     } catch (err) {
+      // Server refused because an offer is already out for signature. Steer to
+      // the reminder flow rather than showing a dead-end error — the recruiter
+      // usually wants to nudge the candidate, not issue a second letter.
+      if (err?.code === 'OFFER_ALREADY_OUTSTANDING' && err?.envelopeId) {
+        setOutstandingEnvelope({
+          id: String(err.envelopeId),
+          state: err.envelopeState || 'sent',
+          sentAt: err.envelopeSentAt || null,
+        });
+        setSignError('');
+        return;
+      }
       const fields = err?.fieldErrors;
       const msg = fields ? Object.entries(fields)[0]?.join(': ') : null;
       setSignError(msg || err?.message || 'Failed to send for signature');
     } finally {
       setSendingEnv(false);
+    }
+  };
+
+  // Nudge the signers on the envelope that is already out, instead of
+  // creating a second one. Mirrors RateConfirmationModal.handleRemind —
+  // the endpoint enforces a 10-minute per-signer cooldown and reports
+  // reminded:0 when everyone is still inside it.
+  const handleRemindOffer = async (envelopeId) => {
+    if (!envelopeId) return;
+    setSignError('');
+    setReminding(true);
+    try {
+      const res = await signApi.remindSigners(orgSlug, envelopeId);
+      if (!res || res.reminded === 0) {
+        setSignError(res?.message || 'Reminder already sent recently — try again in a few minutes.');
+        return;
+      }
+      setSignError('');
+      if (typeof onRefresh === 'function') {
+        try { await onRefresh(); } catch { /* ignore */ }
+      }
+      setOutstandingEnvelope(null);
+    } catch (err) {
+      setSignError(err?.message || 'Failed to send reminder');
+    } finally {
+      setReminding(false);
+    }
+  };
+
+  // Explicit opt-in to replace the outstanding offer: cancel it (candidate's
+  // link stops working), then return to the picker so a new one can be sent.
+  const handleCancelOutstanding = async (envelopeId) => {
+    if (!envelopeId) return;
+    setSignError('');
+    setCancellingEnv(true);
+    try {
+      await signApi.cancelRequest(orgSlug, envelopeId);
+      setOutstandingEnvelope(null);
+      if (typeof onRefresh === 'function') {
+        try { await onRefresh(); } catch { /* ignore */ }
+      }
+    } catch (err) {
+      setSignError(err?.message || 'Failed to cancel the outstanding offer');
+    } finally {
+      setCancellingEnv(false);
     }
   };
 
@@ -691,31 +761,94 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
                         }}
                         className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors"
                       >
-                        Confirm disconnect
+                        Cancel offer &amp; disconnect
                       </button>
                       <button
                         type="button"
                         onClick={() => setDisconnectConfirm(false)}
                         className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors"
                       >
-                        Cancel
+                        Keep it
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setDisconnectConfirm(true)}
-                      title="Disconnects the envelope from the offer. The Sign request itself isn't cancelled — cancel it from the Sign module separately if needed."
-                      className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors flex-shrink-0"
-                    >
-                      Disconnect
-                    </button>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Reminder-first (2026-07-28): nudging the existing
+                          signers is almost always what's wanted, and it used
+                          to be reachable only from the Sign module — so
+                          recruiters disconnected and re-sent instead, leaving
+                          a live envelope behind and the candidate holding two
+                          offer letters. */}
+                      <button
+                        type="button"
+                        disabled={reminding}
+                        onClick={() => handleRemindOffer(application.offer.signEnvelopeId)}
+                        title="Email the pending signers a reminder about this offer. Does not create a new envelope."
+                        className="text-xs text-blue-300 hover:text-blue-200 border border-blue-500/30 rounded px-2 py-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {reminding ? 'Sending…' : 'Send reminder'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDisconnectConfirm(true)}
+                        title="Cancels this offer envelope so it can no longer be signed, then unlinks it from the application."
+                        className="text-xs text-dark-400 hover:text-white px-2 py-1 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
                   )}
                 </div>
                 <p className="text-[11px] text-dark-500 mt-2">
                   Once both Director and Candidate sign in the Sign module, this offer will mark itself as signed automatically and the Offer Signed stage gate will pass.
                 </p>
+                {disconnectConfirm && (
+                  <p className="text-[11px] text-amber-300/90 mt-2">
+                    Disconnecting cancels the envelope — the candidate&apos;s signing link stops working and any pending signers are marked cancelled. Only a new offer can be signed after this.
+                  </p>
+                )}
                 {signError && <p className="text-[11px] text-red-400 mt-2">{signError}</p>}
+              </div>
+            ) : outstandingEnvelope ? (
+              /* State 2b (2026-07-28): the application has no back-link, but
+                 the server says an offer envelope is still out for signature —
+                 an orphan from an older Disconnect, which unlinked without
+                 cancelling. Reminder-first, same as RateConfirmationModal:
+                 replacing it is an explicit, clearly-labelled opt-in. */
+              <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 space-y-3">
+                <div className="flex items-start gap-2">
+                  <Mail size={16} className="mt-0.5 shrink-0 text-blue-300" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-blue-200">An offer letter is already out for signature.</div>
+                    <div className="text-xs text-blue-200/80 mt-0.5">
+                      The candidate has already received an offer that is still awaiting signature. Send a reminder instead of issuing a second letter — two live offers means two signable documents.
+                    </div>
+                    <div className="text-[11px] text-dark-400 mt-1.5 font-mono truncate">{outstandingEnvelope.id}</div>
+                    {outstandingEnvelope.sentAt && (
+                      <div className="text-[11px] text-dark-500">Sent {formatEventDateTime(outstandingEnvelope.sentAt)}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    disabled={reminding || cancellingEnv}
+                    onClick={() => handleRemindOffer(outstandingEnvelope.id)}
+                    className="text-xs text-white bg-blue-600 hover:bg-blue-700 px-2.5 py-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {reminding ? 'Sending…' : 'Send reminder'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reminding || cancellingEnv}
+                    onClick={() => handleCancelOutstanding(outstandingEnvelope.id)}
+                    title="Cancels the outstanding offer so it can no longer be signed, then lets you send a new one."
+                    className="text-xs text-amber-300 hover:text-amber-200 border border-amber-500/30 rounded px-2.5 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {cancellingEnv ? 'Cancelling…' : 'Terms changed? Cancel it and send a new offer'}
+                  </button>
+                </div>
+                {signError && <p className="text-[11px] text-red-400">{signError}</p>}
               </div>
             ) : (
               /* No envelope yet — render the Sign picker + signer slots */
