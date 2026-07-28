@@ -13,7 +13,7 @@ import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
 import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
-import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download, RefreshCw } from 'lucide-react';
+import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -85,6 +85,7 @@ export default function GstReport() {
   const DRILL_TITLES = {
     output: 'Output GST — taxed sales', exports: 'Exports / zero-rated turnover',
     itc: 'ITC (books) — vendor bills', itc2b: 'ITC matched in 2B',
+    itcgap: 'Booked but not matched in 2B',
   };
   const openDrill = (bucket, row) => setDrill({
     bucket, monthKey: row.key,
@@ -269,6 +270,13 @@ export default function GstReport() {
                           {row.key
                             ? <button className={drillCls} title="View 2B-matched bills" onClick={() => openDrill('itc2b', row)}>{formatCurrency(row.itc2b, 'INR')}</button>
                             : formatCurrency(row.itc2b, 'INR')}
+                          {row.key && row.itcBooks - row.itc2b > 0.005 && (
+                            <button onClick={() => openDrill('itcgap', row)}
+                              title={`${formatCurrency(row.itcBooks - row.itc2b, 'INR')} of booked ITC not yet matched in 2B — view which bills and why`}
+                              className="ml-1.5 text-amber-400 hover:text-amber-300 align-middle transition-colors">
+                              <AlertTriangle size={12} />
+                            </button>
+                          )}
                         </td>
                         <td className={`${numCls} font-semibold ${row.netPayable > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{formatCurrency(row.netPayable, 'INR')}</td>
                         <td className={`${numCls} text-dark-200`}>{row.amountPaid != null ? formatCurrency(row.amountPaid, 'INR') : '—'}</td>
