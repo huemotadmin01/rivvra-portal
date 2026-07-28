@@ -271,9 +271,9 @@ export default function GstReport() {
                           {row.key
                             ? <button className={drillCls} title="View 2B-matched bills" onClick={() => openDrill('itc2b', row)}>{formatCurrency(row.itc2b, 'INR')}</button>
                             : formatCurrency(row.itc2b, 'INR')}
-                          {row.key && row.itcBooks - row.itc2b > 0.005 && (
+                          {row.key && row.itcGap > 0.005 && (
                             <button onClick={() => openDrill('itcgap', row)}
-                              title={`${formatCurrency(row.itcBooks - row.itc2b, 'INR')} of booked ITC not yet matched in 2B — view which bills and why`}
+                              title={`${formatCurrency(row.itcGap, 'INR')} of booked ITC not yet matched in 2B — view which bills and why`}
                               className="ml-1.5 text-amber-400 hover:text-amber-300 align-middle transition-colors">
                               <AlertTriangle size={12} />
                             </button>
