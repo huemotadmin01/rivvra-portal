@@ -286,7 +286,16 @@ export default function GstReport() {
                             </button>
                           )}
                         </td>
-                        <td className={`${numCls} font-semibold ${row.netPayable > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{formatCurrency(row.netPayable, 'INR')}</td>
+                        <td className={`${numCls} font-semibold ${row.netPayable > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {formatCurrency(row.netPayable, 'INR')}
+                          {row.key && row.itcUnbooked > 0 && (
+                            <button onClick={() => openDrill('itcunbooked', row)}
+                              title={`If the ${formatCurrency(row.itcUnbooked, 'INR')} of unbooked 2B credit is booked, net payable drops to ${formatCurrency(row.netPayable - row.itcUnbooked, 'INR')} — view the bills to book`}
+                              className="block w-full text-right text-[10px] font-normal text-cyan-400 hover:text-cyan-300 mt-0.5 transition-colors">
+                              {formatCurrency(row.netPayable - row.itcUnbooked, 'INR')} after booking
+                            </button>
+                          )}
+                        </td>
                         <td className={`${numCls} text-dark-200`}>{row.amountPaid != null ? formatCurrency(row.amountPaid, 'INR') : '—'}</td>
                         {granularity === 'month' && <>
                           <td className="px-4 py-3 text-center">
