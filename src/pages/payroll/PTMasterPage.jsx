@@ -5,11 +5,23 @@ import { getPTMaster, seedPTMaster, updatePTMasterConfig, getPayrollSettings, up
 import { useToast } from '../../context/ToastContext';
 import { MapPin, Plus, Save, X, ChevronDown, ChevronRight, Settings2, Loader2 } from 'lucide-react';
 
-const CURRENT_FY = (() => {
+const fyLabel = (startYear) => `${startYear}-${String(startYear + 1).slice(2)}`;
+
+// FY start year from local date parts (never toISOString — that shifts the
+// day/year for viewers behind UTC). India FY starts in April.
+const CURRENT_FY_START = (() => {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1;
-  return m >= 4 ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
+  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+})();
+
+const CURRENT_FY = fyLabel(CURRENT_FY_START);
+
+// Rolling window around the current FY instead of three hardcoded years, which
+// silently went stale (and made older/newer FYs unreachable).
+const FY_OPTIONS = (() => {
+  const out = [];
+  for (let y = CURRENT_FY_START - 3; y <= CURRENT_FY_START + 1; y++) out.push(fyLabel(y));
+  return out;
 })();
 
 export default function PTMasterPage({ embedded = false }) {
@@ -26,11 +38,13 @@ export default function PTMasterPage({ embedded = false }) {
   const [saving, setSaving] = useState(false);
   const [defaultPtState, setDefaultPtState] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = async () => {
     setLoading(true);
     setConfigs([]);
     setDefaultPtState('');
+    setLoadError(null);
     try {
       const [res, settingsRes] = await Promise.all([
         getPTMaster(orgSlug, fy),
@@ -38,7 +52,13 @@ export default function PTMasterPage({ embedded = false }) {
       ]);
       setConfigs(res.configs || []);
       setDefaultPtState(settingsRes.settings?.defaultPtState || '');
-    } catch (err) { showToast('Failed to load PT Master', 'error'); }
+    } catch (err) {
+      // Without an explicit error state a transient failure fell through to the
+      // "Load Default PT Slabs" empty state, inviting a destructive re-seed on
+      // top of slabs that actually exist.
+      setLoadError(err.response?.data?.message || 'Failed to load PT Master');
+      showToast('Failed to load PT Master', 'error');
+    }
     finally { setLoading(false); }
   };
 
@@ -113,9 +133,9 @@ export default function PTMasterPage({ embedded = false }) {
             onChange={e => setFy(e.target.value)}
             className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-dark-200"
           >
-            <option value="2024-25">FY 2024-25</option>
-            <option value="2025-26">FY 2025-26</option>
-            <option value="2026-27">FY 2026-27</option>
+            {(FY_OPTIONS.includes(fy) ? FY_OPTIONS : [fy, ...FY_OPTIONS]).map(f => (
+              <option key={f} value={f}>FY {f}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -148,8 +168,17 @@ export default function PTMasterPage({ embedded = false }) {
         </div>
       </div>
 
+      {/* Load failure — never fall through to the seed empty-state */}
+      {loadError && (
+        <div className="bg-dark-900 border border-red-500/30 rounded-xl p-8 text-center">
+          <p className="text-sm text-red-400 mb-1">{loadError}</p>
+          <p className="text-xs text-dark-500 mb-4">PT slabs could not be loaded — this is not an empty configuration.</p>
+          <button onClick={load} className="px-5 py-2 bg-dark-800 border border-dark-700 rounded-xl text-sm text-dark-200 hover:bg-dark-700">Retry</button>
+        </div>
+      )}
+
       {/* Empty state — seed */}
-      {configs.length === 0 && (
+      {!loadError && configs.length === 0 && (
         <div className="bg-dark-900 border border-dark-800 rounded-xl p-8 text-center">
           <MapPin className="w-10 h-10 text-dark-600 mx-auto mb-3" />
           <p className="text-dark-300 mb-4">No PT slabs configured for FY {fy}</p>
@@ -209,27 +238,24 @@ export default function PTMasterPage({ embedded = false }) {
                             <td className="py-2 text-dark-300">
                               {isEditing ? (
                                 <input type="number" value={slab.min} onChange={e => {
-                                  const slabs = [...editForm.slabs];
-                                  slabs[idx].min = Number(e.target.value);
-                                  setEditForm(f => ({ ...f, slabs }));
+                                  const v = Number(e.target.value);
+                                  setEditForm(f => ({ ...f, slabs: f.slabs.map((sl, i) => i === idx ? { ...sl, min: v } : sl) }));
                                 }} className="bg-dark-800 border border-dark-700 rounded px-2 py-1 w-28 text-sm" />
                               ) : fmtCurrency(slab.min)}
                             </td>
                             <td className="py-2 text-dark-300">
                               {isEditing ? (
                                 <input type="number" value={slab.max ?? ''} placeholder="No limit" onChange={e => {
-                                  const slabs = [...editForm.slabs];
-                                  slabs[idx].max = e.target.value === '' ? null : Number(e.target.value);
-                                  setEditForm(f => ({ ...f, slabs }));
+                                  const v = e.target.value === '' ? null : Number(e.target.value);
+                                  setEditForm(f => ({ ...f, slabs: f.slabs.map((sl, i) => i === idx ? { ...sl, max: v } : sl) }));
                                 }} className="bg-dark-800 border border-dark-700 rounded px-2 py-1 w-28 text-sm" />
                               ) : fmtCurrency(slab.max)}
                             </td>
                             <td className="py-2 text-right text-dark-200 font-medium">
                               {isEditing ? (
                                 <input type="number" value={slab.tax} onChange={e => {
-                                  const slabs = [...editForm.slabs];
-                                  slabs[idx].tax = Number(e.target.value);
-                                  setEditForm(f => ({ ...f, slabs }));
+                                  const v = Number(e.target.value);
+                                  setEditForm(f => ({ ...f, slabs: f.slabs.map((sl, i) => i === idx ? { ...sl, tax: v } : sl) }));
                                 }} className="bg-dark-800 border border-dark-700 rounded px-2 py-1 w-24 text-sm text-right" />
                               ) : `₹${slab.tax}`}
                             </td>

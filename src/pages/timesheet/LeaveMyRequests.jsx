@@ -6,6 +6,7 @@ import { getMyLeaveRequests, getMyLeaveBalances, cancelLeaveRequest } from '../.
 import { PageSkeleton, HeaderSkeleton, CardGridSkeleton, TabsSkeleton, CardListSkeleton } from '../../components/Skeletons';
 import { CalendarDays, X, Loader2, Inbox } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
+import { formatLeaveType, leaveTypeBadgeClasses } from '../../config/leaveTypes';
 
 const statusColors = {
   pending: 'bg-yellow-500/20 text-yellow-400',
@@ -14,32 +15,49 @@ const statusColors = {
   cancelled: 'bg-dark-600 text-dark-400',
 };
 
-const leaveTypeColors = {
-  sick_leave: 'bg-red-500/20 text-red-400',
-  casual_leave: 'bg-blue-500/20 text-blue-400',
-  comp_off: 'bg-purple-500/20 text-purple-400',
-  lop: 'bg-orange-500/20 text-orange-400',
-};
-
-const leaveTypeLabels = {
-  sick_leave: 'Sick Leave',
-  casual_leave: 'Casual Leave',
-  comp_off: 'Comp Off',
-  lop: 'Loss of Pay',
-};
-
 const filters = ['all', 'pending', 'approved', 'rejected', 'cancelled'];
 
 function formatDate(dateStr) {
   return formatDateUTC(dateStr, { day: '2-digit' }) || '';
 }
 
+/**
+ * Is this leave date today or later?
+ *
+ * Leave dates are stored at UTC midnight. The old check compared that Date
+ * object against LOCAL midnight, so in any negative-offset timezone (the
+ * Americas) `new Date('2026-07-30')` is 2026-07-29 19:00 local — earlier than
+ * local midnight — and the Cancel button vanished for leave starting today.
+ * Compare the UTC calendar parts against today's LOCAL calendar parts instead,
+ * which is what "today" means to the person reading the screen.
+ */
 function isFutureDate(dateStr) {
   if (!dateStr) return false;
   const d = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return d >= today;
+  if (isNaN(d.getTime())) return false;
+  const leaveDay = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const now = new Date();
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return leaveDay >= today;
+}
+
+/**
+ * The backend's /leave-balances/me (leave.js ~1046) returns `balances` as an
+ * OBJECT keyed by leave-type code — never an array. The old guard was
+ * `Array.isArray(bals) ? Object.entries(bals)... : []`, which is inverted:
+ * Array.isArray was always false, so the balance cards silently never rendered.
+ * `balances` is additionally null when no leave policy is configured.
+ */
+function normalizeBalances(balData) {
+  const bals = balData?.balances;
+  if (Array.isArray(bals)) return bals;
+  if (!bals || typeof bals !== 'object') return [];
+  const names = Object.fromEntries((balData?.leaveTypes || []).map(lt => [lt.code, lt.name]));
+  return Object.entries(bals).map(([code, v]) => ({
+    leaveType: code,
+    name: names[code],
+    ...(v && typeof v === 'object' ? v : {}),
+  }));
 }
 
 export default function LeaveMyRequests() {
@@ -64,8 +82,7 @@ export default function LeaveMyRequests() {
         getMyLeaveBalances(),
       ]);
       setRequests(Array.isArray(reqData) ? reqData : reqData?.requests || []);
-      const bals = balData?.balances;
-      setBalances(Array.isArray(bals) ? Object.entries(bals).map(([k, v]) => ({ leaveType: k, ...v })) : []);
+      setBalances(normalizeBalances(balData));
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to load leave data', 'error');
     } finally {
@@ -92,8 +109,7 @@ export default function LeaveMyRequests() {
         getMyLeaveBalances(),
       ]);
       setRequests(Array.isArray(reqData) ? reqData : reqData?.requests || []);
-      const bals = balData?.balances;
-      setBalances(Array.isArray(bals) ? Object.entries(bals).map(([k, v]) => ({ leaveType: k, ...v })) : []);
+      setBalances(normalizeBalances(balData));
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to cancel request', 'error');
     } finally {
@@ -101,8 +117,10 @@ export default function LeaveMyRequests() {
     }
   };
 
+  // No window.confirm here: the modal this opens already has its own explicit
+  // "Cancel Request" / "Close" pair, so the extra native prompt was a redundant
+  // second confirmation for the same action.
   const openCancelModal = (id) => {
-    if (!window.confirm('Are you sure you want to cancel this leave request?')) return;
     setCancelModalId(id);
     setCancelReason('');
   };
@@ -132,8 +150,8 @@ export default function LeaveMyRequests() {
           {balances.map((bal) => (
             <div key={bal.leaveType} className="bg-dark-800 border border-dark-700 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${leaveTypeColors[bal.leaveType] || 'bg-dark-600 text-dark-400'}`}>
-                  {leaveTypeLabels[bal.leaveType] || bal.leaveType}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${leaveTypeBadgeClasses(bal.leaveType)}`}>
+                  {formatLeaveType(bal.leaveType, bal.name)}
                 </span>
               </div>
               <p className="text-2xl font-bold text-white">{bal.available ?? bal.remaining ?? 0}</p>
@@ -175,8 +193,8 @@ export default function LeaveMyRequests() {
             <div key={req._id} className="bg-dark-800 border border-dark-700 rounded-xl p-4 space-y-3">
               {/* Top row: leave type badge + status badge */}
               <div className="flex items-center justify-between">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${leaveTypeColors[req.leaveType] || 'bg-dark-600 text-dark-400'}`}>
-                  {leaveTypeLabels[req.leaveType] || req.leaveType}
+                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${leaveTypeBadgeClasses(req.leaveType)}`}>
+                  {formatLeaveType(req.leaveType, req.leaveTypeName)}
                 </span>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[req.status] || 'bg-dark-600 text-dark-400'}`}>
                   {req.status?.charAt(0).toUpperCase() + req.status?.slice(1)}

@@ -12,6 +12,43 @@ const CURRENT_FY = (() => {
   return m >= 4 ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
 })();
 
+/**
+ * Rates are stored as fractions (0.04) but edited as percents (4). Naively
+ * rendering `rate * 100` surfaces float artifacts like `4.000000000000001`;
+ * round to 2 decimal places for display. Mirrors SettingsPayroll's TdsConfigTab.
+ */
+const toPercentDisplay = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  return String(Math.round(n * 10000) / 100);
+};
+
+/**
+ * Number input that keeps a string draft while focused, so partial input
+ * ("4." , "0.0", "") isn't reformatted away on every keystroke. Declared at
+ * module scope — defining it inside a render body would remount it per
+ * keystroke and lose focus.
+ */
+function DraftNumberInput({ value, onChange, className, step, placeholder }) {
+  const [draft, setDraft] = useState(null);
+  const shown = draft !== null ? draft : (value ?? '');
+  return (
+    <input
+      type="number"
+      step={step}
+      placeholder={placeholder}
+      value={shown}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        onChange(raw);
+      }}
+      onBlur={() => setDraft(null)}
+      className={className}
+    />
+  );
+}
+
 function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false }) {
   const addRow = () => {
     const last = slabs[slabs.length - 1];
@@ -52,16 +89,13 @@ function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false })
             onChange={(e) => updateRow(idx, 'max', e.target.value === '' ? null : Number(e.target.value))}
             className="bg-dark-800 border border-dark-700 rounded px-2 py-1.5 text-sm text-white placeholder-dark-500"
           />
-          <input
-            type="number"
+          <DraftNumberInput
             step="0.01"
-            value={showTax ? (slab.tax ?? 0) : ((slab.rate ?? 0) * 100)}
-            onChange={(e) => {
-              if (showTax) {
-                updateRow(idx, 'tax', Number(e.target.value));
-              } else {
-                updateRow(idx, 'rate', Number(e.target.value) / 100);
-              }
+            value={showTax ? (slab.tax ?? 0) : toPercentDisplay(slab.rate ?? 0)}
+            onChange={(raw) => {
+              if (raw === '' || Number.isNaN(Number(raw))) return;
+              if (showTax) updateRow(idx, 'tax', Number(raw));
+              else updateRow(idx, 'rate', Number(raw) / 100);
             }}
             className="bg-dark-800 border border-dark-700 rounded px-2 py-1.5 text-sm text-white"
           />
@@ -84,16 +118,41 @@ function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false })
   );
 }
 
-function ConfigField({ label, value, onChange, type = 'number', step, suffix }) {
+/**
+ * With `percent`, `value`/`onChange` speak the stored FRACTION (0.04) while the
+ * field displays and accepts percent (4) — rounded for display so float
+ * artifacts never reach the input.
+ */
+function ConfigField({ label, value, onChange, type = 'number', step, suffix, percent = false }) {
+  const shown = percent ? toPercentDisplay(value) : (value ?? '');
+  if (type !== 'number') {
+    return (
+      <div className="flex items-center gap-3">
+        <label className="text-sm text-dark-300 min-w-[180px]">{label}</label>
+        <div className="flex items-center gap-1">
+          <input
+            type={type}
+            step={step}
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value)}
+            className="bg-dark-800 border border-dark-700 rounded px-2 py-1.5 text-sm text-white w-32"
+          />
+          {suffix && <span className="text-xs text-dark-400">{suffix}</span>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-3">
       <label className="text-sm text-dark-300 min-w-[180px]">{label}</label>
       <div className="flex items-center gap-1">
-        <input
-          type={type}
-          step={step || (type === 'number' ? '1' : undefined)}
-          value={value ?? ''}
-          onChange={(e) => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
+        <DraftNumberInput
+          step={step || '1'}
+          value={shown}
+          onChange={(raw) => {
+            if (raw === '' || Number.isNaN(Number(raw))) return;
+            onChange(percent ? Number(raw) / 100 : Number(raw));
+          }}
           className="bg-dark-800 border border-dark-700 rounded px-2 py-1.5 text-sm text-white w-32"
         />
         {suffix && <span className="text-xs text-dark-400">{suffix}</span>}
@@ -157,6 +216,10 @@ export default function PayrollSettingsPage({ embedded = false }) {
     }
   };
 
+  // `isSuperAdmin` must be a dependency: the auth user often resolves AFTER
+  // mount, and without it a super admin stays stuck on the "only super admins"
+  // panel because the effect never re-runs once the flag flips true.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isSuperAdmin) {
       loadList();
@@ -164,7 +227,7 @@ export default function PayrollSettingsPage({ embedded = false }) {
     } else {
       setLoading(false);
     }
-  }, [selectedFy]);
+  }, [selectedFy, isSuperAdmin]);
 
   const handleSave = async () => {
     if (!config) return;
@@ -250,13 +313,17 @@ export default function PayrollSettingsPage({ embedded = false }) {
             onChange={(e) => setSelectedFy(e.target.value)}
             className="bg-dark-800 border border-dark-700 rounded px-3 py-1.5 text-sm text-white"
           >
-            {fyList.length > 0 ? (
-              fyList.map(f => (
-                <option key={f.financialYear} value={f.financialYear}>FY {f.financialYear}</option>
-              ))
-            ) : (
-              <option value={CURRENT_FY}>FY {CURRENT_FY}</option>
-            )}
+            {/* Always include the selected FY as an option — otherwise a
+                selectedFy that isn't in fyList (e.g. CURRENT_FY before any
+                config is seeded) renders a blank select. */}
+            {(() => {
+              const years = fyList.map(f => f.financialYear);
+              if (selectedFy && !years.includes(selectedFy)) years.unshift(selectedFy);
+              if (years.length === 0) years.push(CURRENT_FY);
+              return years.map(fy => (
+                <option key={fy} value={fy}>FY {fy}</option>
+              ));
+            })()}
           </select>
 
           {config && (
@@ -316,8 +383,8 @@ export default function PayrollSettingsPage({ embedded = false }) {
           <Section title="Cess & Surcharge" icon="💰" expanded={expanded.cess} onToggle={() => toggle('cess')}>
             <ConfigField
               label="Cess Rate"
-              value={(config.cessRate || 0) * 100}
-              onChange={(v) => update('cessRate', v / 100)}
+              value={config.cessRate}
+              onChange={(v) => update('cessRate', v)} percent
               step="0.01"
               suffix="%"
             />
@@ -329,19 +396,19 @@ export default function PayrollSettingsPage({ embedded = false }) {
 
           {/* PF */}
           <Section title="Provident Fund" icon="🏛️" expanded={expanded.pf} onToggle={() => toggle('pf')}>
-            <ConfigField label="Employee PF Rate" value={(config.pfEmployeeRate || 0) * 100} onChange={(v) => update('pfEmployeeRate', v / 100)} step="0.01" suffix="%" />
-            <ConfigField label="Employer EPF Rate" value={(config.pfEmployerEpfRate || 0) * 100} onChange={(v) => update('pfEmployerEpfRate', v / 100)} step="0.01" suffix="%" />
-            <ConfigField label="Employer EPS Rate" value={(config.pfEmployerEpsRate || 0) * 100} onChange={(v) => update('pfEmployerEpsRate', v / 100)} step="0.01" suffix="%" />
+            <ConfigField label="Employee PF Rate" value={config.pfEmployeeRate} onChange={(v) => update('pfEmployeeRate', v)} percent step="0.01" suffix="%" />
+            <ConfigField label="Employer EPF Rate" value={config.pfEmployerEpfRate} onChange={(v) => update('pfEmployerEpfRate', v)} percent step="0.01" suffix="%" />
+            <ConfigField label="Employer EPS Rate" value={config.pfEmployerEpsRate} onChange={(v) => update('pfEmployerEpsRate', v)} percent step="0.01" suffix="%" />
             <ConfigField label="EPS Wage Ceiling" value={config.pfEpsWageCeiling} onChange={(v) => update('pfEpsWageCeiling', v)} suffix="₹" />
-            <ConfigField label="EDLI Rate" value={(config.pfEdliRate || 0) * 100} onChange={(v) => update('pfEdliRate', v / 100)} step="0.01" suffix="%" />
+            <ConfigField label="EDLI Rate" value={config.pfEdliRate} onChange={(v) => update('pfEdliRate', v)} percent step="0.01" suffix="%" />
             <ConfigField label="EDLI Ceiling" value={config.pfEdliCeiling} onChange={(v) => update('pfEdliCeiling', v)} suffix="₹" />
-            <ConfigField label="Admin Charges Rate" value={(config.pfAdminRate || 0) * 100} onChange={(v) => update('pfAdminRate', v / 100)} step="0.01" suffix="%" />
+            <ConfigField label="Admin Charges Rate" value={config.pfAdminRate} onChange={(v) => update('pfAdminRate', v)} percent step="0.01" suffix="%" />
           </Section>
 
           {/* ESI */}
           <Section title="Employee State Insurance" icon="🏥" expanded={expanded.esi} onToggle={() => toggle('esi')}>
-            <ConfigField label="Employee ESI Rate" value={(config.esiEmployeeRate || 0) * 100} onChange={(v) => update('esiEmployeeRate', v / 100)} step="0.01" suffix="%" />
-            <ConfigField label="Employer ESI Rate" value={(config.esiEmployerRate || 0) * 100} onChange={(v) => update('esiEmployerRate', v / 100)} step="0.01" suffix="%" />
+            <ConfigField label="Employee ESI Rate" value={config.esiEmployeeRate} onChange={(v) => update('esiEmployeeRate', v)} percent step="0.01" suffix="%" />
+            <ConfigField label="Employer ESI Rate" value={config.esiEmployerRate} onChange={(v) => update('esiEmployerRate', v)} percent step="0.01" suffix="%" />
             <ConfigField label="ESI Wage Ceiling" value={config.esiWageCeiling} onChange={(v) => update('esiWageCeiling', v)} suffix="₹" />
           </Section>
 

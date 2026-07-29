@@ -67,9 +67,19 @@ async function request(method, url, { body, params, signal, responseType } = {})
   }
   clearTimeout(timeoutId);
 
-  // Handle 401 — session expired
+  // Handle 401 — session expired.
+  // Broadcast the same global event api.js dispatches so a top-level listener
+  // can force a clean re-login. Without it an expired session was swallowed by
+  // the many `.catch(() => {})` call sites and rendered as a false "no data"
+  // empty state — the user was never bounced to login. Guarded on `token` so a
+  // genuine not-logged-in 401 on the login screen doesn't loop.
   if (res.status === 401) {
     console.error('Timesheet API auth failed — session expired');
+    if (token) {
+      try {
+        window.dispatchEvent(new CustomEvent('rivvra:auth-expired', { detail: { endpoint: url } }));
+      } catch { /* non-browser env */ }
+    }
     let data;
     try { data = await res.json(); } catch { data = {}; }
     throw new ApiError(data.error || 'Unauthorized', 401, data);
@@ -191,8 +201,8 @@ export async function updateLeavePolicy(data) {
   return res.data;
 }
 
-export async function getMyLeaveBalances(financialYear) {
-  const res = await timesheetApi.get('/leave-balances/me', { params: { financialYear } });
+export async function getMyLeaveBalances(financialYear, opts) {
+  const res = await timesheetApi.get('/leave-balances/me', { ...opts, params: { financialYear } });
   return res.data;
 }
 
@@ -263,8 +273,8 @@ export async function runLeaveYearEnd(data) {
 
 // ─── Holiday Calendar ─────────────────────────────────────────────────────
 
-export async function getHolidays(params) {
-  const res = await timesheetApi.get('/holidays', { params });
+export async function getHolidays(params, opts) {
+  const res = await timesheetApi.get('/holidays', { ...opts, params });
   return res.data;
 }
 
@@ -329,10 +339,9 @@ export async function submitAttendance(id) {
   return res.data;
 }
 
-export async function deleteAttendance(id) {
-  const res = await request('DELETE', `/attendance/${id}`);
-  return res.data;
-}
+// NOTE: there is no DELETE /api/timesheet/attendance/:id route in the backend —
+// a `deleteAttendance` helper used to live here and would have 404'd. It had no
+// callers, so it was removed rather than pointed somewhere. Use resetAttendance.
 
 export async function resetAttendance(id) {
   const res = await request('PATCH', `/attendance/${id}/reset`);

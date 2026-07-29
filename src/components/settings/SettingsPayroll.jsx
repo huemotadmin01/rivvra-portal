@@ -6,6 +6,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { getOrgTdsConfig, updateOrgTdsConfig, getPayrollSettings, updatePayrollSettings, getSalaryStructures } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
@@ -63,22 +64,31 @@ const DEFAULT_DISBURSEMENT_RULES = {
 
 function DisbursementTab() {
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [previewEmpType, setPreviewEmpType] = useState('confirmed');
 
+  // Refetch on company switch — settings are company-scoped; stale state
+  // here would be saved under the newly-active company.
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setSettings(null);
     timesheetApi.get('/payroll-settings')
       .then(r => {
+        if (cancelled) return;
         const data = r.data || {};
         // Ensure disbursementRules always has defaults so they get saved
         if (!data.disbursementRules) data.disbursementRules = { ...DEFAULT_DISBURSEMENT_RULES };
         setSettings(data);
       })
-      .catch(() => showToast('Failed to load disbursement settings', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => { if (!cancelled) showToast('Failed to load disbursement settings', 'error'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCompany?._id]);
 
   const handleSavePayroll = async () => {
     setSaving(true);
@@ -253,7 +263,10 @@ function DisbursementTab() {
                       <input type="number" value={d.year} onChange={e => updateCustomDate(i, 'year', e.target.value)} className="input-field w-20 text-sm" />
                       <button onClick={() => removeCustomDate(i)} className="ml-auto text-red-400 hover:text-red-300 transition-colors"><X size={16} /></button>
                     </div>
-                    <input type="date" value={d.date ? new Date(d.date).toISOString().split('T')[0] : ''} onChange={e => updateCustomDate(i, 'date', e.target.value)} className="input-field w-full text-sm" />
+                    {/* d.date is a YYYY-MM-DD (or ISO) string — slice instead of
+                        round-tripping through Date/toISOString, which shifts the
+                        day for viewers behind UTC. */}
+                    <input type="date" value={d.date ? String(d.date).slice(0, 10) : ''} onChange={e => updateCustomDate(i, 'date', e.target.value)} className="input-field w-full text-sm" />
                     <input type="text" placeholder="Note (e.g., Preponed due to Diwali)" value={d.note || ''} onChange={e => updateCustomDate(i, 'note', e.target.value)} className="input-field w-full text-sm" />
                   </div>
                 ))}
@@ -321,20 +334,34 @@ function DisbursementTab() {
 function TdsConfigTab() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // String drafts for rate inputs so typing isn't reformatted per keystroke
+  const [rateDrafts, setRateDrafts] = useState({});
+  const [loadError, setLoadError] = useState(null);
 
+  // Refetch on company switch so stale config can't be saved cross-company
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadConfig();
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   const loadConfig = async () => {
     setLoading(true);
+    setConfig(null);
+    setLoadError(null);
+    setRateDrafts({});
     try {
       const res = await getOrgTdsConfig(orgSlug);
       setConfig(res.tdsConfig || { defaultSection: '194C', sections: [] });
     } catch (err) {
+      // A null config would white-screen the whole Payroll settings tab on the
+      // first `config.defaultSection` dereference — keep a safe shape AND
+      // surface a retryable error instead of silently showing an empty config.
+      setConfig({ defaultSection: '194C', sections: [] });
+      setLoadError(err?.response?.data?.message || err?.message || 'Failed to load TDS configuration');
       showToast('Failed to load TDS config', 'error');
     } finally {
       setLoading(false);
@@ -364,6 +391,7 @@ function TdsConfigTab() {
   };
 
   const addSection = () => {
+    setRateDrafts({});
     setConfig({
       ...config,
       sections: [...config.sections, { code: '', label: '', rate: 0 }],
@@ -371,6 +399,7 @@ function TdsConfigTab() {
   };
 
   const removeSection = (idx) => {
+    setRateDrafts({});
     const sections = config.sections.filter((_, i) => i !== idx);
     setConfig({ ...config, sections });
   };
@@ -380,6 +409,17 @@ function TdsConfigTab() {
   };
 
   if (loading) return <TabLoader />;
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-16 gap-3">
+      <AlertCircle size={22} className="text-red-400" />
+      <p className="text-sm text-red-400">{loadError}</p>
+      <button onClick={loadConfig} className="px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200 hover:bg-dark-700">Retry</button>
+    </div>
+  );
+
+  // Defensive: never dereference a null config in the render body.
+  if (!config) return <TabLoader />;
 
   return (
     <div className="space-y-6">
@@ -461,8 +501,18 @@ function TdsConfigTab() {
                     <input
                       type="number"
                       step="0.1"
-                      value={section.rate ? (section.rate * 100).toFixed(1) : ''}
-                      onChange={(e) => updateSection(idx, 'rate', parseFloat(e.target.value) / 100 || 0)}
+                      min="0"
+                      value={rateDrafts[idx] ?? (section.rate ? String(Math.round(section.rate * 10000) / 100) : '')}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setRateDrafts(prev => ({ ...prev, [idx]: v }));
+                        updateSection(idx, 'rate', (parseFloat(v) / 100) || 0);
+                      }}
+                      onBlur={() => setRateDrafts(prev => {
+                        const next = { ...prev };
+                        delete next[idx];
+                        return next;
+                      })}
                       placeholder="2.0"
                       className="w-20 px-2.5 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white text-right focus:border-rivvra-500 focus:outline-none"
                     />
@@ -527,18 +577,25 @@ const DEFAULT_TDS_RATES = {
 function StructureMappingTab() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
   const [structures, setStructures] = useState([]);
   const [mapping, setMapping] = useState({});
   const [tdsRateByType, setTdsRateByType] = useState({ ...DEFAULT_TDS_RATES });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Refetch on company switch so a mapping loaded for one company can't be
+  // saved under another.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadData();
-  }, [orgSlug]);
+  }, [orgSlug, currentCompany?._id]);
 
   const loadData = async () => {
     setLoading(true);
+    setStructures([]);
+    setMapping({});
+    setTdsRateByType({ ...DEFAULT_TDS_RATES });
     try {
       const [settingsRes, structuresRes] = await Promise.all([
         getPayrollSettings(orgSlug),
@@ -674,7 +731,9 @@ function StructureMappingTab() {
 export default function SettingsPayroll() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  const isSuperAdmin = user?.role === 'super_admin';
+  // Platform super-admin flag (matches SuperAdminRoute) — user.role is an
+  // org-level role and 'super_admin' is not a value it can take.
+  const isSuperAdmin = user?.superAdmin === true;
 
   const initialTab = searchParams.get('tab') || 'disbursement';
   const [activeTab, setActiveTab] = useState(initialTab);

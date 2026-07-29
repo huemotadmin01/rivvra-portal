@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import assetApi from '../../utils/assetApi';
-import { Loader2, Package, Monitor, Headphones, Briefcase, Box, Calendar } from 'lucide-react';
+import { Loader2, Package, Monitor, Headphones, Briefcase, Box, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
 
 const TYPE_ICONS = {
   laptop: Monitor,
@@ -30,18 +30,24 @@ export default function MyAssets() {
   const { currentCompany } = useCompany();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  // A load failure used to be swallowed by a bare console.error and render as
+  // "No assets assigned to you" — indistinguishable from genuinely having none.
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setAssets([]);
-      try {
-        const res = await assetApi.myAssets(orgSlug);
-        setAssets(res.data || []);
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
-    })();
-  }, [orgSlug, currentCompany?._id]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    setAssets([]);
+    try {
+      const res = await assetApi.myAssets(orgSlug);
+      setAssets(res.data || []);
+    } catch (e) {
+      console.error(e);
+      setError(true);
+    } finally { setLoading(false); }
+  }, [orgSlug, currentCompany?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { load(); }, [load]);
 
   if (loading) return (
     <div className="p-6 flex items-center justify-center min-h-[300px]">
@@ -56,7 +62,19 @@ export default function MyAssets() {
         <p className="text-sm text-dark-400 mt-0.5">Company assets assigned to you</p>
       </div>
 
-      {assets.length === 0 ? (
+      {error ? (
+        <div className="text-center py-16">
+          <AlertCircle size={40} className="mx-auto mb-3 text-amber-400/60" />
+          <p className="text-sm text-dark-300">We couldn't load your assets.</p>
+          <p className="text-xs text-dark-500 mt-1">This isn't the same as having none assigned — please try again.</p>
+          <button
+            onClick={load}
+            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-dark-800 border border-dark-700 hover:bg-dark-700 text-sm text-white rounded-lg transition-colors"
+          >
+            <RefreshCw size={14} /> Retry
+          </button>
+        </div>
+      ) : assets.length === 0 ? (
         <div className="text-center py-16 text-dark-500">
           <Package size={48} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">No assets assigned to you</p>

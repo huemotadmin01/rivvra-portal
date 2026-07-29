@@ -39,6 +39,7 @@ export default function FnFDashboard() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all'); // all | scheduled | pending | settled
+  const [loadError, setLoadError] = useState(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadAll(); }, [orgSlug, currentCompany?._id]);
@@ -47,6 +48,7 @@ export default function FnFDashboard() {
     setLoading(true);
     setPending([]);
     setSettlements([]);
+    setLoadError(null);
     try {
       const [pendingRes, settRes] = await Promise.all([
         fnfApi.getPending(orgSlug),
@@ -54,7 +56,13 @@ export default function FnFDashboard() {
       ]);
       setPending(pendingRes.data || []);
       setSettlements(settRes.data || []);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      // Without this, an auth/API failure rendered the "No separated confirmed
+      // employees" empty state with zeroed stat cards — indistinguishable from
+      // a genuinely empty list.
+      console.error(e);
+      setLoadError(e?.response?.data?.error || e?.response?.data?.message || e?.message || 'Failed to load F&F settlements');
+    }
     finally { setLoading(false); }
   }
 
@@ -100,6 +108,15 @@ export default function FnFDashboard() {
   if (loading) return (
     <div className="p-6 flex items-center justify-center min-h-[400px]">
       <Loader2 className="w-6 h-6 animate-spin text-dark-500" />
+    </div>
+  );
+
+  if (loadError) return (
+    <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-3 text-center">
+      <AlertTriangle size={24} className="text-red-400" />
+      <p className="text-sm text-red-400 max-w-md">{loadError}</p>
+      <p className="text-xs text-dark-500 max-w-md">The list could not be loaded, so this is not an empty result.</p>
+      <button onClick={loadAll} className="px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200 hover:bg-dark-700">Retry</button>
     </div>
   );
 

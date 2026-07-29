@@ -24,12 +24,15 @@ export default function EmployeeSalaryPage() {
   const [history, setHistory] = useState([]);
   const [form, setForm] = useState({ employeeId: '', structureId: '', ctcAnnual: '', effectiveFrom: '', pfApplicable: true, pfCappedAt15K: false });
   const [revising, setRevising] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = async () => {
     setLoading(true);
     setSalaries([]);
     setStructures([]);
     setUnconfigured([]);
+    setLoadError(null);
     try {
       const [salRes, structRes, unRes] = await Promise.all([
         getEmployeeSalaries(orgSlug),
@@ -39,7 +42,10 @@ export default function EmployeeSalaryPage() {
       setSalaries(salRes.salaries || []);
       setStructures(structRes.structures || []);
       setUnconfigured(unRes.employees || []);
-    } catch (err) { showToast('Failed to load', 'error'); }
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Failed to load salary configurations');
+      showToast('Failed to load', 'error');
+    }
     finally { setLoading(false); }
   };
 
@@ -48,6 +54,8 @@ export default function EmployeeSalaryPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       if (revising) {
         await reviseEmployeeSalary(orgSlug, revising, {
@@ -69,6 +77,7 @@ export default function EmployeeSalaryPage() {
       setRevising(null);
       load();
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setSaving(false); }
   };
 
   const openRevise = (salary) => {
@@ -106,6 +115,13 @@ export default function EmployeeSalaryPage() {
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <p className="text-sm text-red-400">{loadError}</p>
+      <button onClick={load} className="px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200 hover:bg-dark-700">Retry</button>
+    </div>
+  );
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -211,7 +227,7 @@ export default function EmployeeSalaryPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setShowForm(false); setRevising(null); }} className="flex-1 px-4 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700">{revising ? 'Revise' : 'Create'}</button>
+                <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50">{saving ? 'Saving...' : revising ? 'Revise' : 'Create'}</button>
               </div>
             </form>
           </div>

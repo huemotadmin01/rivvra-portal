@@ -22,6 +22,26 @@ import {
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
+// Generic HTTP status texts carry no information — fall back to our own copy.
+const GENERIC_HTTP_TEXTS = new Set([
+  '', 'Bad Request', 'Unauthorized', 'Payment Required', 'Forbidden', 'Not Found',
+  'Conflict', 'Unprocessable Entity', 'Too Many Requests',
+  'Internal Server Error', 'Bad Gateway', 'Service Unavailable', 'Gateway Timeout',
+]);
+
+/**
+ * Surface the backend's actionable text (e.g. "PT not configured for state")
+ * instead of a bare "Download failed".
+ * NOTE: for `responseType: 'blob'` requests payrollApi's request() throws
+ * `new ApiError(res.statusText, status, {})` and discards the JSON body, so
+ * only the status text survives there — we detect that and use the fallback.
+ */
+const downloadErrorMessage = (err, fallback) => {
+  const msg = err?.response?.data?.message || err?.data?.message || err?.data?.error || err?.message;
+  if (!msg || GENERIC_HTTP_TEXTS.has(String(msg).trim())) return fallback;
+  return `${fallback}: ${msg}`;
+};
+
 const STATUS_COLORS = {
   draft: 'bg-dark-700 text-dark-300',
   processing: 'bg-amber-500/10 text-amber-400',
@@ -52,19 +72,39 @@ export default function PayrollRunPage() {
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [releaseSelection, setReleaseSelection] = useState(new Set());
   const [releasing, setReleasing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [showMarkPaidConfirm, setShowMarkPaidConfirm] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  // In-flight guards for the remaining financial / destructive actions
+  const [finalizing, setFinalizing] = useState(false);
+  const [unfinalizing, setUnfinalizing] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [togglingLock, setTogglingLock] = useState(null); // 'inputs' | 'payroll' | null
+  const [togglingRelease, setTogglingRelease] = useState(false);
 
   const [newMonth, setNewMonth] = useState(periodMonth);
   const [newYear, setNewYear] = useState(periodYear);
 
-  const loadRuns = async () => {
-    setLoading(true);
-    setRuns([]);
-    setSelectedRun(null);
+  // `preserveSelection` keeps the open detail view (and its filter tabs /
+  // expanded rows) across an action-triggered refresh. The default — used by
+  // the org/company-switch effect — still hard-resets the selection so a run
+  // from the previous company can never stay on screen.
+  const loadRuns = async ({ preserveSelection = false } = {}) => {
+    if (!preserveSelection) {
+      setLoading(true);
+      setRuns([]);
+      setSelectedRun(null);
+      setLoadError(null);
+    }
     try {
       const res = await getPayrollRuns(orgSlug);
       setRuns(res.runs || []);
-    } catch (err) { showToast(err.response?.data?.message || 'Failed to load', 'error'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      if (!preserveSelection) setLoadError(err.response?.data?.message || 'Failed to load payroll runs');
+      showToast(err.response?.data?.message || 'Failed to load', 'error');
+    }
+    finally { if (!preserveSelection) setLoading(false); }
   };
 
   const loadRun = async (id) => {
@@ -78,13 +118,16 @@ export default function PayrollRunPage() {
   useEffect(() => { loadRuns(); }, [orgSlug, currentCompany?._id]);
 
   const handleCreate = async () => {
+    if (creating) return;
+    setCreating(true);
     try {
       const res = await createPayrollRun(orgSlug, { month: newMonth, year: newYear });
       showToast('Payroll run created');
       setShowCreate(false);
-      loadRuns();
+      loadRuns({ preserveSelection: true });
       loadRun(res.run._id);
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setCreating(false); }
   };
 
   const handleProcess = async () => {
@@ -94,52 +137,67 @@ export default function PayrollRunPage() {
       const res = await processPayrollRun(orgSlug, selectedRun._id);
       setSelectedRun(res.run);
       showToast(`Processed ${res.run.items?.length || 0} employees`);
-      loadRuns();
+      loadRuns({ preserveSelection: true });
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
     finally { setProcessing(false); }
   };
 
   const handleFinalize = async () => {
+    if (finalizing) return;
     if (!confirm('Finalize this payroll run? No further edits will be allowed.')) return;
+    setFinalizing(true);
     try {
       const res = await finalizePayrollRun(orgSlug, selectedRun._id);
       setSelectedRun(res.run);
       showToast('Finalized');
-      loadRuns();
+      loadRuns({ preserveSelection: true });
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setFinalizing(false); }
   };
 
   const handleUnfinalize = async () => {
+    if (unfinalizing) return;
     if (!confirm('Revert to processed? This will allow re-processing and edits.')) return;
+    setUnfinalizing(true);
     try {
       const res = await unfinalizePayrollRun(orgSlug, selectedRun._id);
       setSelectedRun(res.run);
       showToast('Reverted to processed');
-      loadRuns();
+      loadRuns({ preserveSelection: true });
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setUnfinalizing(false); }
   };
 
   const handleMarkPaid = async () => {
+    if (markingPaid) return;
+    setMarkingPaid(true);
     try {
       const res = await markPayrollRunPaid(orgSlug, selectedRun._id, {});
       setSelectedRun(res.run);
+      setShowMarkPaidConfirm(false);
       showToast('Marked as paid');
-      loadRuns();
+      loadRuns({ preserveSelection: true });
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setMarkingPaid(false); }
   };
 
   const handleDelete = async (id) => {
+    if (deletingId) return;
     if (!confirm('Delete this draft payroll run?')) return;
+    setDeletingId(id);
     try {
       await deletePayrollRun(orgSlug, id);
       showToast('Deleted');
       if (selectedRun?._id === id) setSelectedRun(null);
       loadRuns();
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setDeletingId(null); }
   };
 
   // Lock/Unlock handlers
   const handleToggleLock = async (type) => {
+    if (togglingLock) return;
+    setTogglingLock(type);
     try {
       const run = selectedRun;
       let res;
@@ -151,10 +209,13 @@ export default function PayrollRunPage() {
       setSelectedRun(res.run);
       showToast(`${type === 'inputs' ? 'Inputs' : 'Payroll'} ${res.run[type === 'inputs' ? 'inputsLocked' : 'payrollLocked'] ? 'locked' : 'unlocked'}`);
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setTogglingLock(null); }
   };
 
   // Release/Hold payslips
   const handleToggleRelease = async () => {
+    if (togglingRelease) return;
+    setTogglingRelease(true);
     try {
       const run = selectedRun;
       const res = run.payslipReleased
@@ -163,14 +224,19 @@ export default function PayrollRunPage() {
       setSelectedRun(res.run);
       showToast(res.run.payslipReleased ? 'Payslips released to employees' : 'Payslips held');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setTogglingRelease(false); }
   };
 
   // Ad-hoc adjustment
   const openAdHoc = (item) => {
     const existing = (selectedRun.adHocAdjustments || []).find(a => a.employeeId === item.employeeId);
+    // Deep-copy: the stored adjustment lines live inside `selectedRun`, and the
+    // modal's onChange handlers write into the row objects. Without a copy,
+    // unsaved keystrokes mutate the run in place (gross/net in the expanded
+    // row jump around) and Cancel can't revert.
     setAdHocForm({
-      earnings: existing?.earnings || [{ label: '', amount: 0 }],
-      deductions: existing?.deductions || [{ label: '', amount: 0 }],
+      earnings: existing?.earnings?.length ? existing.earnings.map(e => ({ ...e })) : [{ label: '', amount: 0 }],
+      deductions: existing?.deductions?.length ? existing.deductions.map(d => ({ ...d })) : [{ label: '', amount: 0 }],
     });
     setShowAdHoc(item);
   };
@@ -180,6 +246,13 @@ export default function PayrollRunPage() {
     try {
       const cleanEarnings = adHocForm.earnings.filter(e => e.label && e.amount > 0);
       const cleanDeductions = adHocForm.deductions.filter(d => d.label && d.amount > 0);
+      // Surface silently-dropped lines (missing label or non-positive amount)
+      const droppedCount =
+        adHocForm.earnings.filter(e => (e.label || e.amount) && !(e.label && e.amount > 0)).length +
+        adHocForm.deductions.filter(d => (d.label || d.amount) && !(d.label && d.amount > 0)).length;
+      if (droppedCount > 0) {
+        showToast(`${droppedCount} line${droppedCount > 1 ? 's' : ''} skipped (needs a label and an amount greater than 0)`, 'error');
+      }
       await setAdHocAdjustment(orgSlug, selectedRun._id, showAdHoc.employeeId, {
         earnings: cleanEarnings, deductions: cleanDeductions,
       });
@@ -222,10 +295,10 @@ export default function PayrollRunPage() {
     finally { setReleasingHoldId(null); }
   };
 
-  // Release payslips with employee selection
+  // Release payslips with employee selection — on-hold employees excluded
   const openReleaseModal = () => {
     const items = selectedRun?.items || [];
-    setReleaseSelection(new Set(items.map(i => i.employeeId)));
+    setReleaseSelection(new Set(items.filter(i => !i.salaryHold).map(i => i.employeeId)));
     setShowReleaseModal(true);
   };
 
@@ -276,14 +349,14 @@ export default function PayrollRunPage() {
       }
       triggerDownload(blob, filename);
       showToast(`Downloaded ${type}`);
-    } catch (err) { showToast('Download failed', 'error'); }
+    } catch (err) { showToast(downloadErrorMessage(err, 'Download failed'), 'error'); }
   };
 
   const handleDownloadPayslip = async (employeeId, name) => {
     try {
       const blob = await downloadPayslipPdf(orgSlug, selectedRun._id, employeeId);
       triggerDownload(blob, `Payslip_${name.replace(/\s+/g, '_')}_${MONTHS[selectedRun.month]}_${selectedRun.year}.pdf`);
-    } catch (err) { showToast('Download failed', 'error'); }
+    } catch (err) { showToast(downloadErrorMessage(err, 'Download failed'), 'error'); }
   };
 
   const handleExport = async (type) => {
@@ -297,10 +370,18 @@ export default function PayrollRunPage() {
         triggerDownload(blob, `${type}_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
       }
       showToast(`${type} exported`);
-    } catch (err) { showToast('Export failed', 'error'); }
+    } catch (err) { showToast(downloadErrorMessage(err, 'Export failed'), 'error'); }
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <AlertTriangle size={24} className="text-red-400" />
+      <p className="text-sm text-red-400">{loadError}</p>
+      <button onClick={() => loadRuns()} className="px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200 hover:bg-dark-700">Retry</button>
+    </div>
+  );
 
   // Detail view
   if (selectedRun) {
@@ -348,17 +429,19 @@ export default function PayrollRunPage() {
                     {processing ? 'Processing...' : 'Re-process'}
                   </button>
                 )}
-                <button onClick={handleFinalize} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
-                  <Lock size={14} /> Finalize
+                <button onClick={handleFinalize} disabled={finalizing} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50">
+                  {finalizing ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
+                  {finalizing ? 'Finalizing...' : 'Finalize'}
                 </button>
               </>
             )}
             {run.status === 'finalized' && (
               <>
-                <button onClick={handleUnfinalize} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm">
-                  <Undo2 size={14} /> Unfinalize
+                <button onClick={handleUnfinalize} disabled={unfinalizing} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50">
+                  {unfinalizing ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
+                  {unfinalizing ? 'Reverting...' : 'Unfinalize'}
                 </button>
-                <button onClick={handleMarkPaid} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                <button onClick={() => setShowMarkPaidConfirm(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
                   <CheckCircle size={14} /> Mark Paid
                 </button>
               </>
@@ -370,18 +453,18 @@ export default function PayrollRunPage() {
         {['processed', 'finalized', 'paid'].includes(run.status) && (
           <div className="flex flex-wrap gap-2 mb-4">
             {/* Lock Controls */}
-            <button onClick={() => handleToggleLock('inputs')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${run.inputsLocked ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
-              {run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}
+            <button onClick={() => handleToggleLock('inputs')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.inputsLocked ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
+              {togglingLock === 'inputs' ? <Loader2 size={12} className="animate-spin" /> : run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}
               {run.inputsLocked ? 'Unlock Inputs' : 'Lock Inputs'}
             </button>
-            <button onClick={() => handleToggleLock('payroll')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${run.payrollLocked ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
-              {run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}
+            <button onClick={() => handleToggleLock('payroll')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.payrollLocked ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
+              {togglingLock === 'payroll' ? <Loader2 size={12} className="animate-spin" /> : run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}
               {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
             </button>
             {/* Release/Hold */}
             {run.payslipReleased ? (
-              <button onClick={handleToggleRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10">
-                <EyeOff size={12} /> Hold Payslips
+              <button onClick={handleToggleRelease} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10 disabled:opacity-50">
+                {togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />} Hold Payslips
               </button>
             ) : (
               <button onClick={openReleaseModal} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-dark-600 text-dark-300 hover:bg-dark-700">
@@ -563,7 +646,7 @@ export default function PayrollRunPage() {
                                 </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   {item.transitions.map((t, ti) => {
-                                    const typeLabels = { confirmed: 'Confirmed', internal_consultant: 'Internal Consultant', extern_consultant: 'External Consultant', intern: 'Intern' };
+                                    const typeLabels = { confirmed: 'Confirmed', internal_consultant: 'Internal Consultant', external_consultant: 'External Consultant', intern: 'Intern' };
                                     return (
                                       <div key={ti} className="bg-dark-900/50 rounded-lg p-2.5 space-y-1">
                                         <div className="flex items-center justify-between mb-1">
@@ -950,7 +1033,7 @@ export default function PayrollRunPage() {
                     <div key={i} className="flex gap-2 mb-2">
                       <input type="text" placeholder="Label" value={e.label} onChange={ev => { const n = [...adHocForm.earnings]; n[i].label = ev.target.value; setAdHocForm(f => ({ ...f, earnings: n })); }}
                         className="flex-1 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white focus:border-rivvra-500 focus:outline-none" />
-                      <input type="number" placeholder="Amount" value={e.amount} onChange={ev => { const n = [...adHocForm.earnings]; n[i].amount = Number(ev.target.value); setAdHocForm(f => ({ ...f, earnings: n })); }}
+                      <input type="number" min="0" placeholder="Amount" value={e.amount} onChange={ev => { const n = [...adHocForm.earnings]; n[i].amount = Number(ev.target.value); setAdHocForm(f => ({ ...f, earnings: n })); }}
                         className="w-24 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white focus:border-rivvra-500 focus:outline-none" />
                       <button onClick={() => { const n = adHocForm.earnings.filter((_, j) => j !== i); setAdHocForm(f => ({ ...f, earnings: n })); }} className="text-dark-500 hover:text-red-400"><X size={14} /></button>
                     </div>
@@ -966,7 +1049,7 @@ export default function PayrollRunPage() {
                     <div key={i} className="flex gap-2 mb-2">
                       <input type="text" placeholder="Label" value={d.label} onChange={ev => { const n = [...adHocForm.deductions]; n[i].label = ev.target.value; setAdHocForm(f => ({ ...f, deductions: n })); }}
                         className="flex-1 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white focus:border-rivvra-500 focus:outline-none" />
-                      <input type="number" placeholder="Amount" value={d.amount} onChange={ev => { const n = [...adHocForm.deductions]; n[i].amount = Number(ev.target.value); setAdHocForm(f => ({ ...f, deductions: n })); }}
+                      <input type="number" min="0" placeholder="Amount" value={d.amount} onChange={ev => { const n = [...adHocForm.deductions]; n[i].amount = Number(ev.target.value); setAdHocForm(f => ({ ...f, deductions: n })); }}
                         className="w-24 px-2 py-1.5 bg-dark-900 border border-dark-600 rounded text-xs text-white focus:border-rivvra-500 focus:outline-none" />
                       <button onClick={() => { const n = adHocForm.deductions.filter((_, j) => j !== i); setAdHocForm(f => ({ ...f, deductions: n })); }} className="text-dark-500 hover:text-red-400"><X size={14} /></button>
                     </div>
@@ -1026,16 +1109,19 @@ export default function PayrollRunPage() {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs text-dark-400">{releaseSelection.size} of {items.length} selected</span>
                   <div className="flex gap-2">
-                    <button onClick={() => setReleaseSelection(new Set(items.map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
+                    {/* On-hold employees are excluded from Select All and their rows disabled */}
+                    <button onClick={() => setReleaseSelection(new Set(items.filter(i => !i.salaryHold).map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
                     <button onClick={() => setReleaseSelection(new Set())} className="text-[10px] text-dark-400 hover:text-dark-300">Deselect All</button>
                   </div>
                 </div>
                 {items.map(item => (
-                  <label key={item.employeeId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-750 cursor-pointer">
+                  <label key={item.employeeId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-dark-750 ${item.salaryHold ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type="checkbox"
                       checked={releaseSelection.has(item.employeeId)}
+                      disabled={!!item.salaryHold}
                       onChange={() => {
+                        if (item.salaryHold) return;
                         const next = new Set(releaseSelection);
                         next.has(item.employeeId) ? next.delete(item.employeeId) : next.add(item.employeeId);
                         setReleaseSelection(next);
@@ -1054,6 +1140,58 @@ export default function PayrollRunPage() {
                   <button onClick={handleReleasePayslips} disabled={releasing || releaseSelection.size === 0} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
                     {releasing && <Loader2 size={14} className="animate-spin" />}
                     {releasing ? 'Releasing...' : `Release (${releaseSelection.size})`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mark Paid Confirmation Modal */}
+        {showMarkPaidConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !markingPaid && setShowMarkPaidConfirm(false)}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <CheckCircle size={20} className="text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-white">Mark Payroll as Paid?</h3>
+                    <p className="text-xs text-dark-400">{MONTHS[run.month]} {run.year}</p>
+                  </div>
+                </div>
+                {(() => {
+                  // Employees with an active salary hold are NOT disbursed —
+                  // counting them would overstate the amount being confirmed.
+                  const payableItems = items.filter(i => !i.salaryHold);
+                  const heldItems = items.filter(i => i.salaryHold);
+                  const payableTotal = payableItems.reduce((s, i) => s + (i.netSalary || 0), 0);
+                  const heldTotal = heldItems.reduce((s, i) => s + (i.netSalary || 0), 0);
+                  return (
+                    <div className="space-y-2">
+                      <p className="text-sm text-dark-300 leading-relaxed">
+                        This confirms salaries for {MONTHS[run.month]} {run.year} have been disbursed.
+                        Total net payout: <span className="text-green-400 font-medium">₹{fmt(payableTotal)}</span> across {payableItems.length} employee{payableItems.length !== 1 ? 's' : ''}.
+                      </p>
+                      {heldItems.length > 0 && (
+                        <p className="text-xs text-amber-400 leading-relaxed">
+                          Excludes {heldItems.length} employee{heldItems.length !== 1 ? 's' : ''} on salary hold (₹{fmt(heldTotal)} withheld).
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+                <div className="flex items-center gap-3 pt-2">
+                  <button onClick={() => setShowMarkPaidConfirm(false)} disabled={markingPaid}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 border border-dark-700 text-dark-300 text-sm font-medium hover:bg-dark-700 transition-colors disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleMarkPaid} disabled={markingPaid}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                    {markingPaid ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                    {markingPaid ? 'Marking...' : 'Mark Paid'}
                   </button>
                 </div>
               </div>
@@ -1095,7 +1233,9 @@ export default function PayrollRunPage() {
             </div>
             <div className="flex items-center gap-2">
               {run.status === 'draft' && (
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(run._id); }} className="p-2 text-dark-400 hover:text-red-400"><Trash2 size={16} /></button>
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(run._id); }} disabled={!!deletingId} className="p-2 text-dark-400 hover:text-red-400 disabled:opacity-50">
+                  {deletingId === run._id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                </button>
               )}
             </div>
           </div>
@@ -1127,8 +1267,11 @@ export default function PayrollRunPage() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowCreate(false)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                <button onClick={handleCreate} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700">Create</button>
+                <button onClick={() => setShowCreate(false)} disabled={creating} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700 disabled:opacity-50">Cancel</button>
+                <button onClick={handleCreate} disabled={creating} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {creating && <Loader2 size={14} className="animate-spin" />}
+                  {creating ? 'Creating...' : 'Create'}
+                </button>
               </div>
             </div>
           </div>

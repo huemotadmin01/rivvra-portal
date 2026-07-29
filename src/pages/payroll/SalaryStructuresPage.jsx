@@ -23,14 +23,20 @@ export default function SalaryStructuresPage({ embedded = false }) {
   const [editing, setEditing] = useState(null);
   const [defaultComponents, setDefaultComponents] = useState(FALLBACK_COMPONENTS);
   const [form, setForm] = useState({ name: '', components: FALLBACK_COMPONENTS });
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = async () => {
     setLoading(true);
     setStructures([]);
+    setLoadError(null);
     try {
       const res = await getSalaryStructures(orgSlug);
       setStructures(res.structures || []);
-    } catch (err) { showToast('Failed to load structures', 'error'); }
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Failed to load salary structures');
+      showToast('Failed to load structures', 'error');
+    }
     finally { setLoading(false); }
   };
 
@@ -56,13 +62,20 @@ export default function SalaryStructuresPage({ embedded = false }) {
   };
 
   const totalPercent = form.components.reduce((s, c) => s + (Number(c.percentOfGross) || 0), 0);
+  // Float equality would reject a legitimate 33.33/33.33/33.34 split
+  // (sums to 100.00000000000001) and print the artifact in the badge.
+  const EPSILON = 0.001;
+  const totalIs100 = Math.abs(totalPercent - 100) < EPSILON;
+  const totalPercentDisplay = Math.round(totalPercent * 100) / 100;
   const basicComp = form.components.find(c => c.name === 'Basic');
-  const isValid = form.name && totalPercent === 100 && basicComp && Number(basicComp.percentOfGross) >= 50;
+  const isValid = form.name && totalIs100 && basicComp && Number(basicComp.percentOfGross) >= 50;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isValid) return showToast('Total must be 100%, Basic >= 50%.', 'error');
+    if (saving) return;
     const data = { name: form.name, components: form.components.map(c => ({ ...c, percentOfGross: Number(c.percentOfGross) })) };
+    setSaving(true);
     try {
       if (editing) {
         await updateSalaryStructure(orgSlug, editing, data);
@@ -74,6 +87,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
       resetForm();
       load();
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
@@ -84,7 +98,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
 
   const handleSetDefault = async (id) => {
     try { await setDefaultStructure(orgSlug, id); showToast('Set as default'); load(); }
-    catch (err) { showToast(err.response?.data?.message || 'Failed'); }
+    catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
   };
 
   const startEdit = (s) => { setForm({ name: s.name, components: s.components.map(c => ({ ...c })) }); setEditing(s._id); setShowForm(true); };
@@ -93,6 +107,13 @@ export default function SalaryStructuresPage({ embedded = false }) {
   const updateComponent = (idx, field, value) => setForm(f => ({ ...f, components: f.components.map((c, i) => i === idx ? { ...c, [field]: value } : c) }));
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <p className="text-sm text-red-400">{loadError}</p>
+      <button onClick={load} className="px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200 hover:bg-dark-700">Retry</button>
+    </div>
+  );
 
   return (
     <div className={embedded ? '' : 'max-w-4xl mx-auto'}>
@@ -121,8 +142,16 @@ export default function SalaryStructuresPage({ embedded = false }) {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-white">{s.name}</h3>
+                {s.isDefault && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium">Default</span>}
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => !s.isDefault && handleSetDefault(s._id)}
+                  className={`p-1.5 ${s.isDefault ? 'text-amber-400 cursor-default' : 'text-dark-400 hover:text-amber-400'}`}
+                  title={s.isDefault ? 'Default structure' : 'Set as default'}
+                >
+                  <Star size={16} fill={s.isDefault ? 'currentColor' : 'none'} />
+                </button>
                 <button onClick={() => startEdit(s)} className="p-1.5 text-dark-400 hover:text-rivvra-400"><Edit2 size={16} /></button>
                 <button onClick={() => handleDelete(s._id)} className="p-1.5 text-dark-400 hover:text-red-400"><Trash2 size={16} /></button>
               </div>
@@ -161,7 +190,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium text-dark-300">Components</label>
-                  <span className={`text-xs font-medium ${totalPercent === 100 ? 'text-green-400' : 'text-red-400'}`}>Total: {totalPercent}%</span>
+                  <span className={`text-xs font-medium ${totalIs100 ? 'text-green-400' : 'text-red-400'}`}>Total: {totalPercentDisplay}%</span>
                 </div>
                 {form.components.map((c, i) => (
                   <div key={i} className="flex items-center gap-2 mb-2">
@@ -189,7 +218,7 @@ export default function SalaryStructuresPage({ embedded = false }) {
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={resetForm} className="flex-1 px-4 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                <button type="submit" disabled={!isValid} className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50">{editing ? 'Update' : 'Create'}</button>
+                <button type="submit" disabled={!isValid || saving} className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50">{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
               </div>
             </form>
           </div>

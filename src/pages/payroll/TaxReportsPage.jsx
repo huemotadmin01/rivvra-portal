@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
@@ -37,6 +37,11 @@ export default function TaxReportsPage() {
   const [taxReport, setTaxReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [fullReportEmp, setFullReportEmp] = useState(null);
+  // `taxReport` is a single shared slot. Rapidly expanding two rows fired two
+  // overlapping fetches and whichever resolved last won — employee A's numbers
+  // could land under employee B. Every fetch takes a ticket; only the newest
+  // one is allowed to write state.
+  const reqIdRef = useRef(0);
 
   useEffect(() => {
     (async () => {
@@ -53,27 +58,40 @@ export default function TaxReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id]);
 
-  const toggleReport = async (empId) => {
-    if (expandedEmp === empId) { setExpandedEmp(null); setTaxReport(null); return; }
-    setExpandedEmp(empId);
+  /** Fetch a report into the shared slot, discarding any stale response. */
+  const fetchReport = async (empId) => {
+    const reqId = ++reqIdRef.current;
     setReportLoading(true);
     setTaxReport(null);
     try {
       const res = await getEmployeeTaxReport(orgSlug, empId, fy);
+      if (reqIdRef.current !== reqId) return; // superseded — do not write
       setTaxReport(res.report);
-    } catch { setTaxReport(null); }
-    finally { setReportLoading(false); }
+    } catch {
+      if (reqIdRef.current !== reqId) return;
+      setTaxReport(null);
+    } finally {
+      if (reqIdRef.current === reqId) setReportLoading(false);
+    }
+  };
+
+  const toggleReport = async (empId) => {
+    if (expandedEmp === empId) {
+      reqIdRef.current++; // invalidate any in-flight fetch for this row
+      setExpandedEmp(null);
+      setTaxReport(null);
+      setReportLoading(false);
+      return;
+    }
+    setExpandedEmp(empId);
+    await fetchReport(empId);
   };
 
   // Re-fetch report when FY changes (if an employee is expanded)
   useEffect(() => {
     if (!expandedEmp) return;
-    setReportLoading(true);
-    setTaxReport(null);
-    getEmployeeTaxReport(orgSlug, expandedEmp, fy)
-      .then(res => setTaxReport(res.report))
-      .catch(() => setTaxReport(null))
-      .finally(() => setReportLoading(false));
+    fetchReport(expandedEmp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fy]);
 
   const confirmedEmployees = employees.filter(e => e.employmentType === 'confirmed' && e.status !== 'separated');

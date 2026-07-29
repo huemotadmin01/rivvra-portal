@@ -25,6 +25,12 @@ export default function MyTaxReportPage() {
   const [selectedFY, setSelectedFY] = useState(getCurrentFY());
   const [showDetails, setShowDetails] = useState(true);
   const [showMonthly, setShowMonthly] = useState(false);
+  // Why the report can't be shown: 'not_linked' (404), 'not_india'
+  // (403 NON_INDIA_COMPANY / 400 no active company) or 'error'. Only 404 used
+  // to be handled, so a non-India employee got a toast plus a bare
+  // "No tax data available" with no explanation.
+  const [blockReason, setBlockReason] = useState(null);
+  const [switchingRegime, setSwitchingRegime] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -43,11 +49,21 @@ export default function MyTaxReportPage() {
   async function loadReport() {
     setLoading(true);
     setReport(null);
+    setBlockReason(null);
     try {
       const res = await getMyTaxReport(orgSlug, selectedFY);
       setReport(res.report);
     } catch (err) {
-      if (err.response?.status !== 404) showToast('Failed to load tax report', 'error');
+      const st = err.response?.status;
+      const code = err.response?.data?.code;
+      if (st === 404) {
+        setBlockReason('not_linked');
+      } else if (st === 403 || code === 'NON_INDIA_COMPANY' || st === 400) {
+        setBlockReason('not_india');
+      } else {
+        setBlockReason('error');
+        showToast('Failed to load tax report', 'error');
+      }
       setReport(null);
     } finally {
       setLoading(false);
@@ -55,12 +71,17 @@ export default function MyTaxReportPage() {
   }
 
   async function handleSwitchRegime(newRegime) {
+    // In-flight guard — a double-click fired two PUTs plus two report reloads.
+    if (switchingRegime) return;
+    setSwitchingRegime(true);
     try {
       await updateMyTaxRegime(orgSlug, newRegime);
       showToast(`Switched to ${newRegime === 'old' ? 'Old' : 'New'} Regime`);
-      loadReport();
+      await loadReport();
     } catch (err) {
       showToast('Failed to switch regime', 'error');
+    } finally {
+      setSwitchingRegime(false);
     }
   }
 
@@ -75,14 +96,28 @@ export default function MyTaxReportPage() {
         </div>
         <select value={selectedFY} onChange={e => setSelectedFY(e.target.value)}
           className="bg-dark-800 border border-dark-600 rounded-lg px-4 py-2 text-sm text-white focus:border-rivvra-500 outline-none">
-          {fys.map(fy => <option key={fy} value={fy}>FY {fy}</option>)}
+          {[...new Set([selectedFY, ...fys])].map(fy => <option key={fy} value={fy}>FY {fy}</option>)}
         </select>
       </div>
 
       {!report ? (
         <div className="bg-dark-800 rounded-xl border border-dark-700 p-12 text-center">
           <BarChart3 size={32} className="text-dark-500 mx-auto mb-3" />
-          <p className="text-dark-400">No tax data available for FY {selectedFY}</p>
+          <p className="text-dark-400 max-w-md mx-auto">
+            {blockReason === 'not_linked'
+              ? "Your account isn't linked to an employee record — contact HR."
+              : blockReason === 'not_india'
+                ? 'The income tax report (old/new regime, TDS, Section 80C) applies to India-registered companies only. Your active company is outside India.'
+                : blockReason === 'error'
+                  ? "We couldn't load your tax report. Please try again."
+                  : `No tax data available for FY ${selectedFY}`}
+          </p>
+          {blockReason === 'error' && (
+            <button onClick={loadReport}
+              className="mt-4 px-4 py-2 bg-rivvra-600 hover:bg-rivvra-500 text-white text-sm font-medium rounded-lg transition-colors">
+              Retry
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -128,11 +163,15 @@ export default function MyTaxReportPage() {
                   {report.comparison.betterRegime === 'old' && <span className="text-[10px] text-green-400 font-medium">✓ Better by ₹{fmt(report.comparison.savings)}</span>}
                 </div>
               </div>
-              {report.comparison.betterRegime !== report.regime && (
+              {report.comparison.betterRegime !== report.regime && report.declarationStatus !== 'approved' && (
                 <button onClick={() => handleSwitchRegime(report.comparison.betterRegime)}
-                  className="mt-4 flex items-center gap-2 px-4 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded-lg hover:bg-green-600/30 transition-colors border border-green-500/20">
-                  <ArrowRightLeft size={14} /> Switch to {report.comparison.betterRegime === 'old' ? 'Old' : 'New'} Regime to save ₹{fmt(report.comparison.savings)}
+                  disabled={switchingRegime}
+                  className="mt-4 flex items-center gap-2 px-4 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded-lg hover:bg-green-600/30 transition-colors border border-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <ArrowRightLeft size={14} /> {switchingRegime ? 'Switching…' : `Switch to ${report.comparison.betterRegime === 'old' ? 'Old' : 'New'} Regime to save ₹${fmt(report.comparison.savings)}`}
                 </button>
+              )}
+              {report.comparison.betterRegime !== report.regime && report.declarationStatus === 'approved' && (
+                <p className="mt-4 text-xs text-dark-400">Regime is locked — your declarations were approved by admin. Contact HR to amend.</p>
               )}
             </div>
           )}

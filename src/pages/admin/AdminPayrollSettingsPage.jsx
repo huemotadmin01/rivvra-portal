@@ -30,6 +30,31 @@ function Section({ title, icon: Icon, defaultOpen = false, children, badge }) {
   );
 }
 
+// ── Slab validation helper ─────────────────────────────────────────────────
+// Returns an error string, or null if the slabs are valid.
+// Checks: min < max (when max is set) and no overlapping ranges.
+function validateSlabs(slabs, label) {
+  if (!Array.isArray(slabs) || slabs.length === 0) return null;
+  const sorted = [...slabs].sort((a, b) => (a.min || 0) - (b.min || 0));
+  for (let i = 0; i < sorted.length; i++) {
+    const s = sorted[i];
+    if ((s.min || 0) < 0) return `${label}: slab min cannot be negative`;
+    if (s.max !== null && s.max !== undefined && s.max <= (s.min || 0)) {
+      return `${label}: slab max must be greater than min (${s.min}–${s.max})`;
+    }
+    if (i < sorted.length - 1) {
+      const next = sorted[i + 1];
+      if (s.max === null || s.max === undefined) {
+        return `${label}: only the last slab may have no upper limit`;
+      }
+      if ((next.min || 0) < s.max) {
+        return `${label}: slabs overlap around ${next.min}`;
+      }
+    }
+  }
+  return null;
+}
+
 // ── Slab Editor Component ──────────────────────────────────────────────────
 function SlabEditor({ slabs, onChange, rateMode = false }) {
   const addSlab = () => {
@@ -54,11 +79,11 @@ function SlabEditor({ slabs, onChange, rateMode = false }) {
       </div>
       {slabs.map((slab, idx) => (
         <div key={idx} className="grid grid-cols-4 gap-2">
-          <input type="number" value={slab.min} onChange={e => updateSlab(idx, 'min', Number(e.target.value))}
+          <input type="number" min="0" value={slab.min} onChange={e => updateSlab(idx, 'min', Number(e.target.value))}
             className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white" />
-          <input type="number" value={slab.max ?? ''} onChange={e => updateSlab(idx, 'max', e.target.value === '' ? null : Number(e.target.value))}
+          <input type="number" min="0" value={slab.max ?? ''} onChange={e => updateSlab(idx, 'max', e.target.value === '' ? null : Number(e.target.value))}
             placeholder="No limit" className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-dark-500" />
-          <input type="number" step={rateMode ? '0.01' : '1'} value={slab[rateMode ? 'rate' : 'tax']}
+          <input type="number" min="0" step={rateMode ? '0.01' : '1'} value={slab[rateMode ? 'rate' : 'tax']}
             onChange={e => updateSlab(idx, rateMode ? 'rate' : 'tax', Number(e.target.value))}
             className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white" />
           <button onClick={() => removeSlab(idx)} className="text-red-400 hover:text-red-300 p-1">
@@ -112,6 +137,20 @@ function AdminPayrollSettingsPage() {
     if (selectedFy) loadFyConfig(selectedFy);
   }, [selectedFy]);
 
+  // PT master is FY-scoped: refetch whenever the selected FY changes and
+  // reset the state/config selection so a config loaded for one FY can never
+  // be saved under another (cross-FY overwrite).
+  useEffect(() => {
+    if (!selectedFy) return;
+    let cancelled = false;
+    setSelectedPtState('');
+    setPtConfig(null);
+    getPlatformPTMaster(selectedFy)
+      .then(res => { if (!cancelled) setPtStates(res.states || []); })
+      .catch(() => { if (!cancelled) setPtStates([]); });
+    return () => { cancelled = true; };
+  }, [selectedFy]);
+
   useEffect(() => {
     if (selectedPtState && selectedFy) loadPtState(selectedFy, selectedPtState);
   }, [selectedPtState]);
@@ -119,16 +158,14 @@ function AdminPayrollSettingsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [fyRes, ptRes, salaryRes, modesRes, taxRes] = await Promise.all([
+      const [fyRes, salaryRes, modesRes, taxRes] = await Promise.all([
         getFYConfigs().catch(() => ({ configs: [] })),
-        getPlatformPTMaster('2025-26').catch(() => ({ states: [] })),
         getPlatformSetting('default_salary_structure').catch(() => null),
         getPlatformSetting('payroll_modes').catch(() => null),
         getPlatformSetting('tax_declaration_sections').catch(() => null),
       ]);
 
       setFyList(fyRes.configs || []);
-      setPtStates(ptRes.states || []);
       if (salaryRes?.setting) setSalaryStructure(salaryRes.setting);
       if (modesRes?.setting) setPayrollModes(modesRes.setting);
       if (taxRes?.setting) setTaxSections(taxRes.setting);
@@ -172,6 +209,11 @@ function AdminPayrollSettingsPage() {
 
   const saveFyConfig = async () => {
     if (!fyConfig) return;
+    const slabErr =
+      validateSlabs(fyConfig.surchargeSlabs || [], 'Surcharge slabs') ||
+      validateSlabs(fyConfig.newRegimeSlabs || [], 'New regime slabs') ||
+      validateSlabs(fyConfig.oldRegimeSlabs || [], 'Old regime slabs');
+    if (slabErr) { setError(slabErr); return; }
     try {
       setSaving(true);
       setError('');
@@ -215,6 +257,9 @@ function AdminPayrollSettingsPage() {
 
   const savePtState = async () => {
     if (!ptConfig || !selectedPtState) return;
+    const slabErr = validateSlabs(ptConfig.slabs || [], `PT slabs (${selectedPtState})`);
+    if (slabErr) { setError(slabErr); return; }
+    if ((ptConfig.annualCap ?? 0) < 0) { setError('Annual cap cannot be negative'); return; }
     try {
       setSaving(true);
       const { _id, createdAt, updatedAt, updatedBy, ...data } = ptConfig;
@@ -365,7 +410,7 @@ function AdminPayrollSettingsPage() {
                     ].map(f => (
                       <div key={f.key}>
                         <label className="text-xs text-dark-400 block mb-1">{f.label}</label>
-                        <input type="number" step="0.0001" value={fyConfig[f.key] ?? ''}
+                        <input type="number" min="0" step="0.0001" value={fyConfig[f.key] ?? ''}
                           onChange={e => setFyConfig({ ...fyConfig, [f.key]: Number(e.target.value) })}
                           className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white" />
                       </div>
@@ -384,7 +429,7 @@ function AdminPayrollSettingsPage() {
                     ].map(f => (
                       <div key={f.key}>
                         <label className="text-xs text-dark-400 block mb-1">{f.label}</label>
-                        <input type="number" step="0.0001" value={fyConfig[f.key] ?? ''}
+                        <input type="number" min="0" step="0.0001" value={fyConfig[f.key] ?? ''}
                           onChange={e => setFyConfig({ ...fyConfig, [f.key]: Number(e.target.value) })}
                           className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white" />
                       </div>
@@ -504,7 +549,7 @@ function AdminPayrollSettingsPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs text-dark-400 block mb-1">Annual Cap</label>
-                    <input type="number" value={ptConfig.annualCap ?? 2500}
+                    <input type="number" min="0" value={ptConfig.annualCap ?? 2500}
                       onChange={e => setPtConfig({ ...ptConfig, annualCap: Number(e.target.value) })}
                       className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white" />
                   </div>

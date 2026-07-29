@@ -66,24 +66,37 @@ export default function MyAttendancePage() {
   const [submitting, setSubmitting] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [periodLocked, setPeriodLocked] = useState(false);
+  // null when the month loaded fine; otherwise { kind, message }.
+  const [loadError, setLoadError] = useState(null);
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
     setDirty(false);
     setPeriodLocked(false);
+    setLoadError(null);
     try {
       const data = await getAttendance(month, year);
       setAttendance(data.attendance);
       setEntries(data.attendance?.entries || []);
       setPeriodLocked(!!data.periodLocked);
     } catch (err) {
-      showToast(err.response?.data?.error || 'Failed to load attendance', 'error');
+      // On failure this page used to render its header, all-zero summary cards
+      // and an empty calendar shell with no message at all — a 403 for an
+      // employment type that doesn't use attendance looked identical to a month
+      // with nothing marked. Record why so the render can say something.
+      const status = err.response?.status;
+      const message = err.response?.data?.error || err.response?.data?.message;
+      setLoadError({
+        kind: status === 403 ? 'not_applicable' : 'error',
+        message,
+      });
+      if (status !== 403) showToast(message || 'Failed to load attendance', 'error');
       setAttendance(null);
       setEntries([]);
     } finally {
       setLoading(false);
     }
-  }, [month, year]);
+  }, [month, year]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
@@ -307,6 +320,42 @@ export default function MyAttendancePage() {
           <Loader2 className="w-12 h-12 text-rivvra-500 animate-spin absolute inset-0" />
         </div>
         <span className="text-sm text-dark-400">Loading attendance...</span>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    const notApplicable = loadError.kind === 'not_applicable';
+    return (
+      <div className="max-w-5xl mx-auto px-2 sm:px-0">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-rivvra-500/15 flex items-center justify-center flex-shrink-0">
+            <CalendarCheck size={20} className="text-rivvra-400" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-white leading-tight">My Attendance</h1>
+            <p className="text-xs text-dark-400 mt-0.5">{monthNames[month - 1]} {year}</p>
+          </div>
+        </div>
+        <div className="bg-dark-800 border border-dark-700 rounded-xl p-10 text-center">
+          <AlertCircle size={40} className={`mx-auto mb-3 ${notApplicable ? 'text-dark-500' : 'text-amber-400/60'}`} />
+          <p className="text-sm text-dark-300 max-w-md mx-auto">
+            {notApplicable
+              ? (loadError.message || "Attendance tracking doesn't apply to your employment type. Contact HR if you think this is wrong.")
+              : "We couldn't load your attendance for this month."}
+          </p>
+          {!notApplicable && (
+            <>
+              <p className="text-xs text-dark-500 mt-1">This isn't the same as having nothing marked — please try again.</p>
+              <button
+                onClick={fetchAttendance}
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-dark-900 border border-dark-700 hover:bg-dark-700 text-sm text-white rounded-lg transition-colors"
+              >
+                <RotateCcw size={14} /> Retry
+              </button>
+            </>
+          )}
+        </div>
       </div>
     );
   }

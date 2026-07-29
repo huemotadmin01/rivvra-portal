@@ -49,6 +49,9 @@ const EMPTY_FORM = {
   address: { street: '', street2: '', city: '', state: '', zip: '', country: 'India', countryCode: 'IN' },
   socialMedia: { x: '', facebook: '', github: '', linkedin: '', youtube: '', instagram: '' },
   bankDetails: { accountName: '', bankName: '', accountNo: '', ifsc: '' },
+  // Write-only: the API never returns stored IRP secrets, so these always
+  // start blank. Blank = keep saved values; non-blank = replace.
+  eInvoiceCredentials: { clientId: '', clientSecret: '', username: '', password: '' },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -189,6 +192,7 @@ export default function SettingsCompanies() {
         accountNo: company.bankDetails?.accountNo || '',
         ifsc: company.bankDetails?.ifsc || '',
       },
+      eInvoiceCredentials: { clientId: '', clientSecret: '', username: '', password: '' },
     });
   };
 
@@ -206,6 +210,29 @@ export default function SettingsCompanies() {
 
   const handleBankChange = (field, value) => {
     setForm((prev) => ({ ...prev, bankDetails: { ...prev.bankDetails, [field]: value } }));
+  };
+
+  const handleEInvoiceCredChange = (field, value) => {
+    setForm((prev) => ({ ...prev, eInvoiceCredentials: { ...prev.eInvoiceCredentials, [field]: value } }));
+  };
+
+  const handleClearEInvoiceCreds = async () => {
+    if (!selectedCompany?._id) return;
+    if (!window.confirm('Remove the saved IRP credentials for this company? E-invoice generation will stop working until new credentials are added.')) return;
+    try {
+      const res = await api.request(`/api/org/${orgSlug}/companies/${selectedCompany._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ eInvoiceCredentials: null }),
+      });
+      if (res.success) {
+        showToast('E-invoice credentials cleared');
+        fetchCompanies();
+      } else {
+        showToast(res.error || 'Failed to clear credentials', 'error');
+      }
+    } catch {
+      showToast('Failed to clear credentials', 'error');
+    }
   };
 
   // ─── Navigation ────────────────────────────────────────────────────────────
@@ -286,6 +313,11 @@ export default function SettingsCompanies() {
     try {
       setSaving(true);
       const payload = { ...form, name: form.name.trim() };
+      // Only send IRP credentials when something was typed — sending blanks
+      // would still be a no-op server-side, but omitting keeps intent clear.
+      if (!Object.values(form.eInvoiceCredentials || {}).some((v) => v && v.trim())) {
+        delete payload.eInvoiceCredentials;
+      }
 
       let res;
       if (selectedCompany) {
@@ -967,6 +999,79 @@ export default function SettingsCompanies() {
                 </div>
               </div>
             </div>
+
+            {/* ─── E-INVOICING (India) Section ─── */}
+            {form.address.countryCode === 'IN' && (
+              <div className="mt-8 pt-5 border-t border-dark-700">
+                <div className="flex items-center gap-3 mb-1">
+                  <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">E-Invoicing — IRP API Credentials</h3>
+                  {selectedCompany?.eInvoiceConfigured ? (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">Configured</span>
+                  ) : (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-dark-800 text-dark-400 border border-dark-700">Not configured</span>
+                  )}
+                </div>
+                <p className="text-xs text-dark-500 mb-3">
+                  API credentials issued for this company's GSTIN by the IRP (NIC / IRIS).
+                  Saved values are never shown — leave a field blank to keep it, type to replace.
+                </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
+                  <div className="divide-y divide-dark-800">
+                    <FieldRow label="Client ID">
+                      <input
+                        type="text"
+                        value={form.eInvoiceCredentials.clientId}
+                        onChange={(e) => handleEInvoiceCredChange('clientId', e.target.value)}
+                        className="input-field text-sm"
+                        placeholder={selectedCompany?.eInvoiceConfigured ? '•••••• (saved)' : 'IRP client id'}
+                        autoComplete="off"
+                      />
+                    </FieldRow>
+                    <FieldRow label="Client Secret">
+                      <input
+                        type="password"
+                        value={form.eInvoiceCredentials.clientSecret}
+                        onChange={(e) => handleEInvoiceCredChange('clientSecret', e.target.value)}
+                        className="input-field text-sm"
+                        placeholder={selectedCompany?.eInvoiceConfigured ? '•••••• (saved)' : 'IRP client secret'}
+                        autoComplete="new-password"
+                      />
+                    </FieldRow>
+                  </div>
+                  <div className="divide-y divide-dark-800">
+                    <FieldRow label="API Username">
+                      <input
+                        type="text"
+                        value={form.eInvoiceCredentials.username}
+                        onChange={(e) => handleEInvoiceCredChange('username', e.target.value)}
+                        className="input-field text-sm"
+                        placeholder={selectedCompany?.eInvoiceConfigured ? '•••••• (saved)' : 'API user for this GSTIN'}
+                        autoComplete="off"
+                      />
+                    </FieldRow>
+                    <FieldRow label="API Password">
+                      <input
+                        type="password"
+                        value={form.eInvoiceCredentials.password}
+                        onChange={(e) => handleEInvoiceCredChange('password', e.target.value)}
+                        className="input-field text-sm"
+                        placeholder={selectedCompany?.eInvoiceConfigured ? '•••••• (saved)' : 'API password'}
+                        autoComplete="new-password"
+                      />
+                    </FieldRow>
+                  </div>
+                </div>
+                {selectedCompany?.eInvoiceConfigured && (
+                  <button
+                    type="button"
+                    onClick={handleClearEInvoiceCreds}
+                    className="mt-2 text-xs text-red-400 hover:text-red-300"
+                  >
+                    Clear saved credentials
+                  </button>
+                )}
+              </div>
+            )}
 
           </div>
         )}

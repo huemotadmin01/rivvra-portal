@@ -44,7 +44,10 @@ export default function MyPayslipsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id]);
 
-  const payslipKey = (p) => `${p.year}-${p.month}`;
+  // An imported (GreytHR) payslip and a payroll-run payslip can both exist for
+  // the same month. Keying on year-month alone collided: one checkbox toggled
+  // both rows and the bulk ZIP fetched whichever type it happened to resolve.
+  const payslipKey = (p) => `${p.year}-${p.month}-${p.runId || 'imported'}`;
 
   const toggleSelect = (p, e) => {
     e.stopPropagation();
@@ -138,7 +141,7 @@ export default function MyPayslipsPage() {
       {payslips.length === 0 ? (
         <div className="bg-dark-800 rounded-xl border border-dark-700 p-12 text-center">
           <FileText size={32} className="text-dark-500 mx-auto mb-3" />
-          <p className="text-dark-400">No payslips available yet.</p>
+          <p className="text-dark-400">Payslips appear here once released by HR/Payroll.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -152,20 +155,32 @@ export default function MyPayslipsPage() {
 
             return (
               <div key={payslipKey(p)} className={`bg-dark-800 rounded-xl border overflow-hidden transition-colors ${isSelected ? 'border-rivvra-500/50' : 'border-dark-700'}`}>
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setExpanded(isExpanded ? null : idx)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-750 transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setExpanded(isExpanded ? null : idx);
+                    }
+                  }}
+                  aria-expanded={isExpanded}
+                  className="w-full flex items-center justify-between px-5 py-2 cursor-pointer hover:bg-dark-750 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div
+                    <button
+                      type="button"
                       onClick={(e) => toggleSelect(p, e)}
-                      className="flex-shrink-0 cursor-pointer"
+                      aria-label={isSelected ? 'Deselect payslip' : 'Select payslip'}
+                      className="flex-shrink-0 min-w-[40px] min-h-[40px] flex items-center justify-center"
                     >
                       {isSelected
                         ? <CheckSquare size={18} className="text-rivvra-400" />
                         : <Square size={18} className="text-dark-500 hover:text-dark-300" />
                       }
-                    </div>
+                    </button>
                     <div className="text-left">
                       <div className="text-white font-medium text-sm">{MONTH_NAMES[p.month]} {p.year}</div>
                       <div className="text-xs text-dark-400">
@@ -179,8 +194,9 @@ export default function MyPayslipsPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <button
+                      type="button"
                       onClick={(e) => handleDownloadPdf(p, e)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 px-3 min-h-[40px] border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
                       title="Download PDF"
                     >
                       <Download size={12} /> PDF
@@ -191,7 +207,7 @@ export default function MyPayslipsPage() {
                     </div>
                     {isExpanded ? <ChevronUp size={16} className="text-dark-400" /> : <ChevronDown size={16} className="text-dark-400" />}
                   </div>
-                </button>
+                </div>
 
                 {isExpanded && (
                   <div className="border-t border-dark-700 px-5 py-4">
@@ -249,18 +265,12 @@ export default function MyPayslipsPage() {
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.professionalTax)}</td>
                               </tr>
                             )}
-                            {p.employerPf > 0 && (
-                              <tr className="border-b border-dark-700/30">
-                                <td className="py-1.5 text-dark-300">Employer PF</td>
-                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerPf)}</td>
-                              </tr>
-                            )}
-                            {p.employerEsi > 0 && (
-                              <tr className="border-b border-dark-700/30">
-                                <td className="py-1.5 text-dark-300">Employer ESI</td>
-                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerEsi)}</td>
-                              </tr>
-                            )}
+                            {/* Employer PF/ESI deliberately NOT listed here.
+                                They are `totalEmployerCost` in payroll.js — paid
+                                on top of gross, excluded from `totalDeductions`.
+                                Listing them here made the itemised rows visibly
+                                fail to sum to the Total below. They now render
+                                under "Employer Contributions" in the summary. */}
                             {p.tds > 0 && (
                               <tr className="border-b border-dark-700/30">
                                 <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? `TDS (${Math.round((p.tdsRate ?? 0.02) * 100)}%)` : 'TDS'}</td>
@@ -293,7 +303,7 @@ export default function MyPayslipsPage() {
                           </div>
                           {(p.employerPf > 0 || p.employerEsi > 0) && (
                             <div className="border-t border-dark-700 pt-3 space-y-1">
-                              <div className="text-xs text-dark-500 mb-1">Employer Contributions</div>
+                              <div className="text-xs text-dark-500 mb-1">Employer Contributions (not deducted)</div>
                               {p.employerPf > 0 && <div className="flex justify-between text-xs"><span className="text-dark-400">EPF</span><span className="text-dark-300">₹{fmt(p.employerPf)}</span></div>}
                               {p.employerEsi > 0 && <div className="flex justify-between text-xs"><span className="text-dark-400">ESI</span><span className="text-dark-300">₹{fmt(p.employerEsi)}</span></div>}
                             </div>

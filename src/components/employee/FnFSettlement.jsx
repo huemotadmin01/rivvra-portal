@@ -18,6 +18,7 @@ const FIELD_LABELS = {
   loanRecovery: 'Loan/Advance Recovery',
   otherDeductions: 'Other Deductions',
   otherAdditions: 'Other Additions',
+  gratuity: 'Gratuity',
 };
 
 function fmt(n) {
@@ -31,7 +32,7 @@ function fmtDate(d) {
 
 export default function FnFSettlement({ employeeId, employee }) {
   const { orgSlug } = usePlatform();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companyCountry } = useCompany();
   const { showToast } = useToast();
 
   const [calculation, setCalculation] = useState(null);
@@ -143,25 +144,29 @@ export default function FnFSettlement({ employeeId, employee }) {
   function buildPreviewData() {
     if (!calculation) return null;
     const leaveEnc = calculation.leaveEncashment.amount;
+    const gratuityAmt = calculation.gratuity?.amount || 0;
     const noticeRec = calculation.noticePeriod.recoveryAmount;
     const assetDed = calculation.assetDeductions.totalAmount;
     const loanRec = parseFloat(loanRecovery) || 0;
     const otherDed = parseFloat(otherDeductions) || 0;
     const otherAdd = parseFloat(otherAdditions) || 0;
+    // Mirrors the server: totalEarnings = leaveEncashment + gratuity + otherAdditions
+    const totalEarn = leaveEnc + gratuityAmt + otherAdd;
+    const totalDed = noticeRec + assetDed + loanRec + otherDed;
     return {
       ...calculation,
       loanRecovery: loanRec,
       otherDeductions: otherDed,
       otherAdditions: otherAdd,
-      totalEarnings: leaveEnc + otherAdd,
-      totalDeductions: noticeRec + assetDed + loanRec + otherDed,
-      netSettlement: (leaveEnc + otherAdd) - (noticeRec + assetDed + loanRec + otherDed),
+      totalEarnings: totalEarn,
+      totalDeductions: totalDed,
+      netSettlement: totalEarn - totalDed,
     };
   }
 
   // F&F (notice recovery, leave encashment) is an India-only settlement
   // construct — non-India entities shouldn't see it. Mirrors the payroll gate.
-  if (currentCompany && currentCompany.currency !== 'INR') {
+  if (currentCompany && companyCountry !== 'IN') {
     return (
       <div className="bg-dark-800/60 border border-dark-700/50 rounded-xl p-4 flex items-start gap-2">
         <AlertTriangle size={15} className="text-dark-500 mt-0.5 shrink-0" />
@@ -195,9 +200,33 @@ export default function FnFSettlement({ employeeId, employee }) {
   const loanRec = settlement?.loanRecovery || parseFloat(loanRecovery) || 0;
   const otherDed = settlement?.otherDeductions || parseFloat(otherDeductions) || 0;
   const otherAdd = settlement?.otherAdditions || parseFloat(otherAdditions) || 0;
-  const totalEarnings = leaveEnc + otherAdd;
+
+  // ── Gratuity (Payment of Gratuity Act) ──────────────────────────────────
+  // The server computes it in calculateFnf() and returns
+  //   gratuity: { eligible, serviceYears, completedYears, monthlyBasic, amount }
+  // on the /fnf/calculate response, and folds `amount` into the settlement's
+  // totalEarnings (= leaveEncashment + gratuity + otherAdditions).
+  // The persisted settlement document does NOT currently carry a `gratuity`
+  // sub-document, so for a saved draft we prefer it when present and otherwise
+  // back it out of the server's own totalEarnings using that same formula
+  // (which also preserves any admin gratuity override the server applied).
+  const gratuityInfo = settlement?.gratuity || calculation.gratuity || {};
+  const gratuityAmt = settlement
+    ? (settlement.gratuity?.amount ??
+       Math.max(0, Number(settlement.totalEarnings || 0)
+         - Number(settlement.leaveEncashment?.amount || 0)
+         - Number(settlement.otherAdditions || 0)))
+    : (calculation.gratuity?.amount || 0);
+
+  const totalEarnings = leaveEnc + gratuityAmt + otherAdd;
   const totalDeductions = noticeRec + assetDed + loanRec + otherDed;
   const netSettlement = totalEarnings - totalDeductions;
+
+  // Notice period is per-employee on the server (`noticePeriodDays`, stamped
+  // from the ATS offer at hire) — never hardcode 90 here.
+  const noticeTotalDays = data.noticePeriod?.totalDays
+    ?? calculation.noticePeriod?.totalDays
+    ?? 0;
 
   return (
     <div className="space-y-4">
@@ -218,6 +247,20 @@ export default function FnFSettlement({ employeeId, employee }) {
           ) : null}
         </div>
       </div>
+
+      {/* Server-side warnings. These are advisory but load-bearing: a missing
+          salary structure yields Basic = 0, which silently zeroes both leave
+          encashment and gratuity. HR must see that before finalizing. */}
+      {(calculation.warnings || []).length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-1.5">
+          {calculation.warnings.map((w, i) => (
+            <p key={i} className="text-xs text-amber-300 flex items-start gap-1.5">
+              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+              <span>{w}</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Salary Info */}
       <div className="bg-dark-800/40 rounded-lg p-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -258,6 +301,33 @@ export default function FnFSettlement({ employeeId, employee }) {
                   {' × '}INR {fmt(calculation.leaveEncashment.dailyBasic)}/day (daily basic)
                 </p>
               </>
+            )}
+          </div>
+        </div>
+
+        {/* Gratuity — Payment of Gratuity Act (server-computed) */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-dark-300">Gratuity</span>
+            <span className="text-sm text-emerald-400 font-medium">INR {fmt(gratuityAmt)}</span>
+          </div>
+          <div className="pl-3 space-y-0.5 text-xs text-dark-500">
+            {gratuityInfo.eligible ? (
+              <>
+                <p>
+                  Eligible — {gratuityInfo.serviceYears ?? '—'} years of service
+                  {gratuityInfo.completedYears != null && <> ({gratuityInfo.completedYears} completed year{gratuityInfo.completedYears === 1 ? '' : 's'} counted)</>}
+                </p>
+                <p>
+                  15/26 &times; INR {fmt(gratuityInfo.monthlyBasic ?? calculation.salary.monthlyBasic)} monthly basic
+                  {gratuityInfo.completedYears != null && <> &times; {gratuityInfo.completedYears} year{gratuityInfo.completedYears === 1 ? '' : 's'}</>}
+                </p>
+              </>
+            ) : (
+              <p className="text-amber-400/80">
+                Not eligible — {gratuityInfo.serviceYears != null ? `${gratuityInfo.serviceYears} years of service; ` : ''}
+                gratuity requires 4.81 years of continuous service.
+              </p>
             )}
           </div>
         </div>
@@ -308,12 +378,12 @@ export default function FnFSettlement({ employeeId, employee }) {
                   <span>Days Served:</span>
                   <input type="number" value={noticeDaysServed} onChange={e => setNoticeDaysServed(e.target.value)}
                     className="w-16 px-1.5 py-0.5 text-right bg-dark-900 border border-dark-700 rounded text-xs text-white focus:outline-none focus:border-rivvra-500" />
-                  <span>/ 90</span>
+                  <span>/ {noticeTotalDays}</span>
                 </div>
               </div>
             ) : (
               <>
-                <p>Notice Period: 90 days | Days Served: {data.noticePeriod?.daysServed || 0} | Shortfall: {data.noticePeriod?.shortfall || 0} days</p>
+                <p>Notice Period: {noticeTotalDays} days | Days Served: {data.noticePeriod?.daysServed || 0} | Shortfall: {data.noticePeriod?.shortfall || 0} days</p>
                 <p>{data.noticePeriod?.shortfall || 0} days x INR {fmt(calculation.salary.dailyGross)}/day (daily gross)</p>
               </>
             )}
@@ -503,6 +573,12 @@ function generatePrintHTML(s, emp) {
   const le = s.leaveEncashment || {};
   const np = s.noticePeriod || {};
   const ad = s.assetDeductions || {};
+  // Gratuity: present on the /fnf/calculate payload; a persisted settlement
+  // doesn't store the sub-document, so back the amount out of the server's
+  // totalEarnings (= leaveEncashment + gratuity + otherAdditions).
+  const gr = s.gratuity || {
+    amount: Math.max(0, Number(s.totalEarnings || 0) - Number(le.amount || 0) - Number(s.otherAdditions || 0)),
+  };
 
   return `<!DOCTYPE html><html><head><title>F&F Settlement - ${empData.fullName}</title>
 <style>
@@ -568,13 +644,18 @@ function generatePrintHTML(s, emp) {
         }</td>
         <td class="amount earning">${fmtINR(le.amount)}</td>
       </tr>
+      ${(gr.amount || 0) > 0 ? `<tr><td>Gratuity</td><td>${
+        gr.completedYears != null
+          ? `15/26 x INR ${fmtINR(gr.monthlyBasic || salary.monthlyBasic)} x ${gr.completedYears} completed year(s)`
+          : 'Payment of Gratuity Act'
+      }</td><td class="amount earning">${fmtINR(gr.amount)}</td></tr>` : ''}
       ${(s.otherAdditions || 0) > 0 ? `<tr><td>Other Additions</td><td>${s.otherAdditionNotes || ''}</td><td class="amount earning">${fmtINR(s.otherAdditions)}</td></tr>` : ''}
       <tr class="total-row"><td colspan="2">Total Earnings</td><td class="amount earning">${fmtINR(s.totalEarnings || le.amount || 0)}</td></tr>
 
       <tr><td colspan="3" style="font-weight:600; color:#dc2626; padding-top:15px">DEDUCTIONS</td></tr>
       <tr>
         <td>Notice Period Recovery</td>
-        <td>90 days - ${np.daysServed || 0} served = ${np.shortfall || 0}d shortfall x INR ${fmtINR(np.dailyGross || salary.dailyGross)}/day</td>
+        <td>${np.totalDays ?? 0} days - ${np.daysServed || 0} served = ${np.shortfall || 0}d shortfall x INR ${fmtINR(np.dailyGross || salary.dailyGross)}/day</td>
         <td class="amount deduction">${fmtINR(np.recoveryAmount)}</td>
       </tr>
       ${(ad.totalAmount || 0) > 0 ? `<tr><td>Asset Deductions</td><td>${(ad.items||[]).map(i => i.assetName + ' (' + i.condition + ')').join(', ')}</td><td class="amount deduction">${fmtINR(ad.totalAmount)}</td></tr>` : ''}

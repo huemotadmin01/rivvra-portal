@@ -43,6 +43,15 @@ const typeLabels = {
 // Only external consultants + billable internal consultants belong in contractor payroll
 // confirmed, interns, and non-billable internal consultants are handled by Employee Payroll
 
+// TENANT-SPECIFIC CUTOVER (Huemot): from March 2026 contractor payroll only
+// processes external consultants (everyone else moved to statutory Employee
+// Payroll). This literal encodes Huemot's migration date and does not belong
+// in a multi-tenant build — it should eventually come from payroll settings.
+const CONTRACTOR_POLICY_CUTOVER = { year: 2026, month: 3 };
+const isAfterContractorPolicyCutover = (y, m) =>
+  y > CONTRACTOR_POLICY_CUTOVER.year ||
+  (y === CONTRACTOR_POLICY_CUTOVER.year && m >= CONTRACTOR_POLICY_CUTOVER.month);
+
 const typeBadgeColors = {
   confirmed: 'bg-blue-500/10 text-blue-400',
   internal_consultant: 'bg-purple-500/10 text-purple-400',
@@ -71,11 +80,6 @@ export default function TimesheetPayroll() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
   const searchTimerRef = useRef(null);
-
-  // Check admin access
-  if (timesheetUser && timesheetUser.role !== 'admin') {
-    return <div className="p-6 text-center text-dark-400">Access denied. Admin only.</div>;
-  }
 
   // Payroll run lifecycle
   const [payrollRun, setPayrollRun] = useState({ status: 'open' });
@@ -153,7 +157,7 @@ export default function TimesheetPayroll() {
     if (!data?.employees) return { processableEmployees: [], excludedEmployees: [] };
     const processable = [];
     const excluded = [];
-    const isNewPolicy = year > 2026 || (year === 2026 && month >= 3);
+    const isNewPolicy = isAfterContractorPolicyCutover(year, month);
     for (const e of data.employees) {
       if (isNewPolicy) {
         if (e.employmentType === 'external_consultant') processable.push(e);
@@ -404,11 +408,18 @@ export default function TimesheetPayroll() {
       //  Days In Month  LOP   Effective Workdays Gross Pay (highlighted)
       //  12        13                14                 15         16                17
       //  TDS (2%)  Other Deductions  Total Deductions   Net Pay    Disbursement Date Payment Status
+      // TDS rate is org-configurable (payroll settings -> tdsRateByType) and
+      // stamped per row as `tdsRate`; only label a specific % when every row
+      // agrees, otherwise stay generic.
+      const exportTdsRates = [...new Set(consultants.map(e => Number(e.tdsRate) || 0))];
+      const exportTdsHeader = exportTdsRates.length === 1
+        ? `TDS (${Math.round(exportTdsRates[0] * 10000) / 100}%)`
+        : 'TDS';
       const headers = [
         'Employee No', 'Name', 'Project Start Date', 'Status',
         'PAN No.', 'Bank A/C', 'IFSC',
         'Days In Month', 'LOP', 'Effective Workdays',
-        'Gross Pay', 'Bonuses', 'TDS (2%)', 'Deductions', 'Total Deductions', 'Net Pay',
+        'Gross Pay', 'Bonuses', exportTdsHeader, 'Deductions', 'Total Deductions', 'Net Pay',
         'Disbursement Date', 'Payment Status',
       ];
       const headerRow = ws.addRow(headers);
@@ -616,6 +627,12 @@ export default function TimesheetPayroll() {
     setMonth(m); setYear(y);
     setExpandedEmployee(null);
   };
+
+  // Check admin access — placed after ALL hooks so hook order never varies
+  // between renders (Rules of Hooks / minified prod crash).
+  if (timesheetUser && timesheetUser.role !== 'admin') {
+    return <div className="p-6 text-center text-dark-400">Access denied. Admin only.</div>;
+  }
 
   if (loading) return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-pulse">
@@ -839,7 +856,7 @@ export default function TimesheetPayroll() {
             <ShieldCheck size={14} className="text-emerald-500" />
             <span>Showing payroll data from{' '}
               <button onClick={() => setShowApprovedPopup(true)} className="text-emerald-400 font-medium hover:underline hover:text-emerald-300 transition-colors">
-                {processableEmployees.reduce((s, e) => s + e.projects.length, 0)} approved timesheet{processableEmployees.reduce((s, e) => s + e.projects.length, 0) !== 1 ? 's' : ''}
+                {processableEmployees.reduce((s, e) => s + (e.projects?.length || 0), 0)} approved timesheet{processableEmployees.reduce((s, e) => s + (e.projects?.length || 0), 0) !== 1 ? 's' : ''}
               </button>
               {' '}for {monthNames[month]} {year}
             </span>
@@ -890,7 +907,7 @@ export default function TimesheetPayroll() {
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2">
-        {((year > 2026 || (year === 2026 && month >= 3))
+        {(isAfterContractorPolicyCutover(year, month)
           ? ['all']
           : ['all', 'internal_consultant', 'external_consultant', 'intern']
         ).map(tab => (
@@ -918,12 +935,21 @@ export default function TimesheetPayroll() {
               try {
                 const statusRes = await timesheetApi.get('/payroll/payslip-release-status', { params: { month, year } });
                 setReleaseStatus(statusRes.data?.releases || {});
-                // Only pre-select employees who haven't been released yet
-                const unreleased = processableEmployees.filter(e => !statusRes.data?.releases?.[e.employeeObjId]);
+                // Pre-select only employees who haven't been released yet AND
+                // are not on salary hold. Held rows render checked-but-disabled,
+                // so the admin cannot deselect them — leaving them selected
+                // emails payslips for salaries that are being withheld.
+                const unreleased = processableEmployees.filter(e =>
+                  e.paymentStatus !== 'on_hold' && !statusRes.data?.releases?.[e.employeeObjId]
+                );
                 setSelectedForRelease(new Set(unreleased.map(e => e.employeeObjId)));
               } catch {
                 setReleaseStatus({});
-                setSelectedForRelease(new Set(processableEmployees.map(e => e.employeeObjId)));
+                // Same exclusion on the fallback path — this previously
+                // selected EVERYONE, on-hold employees included.
+                setSelectedForRelease(new Set(
+                  processableEmployees.filter(e => e.paymentStatus !== 'on_hold').map(e => e.employeeObjId)
+                ));
               }
               setShowReleaseModal(true);
             }}
@@ -987,7 +1013,7 @@ export default function TimesheetPayroll() {
                         </span>
                       </td>
                       <td className="px-3 py-3 text-dark-300 text-xs max-w-[150px] truncate">
-                        {emp.projects.map(p => p.projectName).join(', ')}
+                        {(emp.projects || []).map(p => p.projectName).join(', ')}
                       </td>
                       <td className="px-3 py-3 text-right text-dark-300">{emp.totalWorkingDays}</td>
                       <td className="px-3 py-3 text-right text-dark-300">{'\u20B9'}{fmt(emp.grossPay)}</td>
@@ -1042,7 +1068,7 @@ export default function TimesheetPayroll() {
                                   {emp.adjustments?.filter(a => a.type === 'bonus').map((a, i) => (
                                     <div key={a._id} className="flex justify-between"><span className="text-dark-400 text-xs">{a.label}</span><span className="text-emerald-400 text-xs">+{'\u20B9'}{fmtDecimal(a.amount)}</span></div>
                                   ))}
-                                  <div className="flex justify-between"><span className="text-dark-400">TDS ({(emp.tdsRate * 100)}%)</span><span className="text-red-400">-{'\u20B9'}{fmtDecimal(emp.tdsAmount)}</span></div>
+                                  <div className="flex justify-between"><span className="text-dark-400">TDS ({Math.round((emp.tdsRate || 0) * 10000) / 100}%)</span><span className="text-red-400">-{'\u20B9'}{fmtDecimal(emp.tdsAmount)}</span></div>
                                   {emp.adjustments?.filter(a => a.type === 'deduction').map((a, i) => (
                                     <div key={a._id} className="flex justify-between"><span className="text-dark-400 text-xs">{a.label}</span><span className="text-red-400 text-xs">-{'\u20B9'}{fmtDecimal(a.amount)}</span></div>
                                   ))}
@@ -1094,7 +1120,7 @@ export default function TimesheetPayroll() {
                             )}
 
                             {/* Multi-project breakdown */}
-                            {emp.projects.length > 1 && (
+                            {(emp.projects?.length || 0) > 1 && (
                               <div className="space-y-2">
                                 <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Project-wise Breakdown</h4>
                                 <div className="bg-dark-900 rounded-lg overflow-hidden">
@@ -1108,7 +1134,7 @@ export default function TimesheetPayroll() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-dark-800/50">
-                                      {emp.projects.map(p => (
+                                      {(emp.projects || []).map(p => (
                                         <tr key={p.timesheetId}>
                                           <td className="px-3 py-2 text-white">{p.projectName}</td>
                                           <td className="px-3 py-2 text-dark-300">{p.clientName}</td>
@@ -1123,7 +1149,7 @@ export default function TimesheetPayroll() {
                             )}
 
                             {/* Pro-rata note */}
-                            {emp.projects.some(p => p.revisionData?.revisionApplied) && (
+                            {(emp.projects || []).some(p => p.revisionData?.revisionApplied) && (
                               <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
                                 <TrendingUp size={14} className="text-amber-400 mt-0.5 shrink-0" />
                                 <div className="text-sm">
@@ -1131,7 +1157,7 @@ export default function TimesheetPayroll() {
                                   <p className="text-dark-400 text-xs mt-0.5">
                                     Rate was revised mid-month. Pay has been calculated proportionally across rate periods.
                                   </p>
-                                  {emp.projects.filter(p => p.revisionData?.revisionApplied).map(p => (
+                                  {(emp.projects || []).filter(p => p.revisionData?.revisionApplied).map(p => (
                                     <div key={p.timesheetId} className="mt-2 text-xs text-dark-400">
                                       <span className="text-dark-300 font-medium">{p.projectName}:</span>
                                       {(p.revisionData?.ratePeriods || []).map((rp, i) => (
@@ -1286,7 +1312,7 @@ export default function TimesheetPayroll() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-dark-400 text-xs max-w-[150px] truncate">
-                        {emp.projects.map(p => p.projectName).join(', ')}
+                        {(emp.projects || []).map(p => p.projectName).join(', ')}
                       </td>
                       <td className="px-3 py-2.5 text-right text-dark-400">{emp.totalWorkingDays}</td>
                       <td className="px-3 py-2.5 text-center">

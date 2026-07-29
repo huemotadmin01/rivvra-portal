@@ -6,7 +6,7 @@ import timesheetApi from '../../utils/timesheetApi';
 import { downloadMyPayslipByMonth } from '../../utils/payrollApi';
 import { generatePayslipPDF } from '../../utils/payslipPdf';
 import { PageSkeleton, HeaderSkeleton, TwoCardSkeleton, CardListSkeleton } from '../../components/Skeletons';
-import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Clock, Loader2, Download, FileText, TrendingUp, ChevronDown, ChevronUp, AlertTriangle, RefreshCw } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -161,9 +161,15 @@ export default function TimesheetEarnings() {
   const [downloading, setDownloading] = useState(null);
   const [rateHistory, setRateHistory] = useState([]);
   const [showRateHistory, setShowRateHistory] = useState(false);
+  // Every one of the five loads used to end in `.catch(() => {})`, so an
+  // expired session or a 500 rendered as "No data available" / an empty history
+  // table — indistinguishable from genuinely having no earnings.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(false);
     setCurrent(null);
     setPrevious(null);
     setHistory([]);
@@ -171,20 +177,39 @@ export default function TimesheetEarnings() {
     setRateHistory([]);
     const controller = new AbortController();
     const sig = { signal: controller.signal };
+    let failures = 0;
+    const track = (p) => p.catch((err) => {
+      if (err?.name !== 'AbortError') failures++;
+    });
     Promise.all([
-      timesheetApi.get('/earnings/current', sig).then(r => setCurrent(r.data)).catch(() => {}),
-      timesheetApi.get('/earnings/previous', sig).then(r => setPrevious(r.data)).catch(() => {}),
-      timesheetApi.get('/earnings/history', sig).then(r => setHistory(r.data)).catch(() => {}),
-      timesheetApi.get('/earnings/disbursement-info', sig).then(r => setDisbursement(r.data)).catch(() => {}),
-      timesheetApi.get('/earnings/rate-history', sig).then(r => setRateHistory(r.data?.revisions || [])).catch(() => {}),
-    ]).finally(() => setLoading(false));
+      track(timesheetApi.get('/earnings/current', sig).then(r => setCurrent(r.data))),
+      track(timesheetApi.get('/earnings/previous', sig).then(r => setPrevious(r.data))),
+      track(timesheetApi.get('/earnings/history', sig).then(r => setHistory(Array.isArray(r.data) ? r.data : r.data?.history || []))),
+      track(timesheetApi.get('/earnings/disbursement-info', sig).then(r => setDisbursement(r.data))),
+      track(timesheetApi.get('/earnings/rate-history', sig).then(r => setRateHistory(r.data?.revisions || []))),
+    ]).finally(() => {
+      if (controller.signal.aborted) return;
+      // All five failing means the page has nothing real to show — say so
+      // rather than rendering a convincing but empty dashboard.
+      setLoadError(failures === 5);
+      setLoading(false);
+    });
     return () => controller.abort();
-  }, [currentCompany?._id]);
+  }, [currentCompany?._id, reloadKey]);
 
   const handleDownloadPayslip = async (month, year) => {
     setDownloading(`${month}-${year}`);
-    await downloadPayslipPDF(month, year, showToast, orgSlug);
-    setDownloading(null);
+    // try/finally: the fallback path inside downloadPayslipPDF is not itself
+    // wrapped, so a throw used to skip setDownloading(null) entirely — the
+    // button spun forever and the rejection went unhandled.
+    try {
+      await downloadPayslipPDF(month, year, showToast, orgSlug);
+    } catch (err) {
+      console.error('[payslip] download failed:', err);
+      showToast(err?.response?.data?.error || err?.message || 'Payslip download failed', 'error');
+    } finally {
+      setDownloading(null);
+    }
   };
 
   if (loading) return (
@@ -193,6 +218,26 @@ export default function TimesheetEarnings() {
       <TwoCardSkeleton />
       <CardListSkeleton count={4} />
     </PageSkeleton>
+  );
+
+  if (loadError) return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white">My Earnings</h1>
+        <p className="text-dark-400 text-sm">Track your income and payment schedule</p>
+      </div>
+      <div className="card p-10 text-center">
+        <AlertTriangle size={40} className="mx-auto mb-3 text-amber-400/60" />
+        <p className="text-sm text-dark-300">We couldn't load your earnings.</p>
+        <p className="text-xs text-dark-500 mt-1">This isn't the same as having no earnings — please try again.</p>
+        <button
+          onClick={() => setReloadKey(k => k + 1)}
+          className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-dark-800 border border-dark-700 hover:bg-dark-700 text-sm text-white rounded-lg transition-colors"
+        >
+          <RefreshCw size={14} /> Retry
+        </button>
+      </div>
+    </div>
   );
 
   return (
@@ -314,6 +359,13 @@ export default function TimesheetEarnings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-800">
+              {history.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-dark-500 text-sm">
+                    No earnings history yet — approved timesheets appear here once processed.
+                  </td>
+                </tr>
+              )}
               {history.map((h, i) => (
                 <tr key={i} className={
                   h.paymentStatus === 'on_hold' ? 'bg-red-500/5' :

@@ -1,31 +1,53 @@
+/**
+ * Mask a bank account number to its last 4 digits. The payslip PDF is emailed
+ * and downloaded, so it must never carry the full account number. Mirrors the
+ * `••••1234` masking used elsewhere in the app (e.g. StatutoryConfigPage), but
+ * uses plain ASCII bullets because the jsPDF standard fonts are Latin-1 only
+ * and would render U+2022 as garbage.
+ */
+export function maskAccountNumber(acc) {
+  const str = String(acc ?? '').trim();
+  if (!str) return '—';
+  return `XXXX${str.slice(-4)}`;
+}
+
 const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** Convert number to words (Indian format) */
 export function numberToWords(num) {
-  if (num === 0) return 'Zero';
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
     'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
   const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const whole = Math.floor(num);
-  const paise = Math.round((num - whole) * 100);
-  let words = '';
-  if (whole >= 10000000) { words += ones[Math.floor(whole / 10000000)] + ' Crore '; }
-  const lakhPart = Math.floor((whole % 10000000) / 100000);
-  if (lakhPart > 0) { words += (lakhPart < 20 ? ones[lakhPart] : tens[Math.floor(lakhPart / 10)] + ' ' + ones[lakhPart % 10]) + ' Lakh '; }
-  const thousandPart = Math.floor((whole % 100000) / 1000);
-  if (thousandPart > 0) { words += (thousandPart < 20 ? ones[thousandPart] : tens[Math.floor(thousandPart / 10)] + ' ' + ones[thousandPart % 10]) + ' Thousand '; }
-  const hundredPart = Math.floor((whole % 1000) / 100);
-  if (hundredPart > 0) { words += ones[hundredPart] + ' Hundred '; }
-  const remaining = whole % 100;
-  if (remaining > 0) {
-    if (words) words += 'and ';
-    words += remaining < 20 ? ones[remaining] : tens[Math.floor(remaining / 10)] + ' ' + ones[remaining % 10];
-  }
-  words = words.trim() + ' Rupees';
-  if (paise > 0) {
-    words += ' and ' + (paise < 20 ? ones[paise] : tens[Math.floor(paise / 10)] + ' ' + ones[paise % 10]).trim() + ' Paise';
-  }
-  return words + ' Only';
+  const two = (v) => (v < 20 ? ones[v] : (tens[Math.floor(v / 10)] + (v % 10 ? ' ' + ones[v % 10] : '')));
+  const intToWords = (v) => {
+    if (v === 0) return '';
+    let w = '';
+    if (v >= 10000000) {
+      w += intToWords(Math.floor(v / 10000000)) + ' Crore ';
+      v = v % 10000000;
+    }
+    const lakhPart = Math.floor(v / 100000);
+    if (lakhPart > 0) w += two(lakhPart) + ' Lakh ';
+    const thousandPart = Math.floor((v % 100000) / 1000);
+    if (thousandPart > 0) w += two(thousandPart) + ' Thousand ';
+    const hundredPart = Math.floor((v % 1000) / 100);
+    if (hundredPart > 0) w += ones[hundredPart] + ' Hundred ';
+    const remaining = v % 100;
+    if (remaining > 0) {
+      if (w) w += 'and ';
+      w += two(remaining);
+    }
+    return w.trim();
+  };
+  const n = Number(num) || 0;
+  const negative = n < 0;
+  const abs = Math.abs(n);
+  let whole = Math.floor(abs);
+  let paise = Math.round((abs - whole) * 100);
+  if (paise === 100) { whole += 1; paise = 0; }
+  let words = (whole === 0 ? 'Zero' : intToWords(whole)) + ' Rupees';
+  if (paise > 0) words += ' and ' + two(paise) + ' Paise';
+  return (negative ? 'Minus ' : '') + words + ' Only';
 }
 
 /**
@@ -37,10 +59,10 @@ export function numberToWords(num) {
 export async function generatePayslipPDF(data, options = { download: true }) {
   const { jsPDF } = await import('jspdf');
 
-  const emp = data.employee;
+  const emp = data.employee || {};
   const co = data.company || {};
-  const brk = data.breakdown;
-  const earn = data.earnings;
+  const brk = data.breakdown || {};
+  const earn = data.earnings || {};
 
   const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
@@ -49,7 +71,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
     coName: (co.name) || 'Company', coAddr: co.address || '', coPhone: co.phone || '', coWebsite: co.website || '',
     empName: emp.name || '', empId: emp.employeeId || '\u2014',
     empDesig: emp.designation || '\u2014', empDept: emp.department || '\u2014',
-    bankName: emp.bankDetails?.bankName || '\u2014', bankAcc: emp.bankDetails?.accountNumber || '\u2014',
+    bankName: emp.bankDetails?.bankName || '\u2014', bankAcc: maskAccountNumber(emp.bankDetails?.accountNumber),
     bankPan: emp.bankDetails?.pan || '\u2014',
   };
 
@@ -71,6 +93,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   const headerBg = [247, 249, 252];
 
   const fillRect = (x, yy, w, h, color) => { doc.setFillColor(...color); doc.rect(x, yy, w, h, 'F'); };
+  const pageBreak = () => { if (y > 270) { doc.addPage(); y = margin; } };
   const drawLine = (x1, y1, x2, y2, color = lineColor, width = 0.3) => {
     doc.setDrawColor(...color); doc.setLineWidth(width); doc.line(x1, y1, x2, y2);
   };
@@ -85,10 +108,20 @@ export async function generatePayslipPDF(data, options = { download: true }) {
       if (resp.ok) {
         const blob = await resp.blob();
         const reader = new FileReader();
-        const dataUrl = await new Promise((resolve) => { reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob); });
-        const imgFormat = blob.type.includes('png') ? 'PNG' : 'JPEG';
-        doc.addImage(dataUrl, imgFormat, margin, y - 1, 14, 14);
-        logoEndX = margin + 16;
+        // `onerror`/`onabort` MUST resolve too — a reader that only wires
+        // `onload` never settles on failure and the caller awaits forever
+        // (the download button spins indefinitely). Resolve null = skip logo.
+        const dataUrl = await new Promise((resolve) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.onabort = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+        if (dataUrl) {
+          const imgFormat = blob.type.includes('png') ? 'PNG' : 'JPEG';
+          doc.addImage(dataUrl, imgFormat, margin, y - 1, 14, 14);
+          logoEndX = margin + 16;
+        }
       }
     } catch (e) { /* skip logo on error */ }
   }
@@ -189,6 +222,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
     y += 8;
 
     for (const pb of projBreakdowns) {
+      pageBreak();
       const pRate = pb.candidateBillingRate?.monthly
         ? `Rs.${Number(pb.candidateBillingRate.monthly).toLocaleString('en-IN')}/mo`
         : pb.candidateBillingRate?.daily
@@ -232,6 +266,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   // Bonus adjustment line items
   const bonuses = (data.adjustments || []).filter(a => a.type === 'bonus');
   for (const bonus of bonuses) {
+    pageBreak();
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...black);
     doc.text(bonus.label, margin + 3, y + 3);
     doc.setFont('helvetica', 'bold');
@@ -240,7 +275,8 @@ export async function generatePayslipPDF(data, options = { download: true }) {
     y += 7;
   }
 
-  const totalEarnings = earn.grossAmount + (earn.totalBonuses || 0);
+  const totalEarnings = (earn.grossAmount || 0) + (earn.totalBonuses || 0);
+  pageBreak();
   fillRect(margin, y, contentW, 6, headerBg);
   drawLine(margin, y, pageW - margin, y, primary, 0.5);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...black);
@@ -257,7 +293,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   y += 8;
 
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...black);
-  doc.text(`TDS (${(earn.tdsRate * 100)}%)`, margin + 3, y + 3);
+  doc.text(`TDS (${((earn.tdsRate ?? 0) * 100).toFixed(0)}%)`, margin + 3, y + 3);
   doc.setFont('helvetica', 'bold');
   doc.text(`Rs. ${fmt(earn.tdsAmount)}`, pageW - margin - 3, y + 3, { align: 'right' });
   drawLine(margin, y + 5, pageW - margin, y + 5);
@@ -266,6 +302,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   // Deduction adjustment line items
   const deductions = (data.adjustments || []).filter(a => a.type === 'deduction');
   for (const ded of deductions) {
+    pageBreak();
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...black);
     doc.text(ded.label, margin + 3, y + 3);
     doc.setFont('helvetica', 'bold');
@@ -274,7 +311,8 @@ export async function generatePayslipPDF(data, options = { download: true }) {
     y += 7;
   }
 
-  const totalDeductionsAll = earn.tdsAmount + (earn.totalDeductions || 0);
+  const totalDeductionsAll = (earn.tdsAmount || 0) + (earn.totalDeductions || 0);
+  pageBreak();
   fillRect(margin, y, contentW, 6, headerBg);
   drawLine(margin, y, pageW - margin, y, primary, 0.5);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...black);
@@ -284,6 +322,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   y += 10;
 
   // ===== NET PAY BOX =====
+  pageBreak();
   fillRect(margin, y, contentW, 12, primary);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...white);
   doc.text('Net Pay (A - B)', margin + 6, y + 8);

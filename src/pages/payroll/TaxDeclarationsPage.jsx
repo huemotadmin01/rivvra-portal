@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
-import { getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs } from '../../utils/payrollApi';
+import {
+  getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs,
+  SECTION_80C_KEYS, SECTION_80D_KEYS, normalize80CItems, normalize80D,
+  read80CTotal, read80DTotal,
+} from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { FileText, X, Search, Save, Loader2 } from 'lucide-react';
 
@@ -43,37 +47,45 @@ export default function TaxDeclarationsPage() {
     const d = decl?.declarations || {};
     setForm({
       regime: decl?.regime || 'new',
-      section80C: {
-        epf: d.section80C?.epf || 0,
-        ppf: d.section80C?.ppf || 0,
-        elss: d.section80C?.elss || 0,
-        lifeInsurance: d.section80C?.lifeInsurance || 0,
-        housingLoan: d.section80C?.housingLoan || 0,
-        tuitionFees: d.section80C?.tuitionFees || 0,
-        nsc: d.section80C?.nsc || 0,
-        others: d.section80C?.others || 0,
-      },
-      section80D: {
-        selfFamily: d.section80D?.selfFamily || 0,
-        parents: d.section80D?.parents || 0,
-        parentsSenior: d.section80D?.parentsSenior || 0,
-      },
-      section80E: d.section80E || 0,
-      section80G: d.section80G || 0,
-      section24b: d.section24b || 0,
+      // Read through the shared normalizers so a document written by the ESS
+      // page (scalar 80C, 80D keyed `self`) opens with the real amounts instead
+      // of all zeros — saving used to WIPE the employee's declared 80C to zero,
+      // after which the backend recalculated TDS without the deduction.
+      section80C: normalize80CItems(d),
+      section80D: normalize80D(d),
+      section80E: Number(d.section80E) || 0,
+      section80G: Number(d.section80G) || 0,
+      section24b: Number(d.section24b) || 0,
       hra: {
-        rentPaidAnnual: d.hra?.rentPaidAnnual || 0,
+        ...(d.hra || {}),
+        rentPaidAnnual: Number(d.hra?.rentPaidAnnual) || (Number(d.hra?.rentPaidMonthly) || 0) * 12,
         cityType: d.hra?.cityType || 'non-metro',
       },
+      // Whatever was already stored, so an admin save merges rather than
+      // replaces (the backend swaps `declarations` out wholesale, which would
+      // otherwise drop ESS-only fields such as landlord name/PAN).
+      _stored: d,
     });
     setSelectedEmp(emp);
   };
 
   const handleSave = async () => {
     try {
+      const { _stored, ...clean } = form;
+      const items = clean.section80C;
       await upsertTaxDeclaration(orgSlug, selectedEmp._id.toString(), fy, {
         regime: form.regime,
-        declarations: form,
+        declarations: {
+          ...(_stored || {}),
+          ...clean,
+          // `section80C` stays an OBJECT because the admin backend route
+          // (payroll.js ~1373) computes section80CTotal via Object.values().
+          // `section80CItems` is the canonical breakdown both pages read.
+          section80C: items,
+          section80CItems: items,
+          section80D: clean.section80D,
+          hra: { ...(_stored?.hra || {}), ...clean.hra },
+        },
       });
       showToast('Declarations saved — payroll TDS recalculated', 'success');
       setSelectedEmp(null);
@@ -126,10 +138,12 @@ export default function TaxDeclarationsPage() {
               const empId = emp._id.toString();
               const decl = declarations.find(d => d.employeeId === empId);
               const d = decl?.declarations || {};
-              const t80c = d.section80CTotal || 0;
-              const t80d = d.section80DTotal || 0;
+              // Read defensively: a doc saved by the ESS page carries a scalar
+              // 80C, one saved here carries an itemized object. Both resolve.
+              const t80c = read80CTotal(d);
+              const t80d = read80DTotal(d);
               const tOther = (Number(d.section80E) || 0) + (Number(d.section80G) || 0) + (Number(d.section24b) || 0);
-              const total = d.totalDeclared || 0;
+              const total = t80c + t80d + tOther;
               return (
                 <tr key={empId} className="border-b border-dark-700/50 hover:bg-dark-750 transition-colors">
                   <td className="px-4 py-3">
@@ -188,11 +202,7 @@ export default function TaxDeclarationsPage() {
                     <legend className="text-sm font-medium text-dark-300 border-b border-dark-700 pb-1 mb-2">
                       Section 80C <span className="text-xs text-dark-500">(Max ₹1,50,000)</span>
                     </legend>
-                    {[
-                      ['epf', 'Employee PF'], ['ppf', 'PPF'], ['elss', 'ELSS/Tax Saving MF'],
-                      ['lifeInsurance', 'Life Insurance'], ['housingLoan', 'Housing Loan Principal'],
-                      ['tuitionFees', 'Tuition Fees'], ['nsc', 'NSC'], ['others', 'Others'],
-                    ].map(([key, label]) => (
+                    {SECTION_80C_KEYS.map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
                         <label className="text-xs text-dark-400 w-40">{label}</label>
                         <input type="number" value={form.section80C[key]} onChange={e => setForm(f => ({ ...f, section80C: { ...f.section80C, [key]: Number(e.target.value) || 0 } }))}
@@ -208,7 +218,7 @@ export default function TaxDeclarationsPage() {
                   {/* 80D */}
                   <fieldset className="space-y-2">
                     <legend className="text-sm font-medium text-dark-300 border-b border-dark-700 pb-1 mb-2">Section 80D (Medical Insurance)</legend>
-                    {[['selfFamily', 'Self & Family'], ['parents', 'Parents'], ['parentsSenior', 'Parents (Senior)']].map(([key, label]) => (
+                    {SECTION_80D_KEYS.map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
                         <label className="text-xs text-dark-400 w-40">{label}</label>
                         <input type="number" value={form.section80D[key]} onChange={e => setForm(f => ({ ...f, section80D: { ...f.section80D, [key]: Number(e.target.value) || 0 } }))}

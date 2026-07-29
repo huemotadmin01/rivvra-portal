@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
-import { getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs, uploadTaxProof, deleteTaxProof, downloadTaxProof, getTaxProofUrl, getPublicPlatformSetting } from '../../utils/payrollApi';
+import {
+  getMyTax, updateMyTaxRegime, updateMyTaxDeclarations, getMyTaxReport, getMyTaxProofs,
+  uploadTaxProof, deleteTaxProof, downloadTaxProof, getTaxProofUrl, getPublicPlatformSetting,
+  SECTION_80C_KEYS, SECTION_80D_KEYS, normalize80CItems, normalize80D,
+} from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import { Shield, ArrowRightLeft, Save, Upload, Trash2, Download, FileText, Eye, CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react';
@@ -19,7 +23,8 @@ function isProofWindow() {
   const now = new Date();
   const m = now.getMonth() + 1;
   const d = now.getDate();
-  return m >= 1 && m <= 3 && d <= 15;
+  // Window: Jan 1 – Mar 15 (mid-month cap applies to March only)
+  return m === 1 || m === 2 || (m === 3 && d <= 15);
 }
 
 const SECTION_LABELS = {
@@ -30,6 +35,20 @@ const SECTION_LABELS = {
   section24b: 'Section 24(b) — Home Loan Interest',
   hra: 'HRA Exemption',
 };
+
+/** Blank declarations in the canonical shape (see payrollApi.js header note). */
+function emptyDeclarations() {
+  return {
+    section80C: Object.fromEntries(SECTION_80C_KEYS.map(([k]) => [k, 0])),
+    section80D: { selfFamily: 0, parents: 0, parentsSenior: 0 },
+    section80E: 0,
+    section80G: 0,
+    section24b: 0,
+    hra: { rentPaidMonthly: 0, landlordName: '', landlordPan: '', cityType: 'non-metro' },
+  };
+}
+
+const sumItems = (obj) => Object.values(obj || {}).reduce((s, v) => s + (Number(v) || 0), 0);
 
 const STATUS_STYLES = {
   provisional: { icon: Clock, color: 'text-amber-400 bg-amber-500/10', label: 'Provisional' },
@@ -46,14 +65,10 @@ export default function MyTaxDeclarationsPage() {
   const [saving, setSaving] = useState(false);
   const [taxInfo, setTaxInfo] = useState(null);
   const [regime, setRegime] = useState('new');
-  const [declarations, setDeclarations] = useState({
-    section80C: 0,
-    section80D: { self: 0, parents: 0 },
-    section80E: 0,
-    section80G: 0,
-    section24b: 0,
-    hra: { rentPaidMonthly: 0, landlordName: '', landlordPan: '', cityType: 'non-metro' },
-  });
+  const [declarations, setDeclarations] = useState(emptyDeclarations);
+  // Whatever the server currently has, so a save merges instead of replacing
+  // (the backend swaps `declarations` out wholesale).
+  const [storedDecl, setStoredDecl] = useState(null);
   const [status, setStatus] = useState(null);
   const [comparison, setComparison] = useState(null);
   const [proofs, setProofs] = useState([]);
@@ -63,6 +78,12 @@ export default function MyTaxDeclarationsPage() {
   const [uploadSection, setUploadSection] = useState('');
   const [sectionLabels, setSectionLabels] = useState(SECTION_LABELS);
   const [section80CLimit, setSection80CLimit] = useState(150000);
+  // Why the page can't be used at all: 'not_linked' (404), 'not_india'
+  // (403 NON_INDIA_COMPANY / 400 no active company) or 'error'. Previously only
+  // a 404 was handled — a 403 toasted and then fell through to the full India
+  // regime/80C/HRA form with all-zero state, and Save then 403'd too.
+  const [blockReason, setBlockReason] = useState(null);
+  const [switchingRegime, setSwitchingRegime] = useState(false);
   const fy = getCurrentFY();
 
   // Fetch dynamic tax section config
@@ -84,19 +105,14 @@ export default function MyTaxDeclarationsPage() {
 
   async function loadData() {
     setLoading(true);
+    setBlockReason(null);
     setTaxInfo(null);
     setRegime('new');
     setProofs([]);
     setComparison(null);
     setStatus(null);
-    setDeclarations({
-      section80C: 0,
-      section80D: { self: 0, parents: 0 },
-      section80E: 0,
-      section80G: 0,
-      section24b: 0,
-      hra: { rentPaidMonthly: 0, landlordName: '', landlordPan: '', cityType: 'non-metro' },
-    });
+    setStoredDecl(null);
+    setDeclarations(emptyDeclarations());
     try {
       const [taxRes, reportRes, proofsRes] = await Promise.all([
         getMyTax(orgSlug),
@@ -110,14 +126,18 @@ export default function MyTaxDeclarationsPage() {
 
       if (taxRes.tax?.declarations) {
         const d = taxRes.tax.declarations;
+        setStoredDecl(d);
         setDeclarations({
-          section80C: d.section80C || d.section80CTotal || 0,
-          section80D: d.section80D || { self: 0, parents: 0 },
+          // Shared normalizers, so a document written by the admin page (80C as
+          // an itemized object, 80D keyed selfFamily/parentsSenior) renders
+          // correctly instead of putting an object into a number input (₹NaN).
+          section80C: normalize80CItems(d),
+          section80D: normalize80D(d),
           section80E: Number(d.section80E) || 0,
           section80G: Number(d.section80G) || 0,
           section24b: Number(d.section24b) || 0,
           hra: {
-            rentPaidMonthly: d.hra?.rentPaidMonthly || Math.round((d.hra?.rentPaidAnnual || 0) / 12),
+            rentPaidMonthly: Number(d.hra?.rentPaidMonthly) || Math.round((Number(d.hra?.rentPaidAnnual) || 0) / 12),
             landlordName: d.hra?.landlordName || '',
             landlordPan: d.hra?.landlordPan || '',
             cityType: d.hra?.cityType || 'non-metro',
@@ -128,13 +148,27 @@ export default function MyTaxDeclarationsPage() {
       if (reportRes?.report?.comparison) setComparison(reportRes.report.comparison);
       setStatus(reportRes?.report?.declarationStatus || null);
     } catch (err) {
-      if (err.response?.status !== 404) showToast('Failed to load tax info', 'error');
+      const st = err.response?.status;
+      const code = err.response?.data?.code;
+      if (st === 404) {
+        setBlockReason('not_linked');
+      } else if (st === 403 || code === 'NON_INDIA_COMPANY' || st === 400) {
+        setBlockReason('not_india');
+      } else {
+        setBlockReason('error');
+        showToast('Failed to load tax info', 'error');
+      }
     } finally {
       setLoading(false);
     }
   }
 
   async function handleRegimeSwitch(newRegime) {
+    if (status === 'approved') return;
+    // In-flight guard — a double-click used to fire two PUTs plus two report
+    // reloads that could resolve out of order.
+    if (switchingRegime) return;
+    setSwitchingRegime(true);
     try {
       await updateMyTaxRegime(orgSlug, newRegime);
       setRegime(newRegime);
@@ -144,20 +178,32 @@ export default function MyTaxDeclarationsPage() {
       if (reportRes?.report?.comparison) setComparison(reportRes.report.comparison);
     } catch (err) {
       showToast('Failed to switch regime', 'error');
+    } finally {
+      setSwitchingRegime(false);
     }
   }
 
   async function handleSave() {
+    if (status === 'approved') return;
     setSaving(true);
     try {
       const hraRentAnnual = (Number(declarations.hra.rentPaidMonthly) || 0) * 12;
+      const items = declarations.section80C;
       await updateMyTaxDeclarations(orgSlug, {
         financialYear: fy,
         regime,
         declarations: {
+          ...(storedDecl || {}),
           ...declarations,
-          section80C: Math.min(Number(declarations.section80C) || 0, section80CLimit),
+          // `section80C` goes out as a capped SCALAR because the ESS backend
+          // route (payroll.js ~4037) computes section80CTotal via
+          // Number(section80C). `section80CItems` carries the canonical
+          // breakdown that both this page and the admin page read.
+          section80C: Math.min(sumItems(items), section80CLimit),
+          section80CItems: items,
+          section80D: declarations.section80D,
           hra: {
+            ...(storedDecl?.hra || {}),
             ...declarations.hra,
             rentPaidAnnual: hraRentAnnual,
           },
@@ -175,6 +221,11 @@ export default function MyTaxDeclarationsPage() {
   async function handleProofUpload(e) {
     const file = e.target.files?.[0];
     if (!file || !uploadSection) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('File is too large — maximum size is 10MB', 'error');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     setUploading(true);
     try {
       const fd = new FormData();
@@ -195,6 +246,7 @@ export default function MyTaxDeclarationsPage() {
   }
 
   async function handleDeleteProof(proofId) {
+    if (!window.confirm('Delete this proof document? This cannot be undone.')) return;
     try {
       await deleteTaxProof(orgSlug, proofId);
       setProofs(prev => prev.filter(p => p._id !== proofId));
@@ -219,13 +271,38 @@ export default function MyTaxDeclarationsPage() {
   }
 
   const updateDecl = (field, value) => setDeclarations(prev => ({ ...prev, [field]: value }));
+  const update80C = (field, value) => setDeclarations(prev => ({ ...prev, section80C: { ...prev.section80C, [field]: value } }));
   const update80D = (field, value) => setDeclarations(prev => ({ ...prev, section80D: { ...prev.section80D, [field]: value } }));
   const updateHRA = (field, value) => setDeclarations(prev => ({ ...prev, hra: { ...prev.hra, [field]: value } }));
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
-  const total80D = Object.values(declarations.section80D || {}).reduce((s, v) => s + (Number(v) || 0), 0);
-  const total80C = Math.min(Number(declarations.section80C) || 0, section80CLimit);
+  if (blockReason) {
+    const BLOCK_COPY = {
+      not_linked: "Your account isn't linked to an employee record — contact HR.",
+      not_india: 'Tax declarations (Section 80C, HRA, old/new regime) apply to India-registered companies only. Your active company is outside India, so there is nothing to declare here.',
+      error: "We couldn't load your tax information. Please try again.",
+    };
+    return (
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-xl font-semibold text-white flex items-center gap-2 mb-6"><Shield size={20} className="text-rivvra-400" /> Tax Declarations</h1>
+        <div className="bg-dark-800 rounded-xl border border-dark-700 p-12 text-center">
+          <Shield size={32} className="text-dark-500 mx-auto mb-3" />
+          <p className="text-dark-400 max-w-md mx-auto">{BLOCK_COPY[blockReason]}</p>
+          {blockReason === 'error' && (
+            <button onClick={loadData}
+              className="mt-4 px-4 py-2 bg-rivvra-600 hover:bg-rivvra-500 text-white text-sm font-medium rounded-lg transition-colors">
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const isApproved = status === 'approved';
+  const total80D = sumItems(declarations.section80D);
+  const total80C = Math.min(sumItems(declarations.section80C), section80CLimit);
   const totalDeclared = total80C + total80D + (Number(declarations.section80E) || 0) + (Number(declarations.section80G) || 0) + (Number(declarations.section24b) || 0);
   const rentAnnual = (Number(declarations.hra.rentPaidMonthly) || 0) * 12;
   const statusInfo = status ? STATUS_STYLES[status] : null;
@@ -243,6 +320,7 @@ export default function MyTaxDeclarationsPage() {
           <statusInfo.icon size={16} />
           <span className="text-sm font-medium">{statusInfo.label}</span>
           {status === 'rejected' && <span className="text-xs ml-2 opacity-70">— Please revise and resubmit</span>}
+          {isApproved && <span className="text-xs ml-2 opacity-70">— Approved by admin. Declarations are locked; contact HR to amend.</span>}
         </div>
       )}
 
@@ -256,13 +334,15 @@ export default function MyTaxDeclarationsPage() {
           <div className="flex bg-dark-900 rounded-lg p-1">
             <button
               onClick={() => handleRegimeSwitch('new')}
-              className={`px-4 py-2 rounded-md text-xs font-medium transition-colors ${regime === 'new' ? 'bg-rivvra-600 text-white' : 'text-dark-400 hover:text-white'}`}
+              disabled={isApproved || switchingRegime}
+              className={`px-4 py-2 rounded-md text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${regime === 'new' ? 'bg-rivvra-600 text-white' : 'text-dark-400 hover:text-white'}`}
             >
               New Regime
             </button>
             <button
               onClick={() => handleRegimeSwitch('old')}
-              className={`px-4 py-2 rounded-md text-xs font-medium transition-colors ${regime === 'old' ? 'bg-rivvra-600 text-white' : 'text-dark-400 hover:text-white'}`}
+              disabled={isApproved || switchingRegime}
+              className={`px-4 py-2 rounded-md text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${regime === 'old' ? 'bg-rivvra-600 text-white' : 'text-dark-400 hover:text-white'}`}
             >
               Old Regime
             </button>
@@ -319,43 +399,47 @@ export default function MyTaxDeclarationsPage() {
 
       {/* Declaration Form — Only for Old Regime */}
       {regime === 'old' && (
-        <div className="space-y-4 mb-6">
+        <fieldset disabled={isApproved} className={`space-y-4 mb-6 border-0 p-0 m-0 min-w-0 ${isApproved ? 'opacity-60' : ''}`}>
           {/* Section 80C */}
           <div className="bg-dark-800 rounded-xl border border-dark-700 p-5">
             <h3 className="text-sm font-semibold text-white mb-1">{sectionLabels.section80C}</h3>
-            <p className="text-xs text-dark-400 mb-4">EPF, PPF, ELSS, LIC, NSC, Tuition Fees — Max ₹{fmt(section80CLimit)}</p>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-dark-300 w-32">Total 80C Amount</span>
-              <div className="relative flex-1 max-w-xs">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">₹</span>
-                <input type="number" value={declarations.section80C || ''} onChange={e => updateDecl('section80C', e.target.value)}
-                  className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:border-rivvra-500 outline-none" placeholder="0" />
-              </div>
-              {Number(declarations.section80C) > section80CLimit && <span className="text-xs text-amber-400">Capped at ₹{fmt(section80CLimit)}</span>}
+            <p className="text-xs text-dark-400 mb-4">Break your investments down by instrument — Max ₹{fmt(section80CLimit)} in total</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              {SECTION_80C_KEYS.map(([key, label]) => (
+                <div key={key} className="flex items-center justify-between gap-3">
+                  <label className="text-xs text-dark-400 flex-1">{label}</label>
+                  <div className="relative w-36">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">₹</span>
+                    <input type="number" min="0" value={declarations.section80C?.[key] || ''} onChange={e => update80C(key, e.target.value)}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-7 pr-3 py-2 text-sm text-white text-right focus:border-rivvra-500 outline-none" placeholder="0" />
+                  </div>
+                </div>
+              ))}
             </div>
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-700">
+              <span className="text-sm font-medium text-dark-300">Total 80C (capped)</span>
+              <span className="text-sm font-bold text-white">₹{fmt(total80C)}</span>
+            </div>
+            {sumItems(declarations.section80C) > section80CLimit && (
+              <p className="text-xs text-amber-400 mt-1 text-right">Capped at ₹{fmt(section80CLimit)}</p>
+            )}
           </div>
 
           {/* Section 80D */}
           <div className="bg-dark-800 rounded-xl border border-dark-700 p-5">
             <h3 className="text-sm font-semibold text-white mb-1">{sectionLabels.section80D}</h3>
             <p className="text-xs text-dark-400 mb-4">Health insurance premiums</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-dark-400 block mb-1">Self & Family</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">₹</span>
-                  <input type="number" value={declarations.section80D?.self || ''} onChange={e => update80D('self', e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:border-rivvra-500 outline-none" placeholder="0" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {SECTION_80D_KEYS.map(([key, label]) => (
+                <div key={key}>
+                  <label className="text-xs text-dark-400 block mb-1">{label}</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">₹</span>
+                    <input type="number" min="0" value={declarations.section80D?.[key] || ''} onChange={e => update80D(key, e.target.value)}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:border-rivvra-500 outline-none" placeholder="0" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-xs text-dark-400 block mb-1">Parents</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">₹</span>
-                  <input type="number" value={declarations.section80D?.parents || ''} onChange={e => update80D('parents', e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:border-rivvra-500 outline-none" placeholder="0" />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -439,7 +523,7 @@ export default function MyTaxDeclarationsPage() {
               <div className="flex justify-between border-t border-dark-600 pt-2 font-semibold"><span className="text-white">Total Deductions</span><span className="text-green-400">₹{fmt(totalDeclared)}</span></div>
             </div>
           </div>
-        </div>
+        </fieldset>
       )}
 
       {/* Proof Upload Section — Jan-Mar window */}
@@ -484,7 +568,9 @@ export default function MyTaxDeclarationsPage() {
                         <button onClick={(e) => { e.stopPropagation(); setPreviewDoc(p); }} className="p-1 text-dark-400 hover:text-rivvra-400"><Eye size={14} /></button>
                       )}
                       <button onClick={(e) => { e.stopPropagation(); handleDownloadProof(p); }} className="p-1 text-dark-400 hover:text-white"><Download size={14} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); handleDeleteProof(p._id); }} className="p-1 text-dark-400 hover:text-red-400"><Trash2 size={14} /></button>
+                      {p.status !== 'verified' && (
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteProof(p._id); }} className="p-1 text-dark-400 hover:text-red-400"><Trash2 size={14} /></button>
+                      )}
                     </div>
                   </div>
                 );
@@ -495,11 +581,12 @@ export default function MyTaxDeclarationsPage() {
       )}
 
       {/* Save Button */}
-      <div className="flex justify-end">
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 bg-rivvra-600 hover:bg-rivvra-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+      <div className="flex flex-col items-end gap-2">
+        <button onClick={handleSave} disabled={saving || isApproved}
+          className="flex items-center gap-2 px-6 py-2.5 bg-rivvra-600 hover:bg-rivvra-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           <Save size={16} /> {saving ? 'Saving...' : 'Save Declarations'}
         </button>
+        {isApproved && <p className="text-xs text-dark-400">Approved by admin — contact HR to amend.</p>}
       </div>
 
       {/* Document Preview Modal */}

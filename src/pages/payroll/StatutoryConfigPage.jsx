@@ -3,7 +3,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { getStatutoryConfigs, updateStatutoryConfig, getPTStates } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
-import { Shield, X, Search, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, X, Search, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export default function StatutoryConfigPage({ embedded = false }) {
   const { orgSlug } = usePlatform();
@@ -15,6 +15,8 @@ export default function StatutoryConfigPage({ embedded = false }) {
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({});
+  // In-flight guard — this writes PF/ESI/PT/tax-regime for an employee.
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -49,12 +51,15 @@ export default function StatutoryConfigPage({ embedded = false }) {
   };
 
   const handleSave = async () => {
+    if (saving || !editing?.employee?._id) return;
+    setSaving(true);
     try {
       await updateStatutoryConfig(orgSlug, editing.employee._id, form);
       showToast('Updated');
       setEditing(null);
       load();
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+    finally { setSaving(false); }
   };
 
   const filtered = data.filter(d => {
@@ -256,8 +261,11 @@ export default function StatutoryConfigPage({ embedded = false }) {
               </fieldset>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setEditing(null)} className="flex-1 px-4 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
-                <button onClick={handleSave} className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700">Save</button>
+                <button onClick={() => setEditing(null)} disabled={saving} className="flex-1 px-4 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700 disabled:opacity-50">Cancel</button>
+                <button onClick={handleSave} disabled={saving} className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {saving && <Loader2 size={14} className="animate-spin" />}
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
               </div>
             </div>
           </div>

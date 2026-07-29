@@ -9,6 +9,24 @@ class ApiError extends Error {
   }
 }
 
+// Request timeout (ms). api.js and timesheetApi both bound their requests; this
+// client had none, so a stalled payroll call (Render cold start, hung Atlas
+// query) left ESS pages spinning forever with no way out.
+const REQUEST_TIMEOUT_MS = 30000;
+
+/**
+ * Broadcast an expired/invalid session so a top-level listener can force a
+ * clean re-login. Mirrors api.js — without it an expired token surfaced as a
+ * swallowed error and pages rendered a false "no data" empty state.
+ * Guarded on `token` so genuine not-logged-in 401s don't loop.
+ */
+function notifyAuthExpired(endpoint, token) {
+  if (!token) return;
+  try {
+    window.dispatchEvent(new CustomEvent('rivvra:auth-expired', { detail: { endpoint } }));
+  } catch { /* non-browser env */ }
+}
+
 async function request(method, url, { body, params, signal, responseType } = {}) {
   let fullUrl = `${API_BASE_URL}${url}`;
   if (params) {
@@ -31,20 +49,47 @@ async function request(method, url, { body, params, signal, responseType } = {})
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(fullUrl, {
-    method,
-    headers,
-    body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
-    signal,
-  });
+  // Timeout controller, combined with any caller-supplied abort signal.
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+  let combinedSignal = timeoutController.signal;
+  if (signal) {
+    const combined = new AbortController();
+    const onAbort = () => combined.abort();
+    if (signal.aborted) combined.abort();
+    signal.addEventListener('abort', onAbort);
+    timeoutController.signal.addEventListener('abort', onAbort);
+    combinedSignal = combined.signal;
+  }
+
+  let res;
+  try {
+    res = await fetch(fullUrl, {
+      method,
+      headers,
+      body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
+      signal: combinedSignal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (res.status === 401) notifyAuthExpired(url, token);
 
   if (responseType === 'blob') {
-    if (!res.ok) throw new ApiError(res.statusText, res.status, {});
+    if (!res.ok) {
+      // A failed download still returns a JSON error body. Reading it as text
+      // first lets actionable backend messages ("PT not configured for state")
+      // reach the UI instead of a bare "Internal Server Error".
+      let data = {};
+      try { data = JSON.parse(await res.text()); } catch { /* not JSON */ }
+      throw new ApiError(data.message || data.error || res.statusText, res.status, data);
+    }
     return res.blob();
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.message || res.statusText, res.status, data);
+  if (!res.ok) throw new ApiError(data.message || data.error || res.statusText, res.status, data);
   return data;
 }
 
@@ -391,4 +436,136 @@ export function getOrgTdsConfig(orgSlug) {
 }
 export function updateOrgTdsConfig(orgSlug, data) {
   return request('PUT', `${orgUrl(orgSlug)}/settings/tds-config`, { body: data });
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Tax-declaration shape helpers (shared by the admin TaxDeclarationsPage and
+ * the ESS MyTaxDeclarationsPage).
+ *
+ * BACKGROUND — the two pages used to persist incompatible shapes for the same
+ * document, and each silently destroyed the other's data:
+ *   • Admin  saved `declarations.section80C` as an itemized OBJECT and keyed
+ *     80D `selfFamily / parents / parentsSenior`.
+ *   • ESS    saved `declarations.section80C` as a SCALAR and keyed 80D
+ *     `self / parents`.
+ * The backend stores whatever it is given, so after an admin save the ESS page
+ * put an object into a number input (₹NaN) and after an ESS save the admin
+ * modal read all zeros — and saving then wiped the employee's 80C to zero,
+ * after which TDS was recalculated without the deduction.
+ *
+ * CANONICAL SHAPE (what both pages now read and write):
+ *   declarations.section80CItems  → itemized object, SECTION_80C_KEYS below.
+ *                                   The single source of truth for the split.
+ *   declarations.section80CTotal  → capped numeric total (the backend
+ *                                   recomputes this on every write; it is what
+ *                                   payroll.js actually uses via totalDeclared).
+ *   declarations.section80D       → { selfFamily, parents, parentsSenior }
+ *
+ *   declarations.section80C       → LEGACY / route-input field only. NEVER read
+ *                                   it directly — read via read80CTotal().
+ *                                   The two backend write routes demand
+ *                                   different types and we cannot edit them:
+ *                                     payroll.js ~1373 (admin PUT) does
+ *                                       Object.values(section80C)  → needs an object
+ *                                     payroll.js ~4037 (ESS PUT) does
+ *                                       Number(section80C)         → needs a scalar
+ *                                   So each page keeps sending the type its own
+ *                                   route requires purely so the backend's
+ *                                   section80CTotal / totalDeclared math is
+ *                                   correct, and both mirror the real breakdown
+ *                                   into section80CItems.
+ *
+ * All readers below are defensive and render correctly for documents already
+ * stored in EITHER historical shape.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+export const SECTION_80C_KEYS = [
+  ['epf', 'Employee PF'],
+  ['ppf', 'PPF'],
+  ['elss', 'ELSS / Tax Saving MF'],
+  ['lifeInsurance', 'Life Insurance'],
+  ['housingLoan', 'Housing Loan Principal'],
+  ['tuitionFees', 'Tuition Fees'],
+  ['nsc', 'NSC'],
+  ['others', 'Others'],
+];
+
+export const SECTION_80D_KEYS = [
+  ['selfFamily', 'Self & Family'],
+  ['parents', 'Parents'],
+  ['parentsSenior', 'Parents (Senior Citizen)'],
+];
+
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+/** Sum an itemized-object shape, ignoring non-numeric members. */
+function sumValues(obj) {
+  if (!isPlainObject(obj)) return 0;
+  return Object.values(obj).reduce((s, v) => s + num(v), 0);
+}
+
+/**
+ * Read the 80C breakdown out of a stored `declarations` document in any shape.
+ * Returns an object with every SECTION_80C_KEYS key present as a number.
+ * A scalar-only legacy document lands its whole amount in `others` so that
+ * opening + saving the admin modal can never zero it out.
+ */
+export function normalize80CItems(declarations) {
+  const d = declarations || {};
+  const out = Object.fromEntries(SECTION_80C_KEYS.map(([k]) => [k, 0]));
+
+  const source = isPlainObject(d.section80CItems)
+    ? d.section80CItems
+    : (isPlainObject(d.section80C) ? d.section80C : null);
+
+  if (source) {
+    let unmapped = 0;
+    for (const [k, v] of Object.entries(source)) {
+      if (k in out) out[k] = num(v);
+      else unmapped += num(v);
+    }
+    out.others += unmapped;
+    return out;
+  }
+
+  // Legacy scalar shape (or nothing at all).
+  out.others = num(d.section80C) || num(d.section80CTotal);
+  return out;
+}
+
+/**
+ * Total declared under 80C, capped. Prefers the itemized breakdown, falls back
+ * to the backend-computed `section80CTotal`, then to a legacy scalar.
+ */
+export function read80CTotal(declarations, limit = 150000) {
+  const d = declarations || {};
+  let total;
+  if (isPlainObject(d.section80CItems)) total = sumValues(d.section80CItems);
+  else if (isPlainObject(d.section80C)) total = sumValues(d.section80C);
+  else if (d.section80CTotal !== undefined) total = num(d.section80CTotal);
+  else total = num(d.section80C);
+  return Math.min(total, limit);
+}
+
+/**
+ * Read 80D into the canonical three-key shape. Maps the legacy ESS key `self`
+ * onto `selfFamily` and folds any unknown key into `parents` so no rupee is
+ * dropped on a round-trip.
+ */
+export function normalize80D(declarations) {
+  const src = (declarations || {}).section80D;
+  const out = { selfFamily: 0, parents: 0, parentsSenior: 0 };
+  if (!isPlainObject(src)) return out;
+  for (const [k, v] of Object.entries(src)) {
+    if (k in out) out[k] += num(v);
+    else if (k === 'self') out.selfFamily += num(v);
+    else out.parents += num(v);
+  }
+  return out;
+}
+
+export function read80DTotal(declarations) {
+  const n = normalize80D(declarations);
+  return n.selfFamily + n.parents + n.parentsSenior;
 }

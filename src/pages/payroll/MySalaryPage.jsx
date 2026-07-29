@@ -24,20 +24,34 @@ export default function MySalaryPage() {
       setStatutory(null);
       setEmployee(null);
       setTax(null);
-      try {
-        const [salRes, taxRes] = await Promise.all([
-          getMySalary(orgSlug),
-          getMyTax(orgSlug),
-        ]);
-        setSalary(salRes.salary);
-        setStatutory(salRes.statutory);
-        setEmployee(salRes.employee);
-        setTax(taxRes.tax);
-      } catch (err) {
-        if (err.response?.status !== 404) showToast('Failed to load salary', 'error');
-      } finally {
-        setLoading(false);
+
+      // /my-salary and /my-tax are fetched INDEPENDENTLY on purpose.
+      // /my-tax is India-gated in the backend (payroll.js ~3908 → 403
+      // NON_INDIA_COMPANY, or 400 when there's no active company) while
+      // /my-salary is not. Under the old Promise.all the tax 403 rejected the
+      // whole batch, so a US/CA employee saw "Failed to load salary" and
+      // "No salary configured yet" even though their salary had loaded fine.
+      const [salResult, taxResult] = await Promise.allSettled([
+        getMySalary(orgSlug),
+        getMyTax(orgSlug),
+      ]);
+
+      if (salResult.status === 'fulfilled') {
+        setSalary(salResult.value.salary);
+        setStatutory(salResult.value.statutory);
+        setEmployee(salResult.value.employee);
+      } else if (salResult.reason?.response?.status !== 404) {
+        showToast('Failed to load salary', 'error');
       }
+
+      if (taxResult.status === 'fulfilled') {
+        setTax(taxResult.value.tax);
+      }
+      // A rejected /my-tax is never a page failure: 403/NON_INDIA_COMPANY, 400
+      // (no active company) and 404 (no linked employee) all just mean "this
+      // employee has no tax section" — the Tax Summary card stays hidden.
+
+      setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, currentCompany?._id]);
@@ -71,12 +85,23 @@ export default function MySalaryPage() {
   // Calculate TDS for consultants
   const estimatedTds = isConsultant ? Math.round(salary.grossMonthly * flatTdsRate) : 0;
 
-  // Estimate Professional Tax (from statutory config or common MP slab)
-  const ptEnabled = statutory?.ptEnabled !== false;
-  const estimatedPt = (!isConsultant && ptEnabled) ? (salary.grossMonthly > 25000 ? 208 : salary.grossMonthly > 18750 ? 150 : salary.grossMonthly > 12500 ? 125 : 0) : 0;
+  // Professional Tax. The old code read `statutory.ptEnabled` — a field
+  // /my-salary (payroll.js ~3660) never returns — so the check was always true
+  // and a hardcoded Madhya-Pradesh slab was shown to every employee in every
+  // state. PT slabs are state-specific and not available client-side, so we no
+  // longer fabricate a number: we surface the employee's PT state (the field
+  // the backend DOES return) and say the real figure lands on the payslip.
+  const ptState = (!isConsultant && statutory?.ptState) ? statutory.ptState : '';
 
-  // Total deductions = employee PF + employer PF + employee ESI + employer ESI + PT (excl. TDS)
-  const totalDeductions = employeePf + employerPf + employeeEsi + employerEsi + estimatedPt + estimatedTds;
+  // Deductions = what actually comes OUT of the employee's gross.
+  // The backend (payroll.js ~3240) computes
+  //   totalDeductions = employeePf + employeeEsi + PT + TDS + otherDeductions
+  // and treats employer PF/ESI as `totalEmployerCost` ON TOP of gross — never
+  // as a deduction. This page used to subtract the employer share too, which
+  // understated Net Take-Home by ~₹1,800+/month and directly contradicted the
+  // employee's own payslip.
+  const totalDeductions = employeePf + employeeEsi + estimatedTds;
+  const employerContributions = employerPf + employerEsi;
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   if (isConsultant) {
@@ -111,7 +136,7 @@ export default function MySalaryPage() {
             <IndianRupee size={14} /> Net Take-Home (est.)
           </div>
           <div className="text-2xl font-bold text-green-400">₹{fmt(netMonthly)}</div>
-          <div className="text-xs text-dark-500 mt-1">After statutory deductions</div>
+          <div className="text-xs text-dark-500 mt-1">Before PT &amp; TDS</div>
         </div>
       </div>
 
@@ -143,39 +168,22 @@ export default function MySalaryPage() {
         <div className="space-y-6">
           <div className="bg-dark-800 rounded-xl border border-dark-700">
             <div className="px-5 py-4 border-b border-dark-700">
-              <h2 className="text-sm font-semibold text-white">Total Deductions (excl. TDS)</h2>
+              <h2 className="text-sm font-semibold text-white">Your Deductions (excl. PT &amp; TDS)</h2>
+              <p className="text-xs text-dark-400 mt-1">Amounts withheld from your gross salary</p>
             </div>
             <div className="p-5">
               <table className="w-full text-sm">
                 <tbody>
                   {salary.pfApplicable && (
-                    <>
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">EPF — Employee (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
-                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
-                      </tr>
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
-                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerPf)}</td>
-                      </tr>
-                    </>
+                    <tr className="border-b border-dark-700/50">
+                      <td className="py-2.5 text-dark-300">EPF — Employee (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
+                    </tr>
                   )}
                   {salary.esiApplicable && (
-                    <>
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">ESI — Employee (0.75%)</td>
-                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
-                      </tr>
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
-                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerEsi)}</td>
-                      </tr>
-                    </>
-                  )}
-                  {estimatedPt > 0 && (
                     <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">Professional Tax (est.)</td>
-                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(estimatedPt)}</td>
+                      <td className="py-2.5 text-dark-300">ESI — Employee (0.75%)</td>
+                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
                     </tr>
                   )}
                   <tr className="border-t border-dark-600">
@@ -183,12 +191,48 @@ export default function MySalaryPage() {
                     <td className="py-2.5 text-right text-red-400 font-bold">₹{fmt(totalDeductions)}</td>
                   </tr>
                   <tr>
-                    <td className="py-2.5 text-dark-400 text-xs" colSpan={2}>TDS is computed and deducted during payroll run</td>
+                    <td className="py-2.5 text-dark-400 text-xs" colSpan={2}>
+                      Professional Tax{ptState ? ` (${ptState} slab)` : ''} and TDS are computed during the payroll run and appear on your payslip — they are not estimated here.
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Employer contributions — paid BY the company on top of gross.
+              These are not withheld from the employee and must never be shown
+              inside the deductions total (see payroll.js totalEmployerCost). */}
+          {employerContributions > 0 && (
+            <div className="bg-dark-800 rounded-xl border border-dark-700">
+              <div className="px-5 py-4 border-b border-dark-700">
+                <h2 className="text-sm font-semibold text-white">Employer Contributions (not deducted)</h2>
+                <p className="text-xs text-dark-400 mt-1">Paid by the company on top of your gross — part of CTC, not of your take-home</p>
+              </div>
+              <div className="p-5">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {salary.pfApplicable && (
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-right text-dark-200 font-medium">₹{fmt(employerPf)}</td>
+                      </tr>
+                    )}
+                    {salary.esiApplicable && (
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
+                        <td className="py-2.5 text-right text-dark-200 font-medium">₹{fmt(employerEsi)}</td>
+                      </tr>
+                    )}
+                    <tr className="border-t border-dark-600">
+                      <td className="py-2.5 text-white font-medium">Total Employer Cost</td>
+                      <td className="py-2.5 text-right text-white font-bold">₹{fmt(employerContributions)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

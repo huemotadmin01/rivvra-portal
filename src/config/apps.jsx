@@ -9,6 +9,26 @@ import {
   TrendingUp, Award, Percent, FolderArchive, Folder, FolderDown,
 } from 'lucide-react';
 
+/**
+ * Is the active company India-registered?
+ *
+ * Used to hide India-only navigation (PF/ESI/PT/TDS, Section 80C, Form 16) from
+ * companies registered elsewhere. Country wins when we have it; `currency` is
+ * the fallback the payroll admin gate has always used.
+ *
+ * When no company is supplied at all we assume India rather than hiding items —
+ * useBreadcrumbs calls getSidebarItems with only three arguments, and a false
+ * negative there would stop breadcrumb labels resolving for these routes.
+ */
+function isIndiaCompanyForNav(currentCompany) {
+  if (!currentCompany) return true;
+  const code = (currentCompany.address?.countryCode || '').toUpperCase();
+  const country = (currentCompany.address?.country || '').toLowerCase();
+  if (code) return code === 'IN';
+  if (country) return country.includes('india');
+  return currentCompany.currency === 'INR';
+}
+
 export const APP_REGISTRY = {
   outreach: {
     id: 'outreach',
@@ -71,9 +91,14 @@ export const APP_REGISTRY = {
     status: 'active',
     defaultRoute: '/timesheet/dashboard',
     derivedRoles: true, // Roles derived from orgRole + manager status — no per-app assignment
-    getSidebarItems: (user, timesheetUser, orgAppRole) => {
+    getSidebarItems: (user, timesheetUser, orgAppRole, currentCompany) => {
       const tsRole = timesheetUser?.role || 'contractor';
       const isAdmin = tsRole === 'admin';
+      // ESS Tax pages (Declarations, Tax Report) are India-only in the backend —
+      // /my-tax and /my-tax/declarations both 403 NON_INDIA_COMPANY. The admin
+      // payroll nav below is already gated the same way; this group was not, so
+      // a US/Canada employee got dead India-only nav items.
+      const isIndiaCompany = isIndiaCompanyForNav(currentCompany);
       // Manager status is derived from the employee system (not from static role field)
       const isManager = timesheetUser?.isManager === true;
 
@@ -160,8 +185,8 @@ export const APP_REGISTRY = {
             ],
           },
         ]),
-        // Tax declarations only for confirmed employees
-        ...(timesheetUser?.employmentType === 'confirmed' ? [
+        // Tax declarations: confirmed employees of an India-registered company
+        ...((timesheetUser?.employmentType === 'confirmed' && isIndiaCompany) ? [
           {
             type: 'group', label: 'Tax', icon: Shield,
             children: [

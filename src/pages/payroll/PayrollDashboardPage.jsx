@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
-import { getPayrollRuns } from '../../utils/payrollApi';
+import { getPayrollRuns, getPayrollSettings } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -24,31 +24,55 @@ const STATUS_COLORS = {
 
 export default function PayrollDashboardPage() {
   const { orgSlug } = usePlatform();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companyCountry } = useCompany();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  // FY from period context — hook must stay above every early return
+  const { fyApi: fy } = usePeriod();
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  // Optional 'YYYY-MM' cutoff from payroll settings: runs before this month
+  // are excluded from FY stat cards (months processed on a previous system,
+  // e.g. GreytHR). Absent ⇒ include everything.
+  const [payrollStatsFrom, setPayrollStatsFrom] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setRuns([]);
-      try {
-        const res = await getPayrollRuns(orgSlug);
-        setRuns(res.runs || []);
-      } catch (err) { showToast('Failed to load', 'error'); }
-      finally { setLoading(false); }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, currentCompany?._id]);
+  const load = async () => {
+    setLoading(true);
+    setRuns([]);
+    setLoadError(null);
+    try {
+      const [runsRes, settingsRes] = await Promise.all([
+        getPayrollRuns(orgSlug),
+        getPayrollSettings(orgSlug).catch(() => null),
+      ]);
+      setRuns(runsRes.runs || []);
+      setPayrollStatsFrom(settingsRes?.settings?.payrollStatsFrom || null);
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Failed to load payroll dashboard');
+      showToast('Failed to load', 'error');
+    }
+    finally { setLoading(false); }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [orgSlug, currentCompany?._id]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <p className="text-sm text-red-400">{loadError}</p>
+      <button onClick={load} className="px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-200 hover:bg-dark-700">Retry</button>
+    </div>
+  );
+
   // India-only gate: statutory payroll (PF/ESI/PT/TDS, Form 16) only exists
-  // for INR companies today. Non-India admins get an explainer instead of an
-  // empty dashboard with raw 400s behind every action.
-  if (currentCompany && currentCompany.currency !== 'INR') {
+  // for India entities today. Gate on COUNTRY, not currency — the backend
+  // gates via isIndianCompany(company) (company address country), and an
+  // India entity billing in USD must still get payroll while a non-India
+  // entity holding INR must not.
+  if (currentCompany && companyCountry !== 'IN') {
     return (
       <div className="flex items-center justify-center py-24 px-6">
         <div className="max-w-lg text-center">
@@ -59,7 +83,7 @@ export default function PayrollDashboardPage() {
           <p className="text-sm text-dark-400 leading-relaxed mb-6">
             Statutory payroll (PF, ESI, Professional Tax, TDS and Form 16) is built for Indian
             companies. {currentCompany?.name ? `"${currentCompany.name}"` : 'Your active company'} is
-            a {currentCompany?.currency || 'non-INR'} entity, so payroll runs aren't available here yet.
+            registered outside India, so payroll runs aren't available here yet.
             Payroll for other countries is on our roadmap.
           </p>
           <p className="text-xs text-dark-500 mb-6">
@@ -85,10 +109,18 @@ export default function PayrollDashboardPage() {
   // Recent 6 runs for timeline
   const recentRuns = runs.slice(0, 6);
 
-  // FY stats from period context
-  const { fyApi: fy } = usePeriod();
-  // Only include Rivvra-processed runs (March 2026 onwards) — earlier months were on GreytHR
-  const fyRuns = runs.filter(r => r.financialYear === fy && ['processed', 'finalized', 'paid'].includes(r.status) && (r.year > 2026 || (r.year === 2026 && r.month >= 3)));
+  // FY stats — exclude months processed on a previous system when the org
+  // has payrollStatsFrom (e.g. '2026-03') set in payroll settings.
+  const statsCutoff = (() => {
+    if (!payrollStatsFrom) return null;
+    const [y, m] = String(payrollStatsFrom).split('-').map(Number);
+    return y && m ? { y, m } : null;
+  })();
+  const fyRuns = runs.filter(r =>
+    r.financialYear === fy &&
+    ['processed', 'finalized', 'paid'].includes(r.status) &&
+    (!statsCutoff || r.year > statsCutoff.y || (r.year === statsCutoff.y && r.month >= statsCutoff.m))
+  );
   const fyTotalNet = fyRuns.reduce((s, r) => s + (r.summary?.totalNet || 0), 0);
   const fyTotalGross = fyRuns.reduce((s, r) => s + (r.summary?.totalGross || 0), 0);
   const fyTotalTds = fyRuns.reduce((s, r) => s + (r.summary?.totalTds || 0), 0);
