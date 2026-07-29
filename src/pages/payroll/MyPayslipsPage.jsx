@@ -265,12 +265,18 @@ export default function MyPayslipsPage() {
                                 <td className="py-1.5 text-right text-red-400">₹{fmt(p.professionalTax)}</td>
                               </tr>
                             )}
-                            {/* Employer PF/ESI deliberately NOT listed here.
-                                They are `totalEmployerCost` in payroll.js — paid
-                                on top of gross, excluded from `totalDeductions`.
-                                Listing them here made the itemised rows visibly
-                                fail to sum to the Total below. They now render
-                                under "Employer Contributions" in the summary. */}
+                            {p.employerPf > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300">Employer PF</td>
+                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerPf)}</td>
+                              </tr>
+                            )}
+                            {p.employerEsi > 0 && (
+                              <tr className="border-b border-dark-700/30">
+                                <td className="py-1.5 text-dark-300">Employer ESI</td>
+                                <td className="py-1.5 text-right text-red-400">₹{fmt(p.employerEsi)}</td>
+                              </tr>
+                            )}
                             {p.tds > 0 && (
                               <tr className="border-b border-dark-700/30">
                                 <td className="py-1.5 text-dark-300">{p.payrollMode === 'consultant_flat_tds' ? `TDS (${Math.round((p.tdsRate ?? 0.02) * 100)}%)` : 'TDS'}</td>
@@ -303,7 +309,7 @@ export default function MyPayslipsPage() {
                           </div>
                           {(p.employerPf > 0 || p.employerEsi > 0) && (
                             <div className="border-t border-dark-700 pt-3 space-y-1">
-                              <div className="text-xs text-dark-500 mb-1">Employer Contributions (not deducted)</div>
+                              <div className="text-xs text-dark-500 mb-1">Employer Contributions</div>
                               {p.employerPf > 0 && <div className="flex justify-between text-xs"><span className="text-dark-400">EPF</span><span className="text-dark-300">₹{fmt(p.employerPf)}</span></div>}
                               {p.employerEsi > 0 && <div className="flex justify-between text-xs"><span className="text-dark-400">ESI</span><span className="text-dark-300">₹{fmt(p.employerEsi)}</span></div>}
                             </div>
