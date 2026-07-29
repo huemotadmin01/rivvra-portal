@@ -1,4 +1,5 @@
 import { TIMESHEET_API_URL } from './config';
+import { getActiveCompanyId } from './api';
 
 // ─── Fetch-based API client (replaces axios) ────────────────────────────────
 
@@ -29,6 +30,13 @@ async function request(method, url, { body, params, signal, responseType } = {})
   const token = localStorage.getItem('rivvra_token');
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  // Active company (2026-07-28). This client never sent the header, so the
+  // timesheet API could only fall back to the persisted currentCompanyId and a
+  // mid-session company switch never reached ensureEmployee — which resolves
+  // the caller's employee record per company. Same hydration gate as api.js.
+  const companyId = getActiveCompanyId();
+  if (companyId) headers['X-Company-Id'] = companyId;
 
   // Create an AbortController for timeout (30s)
   const timeoutController = new AbortController();
