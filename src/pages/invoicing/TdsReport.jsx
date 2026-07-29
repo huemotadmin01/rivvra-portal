@@ -69,6 +69,23 @@ export default function TdsReport() {
       setExporting(null);
     }
   };
+  const exportMonthCsv = async (row) => {
+    setExporting(row.key);
+    try {
+      await invoicingApi.downloadStatutoryCsv(orgSlug, 'tdsmonth', { month: row.key }, `TDS_${row.key}.csv`);
+    } catch (err) {
+      showToast(err.message || 'Export failed', 'error');
+    } finally {
+      setExporting(null);
+    }
+  };
+  // Zero amounts render as plain text — an underlined ₹0.00 opening an empty
+  // modal is noise, especially on future months.
+  const drillAmount = (value, bucket, row, cls) => (
+    value > 0
+      ? <button className={`${drillCls} ${cls}`} onClick={() => openDrill(bucket, row)}>{formatCurrency(value, 'INR')}</button>
+      : <span className={cls}>{formatCurrency(value, 'INR')}</span>
+  );
 
   // Drop stale responses when FY changes mid-flight (throttled cluster makes
   // the out-of-order window seconds long).
@@ -171,6 +188,7 @@ export default function TdsReport() {
                       <th className="text-center px-4 py-3 font-medium">24Q deposit</th>
                       <th className={`${numCls} font-medium text-amber-400`}>Total due</th>
                       <th className={`${numCls} font-medium text-emerald-400`}>Customer TDS</th>
+                      <th className="text-center px-4 py-3 font-medium" title="Download this month's TDS working (all flows)">CSV</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -178,7 +196,7 @@ export default function TdsReport() {
                       <tr key={row.key} className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors">
                         <td className="px-4 py-3 text-white font-medium">{monthLabel(row)} <span className="text-dark-500 text-xs">Q{row.quarter}</span></td>
                         <td className={`${numCls} text-blue-400`}>
-                          <button className={drillCls} title="View TDS-deducted vendor bills" onClick={() => openDrill('vendor', row)}>{formatCurrency(row.vendorTds, 'INR')}</button>
+                          {drillAmount(row.vendorTds, 'vendor', row, '')}
                           <span className="text-dark-500 text-xs ml-1">({row.vendorBills})</span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -187,7 +205,7 @@ export default function TdsReport() {
                           </button>
                         </td>
                         <td className={`${numCls} text-purple-400`}>
-                          <button className={drillCls} title="View employee-wise salary TDS" onClick={() => openDrill('salary', row)}>{formatCurrency(row.salaryTds, 'INR')}</button>
+                          {drillAmount(row.salaryTds, 'salary', row, '')}
                           <span className="text-dark-500 text-xs ml-1">({row.salaryEmployees})</span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -197,7 +215,14 @@ export default function TdsReport() {
                         </td>
                         <td className={`${numCls} font-semibold text-amber-400`}>{formatCurrency(row.depositDue, 'INR')}</td>
                         <td className={`${numCls} text-emerald-400`}>
-                          <button className={drillCls} title="View customer-deducted TDS payments" onClick={() => openDrill('customer', row)}>{formatCurrency(row.customerTds, 'INR')}</button>
+                          {drillAmount(row.customerTds, 'customer', row, '')}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => exportMonthCsv(row)} disabled={exporting === row.key}
+                            title={`Download ${monthLabel(row)}'s TDS working — vendor, salary and customer flows`}
+                            className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 disabled:opacity-50 transition-colors">
+                            {exporting === row.key ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -211,6 +236,7 @@ export default function TdsReport() {
                       <td />
                       <td className={`${numCls} text-amber-400`}>{formatCurrency(totals.depositDue, 'INR')}</td>
                       <td className={`${numCls} text-emerald-400`}>{formatCurrency(totals.customerTds, 'INR')}</td>
+                      <td />
                     </tr>
                   </tfoot>
                 </table>
@@ -254,7 +280,10 @@ export default function TdsReport() {
               <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
                 <div className="p-5 border-b border-dark-700">
                   <h3 className="text-lg font-semibold text-white">TDS deducted by customers</h3>
-                  <p className="text-dark-400 text-xs mt-0.5">Withheld from our invoice payments — reconcile against Form 26AS</p>
+                  <p className="text-dark-400 text-xs mt-0.5">
+                    Withheld from our invoice payments — reconcile against Form 26AS
+                    {data.customerTruncated ? ' · showing first 200; use the CSV exports for the full list' : ''}
+                  </p>
                 </div>
                 {customerRecords.length === 0 ? (
                   <div className="py-10 text-center text-dark-500 text-sm">No customer TDS recorded in this FY</div>
