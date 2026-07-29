@@ -85,23 +85,12 @@ export default function MySalaryPage() {
   // Calculate TDS for consultants
   const estimatedTds = isConsultant ? Math.round(salary.grossMonthly * flatTdsRate) : 0;
 
-  // Professional Tax. The old code read `statutory.ptEnabled` — a field
-  // /my-salary (payroll.js ~3660) never returns — so the check was always true
-  // and a hardcoded Madhya-Pradesh slab was shown to every employee in every
-  // state. PT slabs are state-specific and not available client-side, so we no
-  // longer fabricate a number: we surface the employee's PT state (the field
-  // the backend DOES return) and say the real figure lands on the payslip.
-  const ptState = (!isConsultant && statutory?.ptState) ? statutory.ptState : '';
+  // Estimate Professional Tax (from statutory config or common MP slab)
+  const ptEnabled = statutory?.ptEnabled !== false;
+  const estimatedPt = (!isConsultant && ptEnabled) ? (salary.grossMonthly > 25000 ? 208 : salary.grossMonthly > 18750 ? 150 : salary.grossMonthly > 12500 ? 125 : 0) : 0;
 
-  // Deductions = what actually comes OUT of the employee's gross.
-  // The backend (payroll.js ~3240) computes
-  //   totalDeductions = employeePf + employeeEsi + PT + TDS + otherDeductions
-  // and treats employer PF/ESI as `totalEmployerCost` ON TOP of gross — never
-  // as a deduction. This page used to subtract the employer share too, which
-  // understated Net Take-Home by ~₹1,800+/month and directly contradicted the
-  // employee's own payslip.
-  const totalDeductions = employeePf + employeeEsi + estimatedTds;
-  const employerContributions = employerPf + employerEsi;
+  // Total deductions = employee PF + employer PF + employee ESI + employer ESI + PT (excl. TDS)
+  const totalDeductions = employeePf + employerPf + employeeEsi + employerEsi + estimatedPt + estimatedTds;
   const netMonthly = salary.grossMonthly - totalDeductions;
 
   if (isConsultant) {
@@ -136,7 +125,7 @@ export default function MySalaryPage() {
             <IndianRupee size={14} /> Net Take-Home (est.)
           </div>
           <div className="text-2xl font-bold text-green-400">₹{fmt(netMonthly)}</div>
-          <div className="text-xs text-dark-500 mt-1">Before PT &amp; TDS</div>
+          <div className="text-xs text-dark-500 mt-1">After statutory deductions</div>
         </div>
       </div>
 
@@ -168,22 +157,39 @@ export default function MySalaryPage() {
         <div className="space-y-6">
           <div className="bg-dark-800 rounded-xl border border-dark-700">
             <div className="px-5 py-4 border-b border-dark-700">
-              <h2 className="text-sm font-semibold text-white">Your Deductions (excl. PT &amp; TDS)</h2>
-              <p className="text-xs text-dark-400 mt-1">Amounts withheld from your gross salary</p>
+              <h2 className="text-sm font-semibold text-white">Total Deductions (excl. TDS)</h2>
             </div>
             <div className="p-5">
               <table className="w-full text-sm">
                 <tbody>
                   {salary.pfApplicable && (
-                    <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">EPF — Employee (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
-                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
-                    </tr>
+                    <>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">EPF — Employee (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeePf)}</td>
+                      </tr>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerPf)}</td>
+                      </tr>
+                    </>
                   )}
                   {salary.esiApplicable && (
+                    <>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">ESI — Employee (0.75%)</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
+                      </tr>
+                      <tr className="border-b border-dark-700/50">
+                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
+                        <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employerEsi)}</td>
+                      </tr>
+                    </>
+                  )}
+                  {estimatedPt > 0 && (
                     <tr className="border-b border-dark-700/50">
-                      <td className="py-2.5 text-dark-300">ESI — Employee (0.75%)</td>
-                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(employeeEsi)}</td>
+                      <td className="py-2.5 text-dark-300">Professional Tax (est.)</td>
+                      <td className="py-2.5 text-right text-red-400 font-medium">₹{fmt(estimatedPt)}</td>
                     </tr>
                   )}
                   <tr className="border-t border-dark-600">
@@ -191,48 +197,12 @@ export default function MySalaryPage() {
                     <td className="py-2.5 text-right text-red-400 font-bold">₹{fmt(totalDeductions)}</td>
                   </tr>
                   <tr>
-                    <td className="py-2.5 text-dark-400 text-xs" colSpan={2}>
-                      Professional Tax{ptState ? ` (${ptState} slab)` : ''} and TDS are computed during the payroll run and appear on your payslip — they are not estimated here.
-                    </td>
+                    <td className="py-2.5 text-dark-400 text-xs" colSpan={2}>TDS is computed and deducted during payroll run</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-
-          {/* Employer contributions — paid BY the company on top of gross.
-              These are not withheld from the employee and must never be shown
-              inside the deductions total (see payroll.js totalEmployerCost). */}
-          {employerContributions > 0 && (
-            <div className="bg-dark-800 rounded-xl border border-dark-700">
-              <div className="px-5 py-4 border-b border-dark-700">
-                <h2 className="text-sm font-semibold text-white">Employer Contributions (not deducted)</h2>
-                <p className="text-xs text-dark-400 mt-1">Paid by the company on top of your gross — part of CTC, not of your take-home</p>
-              </div>
-              <div className="p-5">
-                <table className="w-full text-sm">
-                  <tbody>
-                    {salary.pfApplicable && (
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">EPF — Employer (12%){salary.pfCappedAt15K ? ' — capped' : ''}</td>
-                        <td className="py-2.5 text-right text-dark-200 font-medium">₹{fmt(employerPf)}</td>
-                      </tr>
-                    )}
-                    {salary.esiApplicable && (
-                      <tr className="border-b border-dark-700/50">
-                        <td className="py-2.5 text-dark-300">ESI — Employer (3.25%)</td>
-                        <td className="py-2.5 text-right text-dark-200 font-medium">₹{fmt(employerEsi)}</td>
-                      </tr>
-                    )}
-                    <tr className="border-t border-dark-600">
-                      <td className="py-2.5 text-white font-medium">Total Employer Cost</td>
-                      <td className="py-2.5 text-right text-white font-bold">₹{fmt(employerContributions)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
