@@ -768,11 +768,20 @@ export default function PayrollRunPage() {
                               <XCircle size={9} /> No Timesheet
                             </span>
                           )}
-                          {/* attendanceStatus 'pending' = an attendance sheet exists
-                              but is not approved (still draft, awaiting approval,
-                              or rejected). Say so rather than a bare "Pending". */}
+                          {/* 'rejected' is its own state, NOT folded into pending.
+                              A manager rejecting a sheet now credits ZERO days, so
+                              this must be impossible to mistake for "nobody has
+                              looked at it yet" — it is the one attendance state
+                              that actively costs the employee pay. */}
+                          {item.payrollMode !== 'contractor' && item.attendanceStatus === 'rejected' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/15 text-red-300 ring-1 ring-red-500/30" title="A manager rejected this attendance sheet. Rejected sheets credit ZERO days worked, so this employee is being paid as fully absent. Get the sheet corrected and approved before processing.">
+                              <XCircle size={9} /> Attendance Rejected — 0 days
+                            </span>
+                          )}
+                          {/* attendanceStatus 'pending' = a sheet exists but is
+                              still draft or awaiting approval. */}
                           {item.payrollMode !== 'contractor' && item.attendanceStatus === 'pending' && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance submitted but not yet approved (may still be a draft, awaiting approval, or rejected)">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance submitted but not yet approved (still a draft or awaiting approval)">
                               <AlertTriangle size={9} /> Attendance Not Approved
                             </span>
                           )}
