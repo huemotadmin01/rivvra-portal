@@ -263,27 +263,19 @@ export function downloadPayrollSheet(orgSlug, runId) {
   return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export/payroll-sheet`, { responseType: 'blob' });
 }
 
-// Intern Payroll Runs
+// Intern payroll runs — read-only.
+//
+// Interns are paid by the MAIN statutory run, which includes them explicitly.
+// The separate intern run selected the same interns from the same salary
+// records, so processing both paid each stipend twice; its write path was
+// removed from the API on 2026-07-30. These two readers remain only so a run
+// created before that date can still be inspected. Do not add create/process/
+// finalize/mark-paid/delete back — pay interns through the main run.
 export function getInternPayrollRuns(orgSlug) {
   return request('GET', `${orgUrl(orgSlug)}/intern-runs`);
 }
 export function getInternPayrollRun(orgSlug, id) {
   return request('GET', `${orgUrl(orgSlug)}/intern-runs/${id}`);
-}
-export function createInternPayrollRun(orgSlug, data) {
-  return request('POST', `${orgUrl(orgSlug)}/intern-runs`, { body: data });
-}
-export function processInternPayrollRun(orgSlug, id) {
-  return request('POST', `${orgUrl(orgSlug)}/intern-runs/${id}/process`);
-}
-export function finalizeInternPayrollRun(orgSlug, id) {
-  return request('PUT', `${orgUrl(orgSlug)}/intern-runs/${id}/finalize`);
-}
-export function markInternPayrollRunPaid(orgSlug, id) {
-  return request('PUT', `${orgUrl(orgSlug)}/intern-runs/${id}/mark-paid`);
-}
-export function deleteInternPayrollRun(orgSlug, id) {
-  return request('DELETE', `${orgUrl(orgSlug)}/intern-runs/${id}`);
 }
 
 // Unconfigured employees
