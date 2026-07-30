@@ -22,11 +22,27 @@ import {
  */
 function isIndiaCompanyForNav(currentCompany) {
   if (!currentCompany) return true;
-  const code = (currentCompany.address?.countryCode || '').toUpperCase();
-  const country = (currentCompany.address?.country || '').toLowerCase();
-  if (code) return code === 'IN';
-  if (country) return country.includes('india');
-  return currentCompany.currency === 'INR';
+
+  // Treat the country signals as alternatives, never letting one veto the rest.
+  // Live data has `address.countryCode` holding a STATE code — Huemot Technology
+  // Private Limited stores "MP" (Madhya Pradesh) there while `country` is
+  // "India" and the top-level `country` is "IN". The previous version returned
+  // early on countryCode, so "MP" !== "IN" hid the whole payroll and ESS-tax
+  // navigation from an Indian company.
+  const norm = (v) => String(v ?? '').trim().toLowerCase();
+  const countrySignals = [
+    norm(currentCompany.country),              // top-level, "IN" for Huemot
+    norm(currentCompany.address?.countryCode), // may hold a state code
+    norm(currentCompany.address?.country),     // "India"
+  ];
+  if (countrySignals.some((s) => s === 'in' || s === 'ind' || s.includes('india'))) {
+    return true;
+  }
+
+  // No signal said India. Currency is the last resort — the test the payroll
+  // admin gate has always used — so a company with no country data on file
+  // behaves exactly as it did before.
+  return norm(currentCompany.currency) === 'inr';
 }
 
 export const APP_REGISTRY = {
