@@ -135,6 +135,7 @@ export default function PayrollRunPage() {
   const [releasing, setReleasing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showMarkPaidConfirm, setShowMarkPaidConfirm] = useState(false);
+  const [showHoldPayslipsConfirm, setShowHoldPayslipsConfirm] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [loadError, setLoadError] = useState(null);
   // In-flight guards for the remaining financial / destructive actions
@@ -285,7 +286,9 @@ export default function PayrollRunPage() {
     finally { setTogglingLock(null); }
   };
 
-  // Release/Hold payslips
+  // Release/Hold payslips. Holding is destructive-ish (hides every released
+  // payslip from ESS and blocks incentive auto-create until re-released), so
+  // the button opens a confirm modal and only the modal calls this.
   const handleToggleRelease = async () => {
     if (togglingRelease) return;
     setTogglingRelease(true);
@@ -295,6 +298,7 @@ export default function PayrollRunPage() {
         ? await holdPayslips(orgSlug, run._id)
         : await releasePayslips(orgSlug, run._id);
       setSelectedRun(res.run);
+      setShowHoldPayslipsConfirm(false);
       showToast(res.run.payslipReleased ? 'Payslips released to employees' : 'Payslips held');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
     finally { setTogglingRelease(false); }
@@ -579,7 +583,7 @@ export default function PayrollRunPage() {
               {/* Release/Hold — Release EMAILS payslips to employees, so it gets a
                   filled primary treatment, never the bordered download look. */}
               {run.payslipReleased ? (
-                <button onClick={handleToggleRelease} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10 disabled:opacity-50" title="Hide released payslips from employees again">
+                <button onClick={() => setShowHoldPayslipsConfirm(true)} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50" title="Hide released payslips from employees again">
                   {togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />} Hold Payslips
                 </button>
               ) : (
@@ -1401,6 +1405,53 @@ export default function PayrollRunPage() {
                     className="flex-1 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
                     {markingPaid ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                     {markingPaid ? 'Marking...' : 'Mark Paid'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hold Payslips Confirmation Modal — this button sits next to routine
+            actions and un-releasing has invisible side effects (payslips vanish
+            from ESS, incentive auto-create silently blocks), so it must never
+            fire on a single stray click. */}
+        {showHoldPayslipsConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !togglingRelease && setShowHoldPayslipsConfirm(false)}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <EyeOff size={20} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-white">Hold Payslips?</h3>
+                    <p className="text-xs text-dark-400">{MONTHS[run.month]} {run.year}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-dark-300 leading-relaxed">
+                    This un-releases the payslips
+                    {Array.isArray(run.releasedEmployeeIds) && run.releasedEmployeeIds.length > 0
+                      ? ` for all ${run.releasedEmployeeIds.length} released employee${run.releasedEmployeeIds.length !== 1 ? 's' : ''}`
+                      : ''} — they disappear from everyone&apos;s ESS immediately.
+                  </p>
+                  <p className="text-xs text-amber-400 leading-relaxed">
+                    While held, incentive drafts for this month&apos;s consultants will NOT auto-create
+                    when their invoices are paid, and nothing retries until payslips are released again.
+                    Re-releasing later re-sends payslip emails.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <button onClick={() => setShowHoldPayslipsConfirm(false)} disabled={togglingRelease}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 border border-dark-700 text-dark-300 text-sm font-medium hover:bg-dark-700 transition-colors disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleToggleRelease} disabled={togglingRelease}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                    {togglingRelease ? <Loader2 size={14} className="animate-spin" /> : <EyeOff size={14} />}
+                    {togglingRelease ? 'Holding...' : 'Hold Payslips'}
                   </button>
                 </div>
               </div>
