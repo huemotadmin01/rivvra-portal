@@ -3,22 +3,57 @@ import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import fnfApi from '../../utils/fnfApi';
+import { formatMoney } from '../../utils/formatCurrency';
 import {
   Loader2, Calculator, CheckCircle2, Clock, FileText, AlertTriangle,
   ArrowRight, User, Calendar, IndianRupee, Search,
 } from 'lucide-react';
 
+// Settlement statuses in the order an admin walks through them.
 const STATUS_CONFIG = {
-  not_started: { label: 'Not Started', bg: 'bg-dark-700', text: 'text-dark-400', dot: 'bg-dark-500' },
-  draft:       { label: 'Draft',       bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-500' },
-  finalized:   { label: 'Finalized',   bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
+  not_started: { label: 'Not started',  bg: 'bg-dark-700',       text: 'text-dark-400',    dot: 'bg-dark-500' },
+  draft:       { label: 'Draft',        bg: 'bg-amber-500/10',   text: 'text-amber-400',   dot: 'bg-amber-500' },
+  finalized:   { label: 'Finalized',    bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
+  // 'paid' was missing and fell back to the "Not started" label.
+  paid:        { label: 'Paid',         bg: 'bg-rivvra-500/10',  text: 'text-rivvra-400',  dot: 'bg-rivvra-500' },
 };
+
+// draft → finalized → paid, so the row shows how far along a settlement is and
+// what the next action is.
+const PROGRESS_STEPS = [
+  { key: 'draft', label: 'Draft' },
+  { key: 'finalized', label: 'Finalized' },
+  { key: 'paid', label: 'Paid' },
+];
+
+const NEXT_ACTION = {
+  not_started: 'Calculate settlement',
+  draft: 'Review & finalize',
+  finalized: 'Mark as paid',
+  paid: null,
+};
+
+// Module scope — never declare a component inside a render body.
+function SettlementProgress({ status }) {
+  const reached = PROGRESS_STEPS.findIndex(s => s.key === status);
+  return (
+    <div className="flex items-center gap-1" title={`Settlement progress: ${(STATUS_CONFIG[status] || STATUS_CONFIG.not_started).label}`}>
+      {PROGRESS_STEPS.map((step, i) => (
+        <span key={step.key} className="flex items-center gap-1">
+          <span className={`w-1.5 h-1.5 rounded-full ${i <= reached ? 'bg-emerald-500' : 'bg-dark-600'}`} />
+          <span className={`text-[10px] ${i <= reached ? 'text-dark-300' : 'text-dark-600'}`}>{step.label}</span>
+          {i < PROGRESS_STEPS.length - 1 && <span className={`w-3 h-px ${i < reached ? 'bg-emerald-500/60' : 'bg-dark-700'}`} />}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Stage = backend-computed lifecycle category for the row
 const STAGE_CONFIG = {
-  scheduled: { label: 'Scheduled Exit', bg: 'bg-blue-500/10',    text: 'text-blue-400',    dot: 'bg-blue-500' },
-  pending:   { label: 'Pending F&F',    bg: 'bg-amber-500/10',   text: 'text-amber-400',   dot: 'bg-amber-500' },
-  settled:   { label: 'Settled',        bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
+  scheduled: { label: 'Exit scheduled',      bg: 'bg-blue-500/10',    text: 'text-blue-400',    dot: 'bg-blue-500' },
+  pending:   { label: 'Awaiting settlement', bg: 'bg-amber-500/10',   text: 'text-amber-400',   dot: 'bg-amber-500' },
+  settled:   { label: 'Settled',             bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
 };
 
 function fmtDate(d) {
@@ -27,7 +62,7 @@ function fmtDate(d) {
 }
 function fmtINR(n) {
   if (n === null || n === undefined) return '—';
-  return 'INR ' + Number(n).toLocaleString('en-IN');
+  return formatMoney(n);
 }
 
 export default function FnFDashboard() {
@@ -106,8 +141,9 @@ export default function FnFDashboard() {
   };
 
   if (loading) return (
-    <div className="p-6 flex items-center justify-center min-h-[400px]">
+    <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-3">
       <Loader2 className="w-6 h-6 animate-spin text-dark-500" />
+      <p className="text-xs text-dark-500">Loading exits and settlements…</p>
     </div>
   );
 
@@ -126,39 +162,64 @@ export default function FnFDashboard() {
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           <Calculator size={20} /> Full & Final Settlements
         </h1>
-        <p className="text-sm text-dark-400 mt-0.5">Manage F&F settlements for separated employees</p>
+        <p className="text-sm text-dark-400 mt-0.5">
+          Final dues for employees who are leaving or have left. Each settlement moves
+          draft → finalized → paid.
+        </p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { key: 'all',       label: 'Total Exits',    value: stats.total,     color: 'text-white' },
-          { key: 'scheduled', label: 'Scheduled Exit', value: stats.scheduled, color: 'text-blue-400' },
-          { key: 'pending',   label: 'Pending F&F',    value: stats.pending,   color: 'text-amber-400' },
-          { key: 'settled',   label: 'Settled',        value: stats.settled,   color: 'text-emerald-400' },
+          { key: 'all',       label: 'All exits',       hint: 'Everyone listed below',        value: stats.total,     color: 'text-white' },
+          { key: 'scheduled', label: 'Exit scheduled',  hint: 'Still working, LWD is set',    value: stats.scheduled, color: 'text-blue-400' },
+          { key: 'pending',   label: 'Awaiting settlement', hint: 'Needs your action',        value: stats.pending,   color: 'text-amber-400' },
+          { key: 'settled',   label: 'Settled',         hint: 'Finalized or paid',            value: stats.settled,   color: 'text-emerald-400' },
         ].map(s => (
           <button key={s.key} onClick={() => setTab(s.key)}
+            title={`Show only: ${s.label}`}
             className={`bg-dark-800/60 border rounded-xl p-3 text-left transition-colors ${
               tab === s.key ? 'border-rivvra-500/40' : 'border-dark-700/50 hover:border-dark-600'
             }`}>
             <p className="text-xs text-dark-400">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color} mt-1`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.color} mt-1 tabular-nums`}>{s.value}</p>
+            <p className="text-[10px] text-dark-500 mt-0.5">{s.hint}</p>
           </button>
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employees..."
-          className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500" />
+      {/* Search — client-side over the rows already loaded */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm w-full sm:w-80">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, employee code or email…"
+            className="w-full pl-9 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-600 focus:outline-none focus:border-rivvra-500" />
+        </div>
+        <span className="text-xs text-dark-500">
+          Showing {filtered.length} of {merged.length}
+          {tab !== 'all' && ` · ${(STAGE_CONFIG[tab] || {}).label || tab} only`}
+        </span>
       </div>
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-dark-500">
+        <div className="text-center py-16 px-6 text-dark-500">
           <Calculator size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">{merged.length === 0 ? 'No separated confirmed employees' : 'No results match your filter'}</p>
+          {merged.length === 0 ? (
+            <>
+              <p className="text-sm text-dark-300">No exits to settle</p>
+              <p className="text-xs text-dark-500 mt-1 max-w-md mx-auto">
+                Employees appear here once they have a last working day set or have been marked as
+                separated. Their final dues — unpaid salary, leave encashment, notice recovery — are
+                then settled from this page.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-dark-300">No employee matches your search or filter</p>
+              <button onClick={() => { setSearch(''); setTab('all'); }} className="mt-2 text-xs text-rivvra-400 hover:text-rivvra-300">Clear search and filters</button>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -186,21 +247,33 @@ export default function FnFDashboard() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-dark-500">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-dark-500 flex-wrap">
                     <span className="capitalize">{emp.status}</span>
                     {emp.lastWorkingDate && (
-                      <span className="flex items-center gap-1"><Calendar size={10} /> LWD: {fmtDate(emp.lastWorkingDate)}</span>
+                      <span className="flex items-center gap-1" title="Last working day">
+                        <Calendar size={10} /> Last working day: {fmtDate(emp.lastWorkingDate)}
+                      </span>
                     )}
                     {emp.separationReason && <span>{emp.separationReason}</span>}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <SettlementProgress status={emp.fnfStatus} />
+                    {NEXT_ACTION[emp.fnfStatus] && (
+                      <span className="text-[10px] text-amber-400/90">Next: {NEXT_ACTION[emp.fnfStatus]}</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
                   {emp.netSettlement !== undefined && emp.netSettlement !== null ? (
-                    <p className={`text-sm font-medium ${emp.netSettlement >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtINR(emp.netSettlement)}
-                    </p>
+                    <>
+                      <p className="text-[10px] text-dark-500">Net settlement</p>
+                      <p className={`text-sm font-medium tabular-nums ${emp.netSettlement >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {fmtINR(emp.netSettlement)}
+                      </p>
+                      {emp.netSettlement < 0 && <p className="text-[10px] text-red-400/70">Recoverable from employee</p>}
+                    </>
                   ) : (
-                    <p className="text-xs text-dark-600">—</p>
+                    <p className="text-xs text-dark-600" title="No settlement calculated yet">Not calculated</p>
                   )}
                 </div>
                 <ArrowRight size={16} className="text-dark-600 group-hover:text-rivvra-400 transition-colors shrink-0" />

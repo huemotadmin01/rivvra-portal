@@ -49,7 +49,7 @@ function DraftNumberInput({ value, onChange, className, step, placeholder }) {
   );
 }
 
-function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false }) {
+function SlabTable({ slabs, onChange, rateLabel = 'Tax rate (%)', minLabel = 'Annual income from (₹)', maxLabel = 'Up to (₹)', showTax = false }) {
   const addRow = () => {
     const last = slabs[slabs.length - 1];
     const newMin = last ? (last.max || 0) + 1 : 0;
@@ -69,8 +69,8 @@ function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false })
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-[1fr_1fr_1fr_40px] gap-2 text-xs text-dark-400 font-medium px-1">
-        <span>Min (₹)</span>
-        <span>Max (₹)</span>
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
         <span>{rateLabel}</span>
         <span></span>
       </div>
@@ -114,6 +114,7 @@ function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false })
       >
         <Plus size={12} /> Add slab
       </button>
+      <p className="text-[11px] text-dark-500">Leave the top band's upper limit blank for “no limit”.</p>
     </div>
   );
 }
@@ -123,12 +124,15 @@ function SlabTable({ slabs, onChange, rateLabel = 'Rate (%)', showTax = false })
  * field displays and accepts percent (4) — rounded for display so float
  * artifacts never reach the input.
  */
-function ConfigField({ label, value, onChange, type = 'number', step, suffix, percent = false }) {
+function ConfigField({ label, hint, value, onChange, type = 'number', step, suffix, percent = false }) {
   const shown = percent ? toPercentDisplay(value) : (value ?? '');
   if (type !== 'number') {
     return (
-      <div className="flex items-center gap-3">
-        <label className="text-sm text-dark-300 min-w-[180px]">{label}</label>
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+        <label className="text-sm text-dark-300 min-w-[220px] pt-1.5">
+          {label}
+          {hint && <span className="block text-[11px] text-dark-500 font-normal">{hint}</span>}
+        </label>
         <div className="flex items-center gap-1">
           <input
             type={type}
@@ -143,8 +147,11 @@ function ConfigField({ label, value, onChange, type = 'number', step, suffix, pe
     );
   }
   return (
-    <div className="flex items-center gap-3">
-      <label className="text-sm text-dark-300 min-w-[180px]">{label}</label>
+    <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+      <label className="text-sm text-dark-300 min-w-[220px] pt-1.5">
+        {label}
+        {hint && <span className="block text-[11px] text-dark-500 font-normal">{hint}</span>}
+      </label>
       <div className="flex items-center gap-1">
         <DraftNumberInput
           step={step || '1'}
@@ -161,7 +168,7 @@ function ConfigField({ label, value, onChange, type = 'number', step, suffix, pe
   );
 }
 
-function Section({ title, icon, expanded, onToggle, children }) {
+function Section({ title, subtitle, icon, expanded, onToggle, children }) {
   return (
     <div className="border border-dark-700 rounded-lg overflow-hidden">
       <button
@@ -170,7 +177,10 @@ function Section({ title, icon, expanded, onToggle, children }) {
       >
         {expanded ? <ChevronDown size={16} className="text-dark-400" /> : <ChevronRight size={16} className="text-dark-400" />}
         <span className="text-sm">{icon}</span>
-        <span className="text-sm font-medium text-white">{title}</span>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-white">{title}</span>
+          {subtitle && <span className="block text-[11px] text-dark-500">{subtitle}</span>}
+        </span>
       </button>
       {expanded && (
         <div className="px-4 py-4 space-y-4 bg-dark-900/50">
@@ -297,19 +307,20 @@ export default function PayrollSettingsPage({ embedded = false }) {
 
   return (
     <div className={embedded ? '' : 'p-8 max-w-4xl'}>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         {!embedded && (
           <div className="flex items-center gap-3">
             <Settings2 size={24} className="text-rivvra-400" />
             <div>
-              <h1 className="text-xl font-semibold text-white">FY Statutory Configuration</h1>
-              <p className="text-sm text-dark-400">Tax slabs, PF/ESI rates per financial year</p>
+              <h1 className="text-xl font-semibold text-white">Statutory Rates by Financial Year</h1>
+              <p className="text-sm text-dark-400">Income-tax slabs, cess, surcharge and PF/ESI rates that every payroll run for the selected year uses</p>
             </div>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={selectedFy}
+            title="Statutory rates are stored per financial year"
             onChange={(e) => setSelectedFy(e.target.value)}
             className="bg-dark-800 border border-dark-700 rounded px-3 py-1.5 text-sm text-white"
           >
@@ -347,8 +358,9 @@ export default function PayrollSettingsPage({ embedded = false }) {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Loader2 size={24} className="animate-spin text-rivvra-400" />
+          <p className="text-xs text-dark-500">Loading statutory rates for FY {selectedFy}…</p>
         </div>
       ) : !config ? (
         <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-8 text-center">
@@ -358,58 +370,90 @@ export default function PayrollSettingsPage({ embedded = false }) {
       ) : (
         <div className="space-y-3">
           {/* New Regime */}
-          <Section title="Income Tax — New Regime" icon="🆕" expanded={expanded.newRegime} onToggle={() => toggle('newRegime')}>
-            <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Tax Slabs</h4>
+          <Section
+            title="Income tax — New regime"
+            subtitle="Slabs and reliefs used for employees on the new regime"
+            icon="🆕" expanded={expanded.newRegime} onToggle={() => toggle('newRegime')}
+          >
+            <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Tax slabs (annual taxable income)</h4>
             <SlabTable slabs={config.newRegimeSlabs || []} onChange={(v) => update('newRegimeSlabs', v)} />
-            <div className="border-t border-dark-700 pt-3 space-y-2">
-              <ConfigField label="Standard Deduction" value={config.newRegimeStdDeduction} onChange={(v) => update('newRegimeStdDeduction', v)} suffix="₹" />
-              <ConfigField label="Rebate Limit" value={config.newRegimeRebateLimit} onChange={(v) => update('newRegimeRebateLimit', v)} suffix="₹" />
-              <ConfigField label="Max Rebate" value={config.newRegimeRebateMax} onChange={(v) => update('newRegimeRebateMax', v)} suffix="₹" />
+            <div className="border-t border-dark-700 pt-3 space-y-3">
+              <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Reliefs</h4>
+              <ConfigField label="Standard deduction" hint="Flat amount subtracted from annual salary before tax" value={config.newRegimeStdDeduction} onChange={(v) => update('newRegimeStdDeduction', v)} suffix="₹ / year" />
+              <ConfigField label="Rebate income limit" hint="Section 87A — taxable income at or below this gets the rebate" value={config.newRegimeRebateLimit} onChange={(v) => update('newRegimeRebateLimit', v)} suffix="₹ / year" />
+              <ConfigField label="Maximum rebate" hint="Largest 87A rebate that can be applied" value={config.newRegimeRebateMax} onChange={(v) => update('newRegimeRebateMax', v)} suffix="₹ / year" />
             </div>
           </Section>
 
           {/* Old Regime */}
-          <Section title="Income Tax — Old Regime" icon="📜" expanded={expanded.oldRegime} onToggle={() => toggle('oldRegime')}>
-            <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Tax Slabs</h4>
+          <Section
+            title="Income tax — Old regime"
+            subtitle="Slabs and reliefs used for employees who opted for the old regime"
+            icon="📜" expanded={expanded.oldRegime} onToggle={() => toggle('oldRegime')}
+          >
+            <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Tax slabs (annual taxable income)</h4>
             <SlabTable slabs={config.oldRegimeSlabs || []} onChange={(v) => update('oldRegimeSlabs', v)} />
-            <div className="border-t border-dark-700 pt-3 space-y-2">
-              <ConfigField label="Standard Deduction" value={config.oldRegimeStdDeduction} onChange={(v) => update('oldRegimeStdDeduction', v)} suffix="₹" />
-              <ConfigField label="Rebate Limit" value={config.oldRegimeRebateLimit} onChange={(v) => update('oldRegimeRebateLimit', v)} suffix="₹" />
-              <ConfigField label="Max Rebate" value={config.oldRegimeRebateMax} onChange={(v) => update('oldRegimeRebateMax', v)} suffix="₹" />
+            <div className="border-t border-dark-700 pt-3 space-y-3">
+              <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Reliefs</h4>
+              <ConfigField label="Standard deduction" hint="Flat amount subtracted from annual salary before tax" value={config.oldRegimeStdDeduction} onChange={(v) => update('oldRegimeStdDeduction', v)} suffix="₹ / year" />
+              <ConfigField label="Rebate income limit" hint="Section 87A — taxable income at or below this gets the rebate" value={config.oldRegimeRebateLimit} onChange={(v) => update('oldRegimeRebateLimit', v)} suffix="₹ / year" />
+              <ConfigField label="Maximum rebate" hint="Largest 87A rebate that can be applied" value={config.oldRegimeRebateMax} onChange={(v) => update('oldRegimeRebateMax', v)} suffix="₹ / year" />
             </div>
           </Section>
 
           {/* Cess & Surcharge */}
-          <Section title="Cess & Surcharge" icon="💰" expanded={expanded.cess} onToggle={() => toggle('cess')}>
+          <Section
+            title="Cess & surcharge"
+            subtitle="Added on top of computed income tax"
+            icon="💰" expanded={expanded.cess} onToggle={() => toggle('cess')}
+          >
             <ConfigField
-              label="Cess Rate"
+              label="Health & education cess"
+              hint="Charged on the income tax amount, for both regimes"
               value={config.cessRate}
               onChange={(v) => update('cessRate', v)} percent
               step="0.01"
               suffix="%"
             />
             <div className="border-t border-dark-700 pt-3">
-              <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">Surcharge Slabs</h4>
-              <SlabTable slabs={config.surchargeSlabs || []} onChange={(v) => update('surchargeSlabs', v)} />
+              <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">Surcharge on high incomes</h4>
+              <SlabTable
+                slabs={config.surchargeSlabs || []}
+                onChange={(v) => update('surchargeSlabs', v)}
+                rateLabel="Surcharge rate (%)"
+              />
             </div>
           </Section>
 
           {/* PF */}
-          <Section title="Provident Fund" icon="🏛️" expanded={expanded.pf} onToggle={() => toggle('pf')}>
-            <ConfigField label="Employee PF Rate" value={config.pfEmployeeRate} onChange={(v) => update('pfEmployeeRate', v)} percent step="0.01" suffix="%" />
-            <ConfigField label="Employer EPF Rate" value={config.pfEmployerEpfRate} onChange={(v) => update('pfEmployerEpfRate', v)} percent step="0.01" suffix="%" />
-            <ConfigField label="Employer EPS Rate" value={config.pfEmployerEpsRate} onChange={(v) => update('pfEmployerEpsRate', v)} percent step="0.01" suffix="%" />
-            <ConfigField label="EPS Wage Ceiling" value={config.pfEpsWageCeiling} onChange={(v) => update('pfEpsWageCeiling', v)} suffix="₹" />
-            <ConfigField label="EDLI Rate" value={config.pfEdliRate} onChange={(v) => update('pfEdliRate', v)} percent step="0.01" suffix="%" />
-            <ConfigField label="EDLI Ceiling" value={config.pfEdliCeiling} onChange={(v) => update('pfEdliCeiling', v)} suffix="₹" />
-            <ConfigField label="Admin Charges Rate" value={config.pfAdminRate} onChange={(v) => update('pfAdminRate', v)} percent step="0.01" suffix="%" />
+          <Section
+            title="Provident Fund (PF / EPF)"
+            subtitle="Contribution rates and wage ceilings used for every PF-applicable employee"
+            icon="🏛️" expanded={expanded.pf} onToggle={() => toggle('pf')}
+          >
+            <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Employee side (deducted from salary)</h4>
+            <ConfigField label="Employee PF contribution" hint="Deducted from the employee's PF wages" value={config.pfEmployeeRate} onChange={(v) => update('pfEmployeeRate', v)} percent step="0.01" suffix="% of PF wages" />
+
+            <div className="border-t border-dark-700 pt-3 space-y-3">
+              <h4 className="text-xs font-medium text-dark-400 uppercase tracking-wider">Employer side (adds to cost to company)</h4>
+              <ConfigField label="Employer share to EPF" hint="Employer's provident-fund portion" value={config.pfEmployerEpfRate} onChange={(v) => update('pfEmployerEpfRate', v)} percent step="0.01" suffix="% of PF wages" />
+              <ConfigField label="Employer share to EPS (pension)" hint="Employees' Pension Scheme portion of the employer contribution" value={config.pfEmployerEpsRate} onChange={(v) => update('pfEmployerEpsRate', v)} percent step="0.01" suffix="% of PF wages" />
+              <ConfigField label="EPS wage ceiling" hint="Pension contribution is capped at this monthly wage" value={config.pfEpsWageCeiling} onChange={(v) => update('pfEpsWageCeiling', v)} suffix="₹ / month" />
+              <ConfigField label="EDLI rate (life insurance)" hint="Employees' Deposit Linked Insurance, paid by the employer" value={config.pfEdliRate} onChange={(v) => update('pfEdliRate', v)} percent step="0.01" suffix="% of PF wages" />
+              <ConfigField label="EDLI wage ceiling" hint="EDLI contribution is capped at this monthly wage" value={config.pfEdliCeiling} onChange={(v) => update('pfEdliCeiling', v)} suffix="₹ / month" />
+              <ConfigField label="EPFO admin charges" hint="Administration fee the employer pays to EPFO" value={config.pfAdminRate} onChange={(v) => update('pfAdminRate', v)} percent step="0.01" suffix="% of PF wages" />
+            </div>
           </Section>
 
           {/* ESI */}
-          <Section title="Employee State Insurance" icon="🏥" expanded={expanded.esi} onToggle={() => toggle('esi')}>
-            <ConfigField label="Employee ESI Rate" value={config.esiEmployeeRate} onChange={(v) => update('esiEmployeeRate', v)} percent step="0.01" suffix="%" />
-            <ConfigField label="Employer ESI Rate" value={config.esiEmployerRate} onChange={(v) => update('esiEmployerRate', v)} percent step="0.01" suffix="%" />
-            <ConfigField label="ESI Wage Ceiling" value={config.esiWageCeiling} onChange={(v) => update('esiWageCeiling', v)} suffix="₹" />
+          <Section
+            title="Employee State Insurance (ESI)"
+            subtitle="Medical-cover contribution rates and the wage ceiling that decides who is covered"
+            icon="🏥" expanded={expanded.esi} onToggle={() => toggle('esi')}
+          >
+            <ConfigField label="Employee ESI contribution" hint="Deducted from the employee's gross" value={config.esiEmployeeRate} onChange={(v) => update('esiEmployeeRate', v)} percent step="0.01" suffix="% of gross" />
+            <ConfigField label="Employer ESI contribution" hint="Paid by the employer, adds to cost to company" value={config.esiEmployerRate} onChange={(v) => update('esiEmployerRate', v)} percent step="0.01" suffix="% of gross" />
+            <ConfigField label="ESI wage ceiling" hint="Employees earning above this monthly gross are outside ESI" value={config.esiWageCeiling} onChange={(v) => update('esiWageCeiling', v)} suffix="₹ / month" />
           </Section>
 
           {/* Save */}

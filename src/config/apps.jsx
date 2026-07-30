@@ -232,30 +232,63 @@ export const APP_REGISTRY = {
     adminOnly: true,
     defaultRoute: '/payroll/pay-overview',
     derivedRoles: true,
-    getSidebarItems: (_user, _timesheetUser, _orgAppRole, currentCompany) => {
+    getSidebarItems: (user, _timesheetUser, _orgAppRole, currentCompany) => {
       // Payroll module is currently India-specific (PF/ESI/PT/TDS, Form 16,
       // tax declarations under the IT Act). Hide every navigation entry for
-      // non-INR active companies so an Inc/Canada admin sees an empty
+      // non-India active companies so an Inc/Canada admin sees an empty
       // payroll sidebar (and the page-level IndiaOnlyGate explains why).
       // When per-country payroll apps ship later (Payroll USA, Payroll
       // Canada), they'll be separate entries in this config; this guard
       // does not need to change.
-      const isIndia = currentCompany?.currency === 'INR';
+      //
+      // Gate on COUNTRY, not currency — the platform rule, and it also fixes
+      // breadcrumbs: useBreadcrumbs calls getSidebarItems with only three
+      // arguments, so `currentCompany` is undefined there. A raw
+      // `currency === 'INR'` test was false in that case, the reduced list was
+      // returned, and no payroll route could resolve its label.
+      // isIndiaCompanyForNav returns true when no company is supplied, which is
+      // exactly what breadcrumb lookup needs, and still resolves country-first
+      // (falling back to currency) when a company IS supplied.
+      const isIndia = isIndiaCompanyForNav(currentCompany);
       if (!isIndia) {
         return [
           { type: 'item', path: '/payroll/pay-overview', label: 'Dashboard', icon: LayoutDashboard },
         ];
       }
       return [
+        // ── Operations: the month-to-month cycle, flat and always visible ──
         { type: 'item', path: '/payroll/pay-overview', label: 'Dashboard', icon: LayoutDashboard },
         { type: 'item', path: '/payroll/statutory-run', label: 'Run Payroll', icon: Banknote },
         { type: 'item', path: '/payroll/tax-declarations', label: 'Tax Declarations', icon: FileText },
         { type: 'item', path: '/payroll/tax-reports', label: 'Tax Reports', icon: BarChart3 },
         { type: 'item', path: '/payroll/fnf', label: 'Full & Final', icon: Calculator },
+        // ── Setup: changed rarely, and previously hard to FIND (not, to be
+        // precise, unreachable). Salary structures, statutory config and the PT
+        // master each have a working /payroll/* route (App.jsx ~479-486) that
+        // nothing linked to, and were reachable only as tabs inside
+        // /settings/payroll — so finding the CTC breakup meant already knowing
+        // it lived behind a link labelled just "Settings". Each now has its own
+        // labelled entry.
+        //
+        // `/settings/payroll` (SettingsPayroll) is the tabbed hub and is a
+        // strict SUPERSET of `/payroll/settings` (PayrollSettingsPage, which it
+        // embeds as its super-admin-only "FY Rates" tab). Both are listed, but
+        // labelled by what they actually contain rather than both as "Settings":
+        // the hub is the only route to Disbursement / TDS / Structure Mapping,
+        // and the standalone FY page is the only one an org admin can be linked
+        // to directly. See the report note on the overlap.
         {
           type: 'group', label: 'Configuration', icon: Settings,
           children: [
-            { path: '/settings/payroll', label: 'Settings', icon: Settings },
+            { path: '/payroll/salary-structures', label: 'Salary Structures', icon: Layers },
+            { path: '/payroll/statutory-config', label: 'Statutory (PF / ESI / PT)', icon: Shield },
+            { path: '/payroll/pt-master', label: 'PT Slabs by State', icon: MapPin },
+            { path: '/settings/payroll', label: 'Disbursement & TDS', icon: CreditCard },
+            // PayrollSettingsPage renders a "super admins only" wall for
+            // everyone else, so don't advertise the link to org admins.
+            ...(user?.superAdmin ? [
+              { path: '/payroll/settings', label: 'FY Tax Slabs & Rates', icon: Percent },
+            ] : []),
           ],
         },
       ];

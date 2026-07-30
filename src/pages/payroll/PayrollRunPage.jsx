@@ -13,13 +13,17 @@ import {
   downloadBankSheetHdfc, downloadBankSheetNonHdfc,
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
+import { formatMoney } from '../../utils/formatCurrency';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
   AlertTriangle, XCircle, Undo2, ChevronDown, ChevronUp, PauseCircle, Send, Loader2, CalendarX,
+  Search, ArrowUp, ArrowDown, Info,
 } from 'lucide-react';
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// `fmt` is for non-money counts only (day counts etc.). All money goes through
+// the shared formatMoney() so the ₹ symbol and paise rules stay consistent.
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
 // Generic HTTP status texts carry no information — fall back to our own copy.
@@ -50,6 +54,56 @@ const STATUS_COLORS = {
   paid: 'bg-green-500/10 text-green-400',
 };
 
+// Display casing only — the underlying status strings are untouched, so the
+// state names stay the ones admins already know (draft → Draft, etc.).
+const STATUS_LABELS = {
+  draft: 'Draft',
+  processing: 'Processing',
+  processed: 'Processed',
+  finalized: 'Finalized',
+  paid: 'Paid',
+};
+const statusLabel = (s) => STATUS_LABELS[s] || String(s || '').replace(/\b\w/g, c => c.toUpperCase());
+
+// `Locked` is the normal end state of a finished run, not an error — neutral,
+// never red. Red is reserved for genuine problems (missing attendance, LOP).
+const LOCKED_BADGE = 'bg-dark-700 text-dark-200 border border-dark-600';
+
+// The employment-type bucket a row falls into. Contractors carry
+// `payrollMode: 'contractor'` and default to external_consultant; everyone
+// else defaults to confirmed. Shared by the tabs and the row filter so the
+// two can never disagree.
+const itemTypeKey = (item) => (
+  item.payrollMode === 'contractor'
+    ? (item.employmentType || 'external_consultant')
+    : (item.employmentType || 'confirmed')
+);
+
+// Identifying fields a payroll item actually carries: employeeName and
+// employeeIdCode (the human employee code, e.g. RIV-014) plus panNumber.
+// NOTE: items do NOT carry an email address — the backend never puts one on
+// the item (employeeName falls back to the email only when fullName is blank),
+// so email search is name-search in practice.
+const itemMatchesSearch = (item, needle) => {
+  if (!needle) return true;
+  const q = needle.trim().toLowerCase();
+  if (!q) return true;
+  return [item.employeeName, item.employeeIdCode, item.panNumber]
+    .some(v => v && String(v).toLowerCase().includes(q));
+};
+
+// Sortable columns for the employee table. `num: true` sorts high→low on the
+// first click (the useful direction for money); name sorts A→Z first.
+const ROW_SORTS = {
+  name: { get: i => String(i.employeeName || '').toLowerCase(), num: false },
+  gross: { get: i => Number(i.grossSalary || 0), num: true },
+  pf: { get: i => Number(i.employeePf || 0) + Number(i.employerPf || 0), num: true },
+  tds: { get: i => Number(i.tds || 0), num: true },
+  deductions: { get: i => Number(i.totalDeductions || 0), num: true },
+  net: { get: i => Number(i.netSalary || 0), num: true },
+  ctc: { get: i => Number(i.totalCtc || 0), num: true },
+};
+
 export default function PayrollRunPage() {
   const { orgSlug } = usePlatform();
   const { showToast } = useToast();
@@ -65,6 +119,13 @@ export default function PayrollRunPage() {
   const [savingAdHoc, setSavingAdHoc] = useState(false);
   const [expandedItem, setExpandedItem] = useState(null);
   const [empTypeFilter, setEmpTypeFilter] = useState('all');
+  const [empSearch, setEmpSearch] = useState('');
+  // `sortKey: null` = the backend's original item order, so nothing moves on load.
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  // List-view (run index) filters — purely client-side over the loaded runs.
+  const [runStatusFilter, setRunStatusFilter] = useState('all');
+  const [runSearch, setRunSearch] = useState('');
   const [showHoldModal, setShowHoldModal] = useState(null); // { employeeId, employeeName }
   const [holdReason, setHoldReason] = useState('');
   const [savingHold, setSavingHold] = useState(false);
@@ -116,6 +177,18 @@ export default function PayrollRunPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadRuns(); }, [orgSlug, currentCompany?._id]);
+
+  // First click on a column sorts it (money high→low, name A→Z); clicking the
+  // active column flips direction. There is no third "back to original order"
+  // click — the Reset link next to the search box does that.
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(ROW_SORTS[key]?.num ? 'desc' : 'asc');
+  };
 
   const handleCreate = async () => {
     if (creating) return;
@@ -394,6 +467,44 @@ export default function PayrollRunPage() {
     const computedTotalPf = statutoryItems.reduce((s, i) => s + (i.employeePf || 0) + (i.employerPf || 0), 0);
     const computedTotalCtc = statutoryItems.reduce((s, i) => s + (i.totalCtc || 0), 0);
 
+    // ── Employee table view model: type tab → search → sort ──────────────
+    // Search composes WITH the type tabs (it narrows whatever tab is active)
+    // and is entirely client-side over the already-loaded run items.
+    const typeFilteredItems = empTypeFilter === 'all'
+      ? items
+      : items.filter(i => itemTypeKey(i) === empTypeFilter);
+    const searchQuery = empSearch.trim();
+    const searchedItems = searchQuery
+      ? typeFilteredItems.filter(i => itemMatchesSearch(i, searchQuery))
+      : typeFilteredItems;
+    // Copy before sorting — never mutate run.items. With no sortKey the backend's
+    // original order is preserved exactly, so nothing shifts on first load.
+    const sortSpec = sortKey ? ROW_SORTS[sortKey] : null;
+    const visibleItems = sortSpec
+      ? [...searchedItems].sort((a, b) => {
+          const av = sortSpec.get(a);
+          const bv = sortSpec.get(b);
+          let cmp;
+          if (sortSpec.num) cmp = av - bv;
+          else cmp = av < bv ? -1 : av > bv ? 1 : 0;
+          return sortDir === 'asc' ? cmp : -cmp;
+        })
+      : searchedItems;
+    const isFiltered = !!searchQuery || empTypeFilter !== 'all';
+    // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
+    const columns = [
+      { key: 'name', label: 'Employee' },
+      { label: 'Days', title: 'Effective days paid / total working days in the month' },
+      { label: 'LOP', title: 'Loss-of-pay days' },
+      { key: 'gross', label: 'Gross', num: true },
+      { key: 'pf', label: 'PF (Emp + Employer)', num: true, title: 'Employee PF share + employer PF share. Excludes EDLI and PF admin charges. Shown as — for contractors, interns and flat-TDS consultants, who have no PF.' },
+      { key: 'tds', label: 'TDS', num: true },
+      { key: 'deductions', label: 'Deductions', num: true },
+      { key: 'net', label: 'Net', num: true },
+      { key: 'ctc', label: 'CTC', num: true },
+      { label: '' },
+    ];
+
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
@@ -403,15 +514,15 @@ export default function PayrollRunPage() {
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold text-white">{MONTHS[run.month]} {run.year}</h1>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status]}`}>{run.status}</span>
-              {run.inputsLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400">Inputs Locked</span>}
-              {run.payrollLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400">Payroll Locked</span>}
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status]}`}>{statusLabel(run.status)}</span>
+              {run.inputsLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400" title="Attendance & timesheet inputs are frozen for this run">Inputs Locked</span>}
+              {run.payrollLocked && <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${LOCKED_BADGE}`} title="Payroll figures are frozen — the normal state for a finished run">Payroll Locked</span>}
               {run.payslipReleased && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">Released</span>}
             </div>
             <p className="text-sm text-dark-400">
-              FY {run.financialYear} | {statutoryItems.length} employees{contractorItems.length > 0 && <>, {contractorItems.length} contractors</>}
+              FY {run.financialYear} | {statutoryItems.length} employee{statutoryItems.length === 1 ? '' : 's'}{contractorItems.length > 0 && <>, {contractorItems.length} contractor{contractorItems.length === 1 ? '' : 's'}</>}
               {summary.stoppedEmployees > 0 && <span className="text-amber-400"> | {summary.stoppedEmployees} stopped</span>}
-              {summary.totalLopDays > 0 && <span className="text-red-400"> | {summary.totalLopDays} LOP days</span>}
+              {summary.totalLopDays > 0 && <span className="text-red-400"> | {summary.totalLopDays} LOP day{summary.totalLopDays === 1 ? '' : 's'}</span>}
             </p>
           </div>
           <div className="flex gap-2 flex-wrap justify-end">
@@ -449,70 +560,95 @@ export default function PayrollRunPage() {
           </div>
         </div>
 
-        {/* Action Bar */}
+        {/* Action Bar — split so that irreversible run-state changes (which lock
+            figures or email employees) can never be mistaken for a harmless file
+            download. Every existing in-flight guard and modal is preserved. */}
         {['processed', 'finalized', 'paid'].includes(run.status) && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {/* Lock Controls */}
-            <button onClick={() => handleToggleLock('inputs')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.inputsLocked ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
-              {togglingLock === 'inputs' ? <Loader2 size={12} className="animate-spin" /> : run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}
-              {run.inputsLocked ? 'Unlock Inputs' : 'Lock Inputs'}
-            </button>
-            <button onClick={() => handleToggleLock('payroll')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.payrollLocked ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`}>
-              {togglingLock === 'payroll' ? <Loader2 size={12} className="animate-spin" /> : run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}
-              {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
-            </button>
-            {/* Release/Hold */}
-            {run.payslipReleased ? (
-              <button onClick={handleToggleRelease} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10 disabled:opacity-50">
-                {togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />} Hold Payslips
+          <div className="mb-4 space-y-2">
+            {/* ── Run state: changes the run, some of it irreversible ── */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 w-full sm:w-auto sm:mr-1">Run state</span>
+              <button onClick={() => handleToggleLock('inputs')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.inputsLocked ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`} title={run.inputsLocked ? 'Re-open attendance & timesheet inputs for this run' : 'Freeze attendance & timesheet inputs for this run'}>
+                {togglingLock === 'inputs' ? <Loader2 size={12} className="animate-spin" /> : run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}
+                {run.inputsLocked ? 'Unlock Inputs' : 'Lock Inputs'}
               </button>
-            ) : (
-              <button onClick={openReleaseModal} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-dark-600 text-dark-300 hover:bg-dark-700">
-                <Send size={12} /> Release Payslips
+              <button onClick={() => handleToggleLock('payroll')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.payrollLocked ? 'border-dark-500 text-dark-200 bg-dark-700/60 hover:bg-dark-700' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`} title={run.payrollLocked ? 'Re-open payroll figures for editing' : 'Freeze payroll figures for this run'}>
+                {togglingLock === 'payroll' ? <Loader2 size={12} className="animate-spin" /> : run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}
+                {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
               </button>
-            )}
-            <div className="border-l border-dark-700 mx-1" />
-            {/* Downloads */}
-            <button onClick={() => handleDownload('pf')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="PF ECR"><FileText size={12} /> PF</button>
-            <button onClick={() => handleDownload('esi')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="ESI CSV"><Download size={12} /> ESI</button>
-            <button onClick={() => handleDownload('pt')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="PT CSV"><IndianRupee size={12} /> PT</button>
-            {['finalized', 'paid'].includes(run.status) && (
-              <button onClick={() => handleDownload('bank')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Bank Transfer CSV"><Banknote size={12} /> Bank CSV</button>
-            )}
-            <button onClick={() => handleDownload('payslips')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Download all payslips as ZIP"><FileText size={12} /> All Payslips</button>
-            <div className="border-l border-dark-700 mx-1" />
-            <button onClick={() => handleDownload('bank-sheet-hdfc')} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 border border-green-500/30 rounded-lg text-xs text-green-400 hover:bg-green-600/30" title="HDFC Bank Transfer Sheet (Excel)"><Download size={12} /> HDFC Bank Sheet</button>
-            <button onClick={() => handleDownload('bank-sheet-non-hdfc')} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 border border-green-500/30 rounded-lg text-xs text-green-400 hover:bg-green-600/30" title="Non-HDFC Bank Transfer Sheet (Excel)"><Download size={12} /> Non-HDFC Bank Sheet</button>
-            <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-400 hover:bg-rivvra-600/30" title="Full payroll Excel with all employees & deductions"><Download size={12} /> Payroll Sheet</button>
+              {/* Release/Hold — Release EMAILS payslips to employees, so it gets a
+                  filled primary treatment, never the bordered download look. */}
+              {run.payslipReleased ? (
+                <button onClick={handleToggleRelease} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-green-500/30 text-green-400 hover:bg-green-500/10 disabled:opacity-50" title="Hide released payslips from employees again">
+                  {togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />} Hold Payslips
+                </button>
+              ) : (
+                <button onClick={openReleaseModal} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rivvra-600 text-white hover:bg-rivvra-700 shadow-sm" title="Emails payslips to the selected employees and makes them visible in ESS">
+                  <Send size={12} /> Release Payslips to Employees
+                </button>
+              )}
+            </div>
+
+            {/* ── Downloads & reports: read-only, nothing changes ── */}
+            <div className="flex flex-wrap items-center gap-2 border-t border-dark-800 pt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 w-full sm:w-auto sm:mr-1">Downloads &amp; reports</span>
+              <button onClick={() => handleExport('payroll-sheet')} className="flex items-center gap-1.5 px-3 py-1.5 bg-rivvra-600/20 border border-rivvra-500/30 rounded-lg text-xs text-rivvra-300 hover:bg-rivvra-600/30" title="Full payroll workbook (.xlsx) — every employee with earnings & deductions"><FileSpreadsheet size={12} /> Payroll Sheet <span className="text-dark-500">.xlsx</span></button>
+              <button onClick={() => handleDownload('bank-sheet-hdfc')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="HDFC bank transfer sheet (.xlsx)"><FileSpreadsheet size={12} /> HDFC Bank Sheet <span className="text-dark-500">.xlsx</span></button>
+              <button onClick={() => handleDownload('bank-sheet-non-hdfc')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Non-HDFC bank transfer sheet (.xlsx)"><FileSpreadsheet size={12} /> Non-HDFC Bank Sheet <span className="text-dark-500">.xlsx</span></button>
+              {['finalized', 'paid'].includes(run.status) && (
+                <button onClick={() => handleDownload('bank')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Bank transfer file (.csv)"><Banknote size={12} /> Bank Transfer <span className="text-dark-500">.csv</span></button>
+              )}
+              <button onClick={() => handleDownload('payslips')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="All payslip PDFs bundled as a .zip (does not email anyone)"><FileText size={12} /> All Payslips <span className="text-dark-500">.zip</span></button>
+              {/* Statutory filings. Labels match what the backend actually
+                  generates: PF is an EPFO ECR text file; ESI and PT are
+                  per-employee contribution listings (CSV), not bank challans. */}
+              <button onClick={() => handleDownload('pf')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="EPFO ECR upload file (.txt) — UAN, wages and PF contributions per employee"><FileText size={12} /> PF ECR <span className="text-dark-500">.txt</span></button>
+              <button onClick={() => handleDownload('esi')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="ESI contribution listing (.csv) — IP number, wages, employee & employer ESI"><FileText size={12} /> ESI Contributions <span className="text-dark-500">.csv</span></button>
+              <button onClick={() => handleDownload('pt')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Professional Tax listing (.csv) — PT deducted per employee, with state"><IndianRupee size={12} /> PT Statement <span className="text-dark-500">.csv</span></button>
+            </div>
           </div>
         )}
 
-        {/* Summary Cards */}
+        {/* Summary Cards — grouped by SCOPE so that "Total CTC" being smaller
+            than "Total Gross" reads as a difference in coverage (CTC and PF are
+            statutory employees only; gross/net/deductions cover everyone) rather
+            than as a contradiction. Neither figure is changed. */}
         {items.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            {[
-              { label: 'Total Gross', value: items.reduce((s, i) => s + (i.grossSalary || 0), 0), color: 'text-white' },
-              { label: 'Total PF', value: computedTotalPf, color: 'text-blue-400', sub: `(${statutoryItems.length} statutory)` },
-              { label: 'Total Deductions', value: items.reduce((s, i) => s + (i.totalDeductions || 0), 0), color: 'text-red-400' },
-              { label: 'Total Net', value: items.reduce((s, i) => s + (i.netSalary || 0), 0), color: 'text-green-400' },
-              { label: 'Total CTC', value: computedTotalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400', sub: contractorItems.length > 0 ? `(excl. contractors)` : '' },
-            ].map(card => (
-              <div key={card.label} className="bg-dark-800 border border-dark-700 rounded-lg p-3">
-                <div className="text-xs text-dark-400 mb-1">{card.label}</div>
-                <div className={`text-lg font-semibold ${card.color}`}>{fmt(card.value)}</div>
-                {card.sub && <div className="text-[9px] text-dark-500 mt-0.5">{card.sub}</div>}
-              </div>
-            ))}
+          <div className="mb-6 space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: 'Total Gross', value: items.reduce((s, i) => s + (i.grossSalary || 0), 0), color: 'text-white', sub: `All ${items.length} rows`, tip: 'Sum of gross salary across every row in this run, employees and contractors alike.' },
+                { label: 'Total Deductions', value: items.reduce((s, i) => s + (i.totalDeductions || 0), 0), color: 'text-red-400', sub: `All ${items.length} rows`, tip: 'Sum of total deductions across every row in this run.' },
+                { label: 'Total Net', value: items.reduce((s, i) => s + (i.netSalary || 0), 0), color: 'text-green-400', sub: `All ${items.length} rows`, tip: 'Sum of net pay across every row in this run, employees and contractors alike.' },
+                { label: 'Total PF', value: computedTotalPf, color: 'text-blue-400', sub: `${statutoryItems.length} statutory only`, tip: 'Employee + employer PF share. Contractors have no PF, so they are not counted here.' },
+                { label: 'Total CTC', value: computedTotalCtc || ((summary.totalGross || 0) + (summary.totalEmployerCost || 0)), color: 'text-purple-400', sub: `${statutoryItems.length} statutory only`, tip: 'Cost to company for statutory employees. Contractors carry no CTC figure, so this covers fewer rows than Total Gross — that is why it can be the smaller number.' },
+              ].map(card => (
+                <div key={card.label} className="bg-dark-800 border border-dark-700 rounded-lg p-3" title={card.tip}>
+                  <div className="text-xs text-dark-400 mb-1">{card.label}</div>
+                  <div className={`text-lg font-semibold ${card.color}`}>{formatMoney(card.value)}</div>
+                  {card.sub && <div className="text-[9px] text-dark-500 mt-0.5">{card.sub}</div>}
+                </div>
+              ))}
+            </div>
+            {contractorItems.length > 0 && (
+              <p className="flex items-start gap-1.5 text-[11px] text-dark-500">
+                <Info size={12} className="mt-0.5 shrink-0" />
+                <span>
+                  Gross, Deductions and Net cover all {items.length} rows ({statutoryItems.length} employee{statutoryItems.length === 1 ? '' : 's'} + {contractorItems.length} contractor{contractorItems.length === 1 ? '' : 's'}).
+                  PF and CTC cover only the {statutoryItems.length} statutory employee{statutoryItems.length === 1 ? '' : 's'} — contractors have no PF or CTC — so CTC is expected to be lower than Gross here.
+                </span>
+              </p>
+            )}
           </div>
         )}
 
-        {/* Filter Tabs */}
+        {/* Filter Tabs + employee search */}
         {items.length > 0 && (() => {
           // Dynamic tabs — auto-detect all employment types from items
           const typeLabels = { confirmed: 'Confirmed', internal_consultant: 'Internal Consultants', external_consultant: 'External Consultants', intern: 'Interns' };
           const typeCounts = {};
           for (const i of items) {
-            const key = i.payrollMode === 'contractor' ? (i.employmentType || 'external_consultant') : (i.employmentType || 'confirmed');
+            const key = itemTypeKey(i);
             typeCounts[key] = (typeCounts[key] || 0) + 1;
           }
           const tabs = [
@@ -524,20 +660,56 @@ export default function PayrollRunPage() {
             })),
           ];
           return (
-            <div className="flex gap-1 mb-4 flex-wrap">
-              {tabs.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setEmpTypeFilter(tab.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    empTypeFilter === tab.key
-                      ? 'bg-rivvra-600/20 text-rivvra-400 border border-rivvra-500/30'
-                      : 'text-dark-400 hover:text-dark-200 hover:bg-dark-750 border border-transparent'
-                  }`}
-                >
-                  {tab.label} ({tab.count})
-                </button>
-              ))}
+            <div className="mb-4 flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="flex gap-1 flex-wrap flex-1">
+                {tabs.map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setEmpTypeFilter(tab.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      empTypeFilter === tab.key
+                        ? 'bg-rivvra-600/20 text-rivvra-400 border border-rivvra-500/30'
+                        : 'text-dark-400 hover:text-dark-200 hover:bg-dark-750 border border-transparent'
+                    }`}
+                  >
+                    {tab.label} ({tab.count})
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={empSearch}
+                    onChange={e => setEmpSearch(e.target.value)}
+                    placeholder="Search name, employee code or PAN"
+                    aria-label="Search employees in this payroll run"
+                    className="w-full lg:w-72 pl-8 pr-8 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-xs text-white placeholder-dark-500 focus:border-rivvra-500 focus:outline-none"
+                  />
+                  {empSearch && (
+                    <button
+                      onClick={() => setEmpSearch('')}
+                      aria-label="Clear search"
+                      title="Clear search"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-500 hover:text-white"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <span className="text-xs text-dark-400 whitespace-nowrap tabular-nums">
+                  {visibleItems.length} of {items.length}
+                </span>
+                {(isFiltered || sortKey) && (
+                  <button
+                    onClick={() => { setEmpSearch(''); setEmpTypeFilter('all'); setSortKey(null); setSortDir('asc'); }}
+                    className="text-xs text-rivvra-400 hover:text-rivvra-300 whitespace-nowrap"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
           );
         })()}
@@ -547,17 +719,32 @@ export default function PayrollRunPage() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-dark-700">
-                {['Employee', 'Days', 'LOP', 'Gross', 'PF (Total)', 'TDS', 'Deductions', 'Net', 'CTC', ''].map(h => (
-                  <th key={h || 'actions'} className="px-3 py-3 text-dark-400 font-medium text-left text-xs">{h}</th>
-                ))}
+                {columns.map(col => {
+                  const active = col.key && sortKey === col.key;
+                  const align = col.num ? 'text-right' : 'text-left';
+                  if (!col.key) {
+                    return <th key={col.label || 'actions'} className={`px-3 py-3 text-dark-400 font-medium text-xs ${align}`} title={col.title}>{col.label}</th>;
+                  }
+                  return (
+                    <th key={col.key} className={`px-3 py-3 font-medium text-xs ${align} ${active ? 'text-rivvra-400' : 'text-dark-400'}`} aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(col.key)}
+                        title={col.title ? `${col.title}\n\nClick to sort` : 'Click to sort'}
+                        className={`group inline-flex items-center gap-1 hover:text-white transition-colors ${col.num ? 'flex-row-reverse' : ''}`}
+                      >
+                        <span>{col.label}</span>
+                        {active
+                          ? (sortDir === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />)
+                          : <ArrowDown size={11} className="opacity-0 group-hover:opacity-40" />}
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {items.filter(item => {
-                if (empTypeFilter === 'all') return true;
-                const itemType = item.payrollMode === 'contractor' ? (item.employmentType || 'external_consultant') : (item.employmentType || 'confirmed');
-                return itemType === empTypeFilter;
-              }).map(item => {
+              {visibleItems.map(item => {
                 const isExpanded = expandedItem === item.employeeId;
                 return (
                   <React.Fragment key={item.employeeId}>
@@ -568,15 +755,21 @@ export default function PayrollRunPage() {
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-white text-xs font-medium">{item.employeeName}</span>
+                          {/* Employee code — surfaced so the search field's
+                              "employee code" promise is visible in the rows. */}
+                          {item.employeeIdCode && <span className="text-[10px] text-dark-500 tabular-nums">{item.employeeIdCode}</span>}
                           {/* Status badges only */}
                           {item.payrollMode === 'contractor' && item.timesheetStatus === 'not_submitted' && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/10 text-red-400" title="No approved timesheet">
                               <XCircle size={9} /> No Timesheet
                             </span>
                           )}
+                          {/* attendanceStatus 'pending' = an attendance sheet exists
+                              but is not approved (still draft, awaiting approval,
+                              or rejected). Say so rather than a bare "Pending". */}
                           {item.payrollMode !== 'contractor' && item.attendanceStatus === 'pending' && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance pending">
-                              <AlertTriangle size={9} /> Pending
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400" title="Attendance submitted but not yet approved (may still be a draft, awaiting approval, or rejected)">
+                              <AlertTriangle size={9} /> Attendance Not Approved
                             </span>
                           )}
                           {item.payrollMode !== 'contractor' && item.attendanceStatus === 'not_submitted' && (
@@ -599,12 +792,12 @@ export default function PayrollRunPage() {
                       <td className="px-3 py-2.5 text-xs">
                         {item.lopDays > 0 ? <span className="text-red-400">{item.lopDays}</span> : <span className="text-dark-500">0</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-white text-xs font-medium">{fmt(item.grossSalary)}</td>
-                      <td className="px-3 py-2.5 text-blue-400 text-xs">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' || item.payrollMode === 'contractor' ? '—' : fmt((item.employeePf || 0) + (item.employerPf || 0))}</td>
-                      <td className="px-3 py-2.5 text-dark-300 text-xs">{fmt(item.tds)}</td>
-                      <td className="px-3 py-2.5 text-red-400 text-xs">{fmt(item.totalDeductions)}</td>
-                      <td className="px-3 py-2.5 text-green-400 text-xs font-medium">{fmt(item.netSalary)}</td>
-                      <td className="px-3 py-2.5 text-purple-400 text-xs font-medium">{fmt(item.totalCtc)}</td>
+                      <td className="px-3 py-2.5 text-white text-xs font-medium text-right tabular-nums">{formatMoney(item.grossSalary)}</td>
+                      <td className="px-3 py-2.5 text-blue-400 text-xs text-right tabular-nums">{item.payrollMode === 'intern_no_deduction' || item.payrollMode === 'consultant_flat_tds' || item.payrollMode === 'contractor' ? '—' : formatMoney((item.employeePf || 0) + (item.employerPf || 0))}</td>
+                      <td className="px-3 py-2.5 text-dark-300 text-xs text-right tabular-nums">{formatMoney(item.tds)}</td>
+                      <td className="px-3 py-2.5 text-red-400 text-xs text-right tabular-nums">{formatMoney(item.totalDeductions)}</td>
+                      <td className="px-3 py-2.5 text-green-400 text-xs font-medium text-right tabular-nums">{formatMoney(item.netSalary)}</td>
+                      <td className="px-3 py-2.5 text-purple-400 text-xs font-medium text-right tabular-nums">{formatMoney(item.totalCtc)}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center">
                           {isExpanded ? <ChevronUp size={14} className="text-dark-400" /> : <ChevronDown size={14} className="text-dark-400" />}
@@ -656,20 +849,20 @@ export default function PayrollRunPage() {
                                         {(t.components || []).map((c, ci) => (
                                           <div key={ci} className="flex justify-between text-xs">
                                             <span className="text-dark-500">{c.name}</span>
-                                            <span className="text-dark-300">₹{fmt(c.proratedAmount || c.fullAmount)}</span>
+                                            <span className="text-dark-300">{formatMoney(c.proratedAmount || c.fullAmount)}</span>
                                           </div>
                                         ))}
                                         <div className="flex justify-between text-xs font-medium border-t border-dark-700/50 pt-1 mt-1">
                                           <span className="text-dark-400">Gross</span>
-                                          <span className="text-white">₹{fmt(t.grossSalary)}</span>
+                                          <span className="text-white">{formatMoney(t.grossSalary)}</span>
                                         </div>
-                                        {t.employeePf > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">Employee PF</span><span className="text-red-400">-₹{fmt(t.employeePf)}</span></div>}
-                                        {t.employeeEsi > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">ESI</span><span className="text-red-400">-₹{fmt(t.employeeEsi)}</span></div>}
-                                        {t.professionalTax > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">PT</span><span className="text-red-400">-₹{fmt(t.professionalTax)}</span></div>}
-                                        {t.tds > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">TDS</span><span className="text-red-400">-₹{fmt(t.tds)}</span></div>}
+                                        {t.employeePf > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">Employee PF</span><span className="text-red-400">-{formatMoney(t.employeePf)}</span></div>}
+                                        {t.employeeEsi > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">ESI</span><span className="text-red-400">-{formatMoney(t.employeeEsi)}</span></div>}
+                                        {t.professionalTax > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">PT</span><span className="text-red-400">-{formatMoney(t.professionalTax)}</span></div>}
+                                        {t.tds > 0 && <div className="flex justify-between text-xs"><span className="text-dark-500">TDS</span><span className="text-red-400">-{formatMoney(t.tds)}</span></div>}
                                         <div className="flex justify-between text-xs font-medium border-t border-dark-700/50 pt-1">
                                           <span className="text-dark-400">Net</span>
-                                          <span className="text-green-400">₹{fmt(t.netSalary)}</span>
+                                          <span className="text-green-400">{formatMoney(t.netSalary)}</span>
                                         </div>
                                       </div>
                                     );
@@ -677,7 +870,7 @@ export default function PayrollRunPage() {
                                 </div>
                                 <div className="flex justify-between text-sm font-semibold mt-2 pt-2 border-t border-blue-500/20">
                                   <span className="text-blue-300">Combined Net Pay</span>
-                                  <span className="text-green-400">₹{fmt(displayNet)}</span>
+                                  <span className="text-green-400">{formatMoney(displayNet)}</span>
                                 </div>
                               </div>
                             )}
@@ -710,11 +903,11 @@ export default function PayrollRunPage() {
                                       <span className="text-dark-200">
                                         {item.prorationFactor < 1 ? (
                                           <>
-                                            <span className="text-dark-500 line-through mr-1.5 text-xs">₹{fmt(c.fullAmount)}</span>
-                                            ₹{fmt(c.proratedAmount)}
+                                            <span className="text-dark-500 line-through mr-1.5 text-xs">{formatMoney(c.fullAmount)}</span>
+                                            {formatMoney(c.proratedAmount)}
                                           </>
                                         ) : (
-                                          <>₹{fmt(c.proratedAmount || c.fullAmount)}</>
+                                          <>{formatMoney(c.proratedAmount || c.fullAmount)}</>
                                         )}
                                       </span>
                                     </div>
@@ -724,7 +917,7 @@ export default function PayrollRunPage() {
                                   {liveEarnings.map((a, i) => (
                                     <div key={`e-${i}`} className="flex justify-between">
                                       <span className="text-dark-400 text-xs">{a.label}</span>
-                                      <span className="text-emerald-400 text-xs">+₹{fmt(a.amount)}</span>
+                                      <span className="text-emerald-400 text-xs">+{formatMoney(a.amount)}</span>
                                     </div>
                                   ))}
 
@@ -732,7 +925,7 @@ export default function PayrollRunPage() {
                                   {item.holidayWorkAllowance > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400 text-xs">Holiday Work ({item.holidayWorkDays}d)</span>
-                                      <span className="text-orange-400 text-xs">+₹{fmt(item.holidayWorkAllowance)}</span>
+                                      <span className="text-orange-400 text-xs">+{formatMoney(item.holidayWorkAllowance)}</span>
                                     </div>
                                   )}
 
@@ -747,7 +940,7 @@ export default function PayrollRunPage() {
                                             <span className="text-dark-500"> ({item.incentivePayouts.length})</span>
                                           )}
                                         </span>
-                                        <span className="text-rivvra-400 text-xs">+₹{fmt(item.incentiveAmount)}</span>
+                                        <span className="text-rivvra-400 text-xs">+{formatMoney(item.incentiveAmount)}</span>
                                       </div>
                                       {(item.incentivePayouts || []).length > 0 && (
                                         <div className="ml-3 space-y-0.5">
@@ -758,7 +951,7 @@ export default function PayrollRunPage() {
                                                 {pay.clientName ? ` · ${pay.clientName}` : ''}
                                                 {pay.serviceMonth ? ` · ${pay.serviceMonth}` : ''}
                                               </span>
-                                              <span>₹{fmt(pay.amount)}</span>
+                                              <span>{formatMoney(pay.amount)}</span>
                                             </div>
                                           ))}
                                         </div>
@@ -770,7 +963,7 @@ export default function PayrollRunPage() {
                                   {item.fnfAdjustments && item.fnfAdjustments.leaveEncashment > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400 text-xs">F&amp;F: Leave Encashment</span>
-                                      <span className="text-amber-400 text-xs">+₹{fmt(item.fnfAdjustments.leaveEncashment)}</span>
+                                      <span className="text-amber-400 text-xs">+{formatMoney(item.fnfAdjustments.leaveEncashment)}</span>
                                     </div>
                                   )}
                                   {item.fnfAdjustments && item.fnfAdjustments.otherAdditions > 0 && (
@@ -779,7 +972,7 @@ export default function PayrollRunPage() {
                                         F&amp;F: Other Additions
                                         {item.fnfAdjustments.otherAdditionNotes ? ` — ${item.fnfAdjustments.otherAdditionNotes}` : ''}
                                       </span>
-                                      <span className="text-amber-400 text-xs">+₹{fmt(item.fnfAdjustments.otherAdditions)}</span>
+                                      <span className="text-amber-400 text-xs">+{formatMoney(item.fnfAdjustments.otherAdditions)}</span>
                                     </div>
                                   )}
 
@@ -795,7 +988,7 @@ export default function PayrollRunPage() {
                                       {item.rate > 0 && (
                                         <div className="flex justify-between">
                                           <span className="text-dark-500 text-xs">Rate</span>
-                                          <span className="text-dark-400 text-xs">₹{fmt(item.rate)}/{item.payType === 'daily' ? 'day' : 'month'}</span>
+                                          <span className="text-dark-400 text-xs">{formatMoney(item.rate)}/{item.payType === 'daily' ? 'day' : 'month'}</span>
                                         </div>
                                       )}
                                       {item.projects?.length > 0 && (
@@ -818,7 +1011,7 @@ export default function PayrollRunPage() {
                                       <span className="text-emerald-400 text-xs">
                                         +{item.paidLeave} day{item.paidLeave === 1 ? '' : 's'}
                                         {item.payType === 'daily' && item.rate > 0
-                                          ? ` × ₹${fmt(item.rate)} = +₹${fmt(item.paidLeave * item.rate)}`
+                                          ? ` × ${formatMoney(item.rate)} = +${formatMoney(item.paidLeave * item.rate)}`
                                           : ''}
                                       </span>
                                     </div>
@@ -833,7 +1026,7 @@ export default function PayrollRunPage() {
                                   <hr className="border-dark-800 my-1" />
                                   <div className="flex justify-between font-medium">
                                     <span className="text-dark-300">Total Earnings</span>
-                                    <span className="text-white">₹{fmt(displayGross)}</span>
+                                    <span className="text-white">{formatMoney(displayGross)}</span>
                                   </div>
 
                                   <hr className="border-dark-800 my-1" />
@@ -843,37 +1036,37 @@ export default function PayrollRunPage() {
                                   {item.employeePf > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">Employee PF</span>
-                                      <span className="text-red-400">₹{fmt(item.employeePf)}</span>
+                                      <span className="text-red-400">{formatMoney(item.employeePf)}</span>
                                     </div>
                                   )}
                                   {item.employerPf > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">Employer PF</span>
-                                      <span className="text-red-400">₹{fmt(item.employerPf)}</span>
+                                      <span className="text-red-400">{formatMoney(item.employerPf)}</span>
                                     </div>
                                   )}
                                   {item.employeeEsi > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">Employee ESI</span>
-                                      <span className="text-red-400">₹{fmt(item.employeeEsi)}</span>
+                                      <span className="text-red-400">{formatMoney(item.employeeEsi)}</span>
                                     </div>
                                   )}
                                   {item.employerEsi > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">Employer ESI</span>
-                                      <span className="text-red-400">₹{fmt(item.employerEsi)}</span>
+                                      <span className="text-red-400">{formatMoney(item.employerEsi)}</span>
                                     </div>
                                   )}
                                   {item.professionalTax > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">Professional Tax</span>
-                                      <span className="text-red-400">₹{fmt(item.professionalTax)}</span>
+                                      <span className="text-red-400">{formatMoney(item.professionalTax)}</span>
                                     </div>
                                   )}
                                   {item.tds > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400">TDS (Income Tax)</span>
-                                      <span className="text-red-400">₹{fmt(item.tds)}</span>
+                                      <span className="text-red-400">{formatMoney(item.tds)}</span>
                                     </div>
                                   )}
 
@@ -881,7 +1074,7 @@ export default function PayrollRunPage() {
                                   {liveDeductions.map((a, i) => (
                                     <div key={`d-${i}`} className="flex justify-between">
                                       <span className="text-dark-400 text-xs">{a.label}</span>
-                                      <span className="text-red-400 text-xs">₹{fmt(a.amount)}</span>
+                                      <span className="text-red-400 text-xs">{formatMoney(a.amount)}</span>
                                     </div>
                                   ))}
 
@@ -889,19 +1082,19 @@ export default function PayrollRunPage() {
                                   {item.fnfAdjustments && item.fnfAdjustments.noticePeriodRecovery > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400 text-xs">F&amp;F: Notice Period Recovery</span>
-                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.noticePeriodRecovery)}</span>
+                                      <span className="text-amber-400 text-xs">{formatMoney(item.fnfAdjustments.noticePeriodRecovery)}</span>
                                     </div>
                                   )}
                                   {item.fnfAdjustments && item.fnfAdjustments.assetDeductions > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400 text-xs">F&amp;F: Asset Deductions</span>
-                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.assetDeductions)}</span>
+                                      <span className="text-amber-400 text-xs">{formatMoney(item.fnfAdjustments.assetDeductions)}</span>
                                     </div>
                                   )}
                                   {item.fnfAdjustments && item.fnfAdjustments.loanRecovery > 0 && (
                                     <div className="flex justify-between">
                                       <span className="text-dark-400 text-xs">F&amp;F: Loan / Advance Recovery</span>
-                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.loanRecovery)}</span>
+                                      <span className="text-amber-400 text-xs">{formatMoney(item.fnfAdjustments.loanRecovery)}</span>
                                     </div>
                                   )}
                                   {item.fnfAdjustments && item.fnfAdjustments.otherDeductions > 0 && (
@@ -910,7 +1103,7 @@ export default function PayrollRunPage() {
                                         F&amp;F: Other Deductions
                                         {item.fnfAdjustments.otherDeductionNotes ? ` — ${item.fnfAdjustments.otherDeductionNotes}` : ''}
                                       </span>
-                                      <span className="text-amber-400 text-xs">₹{fmt(item.fnfAdjustments.otherDeductions)}</span>
+                                      <span className="text-amber-400 text-xs">{formatMoney(item.fnfAdjustments.otherDeductions)}</span>
                                     </div>
                                   )}
 
@@ -918,7 +1111,7 @@ export default function PayrollRunPage() {
                                   <hr className="border-dark-800 my-1" />
                                   <div className="flex justify-between font-medium">
                                     <span className="text-dark-300">Total Deductions</span>
-                                    <span className="text-red-400">₹{fmt(displayDeductions)}</span>
+                                    <span className="text-red-400">{formatMoney(displayDeductions)}</span>
                                   </div>
 
                                   <hr className="border-dark-800 my-1" />
@@ -926,7 +1119,7 @@ export default function PayrollRunPage() {
                                   {/* Net Pay */}
                                   <div className="flex justify-between font-bold text-base">
                                     <span className="text-dark-200">Net Pay</span>
-                                    <span className="text-emerald-400">₹{fmt(displayNet)}</span>
+                                    <span className="text-emerald-400">{formatMoney(displayNet)}</span>
                                   </div>
                                 </div>
                               </div>
@@ -1009,6 +1202,22 @@ export default function PayrollRunPage() {
             </tbody>
           </table>
           {items.length === 0 && <div className="text-center py-12 text-dark-500">No items. Process the payroll to calculate.</div>}
+          {items.length > 0 && visibleItems.length === 0 && (
+            <div className="text-center py-12 px-4">
+              <p className="text-sm text-dark-300">
+                {searchQuery
+                  ? <>No employees match &ldquo;<span className="text-white">{searchQuery}</span>&rdquo;{empTypeFilter !== 'all' ? ' in this tab' : ''}.</>
+                  : 'No employees in this tab.'}
+              </p>
+              <p className="text-xs text-dark-500 mt-1">Searches name, employee code and PAN.</p>
+              <button
+                onClick={() => { setEmpSearch(''); setEmpTypeFilter('all'); }}
+                className="mt-3 px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-xs text-dark-200 hover:bg-dark-600"
+              >
+                Clear search &amp; show all {items.length}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Ad-Hoc Adjustment Modal */}
@@ -1132,7 +1341,7 @@ export default function PayrollRunPage() {
                       <span className="text-sm text-white">{item.employeeName}</span>
                       {item.salaryHold && <span className="text-[9px] text-orange-400 ml-2">On Hold</span>}
                     </div>
-                    <span className="text-xs text-green-400">₹{fmt(item.netSalary)}</span>
+                    <span className="text-xs text-green-400">{formatMoney(item.netSalary)}</span>
                   </label>
                 ))}
                 <div className="flex gap-3 pt-3">
@@ -1173,11 +1382,11 @@ export default function PayrollRunPage() {
                     <div className="space-y-2">
                       <p className="text-sm text-dark-300 leading-relaxed">
                         This confirms salaries for {MONTHS[run.month]} {run.year} have been disbursed.
-                        Total net payout: <span className="text-green-400 font-medium">₹{fmt(payableTotal)}</span> across {payableItems.length} employee{payableItems.length !== 1 ? 's' : ''}.
+                        Total net payout: <span className="text-green-400 font-medium">{formatMoney(payableTotal)}</span> across {payableItems.length} employee{payableItems.length !== 1 ? 's' : ''}.
                       </p>
                       {heldItems.length > 0 && (
                         <p className="text-xs text-amber-400 leading-relaxed">
-                          Excludes {heldItems.length} employee{heldItems.length !== 1 ? 's' : ''} on salary hold (₹{fmt(heldTotal)} withheld).
+                          Excludes {heldItems.length} employee{heldItems.length !== 1 ? 's' : ''} on salary hold ({formatMoney(heldTotal)} withheld).
                         </p>
                       )}
                     </div>
@@ -1203,8 +1412,23 @@ export default function PayrollRunPage() {
   }
 
   // List view
+  // Status filter options come from the runs actually present, so the dropdown
+  // never offers a state with nothing behind it. Ordered by lifecycle.
+  const STATUS_ORDER = ['draft', 'processing', 'processed', 'finalized', 'paid'];
+  const presentStatuses = STATUS_ORDER.filter(s => runs.some(r => r.status === s))
+    .concat([...new Set(runs.map(r => r.status))].filter(s => s && !STATUS_ORDER.includes(s)));
+  const runQuery = runSearch.trim().toLowerCase();
+  const visibleRuns = runs.filter(run => {
+    if (runStatusFilter !== 'all' && run.status !== runStatusFilter) return false;
+    if (!runQuery) return true;
+    // Month name, numeric month, year, FY and status are all searchable.
+    return [MONTHS[run.month], String(run.month), String(run.year), run.financialYear, statusLabel(run.status)]
+      .some(v => v && String(v).toLowerCase().includes(runQuery));
+  });
+  const runsFiltered = runStatusFilter !== 'all' || !!runQuery;
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white">Run Payroll</h1>
@@ -1215,32 +1439,110 @@ export default function PayrollRunPage() {
         </button>
       </div>
 
-      <div className="space-y-3">
-        {runs.map(run => (
-          <div key={run._id} className="bg-dark-800 rounded-xl border border-dark-700 p-4 flex items-center justify-between hover:border-dark-600 cursor-pointer" onClick={() => loadRun(run._id)}>
-            <div>
-              <div className="flex items-center gap-3">
-                <h3 className="text-white font-medium">{MONTHS[run.month]} {run.year}</h3>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[run.status]}`}>{run.status}</span>
-                {run.payslipReleased && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">Released</span>}
-                {run.payrollLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400">Locked</span>}
-              </div>
-              <div className="text-xs text-dark-400 mt-1">
-                FY {run.financialYear}
-                {run.summary?.totalEmployees ? ` | ${run.summary.totalEmployees} employees` : ''}
-                {run.summary?.totalNet ? ` | Net: ${fmt(run.summary.totalNet)}` : ''}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {run.status === 'draft' && (
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(run._id); }} disabled={!!deletingId} className="p-2 text-dark-400 hover:text-red-400 disabled:opacity-50">
-                  {deletingId === run._id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                </button>
-              )}
-            </div>
+      {/* Filters — client-side over the already-loaded runs */}
+      {runs.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
+            <input
+              type="text"
+              value={runSearch}
+              onChange={e => setRunSearch(e.target.value)}
+              placeholder="Search month, year or FY"
+              aria-label="Search payroll runs"
+              className="w-full pl-8 pr-8 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-xs text-white placeholder-dark-500 focus:border-rivvra-500 focus:outline-none"
+            />
+            {runSearch && (
+              <button onClick={() => setRunSearch('')} aria-label="Clear search" title="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-500 hover:text-white">
+                <X size={13} />
+              </button>
+            )}
           </div>
-        ))}
+          <select
+            value={runStatusFilter}
+            onChange={e => setRunStatusFilter(e.target.value)}
+            aria-label="Filter runs by status"
+            className="px-3 py-1.5 bg-dark-900 border border-dark-600 rounded-lg text-xs text-white focus:border-rivvra-500 focus:outline-none"
+          >
+            <option value="all">All statuses ({runs.length})</option>
+            {presentStatuses.map(s => (
+              <option key={s} value={s}>{statusLabel(s)} ({runs.filter(r => r.status === s).length})</option>
+            ))}
+          </select>
+          {runsFiltered && (
+            <button onClick={() => { setRunSearch(''); setRunStatusFilter('all'); }} className="text-xs text-rivvra-400 hover:text-rivvra-300 whitespace-nowrap self-start sm:self-auto">
+              Reset
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Runs table — dense so Net can be compared down a single column */}
+      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
+          <thead>
+            <tr className="border-b border-dark-700">
+              <th className="px-4 py-3 text-left text-xs font-medium text-dark-400">Month</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-dark-400">FY</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-dark-400">Employees</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-dark-400">Net</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-dark-400">Status</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRuns.map(run => {
+              // Draft runs have `summary: {}` — no counts, no totals. Show an
+              // em-dash rather than an empty cell so the row stays readable.
+              const empCount = run.summary?.totalEmployees;
+              const hasEmpCount = Number.isFinite(Number(empCount)) && empCount != null;
+              const net = run.summary?.totalNet;
+              const hasNet = Number.isFinite(Number(net)) && net != null;
+              return (
+                <tr
+                  key={run._id}
+                  onClick={() => loadRun(run._id)}
+                  className="border-b border-dark-700/50 last:border-0 hover:bg-dark-750 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 text-white font-medium">{MONTHS[run.month]} {run.year}</td>
+                  <td className="px-4 py-3 text-dark-400 text-xs">{run.financialYear || '—'}</td>
+                  <td className="px-4 py-3 text-right text-dark-300 text-xs tabular-nums">{hasEmpCount ? fmt(empCount) : <span className="text-dark-500">—</span>}</td>
+                  <td className="px-4 py-3 text-right text-green-400 text-xs font-medium tabular-nums">{hasNet ? formatMoney(net) : <span className="text-dark-500">—</span>}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[run.status]}`}>{statusLabel(run.status)}</span>
+                      {run.payslipReleased && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">Released</span>}
+                      {run.payrollLocked && <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${LOCKED_BADGE}`} title="Payroll figures are frozen — the normal state for a finished run">Locked</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {run.status === 'draft' && (
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(run._id); }} disabled={!!deletingId} title="Delete this draft run" className="p-1.5 text-dark-400 hover:text-red-400 disabled:opacity-50">
+                        {deletingId === run._id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
         {runs.length === 0 && <div className="text-center py-12 text-dark-500">No payroll runs yet. Create one to get started.</div>}
+        {runs.length > 0 && visibleRuns.length === 0 && (
+          <div className="text-center py-12 px-4">
+            <p className="text-sm text-dark-300">
+              {runQuery
+                ? <>No payroll runs match &ldquo;<span className="text-white">{runSearch.trim()}</span>&rdquo;{runStatusFilter !== 'all' ? ` with status ${statusLabel(runStatusFilter)}` : ''}.</>
+                : <>No payroll runs with status {statusLabel(runStatusFilter)}.</>}
+            </p>
+            <button
+              onClick={() => { setRunSearch(''); setRunStatusFilter('all'); }}
+              className="mt-3 px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-xs text-dark-200 hover:bg-dark-600"
+            >
+              Clear filters &amp; show all {runs.length}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
