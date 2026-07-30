@@ -65,6 +65,11 @@ export default function StatutoryConfigPage({ embedded = false }) {
       pfEnabled: s.pfEnabled ?? true,
       pfCappedAt15K: s.pfCappedAt15K ?? true,
       esiEnabled: s.esiEnabled || false,
+      // Deliberately NOT the platform's `?? true` policy default. This raises
+      // the ESI wage ceiling from ₹21,000 to ₹25,000, and defaulting it on
+      // would start deducting ESI from employees earning ₹21K–₹25K who are not
+      // entitled to the higher ceiling. Absent value must mean off.
+      esiDisabilityCeiling: s.esiDisabilityCeiling === true,
       ptEnabled: s.ptEnabled ?? true,
       ptState: s.ptState || 'MH',
       taxRegime: s.taxRegime || 'new',
@@ -186,7 +191,20 @@ export default function StatutoryConfigPage({ embedded = false }) {
                     <div className="text-xs text-dark-400">{item.employee.email}</div>
                   </td>
                   <td className="px-4 py-3 text-center"><StatusBadge enabled={pfOn} label={pfOn ? 'Applicable' : 'Not applicable'} title="Provident Fund" /></td>
-                  <td className="px-4 py-3 text-center"><StatusBadge enabled={s.esiEnabled || false} label={s.esiEnabled ? 'Applicable' : 'Not applicable'} title="Employee State Insurance" /></td>
+                  <td className="px-4 py-3 text-center">
+                    <StatusBadge enabled={s.esiEnabled || false} label={s.esiEnabled ? 'Applicable' : 'Not applicable'} title="Employee State Insurance" />
+                    {/* Explicit `=== true`, not `?? true` — an unset flag means
+                        the standard ₹21,000 ceiling. See openEdit(). Only shown
+                        when ESI is actually on, because the ceiling is
+                        meaningless otherwise. */}
+                    {(s.esiEnabled || false) && s.esiDisabilityCeiling === true && (
+                      <span
+                        className="block mt-1 text-[9px] text-blue-400"
+                        title="Higher ESI wage ceiling of ₹25,000/month applied (ESI Act provision for employees with disability) instead of the standard ₹21,000">
+                        ₹25,000 ceiling
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {ptOn
                       ? <span className="text-xs text-dark-300">{s.ptState || 'MH'} slab</span>
@@ -297,9 +315,30 @@ export default function StatutoryConfigPage({ embedded = false }) {
                   <input type="checkbox" checked={form.esiEnabled} onChange={e => setForm(f => ({ ...f, esiEnabled: e.target.checked }))} className="rounded border-dark-600 mt-0.5" />
                   <span>
                     Deduct ESI for this employee
-                    <span className="block text-[11px] text-dark-500">Applies only to employees earning at or below the ESI wage ceiling.</span>
+                    <span className="block text-[11px] text-dark-500">Applies only to employees earning at or below the ESI wage ceiling (₹21,000/month gross by default).</span>
                   </span>
                 </label>
+                <label className="flex items-start gap-2 text-sm text-dark-300">
+                  <input type="checkbox" checked={form.esiDisabilityCeiling} onChange={e => setForm(f => ({ ...f, esiDisabilityCeiling: e.target.checked }))} className="rounded border-dark-600 mt-0.5" />
+                  <span className={form.esiEnabled ? '' : 'text-dark-500'}>
+                    Apply the higher ESI wage ceiling (₹25,000) — for employees with disability under the ESI Act
+                    <span className="block text-[11px] text-dark-500">
+                      The ESI Act sets a ceiling of ₹25,000/month instead of the standard ₹21,000 for employees with
+                      disability. With this on, an employee earning between ₹21,000 and ₹25,000 gross stays ESI-eligible
+                      (0.75% employee, 3.25% employer) instead of falling out of scope. Leave off unless the employee is
+                      entitled to it.
+                    </span>
+                  </span>
+                </label>
+                {!form.esiEnabled && form.esiDisabilityCeiling && (
+                  <p className="text-[11px] text-dark-500 bg-dark-900/50 border border-dark-700 rounded-md px-2 py-1.5 leading-snug">
+                    No effect right now — ESI is switched off for this employee, so no ceiling is applied at all. Tick
+                    “Deduct ESI” above for this to do anything.
+                  </p>
+                )}
+                <p className="text-[11px] text-dark-500">
+                  ESI is only computed for confirmed employees included in a payroll run.
+                </p>
               </fieldset>
 
               {/* PT Section */}

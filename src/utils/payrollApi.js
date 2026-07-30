@@ -146,6 +146,18 @@ export function getTaxDeclarations(orgSlug, financialYear) {
 export function upsertTaxDeclaration(orgSlug, employeeId, fy, data) {
   return request('PUT', `${orgUrl(orgSlug)}/tax-declarations/${employeeId}/${fy}`, { body: data });
 }
+/**
+ * Admin approve/reject of an employee's declaration for a financial year.
+ * `status` must be exactly 'approved' or 'rejected' — the backend 400s on
+ * anything else. Approving also flips that employee's uploaded proofs to
+ * `verified`. Company scoping rides on the X-Company-Id header `request()`
+ * already sends; without it the backend 404s the employee.
+ */
+export function approveTaxDeclaration(orgSlug, employeeId, fy, status, remarks) {
+  return request('PUT', `${orgUrl(orgSlug)}/tax-declarations/${employeeId}/${fy}/approve`, {
+    body: { status, remarks: remarks || '' },
+  });
+}
 
 // Payroll Runs
 export function getPayrollRuns(orgSlug) {

@@ -3,13 +3,13 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
 import { usePeriod } from '../../context/PeriodContext';
 import {
-  getTaxDeclarations, upsertTaxDeclaration, getStatutoryConfigs,
+  getTaxDeclarations, upsertTaxDeclaration, approveTaxDeclaration, getStatutoryConfigs,
   SECTION_80C_KEYS, SECTION_80D_KEYS, normalize80CItems, normalize80D,
   read80CTotal, read80DTotal,
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { formatMoney } from '../../utils/formatCurrency';
-import { FileText, X, Search, Save, Loader2 } from 'lucide-react';
+import { FileText, X, Search, Save, Loader2, CheckCircle2, Ban, AlertTriangle } from 'lucide-react';
 
 /**
  * Declaration workflow states, exactly as the backend writes them
@@ -42,6 +42,28 @@ function declStatusKey(decl) {
   return 'declared';
 }
 
+/**
+ * Which approve/reject actions an admin may take from a given state.
+ *
+ * - `pending_approval` — the employee has submitted and is waiting on us. Both.
+ * - `rejected` — the admin can change their mind without forcing the employee
+ *   to resubmit an identical declaration, so Approve stays available.
+ * - `approved` — Reject is offered as a reversal for an approval made in
+ *   error. It is NOT symmetric: the backend verifies proofs on approve but
+ *   does not un-verify them on reject, so the modal says so out loud.
+ * - `provisional` / `declared` — a draft the employee has not submitted, or an
+ *   admin-entered record that never entered the workflow. Approving a draft
+ *   would lock in numbers the employee is still editing, so neither action is
+ *   offered; use Edit instead.
+ * - `not_declared` — no document exists, the backend 404s. Nothing to offer.
+ */
+function approvalActionsFor(statusKey) {
+  if (statusKey === 'pending_approval') return ['approved', 'rejected'];
+  if (statusKey === 'rejected') return ['approved'];
+  if (statusKey === 'approved') return ['rejected'];
+  return [];
+}
+
 /** Status pill. Module-level so it is never redefined during a render. */
 function StatusBadge({ statusKey }) {
   const meta = DECL_STATUS[statusKey] || DECL_STATUS.not_declared;
@@ -67,6 +89,13 @@ export default function TaxDeclarationsPage() {
   // Guard against a double-click firing two upserts — each one makes the backend
   // recalculate TDS and reprocess the latest payroll run.
   const [saving, setSaving] = useState(false);
+  // Approve/reject confirmation. `{ row, action }` — `action` is exactly the
+  // status string the backend accepts.
+  const [approval, setApproval] = useState(null);
+  const [approvalRemarks, setApprovalRemarks] = useState('');
+  // Per-row in-flight guard, keyed by employee id, so a double-click cannot
+  // fire two approvals and other rows stay usable.
+  const [approvingId, setApprovingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -140,6 +169,53 @@ export default function TaxDeclarationsPage() {
     finally { setSaving(false); }
   };
 
+  const openApproval = (row, action) => {
+    setApprovalRemarks('');
+    setApproval({ row, action });
+  };
+
+  const handleApproval = async () => {
+    if (!approval || approvingId) return;
+    const { row, action } = approval;
+    const remarks = approvalRemarks.trim();
+    // A rejection with no reason tells the employee nothing about what to fix.
+    if (action === 'rejected' && !remarks) {
+      showToast('Add a reason — the employee sees this remark.', 'error');
+      return;
+    }
+    setApprovingId(row.empId);
+    try {
+      const res = await approveTaxDeclaration(orgSlug, row.empId, fy, action, remarks);
+      const updated = res.declaration;
+      // Refresh from the server's copy rather than guessing, so the badge, the
+      // filter counts and the "N awaiting approval" summary all move together.
+      // Keep the existing `employee` enrichment — the approve route returns the
+      // bare declaration document without it.
+      if (updated) {
+        setDeclarations(prev => {
+          const idx = prev.findIndex(d => d.employeeId === row.empId && d.financialYear === fy);
+          if (idx === -1) return [{ ...updated, employee: row.emp }, ...prev];
+          const next = [...prev];
+          next[idx] = { ...prev[idx], ...updated };
+          return next;
+        });
+      } else {
+        await load();
+      }
+      showToast(action === 'approved'
+        ? 'Declaration approved — uploaded proofs marked verified'
+        : 'Declaration rejected — the employee can revise and resubmit', 'success');
+      setApproval(null);
+      setApprovalRemarks('');
+    } catch (err) {
+      // Surface what the backend actually said (India gate, wrong company,
+      // declaration not found) instead of a generic failure.
+      showToast(err.response?.data?.message || err.message || 'Failed to update declaration', 'error');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const total80C = form ? Math.min(150000, Object.values(form.section80C).reduce((s, v) => s + (Number(v) || 0), 0)) : 0;
   const total80D = form ? Object.values(form.section80D).reduce((s, v) => s + (Number(v) || 0), 0) : 0;
   const totalDecl = form ? total80C + total80D + (Number(form.section80E) || 0) + (Number(form.section80G) || 0) + (Number(form.section24b) || 0) : 0;
@@ -168,6 +244,14 @@ export default function TaxDeclarationsPage() {
       total: t80c + t80d + tOther,
     };
   });
+
+  // Re-read the row being approved from the freshly derived `rows` so the
+  // confirmation shows current totals rather than the snapshot taken when the
+  // button was clicked. Falls back to the snapshot if the row has since been
+  // filtered out of the employee list.
+  const approvalRow = approval
+    ? (rows.find(r => r.empId === approval.row.empId) || approval.row)
+    : null;
 
   // Counts over EVERY confirmed employee, not the filtered view, so the summary
   // line and the chips keep meaning while a search is active.
@@ -284,7 +368,23 @@ export default function TaxDeclarationsPage() {
                 </td>
                 <td className="px-3 py-2 text-right text-xs text-white font-medium tabular-nums">{r.total > 0 ? formatMoney(r.total) : '-'}</td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => openEmployee(r.emp)} className="text-xs text-rivvra-400 hover:text-rivvra-300 font-medium">Edit</button>
+                  <div className="flex items-center justify-end gap-2.5">
+                    {approvalActionsFor(r.statusKey).includes('approved') && (
+                      <button type="button" onClick={() => openApproval(r, 'approved')}
+                        disabled={approvingId === r.empId}
+                        className="text-xs text-green-400 hover:text-green-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        {r.statusKey === 'rejected' ? 'Approve instead' : 'Approve'}
+                      </button>
+                    )}
+                    {approvalActionsFor(r.statusKey).includes('rejected') && (
+                      <button type="button" onClick={() => openApproval(r, 'rejected')}
+                        disabled={approvingId === r.empId}
+                        className="text-xs text-red-400 hover:text-red-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        {r.statusKey === 'approved' ? 'Reverse approval' : 'Reject'}
+                      </button>
+                    )}
+                    <button onClick={() => openEmployee(r.emp)} className="text-xs text-rivvra-400 hover:text-rivvra-300 font-medium">Edit</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -425,6 +525,112 @@ export default function TaxDeclarationsPage() {
                 <button onClick={handleSave} disabled={saving}
                   className="flex-1 px-4 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                   {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : <><Save size={14} /> Save</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve / reject confirmation.
+          Rendered inline (never as a component declared in the render body) so
+          the remarks textarea keeps focus between keystrokes. */}
+      {approval && approvalRow && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-dark-700">
+              <div>
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  {approval.action === 'approved'
+                    ? <><CheckCircle2 size={18} className="text-green-400" /> Approve declaration</>
+                    : <><Ban size={18} className="text-red-400" /> {approvalRow.statusKey === 'approved' ? 'Reverse approval' : 'Reject declaration'}</>}
+                </h2>
+                <p className="text-xs text-dark-400 mt-0.5">
+                  {approvalRow.emp.fullName || approvalRow.emp.name || approvalRow.emp.email} — FY {fy}
+                </p>
+              </div>
+              <button onClick={() => { setApproval(null); setApprovalRemarks(''); }} disabled={!!approvingId}
+                className="text-dark-400 hover:text-white disabled:opacity-50"><X size={20} /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* What is actually being approved — the admin should not have to
+                  reopen the edit modal to see the numbers. */}
+              <div className="bg-dark-900/50 rounded-lg p-3 space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-dark-400">Current status</span>
+                  <StatusBadge statusKey={approvalRow.statusKey} />
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-dark-400">Regime</span>
+                  <span className="text-dark-300">{approvalRow.decl?.regime === 'old' ? 'Old regime' : 'New regime'}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-dark-400">Section 80C</span>
+                  <span className="text-dark-300 tabular-nums">{formatMoney(approvalRow.t80c)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-dark-400">Section 80D</span>
+                  <span className="text-dark-300 tabular-nums">{formatMoney(approvalRow.t80d)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-dark-400">80E + 80G + 24(b)</span>
+                  <span className="text-dark-300 tabular-nums">{formatMoney(approvalRow.tOther)}</span>
+                </div>
+                <div className="flex justify-between text-xs pt-1.5 border-t border-dark-700">
+                  <span className="text-dark-300 font-medium">Total declared deductions</span>
+                  <span className="text-white font-bold tabular-nums">{formatMoney(approvalRow.total)}</span>
+                </div>
+              </div>
+
+              {approval.action === 'approved' ? (
+                <div className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/40 rounded-md px-2.5 py-2 leading-snug flex gap-2">
+                  <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                  <span>
+                    Approving accepts {formatMoney(approvalRow.total)} of declared deductions for FY {fy} and marks every
+                    proof this employee uploaded as <strong>verified</strong>. Payroll will compute their TDS on this basis.
+                    Check the proofs before you approve.
+                  </span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-amber-300/90 bg-amber-900/20 border border-amber-700/40 rounded-md px-2.5 py-2 leading-snug flex gap-2">
+                  <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                  <span>
+                    The employee will see this as rejected and can revise and resubmit.
+                    {approvalRow.statusKey === 'approved' && ' Note: proofs already marked verified by the earlier approval stay verified — re-check them manually.'}
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="approval-remarks" className="block text-[11px] text-dark-400 mb-1">
+                  {approval.action === 'rejected'
+                    ? <>Reason for rejection <span className="text-red-400">*</span> — the employee sees this</>
+                    : <>Remarks (optional) — the employee sees this</>}
+                </label>
+                <textarea id="approval-remarks" rows={3} value={approvalRemarks}
+                  onChange={e => setApprovalRemarks(e.target.value)}
+                  placeholder={approval.action === 'rejected'
+                    ? 'e.g. LIC premium receipt is for FY 2023-24, please upload the current year receipt'
+                    : 'e.g. All proofs checked against originals'}
+                  className="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg text-sm text-white placeholder:text-dark-600 focus:border-rivvra-500 focus:outline-none resize-y" />
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => { setApproval(null); setApprovalRemarks(''); }} disabled={!!approvingId}
+                  className="flex-1 px-4 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                  Cancel
+                </button>
+                <button type="button" onClick={handleApproval}
+                  disabled={!!approvingId || (approval.action === 'rejected' && !approvalRemarks.trim())}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+                    approval.action === 'approved' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                  }`}>
+                  {approvingId
+                    ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                    : (approval.action === 'approved'
+                      ? <><CheckCircle2 size={14} /> Approve {formatMoney(approvalRow.total)}</>
+                      : <><Ban size={14} /> {approvalRow.statusKey === 'approved' ? 'Reverse approval' : 'Reject'}</>)}
                 </button>
               </div>
             </div>
