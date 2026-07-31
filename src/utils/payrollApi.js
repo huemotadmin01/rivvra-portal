@@ -268,8 +268,8 @@ export function downloadBankSheetNonHdfc(orgSlug, runId) {
 }
 
 // Export Reports
-export function downloadPayrollExport(orgSlug, runId, type) {
-  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export`, { params: { type }, responseType: 'blob' });
+export function downloadPayrollExport(orgSlug, runId, type, format) {
+  return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export`, { params: format ? { type, format } : { type }, responseType: 'blob' });
 }
 export function downloadPayrollSheet(orgSlug, runId) {
   return request('GET', `${orgUrl(orgSlug)}/runs/${runId}/export/payroll-sheet`, { responseType: 'blob' });

@@ -443,16 +443,24 @@ export default function PayrollRunPage() {
   };
 
   const handleExport = async (type) => {
+    const suffix = `${MONTHS[selectedRun.month]}_${selectedRun.year}`;
     try {
       let blob;
       if (type === 'payroll-sheet') {
         blob = await downloadPayrollSheet(orgSlug, selectedRun._id);
-        triggerDownload(blob, `Payroll_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
+        triggerDownload(blob, `Payroll_${suffix}.xlsx`);
+        showToast('Payroll sheet exported');
+      } else if (type === 'pf-csv') {
+        // Internal review sheet — NOT the EPFO upload file (that's PF ECR .txt).
+        blob = await downloadPayrollExport(orgSlug, selectedRun._id, 'pf', 'csv');
+        triggerDownload(blob, `PF_Summary_${suffix}.csv`);
+        showToast('PF summary exported');
       } else {
+        // /export serves a styled Excel workbook unless ?format=csv is passed.
         blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
-        triggerDownload(blob, `${type}_${MONTHS[selectedRun.month]}_${selectedRun.year}.csv`);
+        triggerDownload(blob, `${type}_${suffix}.xlsx`);
+        showToast(`${type} exported`);
       }
-      showToast(type === 'payroll-sheet' ? 'Payroll sheet exported' : `${type} exported`);
     } catch (err) { showToast(downloadErrorMessage(err, 'Export failed'), 'error'); }
   };
 
@@ -613,6 +621,7 @@ export default function PayrollRunPage() {
                   generates: PF is an EPFO ECR text file; ESI and PT are
                   per-employee contribution listings (CSV), not bank challans. */}
               <button onClick={() => handleDownload('pf')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="EPFO ECR upload file (.txt) — UAN, wages and PF contributions per employee"><FileText size={12} /> PF ECR <span className="text-dark-500">.txt</span></button>
+              <button onClick={() => handleExport('pf-csv')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="PF review sheet (.csv) — UAN, PF wages, EPF/EPS split per employee. For internal review; use PF ECR for the EPFO upload"><FileText size={12} /> PF Summary <span className="text-dark-500">.csv</span></button>
               <button onClick={() => handleDownload('esi')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="ESI contribution listing (.csv) — IP number, wages, employee & employer ESI"><FileText size={12} /> ESI Contributions <span className="text-dark-500">.csv</span></button>
               <button onClick={() => handleDownload('pt')} className="flex items-center gap-1.5 px-3 py-1.5 border border-dark-600 rounded-lg text-xs text-dark-300 hover:bg-dark-700" title="Professional Tax listing (.csv) — PT deducted per employee, with state"><IndianRupee size={12} /> PT Statement <span className="text-dark-500">.csv</span></button>
             </div>
