@@ -195,7 +195,16 @@ export default function PayrollDashboardPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: 'Employees paid', value: fmtCount(latestSummary.totalEmployees || 0) },
+              // summary.totalEmployees is items.length — every ROW in the run,
+              // including contractors (whose pay comes through timesheets and
+              // shows ₹0 here) and anyone on salary hold. It is NOT a paid
+              // headcount: July 2026 reads 68 while 30 people were actually
+              // paid. Labelled for what it counts.
+              {
+                label: 'People in run',
+                value: fmtCount(latestSummary.totalEmployees || 0),
+                hint: 'All rows processed — includes contractors and any on hold',
+              },
               { label: 'Net payout', value: formatMoney(latestSummary.totalNet) },
               { label: 'Gross salary', value: formatMoney(latestSummary.totalGross) },
               { label: 'Total deductions', value: formatMoney(latestSummary.totalDeductions) },
@@ -223,7 +232,7 @@ export default function PayrollDashboardPage() {
                 <div className="flex items-center gap-3 flex-wrap min-w-0">
                   <div className="text-white font-medium text-sm w-32 shrink-0">{MONTHS[run.month]} {run.year}</div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[run.status]}`}>{STATUS_LABELS[run.status] || run.status}</span>
-                  <span className="text-xs text-dark-400">{fmtCount(run.summary?.totalEmployees || 0)} employees</span>
+                  <span className="text-xs text-dark-400" title="Rows processed in this run — includes contractors and anyone on salary hold, so it is not a paid headcount">{fmtCount(run.summary?.totalEmployees || 0)} in run</span>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="text-sm font-medium text-green-400 tabular-nums text-right w-32">{formatMoney(run.summary?.totalNet)}</div>

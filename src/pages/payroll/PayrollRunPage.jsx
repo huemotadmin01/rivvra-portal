@@ -1559,7 +1559,7 @@ export default function PayrollRunPage() {
             <tr className="border-b border-dark-700">
               <th className="px-4 py-3 text-left text-xs font-medium text-dark-400">Month</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-dark-400">FY</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-dark-400">Employees</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-dark-400" title="Rows processed in this run — includes contractors and anyone on salary hold, so it is not a paid headcount">In run</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-dark-400">Net</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-dark-400">Status</th>
               <th className="px-4 py-3" />
