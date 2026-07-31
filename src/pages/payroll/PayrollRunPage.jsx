@@ -400,33 +400,39 @@ export default function PayrollRunPage() {
   };
 
   const handleDownload = async (type) => {
+    // Month NAME in every filename (July, not 7) — matches the xlsx exports.
+    const suffix = `${MONTHS[selectedRun.month]}_${selectedRun.year}`;
+    const DOWNLOAD_LABELS = {
+      pf: 'PF ECR', esi: 'ESI contributions', pt: 'PT statement', bank: 'Bank transfer',
+      payslips: 'Payslips', 'bank-sheet-hdfc': 'HDFC bank sheet', 'bank-sheet-non-hdfc': 'Non-HDFC bank sheet',
+    };
     try {
       let blob, filename;
       if (type === 'pf') {
         blob = await downloadPFChallan(orgSlug, selectedRun._id);
-        filename = `PF_ECR_${selectedRun.month}_${selectedRun.year}.txt`;
+        filename = `PF_ECR_${suffix}.txt`;
       } else if (type === 'esi') {
         blob = await downloadESIChallan(orgSlug, selectedRun._id);
-        filename = `ESI_${selectedRun.month}_${selectedRun.year}.csv`;
+        filename = `ESI_${suffix}.csv`;
       } else if (type === 'pt') {
         blob = await downloadPTChallan(orgSlug, selectedRun._id, '');
-        filename = `PT_${selectedRun.month}_${selectedRun.year}.csv`;
+        filename = `PT_${suffix}.csv`;
       } else if (type === 'bank') {
         blob = await downloadBankTransfer(orgSlug, selectedRun._id);
-        filename = `Bank_Transfer_${selectedRun.month}_${selectedRun.year}.csv`;
+        filename = `Bank_Transfer_${suffix}.csv`;
       } else if (type === 'payslips') {
         blob = await downloadAllPayslips(orgSlug, selectedRun._id);
-        filename = `Payslips_${selectedRun.month}_${selectedRun.year}.zip`;
+        filename = `Payslips_${suffix}.zip`;
       } else if (type === 'bank-sheet-hdfc') {
         blob = await downloadBankSheetHdfc(orgSlug, selectedRun._id);
-        filename = `Bank_Sheet_HDFC_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`;
+        filename = `Bank_Sheet_HDFC_${suffix}.xlsx`;
       } else if (type === 'bank-sheet-non-hdfc') {
         blob = await downloadBankSheetNonHdfc(orgSlug, selectedRun._id);
-        filename = `Bank_Sheet_Non_HDFC_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`;
+        filename = `Bank_Sheet_Non_HDFC_${suffix}.xlsx`;
       }
       triggerDownload(blob, filename);
-      showToast(`Downloaded ${type}`);
-    } catch (err) { showToast(downloadErrorMessage(err, 'Download failed'), 'error'); }
+      showToast(`${DOWNLOAD_LABELS[type] || type} downloaded`);
+    } catch (err) { showToast(downloadErrorMessage(err, `${DOWNLOAD_LABELS[type] || type} download failed`), 'error'); }
   };
 
   const handleDownloadPayslip = async (employeeId, name) => {
@@ -444,9 +450,9 @@ export default function PayrollRunPage() {
         triggerDownload(blob, `Payroll_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
       } else {
         blob = await downloadPayrollExport(orgSlug, selectedRun._id, type);
-        triggerDownload(blob, `${type}_${MONTHS[selectedRun.month]}_${selectedRun.year}.xlsx`);
+        triggerDownload(blob, `${type}_${MONTHS[selectedRun.month]}_${selectedRun.year}.csv`);
       }
-      showToast(`${type} exported`);
+      showToast(type === 'payroll-sheet' ? 'Payroll sheet exported' : `${type} exported`);
     } catch (err) { showToast(downloadErrorMessage(err, 'Export failed'), 'error'); }
   };
 
