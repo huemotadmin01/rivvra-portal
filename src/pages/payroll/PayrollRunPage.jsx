@@ -784,13 +784,14 @@ export default function PayrollRunPage() {
                             </span>
                           )}
                           {/* 'rejected' is its own state, NOT folded into pending.
-                              A manager rejecting a sheet now credits ZERO days, so
-                              this must be impossible to mistake for "nobody has
-                              looked at it yet" — it is the one attendance state
-                              that actively costs the employee pay. */}
+                              A rejected sheet BLOCKS the run (the backend refuses
+                              to process rather than guess a day count), so this
+                              must be impossible to mistake for "nobody has looked
+                              at it yet" — it is the state the admin has to clear
+                              before payroll can run at all. */}
                           {item.payrollMode !== 'contractor' && item.attendanceStatus === 'rejected' && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/15 text-red-300 ring-1 ring-red-500/30" title="A manager rejected this attendance sheet. Rejected sheets credit ZERO days worked, so this employee is being paid as fully absent. Get the sheet corrected and approved before processing.">
-                              <XCircle size={9} /> Attendance Rejected — 0 days
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/15 text-red-300 ring-1 ring-red-500/30" title="A manager rejected this attendance sheet. The run cannot be processed until it is corrected and approved, or the rejection reversed — payroll will not guess a day count for a rejected sheet.">
+                              <XCircle size={9} /> Attendance Rejected
                             </span>
                           )}
                           {/* attendanceStatus 'pending' = a sheet exists but is
