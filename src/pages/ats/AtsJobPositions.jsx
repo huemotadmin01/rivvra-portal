@@ -116,7 +116,8 @@ export default function AtsJobPositions() {
   // for the filter chip now.
 
   // 2026-05-17 health-check F.1: removed dead showModal + debounceRef.
-  // The NewJobModal mount is gone (creation lives at /ats/jobs/new); the
+  // The NewJobModal is gone — internal-role creation lives at the routed
+  // /ats/jobs/new page (client roles come from CRM Won conversion); the
   // debounce ref was declared but FilterBar owns its own search debounce.
   const isAdmin = getAppRole('ats') === 'admin';
   const orgSlug = currentOrg?.slug;
@@ -341,9 +342,19 @@ export default function AtsJobPositions() {
         </div>
         <div className="flex items-center gap-2">
           <DensityToggle density={density} onChange={setDensity} />
-          {/* New Job creation is intentionally not surfaced here. Jobs come
-              from converting a Won opportunity via "Convert to Job" on
-              CrmOpportunityDetail — the canonical funnel since 2026-05-10. */}
+          {/* Creation is split by role type: client roles come from converting
+              a Won opportunity on CrmOpportunityDetail (the sales funnel,
+              canonical since 2026-05-10); internal roles use the direct
+              /ats/jobs/new form (added 2026-08-04 so nobody has to fabricate
+              a placeholder opportunity for in-house hires). */}
+          {isAdmin && (
+            <button
+              onClick={() => navigate(orgPath('/ats/jobs/new'))}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rivvra-500 text-white rounded-lg hover:bg-rivvra-600 transition-colors"
+            >
+              <Plus size={16} /> New Internal Job
+            </button>
+          )}
         </div>
       </div>
 
@@ -378,7 +389,7 @@ export default function AtsJobPositions() {
           <p className="text-dark-400 text-sm text-center max-w-sm mb-4">
             {Object.values(filterParams).some(Boolean)
               ? 'Try adjusting your search or filters.'
-              : 'Job positions are created from CRM opportunities once they\'re won. Open an opportunity in CRM and use Convert to Job Position to add one here.'}
+              : 'Client roles are created by converting a Won CRM opportunity (Convert to Job Position). For internal roles, use the New Internal Job button above.'}
           </p>
           {Object.values(filterParams).some(Boolean) && (
             <button
@@ -635,10 +646,11 @@ export default function AtsJobPositions() {
         </>
       )}
 
-      {/* 2026-05-17 health-check F.1: NewJobModal mount removed. The
-          header "+ New Job" button is gone; new jobs are created via the
-          standalone /ats/jobs/new route. The mount stayed dead in this
-          file pulling in the chunk on every list render. */}
+      {/* 2026-05-17 health-check F.1: NewJobModal mount removed — it stayed
+          dead in this file pulling in the chunk on every list render.
+          2026-08-04: the header "+ New Internal Job" button navigates to the
+          routed /ats/jobs/new page (internal roles only; client roles come
+          from CRM Won conversion). */}
     </div>
   );
 }
