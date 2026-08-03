@@ -68,7 +68,15 @@ export default function AtsJobNew() {
       .then(res => {
         if (res?.success) {
           const list = res.employees || res.data || [];
-          setEmployeeOptions(list);
+          // Employees store their display name in fullName (name/email are
+          // fallbacks) — mirror CrmOpportunityNew's normalization or the
+          // options render blank.
+          setEmployeeOptions(
+            list
+              .map((e) => ({ _id: String(e._id), name: e.fullName || e.name || e.email || '' }))
+              .filter((e) => e.name)
+              .sort((a, b) => a.name.localeCompare(b.name))
+          );
         }
       })
       .catch(() => {});
