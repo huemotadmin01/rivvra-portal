@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
 import SectionCard from '../../components/platform/detail/SectionCard';
+import EmployeeLookup from '../../components/shared/EmployeeLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ChevronLeft, Loader2, Briefcase, FileText } from 'lucide-react';
 
@@ -41,11 +42,11 @@ export default function AtsJobNew() {
     location: '',
     description: '',
     approverId: '',
+    approverName: '',
   });
   const [saving, setSaving] = useState(false);
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [employmentTypeOptions, setEmploymentTypeOptions] = useState([]);
-  const [employeeOptions, setEmployeeOptions] = useState([]);
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -61,22 +62,6 @@ export default function AtsJobNew() {
         if (res?.success) {
           const items = res.items || res.employmentTypes || [];
           setEmploymentTypeOptions(items.map(i => i.name || i.value).filter(Boolean));
-        }
-      })
-      .catch(() => {});
-    employeeApi.list(orgSlug, { status: 'active', limit: 500 })
-      .then(res => {
-        if (res?.success) {
-          const list = res.employees || res.data || [];
-          // Employees store their display name in fullName (name/email are
-          // fallbacks) — mirror CrmOpportunityNew's normalization or the
-          // options render blank.
-          setEmployeeOptions(
-            list
-              .map((e) => ({ _id: String(e._id), name: e.fullName || e.name || e.email || '' }))
-              .filter((e) => e.name)
-              .sort((a, b) => a.name.localeCompare(b.name))
-          );
         }
       })
       .catch(() => {});
@@ -245,19 +230,14 @@ export default function AtsJobNew() {
             />
           </div>
 
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
-            <span className="text-dark-400 text-sm">Approver</span>
-            <select
-              value={form.approverId}
-              onChange={(e) => handleChange('approverId', e.target.value)}
-              className={inputCls}
-            >
-              <option value="">— Assign later —</option>
-              {employeeOptions.map((emp) => (
-                <option key={emp._id} value={emp._id}>{emp.name}</option>
-              ))}
-            </select>
-          </div>
+          <EmployeeLookup
+            orgSlug={orgSlug}
+            label="Approver"
+            currentValue={form.approverId}
+            currentName={form.approverName}
+            placeholder="Search employees… (leave empty to assign later)"
+            onSelect={(id, name) => setForm((p) => ({ ...p, approverId: id, approverName: name }))}
+          />
         </SectionCard>
 
         <div className="mt-4">
