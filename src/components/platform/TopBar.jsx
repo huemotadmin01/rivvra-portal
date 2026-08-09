@@ -67,6 +67,10 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
   const isPro = orgPlan === 'pro' || orgPlan === 'premium' || orgPlan === 'paid';
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const companyDropdownRef = useRef(null);
+  // Click-toggle for the user menu — group-hover alone never fires on touch
+  // devices, which made Profile/Policies/Documents/Logout unreachable on phones.
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
   const orgSlug = currentOrg?.slug;
 
   // Activities dropdown
@@ -139,6 +143,9 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
       if (actRef.current && !actRef.current.contains(e.target)) {
         setActOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -163,11 +170,11 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           )}
-          <Link to={orgPath('/home')} className="flex items-center gap-2">
+          <Link to={orgPath('/home')} className="flex items-center gap-2 shrink-0">
             <RivvraLogo className="w-7 h-7" />
-            <span className="text-base font-bold text-white tracking-tight">Rivvra</span>
-            <div className="w-px h-4 bg-dark-700 ml-0.5" />
-            <LayoutGrid className="w-5 h-5 text-dark-400" />
+            <span className="hidden sm:inline text-base font-bold text-white tracking-tight">Rivvra</span>
+            <div className="hidden sm:block w-px h-4 bg-dark-700 ml-0.5" />
+            <LayoutGrid className="hidden sm:block w-5 h-5 text-dark-400" />
           </Link>
 
           {/* Company Switcher */}
@@ -177,13 +184,13 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
                 onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-dark-800/50 hover:bg-dark-800 transition-colors text-sm"
               >
-                <Building2 className="w-3.5 h-3.5 text-dark-400" />
-                <span className="text-dark-200 font-medium max-w-[160px] truncate">{currentCompany?.name || 'Select Company'}</span>
+                <Building2 className="w-3.5 h-3.5 text-dark-400 shrink-0" />
+                <span className="text-dark-200 font-medium max-w-[90px] sm:max-w-[160px] truncate">{currentCompany?.name || 'Select Company'}</span>
                 <ChevronDown className={`w-3.5 h-3.5 text-dark-500 transition-transform ${companyDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {companyDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-72 bg-dark-900 border border-dark-700 rounded-xl p-1.5 shadow-xl z-50">
+                <div className="absolute left-0 top-full mt-1.5 w-72 max-w-[calc(100vw-1.5rem)] bg-dark-900 border border-dark-700 rounded-xl p-1.5 shadow-xl z-50">
                   <p className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dark-500 font-semibold">Companies</p>
                   {companies.map((c) => {
                     const isActive = String(c._id) === String(currentCompany?._id);
@@ -215,8 +222,8 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
 
           {currentApp && (
             <>
-              <div className="w-px h-5 bg-dark-700" />
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-dark-800/50">
+              <div className="hidden md:block w-px h-5 bg-dark-700" />
+              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-dark-800/50">
                 <currentApp.icon className={`w-4 h-4 ${appColorMap[currentApp.color] || 'text-rivvra-400'}`} />
                 <span className="text-sm font-medium text-dark-200">{currentApp.name}</span>
               </div>
@@ -253,7 +260,7 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
             </button>
 
             {actOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-80 bg-dark-900 border border-dark-700 rounded-xl shadow-xl z-50">
+              <div className="absolute right-0 top-full mt-1.5 w-80 max-w-[calc(100vw-1.5rem)] bg-dark-900 border border-dark-700 rounded-xl shadow-xl z-50">
                 <div className="px-4 py-2.5 border-b border-dark-700 flex items-center justify-between">
                   <p className="text-xs font-semibold text-dark-300">My Activities</p>
                   {overdueCount > 0 && (
@@ -318,8 +325,12 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
           </div>
 
           {/* User dropdown */}
-          <div className="relative group">
-            <button className="relative flex items-center gap-2 p-1.5 rounded-lg hover:bg-dark-800/50 transition-colors">
+          <div className="relative group" ref={userMenuRef}>
+            <button
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              aria-label="Account menu"
+              className="relative flex items-center gap-2 p-1.5 rounded-lg hover:bg-dark-800/50 transition-colors"
+            >
               {user?.picture ? (
                 <img src={user.picture?.startsWith('/api/') ? `${API_BASE_URL}${user.picture}` : user.picture} alt="" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
               ) : (
@@ -335,7 +346,12 @@ function TopBar({ onToggleSidebar, sidebarOpen }) {
             </button>
 
             {/* Dropdown */}
-            <div className="absolute right-0 top-full mt-1 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div
+              onClick={() => setUserMenuOpen(false)}
+              className={`absolute right-0 top-full mt-1 w-56 max-w-[calc(100vw-1rem)] transition-all duration-200 z-50 ${
+                userMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+              } group-hover:opacity-100 group-hover:visible`}
+            >
               <div className="bg-dark-900 border border-dark-700 rounded-xl p-2 shadow-xl">
                 <div className="px-3 py-2 border-b border-dark-700 mb-2">
                   <p className="font-medium text-white truncate">{user?.name || 'User'}</p>

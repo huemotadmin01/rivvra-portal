@@ -63,7 +63,7 @@ export default function MyFnfReceipt() {
 
   if (!settlement) {
     return (
-      <div className="p-6 max-w-3xl">
+      <div className="p-3 sm:p-6 max-w-3xl">
         <div className="flex items-center gap-3 mb-4">
           <FileText className="w-5 h-5 text-dark-400" />
           <h1 className="text-lg font-semibold text-white">F&F Receipt</h1>
@@ -88,7 +88,7 @@ export default function MyFnfReceipt() {
   const net = Number(settlement.netSettlement ?? (totalEarnings - totalDeductions));
 
   return (
-    <div className="p-6 max-w-3xl space-y-4">
+    <div className="p-3 sm:p-6 max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <FileText className="w-5 h-5 text-dark-400" />

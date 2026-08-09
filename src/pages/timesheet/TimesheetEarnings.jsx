@@ -221,7 +221,7 @@ export default function TimesheetEarnings() {
   );
 
   if (loadError) return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">My Earnings</h1>
         <p className="text-dark-400 text-sm">Track your income and payment schedule</p>
@@ -241,7 +241,7 @@ export default function TimesheetEarnings() {
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">My Earnings</h1>
         <p className="text-dark-400 text-sm">Track your income and payment schedule</p>

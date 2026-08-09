@@ -12,6 +12,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ShieldCheck, FileText, Download, X, Loader2, CheckCircle2, AlertTriangle, ArrowDown, Check,
+  ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { API_BASE_URL } from '../../utils/config';
 import { downloadFile } from '../../utils/download';
@@ -23,8 +24,11 @@ export default function PolicyReaderModal({ policy, orgSlug, onAcknowledge, onCl
 
   const scrollRef = useRef(null);
   const canvasHostRef = useRef(null);
+  // Raw PDF bytes cached across zoom re-renders so zooming never refetches.
+  const pdfDataRef = useRef(null);
   const [loading, setLoading] = useState(isPdf);
   const [error, setError] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const [progress, setProgress] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(!isPdf); // non-PDF: no scroll gate
   const [checked, setChecked] = useState(false);
@@ -40,27 +44,38 @@ export default function PolicyReaderModal({ policy, orgSlug, onAcknowledge, onCl
         const pdfjsLib = await import('pdfjs-dist');
         const { default: workerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
         pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-        const token = localStorage.getItem('rivvra_token');
-        const resp = await fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.arrayBuffer();
+        let data = pdfDataRef.current;
+        if (!data) {
+          const token = localStorage.getItem('rivvra_token');
+          const resp = await fetch(fetchUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          data = await resp.arrayBuffer();
+          pdfDataRef.current = data;
+        }
         if (cancelled) return;
-        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        // pdf.js takes ownership of (and neuters) the buffer — hand it a copy.
+        const pdf = await pdfjsLib.getDocument({ data: data.slice(0) }).promise;
         if (cancelled) return;
         const host = canvasHostRef.current;
         if (!host) return;
         host.innerHTML = '';
-        const width = (host.clientWidth || 700) - 8;
+        const width = ((host.clientWidth || 700) - 8) * zoom;
+        // Render at devicePixelRatio so text stays crisp on phones, where the
+        // CSS width is small but the physical pixel density is 3x.
+        const dpr = Math.min(window.devicePixelRatio || 1, 3);
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           if (cancelled) return;
           const unscaled = page.getViewport({ scale: 1 });
-          const scale = Math.min(width / unscaled.width, 2);
-          const viewport = page.getViewport({ scale });
+          const scale = Math.min(width / unscaled.width, 3);
+          // Cap the physical render scale so a long policy at high zoom on a
+          // 3x phone doesn't allocate hundreds of MB of canvas memory.
+          const viewport = page.getViewport({ scale: Math.min(scale * dpr, 4) });
           const canvas = document.createElement('canvas');
           canvas.width = viewport.width;
           canvas.height = viewport.height;
-          canvas.style.cssText = 'display:block;margin:0 auto 12px;max-width:100%;background:#fff;border-radius:4px';
+          const cssWidth = Math.round(unscaled.width * scale);
+          canvas.style.cssText = `display:block;margin:0 auto 12px;width:${cssWidth}px;${zoom > 1 ? '' : 'max-width:100%;'}background:#fff;border-radius:4px`;
           host.appendChild(canvas);
           await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
         }
@@ -77,7 +92,7 @@ export default function PolicyReaderModal({ policy, orgSlug, onAcknowledge, onCl
       }
     })();
     return () => { cancelled = true; };
-  }, [fetchUrl, isPdf]);
+  }, [fetchUrl, isPdf, zoom]);
 
   const onScroll = useCallback(() => {
     const c = scrollRef.current;
@@ -108,8 +123,11 @@ export default function PolicyReaderModal({ policy, orgSlug, onAcknowledge, onCl
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '88vh' }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+      {/* Phones get a full-screen sheet (h-dvh tracks iOS Safari's collapsing
+          chrome so the acknowledge footer is never hidden); sm+ keeps the
+          centered 88vh dialog. */}
+      <div className="bg-dark-800 border border-dark-700 rounded-none sm:rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden h-full h-dvh sm:h-[88vh]" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-3.5 flex-shrink-0">
@@ -128,6 +146,22 @@ export default function PolicyReaderModal({ policy, orgSlug, onAcknowledge, onCl
             </div>
             <p className="text-dark-500 text-xs mt-0.5 truncate">{policy.fileName}</p>
           </div>
+          {isPdf && !error && (
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(2)))}
+                disabled={zoom <= 1}
+                className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 disabled:opacity-40 disabled:hover:bg-transparent"
+                aria-label="Zoom out"
+              ><ZoomOut className="w-5 h-5" /></button>
+              <button
+                onClick={() => setZoom((z) => Math.min(3, +(z + 0.5).toFixed(2)))}
+                disabled={zoom >= 3}
+                className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 disabled:opacity-40 disabled:hover:bg-transparent"
+                aria-label="Zoom in"
+              ><ZoomIn className="w-5 h-5" /></button>
+            </div>
+          )}
           <button onClick={onClose} className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700" aria-label="Close"><X className="w-5 h-5" /></button>
         </div>
 
@@ -137,7 +171,7 @@ export default function PolicyReaderModal({ policy, orgSlug, onAcknowledge, onCl
         </div>
 
         {/* Document */}
-        <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto bg-dark-900/60 p-4">
+        <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-auto bg-dark-900/60 p-2 sm:p-4">
           {loading && (
             <div className="h-full flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-dark-500" /></div>
           )}

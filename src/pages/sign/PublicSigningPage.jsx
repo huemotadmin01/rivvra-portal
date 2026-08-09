@@ -197,9 +197,28 @@ function formatDisplayDate(dateStr) {
 }
 
 // ── Signature Pad Modal ─────────────────────────────────────────────────────
+// Live viewport flag — a plain window.innerWidth read at render time goes
+// stale when the phone rotates mid-signature, leaving wrong pad geometry.
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 640
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+  return isMobile;
+}
+
 function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signerName = '' }) {
   const sigCanvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const isMobile = useIsMobileViewport();
   const [activeTab, setActiveTab] = useState('type'); // 'type' | 'draw' | 'upload' — Type first since most users prefer typing.
   const [typedText, setTypedText] = useState(signerName || '');
   const [selectedFont, setSelectedFont] = useState(CURSIVE_FONTS[0]);
@@ -292,8 +311,6 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
   const title = type === 'initials' ? 'Add your initials' : 'Add your signature';
 
   if (!isOpen) return null;
-
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">

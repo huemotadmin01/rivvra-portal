@@ -88,7 +88,7 @@ export default function MyTaxReportPage() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-white flex items-center gap-2"><BarChart3 size={20} className="text-rivvra-400" /> Income Tax Report</h1>

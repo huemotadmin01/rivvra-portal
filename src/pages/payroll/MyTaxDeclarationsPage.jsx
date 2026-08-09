@@ -284,7 +284,7 @@ export default function MyTaxDeclarationsPage() {
       error: "We couldn't load your tax information. Please try again.",
     };
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
         <h1 className="text-xl font-semibold text-white flex items-center gap-2 mb-6"><Shield size={20} className="text-rivvra-400" /> Tax Declarations</h1>
         <div className="bg-dark-800 rounded-xl border border-dark-700 p-12 text-center">
           <Shield size={32} className="text-dark-500 mx-auto mb-3" />
@@ -308,7 +308,7 @@ export default function MyTaxDeclarationsPage() {
   const statusInfo = status ? STATUS_STYLES[status] : null;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-white flex items-center gap-2"><Shield size={20} className="text-rivvra-400" /> Tax Declarations</h1>
         <p className="text-sm text-dark-400 mt-1">FY {fy} • Declare your tax-saving investments</p>

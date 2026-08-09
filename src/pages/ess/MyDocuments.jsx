@@ -88,7 +88,7 @@ export default function MyDocuments() {
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-rivvra-500/15 flex items-center justify-center">
           <FolderDown className="w-5 h-5 text-rivvra-400" />
@@ -128,7 +128,7 @@ export default function MyDocuments() {
                 {items.map((d) => (
                   <div
                     key={d._id}
-                    className="card p-4 flex items-center gap-4"
+                    className="card p-3 sm:p-4 flex items-center gap-3 sm:gap-4"
                   >
                     <div className="w-9 h-9 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4 h-4 text-red-400" />
@@ -159,10 +159,11 @@ export default function MyDocuments() {
                       <button
                         onClick={() => download(d)}
                         disabled={busyId === d._id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-rivvra-500/15 text-rivvra-300 hover:bg-rivvra-500/25 transition-colors disabled:opacity-50"
+                        title="Download"
+                        className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-sm font-medium bg-rivvra-500/15 text-rivvra-300 hover:bg-rivvra-500/25 transition-colors disabled:opacity-50"
                       >
                         {busyId === d._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                        Download
+                        <span className="hidden sm:inline">Download</span>
                       </button>
                     </div>
                   </div>

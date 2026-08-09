@@ -60,7 +60,7 @@ export default function MySalaryPage() {
 
   if (!salary) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
         <h1 className="text-xl font-semibold text-white mb-6">My Salary</h1>
         <div className="bg-dark-800 rounded-xl border border-dark-700 p-12 text-center">
           <IndianRupee size={32} className="text-dark-500 mx-auto mb-3" />
@@ -98,7 +98,7 @@ export default function MySalaryPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-white">My Salary</h1>
         <p className="text-sm text-dark-400 mt-1">Your CTC breakdown and statutory details</p>
@@ -281,7 +281,7 @@ function ConsultantView({ salary, tax, statutory, employee, flatTdsRate, estimat
   const tdsPercentLabel = `${(flatTdsRate * 100).toFixed(flatTdsRate * 100 % 1 === 0 ? 0 : 1)}%`;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-white">My Compensation</h1>
         <p className="text-sm text-dark-400 mt-1">Your consultancy fee breakdown and TDS details</p>

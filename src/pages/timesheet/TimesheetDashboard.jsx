@@ -942,7 +942,7 @@ function AdminDashboard() {
       {/* ── Timesheet Section ────────────────────────────────────── */}
       <div className="card p-4 border-l-4 border-emerald-500 order-4">
         <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2"><FileText size={15} /> Timesheets</h3>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
             <p className="text-2xl font-bold text-amber-400">{tsDataReady ? pending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>
@@ -978,7 +978,7 @@ function AdminDashboard() {
       {/* ── Attendance Section ────────────────────────────────────── */}
       <div className="card p-4 border-l-4 border-blue-500 order-5">
         <h3 className="text-sm font-semibold text-blue-400 mb-3 flex items-center gap-2"><CalendarCheck size={15} /> Attendance</h3>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div className="bg-dark-800/50 rounded-lg p-3">
             <p className="text-xs text-dark-400 mb-1">Pending</p>
             <p className="text-2xl font-bold text-amber-400">{attDataReady ? attPending.length : <Loader2 size={20} className="animate-spin text-dark-600" />}</p>

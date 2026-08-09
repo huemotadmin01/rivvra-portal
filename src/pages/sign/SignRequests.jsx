@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
@@ -71,9 +71,20 @@ function StatusBadge({ status }) {
 function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
   const selectedOption = options.find((o) => o.value === value);
   const displayLabel = selectedOption && value ? selectedOption.label : label;
+  // Flip the dropdown to right-anchored when the chip sits close enough to the
+  // viewport's right edge that a left-anchored 180px panel would clip offscreen
+  // (happens on phones for the rightmost chips).
+  const wrapRef = useRef(null);
+  const [alignRight, setAlignRight] = useState(false);
+  useLayoutEffect(() => {
+    if (isOpen && wrapRef.current) {
+      const rect = wrapRef.current.getBoundingClientRect();
+      setAlignRight(rect.left + 190 > window.innerWidth);
+    }
+  }, [isOpen]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <button
         onClick={onToggle}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all whitespace-nowrap ${
@@ -91,7 +102,7 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute left-0 top-full mt-1.5 min-w-[180px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
+          <div className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-1.5 min-w-[180px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto`}>
             {options.map((opt) => (
               <button
                 key={opt.value}

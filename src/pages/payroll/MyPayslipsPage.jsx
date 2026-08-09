@@ -109,14 +109,14 @@ export default function MyPayslipsPage() {
   const allSelected = payslips.length > 0 && selected.size === payslips.length;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div>
           <h1 className="text-xl font-semibold text-white">My Payslips</h1>
           <p className="text-sm text-dark-400 mt-1">Monthly payslip history</p>
         </div>
         {payslips.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={toggleSelectAll}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-dark-300 hover:text-white transition-colors"
@@ -167,9 +167,9 @@ export default function MyPayslipsPage() {
                     }
                   }}
                   aria-expanded={isExpanded}
-                  className="w-full flex items-center justify-between px-5 py-2 cursor-pointer hover:bg-dark-750 transition-colors"
+                  className="w-full flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 sm:px-5 py-2 cursor-pointer hover:bg-dark-750 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <button
                       type="button"
                       onClick={(e) => toggleSelect(p, e)}
@@ -188,11 +188,11 @@ export default function MyPayslipsPage() {
                         {p.lopDays > 0 && <span className="text-red-400 ml-1">(LOP: {p.lopDays})</span>}
                       </div>
                     </div>
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${statusColor}`}>
+                    <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${statusColor}`}>
                       {isImported ? (p.source === 'greythr' ? 'GreytHR' : 'Imported') : p.status}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 sm:gap-4 ml-auto">
                     <button
                       type="button"
                       onClick={(e) => handleDownloadPdf(p, e)}
@@ -210,7 +210,7 @@ export default function MyPayslipsPage() {
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-dark-700 px-5 py-4">
+                  <div className="border-t border-dark-700 px-3 sm:px-5 py-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* Earnings */}
                       <div>

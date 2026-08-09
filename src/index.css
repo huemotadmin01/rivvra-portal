@@ -63,6 +63,16 @@
   }
 }
 
+@utility scrollbar-hide {
+  /* Used by mobile carousels (TimesheetDashboard, Breadcrumbs) — scroll works,
+     the bar just stays invisible. Was referenced but never defined. */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer components {
   /* Primary Button - Green gradient */
   .btn-primary {
