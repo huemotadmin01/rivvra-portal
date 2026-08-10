@@ -12,6 +12,7 @@ import { useToast } from '../../context/ToastContext';
 import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { Loader2, ArrowLeft, Upload, AlertTriangle, Download, ShieldCheck, Pencil, X } from 'lucide-react';
+import { HowToRead } from '../../components/invoicing/TermHint';
 
 // ---------------------------------------------------------------------------
 // Inline editor for a bill's vendor-reference (the 2B matching key). Opened
@@ -291,6 +292,29 @@ export default function GstReconciliation() {
         </div>
       </div>
 
+      <div className="mb-6">
+        <HowToRead storageKey="gst-2b-recon">
+          <p>
+            <span className="text-white">GSTR-2B</span> is a statement the GST portal generates around the
+            14th of every month, listing all the purchases your vendors reported against your GSTIN. If a
+            vendor bill you recorded is in it, your tax credit (ITC) for that bill is confirmed and safe to
+            claim. If it isn't, the vendor hasn't filed — claiming that credit is risky.
+          </p>
+          <p>
+            <span className="text-white">Monthly routine:</span> download the month's 2B JSON from the GST
+            portal → upload it here → every vendor bill lands in a bucket (matched, missing, mismatch…).
+            Chase vendors for anything <span className="text-red-400">missing in 2B</span>, and book bills for
+            credit that's <span className="text-purple-400">missing in your books</span>. Once a period is
+            uploaded, bill edits re-reconcile automatically — the buckets and the GST Report stay current
+            without re-running anything.
+          </p>
+          <p className="text-dark-400">
+            Tap a bucket card to filter its rows. Nothing here is filed to the GST portal — this is a
+            read-only check. The confirmed total feeds the ITC (2B) column of the GST Report.
+          </p>
+        </HowToRead>
+      </div>
+
       {imports.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-6">
           <span className="text-xs text-dark-500 self-center">Uploaded:</span>
@@ -348,6 +372,7 @@ export default function GstReconciliation() {
                   className={`rounded-xl border p-4 text-left transition ${CHIP[cfg.color]} ${active ? 'ring-2 ring-offset-1 ring-offset-dark-900 ring-current' : ''}`}>
                   <span className="text-xs font-medium opacity-80 uppercase tracking-wide">{cfg.label}</span>
                   <p className="text-2xl font-bold mt-1">{count}</p>
+                  <p className="text-[10px] leading-snug opacity-70 mt-1">{cfg.help}</p>
                 </button>
               );
             })}

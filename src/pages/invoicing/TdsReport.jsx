@@ -15,6 +15,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
 import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
 import { StatusChip } from './GstReport';
+import { TermHint, HowToRead } from '../../components/invoicing/TermHint';
 import { Loader2, ArrowLeft, Percent, Info, Download } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
@@ -163,12 +164,35 @@ export default function TdsReport() {
 
         {!loading && !error && data && (
           <>
+            <HowToRead storageKey="tds-report">
+              <p>
+                <span className="text-white">TDS (Tax Deducted at Source)</span> means whoever pays, withholds
+                a slice of the payment as income tax and deposits it with the government on the payee's behalf.
+                This report tracks all three directions it touches your company.
+              </p>
+              <p>
+                <span className="text-blue-400">You withhold from vendors</span> when paying their bills
+                (reported quarterly in form <span className="text-white">26Q</span>) and
+                <span className="text-purple-400"> from employee salaries</span> (form <span className="text-white">24Q</span>).
+                Both must be deposited by the <span className="text-white">7th of the following month</span> —
+                the chips show each month's deposit status. Meanwhile
+                <span className="text-emerald-400"> customers withhold from you</span> when paying your invoices;
+                that money isn't lost — it's pre-paid tax you reclaim in your income-tax return, and it should
+                appear in your <span className="text-white">Form 26AS</span> (the govt's statement of tax
+                deposited in your name) — verify it does.
+              </p>
+              <p className="text-dark-400">
+                Amounts are clickable and open the underlying records. Admins click a deposit chip to record
+                the challan. The section table (194J, 194C…) shows what goes into each quarterly 26Q return.
+              </p>
+            </HowToRead>
+
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <Kpi label="Vendor TDS (26Q)" amount={totals.vendorTds} tone="blue" hint="deducted on vendor bills" />
-              <Kpi label="Salary TDS (24Q)" amount={totals.salaryTds} tone="purple" hint="from payroll runs" />
-              <Kpi label="Deposit due" amount={totals.depositDue} tone="amber" hint="26Q + 24Q" />
-              <Kpi label="Deposited" amount={totals.deposited} tone={totals.deposited >= totals.depositDue ? 'green' : 'amber'} hint="recorded challans" />
-              <Kpi label="Customer-deducted TDS" amount={totals.customerTds} tone="green" hint="receivable — check 26AS" />
+              <Kpi label="Vendor TDS (26Q)" amount={totals.vendorTds} tone="blue" hint="withheld from vendor bill payments" />
+              <Kpi label="Salary TDS (24Q)" amount={totals.salaryTds} tone="purple" hint="withheld from salaries (payroll)" />
+              <Kpi label="Deposit due" amount={totals.depositDue} tone="amber" hint="owed to govt by the 7th" />
+              <Kpi label="Deposited" amount={totals.deposited} tone={totals.deposited >= totals.depositDue ? 'green' : 'amber'} hint="challans recorded" />
+              <Kpi label="Customer-deducted TDS" amount={totals.customerTds} tone="green" hint="withheld from you — verify in 26AS" />
             </div>
 
             {/* Monthly deposit table */}
@@ -182,12 +206,24 @@ export default function TdsReport() {
                   <thead>
                     <tr className="border-b border-dark-700 text-dark-300">
                       <th className="text-left px-4 py-3 font-medium">Month</th>
-                      <th className={`${numCls} font-medium text-blue-400`}>Vendor TDS</th>
-                      <th className="text-center px-4 py-3 font-medium">26Q deposit</th>
-                      <th className={`${numCls} font-medium text-purple-400`}>Salary TDS</th>
-                      <th className="text-center px-4 py-3 font-medium">24Q deposit</th>
-                      <th className={`${numCls} font-medium text-amber-400`}>Total due</th>
-                      <th className={`${numCls} font-medium text-emerald-400`}>Customer TDS</th>
+                      <th className={`${numCls} font-medium text-blue-400`}>
+                        <TermHint label="Vendor TDS">Tax withheld from vendor bill payments this month. You hold it for the government — reported quarterly in form 26Q.</TermHint>
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium">
+                        <TermHint label="26Q deposit">Whether this month's vendor TDS has been deposited (challan recorded). Due by the 7th of the following month.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-purple-400`}>
+                        <TermHint label="Salary TDS">Income tax withheld from employee salaries in this month's payroll — reported quarterly in form 24Q.</TermHint>
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium">
+                        <TermHint label="24Q deposit">Whether this month's salary TDS has been deposited (challan recorded). Due by the 7th of the following month.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-amber-400`}>
+                        <TermHint label="Total due">Vendor + salary TDS to deposit for this month.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-emerald-400`}>
+                        <TermHint label="Customer TDS">Tax customers withheld when paying your invoices. It's pre-paid tax in your name — verify it appears in Form 26AS.</TermHint>
+                      </th>
                       <th className="text-center px-4 py-3 font-medium" title="Download this month's TDS working (all flows)">CSV</th>
                     </tr>
                   </thead>

@@ -13,7 +13,8 @@ import invoicingApi from '../../utils/invoicingApi';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatutoryFilingModal from '../../components/invoicing/StatutoryFilingModal';
 import StatutoryRecordsModal from '../../components/invoicing/StatutoryRecordsModal';
-import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download, RefreshCw, AlertTriangle } from 'lucide-react';
+import { TermHint, HowToRead } from '../../components/invoicing/TermHint';
+import { Loader2, ArrowLeft, Receipt, Info, Columns3, Download, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -215,13 +216,37 @@ export default function GstReport() {
 
         {!loading && !error && data && (
           <>
+            <HowToRead storageKey="gst-report">
+              <p>
+                Every month the GST cycle is: <span className="text-white">collect → claim credit → pay the difference</span>.
+                You collect GST from customers on sales (<span className="text-emerald-400">Output GST</span>). The GST you
+                yourself paid on vendor bills becomes credit (<span className="text-blue-400">ITC — Input Tax Credit</span>)
+                that reduces your bill. What's left (<span className="text-amber-400">Net payable</span> = Output GST − ITC)
+                is paid to the government with the monthly <span className="text-white">GSTR-3B</span> return; sales are
+                separately reported in <span className="text-white">GSTR-1</span>.
+              </p>
+              <p>
+                ITC appears twice because there are two versions of the truth: <span className="text-blue-400">ITC (books)</span> is
+                what <em>your</em> records say, while <span className="text-blue-400">ITC (2B)</span> is what your vendors have
+                actually confirmed by filing their own returns (the GSTR-2B statement). Only confirmed credit is safe to
+                claim — an amber ⚠ means some of your booked credit isn't confirmed yet. A cyan
+                "<span className="text-cyan-400">unbooked</span>" line is the opposite: vendors reported credit you haven't
+                entered a bill for — book those bills to claim it (the "after booking" figure shows your payable once you do).
+              </p>
+              <p className="text-dark-400">
+                Tap the <HelpCircle size={11} className="inline align-[-1px]" /> next to any column for its definition.
+                Amounts are clickable and open the underlying invoices. Status chips show each month's filings — admins
+                click them to record a filing with challan details.
+              </p>
+            </HowToRead>
+
             {/* KPI cards */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <Kpi label="Output GST" amount={totals.outputTax} tone="green" hint={`on ${formatCurrency(totals.taxableTurnover, 'INR')} taxable`} />
-              <Kpi label="ITC (books)" amount={totals.itcBooks} tone="blue" />
-              <Kpi label="ITC matched in 2B" amount={totals.itc2b} tone="blue" hint="from GST 2B Recon" />
-              <Kpi label="Net payable" amount={totals.netPayable} tone={totals.netPayable > 0 ? 'amber' : 'green'} />
-              <Kpi label="Paid (3B challans)" amount={totals.amountPaid} tone={totals.amountPaid >= totals.netPayable ? 'green' : 'red'} />
+              <Kpi label="Output GST" amount={totals.outputTax} tone="green" hint={`collected on ${formatCurrency(totals.taxableTurnover, 'INR')} of sales`} />
+              <Kpi label="ITC (books)" amount={totals.itcBooks} tone="blue" hint="credit from GST paid on vendor bills" />
+              <Kpi label="ITC matched in 2B" amount={totals.itc2b} tone="blue" hint="confirmed by vendors' filings" />
+              <Kpi label="Net payable" amount={totals.netPayable} tone={totals.netPayable > 0 ? 'amber' : 'green'} hint="Output GST − ITC (books)" />
+              <Kpi label="Paid (3B challans)" amount={totals.amountPaid} tone={totals.amountPaid >= totals.netPayable ? 'green' : 'red'} hint="tax actually paid to GSTN" />
             </div>
 
             {/* Period table */}
@@ -243,21 +268,45 @@ export default function GstReport() {
                   <thead>
                     <tr className="border-b border-dark-700 text-dark-300">
                       <th className="text-left px-4 py-3 font-medium">Period</th>
-                      <th className={`${numCls} font-medium`}>Taxable T/O</th>
-                      <th className={`${numCls} font-medium`}>Exports (0%)</th>
-                      <th className={`${numCls} font-medium text-emerald-400`}>Output GST</th>
+                      <th className={`${numCls} font-medium`}>
+                        <TermHint label="Taxable T/O">Taxable turnover — the sales value (before tax) you charged GST on this period. INR invoices only.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium`}>
+                        <TermHint label="Exports (0%)">Zero-rated sales: exports and foreign-currency invoices. No GST is charged on these, so they add turnover but no Output GST.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-emerald-400`}>
+                        <TermHint label="Output GST">GST you collected from customers on sales. You hold this for the government until you file GSTR-3B.</TermHint>
+                      </th>
                       {showSplit && granularity === 'month' && <>
-                        <th className={`${numCls} font-medium text-dark-400`}>CGST</th>
-                        <th className={`${numCls} font-medium text-dark-400`}>SGST</th>
-                        <th className={`${numCls} font-medium text-dark-400`}>IGST</th>
+                        <th className={`${numCls} font-medium text-dark-400`}>
+                          <TermHint label="CGST">Central GST — half of the tax on sales within your own state.</TermHint>
+                        </th>
+                        <th className={`${numCls} font-medium text-dark-400`}>
+                          <TermHint label="SGST">State GST — the other half of the tax on within-state sales.</TermHint>
+                        </th>
+                        <th className={`${numCls} font-medium text-dark-400`}>
+                          <TermHint label="IGST">Integrated GST — the full tax on sales to other states.</TermHint>
+                        </th>
                       </>}
-                      <th className={`${numCls} font-medium text-blue-400`}>ITC (books)</th>
-                      <th className={`${numCls} font-medium text-blue-400`}>ITC (2B)</th>
-                      <th className={`${numCls} font-medium text-amber-400`}>Net payable</th>
-                      <th className={`${numCls} font-medium`}>Paid</th>
+                      <th className={`${numCls} font-medium text-blue-400`}>
+                        <TermHint label="ITC (books)">Input Tax Credit per your own records — GST you paid on vendor bills. It reduces what you owe.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-blue-400`}>
+                        <TermHint label="ITC (2B)">The portion of your credit that vendors have confirmed by filing their returns — it appears in your GSTR-2B statement. Only confirmed credit is safe to claim. Kept current by the GST 2B Recon page.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium text-amber-400`}>
+                        <TermHint label="Net payable">Output GST minus ITC (books) — the tax this month owes the government via GSTR-3B.</TermHint>
+                      </th>
+                      <th className={`${numCls} font-medium`}>
+                        <TermHint label="Paid">Tax actually paid — the GSTR-3B challan amounts recorded against this month.</TermHint>
+                      </th>
                       {granularity === 'month' && <>
-                        <th className="text-center px-4 py-3 font-medium">GSTR-1</th>
-                        <th className="text-center px-4 py-3 font-medium">GSTR-3B</th>
+                        <th className="text-center px-4 py-3 font-medium">
+                          <TermHint label="GSTR-1">Monthly return listing your sales invoices. Due the 11th of the following month.</TermHint>
+                        </th>
+                        <th className="text-center px-4 py-3 font-medium">
+                          <TermHint label="GSTR-3B">Monthly summary return where the tax is actually paid. Due the 20th of the following month.</TermHint>
+                        </th>
                         <th className="text-center px-4 py-3 font-medium" title="Download GSTR-1 CSV">CSV</th>
                       </>}
                     </tr>
