@@ -111,18 +111,38 @@ export default function GstReport() {
   // older (slower) request's data render under the newer selection.
   const seqRef = useRef(0);
   const [syncing, setSyncing] = useState(false);
-  const load = useCallback((refreshGstn = false) => {
+  const lastLoadedAtRef = useRef(0);
+  const load = useCallback((refreshGstn = false, { silent = false } = {}) => {
     if (!orgSlug) return;
     const seq = ++seqRef.current;
-    if (refreshGstn) setSyncing(true); else setLoading(true);
+    lastLoadedAtRef.current = Date.now();
+    if (refreshGstn) setSyncing(true); else if (!silent) setLoading(true);
     setError(null);
     invoicingApi.getGstReport(orgSlug, { fy: fy || undefined, granularity, ...(refreshGstn ? { refreshGstn: 1 } : {}) })
       .then((res) => { if (seq === seqRef.current) setData(res.data); })
-      .catch((err) => { if (seq === seqRef.current) setError(err.message || 'Failed to load GST report'); })
+      .catch((err) => { if (seq === seqRef.current && !silent) setError(err.message || 'Failed to load GST report'); })
       .finally(() => { if (seq === seqRef.current) { setLoading(false); setSyncing(false); } });
   }, [orgSlug, fy, granularity, currentCompany?._id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // The figures change as bills/payments are booked in other tabs, so refetch
+  // (silently — no spinner over the current numbers) when this tab regains
+  // focus. Throttled: rapid alt-tabbing must not stack report recomputes on
+  // the shared cluster.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadedAtRef.current < 15000) return;
+      load(false, { silent: true });
+    };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [load]);
 
   const months = data?.months || [];
   const quarters = data?.quarters || [];
