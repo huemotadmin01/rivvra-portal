@@ -168,7 +168,7 @@ export default function PayrollDashboardPage() {
               <div className={`p-1.5 rounded-lg ${card.bg}`}><card.icon size={14} className={card.color} /></div>
               <span className="text-xs text-dark-400">{card.label}</span>
             </div>
-            <div className={`text-xl font-bold tabular-nums break-words ${card.color}`}>{formatMoney(card.value)}</div>
+            <div className={`text-base sm:text-xl font-bold tabular-nums break-words ${card.color}`}>{formatMoney(card.value)}</div>
             <div className="text-[10px] text-dark-500 mt-1">{card.hint} · this FY</div>
           </div>
         ))}

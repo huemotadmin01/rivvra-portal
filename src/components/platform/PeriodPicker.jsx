@@ -33,15 +33,18 @@ export default function PeriodPicker() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-dark-800/50 hover:bg-dark-800 border border-dark-700/50 transition-colors text-sm"
+        className="flex shrink-0 items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-dark-800/50 hover:bg-dark-800 border border-dark-700/50 transition-colors text-sm whitespace-nowrap"
       >
-        <Calendar size={14} className="text-dark-400" />
-        <span className="text-dark-200 font-medium">{MONTHS[month - 1]} {year}</span>
+        <Calendar size={14} className="text-dark-400 shrink-0" />
+        {/* Compact "Aug ’26" on phones — the full "Aug 2026" wrapped to two
+            lines in the crowded mobile TopBar and blew up its height */}
+        <span className="text-dark-200 font-medium sm:hidden">{MONTHS[month - 1]} ’{String(year).slice(-2)}</span>
+        <span className="text-dark-200 font-medium hidden sm:inline">{MONTHS[month - 1]} {year}</span>
         <span className="text-dark-500 text-xs hidden sm:inline">| {fyShort}</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-64 bg-dark-900 border border-dark-700 rounded-xl shadow-xl z-50 p-3">
+        <div className="absolute right-0 top-full mt-1.5 w-64 max-w-[calc(100vw-1.5rem)] bg-dark-900 border border-dark-700 rounded-xl shadow-xl z-50 p-3">
           {/* Year navigation */}
           <div className="flex items-center justify-between mb-3">
             <button
