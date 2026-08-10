@@ -192,7 +192,7 @@ export default function SkillsPicker({ orgSlug, candidateId, readOnly = false })
       {/* Add skill form */}
       {showAdd && !readOnly && (
         <div className="bg-dark-800/50 border border-dark-700 rounded-lg p-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {/* Searchable skill typeahead — restricted to existing master
                 skills (no inline create). New skills are added in Settings. */}
             <div ref={skillContainerRef} className="relative">

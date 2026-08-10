@@ -740,10 +740,10 @@ export default function ExpenseDetail() {
             Back to expenses
           </button>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                <Wallet size={20} className="text-rivvra-400" />
-                {isNew ? 'New Expense Claim' : (expense?.title || 'Expense Claim')}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
+              <h1 className="text-xl font-semibold text-white flex items-center gap-2 min-w-0">
+                <Wallet size={20} className="text-rivvra-400 shrink-0" />
+                <span className="truncate">{isNew ? 'New Expense Claim' : (expense?.title || 'Expense Claim')}</span>
               </h1>
               {!isNew && <StatusBadge status={status} />}
               {!isNew && expense?.archived && (
@@ -898,7 +898,7 @@ export default function ExpenseDetail() {
           )}
 
           {/* Claim header */}
-          <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 space-y-4">
+          <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 sm:p-5 space-y-4">
             <h2 className="text-sm font-semibold text-white uppercase tracking-wide">Claim Details</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -988,8 +988,8 @@ export default function ExpenseDetail() {
           </div>
 
           {/* Lines */}
-          <div className="bg-dark-850 border border-dark-700 rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-white uppercase tracking-wide">Expense Lines</h2>
               <div className="text-sm text-dark-300">
                 Total: <span className="font-semibold text-white">{formatCurrency(totalAmount, form.claimCurrency)}</span>
@@ -1148,7 +1148,7 @@ export default function ExpenseDetail() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-dark-300 mb-1 flex items-center gap-1">
+                    <label className="text-[11px] font-medium text-dark-300 mb-1 flex items-center gap-1">
                       <Paperclip size={11} /> Receipt {editable && <span className="text-red-400">*</span>}
                     </label>
                     <ReceiptCell
@@ -1191,7 +1191,7 @@ export default function ExpenseDetail() {
         {/* Right: Activity */}
         {!isNew && (
           <div className="space-y-6">
-            <div className="bg-dark-850 border border-dark-700 rounded-xl p-5">
+            <div className="bg-dark-850 border border-dark-700 rounded-xl p-4 sm:p-5">
               <h2 className="text-sm font-semibold text-white uppercase tracking-wide flex items-center gap-1.5 mb-4">
                 <Eye size={14} className="text-rivvra-400" />
                 Activity
@@ -1314,6 +1314,7 @@ export default function ExpenseDetail() {
           filename={previewReceipt.filename}
           mimeType={previewReceipt.mimeType}
           fetchUrl={previewReceipt.fetchUrl}
+          pdfRenderer="canvas"
           onClose={() => setPreviewReceipt(null)}
         />
       )}

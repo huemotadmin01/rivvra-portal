@@ -102,7 +102,7 @@ export default function AiResumeInsights({
         <div className="text-xs text-dark-400 mb-3 italic">"{application.aiJobFitReasoning}"</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {candidate?.aiTotalYearsExp != null && (
           <Section title="Total experience">
             <div className="text-sm text-dark-200">{candidate.aiTotalYearsExp} {candidate.aiTotalYearsExp === 1 ? 'year' : 'years'}</div>

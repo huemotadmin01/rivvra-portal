@@ -105,7 +105,7 @@ function ChangeStatusDropdown({ currentStatus, isOpen, onToggle, onSelect }) {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute right-0 top-full mt-1.5 min-w-[150px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20">
+          <div className="absolute right-0 top-full mt-1.5 min-w-[150px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20">
             {statuses.filter((s) => s.value !== currentStatus).map((s) => (
               <button
                 key={s.value}
@@ -1003,7 +1003,7 @@ export default function AtsJobDetail() {
 
   if (!job) {
     return (
-      <div className="p-6 md:p-8">
+      <div className="p-3 sm:p-6 md:p-8">
         <div className="flex flex-col items-center justify-center py-20">
           <h3 className="text-lg font-semibold text-white mb-2">Job position not found</h3>
           <p className="text-dark-400 text-sm">The position may have been deleted or you don't have access.</p>
@@ -1043,7 +1043,7 @@ export default function AtsJobDetail() {
   const openApp = (appId) => navigate(withFromContext(orgPath(`/ats/applications/${appId}`), 'ats_job', jobId));
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 space-y-6">
       <button
         onClick={() => navigate(orgPath('/ats/jobs'))}
         className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
@@ -1107,7 +1107,7 @@ export default function AtsJobDetail() {
               {showKebab && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-56 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
                     {!job.archived ? (
                       <button
                         onClick={() => { setShowKebab(false); openArchiveModal(); }}
@@ -1186,7 +1186,7 @@ export default function AtsJobDetail() {
                 </div>
                 {job.publishToCareers && jobPublicUrl ? (
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono text-dark-300 truncate max-w-md">{jobPublicUrl}</span>
+                    <span className="text-xs font-mono text-dark-300 truncate max-w-full sm:max-w-md">{jobPublicUrl}</span>
                     <button
                       onClick={handleCopyJobPublicUrl}
                       className="inline-flex items-center gap-1 text-[11px] text-dark-400 hover:text-white transition-colors"
@@ -1295,7 +1295,7 @@ export default function AtsJobDetail() {
                     Share this instead of the plain public URL. Candidates who apply through this link get credited to you as recruiter.
                   </p>
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono text-dark-300 truncate max-w-md">{myRefLink}</span>
+                    <span className="text-xs font-mono text-dark-300 truncate max-w-full sm:max-w-md">{myRefLink}</span>
                     <button
                       onClick={async () => {
                         try {
@@ -1823,7 +1823,7 @@ export default function AtsJobDetail() {
             />
             {/* Q4-A: lookup field; selected name renders as a hyperlink to
                 the contact record. Pencil/clear icon swaps to edit mode. */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 group items-start">
               <span className="text-dark-400 text-sm pt-1.5">Client Name</span>
               <div className="min-w-0">
                 {editingClient && canEdit && job.isClientRole ? (

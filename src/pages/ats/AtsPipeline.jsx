@@ -67,7 +67,7 @@ function FilterChip({ label, value, options, isOpen, onToggle, onSelect }) {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute left-0 top-full mt-1.5 min-w-[220px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl z-20 flex flex-col max-h-72 overflow-hidden">
+          <div className="absolute left-0 top-full mt-1.5 min-w-[220px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl z-20 flex flex-col max-h-72 overflow-hidden">
             {isSearchable && (
               <div className="p-2 border-b border-dark-700 shrink-0">
                 <input
@@ -264,7 +264,7 @@ function KanbanCardOverlay({ application }) {
   };
 
   return (
-    <div className="bg-dark-800 rounded-lg p-3 border border-rivvra-500/40 shadow-lg shadow-rivvra-500/10 w-[268px]">
+    <div className="bg-dark-800 rounded-lg p-3 border border-rivvra-500/40 shadow-lg shadow-rivvra-500/10 w-[248px] sm:w-[268px]">
       <div className="flex items-start gap-2">
         <div className="mt-0.5 text-dark-600 flex-shrink-0">
           <GripVertical size={14} />
@@ -302,7 +302,7 @@ function KanbanColumnInner({ stage, applications, totalCount, onCardClick, onLoa
   const { setNodeRef } = useDroppable({ id: `col:${stage._id}` });
 
   return (
-    <div className="bg-dark-900/50 rounded-lg min-w-[300px] max-w-[300px] flex flex-col max-h-[calc(100vh-220px)]">
+    <div className="bg-dark-900/50 rounded-lg min-w-[280px] sm:min-w-[300px] max-w-[300px] flex flex-col max-h-[calc(100dvh-220px)]">
       {/* Column header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-dark-700/50">
         <h3 className="text-white font-semibold text-sm truncate">{stage.name}</h3>
@@ -684,7 +684,7 @@ export default function AtsPipeline() {
   const allAppIds = columns.flatMap((col) => (col.applications || []).map((a) => a._id));
 
   return (
-    <div className="p-6 md:p-8 flex flex-col h-full">
+    <div className="p-3 sm:p-6 md:p-8 flex flex-col h-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>

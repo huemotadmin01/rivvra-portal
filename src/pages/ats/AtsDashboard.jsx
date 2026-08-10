@@ -194,7 +194,7 @@ function DonutChart({ title, data, labelKey = 'label', valueKey = 'value', cente
   return (
     <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
       <h3 className="text-sm font-semibold text-dark-200 mb-3">{title}</h3>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="relative shrink-0">
           <svg width="180" height="180" viewBox="0 0 180 180">
             <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1f2937" strokeWidth={stroke} />

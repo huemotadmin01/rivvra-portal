@@ -317,7 +317,7 @@ export function FilterChip({ type = 'select', paramKey, label, options = [], pla
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 min-w-[220px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 flex flex-col max-h-80">
+        <div className="absolute top-full left-0 mt-1 min-w-[220px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 flex flex-col max-h-80">
           {isSearchable && (
             <div className="p-2 border-b border-dark-700">
               <input

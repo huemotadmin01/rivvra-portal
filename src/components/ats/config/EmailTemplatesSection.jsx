@@ -156,7 +156,7 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
           Emails automatically sent to candidates when their application moves to a stage.
         </p>
 
-        <div className="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
+        <div className="bg-dark-800 rounded-lg border border-dark-700 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-dark-700">
@@ -256,7 +256,7 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
           Emails triggered by specific events (refusal, job approval).
         </p>
 
-        <div className="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
+        <div className="bg-dark-800 rounded-lg border border-dark-700 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-dark-700">

@@ -36,7 +36,7 @@ export default function AtsCandidateNew() {
   // button gate so a non-admin can't reach the form by typing the URL.
   if (!isAdmin) {
     return (
-      <div className="p-6 md:p-8 max-w-2xl mx-auto">
+      <div className="p-3 sm:p-6 md:p-8 max-w-2xl mx-auto">
         <div className="card p-8 text-center">
           <User size={36} className="mx-auto text-dark-500 mb-3" />
           <h1 className="text-lg font-semibold text-white mb-1">Admin access required</h1>
@@ -87,7 +87,7 @@ export default function AtsCandidateNew() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-2xl mx-auto space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 max-w-2xl mx-auto space-y-6">
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"
@@ -104,7 +104,7 @@ export default function AtsCandidateNew() {
 
       <form onSubmit={handleSubmit}>
         <SectionCard title="Contact" icon={User}>
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 items-center">
             <span className="text-dark-400 text-sm">
               Name <span className="text-red-400">*</span>
             </span>
@@ -119,7 +119,7 @@ export default function AtsCandidateNew() {
             />
           </div>
 
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 items-center">
             <span className="text-dark-400 text-sm">
               Email <span className="text-red-400">*</span>
             </span>
@@ -135,7 +135,7 @@ export default function AtsCandidateNew() {
             />
           </div>
 
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 items-center">
             <span className="text-dark-400 text-sm">Phone</span>
             <input
               type="tel"
@@ -148,7 +148,7 @@ export default function AtsCandidateNew() {
             />
           </div>
 
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 items-center">
             <span className="text-dark-400 text-sm">Mobile</span>
             <input
               type="tel"
@@ -161,7 +161,7 @@ export default function AtsCandidateNew() {
             />
           </div>
 
-          <div className="grid grid-cols-[140px_1fr] gap-2 py-2 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 items-center">
             <span className="text-dark-400 text-sm">LinkedIn</span>
             <input
               type="url"

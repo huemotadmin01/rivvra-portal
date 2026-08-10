@@ -264,7 +264,7 @@ export default function AtsCandidateDetail() {
   if (!candidate) return null;
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 space-y-6">
       <button
         onClick={() => navigate(orgPath('/ats/candidates'))}
         className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors"

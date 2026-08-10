@@ -54,7 +54,7 @@ function Skeleton() {
   return (
     <div className="space-y-3">
       <div className="h-9 bg-dark-800/60 rounded-lg animate-pulse" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="h-24 bg-dark-800/60 rounded-lg animate-pulse" />
         <div className="h-24 bg-dark-800/60 rounded-lg animate-pulse" />
       </div>

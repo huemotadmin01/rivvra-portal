@@ -597,7 +597,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
 
         <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
         <div className="text-[10px] font-semibold text-dark-500 uppercase tracking-wider">Offer terms</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-dark-300 mb-1">Joining date <span className="text-red-400">*</span></label>
               <input
@@ -888,7 +888,7 @@ function HireModal({ show, onClose, onConfirm, saving, mode = 'hire', initialOff
                   {signError && <p className="text-[11px] text-red-400 mt-1">{signError}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-dark-400 mb-1">Director (signs first)</label>
                     <input
@@ -1217,7 +1217,7 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {/* Identity */}
           <FormSection icon={Mail} title="Identity" hint="How this employee will sign in and be addressed">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <FieldLabel required>Work email</FieldLabel>
                 <input
@@ -1270,7 +1270,7 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
 
           {/* Org placement */}
           <FormSection icon={Building2} title="Org placement" hint="Where this person sits in the org">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2 sm:col-span-1">
                 <FieldLabel required>Reporting manager</FieldLabel>
                 <div className="rounded-md border border-dark-700 bg-dark-900/60 px-2.5 py-1.5 hover:border-dark-600 focus-within:border-rivvra-500 transition-colors">
@@ -1346,7 +1346,7 @@ function CreateEmployeeDrawer({ show, onClose, onConfirm, saving, application, c
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center justify-center gap-2 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/40 rounded-lg px-5 py-2 text-sm font-semibold transition-colors disabled:opacity-50 min-w-[160px]"
+            className="flex items-center justify-center gap-2 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/40 rounded-lg px-5 py-2 text-sm font-semibold transition-colors disabled:opacity-50 sm:min-w-[160px]"
           >
             {saving && <Loader2 size={15} className="animate-spin" />}
             Create Employee
@@ -1635,7 +1635,7 @@ function InterviewScheduleModal({ show, onClose, onConfirm, saving, level, targe
           <button type="button" onClick={onClose} aria-label="Close" className="text-dark-400 hover:text-white transition-colors flex-shrink-0"><X size={20} /></button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className="block text-sm font-medium text-dark-300 mb-1">When <span className="text-red-400">*</span></label>
             <input
@@ -1799,7 +1799,7 @@ function InterviewResultModal({ show, onClose, onConfirm, saving, level, targetS
             {/* 2026-05-17 health-check E.1: three mutually-exclusive
                 buttons get role=radiogroup so screen readers announce
                 "1 of 3" and arrow keys work as expected. */}
-            <div role="radiogroup" aria-labelledby="interview-rec-label" className="grid grid-cols-3 gap-2">
+            <div role="radiogroup" aria-labelledby="interview-rec-label" className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 // 2026-05-17 health-check P0: explicit class strings instead
                 // of `bg-${tone}-500/15` template literals. Tailwind's JIT
@@ -1875,7 +1875,7 @@ function MoveStageDropdown({ stages, currentStageId, isOpen, onToggle, onSelect,
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
-          <div className="absolute right-0 top-full mt-1.5 min-w-[180px] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
+          <div className="absolute right-0 top-full mt-1.5 min-w-[180px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-1 z-20 max-h-60 overflow-y-auto">
             {stages.filter((s) => s._id !== currentStageId).map((s) => (
               <button
                 key={s._id}
@@ -2905,7 +2905,7 @@ export default function AtsApplicationDetail() {
 
   if (!application) {
     return (
-      <div className="p-6 md:p-8">
+      <div className="p-3 sm:p-6 md:p-8">
         <div className="flex flex-col items-center justify-center py-20">
           <h3 className="text-lg font-semibold text-white mb-2">Application not found</h3>
           <p className="text-dark-400 text-sm">The application may have been deleted or you don't have access.</p>
@@ -2959,7 +2959,7 @@ export default function AtsApplicationDetail() {
   const docsGateBypassed = !!application.documentsGate?.bypassedAt;
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 space-y-6">
       {/* Back nav — recruiters landing here from email/list have no other escape hatch */}
       <button
         onClick={() => navigate(orgPath('/ats/applications'))}
@@ -3198,7 +3198,7 @@ export default function AtsApplicationDetail() {
                 {showKebab && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-64 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+                    <div className="absolute right-0 top-full mt-1 w-64 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
                       {/* 2026-05-27 — admin escape hatch for the Rate Confirmation
                           gate. Hidden once a bypass is already in place
                           (the revoke link sits on the chip instead). */}
@@ -3359,7 +3359,7 @@ export default function AtsApplicationDetail() {
                 : undefined}
             />
             {application.candidateId && (
-              <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
                 <span className="text-dark-400 text-sm">Profile</span>
                 <Link
                   to={withFromContext(orgPath(`/ats/candidates/${application.candidateId}`), 'ats_application', applicationId)}
@@ -3380,7 +3380,7 @@ export default function AtsApplicationDetail() {
           />
 
           <SectionCard title="Job" icon={Briefcase}>
-            <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
               <span className="text-dark-400 text-sm">Position</span>
               {application.jobPositionId ? (
                 <Link
@@ -3407,7 +3407,7 @@ export default function AtsApplicationDetail() {
                 a recruiter pick up an HR-Team / unowned application even
                 though the team-scope RBAC otherwise makes it read-only. */}
             {canClaim && (
-              <div className="grid grid-cols-[140px_1fr] gap-2 pb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 pb-2">
                 <span />
                 <button
                   type="button"
@@ -3790,7 +3790,7 @@ export default function AtsApplicationDetail() {
 
           {appStatus === 'refused' && (
             <SectionCard className="border-red-500/20" title="Refused" icon={XCircle}>
-              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 py-1">
+              <div className="grid grid-cols-1 sm:grid-cols-[110px_1fr] gap-x-3 gap-y-2 py-1">
                 <span className="text-dark-400 text-sm">Reason</span>
                 <span className={`text-sm ${application.refuseReason ? 'text-dark-200' : 'text-dark-500 italic'}`}>
                   {application.refuseReason || 'No reason provided'}
@@ -3818,11 +3818,11 @@ export default function AtsApplicationDetail() {
           )}
 
           <SectionCard title="Pipeline" icon={UserCheck}>
-            <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
               <span className="text-dark-400 text-sm">Status</span>
               <span className="text-white text-sm capitalize">{application.applicationStatus || 'ongoing'}</span>
             </div>
-            <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
               <span className="text-dark-400 text-sm">Kanban</span>
               <span className="text-white text-sm">{KANBAN_LABELS[application.kanbanState] || 'Normal'}</span>
             </div>

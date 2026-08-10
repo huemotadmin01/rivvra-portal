@@ -168,13 +168,15 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
+      {/* Phones get a full-screen h-dvh sheet (a hard 90vh put the page-nav
+          strip under iOS Safari's collapsing chrome); sm+ keeps the centered
+          90vh dialog. */}
       <div
-        className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-5xl mx-4 shadow-2xl flex flex-col overflow-hidden"
-        style={{ height: '90vh' }}
+        className="bg-dark-800 border border-dark-700 rounded-none sm:rounded-2xl w-full max-w-5xl mx-0 sm:mx-4 shadow-2xl flex flex-col overflow-hidden h-full h-dvh sm:h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-dark-700/50 flex-shrink-0">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-dark-700/50 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
               {isImage ? <Eye size={14} className="text-blue-400" /> : <FileText size={14} className="text-red-400" />}
@@ -188,7 +190,7 @@ export default function DocumentPreviewModal({ filename, mimeType, fetchUrl, dir
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
                 title="Download"
               >
-                <Download size={14} /> Download
+                <Download size={14} /> <span className="hidden sm:inline">Download</span>
               </button>
             )}
             <button

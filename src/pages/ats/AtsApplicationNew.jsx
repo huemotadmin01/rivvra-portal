@@ -690,7 +690,7 @@ export default function AtsApplicationNew() {
   // ── Loading shell ────────────────────────────────────────────────────
   if (loadingJob) {
     return (
-      <div className="p-6 md:p-8 flex items-center justify-center py-20">
+      <div className="p-3 sm:p-6 md:p-8 flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
       </div>
     );
@@ -710,7 +710,7 @@ export default function AtsApplicationNew() {
     <>
       {/* Top breadcrumb bar */}
       <div className="border-b border-dark-800/60 bg-dark-950/40 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center gap-2 text-xs text-dark-400">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-3 flex items-center gap-2 text-xs text-dark-400">
           <button
             onClick={() => navigate(orgPath(`/ats/jobs/${jobId}`))}
             className="flex items-center gap-1 hover:text-white transition-colors"
@@ -722,7 +722,7 @@ export default function AtsApplicationNew() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 md:px-8 py-8 pb-32">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-8 pb-32">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white tracking-tight">New Application</h1>
           <p className="text-dark-400 text-sm mt-1.5">
@@ -974,7 +974,7 @@ export default function AtsApplicationNew() {
                     onDrop={handleResumeDrop}
                     onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     onClick={() => resumeInputRef.current?.click()}
-                    className="border-2 border-dashed border-dark-700 rounded-lg p-8 text-center cursor-pointer hover:border-rivvra-500/40 hover:bg-dark-900/30 transition-colors"
+                    className="border-2 border-dashed border-dark-700 rounded-lg p-4 sm:p-8 text-center cursor-pointer hover:border-rivvra-500/40 hover:bg-dark-900/30 transition-colors"
                   >
                     <Upload size={20} className="text-dark-500 mx-auto mb-2" />
                     <div className="text-sm text-dark-300">Drop a resume here or <span className="text-rivvra-300">browse</span></div>
@@ -1291,7 +1291,7 @@ export default function AtsApplicationNew() {
 
           {/* Sticky bottom action bar */}
           <div className="fixed bottom-0 left-0 lg:left-64 right-0 border-t border-dark-800/80 bg-dark-950/85 backdrop-blur-md z-20">
-            <div className="max-w-6xl mx-auto px-6 md:px-8 py-3 flex items-center justify-between gap-4">
+            <div className="max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
               <p className="text-xs text-dark-500 hidden md:block">
                 {canSubmit
                   ? <span className="text-dark-300">Ready to create.</span>

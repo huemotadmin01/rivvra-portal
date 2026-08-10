@@ -65,7 +65,9 @@ function SummaryCard({ icon: Icon, label, value, sub, accent = 'rivvra' }) {
         <span className="text-xs text-dark-400 uppercase tracking-wide">{label}</span>
         <Icon size={16} className={accents[accent] || accents.rivvra} />
       </div>
-      <div className="text-2xl font-semibold text-white">{value}</div>
+      {/* text-lg at base: two cards share 375px, and formatted INR totals
+          (₹1,23,456.00) overflow a ~160px card at text-2xl */}
+      <div className="text-lg sm:text-2xl font-semibold text-white break-words">{value}</div>
       {sub && <div className="text-xs text-dark-500 mt-1">{sub}</div>}
     </div>
   );
@@ -266,7 +268,7 @@ export default function ExpenseList() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
           </div>
-          <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+          <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-dark-800">
