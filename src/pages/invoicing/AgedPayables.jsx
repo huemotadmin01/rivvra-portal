@@ -132,7 +132,7 @@ export default function AgedPayables() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-dark-900 p-6">
+      <div className="min-h-screen bg-dark-900 p-3 sm:p-6">
         <div className="max-w-7xl mx-auto">
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-400">{error}</div>
         </div>
@@ -144,7 +144,7 @@ export default function AgedPayables() {
   const allVendors = Array.isArray(data?.byVendor) ? data.byVendor : [];
 
   return (
-    <div className="min-h-screen bg-dark-900 p-6">
+    <div className="min-h-screen bg-dark-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
           <button

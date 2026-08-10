@@ -43,7 +43,7 @@ export default function TimesheetExport() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <h1 className="text-2xl font-bold text-white">Export & Reports</h1>
 
       {/* Month/Year Selector */}
@@ -83,7 +83,7 @@ export default function TimesheetExport() {
       {tab === 'export' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* GreytHR Payroll CSV */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center">
                 <FileText size={20} className="text-emerald-400" />
@@ -103,7 +103,7 @@ export default function TimesheetExport() {
           </div>
 
           {/* Odoo Invoice CSV */}
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
                 <FileText size={20} className="text-blue-400" />

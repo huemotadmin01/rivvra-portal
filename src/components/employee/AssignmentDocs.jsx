@@ -116,12 +116,12 @@ export default function AssignmentDocs({ orgSlug, employeeId, assignmentIdx }) {
                       {doc.filename}
                     </button>
                     {canPreview && (
-                      <button type="button" onClick={() => setPreviewDoc(doc)} className="text-dark-500 hover:text-rivvra-400 transition-colors opacity-0 group-hover:opacity-100" title="Preview">
+                      <button type="button" onClick={() => setPreviewDoc(doc)} className="text-dark-500 hover:text-rivvra-400 transition-colors opacity-100 sm:opacity-0 group-hover:opacity-100" title="Preview">
                         <Eye size={13} />
                       </button>
                     )}
                     <span className="text-[10px] text-dark-500">{formatSize(doc.size)}</span>
-                    <button type="button" onClick={() => handleDelete(doc._id)} className="p-0.5 text-dark-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" onClick={() => handleDelete(doc._id)} className="p-0.5 text-dark-600 hover:text-red-400 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                       <X size={12} />
                     </button>
                   </div>

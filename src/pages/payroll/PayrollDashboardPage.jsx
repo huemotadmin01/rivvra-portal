@@ -144,8 +144,8 @@ export default function PayrollDashboardPage() {
   const fyMonthCount = fyRuns.length;
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white">Payroll Dashboard</h1>
           <p className="text-sm text-dark-400 mt-1">FY {fy} — {fyMonthCount} month{fyMonthCount !== 1 ? 's' : ''} processed on Rivvra</p>
@@ -228,14 +228,14 @@ export default function PayrollDashboardPage() {
         {recentRuns.length > 0 ? (
           <div className="divide-y divide-dark-700/50">
             {recentRuns.map(run => (
-              <div key={run._id} className="px-5 py-3 flex items-center justify-between gap-4 hover:bg-dark-750 cursor-pointer" onClick={() => navigate('/payroll/statutory-run')}>
+              <div key={run._id} className="px-5 py-3 flex items-center justify-between gap-2 sm:gap-4 hover:bg-dark-750 cursor-pointer" onClick={() => navigate('/payroll/statutory-run')}>
                 <div className="flex items-center gap-3 flex-wrap min-w-0">
-                  <div className="text-white font-medium text-sm w-32 shrink-0">{MONTHS[run.month]} {run.year}</div>
+                  <div className="text-white font-medium text-sm w-28 sm:w-32 shrink-0">{MONTHS[run.month]} {run.year}</div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[run.status]}`}>{STATUS_LABELS[run.status] || run.status}</span>
                   <span className="text-xs text-dark-400" title="Rows processed in this run — includes contractors and anyone on salary hold, so it is not a paid headcount">{fmtCount(run.summary?.totalEmployees || 0)} in run</span>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <div className="text-sm font-medium text-green-400 tabular-nums text-right w-32">{formatMoney(run.summary?.totalNet)}</div>
+                  <div className="text-sm font-medium text-green-400 tabular-nums text-right w-auto min-w-0 sm:w-32">{formatMoney(run.summary?.totalNet)}</div>
                   <ChevronRight size={14} className="text-dark-500" />
                 </div>
               </div>

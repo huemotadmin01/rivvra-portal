@@ -144,7 +144,7 @@ export default function GstReport() {
   const numCls = 'px-4 py-3 text-right tabular-nums';
 
   return (
-    <div className="min-h-screen bg-dark-900 p-6">
+    <div className="min-h-screen bg-dark-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-4">

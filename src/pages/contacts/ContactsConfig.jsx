@@ -143,7 +143,7 @@ export default function ContactsConfig() {
   // ── Non-admin guard ─────────────────────────────────────────────────
   if (!isAdmin) {
     return (
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <div className="flex flex-col items-center justify-center py-20 text-dark-400">
           <Tag size={48} className="mb-4 opacity-40" />
           <p className="text-lg">Admin access required</p>
@@ -155,9 +155,9 @@ export default function ContactsConfig() {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-white">Contacts Configuration</h1>
           <p className="text-dark-400 text-sm mt-1">Manage tags for organizing contacts</p>

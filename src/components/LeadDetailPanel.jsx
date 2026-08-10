@@ -240,7 +240,7 @@ function LeadDetailPanel({ lead, onClose, onUpdate, teamMode = false, teamMember
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[420px] bg-dark-900 border-l border-dark-700 shadow-2xl z-50 flex flex-col animate-slide-in">
+    <div className="fixed inset-y-0 right-0 w-full max-w-[420px] bg-dark-900 border-l border-dark-700 shadow-2xl z-50 flex flex-col animate-slide-in">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-dark-700">
         <div className="flex items-center gap-3">

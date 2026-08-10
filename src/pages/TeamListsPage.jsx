@@ -308,9 +308,9 @@ function TeamListsPage() {
 
   return (
     <>
-      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'mr-[420px]' : ''}`}>
+      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'lg:mr-[420px]' : ''}`}>
         {/* Left Sidebar - Lists */}
-        <div className="w-64 flex-shrink-0 border-r border-dark-700 p-4">
+        <div className="hidden md:block w-64 flex-shrink-0 border-r border-dark-700 p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-rivvra-400" />
@@ -368,7 +368,20 @@ function TeamListsPage() {
         </div>
 
         {/* Main Content - Leads Table */}
-        <div className="flex-1 p-6 overflow-hidden flex flex-col">
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden flex flex-col">
+          {/* Mobile list picker */}
+          <div className="md:hidden mb-3">
+            <select
+              value={selectedList || ''}
+              onChange={(e) => { setSelectedList(e.target.value); setPage(1); }}
+              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Select a list…</option>
+              {lists.map((list, idx) => (
+                <option key={idx} value={list.name}>{list.name} ({list.count || 0})</option>
+              ))}
+            </select>
+          </div>
           {!selectedList ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -379,7 +392,7 @@ function TeamListsPage() {
           ) : (
             <>
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-wrap gap-y-2 items-center justify-between mb-6">
                 <div>
                   <h1 className="text-2xl font-bold text-white mb-1">{selectedList}</h1>
                   <p className="text-dark-400">
@@ -451,7 +464,7 @@ function TeamListsPage() {
                     return (
                       <div
                         ref={filterDropdownRef}
-                        className="fixed w-64 bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-[9999]"
+                        className="fixed w-64 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-[9999]"
                         style={{
                           top: rect ? rect.bottom + 8 : 0,
                           right: rect ? window.innerWidth - rect.right : 0,
@@ -563,12 +576,12 @@ function TeamListsPage() {
                                 className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500"
                               />
                             </th>
-                            <th className="sticky left-12 z-30 bg-dark-800 px-4 py-3 text-left w-[200px] min-w-[200px]">
+                            <th className="sm:sticky left-12 z-30 bg-dark-800 px-4 py-3 text-left w-[200px] min-w-[200px]">
                               <button className="flex items-center gap-1 text-sm font-medium text-dark-400 hover:text-white">
                                 Contact <ArrowUpDown className="w-3 h-3" />
                               </button>
                             </th>
-                            <th className="sticky left-[260px] z-30 bg-dark-800 px-4 py-3 text-left w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"></th>
+                            <th className="sm:sticky left-[260px] z-30 bg-dark-800 px-4 py-3 text-left w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"></th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[140px]">Contact Owner</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[120px]">Profile Type</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[150px]">Status</th>
@@ -596,7 +609,7 @@ function TeamListsPage() {
                                   className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500"
                                 />
                               </td>
-                              <td className="sticky left-12 z-10 bg-dark-900 px-4 py-3 w-[200px] min-w-[200px]">
+                              <td className="sm:sticky left-12 z-10 bg-dark-900 px-4 py-3 w-[200px] min-w-[200px]">
                                 <div className="flex items-center gap-3">
                                   {lead.profilePicture ? (
                                     <img src={lead.profilePicture} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -623,7 +636,7 @@ function TeamListsPage() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="sticky left-[260px] z-10 bg-dark-900 px-4 py-3 w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
+                              <td className="sm:sticky left-[260px] z-10 bg-dark-900 px-4 py-3 w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
                                 {canEditLead(lead) && (
                                   <ManageDropdown
                                     lead={lead}

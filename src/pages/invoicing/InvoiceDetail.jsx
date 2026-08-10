@@ -2104,7 +2104,7 @@ export default function InvoiceDetail() {
       {/* GST payment-hold strip (vendor bills, posted). Soft warning. */}
       {isVendorBill && !isDraft && status !== 'cancelled' && (
         <div className={`px-4 sm:px-6 lg:px-8 py-2 border-b ${onHold ? 'bg-red-500/10 border-red-500/20' : 'bg-dark-850 border-dark-700'}`}>
-          <div className="max-w-[1600px] mx-auto flex items-center gap-3 text-sm">
+          <div className="max-w-[1600px] mx-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             {onHold ? (
               <>
                 <AlertTriangle size={15} className="text-red-400 shrink-0" />
@@ -4212,7 +4212,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
 
   return (
     <ModalOverlay onClose={onClose} dismissable={!saving}>
-      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 bg-dark-850 z-10">
           <div>
             <h2 className="text-lg font-bold text-white">Record Payment</h2>
@@ -4354,7 +4354,7 @@ function RecordPaymentModal({ orgSlug, invoiceId, invoiceNumber, currency, total
                           </select>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className={labelCls}>TDS Base (untaxed)</label>
                             <input
@@ -4562,7 +4562,7 @@ function EmployeeBillRecordPaymentModal({
 
   return (
     <ModalOverlay onClose={onClose} dismissable={!saving}>
-      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 bg-dark-850 z-10">
           <div>
             <h2 className="text-lg font-bold text-white">Pay Employee</h2>
@@ -4652,7 +4652,7 @@ function EmployeeBillRecordPaymentModal({
 
             {isCheque && (
               <div className="border border-dark-700 rounded-lg p-3 space-y-3 bg-dark-800/30">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls}>Cheque Number</label>
                     <input
@@ -4948,7 +4948,7 @@ function CreditNoteModal({ orgSlug, invoiceId, invoiceNumber, journalName, onClo
           <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors"><X size={20} /></button>
         </div>
         <div className="p-5 space-y-3">
-          <div className="grid grid-cols-[120px_1fr] gap-x-3 items-center gap-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-x-3 items-center gap-y-2">
             <span className={labelCls}>Reason</span>
             <input type="text" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Reason displayed on Credit Note" className={inputCls} autoFocus />
             <span className={labelCls}>Journal</span>
@@ -5179,9 +5179,11 @@ function ModalOverlay({ children, onClose, dismissable = true }) {
   // dismissable={false} while a save is in flight — a stray backdrop click
   // mid-request would otherwise close the modal and hide the outcome.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismissable ? onClose : undefined} />
-      <div className="relative z-10">{children}</div>
+      {/* w-full so children's `w-full max-w-*` resolves against the padded
+          viewport — a shrink-to-fit wrapper let modals overflow 375px screens */}
+      <div className="relative z-10 w-full flex justify-center">{children}</div>
     </div>
   );
 }

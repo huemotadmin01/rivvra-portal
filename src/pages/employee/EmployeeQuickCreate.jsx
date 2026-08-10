@@ -150,7 +150,7 @@ export default function EmployeeQuickCreate() {
           Back to Directory
         </button>
 
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 mb-1">
               <UserPlus size={18} className="text-dark-400" />

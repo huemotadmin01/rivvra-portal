@@ -211,10 +211,10 @@ export default function DocumentsList() {
   // can see + clear the active folder filter without scanning the outer rail.
   const selectedFolderName = folderId ? (folders.find((f) => String(f._id) === folderId)?.name || '') : '';
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-dark-950">
+    <div className="flex flex-col h-[calc(100vh-4rem)] h-[calc(100dvh-4rem)] bg-dark-950">
       {/* Main */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="px-6 py-3 border-b border-dark-800 flex items-start gap-3">
+        <header className="px-3 sm:px-6 py-3 border-b border-dark-800 flex flex-col sm:flex-row sm:items-start gap-3">
           <div className="flex-1 min-w-0">
             <FilterBar searchPlaceholder="Search by name, description, filename…">
               {/* Active-folder chip — clearable without leaving the page or
@@ -257,7 +257,7 @@ export default function DocumentsList() {
         </header>
 
         {/* List */}
-        <section className="flex-1 overflow-y-auto px-6 py-4">
+        <section className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
           {loading ? (
             <div className="flex items-center justify-center py-12 text-dark-400"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
           ) : docs.length === 0 ? (

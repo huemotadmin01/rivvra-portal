@@ -85,7 +85,7 @@ export default function AlumniDirectory() {
 
   if (!isOrgAdmin) {
     return (
-      <div className="p-8">
+      <div className="p-3 sm:p-6 lg:p-8">
         <div className="flex items-center gap-2 text-sm text-red-400">
           <AlertCircle className="w-4 h-4" /> Admin access required
         </div>
@@ -94,8 +94,8 @@ export default function AlumniDirectory() {
   }
 
   return (
-    <div className="p-8 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <Users className="w-5 h-5 text-rivvra-400" />
           <h1 className="text-xl font-bold text-white">Alumni Directory</h1>
@@ -122,12 +122,12 @@ export default function AlumniDirectory() {
       {loading ? (
         <div className="text-sm text-dark-500">Loading alumni...</div>
       ) : rows.length === 0 ? (
-        <div className="p-8 border border-dark-700 bg-dark-900/40 rounded-md text-center text-sm text-dark-500">
+        <div className="p-3 sm:p-6 lg:p-8 border border-dark-700 bg-dark-900/40 rounded-md text-center text-sm text-dark-500">
           No alumni yet. Separated employees will appear here during their read-only access window.
         </div>
       ) : (
-        <div className="border border-dark-700 rounded-md overflow-hidden bg-dark-900/40">
-          <table className="w-full text-sm">
+        <div className="border border-dark-700 rounded-md overflow-x-auto bg-dark-900/40">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-dark-900 border-b border-dark-700">
               <tr className="text-left text-[11px] uppercase tracking-wider text-dark-500">
                 <th className="px-3 py-2">Name</th>

@@ -70,7 +70,7 @@ function StageBar({ stages, currentStageId, isLost, isWon, stageHistory = [], on
 // Matches InlineField's read-mode layout (140px label column) for visual alignment.
 function LinkedRecordField({ label, to, name, fallback = 'View' }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm">{label}</span>
       <Link
         to={to}
@@ -546,7 +546,7 @@ export default function CrmOpportunityDetail() {
       </div>
 
       {/* Action Row */}
-      <div className="flex items-center gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-5">
         {showWonLost && (
           <>
             <button onClick={handleWon} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-500/15 text-amber-400 border border-amber-500/20 rounded-lg hover:bg-amber-500/25 font-medium">
@@ -615,7 +615,7 @@ export default function CrmOpportunityDetail() {
           {showKebab && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowKebab(false)} />
-              <div className="absolute right-0 top-full mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-56 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
                 {isOrgAdmin ? (
                   <button
                     onClick={() => { setShowKebab(false); setShowDeleteModal(true); }}
@@ -745,7 +745,7 @@ export default function CrmOpportunityDetail() {
         {/* Sidebar */}
         <div className="space-y-5">
           <SectionCard title="Owner" icon={Tag}>
-            <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
               <span className="text-dark-400 text-sm">Salesperson</span>
               <div className="min-w-0">
                 <EmployeeLookup
@@ -781,13 +781,13 @@ export default function CrmOpportunityDetail() {
               </div>
             </div>
             {opp.wonAt && (
-              <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
                 <span className="text-dark-400 text-sm">Won At</span>
                 <span className="text-amber-400 text-sm">{new Date(opp.wonAt).toLocaleDateString()}</span>
               </div>
             )}
             {opp.isConverted && opp.convertedAt && (
-              <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
                 <span className="text-dark-400 text-sm">Converted</span>
                 <span className="text-emerald-400 text-sm">{new Date(opp.convertedAt).toLocaleDateString()}</span>
               </div>

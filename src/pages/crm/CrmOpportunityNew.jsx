@@ -153,7 +153,7 @@ export default function CrmOpportunityNew() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-xl mx-auto">
+    <div className="p-3 sm:p-6 md:p-8 max-w-xl mx-auto">
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1.5 text-sm text-dark-400 hover:text-white transition-colors mb-6"

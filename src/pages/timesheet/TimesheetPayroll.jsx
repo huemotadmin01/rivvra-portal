@@ -1289,7 +1289,8 @@ export default function TimesheetPayroll() {
               <div className="px-4 py-2 bg-blue-500/5 border-b border-dark-800">
                 <p className="text-xs text-blue-400/80">These employees have approved timesheets but are excluded from payroll processing, exports, and payslip generation until Leave Management, PF, PT, and ESI modules are implemented.</p>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="bg-dark-800/40">
                     <th className="text-left px-4 py-2.5 font-medium text-dark-500 text-xs">Employee</th>
@@ -1322,6 +1323,7 @@ export default function TimesheetPayroll() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

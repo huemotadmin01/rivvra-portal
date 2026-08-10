@@ -73,12 +73,12 @@ function SlabEditor({ slabs, onChange, rateMode = false }) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-4 gap-2 text-xs font-medium text-dark-400 px-1">
+    <div className="space-y-2 overflow-x-auto">
+      <div className="grid grid-cols-4 gap-2 text-xs font-medium text-dark-400 px-1 min-w-[400px]">
         <span>Min</span><span>Max</span><span>{rateMode ? 'Rate' : 'Tax'}</span><span></span>
       </div>
       {slabs.map((slab, idx) => (
-        <div key={idx} className="grid grid-cols-4 gap-2">
+        <div key={idx} className="grid grid-cols-4 gap-2 min-w-[400px]">
           <input type="number" min="0" value={slab.min} onChange={e => updateSlab(idx, 'min', Number(e.target.value))}
             className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-1.5 text-sm text-white" />
           <input type="number" min="0" value={slab.max ?? ''} onChange={e => updateSlab(idx, 'max', e.target.value === '' ? null : Number(e.target.value))}
@@ -421,7 +421,7 @@ function AdminPayrollSettingsPage() {
                 {/* ESI Rates */}
                 <div>
                   <h4 className="text-sm font-medium text-white mb-3">Employee State Insurance (ESI)</h4>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { key: 'esiEmployeeRate', label: 'Employee Rate' },
                       { key: 'esiEmployerRate', label: 'Employer Rate' },
@@ -440,7 +440,7 @@ function AdminPayrollSettingsPage() {
                 {/* Cess */}
                 <div>
                   <h4 className="text-sm font-medium text-white mb-3">Cess & Surcharge</h4>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                     <div>
                       <label className="text-xs text-dark-400 block mb-1">Cess Rate</label>
                       <input type="number" step="0.01" value={fyConfig.cessRate ?? ''}
@@ -456,7 +456,7 @@ function AdminPayrollSettingsPage() {
                 {/* New Regime */}
                 <div>
                   <h4 className="text-sm font-medium text-white mb-3">New Tax Regime</h4>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                     <div>
                       <label className="text-xs text-dark-400 block mb-1">Standard Deduction</label>
                       <input type="number" value={fyConfig.newRegimeStdDeduction ?? ''}
@@ -484,7 +484,7 @@ function AdminPayrollSettingsPage() {
                 {/* Old Regime */}
                 <div>
                   <h4 className="text-sm font-medium text-white mb-3">Old Tax Regime</h4>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                     <div>
                       <label className="text-xs text-dark-400 block mb-1">Standard Deduction</label>
                       <input type="number" value={fyConfig.oldRegimeStdDeduction ?? ''}
@@ -546,7 +546,7 @@ function AdminPayrollSettingsPage() {
 
             {ptConfig && (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs text-dark-400 block mb-1">Annual Cap</label>
                     <input type="number" min="0" value={ptConfig.annualCap ?? 2500}
@@ -595,9 +595,9 @@ function AdminPayrollSettingsPage() {
             <p className="text-xs text-dark-400">Auto-created for new workspaces when Payroll app is enabled.</p>
             {salaryStructure?.components ? (
               <>
-                <div className="space-y-2">
+                <div className="space-y-2 overflow-x-auto">
                   {salaryStructure.components.map((comp, idx) => (
-                    <div key={idx} className="grid grid-cols-5 gap-3 items-center">
+                    <div key={idx} className="grid grid-cols-5 gap-3 items-center min-w-[560px]">
                       <input value={comp.name} onChange={e => {
                         const updated = [...salaryStructure.components];
                         updated[idx] = { ...updated[idx], name: e.target.value };
@@ -720,7 +720,7 @@ function AdminPayrollSettingsPage() {
             {verifyResult && (
               <div className={`rounded-lg p-4 border ${verifyResult.mismatched === 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
                 <h4 className="text-sm font-medium text-white mb-2">Verification Results</h4>
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                   <div><span className="text-dark-400">Total Items:</span> <span className="text-white">{verifyResult.totalItems}</span></div>
                   <div><span className="text-dark-400">Matched:</span> <span className="text-green-400">{verifyResult.matched}</span></div>
                   <div><span className="text-dark-400">Mismatched:</span> <span className={verifyResult.mismatched > 0 ? 'text-amber-400' : 'text-green-400'}>{verifyResult.mismatched}</span></div>

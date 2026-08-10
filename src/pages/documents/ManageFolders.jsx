@@ -68,7 +68,7 @@ export default function ManageFolders() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-6">
+    <div className="max-w-2xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <button onClick={() => navigate(`/org/${orgSlug}/documents`)} className="text-sm text-dark-400 hover:text-dark-200 inline-flex items-center gap-1.5 mb-4">
         <ArrowLeft className="w-4 h-4" /> Back to Documents
       </button>
@@ -96,7 +96,7 @@ export default function ManageFolders() {
                     className="flex-1 px-2 py-1 rounded bg-dark-800 border border-dark-700 text-dark-100 text-sm" />
                 ) : (
                   <button onClick={() => setEditing({ ...editing, [f._id]: f.name })}
-                    className="flex-1 text-left text-sm text-dark-100 hover:text-rivvra-300">
+                    className="flex-1 min-w-0 truncate text-left text-sm text-dark-100 hover:text-rivvra-300">
                     {f.name}
                     {f.archived && <span className="ml-2 text-[10px] uppercase tracking-wider text-amber-400">archived</span>}
                   </button>

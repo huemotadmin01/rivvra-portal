@@ -283,7 +283,7 @@ function OrgCard({ emp, pos, isAdmin, movingId, onMoveStart, onMoveTarget, onDro
         {isAdmin && !movingId && (
           <button
             onClick={(e) => { e.stopPropagation(); onMoveStart(emp._id); }}
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-dark-700/80 text-dark-400 hover:text-rivvra-400 hover:bg-dark-600/80 transition-all"
+            className="absolute top-2 right-2 opacity-100 sm:opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-dark-700/80 text-dark-400 hover:text-rivvra-400 hover:bg-dark-600/80 transition-all"
             title="Reassign manager"
           >
             <Move size={12} />
@@ -532,9 +532,9 @@ export default function OrgChart() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
+    <div className="flex flex-col h-[calc(100vh-64px)] h-[calc(100dvh-64px)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700 bg-dark-900/80 backdrop-blur-sm flex-shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-6 py-3 border-b border-dark-700 bg-dark-900/80 backdrop-blur-sm flex-shrink-0">
         <div>
           <h1 className="text-xl font-semibold text-white">Org Chart</h1>
           <p className="text-sm text-dark-400 mt-0.5">

@@ -60,7 +60,7 @@ export default function AlumniPolicyPage() {
 
   if (!isOrgAdmin) {
     return (
-      <div className="p-8">
+      <div className="p-3 sm:p-6 lg:p-8">
         <div className="flex items-center gap-2 text-sm text-red-400">
           <AlertCircle className="w-4 h-4" /> Admin access required
         </div>
@@ -68,10 +68,10 @@ export default function AlumniPolicyPage() {
     );
   }
 
-  if (loading) return <div className="p-8 text-sm text-dark-500">Loading alumni policy...</div>;
+  if (loading) return <div className="p-3 sm:p-6 lg:p-8 text-sm text-dark-500">Loading alumni policy...</div>;
 
   return (
-    <div className="p-8 max-w-2xl space-y-6">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
         <Shield className="w-5 h-5 text-rivvra-400" />
         <h1 className="text-xl font-bold text-white">Alumni Policy</h1>

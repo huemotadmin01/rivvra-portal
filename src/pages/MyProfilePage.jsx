@@ -313,7 +313,7 @@ export default function MyProfilePage() {
 
   return (
     <>
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-3 sm:p-6 max-w-4xl mx-auto">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm text-dark-400 mb-4">
           <span className="hover:text-white cursor-pointer" onClick={() => navigate(`/org/${orgSlug}/home`)}>Home</span>
@@ -330,7 +330,7 @@ export default function MyProfilePage() {
         <div className="space-y-6">
           {/* ====== Profile Header Card ====== */}
           <div className="card p-6">
-            <div className="flex items-start gap-6">
+            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
               {/* Left: Name, title, info */}
               <div className="flex-1 min-w-0">
                 {/* Editable name */}
@@ -939,7 +939,7 @@ export default function MyProfilePage() {
 
 function InfoRow({ label, value }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm">{label}</span>
       <span className="text-white text-sm">{value || <span className="text-dark-600">—</span>}</span>
     </div>

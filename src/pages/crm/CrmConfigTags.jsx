@@ -148,14 +148,14 @@ export default function CrmConfigTags() {
   // ── Loading state ───────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto flex items-center justify-center min-h-[300px]">
+      <div className="p-3 sm:p-6 lg:p-8 max-w-4xl mx-auto flex items-center justify-center min-h-[300px]">
         <Loader2 size={24} className="animate-spin text-dark-500" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

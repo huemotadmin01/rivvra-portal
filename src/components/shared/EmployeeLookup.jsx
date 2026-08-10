@@ -209,7 +209,7 @@ export default function EmployeeLookup({
     // anchor click from bubbling so the row's onClick doesn't fire too.
     return (
       <div
-        className={`grid grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
+        className={`grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
         onClick={() => editable && setEditing(true)}
       >
         <span className="text-dark-400 text-sm">{label}</span>
@@ -236,7 +236,7 @@ export default function EmployeeLookup({
   }
 
   return (
-    <div ref={containerRef} className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div ref={containerRef} className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm pt-1">{label}</span>
       <div className="relative">
         <input

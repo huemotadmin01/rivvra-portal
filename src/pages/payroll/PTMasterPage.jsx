@@ -132,9 +132,9 @@ export default function PTMasterPage({ embedded = false }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={embedded ? 'space-y-6' : 'space-y-6 p-3 sm:p-6 max-w-6xl mx-auto'}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         {!embedded && (
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 text-rivvra-500" />
@@ -166,11 +166,11 @@ export default function PTMasterPage({ embedded = false }) {
           <span className="text-sm font-medium text-dark-200">Default PT state</span>
           <span className="text-xs text-dark-500">Fallback used when an employee has no PT state of their own</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select
             value={defaultPtState}
             onChange={e => setDefaultPtState(e.target.value)}
-            className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-dark-200 w-64"
+            className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-dark-200 w-full sm:w-64"
           >
             <option value="">-- Not Set --</option>
             {configs.map(c => (

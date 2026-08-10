@@ -333,7 +333,7 @@ function KPIStrip({ kpis }) {
                 <span className="text-xs font-medium opacity-70 uppercase tracking-wider block mb-1">
                   {cell.label}
                 </span>
-                <p className={`text-xl font-bold ${cell.color}`}>
+                <p className={`text-lg sm:text-xl font-bold break-words ${cell.color}`}>
                   {formatCurrency(row[cell.key] || 0, row.currency)}
                 </p>
               </div>
@@ -435,7 +435,7 @@ export default function InvoicingDashboard() {
     <div className="bg-dark-900 min-h-screen">
       <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
         {/* ---- Header ---- */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-white">Invoicing</h1>
             <p className="text-xs text-dark-400 mt-0.5">Dashboard</p>

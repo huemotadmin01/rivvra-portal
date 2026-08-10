@@ -345,7 +345,7 @@ export default function MyEarnings() {
   const pageEnd = Math.min(total, (page - 1) * PAGE_SIZE + records.length);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header --------------------------------------------------------- */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>

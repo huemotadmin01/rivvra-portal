@@ -197,9 +197,9 @@ export default function TodoDashboard() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">To-Do Dashboard</h1>
           <p className="text-dark-400 mt-1">Manage your tasks and AI-extracted action items</p>

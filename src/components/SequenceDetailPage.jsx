@@ -469,7 +469,7 @@ function SequenceDetailPage({ sequenceId, onBack }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-y-1 items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold text-white">{sequence.name}</h1>
             {isOwner && (
@@ -491,13 +491,13 @@ function SequenceDetailPage({ sequenceId, onBack }) {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-dark-800 mb-6">
+      <div className="border-b border-dark-800 mb-6 overflow-x-auto">
         <div className="flex items-center gap-6">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`pb-3 text-sm font-medium transition-colors relative ${
+              className={`pb-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                 activeTab === tab.id
                   ? 'text-white'
                   : 'text-dark-500 hover:text-dark-300'
@@ -1397,7 +1397,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
   return (
     <div>
       {/* Contacts toolbar */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap gap-y-2 items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -1443,7 +1443,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
             {showContactFilter && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowContactFilter(false)} />
-                <div className="absolute left-0 top-full mt-1 w-40 bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-20">
+                <div className="absolute left-0 top-full mt-1 w-40 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-20">
                   {[
                     { value: 'all', label: 'All contacts' },
                     { value: 'active', label: 'Active' },
@@ -1483,7 +1483,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
               {showOwnerFilter && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowOwnerFilter(false)} />
-                  <div className="absolute left-0 top-full mt-1 w-48 bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-20">
+                  <div className="absolute left-0 top-full mt-1 w-48 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-20">
                     <button
                       onClick={() => { setOwnerFilter('all'); setShowOwnerFilter(false); if (onFilterChange) onFilterChange({ ownerFilter: 'all' }); if (onReloadEnrollments) onReloadEnrollments(1, buildFilterOpts({ owner: undefined })); }}
                       className={`w-full text-left px-3 py-1.5 text-xs hover:bg-dark-700 transition-colors ${
@@ -1525,7 +1525,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
             {showDateFilter && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => { setShowDateFilter(false); setShowCustomDatePicker(false); }} />
-                <div className="absolute left-0 top-full mt-1 w-56 bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-20">
+                <div className="absolute left-0 top-full mt-1 w-56 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-20">
                   {[
                     { value: 'all', label: 'All dates' },
                     { value: 'today', label: 'Today' },
@@ -1764,7 +1764,7 @@ function ContactsTab({ sequence, enrollments, enrollmentTotal, ownerCounts, user
                         {contactMenuId === enrollment._id && createPortal(
                           <>
                             <div className="fixed inset-0 z-[9998]" onClick={() => setContactMenuId(null)} />
-                            <div className="fixed w-44 bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-[9999]" style={(() => {
+                            <div className="fixed w-44 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-xl shadow-xl py-1 z-[9999]" style={(() => {
                               const btnRect = contactMenuBtnRectRef.current;
                               const menuHeight = 220; // approx max dropdown height
                               const spaceBelow = window.innerHeight - (btnRect?.bottom || 0);
@@ -2089,9 +2089,9 @@ function EmailsTab({ sequenceId, sequence, enrollments, enrollmentTotal, onLoadM
   }
 
   return (
-    <div className="flex gap-4" style={{ minHeight: '500px' }}>
+    <div className="flex flex-col lg:flex-row gap-4" style={{ minHeight: '500px' }}>
       {/* Left pane: Contact list */}
-      <div className="w-80 flex-shrink-0 card flex flex-col">
+      <div className="w-full lg:w-80 lg:flex-shrink-0 card flex flex-col">
         {/* Header with filter */}
         <div className="p-3 border-b border-dark-800 flex items-center justify-between">
           <span className="text-xs text-dark-500">All contacts</span>

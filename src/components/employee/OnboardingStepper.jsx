@@ -34,7 +34,7 @@ export default function OnboardingStepper({ currentStep }) {
                 {isCompleted ? <Check size={16} strokeWidth={3} /> : step.num}
               </div>
               <span
-                className={`text-xs mt-1.5 whitespace-nowrap ${
+                className={`hidden sm:block text-xs mt-1.5 whitespace-nowrap ${
                   isCurrent
                     ? 'text-rivvra-400 font-medium'
                     : isCompleted
@@ -49,7 +49,7 @@ export default function OnboardingStepper({ currentStep }) {
             {/* Connector line */}
             {i < STEPS.length - 1 && (
               <div
-                className={`w-12 sm:w-16 h-0.5 mt-[-18px] ${
+                className={`w-6 sm:w-16 h-0.5 mt-0 sm:mt-[-18px] ${
                   i < currentIdx ? 'bg-rivvra-500' : 'bg-dark-700'
                 }`}
               />

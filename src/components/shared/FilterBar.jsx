@@ -186,7 +186,7 @@ export default function FilterBar({ searchKey = 'search', searchPlaceholder = 'S
         <div className="sm:hidden fixed inset-0 z-50 flex items-end" onClick={() => setMobileOpen(false)}>
           <div className="absolute inset-0 bg-black/60" />
           <div
-            className="relative w-full bg-dark-900 border-t border-dark-700 rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto"
+            className="relative w-full bg-dark-900 border-t border-dark-700 rounded-t-2xl p-4 max-h-[80vh] max-h-[80dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -402,7 +402,7 @@ export function MoreFiltersPopover({ paramKeys = [], children, label = 'More fil
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1 min-w-[260px] max-w-[360px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 p-3 space-y-2">
+        <div className="absolute top-full right-0 mt-1 min-w-[260px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 p-3 space-y-2">
           {children}
         </div>
       )}
@@ -460,7 +460,7 @@ export function GroupByChip({ options = [], paramKey = 'groupBy', label = 'Group
         {!isActive && <ChevronDown size={12} />}
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1 min-w-[200px] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 py-1">
+        <div className="absolute top-full right-0 mt-1 min-w-[200px] max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-600 rounded-lg shadow-xl z-50 py-1">
           {options.map((o) => (
             <button
               key={o.value}

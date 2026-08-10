@@ -123,7 +123,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
   };
 
   return (
-    <div className={embedded ? '' : 'max-w-6xl mx-auto'}>
+    <div className={embedded ? '' : 'max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6'}>
       {!embedded && (
         <div className="mb-5">
           <h1 className="text-xl font-semibold text-white">Statutory Configuration</h1>
@@ -136,10 +136,10 @@ export default function StatutoryConfigPage({ embedded = false }) {
 
       {/* Search + filters — both operate on the rows already loaded */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-72" placeholder="Search name, email or employee code…" />
+            className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-full sm:w-72" placeholder="Search name, email or employee code…" />
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {FILTERS.map(f => (

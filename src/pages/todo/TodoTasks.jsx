@@ -208,9 +208,9 @@ export default function TodoTasks() {
   const totalPages = Math.ceil(total / 50);
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">All Tasks</h1>
           <p className="text-dark-400 mt-1">{total} total tasks</p>
@@ -225,7 +225,7 @@ export default function TodoTasks() {
       </div>
 
       {/* Status Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-dark-800">
+      <div className="flex gap-1 mb-4 border-b border-dark-800 overflow-x-auto">
         {STATUS_TABS.map(tab => (
           <button
             key={tab.key}
@@ -234,7 +234,7 @@ export default function TodoTasks() {
               setPage(1);
               setSearchParams(tab.key ? { status: tab.key } : {}, { replace: true });
             }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
               statusFilter === tab.key
                 ? 'border-teal-500 text-teal-400'
                 : 'border-transparent text-dark-400 hover:text-dark-300'
@@ -246,7 +246,7 @@ export default function TodoTasks() {
       </div>
 
       {/* Search & Filters Bar */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 gap-y-2 mb-4">
         <div className="flex-1 relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
           <input
@@ -287,7 +287,7 @@ export default function TodoTasks() {
 
       {/* Filter Row */}
       {showFilters && (
-        <div className="flex items-center gap-3 mb-4 p-3 bg-dark-900 rounded-lg border border-dark-800">
+        <div className="flex flex-wrap items-center gap-3 gap-y-2 mb-4 p-3 bg-dark-900 rounded-lg border border-dark-800">
           <select
             value={priorityFilter}
             onChange={e => { setPriorityFilter(e.target.value); setPage(1); }}

@@ -143,7 +143,7 @@ export default function CrmConfigLostReasons() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -204,6 +204,7 @@ export default function CrmConfigLostReasons() {
             )}
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-dark-700">
@@ -247,6 +248,7 @@ export default function CrmConfigLostReasons() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

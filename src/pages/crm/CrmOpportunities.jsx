@@ -451,9 +451,9 @@ export default function CrmOpportunities() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold text-dark-100">Opportunities</h1>
           <span className="text-xs text-dark-500">{total} total</span>

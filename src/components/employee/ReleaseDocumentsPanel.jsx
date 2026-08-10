@@ -199,10 +199,10 @@ export default function ReleaseDocumentsPanel({ orgSlug, employeeId, showToast }
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium flex-shrink-0 ${badge.cls}`} title={d.firstDownloadedAt ? `Downloaded ${new Date(d.firstDownloadedAt).toLocaleString()}` : d.firstViewedAt ? `Viewed ${new Date(d.firstViewedAt).toLocaleString()}` : (d.notifiedAt ? `Notified ${new Date(d.notifiedAt).toLocaleString()}` : 'Not notified')}>
                   <BadgeIcon size={11} /> {badge.label}
                 </span>
-                <button onClick={() => download(d)} disabled={busyId === d._id} className="text-dark-600 hover:text-blue-400 opacity-0 group-hover/rd:opacity-100 transition-opacity flex-shrink-0" title="Download">
+                <button onClick={() => download(d)} disabled={busyId === d._id} className="text-dark-600 hover:text-blue-400 opacity-100 sm:opacity-0 group-hover/rd:opacity-100 transition-opacity flex-shrink-0" title="Download">
                   {busyId === d._id ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                 </button>
-                <button onClick={() => archive(d)} className="text-dark-600 hover:text-red-400 opacity-0 group-hover/rd:opacity-100 transition-opacity flex-shrink-0" title="Remove">
+                <button onClick={() => archive(d)} className="text-dark-600 hover:text-red-400 opacity-100 sm:opacity-0 group-hover/rd:opacity-100 transition-opacity flex-shrink-0" title="Remove">
                   <Trash2 size={13} />
                 </button>
               </div>

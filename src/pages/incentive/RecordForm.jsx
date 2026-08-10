@@ -162,7 +162,7 @@ export default function RecordForm() {
   }
 
   return (
-    <div className="p-6 max-w-4xl space-y-6">
+    <div className="p-3 sm:p-6 max-w-4xl space-y-6">
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(orgPath('/incentive/records'))}

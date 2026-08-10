@@ -73,7 +73,7 @@ export default function TimesheetProjects() {
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <h1 className="text-2xl font-bold text-white">Projects & Clients</h1>
 
       <div className="flex gap-2">
@@ -93,8 +93,8 @@ export default function TimesheetProjects() {
               <Plus size={16} /> Add Client
             </button>
           </div>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="card overflow-hidden overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-dark-800">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-dark-400">Name</th>
@@ -131,8 +131,8 @@ export default function TimesheetProjects() {
               <Plus size={16} /> Add Project
             </button>
           </div>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="card overflow-hidden overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-dark-800">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-dark-400">Name</th>

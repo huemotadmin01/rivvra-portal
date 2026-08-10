@@ -100,9 +100,9 @@ export default function TodoTeamTasks() {
   ).length;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <Users size={20} className="text-teal-400" />
@@ -125,12 +125,12 @@ export default function TodoTeamTasks() {
       </div>
 
       {/* Status tabs */}
-      <div className="flex items-center gap-1 mb-4 border-b border-dark-800">
+      <div className="flex items-center gap-1 mb-4 border-b border-dark-800 overflow-x-auto">
         {STATUS_TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setStatusFilter(tab.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
               statusFilter === tab.key
                 ? 'border-teal-500 text-white'
                 : 'border-transparent text-dark-400 hover:text-white'

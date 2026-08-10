@@ -170,8 +170,8 @@ export default function TimesheetApprovals() {
         ) : (
           filtered.map(ts => (
             <div key={ts._id} className="card">
-              <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === ts._id ? null : ts._id)}>
-                <div className="flex items-center gap-3">
+              <div className="p-4 flex flex-wrap items-center justify-between gap-y-1 cursor-pointer" onClick={() => setExpanded(expanded === ts._id ? null : ts._id)}>
+                <div className="flex items-center gap-3 min-w-0">
                   {(ts.status === 'draft' || ts.status === 'rejected' || ts.status === 'no_entry') && (
                     <input type="checkbox" checked={selectedIds.has(ts.contractor?._id || ts.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(ts.contractor?._id || ts.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}

@@ -106,7 +106,7 @@ function Badge({ children, className }) {
 
 function InfoRow({ label, value }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm">{label}</span>
       <span className="text-white text-sm">{value ?? '\u2014'}</span>
     </div>
@@ -889,10 +889,10 @@ export default function EmployeeDetail() {
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-3 sm:p-6 max-w-5xl">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="card p-6 mb-6">
-        <div className="flex items-start gap-5">
+      <div className="card p-4 sm:p-6 mb-6">
+        <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
           {/* Avatar */}
           <div className="w-20 h-20 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
             <span className="text-2xl font-bold text-orange-400">
@@ -902,7 +902,7 @@ export default function EmployeeDetail() {
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-4 gap-y-2">
               <div>
                 <div className="flex items-center gap-2">
                   {editingName ? (
@@ -1653,7 +1653,7 @@ export default function EmployeeDetail() {
                               <>
                                 {/* Backdrop to close dropdown */}
                                 <div className="fixed inset-0 z-10" onClick={() => setDocUploadOpen(null)} />
-                                <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-dark-700 rounded-lg shadow-xl py-1 z-20 min-w-[200px]">
+                                <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-dark-700 rounded-lg shadow-xl py-1 z-20 min-w-[200px] max-w-[calc(100vw-1.5rem)]">
                                   {subcategories.length > 0 && subcategories.map(sub => (
                                     <button key={sub} onClick={() => handleDocUpload(key, sub)}
                                       className="block w-full text-left px-3 py-2 text-xs text-dark-300 hover:bg-dark-700 hover:text-white transition-colors">
@@ -1696,16 +1696,16 @@ export default function EmployeeDetail() {
                                 </span>
                                 {canPreview && (
                                   <button onClick={(e) => { e.stopPropagation(); setDocPreview(doc); }}
-                                    className="text-dark-600 hover:text-rivvra-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Preview">
+                                    className="text-dark-600 hover:text-rivvra-400 opacity-100 sm:opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Preview">
                                     <Eye size={13} />
                                   </button>
                                 )}
                                 <button onClick={(e) => { e.stopPropagation(); handleDocDownload(doc._id, doc.filename); }}
-                                  className="text-dark-600 hover:text-blue-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Download">
+                                  className="text-dark-600 hover:text-blue-400 opacity-100 sm:opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Download">
                                   <Download size={13} />
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); handleDocDelete(doc._id, doc.filename); }}
-                                  className="text-dark-600 hover:text-red-400 opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Delete">
+                                  className="text-dark-600 hover:text-red-400 opacity-100 sm:opacity-0 group-hover/doc:opacity-100 transition-opacity flex-shrink-0" title="Delete">
                                   <Trash2 size={13} />
                                 </button>
                               </div>
@@ -2079,7 +2079,7 @@ export default function EmployeeDetail() {
 
       {/* ── Separation Confirm Modal (audit M1) ──────────────────────── */}
       {showSeparationConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => !sepSaving && setShowSeparationConfirm(false)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => !sepSaving && setShowSeparationConfirm(false)}>
           <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-red-500/30 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle size={18} className="text-red-400" />
@@ -2120,7 +2120,7 @@ export default function EmployeeDetail() {
 
       {/* ── Employment Type Prompt Modal ─────────────────────────────── */}
       {showEmpTypePrompt && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-dark-800 rounded-xl p-6 w-full max-w-md border border-dark-700 shadow-xl">
             <h3 className="text-white font-semibold text-lg mb-2">Confirm Employment Type</h3>
             <p className="text-dark-400 text-sm mb-4">
@@ -2337,7 +2337,7 @@ export default function EmployeeDetail() {
           onClick={() => setEditAssignment(null)}
         >
           <div
-            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2651,7 +2651,7 @@ export default function EmployeeDetail() {
       {/* ── Revise Rate Modal ────────────────────────────────────────── */}
       {reviseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">

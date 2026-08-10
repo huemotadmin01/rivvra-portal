@@ -201,8 +201,8 @@ export default function TimesheetUsers() {
   );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">User Management</h1>
           <p className="text-dark-400 text-sm">{filteredUsers.length} of {users.length} users</p>
@@ -378,7 +378,7 @@ export default function TimesheetUsers() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">Full Name *</label>
                   <input type="text" required value={form.fullName} onChange={e => setForm({...form, fullName: e.target.value})}
@@ -398,7 +398,7 @@ export default function TimesheetUsers() {
                     className="input-field" />
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">Role</label>
                   <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}
@@ -458,7 +458,7 @@ export default function TimesheetUsers() {
                 </label>
                 <input type="number" value={form.clientBillingRate} onChange={e => setForm({...form, clientBillingRate: e.target.value})} className="input-field" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-1">Assigned Client</label>
                   <select value={form.assignedClient} onChange={e => setForm({...form, assignedClient: e.target.value})} className="input-field">

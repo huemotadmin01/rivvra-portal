@@ -240,7 +240,7 @@ export default function GstReconciliation() {
   // depend solely on regexing the server's error-message wording.
   if (indiaBlocked || companyCountry !== 'IN') {
     return (
-      <div className="bg-dark-900 min-h-screen p-6">
+      <div className="bg-dark-900 min-h-screen p-3 sm:p-6">
         <button onClick={() => navigate(orgPath('/invoicing/dashboard'))} className="flex items-center gap-2 text-dark-400 hover:text-white mb-6 text-sm">
           <ArrowLeft size={16} /> Back
         </button>
@@ -260,7 +260,7 @@ export default function GstReconciliation() {
   const hasImportForPeriod = importedPeriods.includes(period);
 
   return (
-    <div className="bg-dark-900 min-h-screen p-6">
+    <div className="bg-dark-900 min-h-screen p-3 sm:p-6">
       <button onClick={() => navigate(orgPath('/invoicing/dashboard'))} className="flex items-center gap-2 text-dark-400 hover:text-white mb-4 text-sm">
         <ArrowLeft size={16} /> Back
       </button>

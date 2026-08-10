@@ -137,7 +137,7 @@ export default function LaunchPlanModal({ isOpen, onClose, onLaunched, employee,
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-xl max-h-[85vh] max-h-[85dvh] flex flex-col shadow-2xl">
         <button onClick={onClose} className="absolute top-4 right-4 p-1 text-dark-400 hover:text-white transition-colors z-10">
           <X className="w-5 h-5" />
         </button>
@@ -246,12 +246,12 @@ export default function LaunchPlanModal({ isOpen, onClose, onLaunched, employee,
                     <Loader2 size={20} className="animate-spin text-dark-400" />
                   </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[40vh] max-h-[40dvh] overflow-y-auto">
                     {selectedTemplate.tasks.map((task, i) => {
                       const Icon = RESPONSIBLE_ICONS[task.responsibleType] || User;
                       const override = taskOverrides[i];
                       return (
-                        <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-dark-800/50 text-xs">
+                        <div key={i} className="flex flex-wrap items-center gap-2 py-2 px-3 rounded-lg bg-dark-800/50 text-xs">
                           <span className="text-dark-500 w-4 flex-shrink-0">{i + 1}.</span>
                           <div className="flex-1 min-w-0">
                             <span className="text-white block truncate">{task.title}</span>
@@ -265,7 +265,7 @@ export default function LaunchPlanModal({ isOpen, onClose, onLaunched, employee,
                           <select
                             value={override?.assignedToId || ''}
                             onChange={(e) => handleOverrideChange(i, e.target.value)}
-                            className="px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-dark-300 text-xs focus:outline-none focus:border-rivvra-500 min-w-[150px] max-w-[180px]"
+                            className="px-2 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-dark-300 text-xs focus:outline-none focus:border-rivvra-500 min-w-0 max-w-[180px]"
                           >
                             <option value="">Auto ({RESPONSIBLE_LABELS[task.responsibleType]} default)</option>
                             {activeEmployees.map(emp => (

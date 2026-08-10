@@ -160,7 +160,7 @@ function MatchModal({ line, suggestions, onMatch, onClose, matching, currency })
   if (!line) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-dark-850 border border-dark-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-dark-700">
           <div>
@@ -463,7 +463,7 @@ export default function BankReconciliation() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-dark-900 p-6 lg:p-8">
+    <div className="min-h-screen bg-dark-900 p-3 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>

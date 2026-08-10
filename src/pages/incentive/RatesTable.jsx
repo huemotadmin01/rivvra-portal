@@ -230,7 +230,7 @@ export default function RatesTable() {
   }, [employees]);
 
   return (
-    <div className="p-6 max-w-5xl space-y-5">
+    <div className="p-3 sm:p-6 max-w-5xl space-y-5">
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete rate entry?"
@@ -287,7 +287,7 @@ export default function RatesTable() {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
           <select
             value={newRate.role}
             onChange={(e) => setNewRate({ ...newRate, role: e.target.value })}
@@ -373,7 +373,7 @@ export default function RatesTable() {
             No rates configured yet. Records will use the IncentiveSettings default.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-dark-850 text-dark-400 text-xs uppercase">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">Role</th>
@@ -410,7 +410,7 @@ export default function RatesTable() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

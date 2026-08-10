@@ -145,7 +145,7 @@ function KanbanColumn({ stage, opportunities, totalCount, revenueByCurrency, cur
   return (
     <div
       ref={setDropRef}
-      className={`flex-shrink-0 min-w-[300px] max-w-[300px] flex flex-col max-h-[calc(100vh-260px)] ${isOver ? 'ring-1 ring-rivvra-500/40 rounded-lg' : ''}`}
+      className={`flex-shrink-0 min-w-[280px] sm:min-w-[300px] max-w-[300px] flex flex-col max-h-[calc(100dvh-260px)] ${isOver ? 'ring-1 ring-rivvra-500/40 rounded-lg' : ''}`}
     >
       <div className="bg-dark-850 border border-dark-700 rounded-t-lg px-3 py-3">
         <div className="flex items-center justify-between">
@@ -380,7 +380,7 @@ export default function CrmPipeline() {
   const visibleColumns = kanban.filter(col => !col.stage?.isWonStage);
 
   return (
-    <div className="p-6 md:p-8 flex flex-col h-full">
+    <div className="p-3 sm:p-6 md:p-8 flex flex-col h-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>

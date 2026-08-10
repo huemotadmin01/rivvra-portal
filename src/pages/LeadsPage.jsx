@@ -323,10 +323,10 @@ function LeadsPage() {
 
   return (
     <>
-      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'mr-[420px]' : ''}`}>
-        <div className="flex-1 p-8 overflow-hidden flex flex-col">
+      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'lg:mr-[420px]' : ''}`}>
+        <div className="flex-1 p-3 sm:p-6 lg:p-8 overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-wrap gap-y-2 items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-bold text-white mb-1">Saved Contacts</h1>
               <p className="text-dark-400">
@@ -425,7 +425,7 @@ function LeadsPage() {
                 return (
                   <div
                     ref={filterDropdownRef}
-                    className="fixed w-64 bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-[9999]"
+                    className="fixed w-64 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-[9999]"
                     style={{
                       top: rect ? rect.bottom + 8 : 0,
                       right: rect ? window.innerWidth - rect.right : 0,
@@ -561,12 +561,12 @@ function LeadsPage() {
                             className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500"
                           />
                         </th>
-                        <th className="sticky z-30 bg-dark-800 px-4 py-3 text-left" style={{ left: 48, width: 220, minWidth: 220 }}>
+                        <th className="sm:sticky z-30 bg-dark-800 px-4 py-3 text-left" style={{ left: 48, width: 220, minWidth: 220 }}>
                           <button className="flex items-center gap-1 text-sm font-medium text-dark-400 hover:text-white">
                             Contact <ArrowUpDown className="w-3 h-3" />
                           </button>
                         </th>
-                        <th className="sticky z-30 bg-dark-800 px-4 py-3 text-left" style={{ left: 268, width: 110, minWidth: 110, boxShadow: '2px 0 5px -2px rgba(0,0,0,0.3)' }}></th>
+                        <th className="sm:sticky z-30 bg-dark-800 px-4 py-3 text-left" style={{ left: 268, width: 110, minWidth: 110, boxShadow: '2px 0 5px -2px rgba(0,0,0,0.3)' }}></th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-dark-400" style={{ minWidth: 120 }}>Profile Type</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-dark-400" style={{ minWidth: 150 }}>Status</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-dark-400" style={{ minWidth: 180 }}>Company</th>
@@ -593,7 +593,7 @@ function LeadsPage() {
                               className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500"
                             />
                           </td>
-                          <td className="sticky z-10 bg-dark-900 px-4 py-3" style={{ left: 48, width: 220, minWidth: 220 }}>
+                          <td className="sm:sticky z-10 bg-dark-900 px-4 py-3" style={{ left: 48, width: 220, minWidth: 220 }}>
                             <div className="flex items-center gap-3">
                               {lead.profilePicture ? (
                                 <img src={lead.profilePicture} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -620,7 +620,7 @@ function LeadsPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="sticky z-10 bg-dark-900 px-4 py-3" style={{ left: 268, width: 110, minWidth: 110, boxShadow: '2px 0 5px -2px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+                          <td className="sm:sticky z-10 bg-dark-900 px-4 py-3" style={{ left: 268, width: 110, minWidth: 110, boxShadow: '2px 0 5px -2px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
                             <ManageDropdown
                               lead={lead}
                               onExportCRM={() => {

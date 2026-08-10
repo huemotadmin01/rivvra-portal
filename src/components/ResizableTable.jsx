@@ -100,6 +100,19 @@ export default function ResizableTable({
     document.addEventListener('mouseup', onUp);
   }, [widths]);
 
+  // Sticky columns are a desktop affordance — on phones the pinned pair can
+  // exceed the viewport (e.g. 220px left + 180px right on a 375px screen),
+  // covering the scrollable middle entirely. Disable pinning below sm.
+  const [stickyEnabled, setStickyEnabled] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 640px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)');
+    const onChange = (e) => setStickyEnabled(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   const totalWidth = columns.reduce((sum, c) => sum + (widths[c.key] || c.width), 0);
   const stickyLeftOffset = (key) => {
     let offset = 0;
@@ -144,9 +157,9 @@ export default function ResizableTable({
           <thead>
             <tr className="border-b border-dark-700">
               {columns.map(c => {
-                const stickyStyle = c.sticky === 'left'
+                const stickyStyle = stickyEnabled && c.sticky === 'left'
                   ? { position: 'sticky', left: stickyLeftOffset(c.key), zIndex: 3, background: 'rgb(31 31 35)' }
-                  : c.sticky === 'right'
+                  : stickyEnabled && c.sticky === 'right'
                     ? { position: 'sticky', right: stickyRightOffset(c.key), zIndex: 3, background: 'rgb(31 31 35)' }
                     : {};
                 return (
@@ -184,9 +197,9 @@ export default function ResizableTable({
                 className={`border-b border-dark-700/50 ${onRowClick ? 'hover:bg-dark-800/50 cursor-pointer' : ''} transition-colors group`}
               >
                 {columns.map(c => {
-                  const stickyStyle = c.sticky === 'left'
+                  const stickyStyle = stickyEnabled && c.sticky === 'left'
                     ? { position: 'sticky', left: stickyLeftOffset(c.key), zIndex: 1, background: 'rgb(24 24 28)' }
-                    : c.sticky === 'right'
+                    : stickyEnabled && c.sticky === 'right'
                       ? { position: 'sticky', right: stickyRightOffset(c.key), zIndex: 1, background: 'rgb(24 24 28)' }
                       : {};
                   return (

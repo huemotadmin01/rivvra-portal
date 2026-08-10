@@ -143,9 +143,9 @@ export default function SalaryStructuresPage({ embedded = false }) {
   );
 
   return (
-    <div className={embedded ? '' : 'max-w-4xl mx-auto'}>
+    <div className={embedded ? '' : 'max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6'}>
       {!embedded && (
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
           <div>
             <h1 className="text-xl font-semibold text-white">Salary Structures</h1>
             <p className="text-sm text-dark-400 mt-1">Reusable templates that split an employee's gross salary into components such as Basic and HRA</p>

@@ -89,7 +89,7 @@ export default function InviteEmployeeModal({ isOpen, onClose, onInviteSent, emp
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
+      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] max-h-[85dvh] flex flex-col shadow-2xl">
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 p-1 text-dark-400 hover:text-white transition-colors z-10"

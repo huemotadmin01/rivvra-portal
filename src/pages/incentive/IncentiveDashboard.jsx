@@ -119,7 +119,7 @@ export default function IncentiveDashboard() {
   const maxTrend = Math.max(1, ...trend.map((t) => t.amount || 0));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Incentive Dashboard</h1>
@@ -241,7 +241,7 @@ export default function IncentiveDashboard() {
           <h2 className="text-sm font-semibold text-white mb-4">
             By Client
           </h2>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-dark-400 text-xs uppercase">
               <tr>
                 <th className="text-left px-2 py-1 font-medium">Client</th>
@@ -264,7 +264,7 @@ export default function IncentiveDashboard() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>
@@ -326,7 +326,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry })
       </button>
       {open && groups.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-lg border border-amber-900/40">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-dark-400 text-xs uppercase bg-dark-900/50">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Consultant</th>
@@ -358,7 +358,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry })
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>

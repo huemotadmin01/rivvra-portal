@@ -85,7 +85,7 @@ export default function VendorChoiceModal({ extracted, orgSlug, onCancel, onDone
         </div>
 
         <div className="p-5 space-y-3">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               onClick={() => setMode('create')}
               className={`flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs transition-colors ${

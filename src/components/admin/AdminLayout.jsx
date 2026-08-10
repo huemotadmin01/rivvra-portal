@@ -49,7 +49,7 @@ function AdminLayout() {
       <AdminTopBar />
       <div className="flex">
         <AdminSidebar />
-        <main className="flex-1 ml-64 min-h-[calc(100vh-3.5rem)]">
+        <main className="flex-1 md:ml-64 min-h-[calc(100vh-3.5rem)]">
           <Outlet />
         </main>
       </div>

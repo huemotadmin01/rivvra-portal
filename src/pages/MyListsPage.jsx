@@ -393,9 +393,9 @@ function MyListsPage() {
 
   return (
     <>
-      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'mr-[420px]' : ''}`}>
+      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'lg:mr-[420px]' : ''}`}>
         {/* Left Sidebar - Lists */}
-        <div className="w-64 flex-shrink-0 border-r border-dark-700 p-4">
+        <div className="hidden md:block w-64 flex-shrink-0 border-r border-dark-700 p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">My Lists</h2>
             <div className="flex items-center gap-1">
@@ -461,7 +461,20 @@ function MyListsPage() {
         </div>
 
         {/* Main Content - Leads Table */}
-        <div className="flex-1 p-6 overflow-hidden flex flex-col">
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden flex flex-col">
+          {/* Mobile list picker */}
+          <div className="md:hidden mb-3">
+            <select
+              value={selectedList || ''}
+              onChange={(e) => { setSelectedList(e.target.value); setPage(1); }}
+              className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Select a list…</option>
+              {lists.map((list, idx) => (
+                <option key={idx} value={list.name}>{list.name} ({list.count || 0})</option>
+              ))}
+            </select>
+          </div>
           {!selectedList ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -472,7 +485,7 @@ function MyListsPage() {
           ) : (
             <>
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-wrap gap-y-2 items-center justify-between mb-6">
                 <div>
                   <h1 className="text-2xl font-bold text-white mb-1">{selectedList}</h1>
                   <p className="text-dark-400">
@@ -559,7 +572,7 @@ function MyListsPage() {
 
                   {/* Filter Dropdown */}
                   {showFilters && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-50">
+                    <div className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-50">
                       <div className="p-4">
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-sm font-medium text-white">Filters</span>
@@ -652,13 +665,13 @@ function MyListsPage() {
                               />
                             </th>
                             {/* Sticky Name Column */}
-                            <th className="sticky left-12 z-30 bg-dark-800 px-4 py-3 text-left w-[200px] min-w-[200px]">
+                            <th className="sm:sticky left-12 z-30 bg-dark-800 px-4 py-3 text-left w-[200px] min-w-[200px]">
                               <button className="flex items-center gap-1 text-sm font-medium text-dark-400 hover:text-white">
                                 Contact <ArrowUpDown className="w-3 h-3" />
                               </button>
                             </th>
                             {/* Sticky Manage Column */}
-                            <th className="sticky left-[260px] z-30 bg-dark-800 px-4 py-3 text-left w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"></th>
+                            <th className="sm:sticky left-[260px] z-30 bg-dark-800 px-4 py-3 text-left w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"></th>
                             {/* Scrollable Columns */}
                             <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[120px]">Profile Type</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[150px]">Status</th>
@@ -688,7 +701,7 @@ function MyListsPage() {
                                 />
                               </td>
                               {/* Sticky Name Column */}
-                              <td className="sticky left-12 z-10 bg-dark-900 px-4 py-3 w-[200px] min-w-[200px]">
+                              <td className="sm:sticky left-12 z-10 bg-dark-900 px-4 py-3 w-[200px] min-w-[200px]">
                                 <div className="flex items-center gap-3">
                                   {lead.profilePicture ? (
                                     <img src={lead.profilePicture} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -716,7 +729,7 @@ function MyListsPage() {
                                 </div>
                               </td>
                               {/* Sticky Manage Dropdown */}
-                              <td className="sticky left-[260px] z-10 bg-dark-900 px-4 py-3 w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
+                              <td className="sm:sticky left-[260px] z-10 bg-dark-900 px-4 py-3 w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
                                 <ManageDropdown
                                   lead={lead}
                                   onExportCRM={() => {
@@ -942,7 +955,7 @@ function MyListsPage() {
 
       {/* Create List Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-dark-800 rounded-xl w-full max-w-md p-6 border border-dark-700">
             <h3 className="text-lg font-semibold text-white mb-4">Create New List</h3>
             <input

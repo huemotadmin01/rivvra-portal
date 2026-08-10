@@ -235,7 +235,7 @@ export default function ContactLookup({
           <Plus size={12} /> {triggerLabel}
         </button>
         {editing && (
-          <div className="absolute right-0 top-full mt-1 w-64 z-50">
+          <div className="absolute right-0 top-full mt-1 w-64 max-w-[calc(100vw-1.5rem)] z-50">
             <div className="relative">
               <Search size={12} className="text-dark-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
@@ -260,7 +260,7 @@ export default function ContactLookup({
     const linkPath = linkTo && currentValue ? linkTo(currentValue) : null;
     return (
       <div
-        className={`grid grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
+        className={`grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 ${editable ? 'group cursor-pointer hover:bg-dark-800/50 rounded px-1 -mx-1' : ''}`}
         onClick={() => editable && setEditing(true)}
       >
         <span className="text-dark-400 text-sm">{label}</span>
@@ -287,7 +287,7 @@ export default function ContactLookup({
   }
 
   return (
-    <div ref={containerRef} className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div ref={containerRef} className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm pt-1">{label}</span>
       <div className="relative">
         <input

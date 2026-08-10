@@ -228,7 +228,7 @@ export default function CareersJobDetail() {
       </main>
 
       {/* Mobile floating CTA */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 px-4 pb-4 pt-3 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/95 to-transparent">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/95 to-transparent">
         <button
           onClick={() => setMobileApplyOpen(true)}
           className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-sm font-medium text-white shadow-lg active:scale-[0.98] transition-transform"
@@ -251,7 +251,7 @@ export default function CareersJobDetail() {
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[92vh] overflow-y-auto"
+              className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[92vh] max-h-[92dvh] overflow-y-auto"
             >
               <div className="sticky top-0 bg-white border-b border-zinc-100 px-5 py-3 flex items-center justify-between rounded-t-3xl">
                 <div className="w-8 h-1 bg-zinc-200 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 -top-3" />

@@ -117,23 +117,23 @@ export default function TaxReportsPage() {
   if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rivvra-500" /></div>;
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white flex items-center gap-2">
             <BarChart3 size={20} className="text-rivvra-400" /> Tax Reports
           </h1>
           <p className="text-sm text-dark-400 mt-1">Income tax summary & detailed computation per employee — FY {fy}</p>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-3 top-2.5 text-dark-500" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-56" placeholder="Search employee..." />
+            className="pl-8 pr-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:border-rivvra-500 focus:outline-none w-full sm:w-56" placeholder="Search employee..." />
         </div>
       </div>
 
-      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-dark-700">
               <th className="text-left px-4 py-3 text-dark-400 font-medium">Employee</th>
@@ -244,7 +244,7 @@ export default function TaxReportsPage() {
 
                               {/* Monthly Breakdown */}
                               {taxReport.monthlyBreakdown?.length > 0 && (
-                                <div className="bg-dark-900 rounded-lg border border-dark-800 overflow-hidden">
+                                <div className="bg-dark-900 rounded-lg border border-dark-800 overflow-x-auto">
                                   <p className="text-[10px] text-dark-500 uppercase px-3 pt-3 pb-1">Monthly Breakdown</p>
                                   <table className="w-full text-xs">
                                     <thead>
@@ -380,7 +380,7 @@ export default function TaxReportsPage() {
               )}
 
               {/* Detailed Tax Computation */}
-              <div className="bg-dark-900 rounded-lg border border-dark-700/50 overflow-hidden">
+              <div className="bg-dark-900 rounded-lg border border-dark-700/50 overflow-x-auto">
                 <div className="px-4 py-3 border-b border-dark-700/50">
                   <h3 className="text-sm font-semibold text-white">Detailed Tax Computation</h3>
                 </div>
@@ -435,7 +435,7 @@ export default function TaxReportsPage() {
 
               {/* Monthly TDS Breakdown with Cumulative */}
               {taxReport.monthlyBreakdown?.length > 0 && (
-                <div className="bg-dark-900 rounded-lg border border-dark-700/50 overflow-hidden">
+                <div className="bg-dark-900 rounded-lg border border-dark-700/50 overflow-x-auto">
                   <div className="px-4 py-3 border-b border-dark-700/50">
                     <h3 className="text-sm font-semibold text-white">Monthly TDS Breakdown</h3>
                   </div>

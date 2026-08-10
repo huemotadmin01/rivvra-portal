@@ -84,7 +84,7 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
       onClick={onClose}
       onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
     >
-      <div className="bg-dark-900 rounded-xl border border-dark-800 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-dark-900 rounded-xl border border-dark-800 w-full max-w-lg max-h-[90vh] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-dark-800">
           <h2 className="text-lg font-semibold text-white">
@@ -145,7 +145,7 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
           {/* Schedule */}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-dark-500 mb-2">Schedule</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-dark-400 mb-1">Due Date</label>
                 <input
@@ -168,7 +168,7 @@ export default function TaskFormModal({ task, onClose, onSave, canAssign, assign
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="flex items-center gap-1 text-sm text-dark-400 mb-1">
                   <Repeat size={12} /> Repeat

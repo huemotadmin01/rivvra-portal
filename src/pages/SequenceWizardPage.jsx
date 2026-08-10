@@ -200,7 +200,7 @@ function SequenceWizardPage() {
 
   return (
     <>
-      <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+      <div className="p-3 sm:p-6 lg:p-8 max-w-5xl mx-auto">
         {/* Stepper — shown for all steps except selection */}
         {wizardStep !== 'selection' && (
           <WizardStepper

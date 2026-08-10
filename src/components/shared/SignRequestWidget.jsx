@@ -180,7 +180,7 @@ export default function SignRequestWidget({
           sidebar and the modal getting clipped vertically). */}
       {showModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-2xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden">
+          <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-2xl max-h-[92vh] max-h-[92dvh] shadow-2xl flex flex-col overflow-hidden">
             {/* Sticky header */}
             <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-dark-700/80 bg-gradient-to-b from-dark-800 to-dark-800/70">
               <div className="flex items-start gap-3 min-w-0">

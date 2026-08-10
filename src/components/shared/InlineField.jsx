@@ -179,7 +179,7 @@ export default function InlineField({
   if (type === 'toggle') {
     const boolVal = !!value;
     return (
-      <div className="grid grid-cols-[140px_1fr] gap-2 py-2 group">
+      <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 group">
         <span className="text-dark-400 text-sm">{label}</span>
         <span className="flex items-center gap-2 text-sm">
           {editable ? (
@@ -219,7 +219,7 @@ export default function InlineField({
       : formatDisplayValue(value, type, maskFn, options);
     return (
       <div
-        className={`grid grid-cols-[140px_1fr] gap-2 py-2 group ${editable ? 'cursor-pointer' : ''}`}
+        className={`grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 group ${editable ? 'cursor-pointer' : ''}`}
         onClick={editable ? startEdit : undefined}
       >
         <span className="text-dark-400 text-sm">{label}</span>
@@ -242,7 +242,7 @@ export default function InlineField({
   // ---------- Error mode — re-show input ----------
   // ---------- Editing / Error mode ----------
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-1.5">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-1.5">
       <span className="text-dark-400 text-sm pt-1.5">{label}</span>
       <div className="flex items-center gap-1.5">
         {type === 'employee-picker' ? (

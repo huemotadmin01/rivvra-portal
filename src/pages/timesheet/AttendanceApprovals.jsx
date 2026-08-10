@@ -173,8 +173,8 @@ export default function AttendanceApprovals() {
         ) : (
           filtered.map(att => (
             <div key={att._id} className="card">
-              <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === att._id ? null : att._id)}>
-                <div className="flex items-center gap-3">
+              <div className="p-4 flex flex-wrap items-center justify-between gap-y-1 cursor-pointer" onClick={() => setExpanded(expanded === att._id ? null : att._id)}>
+                <div className="flex items-center gap-3 min-w-0">
                   {(att.status === 'draft' || att.status === 'rejected' || att.status === 'no_entry') && (
                     <input type="checkbox" checked={selectedIds.has(att.contractor)} onChange={(e) => { e.stopPropagation(); toggleSelect(att.contractor); }} onClick={e => e.stopPropagation()} className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-rivvra-500 focus:ring-rivvra-500 cursor-pointer" />
                   )}

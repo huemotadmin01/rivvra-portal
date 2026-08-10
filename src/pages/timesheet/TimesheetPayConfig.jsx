@@ -394,7 +394,7 @@ export default function TimesheetPayConfig() {
               <table className="w-full min-w-[1100px]">
                 <thead>
                   <tr className="border-b border-dark-700">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider sticky left-0 bg-dark-900 z-10 min-w-[240px] border-r border-dark-700 shadow-[2px_0_8px_-2px_rgba(0,0,0,0.4)]">Employee</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider sticky left-0 bg-dark-900 z-10 min-w-[160px] sm:min-w-[240px] border-r border-dark-700 shadow-[2px_0_8px_-2px_rgba(0,0,0,0.4)]">Employee</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Status</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Role</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-dark-400 uppercase tracking-wider">Pay Type</th>

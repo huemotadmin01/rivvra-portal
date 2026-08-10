@@ -412,7 +412,7 @@ export default function RecordDetail() {
   }
 
   return (
-    <div className="p-6 max-w-5xl space-y-5">
+    <div className="p-3 sm:p-6 max-w-5xl space-y-5">
       {/* ----- Header ----- */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1039,7 +1039,7 @@ function Panel({ title, children }) {
 // flexible) so a panel mixing both stays aligned.
 function ReadRow({ k, v, strong, note }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm">{k}</span>
       <span
         className={`text-sm ${strong ? 'font-semibold text-white' : 'text-dark-200'}`}

@@ -169,7 +169,7 @@ export default function CrmConfigStages() {
   // ── Loading state ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto flex items-center justify-center min-h-[300px]">
+      <div className="p-3 sm:p-6 lg:p-8 max-w-4xl mx-auto flex items-center justify-center min-h-[300px]">
         <Loader2 size={28} className="animate-spin text-dark-500" />
       </div>
     );
@@ -177,7 +177,7 @@ export default function CrmConfigStages() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -234,9 +234,9 @@ export default function CrmConfigStages() {
       </div>
 
       {/* Table card */}
-      <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-hidden">
+      <div className="bg-dark-850 border border-dark-700 rounded-xl overflow-x-auto">
         {/* Table header */}
-        <div className="grid grid-cols-[48px_1fr_140px_100px] px-4 py-3 border-b border-dark-700 bg-dark-800/50">
+        <div className="grid grid-cols-[48px_1fr_140px_100px] min-w-[520px] px-4 py-3 border-b border-dark-700 bg-dark-800/50">
           <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">
             #
           </span>
@@ -265,7 +265,7 @@ export default function CrmConfigStages() {
             {filtered.map((stage, index) => (
               <div
                 key={stage._id}
-                className="grid grid-cols-[48px_1fr_140px_100px] items-center px-4 py-3 border-b border-dark-800 hover:bg-dark-800/50 transition-colors"
+                className="grid grid-cols-[48px_1fr_140px_100px] min-w-[520px] items-center px-4 py-3 border-b border-dark-800 hover:bg-dark-800/50 transition-colors"
               >
                 <span className="text-sm text-dark-400 font-mono">
                   {stage.sequence ?? index + 1}

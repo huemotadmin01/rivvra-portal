@@ -299,10 +299,10 @@ function TeamContactsPage() {
 
   return (
     <>
-      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'mr-[420px]' : ''}`}>
-        <div className="flex-1 p-8 overflow-hidden flex flex-col">
+      <div className={`flex h-full transition-all duration-300 ${selectedLead ? 'lg:mr-[420px]' : ''}`}>
+        <div className="flex-1 p-3 sm:p-6 lg:p-8 overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-wrap gap-y-2 items-center justify-between mb-8">
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <UsersRound className="w-7 h-7 text-rivvra-400" />
@@ -393,7 +393,7 @@ function TeamContactsPage() {
                 return (
                   <div
                     ref={filterDropdownRef}
-                    className="fixed w-64 bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-[9999]"
+                    className="fixed w-64 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-[9999]"
                     style={{
                       top: rect ? rect.bottom + 8 : 0,
                       right: rect ? window.innerWidth - rect.right : 0,
@@ -517,12 +517,12 @@ function TeamContactsPage() {
                             className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500"
                           />
                         </th>
-                        <th className="sticky left-12 z-30 bg-dark-800 px-4 py-3 text-left w-[200px] min-w-[200px]">
+                        <th className="sm:sticky left-12 z-30 bg-dark-800 px-4 py-3 text-left w-[200px] min-w-[200px]">
                           <button className="flex items-center gap-1 text-sm font-medium text-dark-400 hover:text-white">
                             Contact <ArrowUpDown className="w-3 h-3" />
                           </button>
                         </th>
-                        <th className="sticky left-[260px] z-30 bg-dark-800 px-4 py-3 text-left w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"></th>
+                        <th className="sm:sticky left-[260px] z-30 bg-dark-800 px-4 py-3 text-left w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"></th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[140px]">Contact Owner</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[120px]">Profile Type</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-dark-400 min-w-[150px]">Status</th>
@@ -550,7 +550,7 @@ function TeamContactsPage() {
                               className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-rivvra-500 focus:ring-rivvra-500"
                             />
                           </td>
-                          <td className="sticky left-12 z-10 bg-dark-900 px-4 py-3 w-[200px] min-w-[200px]">
+                          <td className="sm:sticky left-12 z-10 bg-dark-900 px-4 py-3 w-[200px] min-w-[200px]">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0">
                                 <span className="text-sm font-bold text-dark-300">
@@ -575,7 +575,7 @@ function TeamContactsPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="sticky left-[260px] z-10 bg-dark-900 px-4 py-3 w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
+                          <td className="sm:sticky left-[260px] z-10 bg-dark-900 px-4 py-3 w-[110px] min-w-[110px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]" onClick={(e) => e.stopPropagation()}>
                             <ManageDropdown
                               lead={lead}
                               onExportCRM={() => {

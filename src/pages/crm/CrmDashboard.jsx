@@ -278,7 +278,7 @@ export default function CrmDashboard() {
   })();
 
   return (
-    <div className="p-4 space-y-6 max-w-6xl mx-auto">
+    <div className="p-3 sm:p-6 space-y-6 max-w-6xl mx-auto">
       {/* ── Get-started checklist (new workspaces; hides once set up) ── */}
       {setupCounts && setupCounts.contacts !== null && setupCounts.opps !== null && (
         <CrmGetStarted slug={slug} contactsTotal={setupCounts.contacts} oppsTotal={setupCounts.opps} />

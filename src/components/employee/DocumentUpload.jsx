@@ -151,7 +151,7 @@ export default function DocumentUpload({
                   {doc.filename}
                 </button>
                 {canPreview && (
-                  <button type="button" onClick={() => setPreviewDoc(doc)} className="text-dark-500 hover:text-rivvra-400 transition-colors opacity-0 group-hover:opacity-100" title="Preview">
+                  <button type="button" onClick={() => setPreviewDoc(doc)} className="text-dark-500 hover:text-rivvra-400 transition-colors opacity-100 sm:opacity-0 group-hover:opacity-100" title="Preview">
                     <Eye size={13} />
                   </button>
                 )}
@@ -159,7 +159,7 @@ export default function DocumentUpload({
                 <button
                   type="button"
                   onClick={() => handleDelete(doc._id)}
-                  className="opacity-0 group-hover:opacity-100 text-dark-500 hover:text-red-400 transition-all"
+                  className="opacity-100 sm:opacity-0 group-hover:opacity-100 text-dark-500 hover:text-red-400 transition-all"
                   title="Remove"
                 >
                   <X size={14} />

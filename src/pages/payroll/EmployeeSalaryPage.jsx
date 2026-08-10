@@ -124,7 +124,7 @@ export default function EmployeeSalaryPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-white">Employee Salary</h1>
@@ -137,8 +137,8 @@ export default function EmployeeSalaryPage() {
         <p className="text-sm text-blue-300">CTC is managed from the Employee Detail page. Go to <span className="font-medium">Employee → employee profile → Work Information</span> to set or revise CTC.</p>
       </div>
 
-      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-dark-800 rounded-xl border border-dark-700 overflow-x-auto">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-dark-700">
               <th className="text-left px-4 py-3 text-dark-400 font-medium">Employee</th>
@@ -249,7 +249,7 @@ export default function EmployeeSalaryPage() {
                     <div className="text-sm font-medium text-white">CTC: {fmt(h.ctcAnnual)}/yr</div>
                     {i === 0 && <span className="text-[10px] text-rivvra-400 bg-rivvra-500/10 px-2 py-0.5 rounded-full">Current</span>}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-dark-400">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-dark-400">
                     <div>Gross: {fmt(h.grossMonthly)}/mo</div>
                     <div>Employer: {fmt(h.totalEmployerCost)}/mo</div>
                     <div>From: {formatDateUTC(h.effectiveFrom)}</div>

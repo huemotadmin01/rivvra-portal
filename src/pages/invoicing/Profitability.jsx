@@ -196,7 +196,7 @@ function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
           )}
           {records && records.length === 0 && <div className="p-8 text-center text-dark-500 text-sm">No records</div>}
           {records && records.length > 0 && (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <tbody>
                 {records.map((r) => (
                   <tr key={r.id} className="border-b border-dark-700/50">
@@ -216,7 +216,7 @@ function DrillModal({ orgSlug, ctx, granularity, fy, onClose }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
         <div className="p-4 border-t border-dark-700 flex justify-between text-sm">
@@ -438,7 +438,7 @@ export default function Profitability() {
   })();
 
   return (
-    <div className="min-h-screen bg-dark-900 p-6">
+    <div className="min-h-screen bg-dark-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4 flex-wrap">

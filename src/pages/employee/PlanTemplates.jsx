@@ -64,7 +64,7 @@ function TaskEditor({ tasks, onChange, members = [] }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <label className="text-sm font-medium text-dark-300">Tasks</label>
         <button type="button" onClick={addTask} className="flex items-center gap-1 text-xs text-rivvra-400 hover:text-rivvra-300">
           <Plus size={14} /> Add Task
@@ -77,7 +77,7 @@ function TaskEditor({ tasks, onChange, members = [] }) {
         {tasks.map((task, i) => (
           <div key={i} className="bg-dark-800 rounded-xl p-3 border border-dark-700 relative group">
             <button type="button" onClick={() => removeTask(i)}
-              className="absolute top-2 right-2 text-dark-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+              className="absolute top-2 right-2 text-dark-600 hover:text-red-400 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
               <Trash2 size={14} />
             </button>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-2 items-start">
@@ -225,8 +225,8 @@ export default function PlanTemplates() {
   }
 
   return (
-    <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-3 sm:p-6 max-w-4xl">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">Plan Templates</h1>
           <p className="text-dark-400 text-sm mt-1">Manage onboarding and offboarding task templates</p>

@@ -39,7 +39,7 @@ function AdminSidebar() {
   };
 
   return (
-    <aside className="w-64 bg-dark-900 border-r border-dark-800 flex flex-col fixed left-0 top-14 z-30 h-[calc(100vh-3.5rem)]">
+    <aside className="w-64 bg-dark-900 border-r border-dark-800 hidden md:flex flex-col fixed left-0 top-14 z-30 h-[calc(100vh-3.5rem)]">
       {/* Admin Badge */}
       <div className="px-4 pt-3 pb-2 border-b border-dark-800/50">
         <div className="flex items-center gap-2.5 px-2 py-1.5">

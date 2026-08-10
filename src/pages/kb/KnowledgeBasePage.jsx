@@ -168,7 +168,7 @@ export default function KnowledgeBasePage() {
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto p-6">
+    <div className="max-w-[1600px] mx-auto p-3 sm:p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-3">
@@ -276,7 +276,7 @@ export default function KnowledgeBasePage() {
         </aside>
 
         {/* Main */}
-        <main className="bg-dark-900 border border-dark-800 rounded-xl px-6 py-5 lg:px-10 lg:py-8 min-h-[60vh]">
+        <main className="bg-dark-900 border border-dark-800 rounded-xl px-3 sm:px-6 py-4 sm:py-5 lg:px-10 lg:py-8 min-h-[60vh] min-h-[60dvh]">
           {mode === 'ask' ? (
             <KbAskPanel orgSlug={orgSlug} onOpenArticle={openArticle} />
           ) : mode === 'edit' ? (
@@ -331,7 +331,7 @@ function ArticleView({ article, canAuthor, onEdit }) {
         )}
       </div>
 
-      <h1 className="text-3xl font-bold text-dark-100 mb-2">{article.title}</h1>
+      <h1 className="text-3xl font-bold text-dark-100 mb-2 break-words">{article.title}</h1>
       {article.description && <p className="text-sm text-dark-400 italic mb-6 pb-6 border-b border-dark-800">{article.description}</p>}
 
       <article className="max-w-3xl">

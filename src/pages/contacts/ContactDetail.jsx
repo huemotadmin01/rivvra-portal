@@ -153,7 +153,7 @@ function NotesEditor({ value, editable, onSave }) {
 function ToggleRow({ label, value, editable, onChange }) {
   const handleClick = () => editable && onChange(!value);
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
       <span className="text-dark-400 text-sm">{label}</span>
       <button
         type="button"
@@ -259,7 +259,7 @@ function TagsEditor({ orgSlug, tagIds, tagNames, editable, onChange }) {
             <Plus size={11} /> Add tag
           </button>
           {showPicker && (
-            <div className="absolute top-full left-0 mt-1 w-56 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 overflow-hidden">
+            <div className="absolute top-full left-0 mt-1 w-56 max-w-[calc(100vw-1.5rem)] bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 overflow-hidden">
               <input
                 autoFocus
                 type="text"
@@ -730,7 +730,7 @@ export default function ContactDetail() {
 
   // -- Render -----------------------------------------------------------------
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-3 sm:p-6 max-w-5xl">
       {/* Back to Invoice link */}
       {fromInvoice && fromInvoiceId && (
         <button
@@ -743,7 +743,7 @@ export default function ContactDetail() {
 
       {/* Header Card */}
       <div className="card p-6 mb-6">
-        <div className="flex items-start gap-5">
+        <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
           {/* Avatar */}
           <div className={`w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 ${
             contact.type === 'company' ? 'bg-blue-500/20' : 'bg-orange-500/20'
@@ -952,12 +952,12 @@ export default function ContactDetail() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 border-b border-dark-700">
+      <div className="flex gap-1 mb-6 border-b border-dark-700 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
+            className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${
               activeTab === tab.id
                 ? 'text-rivvra-400'
                 : 'text-dark-400 hover:text-white'
@@ -995,7 +995,7 @@ export default function ContactDetail() {
             >
               {contact.type === 'individual' ? (
                 <>
-                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
                     <span className="text-dark-400 text-sm">Type</span>
                     <span className="text-white text-sm">
                       <Badge className="bg-emerald-500/10 text-emerald-400">Individual</Badge>
@@ -1018,13 +1018,13 @@ export default function ContactDetail() {
                 </>
               ) : (
                 <>
-                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
                     <span className="text-dark-400 text-sm">Type</span>
                     <span className="text-white text-sm">
                       <Badge className="bg-blue-500/10 text-blue-400">Company</Badge>
                     </span>
                   </div>
-                  <div className="grid grid-cols-[140px_1fr] gap-2 py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2">
                     <span className="text-dark-400 text-sm">Employees</span>
                     <span className="text-white text-sm">
                       {childContacts.length > 0 ? `${childContacts.length} contact(s)` : '\u2014'}
@@ -1270,7 +1270,7 @@ export default function ContactDetail() {
                   {isAdmin && ' Use “Add person” to link an individual contact.'}
                 </div>
               ) : (
-              <div className="overflow-hidden rounded-xl border border-dark-700/60">
+              <div className="overflow-x-auto rounded-xl border border-dark-700/60">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-dark-800/40 border-b border-dark-700/60">
@@ -1706,7 +1706,7 @@ function DeleteConflictModal({ contact, conflict, deleting, onCancel, onForceDel
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
+      <div className="bg-dark-800 border border-dark-700 rounded-xl w-full max-w-md shadow-2xl p-5 max-h-[90vh] max-h-[90dvh] overflow-y-auto">
         <h2 className="text-sm font-semibold text-dark-100 mb-2">
           Can&apos;t delete {contact.name}
         </h2>

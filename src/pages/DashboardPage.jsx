@@ -741,7 +741,7 @@ function DashboardPage() {
   return (
     <>
       <div className="min-h-screen">
-        <div className="p-8">
+        <div className="p-3 sm:p-6 lg:p-8">
           {/* ======== WELCOME SECTION ======== */}
           <div className="text-center mb-8 pt-8">
             <h1 className="text-3xl font-bold text-white mb-2">
@@ -799,7 +799,7 @@ function DashboardPage() {
               {/* RIGHT: Results */}
               <div className="flex-1 min-w-0">
                 {/* Results Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-wrap gap-y-2 items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <p className="text-dark-300">
                       {searchLoading ? 'Searching...' : (
@@ -916,7 +916,7 @@ function DashboardPage() {
               {!extInstalled && !extBannerDismissed && !isExtDismissed() && (
                 <div className="mb-8 relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/5 via-rivvra-500/5 to-blue-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.08),transparent_60%)]" />
-                  <div className="relative flex items-center gap-6 p-6">
+                  <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 p-4 sm:p-6">
                     <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                       <Chrome className="w-7 h-7 text-blue-400" />
                     </div>

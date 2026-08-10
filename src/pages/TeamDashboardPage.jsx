@@ -264,9 +264,9 @@ export default function TeamDashboardPage() {
 
   return (
     <>
-      <div className="p-6 max-w-[1400px] mx-auto space-y-5">
+      <div className="p-3 sm:p-6 max-w-[1400px] mx-auto space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-y-2 items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-rivvra-500/10 flex items-center justify-center">
@@ -304,7 +304,7 @@ export default function TeamDashboardPage() {
                 <ChevronDown className="w-3 h-3" />
               </button>
               {showDateDropdown && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-dark-800 border border-dark-600 rounded-xl shadow-2xl py-1 min-w-[220px]">
+                <div className="absolute right-0 top-full mt-1 z-50 bg-dark-800 border border-dark-600 rounded-xl shadow-2xl py-1 min-w-[220px] max-w-[calc(100vw-1.5rem)]">
                   {[
                     { key: 'today', label: 'Today' },
                     { key: 'yesterday', label: 'Yesterday' },
@@ -568,7 +568,7 @@ export default function TeamDashboardPage() {
             Email Performance
             <span className="text-[10px] text-dark-500 font-normal ml-1">All Sequences · all time</span>
           </h3>
-          <div className="grid grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <EmailMetricCard
               label="Sent"
               value={data?.emailStats?.sent || 0}
@@ -680,7 +680,7 @@ export default function TeamDashboardPage() {
               <Zap className="w-4 h-4 text-amber-400" />
               Leads Scraped
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Selected range */}
               <div>
                 <div className="flex items-center gap-1.5 mb-3">

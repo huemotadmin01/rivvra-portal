@@ -121,7 +121,7 @@ export default function TdsReport() {
   const numCls = 'px-4 py-3 text-right tabular-nums';
 
   return (
-    <div className="min-h-screen bg-dark-900 p-6">
+    <div className="min-h-screen bg-dark-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-wrap items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 rounded-lg bg-dark-850 border border-dark-700 text-dark-300 hover:text-white transition-colors">

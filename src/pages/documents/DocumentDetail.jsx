@@ -198,13 +198,13 @@ export default function DocumentDetail() {
   const totalVersions = (doc.versions?.length || 0) + (cv ? 1 : 0);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-6">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       <button onClick={() => navigate(-1)} className="text-sm text-dark-400 hover:text-dark-200 inline-flex items-center gap-1.5 mb-4">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
       <div className="bg-dark-900 border border-dark-800 rounded-xl">
-        <div className="px-6 py-5 border-b border-dark-800 flex items-start justify-between gap-4">
+        <div className="px-4 sm:px-6 py-5 border-b border-dark-800 flex flex-col sm:flex-row items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-xl font-semibold text-dark-100 truncate">{doc.name}</h1>
             <div className="mt-1 text-xs text-dark-500 flex items-center gap-2 flex-wrap">
@@ -299,7 +299,7 @@ export default function DocumentDetail() {
         </div>
 
         {/* Versions */}
-        <div className="px-6 py-5 border-b border-dark-800">
+        <div className="px-4 sm:px-6 py-5 border-b border-dark-800">
           <h3 className="text-sm font-semibold text-dark-100 mb-3 inline-flex items-center gap-2">
             <History className="w-4 h-4" /> Version history <span className="text-dark-500 font-normal">({totalVersions})</span>
           </h3>
@@ -322,7 +322,7 @@ export default function DocumentDetail() {
         {/* Actions row — split so non-admins still see Archive/Unarchive
             (reversible) but Replace + Delete stay admin-only. 2026-05-25
             role-model widening per user request. */}
-        <div className="px-6 py-4 flex items-center gap-2 flex-wrap">
+        <div className="px-4 sm:px-6 py-4 flex items-center gap-2 flex-wrap">
           {/* Archive — every member can soft-delete (and undo). */}
           <button onClick={handleArchive} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-dark-800 hover:bg-dark-700 text-dark-100 inline-flex items-center gap-1.5">
             {doc.archived ? <><ArchiveRestore className="w-4 h-4" /> Unarchive</> : <><Archive className="w-4 h-4" /> Archive</>}

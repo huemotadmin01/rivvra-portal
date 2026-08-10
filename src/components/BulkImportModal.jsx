@@ -245,7 +245,7 @@ export default function BulkImportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-2xl bg-dark-900 border border-dark-800 rounded-xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-2xl bg-dark-900 border border-dark-800 rounded-xl shadow-2xl flex flex-col max-h-[90vh] max-h-[90dvh]">
         {/* Header */}
         <div className="p-5 border-b border-dark-800 flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">{title}</h3>

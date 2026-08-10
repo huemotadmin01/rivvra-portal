@@ -530,7 +530,7 @@ export default function PayrollRunPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 gap-y-1.5">
               <h1 className="text-xl font-semibold text-white">{MONTHS[run.month]} {run.year}</h1>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status]}`}>{statusLabel(run.status)}</span>
               {run.inputsLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400" title="Attendance & timesheet inputs are frozen for this run">Inputs Locked</span>}

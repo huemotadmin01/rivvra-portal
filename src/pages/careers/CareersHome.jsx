@@ -395,7 +395,7 @@ function HeroStatsCard({ totalJobs, companiesCount, departmentsCount, recent, or
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
           <StatTile value={openCount} label={openCount === 1 ? 'role' : 'roles'} accent={accent} />
           <StatTile value={entCount} label={entCount === 1 ? 'entity' : 'entities'} accent={accent} muted />
           <StatTile value={deptCount} label={deptCount === 1 ? 'team' : 'teams'} accent={accent} muted />
@@ -432,7 +432,7 @@ function HeroStatsCard({ totalJobs, companiesCount, departmentsCount, recent, or
 function StatTile({ value, label, accent, muted = false }) {
   return (
     <div className="rounded-2xl bg-white/60 border border-zinc-200/60 p-3.5 text-center">
-      <div className="text-2xl sm:text-3xl font-semibold tabular-nums tracking-tight" style={{ color: muted ? '#18181b' : accent }}>
+      <div className="text-lg sm:text-3xl font-semibold tabular-nums tracking-tight" style={{ color: muted ? '#18181b' : accent }}>
         {value}
       </div>
       <div className="text-[11px] text-zinc-500 mt-0.5 lowercase tracking-wide">{label}</div>
@@ -506,7 +506,7 @@ function StickyFilters({
 
   return (
     <div ref={ref} id="openings" className={`sticky top-16 z-20 bg-[#fafafa]/85 backdrop-blur-md transition-shadow ${stuck ? 'shadow-[0_1px_0_0_rgba(0,0,0,0.05),0_8px_20px_-12px_rgba(0,0,0,0.12)]' : ''}`}>
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-4 flex items-center gap-3">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-4 flex flex-wrap gap-y-2 items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
           <input

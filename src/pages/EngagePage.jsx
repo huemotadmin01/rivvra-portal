@@ -377,7 +377,7 @@ function EngagePage() {
   if (view === 'detail' && selectedSequenceId) {
     return (
       <>
-        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto">
           <SequenceDetailPage
             sequenceId={selectedSequenceId}
             onBack={handleBackToList}
@@ -389,7 +389,7 @@ function EngagePage() {
 
   return (
     <>
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Setup Guide (replaces gmail banners when active) */}
         {showSetupGuide && (
           <EngageSetupGuide
@@ -628,7 +628,7 @@ function SequencesTab({
   return (
     <>
       {/* Stats bar + Actions */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap gap-y-2 items-center justify-between mb-4">
         <div className="flex items-center gap-3 text-sm text-dark-400">
           <span>Emails sent today</span>
           <span className="font-semibold text-white">{emailsSentToday.sent}/{emailsSentToday.limit}</span>
@@ -735,7 +735,7 @@ function SequencesTab({
       ) : (
         <div className="card overflow-visible">
           <div className="overflow-x-auto overflow-y-visible">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead>
                 <tr className="text-dark-500 text-xs uppercase tracking-wider border-b border-dark-700">
                   <th className="text-left py-3 px-4">

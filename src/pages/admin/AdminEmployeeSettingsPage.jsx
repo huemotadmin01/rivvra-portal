@@ -119,7 +119,7 @@ function AdminEmployeeSettingsPage() {
         {/* ── Employment Types ────────────────────────────────────────────── */}
         <Section title="Employment Types" icon={Users} defaultOpen={true}
           badge={empTypes?.items ? `${empTypes.items.length} types` : '0'}>
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-4 overflow-x-auto">
             <p className="text-xs text-dark-400">
               Define employment types with their payroll mode, leave eligibility, and attendance tracking method.
               System types (locked) cannot be removed.
@@ -128,7 +128,7 @@ function AdminEmployeeSettingsPage() {
             {empTypes?.items ? (
               <>
                 {/* Header */}
-                <div className="grid grid-cols-6 gap-3 text-xs font-medium text-dark-400 px-1">
+                <div className="grid grid-cols-6 gap-3 text-xs font-medium text-dark-400 px-1 min-w-[560px]">
                   <span>Key</span>
                   <span>Label</span>
                   <span>Payroll Mode</span>
@@ -138,7 +138,7 @@ function AdminEmployeeSettingsPage() {
                 </div>
 
                 {empTypes.items.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-6 gap-3 items-center">
+                  <div key={idx} className="grid grid-cols-6 gap-3 items-center min-w-[560px]">
                     <div className="flex items-center gap-1.5">
                       {item.isSystem && <Lock className="w-3 h-3 text-dark-500 flex-shrink-0" />}
                       <input value={item.key} disabled={item.isSystem}
@@ -294,7 +294,7 @@ function AdminEmployeeSettingsPage() {
 
         {/* ── Country ID Fields ──────────────────────────────────────────── */}
         <Section title="Country ID Fields" icon={Globe} badge="India">
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-4 overflow-x-auto">
             <p className="text-xs text-dark-400">
               Configure statutory ID fields per country. Currently active: India (IN).
               More countries can be added in the future.
@@ -307,12 +307,12 @@ function AdminEmployeeSettingsPage() {
                   <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
                 </div>
 
-                <div className="grid grid-cols-5 gap-3 text-xs font-medium text-dark-400 px-1">
+                <div className="grid grid-cols-5 gap-3 text-xs font-medium text-dark-400 px-1 min-w-[560px]">
                   <span>Key</span><span>Label</span><span>Pattern (Regex)</span><span>Required</span><span></span>
                 </div>
 
                 {idSchemas.schemas.IN.fields.map((field, idx) => (
-                  <div key={idx} className="grid grid-cols-5 gap-3 items-center">
+                  <div key={idx} className="grid grid-cols-5 gap-3 items-center min-w-[560px]">
                     <input value={field.key}
                       onChange={e => {
                         const updated = { ...idSchemas };

@@ -67,15 +67,15 @@ function SlabTable({ slabs, onChange, rateLabel = 'Tax rate (%)', minLabel = 'An
   };
 
   return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-[1fr_1fr_1fr_40px] gap-2 text-xs text-dark-400 font-medium px-1">
+    <div className="space-y-2 overflow-x-auto">
+      <div className="grid grid-cols-[1fr_1fr_1fr_40px] gap-2 text-xs text-dark-400 font-medium px-1 min-w-[420px]">
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
         <span>{rateLabel}</span>
         <span></span>
       </div>
       {slabs.map((slab, idx) => (
-        <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_40px] gap-2">
+        <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_40px] gap-2 min-w-[420px]">
           <input
             type="number"
             value={slab.min}
@@ -292,7 +292,7 @@ export default function PayrollSettingsPage({ embedded = false }) {
 
   if (!isSuperAdmin) {
     return (
-      <div className="p-8">
+      <div className="p-3 sm:p-6 lg:p-8">
         <div className="flex items-center gap-3 mb-6">
           <Shield size={24} className="text-amber-400" />
           <h1 className="text-xl font-semibold text-white">FY Statutory Configuration</h1>
@@ -306,7 +306,7 @@ export default function PayrollSettingsPage({ embedded = false }) {
   }
 
   return (
-    <div className={embedded ? '' : 'p-8 max-w-4xl'}>
+    <div className={embedded ? '' : 'p-3 sm:p-6 lg:p-8 max-w-4xl mx-auto'}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         {!embedded && (
           <div className="flex items-center gap-3">
@@ -482,8 +482,8 @@ export default function PayrollSettingsPage({ embedded = false }) {
 
       {/* Copy Modal */}
       {showCopyModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-dark-800 border border-dark-700 rounded-lg p-6 w-96 space-y-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 border border-dark-700 rounded-lg p-6 w-full max-w-md space-y-4">
             <h3 className="text-lg font-medium text-white">Copy to New FY</h3>
             <p className="text-sm text-dark-300">Copy all values from FY {selectedFy} to a new financial year.</p>
             <div>

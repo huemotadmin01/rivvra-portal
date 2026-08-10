@@ -848,7 +848,7 @@ export default function EmployeeForm() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-white">
@@ -2118,7 +2118,7 @@ export default function EmployeeForm() {
       {/* ── Revise Rate Modal ────────────────────────────────────────── */}
       {reviseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -2134,7 +2134,7 @@ export default function EmployeeForm() {
             {/* Current Rates (read-only) */}
             <div className="bg-dark-900/50 rounded-lg p-3 mb-4">
               <p className="text-xs text-dark-500 uppercase tracking-wider font-medium mb-1">Current Rates</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div><span className="text-dark-400">Candidate:</span> <span className="text-white">{formatRate(reviseModal.currentRates?.billingRate)}</span></div>
                 <div><span className="text-dark-400">Client:</span> <span className="text-white">{formatRate(reviseModal.currentRates?.clientBillingRate)}</span></div>
               </div>
@@ -2154,7 +2154,7 @@ export default function EmployeeForm() {
             {/* New Candidate Rate */}
             <div className="mb-4">
               <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">New Candidate Rate <span className="normal-case tracking-normal text-dark-600 ml-1">(fill any one)</span></p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { key: 'daily', label: '₹/day', symbol: '₹' },
                   { key: 'hourly', label: '$/hour', symbol: '$' },
@@ -2181,7 +2181,7 @@ export default function EmployeeForm() {
             {/* New Client Billing Rate */}
             <div className="mb-4">
               <p className="text-[11px] text-dark-500 uppercase tracking-wider font-medium mb-2">New Client Billing Rate <span className="normal-case tracking-normal text-dark-600 ml-1">(fill any one)</span></p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { key: 'daily', label: '₹/day', symbol: '₹' },
                   { key: 'hourly', label: '$/hour', symbol: '$' },

@@ -36,7 +36,7 @@ function Badge({ children, className = '' }) {
 
 function InfoRow({ label, value }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-2 border-b border-dark-800/50 last:border-0">
+    <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 py-2 border-b border-dark-800/50 last:border-0">
       <span className="text-xs text-dark-400">{label}</span>
       <span className="text-sm text-dark-200">{value ?? '—'}</span>
     </div>
@@ -413,7 +413,7 @@ export default function UserDetail() {
 
       {/* ─── Hero Card ──────────────────────────────────────────────── */}
       <div className="card p-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             {/* Back arrow */}
             <Link to={orgPath('/settings/users')} className="p-2 rounded-lg hover:bg-dark-700 transition-colors -ml-2">
