@@ -42,6 +42,8 @@ export function ConfigListV2({
   rowDelete = true,
   deleteConfirm,
   headerActions,
+  rowActions,
+  toolbar,
   emptyText,
   modalTitle,
 }) {
@@ -138,6 +140,7 @@ export function ConfigListV2({
       key: '__actions', header: '', align: 'right', width: 90,
       render: (it) => (
         <span style={{ display: 'inline-flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+          {rowActions && rowActions(it)}
           <button type="button" title="Edit" onClick={() => openEdit(it)}
             style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 'var(--r-1)', color: 'var(--fg-4)' }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--fg)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
@@ -176,6 +179,8 @@ export function ConfigListV2({
           {onCreate && <Button size="sm" iconLeft={<Plus size={14} />} onClick={openCreate}>New</Button>}
         </div>
       </div>
+
+      {toolbar}
 
       {searchable && items.length > 5 && (
         <span style={{
@@ -286,6 +291,35 @@ function ConfigField({ field, value, onChange, onEnter }) {
               }}
             />
           ))}
+        </div>
+      </Field>
+    );
+  }
+  if (field.type === 'checkboxList') {
+    const selected = Array.isArray(value) ? value : [];
+    const toggle = (v) => onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+    return (
+      <Field label={field.label}>
+        <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, padding: 6, borderRadius: 'var(--r-2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}>
+          {(field.options || []).map((o) => {
+            const on = selected.includes(o.value);
+            return (
+              <button key={o.value} type="button" onClick={() => toggle(o.value)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 'var(--r-1)', textAlign: 'left', font: "450 12.5px/1.3 'Inter', system-ui, sans-serif", color: on ? 'var(--fg)' : 'var(--fg-3)', background: on ? 'var(--surface-3)' : 'transparent' }}>
+                <span style={{
+                  width: 14, height: 14, borderRadius: 4, flexShrink: 0, display: 'grid', placeItems: 'center',
+                  background: on ? 'var(--brand)' : 'transparent',
+                  boxShadow: on ? 'none' : 'inset 0 0 0 1.5px var(--line-strong, rgba(255,255,255,.18))',
+                }}>
+                  {on && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--brand-fg, #041209)" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>}
+                </span>
+                {o.label}
+              </button>
+            );
+          })}
+          {(field.options || []).length === 0 && (
+            <p style={{ padding: '6px 8px', font: '450 12px/1.4 var(--font)', color: 'var(--fg-4)' }}>{field.placeholder || 'No options'}</p>
+          )}
         </div>
       </Field>
     );

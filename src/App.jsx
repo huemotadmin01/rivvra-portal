@@ -148,6 +148,7 @@ const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
 const AtsCandidatesV2 = lazy(() => import('./pages/ats/AtsCandidatesV2'));
 const AlumniDirectoryV2 = lazy(() => import('./pages/employee/AlumniDirectoryV2'));
 const AtsMyApprovalsV2 = lazy(() => import('./pages/ats/AtsMyApprovalsV2'));
+const AtsConfigV2 = lazy(() => import('./pages/ats/AtsConfigV2'));
 const CrmConfigStagesV2 = lazy(() => import('./pages/crm/CrmConfigStagesV2'));
 const CrmConfigTagsV2 = lazy(() => import('./pages/crm/CrmConfigTagsV2'));
 const CrmConfigLostReasonsV2 = lazy(() => import('./pages/crm/CrmConfigLostReasonsV2'));
@@ -620,7 +621,7 @@ function App() {
                 <Route path="/org/:slug/ats/dashboard" element={<ErrorBoundary><AtsDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/reporting" element={<AtsReportingRedirect />} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
-                  <Route path="/org/:slug/ats/config" element={<ErrorBoundary><AtsConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/ats/config" element={<ErrorBoundary><PageSwitch v2={AtsConfigV2} legacy={AtsConfig} /></ErrorBoundary>} />
                 </Route>
               </Route>
 
