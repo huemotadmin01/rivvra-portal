@@ -1,3 +1,5 @@
+import * as React from 'react';
+
 const TONES = {
   neutral: { bg: 'var(--surface-3, #1c242f)', fg: 'var(--fg-3, #98a4b2)' },
   brand:   { bg: 'var(--brand-soft, rgba(34,197,94,.14))', fg: 'var(--brand, #22c55e)' },

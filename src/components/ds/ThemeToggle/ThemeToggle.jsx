@@ -1,3 +1,5 @@
+import * as React from 'react';
+
 const KEY = 'rivvra.theme';
 
 function readInitial() {

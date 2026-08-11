@@ -29,6 +29,7 @@ function AdminWorkspaceDetailPage() {
   const [editPlan, setEditPlan] = useState('');
   const [editSeats, setEditSeats] = useState(0);
   const [editApps, setEditApps] = useState([]);
+  const [editUiV2, setEditUiV2] = useState(false);
 
   // Backup state
   const [backups, setBackups] = useState([]);
@@ -56,6 +57,7 @@ function AdminWorkspaceDetailPage() {
       setEditPlan(res.workspace.plan || 'free');
       setEditSeats(res.workspace.billing?.seatsTotal || 0);
       setEditApps(res.workspace.enabledApps || []);
+      setEditUiV2(res.workspace.uiV2 === true);
     } catch (err) {
       setError(err.message || 'Failed to load workspace');
     } finally {
@@ -137,6 +139,7 @@ function AdminWorkspaceDetailPage() {
         plan: editPlan,
         billing: { seatsTotal: editSeats },
         enabledApps: editApps,
+        uiV2: editUiV2,
       });
 
       setSaveSuccess('Workspace updated successfully');
@@ -257,6 +260,24 @@ function AdminWorkspaceDetailPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Redesign rollout flag */}
+          <div>
+            <label className="block text-xs font-medium text-dark-400 mb-2 uppercase tracking-wider">Redesign (UI v2)</label>
+            <button
+              onClick={() => setEditUiV2(v => !v)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                editUiV2
+                  ? 'bg-rivvra-500/10 text-rivvra-400 border border-rivvra-500/20'
+                  : 'bg-dark-800/50 text-dark-500 border border-dark-700 hover:text-dark-300'
+              }`}
+            >
+              {editUiV2 ? 'v2 shell ON' : 'v2 shell OFF'}
+            </button>
+            <p className="text-xs text-dark-500 mt-1.5">
+              Renders the redesigned app shell for every member of this workspace. Rollback is instant — flip off and members get the legacy UI on their next org fetch.
+            </p>
           </div>
 
           {/* Save Button */}

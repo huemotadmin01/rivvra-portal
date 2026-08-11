@@ -10,6 +10,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import StagingBanner from './components/StagingBanner';
 import PlanLimitListener from './components/PlanLimitListener';
 import PlatformLayout from './components/platform/PlatformLayout';
+// v2 shell is lazy: orgs without the uiV2 flag never download it.
+const PlatformLayoutV2 = lazy(() => import('./components/platform/v2/PlatformLayoutV2'));
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import ProtectedRoute from './components/ProtectedRoute';
 import OrgRedirect from './components/OrgRedirect';
@@ -259,13 +261,23 @@ function SettingsPageWrapper({ children }) {
   );
 }
 
+// Redesign rollout switch: the per-org uiV2 flag picks the shell. Both
+// shells stay in the tree for the whole migration — rollback is a flag
+// flip, not a redeploy. The flag rides on the org payload (and its
+// cache), so returning users get their shell on first paint; a flag
+// change propagates on the next verified org fetch (one reload).
+function ShellSwitch() {
+  const { currentOrg } = useOrg();
+  return currentOrg?.uiV2 === true ? <PlatformLayoutV2 /> : <PlatformLayout />;
+}
+
 // Wrapper that provides org context for /org/:slug/* routes
 function OrgPlatformLayout() {
   return (
     <OrgProvider>
       <CompanyProvider>
         <PolicyAckProvider>
-          <PlatformLayout />
+          <ShellSwitch />
           {/* 2026-05-28: floating AI assistant — gates itself to /ats/ routes
               and ats-app access internally. */}
           <ChatbotWidget />

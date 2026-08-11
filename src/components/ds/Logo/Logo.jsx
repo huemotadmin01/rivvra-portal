@@ -1,3 +1,5 @@
+import * as React from 'react';
+
 /** The Rivvra spiral. Strokes with a brand-token gradient, so it themes automatically. */
 export function Logo({ size = 24, title, ...rest }) {
   const gid = React.useId();

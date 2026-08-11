@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Rivvra v2 app shell — sidebar, appbar, page chrome (Slice 1).
+
+   Faithful port of design-handoff/prototype/shell.css (+ the appbar
+   helper classes from prototype/styles.css). Every selector is scoped
+   under .ds-shell so nothing leaks into the legacy UI: this file ships
+   in the bundle for everyone, but only orgs with uiV2 render a
+   .ds-shell ancestor. Values are spec — change only against the
+   handoff. Reads the semantic tokens from src/styles/ds-tokens.css.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ds-shell {
+  display: flex; min-height: 100vh;
+  background: var(--bg); color: var(--fg);
+  font: var(--t-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv05' 1, 'cv08' 1, 'ss03' 1;
+}
+.ds-shell button { cursor: pointer; border: none; background: none; color: inherit; font-family: inherit; }
+.ds-shell a { color: var(--brand); text-decoration: none; }
+.ds-shell a:hover { color: var(--brand-hi); }
+.ds-shell ::selection { background: var(--brand-soft); color: var(--fg); }
+.ds-shell :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-1); }
+.ds-shell ::-webkit-scrollbar { width: 10px; height: 10px; }
+.ds-shell ::-webkit-scrollbar-track { background: transparent; }
+.ds-shell ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+.ds-shell ::-webkit-scrollbar-thumb:hover { background: var(--line-strong); background-clip: content-box; }
+.ds-shell .grow { flex: 1; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+.ds-shell .sb {
+  width: 246px; flex-shrink: 0; display: flex; flex-direction: column;
+  background: var(--surface-1); border-right: 1px solid var(--line);
+  position: sticky; top: 0; height: 100vh;
+  transition: width var(--d-3) var(--e-out);
+  z-index: 40;
+}
+.ds-shell .sb.is-collapsed { width: 64px; }
+.ds-shell .sb.is-collapsed .sb-hide { display: none; }
+.ds-shell .sb.is-collapsed .sb-item { justify-content: center; padding-inline: 0; }
+.ds-shell .sb.is-collapsed .sb-group-head { justify-content: center; padding-inline: 0; }
+
+/* Mobile: drawer over a scrim (prototype behaviour; breakpoint matches
+   the legacy shell's md boundary). */
+@media (max-width: 767px) {
+  .ds-shell .sb {
+    position: fixed; inset: 0 auto 0 0; height: 100vh;
+    transform: translateX(-100%);
+    transition: transform var(--d-3) var(--e-out), width var(--d-3) var(--e-out);
+  }
+  .ds-shell .sb.is-mobile-open { transform: translateX(0); }
+}
+.ds-shell .sb-scrim {
+  position: fixed; inset: 0; z-index: 35; background: var(--scrim);
+  backdrop-filter: blur(2px);
+}
+@media (min-width: 768px) { .ds-shell .sb-scrim { display: none; } }
+
+.ds-shell .sb-head { height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: var(--s2); padding: 0 var(--s3); border-bottom: 1px solid var(--line); }
+.ds-shell .sb-app {
+  display: flex; align-items: center; gap: var(--s2); flex: 1; min-width: 0;
+  height: 38px; padding: 0 var(--s2); border-radius: var(--r-2);
+  transition: background-color var(--d-1) var(--e-out);
+}
+.ds-shell .sb-app:hover { background: var(--surface-2); }
+.ds-shell .sb-app-mark { width: 26px; height: 26px; border-radius: var(--r-1); display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, currentColor 13%, transparent); }
+.ds-shell .sb-app-name { font: 650 13.5px/1.15 var(--font); color: var(--fg); letter-spacing: -0.012em; }
+.ds-shell .sb-app-sub { font: 450 10.5px/1.15 var(--font); color: var(--fg-4); margin-top: 2px; }
+
+.ds-shell .sb-nav { flex: 1; overflow-y: auto; padding: var(--s3) var(--s2); display: flex; flex-direction: column; gap: 1px; }
+.ds-shell .sb-item {
+  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  height: 34px; padding: 0 10px; border-radius: var(--r-2); text-align: left;
+  font: 500 13px/1 var(--font); color: var(--fg-2); position: relative;
+  transition: background-color var(--d-1) var(--e-out), color var(--d-1) var(--e-out);
+}
+.ds-shell .sb-item:hover { background: var(--surface-2); color: var(--fg); }
+.ds-shell .sb-item.is-on { background: var(--surface-3); color: var(--fg); font-weight: 600; }
+.ds-shell .sb-item.is-on::before {
+  content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 16px; border-radius: 0 3px 3px 0; background: var(--accent, var(--brand));
+}
+.ds-shell .sb-item .ico { color: var(--fg-3); display: grid; place-items: center; flex-shrink: 0; }
+.ds-shell .sb-item.is-on .ico { color: var(--accent, var(--brand)); }
+.ds-shell .sb-item .count { margin-left: auto; font: 600 11px/1 var(--font); color: var(--fg-4); }
+.ds-shell .sb-item.is-on .count { color: var(--fg-2); }
+
+.ds-shell .sb-group { margin-top: var(--s2); }
+.ds-shell .sb-group-head {
+  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  height: 28px; padding: 0 10px; border-radius: var(--r-1); text-align: left;
+  font: var(--t-micro); letter-spacing: var(--tr-label); text-transform: uppercase; color: var(--fg-4);
+  transition: color var(--d-1) var(--e-out);
+}
+.ds-shell .sb-group-head:hover { color: var(--fg-2); }
+.ds-shell .sb-group-head .chev { margin-left: auto; transition: transform var(--d-2) var(--e-out); }
+.ds-shell .sb-group-head.is-closed .chev { transform: rotate(-90deg); }
+.ds-shell .sb-group-body { display: flex; flex-direction: column; gap: 1px; padding-left: 12px; margin-left: 10px; border-left: 1px solid var(--line); }
+.ds-shell .sb-group-body .sb-item { height: 31px; font-size: 12.5px; }
+.ds-shell .sb-group-body .sb-item.is-on::before { display: none; }
+
+.ds-shell .sb-foot { padding: var(--s2); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
+.ds-shell .sb-user {
+  display: flex; align-items: center; gap: var(--s2); width: 100%;
+  height: 44px; padding: 0 8px; border-radius: var(--r-2); text-align: left;
+  transition: background-color var(--d-1) var(--e-out);
+}
+.ds-shell .sb-user:hover { background: var(--surface-2); }
+.ds-shell .sb-user .n { font: 550 12.5px/1.2 var(--font); color: var(--fg); }
+.ds-shell .sb-user .e { font: 450 11px/1.2 var(--font); color: var(--fg-4); margin-top: 1px; }
+
+/* ── Main column ─────────────────────────────────────────────────── */
+.ds-shell .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.ds-shell .appbar {
+  position: sticky; top: 0; z-index: 30; height: 56px; flex-shrink: 0;
+  display: flex; align-items: center; gap: var(--s3); padding: 0 var(--s6);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  backdrop-filter: blur(16px) saturate(1.6);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 720px) { .ds-shell .appbar { padding: 0 var(--s4); } }
+
+.ds-shell .crumbs { display: flex; align-items: center; gap: 7px; font: 450 13px/1 var(--font); color: var(--fg-3); min-width: 0; white-space: nowrap; overflow: hidden; }
+.ds-shell .crumbs a { color: var(--fg-3); flex-shrink: 0; }
+.ds-shell .crumbs a:hover { color: var(--fg); }
+.ds-shell .crumbs .sep { color: var(--fg-faint); flex-shrink: 0; display: grid; place-items: center; }
+.ds-shell .crumbs .now { color: var(--fg); font-weight: 550; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) { .ds-shell .crumbs a, .ds-shell .crumbs .sep { display: none; } }
+
+/* ── Page container ──────────────────────────────────────────────── */
+.ds-shell .page { flex: 1; padding: var(--s6) var(--s6) var(--s16); }
+@media (max-width: 720px) { .ds-shell .page { padding: var(--s5) var(--s4) var(--s12); } }
+.ds-shell .page-inner { max-width: 1360px; margin: 0 auto; }
+
+/* ── App switcher popover ────────────────────────────────────────── */
+.ds-shell .pop {
+  position: absolute; z-index: 60; min-width: 260px; padding: var(--s2);
+  background: var(--surface-1); border-radius: var(--r-3);
+  box-shadow: 0 0 0 1px var(--line-2), var(--sh-3), var(--lift);
+  animation: ds-pop-in var(--d-2) var(--e-spring) both;
+}
+@keyframes ds-pop-in { from { opacity: 0; transform: translateY(-6px) scale(.98) } to { opacity: 1; transform: none } }
+.ds-shell .pop-label { padding: var(--s2) var(--s2) 4px; font: var(--t-micro); letter-spacing: var(--tr-label); text-transform: uppercase; color: var(--fg-4); }
+.ds-shell .pop-item {
+  display: flex; align-items: center; gap: var(--s3); width: 100%; height: 38px;
+  padding: 0 var(--s2); border-radius: var(--r-2); text-align: left;
+  font: 500 13px/1 var(--font); color: var(--fg-2);
+  transition: background-color var(--d-1) var(--e-out), color var(--d-1) var(--e-out);
+}
+.ds-shell .pop-item:hover { background: var(--surface-2); color: var(--fg); }
+.ds-shell .pop-item.is-on { background: var(--surface-3); color: var(--fg); }
+.ds-shell .pop-mark { width: 24px; height: 24px; border-radius: var(--r-1); display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, currentColor 13%, transparent); }
+.ds-shell .pop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+
+/* ── Appbar helpers (from prototype/styles.css) ──────────────────── */
+.ds-shell .icon-btn {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: var(--r-2); color: var(--fg-3);
+  transition: background-color var(--d-1) var(--e-out), color var(--d-1) var(--e-out);
+}
+.ds-shell .icon-btn:hover { background: var(--surface-2); color: var(--fg); }
+
+.ds-shell kbd {
+  display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px;
+  font: 600 10.5px/1 var(--font); color: var(--fg-3);
+  background: var(--surface-3); border-radius: 5px; box-shadow: 0 0 0 1px var(--line), 0 1px 0 var(--line);
+}
+
+.ds-shell .avatar {
+  display: grid; place-items: center; border-radius: 99px; flex-shrink: 0;
+  background: linear-gradient(150deg, var(--brand-hi), var(--brand-lo));
+  color: var(--brand-fg); font-weight: 700; letter-spacing: -0.01em;
+  overflow: hidden;
+}
+.ds-shell .avatar-sm { width: 28px; height: 28px; font-size: 11px; }
+.ds-shell .avatar-md { width: 32px; height: 32px; font-size: 12px; }
+.ds-shell .avatar-ring { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--brand-line); }
+.ds-shell .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.ds-shell .mobile-only { display: none; }
+@media (max-width: 767px) {
+  .ds-shell .mobile-only { display: grid; }
+  .ds-shell .desktop-only { display: none; }
+}
