@@ -1,13 +1,60 @@
 /* Custom Fonts - must be before @import "tailwindcss" */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=Homemade+Apple&family=Allura&family=Alex+Brush&display=swap');
 /* Marketing display + editorial-serif accent (landing/marketing pages only) */
 @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap');
 
 @import "tailwindcss";
 
+/* ── Design system (redesign) semantic tokens — variables only, no
+      visual effect on the legacy UI. See src/styles/ds-tokens.css.
+      NOTE: must stay in the top @import block — CSS drops @imports
+      that appear after other at-rules (e.g. @config). ── */
+@import "./styles/ds-tokens.css";
+
 /* Import our config */
 @config "../tailwind.config.js";
+
+/* Tailwind bridge for the semantic layer: `inline` keeps the var()
+   reference live so [data-theme] swaps flow through utilities like
+   bg-ds-surface-1 / text-ds-fg-2 / border-ds-line. The ds- prefix
+   avoids any collision with the legacy rivvra-*/dark-* scales. */
+@theme inline {
+  --color-ds-bg: var(--bg);
+  --color-ds-surface-1: var(--surface-1);
+  --color-ds-surface-2: var(--surface-2);
+  --color-ds-surface-3: var(--surface-3);
+  --color-ds-surface-4: var(--surface-4);
+  --color-ds-line: var(--line);
+  --color-ds-line-2: var(--line-2);
+  --color-ds-line-strong: var(--line-strong);
+  --color-ds-fg: var(--fg);
+  --color-ds-fg-2: var(--fg-2);
+  --color-ds-fg-3: var(--fg-3);
+  --color-ds-fg-4: var(--fg-4);
+  --color-ds-fg-faint: var(--fg-faint);
+  --color-ds-brand: var(--brand);
+  --color-ds-brand-hi: var(--brand-hi);
+  --color-ds-brand-lo: var(--brand-lo);
+  --color-ds-brand-fg: var(--brand-fg);
+  --color-ds-brand-soft: var(--brand-soft);
+  --color-ds-brand-line: var(--brand-line);
+  --color-ds-warn: var(--warn);
+  --color-ds-warn-soft: var(--warn-soft);
+  --color-ds-danger: var(--danger);
+  --color-ds-danger-soft: var(--danger-soft);
+  --color-ds-info: var(--info);
+  --color-ds-info-soft: var(--info-soft);
+  --radius-ds-1: var(--r-1);
+  --radius-ds-2: var(--r-2);
+  --radius-ds-3: var(--r-3);
+  --radius-ds-4: var(--r-4);
+  --shadow-ds-1: var(--sh-1);
+  --shadow-ds-2: var(--sh-2);
+  --shadow-ds-3: var(--sh-3);
+  --ease-ds-out: var(--e-out);
+  --ease-ds-spring: var(--e-spring);
+}
 
 /* Define custom theme tokens */
 @theme {
