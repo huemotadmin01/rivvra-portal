@@ -143,6 +143,11 @@ const AssetList = lazy(() => import('./pages/employee/AssetList'));
 const AssetDetail = lazy(() => import('./pages/employee/AssetDetail'));
 const AssetTypeConfig = lazy(() => import('./pages/employee/AssetTypeConfig'));
 
+// Lazy-loaded: v2 (redesign) pages — only downloaded by uiV2 orgs.
+const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
+const AtsCandidatesV2 = lazy(() => import('./pages/ats/AtsCandidatesV2'));
+const AlumniDirectoryV2 = lazy(() => import('./pages/employee/AlumniDirectoryV2'));
+
 // Lazy-loaded: Contacts app pages
 const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
 const ContactDetail = lazy(() => import('./pages/contacts/ContactDetail'));
@@ -269,6 +274,13 @@ function SettingsPageWrapper({ children }) {
 function ShellSwitch() {
   const { currentOrg } = useOrg();
   return currentOrg?.uiV2 === true ? <PlatformLayoutV2 /> : <PlatformLayout />;
+}
+
+// Per-route variant of the same switch: migrated pages ship a v2 component
+// alongside the legacy one and the org flag picks which renders.
+function PageSwitch({ v2: V2, legacy: Legacy, ...props }) {
+  const { currentOrg } = useOrg();
+  return currentOrg?.uiV2 === true ? <V2 {...props} /> : <Legacy {...props} />;
 }
 
 // Wrapper that provides org context for /org/:slug/* routes
@@ -478,7 +490,7 @@ function App() {
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-fnf" element={<ErrorBoundary><MyFnfReceipt /></ErrorBoundary>} />
                   <Route path="/org/:slug/settings/alumni-policy" element={<ErrorBoundary><AlumniPolicyPage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/employee/alumni" element={<ErrorBoundary><AlumniDirectoryPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/alumni" element={<ErrorBoundary><PageSwitch v2={AlumniDirectoryV2} legacy={AlumniDirectoryPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/declarations" element={<ErrorBoundary><MyTaxDeclarationsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/report" element={<ErrorBoundary><MyTaxReportPage /></ErrorBoundary>} />
                 </Route>
@@ -543,9 +555,9 @@ function App() {
 
               {/* Contacts app routes — gated by contacts access */}
               <Route element={<AppAccessGate appId="contacts" />}>
-                <Route path="/org/:slug/contacts/list" element={<ErrorBoundary><ContactsList /></ErrorBoundary>} />
-                <Route path="/org/:slug/contacts/companies" element={<ErrorBoundary><ContactsList filterType="company" /></ErrorBoundary>} />
-                <Route path="/org/:slug/contacts/individuals" element={<ErrorBoundary><ContactsList filterType="individual" /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/list" element={<ErrorBoundary><PageSwitch v2={ContactsListV2} legacy={ContactsList} /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/companies" element={<ErrorBoundary><PageSwitch v2={ContactsListV2} legacy={ContactsList} filterType="company" /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/individuals" element={<ErrorBoundary><PageSwitch v2={ContactsListV2} legacy={ContactsList} filterType="individual" /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="contacts" requiredRole="admin" />}>
                   <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><ContactsConfig /></ErrorBoundary>} />
                 </Route>
@@ -581,7 +593,7 @@ function App() {
                 <Route path="/org/:slug/ats/jobs/new" element={<ErrorBoundary><AtsJobNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId/applications/new" element={<ErrorBoundary><AtsApplicationNew /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><AtsCandidates /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><PageSwitch v2={AtsCandidatesV2} legacy={AtsCandidates} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><AtsMyApprovals /></ErrorBoundary>} />

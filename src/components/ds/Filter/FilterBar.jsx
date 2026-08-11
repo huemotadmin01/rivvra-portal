@@ -1,3 +1,7 @@
+import { SearchInput } from './SearchInput';
+import { SavedViews } from './SavedViews';
+import { FilterChip } from './FilterChip';
+
 /** The list-page control strip: search, saved views, applied filter chips,
  *  add-filter, clear-all, and a right-aligned slot for actions.
  *  Every piece is optional — pass only what the page needs. */
@@ -23,7 +27,9 @@ export function FilterBar({
   style,
   ...rest
 }) {
-  const NS = typeof window !== 'undefined' ? (window.RivvraDesignSystem_dee6b5 || {}) : {};
+  // The handoff prototype resolved these through a window namespace
+  // (RivvraDesignSystem_dee6b5); in-app they are plain sibling imports.
+  const NS = { SearchInput, SavedViews, FilterChip };
   const showClear = filters.length > 0 || !!search;
 
   return (
