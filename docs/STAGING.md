@@ -8,7 +8,7 @@ the API cannot see production.
 ## Architecture
 
 ```
-staging.rivvra.com          Render web service (this repo)
+rivvra-portal-staging.onrender.com   Render web service (this repo)
   │                         node staging/server.cjs — serves dist/ behind
   │                         HTTP basic auth, X-Robots-Tag: noindex, robots.txt disallow
   │                         built with: npm run build:staging
@@ -36,7 +36,12 @@ is untouched by any of this.
 
 ## Access
 
-- **URL:** https://staging.rivvra.com — gated by HTTP basic auth. Credentials
+- **URL:** https://rivvra-portal-staging.onrender.com — gated by HTTP basic auth.
+  (No custom domain: the free Render workspace includes 2 custom domains, both
+  used — api-staging.rivvra.com took the second. Adding staging.rivvra.com
+  would cost $0.25/mo; skipped by decision on 2026-08-11. The API's CORS
+  allowlist already includes both origins, so adding the domain later is just
+  Render + one GoDaddy CNAME.) Credentials
   live in the team password manager ("Rivvra staging — basic auth"), set via
   the `STAGING_BASIC_AUTH` env var on the Render frontend service.
 - **App login:** every scrubbed user's password is the shared staging password
