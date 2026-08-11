@@ -146,7 +146,7 @@ Each run writes `scrub-report-<ts>.json` with per-collection counts.
    staging `RESEND_API_KEY`, low-limit `OPENAI_API_KEY`,
    `OPENAI_PROXY_REQUIRE_AUTH=true`, staging `SENTRY_DSN`.
    Custom domain `api-staging.rivvra.com`.
-3. **Render (frontend):** new web service from this repo, main branch.
+3. **Render (frontend):** new web service from this repo, `redesign` branch.
    Build: `npm ci && npm run build:staging` · Start: `npm run start:staging`.
    Env: `VITE_API_URL=https://api-staging.rivvra.com`, `VITE_STAGING=true`,
    `VITE_SENTRY_DSN=<staging>`, `VITE_APP_VERSION=ui-v2`,
@@ -158,3 +158,26 @@ Each run writes `scrub-report-<ts>.json` with per-collection counts.
    `curl https://api-staging.rivvra.com/health` shows `"staging": true`;
    unauthenticated https://staging.rivvra.com returns 401; after basic auth,
    the amber ribbon is visible and login works with the staging password.
+
+---
+
+## Branching for the redesign (from 2026-08-11)
+
+The UI redesign lives on the long-lived **`redesign`** branch, per the
+handoff's rollout plan. Rules:
+
+- **`redesign`** — all v2 work. The staging frontend service
+  (`rivvra-portal-staging`) builds from this branch, so pushing here
+  deploys staging only.
+- **`main`** — production. `.github/workflows/deploy.yml` triggers on
+  pushes to `main` and publishes to GitHub Pages (www.rivvra.com), so
+  redesign commits must NOT land here until a deliberate merge.
+- Slices 0–4 (portal commits `0cb3132c` … `475c1952`) are already on
+  `main` and therefore already deployed to production. They are inert
+  there — no production org has the `uiV2` flag, and the v2 components
+  are lazy-loaded — but they are live code, not shelved.
+- Rebase `redesign` onto `main` before each merge back so unrelated
+  production fixes stay ahead of the redesign work.
+- The **API repo stays on `main`**: its only redesign change is the
+  additive `uiV2` field on the org payload plus the super-admin
+  whitelist entry, which both environments need.
