@@ -8,7 +8,7 @@ import UploadDocumentModal from '../../components/documents/UploadDocumentModal'
 import { Folder, Upload, FileText, Tag as TagIcon } from 'lucide-react';
 import { formatDateUTC } from '../../utils/dateUtils';
 import { fileIconFor } from '../../utils/fileIcon';
-import { FilterBar, FilterChip, EmptyState, Button, Chip } from '../../components/ds';
+import { FilterBar, FilterChip, EmptyState, Button, Chip, SkeletonCardGrid } from '../../components/ds';
 import {
   useListParams, useSearchParamValue,
   SelectChipV2, GroupByChipV2, ArchivedToggleV2,
@@ -234,11 +234,7 @@ export default function DocumentsListV2() {
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-          {[0, 1, 2, 3, 4, 5].map(i => (
-            <div key={i} style={{ height: 84, borderRadius: 'var(--r-2)', background: 'var(--surface-2)', opacity: 0.6 - i * 0.07 }} />
-          ))}
-        </div>
+        <SkeletonCardGrid count={6} minWidth={280} />
       ) : docs.length === 0 ? (
         <EmptyState icon={<FileText size={22} />} title={`No documents${folderId ? ' in this folder' : ''} yet`}>
           {isAdmin ? 'Use Upload to add one.' : 'Documents shared with you will appear here.'}
