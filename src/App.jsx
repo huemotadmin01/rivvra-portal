@@ -148,6 +148,10 @@ const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
 const AtsCandidatesV2 = lazy(() => import('./pages/ats/AtsCandidatesV2'));
 const AlumniDirectoryV2 = lazy(() => import('./pages/employee/AlumniDirectoryV2'));
 const AtsMyApprovalsV2 = lazy(() => import('./pages/ats/AtsMyApprovalsV2'));
+const AtsJobPositionsV2 = lazy(() => import('./pages/ats/AtsJobPositionsV2'));
+const AtsApplicationsV2 = lazy(() => import('./pages/ats/AtsApplicationsV2'));
+const CrmOpportunitiesV2 = lazy(() => import('./pages/crm/CrmOpportunitiesV2'));
+const DocumentsListV2 = lazy(() => import('./pages/documents/DocumentsListV2'));
 const ExpenseListV2 = lazy(() => import('./pages/expenses/ExpenseListV2'));
 const LeaveBalancesV2 = lazy(() => import('./pages/timesheet/LeaveBalancesV2'));
 const LeaveHistoryV2 = lazy(() => import('./pages/timesheet/LeaveHistoryV2'));
@@ -575,7 +579,7 @@ function App() {
                 <Route path="/org/:slug/crm" element={<CrmIndexRedirect />} />
                 <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><CrmDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
-                <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><CrmOpportunities /></ErrorBoundary>} />
+                <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><PageSwitch v2={CrmOpportunitiesV2} legacy={CrmOpportunities} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><CrmOpportunityNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><CrmOpportunityDetail /></ErrorBoundary>} />
                 {/* 2026-05-14: Reporting merged into Dashboard — keep old path redirecting */}
@@ -592,9 +596,9 @@ function App() {
               <Route element={<AppAccessGate appId="ats" />}>
                 <Route path="/org/:slug/ats" element={<AtsIndexRedirect />} />
                 <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><AtsPipeline /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><AtsApplications /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><PageSwitch v2={AtsApplicationsV2} legacy={AtsApplications} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><AtsApplicationDetail /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><AtsJobPositions /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><PageSwitch v2={AtsJobPositionsV2} legacy={AtsJobPositions} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/new" element={<ErrorBoundary><AtsJobNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId/applications/new" element={<ErrorBoundary><AtsApplicationNew /></ErrorBoundary>} />
@@ -626,7 +630,7 @@ function App() {
 
               {/* Documents app — read for any member, manage pages admin-only */}
               <Route element={<AppAccessGate appId="documents" />}>
-                <Route path="/org/:slug/documents" element={<ErrorBoundary><DocumentsList /></ErrorBoundary>} />
+                <Route path="/org/:slug/documents" element={<ErrorBoundary><PageSwitch v2={DocumentsListV2} legacy={DocumentsList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/documents/:id" element={<ErrorBoundary><DocumentDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="documents" requiredRole="admin" />}>
                   <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><DocumentsManageFolders /></ErrorBoundary>} />

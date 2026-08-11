@@ -194,6 +194,67 @@ export function GroupByChipV2({ options = [], paramKey = 'groupBy', label = 'Gro
   );
 }
 
+/** "More filters" chip — collapses rarely-used chips into a popover. The
+ *  chip shows how many of its child params are active (legacy
+ *  MoreFiltersPopover semantics). */
+export function MoreFiltersV2({ paramKeys = [], label = 'More filters', children }) {
+  const [searchParams] = useSearchParams();
+  const { open, setOpen, ref } = usePopover();
+  const activeCount = paramKeys.filter((k) => {
+    const v = searchParams.get(k);
+    return v != null && v !== '';
+  }).length;
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <FilterChip
+        add={activeCount === 0}
+        label={activeCount > 0 ? label : undefined}
+        value={activeCount > 0 ? String(activeCount) : undefined}
+        active={activeCount > 0}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {activeCount === 0 ? label : undefined}
+      </FilterChip>
+      {open && (
+        <div className="pop" style={{ top: 32, left: 0, display: 'flex', flexDirection: 'column', gap: 8, padding: 12 }}>
+          <div className="pop-label" style={{ padding: 0 }}>{label}</div>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const rangeInput = {
+  flex: 1, minWidth: 0, padding: '5px 8px', borderRadius: 'var(--r-1, 7px)',
+  background: 'var(--surface-2)', color: 'var(--fg)', border: 'none',
+  boxShadow: 'inset 0 0 0 1px var(--line)',
+  font: "450 12px/1.3 'Inter', system-ui, sans-serif",
+  colorScheme: 'dark',
+};
+
+/** From/to URL-param range row for a More-filters popover. `type` is the
+ *  input type ('date' | 'number'). */
+export function RangeFilterV2({ fromKey, toKey, label, type = 'date' }) {
+  const [searchParams] = useSearchParams();
+  const updateParam = useUpdateParam();
+  const from = searchParams.get(fromKey) || '';
+  const to = searchParams.get(toKey) || '';
+  return (
+    <div style={{ minWidth: 230 }}>
+      <div style={{ font: "500 11px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input type={type} inputMode={type === 'number' ? 'numeric' : undefined} placeholder={type === 'number' ? 'Min' : undefined}
+          value={from} onChange={(e) => updateParam(fromKey, e.target.value)} style={rangeInput} />
+        <span style={{ font: '450 10.5px/1 var(--font)', color: 'var(--fg-faint)' }}>to</span>
+        <input type={type} inputMode={type === 'number' ? 'numeric' : undefined} placeholder={type === 'number' ? 'Max' : undefined}
+          value={to} onChange={(e) => updateParam(toKey, e.target.value)} style={rangeInput} />
+      </div>
+    </div>
+  );
+}
+
 /** v2 list-page header: title + count line on the left, actions right. */
 export function PageHeaderV2({ title, sub, actions }) {
   return (
