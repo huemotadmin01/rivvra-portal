@@ -15,6 +15,12 @@
  * before using a component.
  */
 export { BrandMark, BRAND_MARK_IDS } from './BrandMark/BrandMark';
+export {
+  Skeleton, SkeletonPage, SkeletonHeader, SkeletonCardGrid, SkeletonTabs,
+  SkeletonTable, SkeletonCardList, SkeletonTwoCard, SkeletonSearchBar,
+  SkeletonPendingList, SkeletonConfig, SkeletonInline, SkeletonEditor,
+} from './Feedback/Skeleton';
+export { Spinner, PageSpinner } from './Feedback/Spinner';
 export { Button } from './Button/Button';
 export { Avatar } from './Data/Avatar';
 export { Chip } from './Data/Chip';
@@ -30,6 +36,8 @@ export { FilterChip } from './Filter/FilterChip';
 export { SavedViews } from './Filter/SavedViews';
 export { SearchInput } from './Filter/SearchInput';
 export { Field, Input } from './Form/Field';
+export { InlineComboField } from './Form/InlineComboField';
+export { InlineField } from './Form/InlineField';
 export { InlineSelect } from './Form/InlineSelect';
 export { Switch, SettingRow } from './Form/Switch';
 export { Logo, LogoLockup } from './Logo/Logo';
