@@ -147,6 +147,11 @@ const AssetTypeConfig = lazy(() => import('./pages/employee/AssetTypeConfig'));
 const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
 const AtsCandidatesV2 = lazy(() => import('./pages/ats/AtsCandidatesV2'));
 const AlumniDirectoryV2 = lazy(() => import('./pages/employee/AlumniDirectoryV2'));
+const AtsMyApprovalsV2 = lazy(() => import('./pages/ats/AtsMyApprovalsV2'));
+const ExpenseListV2 = lazy(() => import('./pages/expenses/ExpenseListV2'));
+const LeaveBalancesV2 = lazy(() => import('./pages/timesheet/LeaveBalancesV2'));
+const LeaveHistoryV2 = lazy(() => import('./pages/timesheet/LeaveHistoryV2'));
+const LeaveReportsV2 = lazy(() => import('./pages/timesheet/LeaveReportsV2'));
 
 // Lazy-loaded: Contacts app pages
 const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
@@ -480,9 +485,9 @@ function App() {
                   <Route path="/org/:slug/timesheet/leave/apply" element={<ErrorBoundary><LeaveApply /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/my-requests" element={<ErrorBoundary><LeaveMyRequests /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/approvals" element={<ErrorBoundary><LeaveApprovals /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/leave/balances" element={<ErrorBoundary><LeaveBalances /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/leave/balances/:employeeId" element={<ErrorBoundary><LeaveHistory /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><LeaveReports /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/leave/balances" element={<ErrorBoundary><PageSwitch v2={LeaveBalancesV2} legacy={LeaveBalances} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/leave/balances/:employeeId" element={<ErrorBoundary><PageSwitch v2={LeaveHistoryV2} legacy={LeaveHistory} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><PageSwitch v2={LeaveReportsV2} legacy={LeaveReports} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><HolidayCalendar /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-assets" element={<ErrorBoundary><MyAssets /></ErrorBoundary>} />
                   {/* Employee-facing statutory payroll pages */}
@@ -596,7 +601,7 @@ function App() {
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><PageSwitch v2={AtsCandidatesV2} legacy={AtsCandidates} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><AtsMyApprovals /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><PageSwitch v2={AtsMyApprovalsV2} legacy={AtsMyApprovals} /></ErrorBoundary>} />
                 {/* 2026-05-14: Dashboard is the ATS landing for everyone,
                     so it sits outside the admin gate. Old /ats/reporting
                     path still redirects in for bookmark continuity. */}
@@ -688,10 +693,10 @@ function App() {
 
               {/* Expenses app routes — default-enabled for all org members */}
               <Route element={<AppAccessGate appId="expenses" />}>
-                <Route path="/org/:slug/expenses" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses" element={<ErrorBoundary><PageSwitch v2={ExpenseListV2} legacy={ExpenseList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/expenses/new" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
-                <Route path="/org/:slug/expenses/team" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
-                <Route path="/org/:slug/expenses/all" element={<ErrorBoundary><ExpenseList /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/team" element={<ErrorBoundary><PageSwitch v2={ExpenseListV2} legacy={ExpenseList} /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/all" element={<ErrorBoundary><PageSwitch v2={ExpenseListV2} legacy={ExpenseList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/expenses/:id" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
               </Route>
             </Route>
