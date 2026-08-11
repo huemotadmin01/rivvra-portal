@@ -148,6 +148,10 @@ const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
 const AtsCandidatesV2 = lazy(() => import('./pages/ats/AtsCandidatesV2'));
 const AlumniDirectoryV2 = lazy(() => import('./pages/employee/AlumniDirectoryV2'));
 const AtsMyApprovalsV2 = lazy(() => import('./pages/ats/AtsMyApprovalsV2'));
+const CrmConfigStagesV2 = lazy(() => import('./pages/crm/CrmConfigStagesV2'));
+const CrmConfigTagsV2 = lazy(() => import('./pages/crm/CrmConfigTagsV2'));
+const CrmConfigLostReasonsV2 = lazy(() => import('./pages/crm/CrmConfigLostReasonsV2'));
+const ContactsConfigV2 = lazy(() => import('./pages/contacts/ContactsConfigV2'));
 const LeadsPageV2 = lazy(() => import('./pages/LeadsPageV2'));
 const MyListsPageV2 = lazy(() => import('./pages/MyListsPageV2'));
 const TeamListsPageV2 = lazy(() => import('./pages/TeamListsPageV2'));
@@ -572,7 +576,7 @@ function App() {
                 <Route path="/org/:slug/contacts/companies" element={<ErrorBoundary><PageSwitch v2={ContactsListV2} legacy={ContactsList} filterType="company" /></ErrorBoundary>} />
                 <Route path="/org/:slug/contacts/individuals" element={<ErrorBoundary><PageSwitch v2={ContactsListV2} legacy={ContactsList} filterType="individual" /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="contacts" requiredRole="admin" />}>
-                  <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><ContactsConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><PageSwitch v2={ContactsConfigV2} legacy={ContactsConfig} /></ErrorBoundary>} />
                 </Route>
                 <Route path="/org/:slug/contacts/new-record" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/contacts/:contactId" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
@@ -590,9 +594,9 @@ function App() {
                 <Route path="/org/:slug/crm/reporting" element={<CrmReportingRedirect />} />
                 <Route element={<AppRoleGate appId="crm" requiredRole="admin" />}>
                   <Route path="/org/:slug/crm/config" element={<CrmConfigRedirect />} />
-                  <Route path="/org/:slug/crm/config/stages" element={<ErrorBoundary><CrmConfigStages /></ErrorBoundary>} />
-                  <Route path="/org/:slug/crm/config/tags" element={<ErrorBoundary><CrmConfigTags /></ErrorBoundary>} />
-                  <Route path="/org/:slug/crm/config/lost-reasons" element={<ErrorBoundary><CrmConfigLostReasons /></ErrorBoundary>} />
+                  <Route path="/org/:slug/crm/config/stages" element={<ErrorBoundary><PageSwitch v2={CrmConfigStagesV2} legacy={CrmConfigStages} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/crm/config/tags" element={<ErrorBoundary><PageSwitch v2={CrmConfigTagsV2} legacy={CrmConfigTags} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/crm/config/lost-reasons" element={<ErrorBoundary><PageSwitch v2={CrmConfigLostReasonsV2} legacy={CrmConfigLostReasons} /></ErrorBoundary>} />
                 </Route>
               </Route>
 
