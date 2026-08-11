@@ -4,8 +4,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { getLeaveHistory } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
 import { ArrowLeft, History } from 'lucide-react';
-import { DataTable, EmptyState, Chip } from '../../components/ds';
-import { InlineSelect } from './LeaveBalancesV2';
+import { DataTable, EmptyState, Chip , InlineSelect } from '../../components/ds';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';

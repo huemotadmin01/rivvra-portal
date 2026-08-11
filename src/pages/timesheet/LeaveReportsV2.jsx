@@ -3,9 +3,8 @@ import { useToast } from '../../context/ToastContext';
 import { useCompany } from '../../context/CompanyContext';
 import { getLeaveReportSummary, getLeaveReportUtilization, exportLeaveReport } from '../../utils/timesheetApi';
 import { Download, Loader2, Users, TrendingUp } from 'lucide-react';
-import { DataTable, FilterBar, Pagination, EmptyState, Button, Stat } from '../../components/ds';
+import { DataTable, FilterBar, Pagination, EmptyState, Button, Stat , InlineSelect } from '../../components/ds';
 import { PageHeaderV2 } from '../../components/platform/v2/listkit';
-import { InlineSelect } from './LeaveBalancesV2';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
