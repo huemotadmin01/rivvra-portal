@@ -7,6 +7,7 @@ import { OrgProvider } from './context/OrgContext';
 import { CompanyProvider } from './context/CompanyContext';
 import { PolicyAckProvider } from './context/PolicyAckContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import StagingBanner from './components/StagingBanner';
 import PlanLimitListener from './components/PlanLimitListener';
 import PlatformLayout from './components/platform/PlatformLayout';
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
@@ -350,6 +351,7 @@ function AtsIndexRedirect() {
 function App() {
   return (
     <AuthProvider>
+      <StagingBanner />
       <ToastProvider>
       <PlanLimitListener />
       <ErrorBoundary>

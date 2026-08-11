@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:staging": "vite build --mode staging && node staging/check-no-prod-api.cjs",
+    "start:staging": "node staging/server.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

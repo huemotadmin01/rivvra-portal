@@ -1,3 +1,5 @@
+import { API_BASE_URL } from './config';
+
 /**
  * Mask a bank account number to its last 4 digits. The payslip PDF is emailed
  * and downloaded, so it must never carry the full account number. Mirrors the
@@ -102,8 +104,7 @@ export async function generatePayslipPDF(data, options = { download: true }) {
   let logoEndX = margin;
   if (co.logoUrl) {
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || 'https://brynsa-leads-api.onrender.com';
-      const logoUrl = co.logoUrl.startsWith('http') ? co.logoUrl : `${API_BASE}${co.logoUrl}`;
+      const logoUrl = co.logoUrl.startsWith('http') ? co.logoUrl : `${API_BASE_URL}${co.logoUrl}`;
       const resp = await fetch(logoUrl);
       if (resp.ok) {
         const blob = await resp.blob();
