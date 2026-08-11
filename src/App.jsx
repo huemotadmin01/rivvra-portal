@@ -148,6 +148,10 @@ const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
 const AtsCandidatesV2 = lazy(() => import('./pages/ats/AtsCandidatesV2'));
 const AlumniDirectoryV2 = lazy(() => import('./pages/employee/AlumniDirectoryV2'));
 const AtsMyApprovalsV2 = lazy(() => import('./pages/ats/AtsMyApprovalsV2'));
+const LeadsPageV2 = lazy(() => import('./pages/LeadsPageV2'));
+const MyListsPageV2 = lazy(() => import('./pages/MyListsPageV2'));
+const TeamListsPageV2 = lazy(() => import('./pages/TeamListsPageV2'));
+const TeamContactsPageV2 = lazy(() => import('./pages/TeamContactsPageV2'));
 const AtsJobPositionsV2 = lazy(() => import('./pages/ats/AtsJobPositionsV2'));
 const AtsApplicationsV2 = lazy(() => import('./pages/ats/AtsApplicationsV2'));
 const CrmOpportunitiesV2 = lazy(() => import('./pages/crm/CrmOpportunitiesV2'));
@@ -436,16 +440,16 @@ function App() {
                 <Route path="/org/:slug/outreach/engage" element={<EngagePage />} />
                 <Route path="/org/:slug/outreach/engage/new-sequence" element={<SequenceWizardPage />} />
                 <Route path="/org/:slug/outreach/engage/edit-sequence/:sequenceId" element={<SequenceWizardPage />} />
-                <Route path="/org/:slug/outreach/leads" element={<LeadsPage />} />
-                <Route path="/org/:slug/outreach/leads/:leadId" element={<LeadsPage />} />
-                <Route path="/org/:slug/outreach/lists" element={<MyListsPage />} />
-                <Route path="/org/:slug/outreach/lists/:leadId" element={<MyListsPage />} />
+                <Route path="/org/:slug/outreach/leads" element={<PageSwitch v2={LeadsPageV2} legacy={LeadsPage} />} />
+                <Route path="/org/:slug/outreach/leads/:leadId" element={<PageSwitch v2={LeadsPageV2} legacy={LeadsPage} />} />
+                <Route path="/org/:slug/outreach/lists" element={<PageSwitch v2={MyListsPageV2} legacy={MyListsPage} />} />
+                <Route path="/org/:slug/outreach/lists/:leadId" element={<PageSwitch v2={MyListsPageV2} legacy={MyListsPage} />} />
                 <Route path="/org/:slug/outreach/settings" element={<OrgOutreachSettingsRedirect />} />
                 <Route path="/org/:slug/outreach/team-dashboard" element={<TeamDashboardPage />} />
-                <Route path="/org/:slug/outreach/team-contacts" element={<TeamContactsPage />} />
-                <Route path="/org/:slug/outreach/team-contacts/:leadId" element={<TeamContactsPage />} />
-                <Route path="/org/:slug/outreach/team-lists" element={<TeamListsPage />} />
-                <Route path="/org/:slug/outreach/team-lists/:leadId" element={<TeamListsPage />} />
+                <Route path="/org/:slug/outreach/team-contacts" element={<PageSwitch v2={TeamContactsPageV2} legacy={TeamContactsPage} />} />
+                <Route path="/org/:slug/outreach/team-contacts/:leadId" element={<PageSwitch v2={TeamContactsPageV2} legacy={TeamContactsPage} />} />
+                <Route path="/org/:slug/outreach/team-lists" element={<PageSwitch v2={TeamListsPageV2} legacy={TeamListsPage} />} />
+                <Route path="/org/:slug/outreach/team-lists/:leadId" element={<PageSwitch v2={TeamListsPageV2} legacy={TeamListsPage} />} />
               </Route>
 
               {/* Platform settings — profile is accessible to all, rest gated by admin */}
