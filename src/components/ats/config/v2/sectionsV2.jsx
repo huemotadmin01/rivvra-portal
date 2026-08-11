@@ -6,8 +6,7 @@ import { Button, Chip, Modal } from '../../../ds';
 import { DataTable, EmptyState } from '../../../ds';
 import { Pencil } from 'lucide-react';
 import ConfirmDialog from '../../../shared/ConfirmDialog';
-import { ConfigListV2, ConfigDot } from '../../../platform/v2/configkit';
-import { InlineSelect } from '../../../../pages/timesheet/LeaveBalancesV2';
+import { ConfigList, ConfigDot, InlineSelect } from '../../../ds';
 
 /* v2 ATS config sections (Slice 4 Wave B) — same API contracts as the
    legacy components/ats/config/* sections, rendered on the config kit.
@@ -68,7 +67,7 @@ export function PicklistSectionV2({ orgSlug, showToast, entity, entityLabel, ico
 
   return (
     <>
-      <ConfigListV2
+      <ConfigList
         icon={Icon ? <Icon size={20} /> : null}
         title={entityLabel}
         sub={`Manage ATS ${entityLabel.toLowerCase()}`}
@@ -169,7 +168,7 @@ export function RequiredDocumentsSectionV2({ orgSlug, showToast, icon: Icon }) {
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   return (
-    <ConfigListV2
+    <ConfigList
       icon={Icon ? <Icon size={20} /> : null}
       title="Required Documents"
       sub="Documents collected before the Documents Collection stage can be passed"
@@ -274,7 +273,7 @@ export function AttachmentKindsSectionV2({ orgSlug, showToast, icon: Icon }) {
   };
 
   return (
-    <ConfigListV2
+    <ConfigList
       icon={Icon ? <Icon size={20} /> : null}
       title="Attachment Kinds"
       sub="Upload slots stages can require. Slugs are permanent once created."
@@ -366,7 +365,7 @@ export function SkillTypesSectionV2({ orgSlug, showToast, icon: Icon }) {
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   return (
-    <ConfigListV2
+    <ConfigList
       icon={Icon ? <Icon size={20} /> : null}
       title="Skill Types"
       sub="Categories that group skills"
@@ -444,7 +443,7 @@ export function SkillsSectionV2({ orgSlug, showToast, icon: Icon }) {
   const typeMap = useMemo(() => new Map(skillTypes.map((t) => [String(t._id), t.name])), [skillTypes]);
 
   return (
-    <ConfigListV2
+    <ConfigList
       icon={Icon ? <Icon size={20} /> : null}
       title="Skills"
       sub="The skill picklist candidates are tagged with"
@@ -533,7 +532,7 @@ export function SkillLevelsSectionV2({ orgSlug, showToast, icon: Icon }) {
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   return (
-    <ConfigListV2
+    <ConfigList
       icon={Icon ? <Icon size={20} /> : null}
       title="Skill Levels"
       sub="Proficiency scale — higher sequence means more proficient"

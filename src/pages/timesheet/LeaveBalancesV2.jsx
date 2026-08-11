@@ -6,31 +6,10 @@ import { useCompany } from '../../context/CompanyContext';
 import { getAllLeaveBalances } from '../../utils/timesheetApi';
 import { useToast } from '../../context/ToastContext';
 import { CalendarDays, ChevronDown, ChevronUp, History } from 'lucide-react';
-import { DataTable, FilterBar, EmptyState, Button, Chip } from '../../components/ds';
+import { DataTable, FilterBar, EmptyState, Button, Chip, InlineSelect } from '../../components/ds';
 import { PageHeaderV2 } from '../../components/platform/v2/listkit';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 1 });
-
-// Token-styled native select for local (non-URL) filters.
-export function InlineSelect({ value, onChange, children, ...rest }) {
-  return (
-    <select
-      value={value}
-      onChange={onChange}
-      style={{
-        appearance: 'none', padding: '5px 24px 5px 10px', borderRadius: 'var(--r-1, 7px)',
-        background: 'var(--surface-2)', color: 'var(--fg-2)', border: 'none',
-        boxShadow: 'inset 0 0 0 1px var(--line)', cursor: 'pointer',
-        font: "500 12.5px/1.2 'Inter', system-ui, sans-serif",
-        backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23828e9f' stroke-width='3' stroke-linecap='round'><path d='m6 9 6 6 6-6'/></svg>\")",
-        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-  );
-}
 
 /* v2 Leave Balances (Slice 3 Wave A) — same data + expansion behaviour as
    LeaveBalances.jsx; dynamic per-leave-type columns rendered through

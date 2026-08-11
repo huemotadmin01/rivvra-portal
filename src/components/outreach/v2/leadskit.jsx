@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import { Linkedin, StickyNote, Users } from 'lucide-react';
 import api from '../../../utils/api';
 import ManageDropdown from '../../ManageDropdown';
-import { DataTable, EmptyState, Chip, Avatar } from '../../ds';
-import { InlineSelect } from '../../../pages/timesheet/LeaveBalancesV2';
+import { DataTable, EmptyState, Chip, Avatar, InlineSelect } from '../../ds';
 
-/* Shared v2 composition for the four Outreach lead lists (Slice 3 Wave C):
+/* DESIGN-SYSTEM BOUNDARY (settled in phase 1): LeadsTableV2 and ListsRailV2
+   deliberately stay here rather than moving into ds/. Both encode Outreach
+   domain knowledge — the lead row shape (profile picture, outreach status,
+   contact owner, LinkedIn), the ManageDropdown action contract, and the
+   list-rail semantics of saved lead lists. A ds component that knows what a
+   "lead" is would be the same drift phase 1 exists to repair, just pointed
+   the other way. The generic parts they build on (DataTable, Chip, Avatar,
+   InlineSelect, EmptyState) all live in ds/. Don't re-litigate.
+
+   Shared v2 composition for the four Outreach lead lists (Slice 3 Wave C):
    MyLists / TeamLists / Leads / TeamContacts. Pages own data loading,
    modals and bulk verbs (they differ semantically); this file owns the
    table, filter strip and the lead-detail-panel URL sync. Search/filters
