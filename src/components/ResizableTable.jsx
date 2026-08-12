@@ -5,6 +5,17 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
  * sticky-left / sticky-right columns. Column widths persist in localStorage
  * keyed by `storageKey`.
  *
+ * A sticky cell must paint an opaque background or the scrolling columns show
+ * through it. That background used to be a hardcoded near-black, set inline —
+ * which the `.ds-shell` palette bridge cannot reach, because it maps classes
+ * and an inline style outranks it. In light theme the pinned Number and Status
+ * columns therefore stayed black, and the invoice numbers inside them went
+ * invisible (measured at a 1.00 contrast ratio).
+ *
+ * They now read `--rt-sticky-*`, which the bridge defines under `.ds-shell`.
+ * The fallbacks are the exact previous colours, so the legacy shell — which
+ * has no theme switch and is what production renders — is unchanged.
+ *
  * Each column:
  *   - key         : unique string id (used for storage + React key)
  *   - label       : header text (used unless headerRender overrides)
@@ -158,9 +169,9 @@ export default function ResizableTable({
             <tr className="border-b border-dark-700">
               {columns.map(c => {
                 const stickyStyle = stickyEnabled && c.sticky === 'left'
-                  ? { position: 'sticky', left: stickyLeftOffset(c.key), zIndex: 3, background: 'rgb(31 31 35)' }
+                  ? { position: 'sticky', left: stickyLeftOffset(c.key), zIndex: 3, background: 'var(--rt-sticky-head, rgb(31 31 35))' }
                   : stickyEnabled && c.sticky === 'right'
-                    ? { position: 'sticky', right: stickyRightOffset(c.key), zIndex: 3, background: 'rgb(31 31 35)' }
+                    ? { position: 'sticky', right: stickyRightOffset(c.key), zIndex: 3, background: 'var(--rt-sticky-head, rgb(31 31 35))' }
                     : {};
                 return (
                   <th
@@ -198,9 +209,9 @@ export default function ResizableTable({
               >
                 {columns.map(c => {
                   const stickyStyle = stickyEnabled && c.sticky === 'left'
-                    ? { position: 'sticky', left: stickyLeftOffset(c.key), zIndex: 1, background: 'rgb(24 24 28)' }
+                    ? { position: 'sticky', left: stickyLeftOffset(c.key), zIndex: 1, background: 'var(--rt-sticky-cell, rgb(24 24 28))' }
                     : stickyEnabled && c.sticky === 'right'
-                      ? { position: 'sticky', right: stickyRightOffset(c.key), zIndex: 1, background: 'rgb(24 24 28)' }
+                      ? { position: 'sticky', right: stickyRightOffset(c.key), zIndex: 1, background: 'var(--rt-sticky-cell, rgb(24 24 28))' }
                       : {};
                   return (
                     <td
