@@ -42,6 +42,7 @@ export function InlineField({
   onSave,
   placeholder = '',
   warn = '',
+  error = '',
   maxLength,
   transform,
   labelWidth = 140,
@@ -145,7 +146,19 @@ export function InlineField({
   const row = {
     display: 'grid', gridTemplateColumns: `${labelWidth}px 1fr`, gap: 8, padding: '8px 0',
   };
-  const labelStyle = { font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4, #828e9f)' };
+  // `error` is externally driven — a preflight or server validation marking
+  // this field, not a failed save. It never suppresses the field's own save
+  // error, which is more urgent and describes something the user just did.
+  const showExternalError = !!error && status !== 'error';
+  const labelStyle = {
+    font: "450 13px/1.5 'Inter', system-ui, sans-serif",
+    color: showExternalError ? 'var(--danger, #ef4444)' : 'var(--fg-4, #828e9f)',
+  };
+  const ExternalError = () => (showExternalError ? (
+    <span style={{ font: "450 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger, #ef4444)', marginTop: 2 }}>
+      {error}
+    </span>
+  ) : null);
   const inputStyle = {
     flex: 1, minWidth: 0, padding: '6px 9px', border: 'none', outline: 'none',
     borderRadius: 'var(--r-1, 7px)', background: 'var(--surface-2, #141b24)',
@@ -157,8 +170,9 @@ export function InlineField({
   if (type === 'toggle') {
     const on = !!value;
     return (
-      <div style={{ ...row, alignItems: 'center' }}>
+      <div style={{ ...row, alignItems: showExternalError ? 'start' : 'center' }}>
         <span style={labelStyle}>{label}</span>
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {editable ? (
             <button
@@ -202,6 +216,8 @@ export function InlineField({
           )}
           <StatusIcon status={status} errMsg={errMsg} />
         </span>
+        <ExternalError />
+        </span>
       </div>
     );
   }
@@ -211,20 +227,34 @@ export function InlineField({
     const display = displayValue !== undefined ? displayValue : formatDisplayValue(value, type, maskFn, options);
     return (
       <div
-        style={{ ...row, cursor: editable ? 'pointer' : 'default' }}
+        style={{
+          ...row,
+          cursor: editable ? 'pointer' : 'default',
+          // A left rule rather than a filled background: these rows sit in a
+          // dense stack, and tinting several at once makes the panel unreadable.
+          ...(showExternalError ? {
+            boxShadow: 'inset 2px 0 0 0 var(--danger, #ef4444)',
+            paddingLeft: 8, marginLeft: -8, borderRadius: 'var(--r-1, 7px)',
+          } : null),
+        }}
         onClick={editable ? startEdit : undefined}
         className={editable ? 'ds-inline-field' : undefined}
       >
         <span style={labelStyle}>{label}</span>
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 20, font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg, #eef2f6)' }}>
-            {display || <span style={{ color: 'var(--fg-faint, #4a5563)' }}>—</span>}
+            {display || (
+              <span style={{ color: showExternalError ? 'var(--danger, #ef4444)' : 'var(--fg-faint, #4a5563)' }}>
+                {showExternalError ? 'Required' : '—'}
+              </span>
+            )}
             {editable && status !== 'saved' && (
               <Pencil size={12} className="ds-inline-pencil" style={{ color: 'var(--fg-4, #828e9f)', flexShrink: 0, opacity: 0, transition: 'opacity 120ms ease' }} />
             )}
             <StatusIcon status={status} errMsg={errMsg} />
           </span>
-          {warn && <span style={{ font: "450 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--warn, #f59e0b)', marginTop: 2 }}>{warn}</span>}
+          <ExternalError />
+          {warn && !showExternalError && <span style={{ font: "450 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--warn, #f59e0b)', marginTop: 2 }}>{warn}</span>}
         </div>
         <style>{'.ds-inline-field:hover .ds-inline-pencil{opacity:1}'}</style>
       </div>
@@ -235,6 +265,7 @@ export function InlineField({
   return (
     <div style={{ ...row, padding: '6px 0' }}>
       <span style={{ ...labelStyle, paddingTop: 6 }}>{label}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {type === 'select' ? (
           <select
@@ -291,6 +322,10 @@ export function InlineField({
             {errMsg && <span style={{ font: "450 11.5px/1.4 'Inter', system-ui, sans-serif", color: 'var(--danger, #ef4444)' }}>{errMsg}</span>}
           </>
         )}
+      </div>
+      {/* Kept visible while editing: the whole point of a preflight error is
+          to tell you what to type. */}
+      <ExternalError />
       </div>
     </div>
   );

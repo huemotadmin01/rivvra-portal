@@ -193,6 +193,7 @@ const CrmDashboard = lazy(() => import('./pages/crm/CrmDashboard'));
 const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
+const CrmOpportunityDetailV2 = lazy(() => import('./pages/crm/CrmOpportunityDetailV2'));
 const CrmOpportunityNew = lazy(() => import('./pages/crm/CrmOpportunityNew'));
 const CrmConfigStages = lazy(() => import('./pages/crm/CrmConfigStages'));
 const CrmConfigTags = lazy(() => import('./pages/crm/CrmConfigTags'));
@@ -591,7 +592,7 @@ function App() {
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><PageSwitch v2={CrmOpportunitiesV2} legacy={CrmOpportunities} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><CrmOpportunityNew /></ErrorBoundary>} />
-                <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><CrmOpportunityDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><PageSwitch v2={CrmOpportunityDetailV2} legacy={CrmOpportunityDetail} /></ErrorBoundary>} />
                 {/* 2026-05-14: Reporting merged into Dashboard — keep old path redirecting */}
                 <Route path="/org/:slug/crm/reporting" element={<CrmReportingRedirect />} />
                 <Route element={<AppRoleGate appId="crm" requiredRole="admin" />}>
