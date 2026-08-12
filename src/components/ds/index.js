@@ -7,9 +7,11 @@
  *  - Values (colors, px, motion) are spec — components read the semantic
  *    tokens in src/styles/ds-tokens.css. Do not fork values.
  *  - Naming collisions, resolved: ds `Switch` supersedes legacy
- *    `ToggleSwitch`; ds `Panel` supersedes legacy `SectionCard`; for
- *    confirmations keep legacy shared/ConfirmDialog until the ds one
- *    exists. Legacy components stay until their last call site migrates.
+ *    `ToggleSwitch`; ds `Panel` supersedes legacy `SectionCard`; ds
+ *    `ConfirmDialog` supersedes legacy `shared/ConfirmDialog` (same props,
+ *    except Enter no longer confirms a `danger` dialog); ds `EntityLookup`
+ *    supersedes `shared/ContactLookup` and `shared/EmployeeLookup`.
+ *    Legacy components stay until their last call site migrates.
  *
  * The .d.ts files beside each component are the API contract — read them
  * before using a component.
@@ -37,6 +39,7 @@ export { FilterChip } from './Filter/FilterChip';
 export { SavedViews } from './Filter/SavedViews';
 export { SearchInput } from './Filter/SearchInput';
 export { EditableHeading } from './Form/EditableHeading';
+export { EntityLookup } from './Form/EntityLookup';
 export { Field, Input } from './Form/Field';
 export { InlineComboField } from './Form/InlineComboField';
 export { InlineField } from './Form/InlineField';
@@ -45,6 +48,7 @@ export { Switch, SettingRow } from './Form/Switch';
 export { TagPicker } from './Form/TagPicker';
 export { Logo, LogoLockup } from './Logo/Logo';
 export { Tabs } from './Navigation/Tabs';
+export { ConfirmDialog } from './Overlay/ConfirmDialog';
 export { Modal, Drawer } from './Overlay/Modal';
 export { Toast, ToastStack } from './Overlay/Toast';
 export { ConfigList, ConfigDot } from './Surface/ConfigList';

@@ -112,4 +112,16 @@ Two rules the archetype depends on:
 |---|---|---|
 | `platform/v2/configkit.jsx` (re-exports `ConfigListV2`, `ConfigDot`) | `ds` → `ConfigList`, `ConfigDot` | phase 2 |
 | `PageHeaderV2` re-export in `listkit.jsx` | `ds` → `PageHeader` | phase 2 |
-| `ds/Surface/ConfigList.jsx` importing `shared/ConfirmDialog` | `ConfirmDialog` promoted into `ds/` | slice 6 |
+| `ds/Surface/ConfigList.jsx` importing `shared/ConfirmDialog` | `ds` → `ConfirmDialog` (exists as of phase 3b) | next config touch |
+| `shared/ActivityPanel.jsx` (4 legacy detail pages) | `shared/v2/ActivityPanelV2.jsx` | those pages migrate |
+| `shared/ContactLookup.jsx`, `shared/EmployeeLookup.jsx` | `ds` → `EntityLookup` | their pages migrate |
+| `shared/SignRequestWidget.jsx` — dark-only, breaks light theme | rebuild with the Sign surface | Sign slice |
+
+### App-layer v2 components
+
+`ActivityPanelV2` is not a ds primitive — it knows about activity types,
+entity types and the ATS email-body endpoint. Domain-coupled shared
+components live in `components/<area>/v2/`, built **only** from ds, the same
+layering as `platform/v2/listkit` and `outreach/v2/leadskit`. A v2 page must
+never import the legacy sibling: they are visually incompatible, and the
+legacy one silently ignores `canEdit`.

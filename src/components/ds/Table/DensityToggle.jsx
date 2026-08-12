@@ -2,7 +2,7 @@ const ROWS_3 = 'M3 5h18M3 12h18M3 19h18';
 const ROWS_4 = 'M3 4h18M3 9h18M3 15h18M3 20h18';
 
 /** Comfortable / compact row-height switch. Pairs with `DataTable`'s `density`. */
-export function DensityToggle({ density = 'comfortable', onChange, ...rest }) {
+export function DensityToggle({ density = 'comfortable', onChange, style, ...rest }) {
   const opts = [
     { key: 'comfortable', d: ROWS_3, title: 'Comfortable rows' },
     { key: 'compact', d: ROWS_4, title: 'Compact rows' },
@@ -14,6 +14,7 @@ export function DensityToggle({ density = 'comfortable', onChange, ...rest }) {
       style={{
         display: 'inline-flex', alignItems: 'center', borderRadius: 'var(--r-1, 7px)', overflow: 'hidden',
         background: 'var(--surface-2, #141b24)', boxShadow: 'inset 0 0 0 1px var(--line, rgba(255,255,255,.07))', flexShrink: 0,
+        ...style,
       }}
       {...rest}
     >
