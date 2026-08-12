@@ -15,13 +15,14 @@ export function GroupedHeader({
   sticky = false,
   stickyTop = 0,
   children,
+  style,
   ...rest
 }) {
   const plural = nounPlural || `${noun}s`;
   const initials = avatarText === '' ? '' : (avatarText ?? initialsOf(label));
 
   return (
-    <tr style={{ background: 'var(--surface-2, #141b24)' }} {...rest}>
+    <tr style={{ background: 'var(--surface-2, #141b24)', ...style }} {...rest}>
       <td
         colSpan={colSpan}
         style={{

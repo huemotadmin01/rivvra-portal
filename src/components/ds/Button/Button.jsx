@@ -6,6 +6,11 @@ export function Button({
   iconRight = null,
   iconLeft = null,
   children,
+  // Pulled out of `rest` so a caller-supplied style merges with the computed
+  // one. Spreading `rest` over `style=` replaced it wholesale, dropping the
+  // button's own display, padding and height — a caller tinting the text
+  // colour got an unstyled inline element.
+  style,
   ...rest
 }) {
   const base = {
@@ -52,7 +57,7 @@ export function Button({
     <button
       type="button"
       disabled={disabled}
-      style={{ ...base, ...sizes[size], ...variants[variant] }}
+      style={{ ...base, ...sizes[size], ...variants[variant], ...style }}
       {...rest}
     >
       {iconLeft}

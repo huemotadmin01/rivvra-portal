@@ -13,17 +13,15 @@ import { withFromContext } from '../../utils/entityDescribe';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
-  Avatar, Button, Chip, DataTable, EditableHeading, EmptyState, InlineComboField,
-  InlineField, Modal, Panel, RecordMeta, SkeletonHeader, SkeletonPage, SkeletonTabs,
-  SkeletonTwoCard, Spinner, Tabs, TagPicker,
+  Avatar, Button, Chip, ConfirmDialog, DataTable, EditableHeading, EmptyState,
+  EntityLookup, InlineComboField, InlineField, Modal, Panel, RecordMeta,
+  SkeletonHeader, SkeletonPage, SkeletonTabs, SkeletonTwoCard, Spinner, Tabs, TagPicker,
 } from '../../components/ds';
-// Legacy islands, unchanged, rendered inside the v2 shell (Phase 3b replaces
-// these): the non-Details tabs and the "Add person" entity picker.
-import ActivityPanel from '../../components/shared/ActivityPanel';
+import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
+// Legacy islands still rendered inside the v2 shell. SignRequestWidget is
+// dark-only; it belongs to the Sign surface and migrates with it.
 import SignRequestWidget from '../../components/shared/SignRequestWidget';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
-import ConfirmDialog from '../../components/shared/ConfirmDialog';
-import ContactLookup from '../../components/shared/ContactLookup';
 import {
   Archive, ArchiveRestore, Briefcase, Building2, Eye, FileText, Globe, Mail, MapPin,
   MoreHorizontal, Paperclip, Phone, Receipt, Tag, Trash2, Upload, User, Users,
@@ -344,16 +342,36 @@ export default function ContactDetailV2() {
     }
   };
 
+  // -- Child-contact picker ---------------------------------------------------
+  // Rejects rather than toasting alone: EntityLookup is pessimistic and keeps
+  // its own error state.
   const handleAddPerson = async (individualId) => {
     if (!individualId || !contactId) return;
     try {
       await contactsApi.update(orgSlug, individualId, { parentCompanyId: contactId });
-      showToast('Person linked');
-      fetchContact();
     } catch (err) {
       showToast(err?.message || 'Failed to link person', 'error');
+      throw err;
     }
+    showToast('Person linked');
+    fetchContact();
   };
+
+  const linkedIds = childContacts.map((c) => c._id);
+  const searchIndividuals = useCallback(async (query) => {
+    const res = await contactsApi.list(orgSlug, { type: 'individual', search: query, limit: 25 });
+    return (res?.contacts || [])
+      // Already-linked people would be a no-op pick.
+      .filter((c) => !linkedIds.includes(c._id))
+      .map((c) => ({ value: c._id, label: c.name, sub: c.jobTitle || c.email || '' }));
+  }, [orgSlug, linkedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const createIndividual = useCallback(async (name) => {
+    const res = await contactsApi.create(orgSlug, { type: 'individual', name, parentCompanyId: contactId });
+    const created = res?.contact;
+    if (!created?._id) throw new Error('Could not create that contact');
+    return { value: created._id, label: created.name };
+  }, [orgSlug, contactId]);
 
   // -- Derived options --------------------------------------------------------
   const salespersonOptions = useMemo(
@@ -703,14 +721,14 @@ export default function ContactDetailV2() {
               title={`Contacts at ${contact.name}`}
               flush
               actions={isAdmin ? (
-                <ContactLookup
-                  orgSlug={orgSlug}
-                  type="individual"
+                <EntityLookup
                   variant="button"
                   triggerLabel="Add person"
-                  parentCompanyId={contact._id}
-                  excludeIds={childContacts.map((c) => c._id)}
-                  onSelect={(id) => handleAddPerson(id)}
+                  editable
+                  placeholder="Search people…"
+                  search={searchIndividuals}
+                  onCreate={createIndividual}
+                  onSelect={(_f, id) => handleAddPerson(id)}
                 />
               ) : null}
             >
@@ -768,7 +786,7 @@ export default function ContactDetailV2() {
       {/* ── Activities (legacy island) ── */}
       {activeTab === 'activities' && (
         <>
-          <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} canEdit={isAdmin} />
+          <ActivityPanelV2 orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} canEdit={isAdmin} />
           <div style={{ marginTop: 16 }}>
             <SignRequestWidget
               orgSlug={orgSlug}
@@ -1094,8 +1112,8 @@ export default function ContactDetailV2() {
         )}
       </Modal>
 
-      {/* Child-contact / attachment deletes keep the legacy ConfirmDialog until
-          a ds confirm exists (see the barrel's naming-collisions note). */}
+      {/* Child-contact and attachment deletes. `danger`, so Enter does not
+          confirm — see ds/Overlay/ConfirmDialog. */}
       <ConfirmDialog
         open={!!confirmDelete}
         title={confirmDelete?.kind === 'child' ? 'Delete contact?' : confirmDelete?.kind === 'attachment' ? 'Delete attachment?' : ''}
