@@ -77,7 +77,7 @@ export function EditableHeading({
         }}
       >
         <h1 style={{ font: headingFont, letterSpacing: '-0.015em', color: 'var(--fg, #eef2f6)', minWidth: 0 }}>
-          {value || <span style={{ color: 'var(--fg-faint, #4a5563)', fontStyle: 'italic', fontWeight: 450 }}>{placeholder || 'Untitled'}</span>}
+          {value || <span style={{ color: 'var(--fg-4, #828e9f)', fontStyle: 'italic', fontWeight: 450 }}>{placeholder || 'Untitled'}</span>}
         </h1>
         {editable && (
           <Pencil size={13} className="ds-edit-heading-pencil"

@@ -65,7 +65,7 @@ function RoundCell({ interview }) {
     <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {dt
         ? <span style={{ color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>{dt}</span>
-        : <span style={{ color: 'var(--fg-faint)', fontSize: 11.5 }}>Not scheduled</span>}
+        : <span style={{ color: 'var(--fg-4)', fontSize: 11.5 }}>Not scheduled</span>}
       <span><FeedbackChip result={interview.recommendation ? { recommendation: interview.recommendation } : null} legacy={interview.legacyFeedback} /></span>
     </span>
   );
@@ -87,7 +87,7 @@ function InterviewSummaryCell({ app }) {
         {label && <span style={{ color: 'var(--fg-2)', fontWeight: 550, marginRight: 5 }}>{label}</span>}
         {dt
           ? <span style={{ color: 'var(--fg-4)' }}>{dt}</span>
-          : (label ? <span style={{ color: 'var(--fg-faint)' }}>not scheduled</span> : <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          : (label ? <span style={{ color: 'var(--fg-4)' }}>not scheduled</span> : <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
       </span>
       {interviews.length > 0 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -152,7 +152,7 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
           <span style={{ width: 6, height: 6, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
           {s.label}
           {counts[s.key] != null && (
-            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-faint)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
+            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
           )}
         </button>
       ))}

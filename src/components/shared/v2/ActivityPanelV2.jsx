@@ -54,7 +54,10 @@ const SYSTEM_ACTION_LABELS = {
   interview_invite_sent: 'Interview invite',
 };
 
-const meta = { font: `450 10.5px/1.5 ${FONT}`, color: 'var(--fg-faint, #4a5563)' };
+// Timestamps and recipient lines are text, not decoration: --fg-faint is
+// documented in ds-tokens.css as separator dots and disabled glyphs only,
+// and measures 2.52:1 in light theme.
+const meta = { font: `450 10.5px/1.5 ${FONT}`, color: 'var(--fg-4, #828e9f)' };
 const body = { font: `450 12px/1.5 ${FONT}`, color: 'var(--fg-2, #c3ccd6)' };
 
 const rowStyle = (highlight) => ({

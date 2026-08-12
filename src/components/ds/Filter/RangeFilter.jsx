@@ -22,7 +22,7 @@ export function RangeFilter({ label, type = 'date', from = '', to = '', onFromCh
           onChange={(e) => onFromChange?.(e.target.value)}
           style={rangeInput}
         />
-        <span style={{ font: "450 10.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-faint, #4a5563)' }}>to</span>
+        <span style={{ font: "450 10.5px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4, #828e9f)' }}>to</span>
         <input
           type={type}
           inputMode={numeric ? 'numeric' : undefined}

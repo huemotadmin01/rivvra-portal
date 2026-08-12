@@ -127,7 +127,7 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
           <span style={{ width: 6, height: 6, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
           {s.label}
           {counts[s.key] != null && (
-            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-faint)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
+            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
           )}
         </button>
       ))}
