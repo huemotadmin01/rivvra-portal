@@ -130,18 +130,34 @@ legacy one silently ignores `canEdit`.
 
 ## Where the migration stands (end of phase 6a)
 
-**25 v2 pages across 39 routes**, all behind `PageSwitch`, flag-gated to the
-staging org. Done: the v2 shell, every major list, the config pages, five
-detail pages (Contact, CRM Opportunity, ATS Application, ATS Job, Employee),
-and the first five of the low-risk breadth group.
+**31 v2 pages across 45 routes**, all behind `PageSwitch`, flag-gated to the
+staging org. Done: the v2 shell, every major list, the config pages, six
+detail pages (Contact, CRM Opportunity, ATS Application, ATS Job, Employee,
+Document), and all of the low-risk breadth group except one.
 
-### Next up — group 1, 7 pages left
+Group 1 is closed out apart from `expenses/ExpenseDetail` — see below. The
+two To-Do pages brought `components/todo/v2/{TaskCardV2,TaskFormModalV2}`
+with them, and three ds primitives the forms needed: `Textarea`, `Select`
+and `ComboBox`.
 
-`todo/TodoTasks`, `todo/TodoTeamTasks`, `crm/CrmOpportunityNew`,
-`documents/DocumentDetail`, `expenses/ExpenseDetail`,
-`settings/AlumniPolicyPage`, `ess/PolicyReaderModal`.
+### `expenses/ExpenseDetail` — stopped, not migrated
 
-No money surfaces, no send paths. The recipe that worked five times:
+Listed in group 1 as carrying no money surface. It does, on two counts, so
+it was left alone rather than shipped:
+
+- **It computes and displays money.** `lineConverted()` does FX arithmetic in
+  the page (`Math.round(amt * rate * 100) / 100`), `totalAmount` sums the
+  converted lines, and both render through `formatCurrency` against the
+  claim currency. That is display of derived money, which the standing rule
+  says to propose rather than ship.
+- **It owns approval and reimbursement transitions** — submit, approve,
+  reject, cancel, sync to Employee Bill, reimburse and reverse.
+
+It is also 1,323 lines, roughly three times the largest page in the group.
+It belongs with the invoicing/payroll bucket below: parity-proven rendering,
+reviewed on its own.
+
+### The recipe (worked seven times)
 
 1. Copy the legacy file verbatim to `<Name>V2.jsx`. Do not re-derive logic —
    only presentation changes.
@@ -157,6 +173,11 @@ No money surfaces, no send paths. The recipe that worked five times:
    invisible text all surfaced only at runtime.
 6. Run the contrast audit in light theme (recipe in `REDESIGN-QA.md`).
 
+Step 5 keeps earning its place. The build has still never caught anything —
+what it missed in 6a was a `ComboBox` popover clipped by the modal body it
+opened inside, which only reads as "the list is truncated" when you look at
+it.
+
 ### Deferred, with the reason
 
 | what | why it waits |
@@ -166,6 +187,7 @@ No money surfaces, no send paths. The recipe that worked five times:
 | KB pages | redesigned separately in July — migrating risks undoing that |
 | Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
 | Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
+| `expenses/ExpenseDetail` | moved here out of group 1: FX arithmetic and totals rendered in the page, plus approval/reimbursement transitions |
 | Sign (7 pages) | `PublicSigningPage` is externally facing; send paths |
 | `ats/applicationDetailParts.jsx` + `HireModal` | only stops being debt once legacy `AtsApplicationDetail` retires (~26 Aug, per the two-week rule) |
 
