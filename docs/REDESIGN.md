@@ -125,3 +125,56 @@ components live in `components/<area>/v2/`, built **only** from ds, the same
 layering as `platform/v2/listkit` and `outreach/v2/leadskit`. A v2 page must
 never import the legacy sibling: they are visually incompatible, and the
 legacy one silently ignores `canEdit`.
+
+---
+
+## Where the migration stands (end of phase 6a)
+
+**25 v2 pages across 39 routes**, all behind `PageSwitch`, flag-gated to the
+staging org. Done: the v2 shell, every major list, the config pages, five
+detail pages (Contact, CRM Opportunity, ATS Application, ATS Job, Employee),
+and the first five of the low-risk breadth group.
+
+### Next up — group 1, 7 pages left
+
+`todo/TodoTasks`, `todo/TodoTeamTasks`, `crm/CrmOpportunityNew`,
+`documents/DocumentDetail`, `expenses/ExpenseDetail`,
+`settings/AlumniPolicyPage`, `ess/PolicyReaderModal`.
+
+No money surfaces, no send paths. The recipe that worked five times:
+
+1. Copy the legacy file verbatim to `<Name>V2.jsx`. Do not re-derive logic —
+   only presentation changes.
+2. Swap `SectionCard`→`Panel`, `InlineField`/`RecordMeta`→ds,
+   `ActivityPanel`→`ActivityPanelV2`, local `StageBar`→ds `StageBar`.
+3. Cut any local component with a **paren-then-brace matcher**, never a regex.
+   A regex ate three unrelated declarations on EmployeeDetail, and matching
+   the first `{` lands inside destructured params. Then diff the declaration
+   set against the legacy file — it should report only the cut component.
+4. Wire `PageSwitch` in `App.jsx`.
+5. Verify by **loading the page**. The build has never once caught a real
+   defect in this migration; missing imports, swallowed declarations and
+   invisible text all surfaced only at runtime.
+6. Run the contrast audit in light theme (recipe in `REDESIGN-QA.md`).
+
+### Deferred, with the reason
+
+| what | why it waits |
+|---|---|
+| `CrmDashboard`, `TodoDashboard`, and the other dashboards | need a ds chart component that does not exist |
+| `CrmPipeline`, `AtsPipeline` | kanban archetype, not yet designed |
+| KB pages | redesigned separately in July — migrating risks undoing that |
+| Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
+| Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
+| Sign (7 pages) | `PublicSigningPage` is externally facing; send paths |
+| `ats/applicationDetailParts.jsx` + `HireModal` | only stops being debt once legacy `AtsApplicationDetail` retires (~26 Aug, per the two-week rule) |
+
+### Open defects, not yet fixed
+
+- `InlineField` read mode is a click-only `div` — every migrated detail page
+  is mouse-only for inline editing.
+- `ShellSwitch` renders the legacy shell until the org fetch resolves; a
+  *failed* fetch strands the user on it silently.
+- `SignRequestWidget` is dark-only; the palette bridge covers it, but it is
+  still legacy markup.
+- Not ours: every `/documents/{id}/preview` request 500s on staging.
