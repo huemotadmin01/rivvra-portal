@@ -14,6 +14,7 @@ import UsageWarningBanner from '../../UsageWarningBanner';
 import AnnouncementBanner from '../AnnouncementBanner';
 import { ArrowLeftRight, X, Loader2 } from 'lucide-react';
 import './shell.css';
+import './legacy-bridge.css';
 
 /* v2 shell (Slice 1) — prototype shell.jsx composition, same providers,
    banners and Outlet gating as the legacy PlatformLayout. Renders only

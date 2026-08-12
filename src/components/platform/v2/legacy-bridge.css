@@ -1,0 +1,93 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Legacy palette bridge — TEMPORARY, and scoped to the v2 shell only.
+
+   The legacy UI is painted with a fixed dark Tailwind scale (`dark-50` …
+   `dark-950`, plus `text-white`). Those names encode a *value*, not a role,
+   so a legacy component rendered inside the v2 shell stays dark no matter
+   which theme the viewer picked — the "dark island in a light page" seam
+   that shows up wherever a not-yet-migrated component is still mounted
+   (SignRequestWidget, AttachmentsPanel, AiResumeInsights, SkillsPicker, and
+   the ATS hire/offer modals).
+
+   Rather than hand-editing hundreds of class attributes across components
+   that are going to be rewritten anyway, this maps the legacy scale onto the
+   semantic tokens, so those islands follow the theme while they wait their
+   turn. The mapping is by role, matched to how each shade is actually used:
+
+     dark-950/900  page + sunken backgrounds  → --bg / --surface-1
+     dark-850/800  cards and raised surfaces  → --surface-1 / --surface-2
+     dark-700/600  borders and dividers       → --line / --line-2
+     dark-500/400  muted and secondary text   → --fg-4 / --fg-3
+     dark-300/200  body text                  → --fg-2
+     dark-100/50   near-white text            → --fg
+     white         primary text               → --fg
+
+   Rules for touching this file:
+     - Scoped under `.ds-shell` on purpose. The legacy shell must keep its
+       original palette exactly — this file must never affect it.
+     - Only the fixed grey scale and `white` are bridged. Semantic accents
+       (emerald, red, amber, blue) already read acceptably in both themes and
+       carry meaning a remap could quietly change.
+     - Delete a block the moment its last legacy consumer is migrated. This
+       file shrinking to nothing is the migration finishing.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Text ───────────────────────────────────────────────────────────────── */
+.ds-shell .text-white { color: var(--fg); }
+.ds-shell .text-dark-50,
+.ds-shell .text-dark-100 { color: var(--fg); }
+.ds-shell .text-dark-200,
+.ds-shell .text-dark-300 { color: var(--fg-2); }
+.ds-shell .text-dark-400 { color: var(--fg-3); }
+.ds-shell .text-dark-500 { color: var(--fg-4); }
+.ds-shell .text-dark-600 { color: var(--fg-faint); }
+
+/* Hover variants — same mapping, one step brighter, matching the original
+   intent of "goes lighter on hover" in a dark-only palette. */
+.ds-shell .hover\:text-white:hover { color: var(--fg); }
+.ds-shell .hover\:text-dark-200:hover,
+.ds-shell .hover\:text-dark-300:hover { color: var(--fg-2); }
+
+/* ── Surfaces ───────────────────────────────────────────────────────────── */
+.ds-shell .bg-dark-950 { background: var(--bg); }
+.ds-shell .bg-dark-900 { background: var(--surface-1); }
+.ds-shell .bg-dark-850,
+.ds-shell .bg-dark-800 { background: var(--surface-2); }
+.ds-shell .bg-dark-700 { background: var(--surface-3); }
+.ds-shell .bg-dark-600 { background: var(--surface-4); }
+.ds-shell .hover\:bg-dark-800:hover { background: var(--surface-2); }
+.ds-shell .hover\:bg-dark-700:hover { background: var(--surface-3); }
+
+/* Translucent card backgrounds used by the legacy list rows. */
+.ds-shell .bg-dark-800\/40,
+.ds-shell .bg-dark-800\/60,
+.ds-shell .bg-dark-800\/70 { background: var(--surface-2); }
+.ds-shell .hover\:bg-dark-800\/40:hover,
+.ds-shell .hover\:bg-dark-800\/60:hover { background: var(--surface-2); }
+
+/* ── Lines ──────────────────────────────────────────────────────────────── */
+.ds-shell .border-dark-800,
+.ds-shell .border-dark-700 { border-color: var(--line); }
+.ds-shell .border-dark-600,
+.ds-shell .border-dark-500 { border-color: var(--line-2); }
+.ds-shell .border-dark-700\/50,
+.ds-shell .border-dark-700\/60,
+.ds-shell .border-dark-700\/80 { border-color: var(--line); }
+.ds-shell .divide-dark-700 > * + *,
+.ds-shell .divide-dark-800 > * + *,
+.ds-shell .divide-dark-800\/70 > * + * { border-color: var(--line); }
+
+/* ── Form controls ──────────────────────────────────────────────────────── */
+/* Legacy inputs set background and border separately; both need bridging or
+   the field renders as a dark hole in a light panel. */
+.ds-shell input.bg-dark-800,
+.ds-shell select.bg-dark-800,
+.ds-shell textarea.bg-dark-800,
+.ds-shell input.bg-dark-900,
+.ds-shell select.bg-dark-900,
+.ds-shell textarea.bg-dark-900 {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.ds-shell input::placeholder,
+.ds-shell textarea::placeholder { color: var(--fg-faint); }
