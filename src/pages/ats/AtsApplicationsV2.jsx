@@ -127,18 +127,26 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
     { key: 'archived', label: 'Archived', dot: 'var(--fg-4)' },
   ];
   const seg = (on) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px',
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', flexShrink: 0,
     borderRadius: 'var(--r-full, 999px)', font: "500 12px/1 'Inter', system-ui, sans-serif",
     background: on ? 'var(--surface-4)' : 'transparent',
     color: on ? 'var(--fg)' : 'var(--fg-4)', whiteSpace: 'nowrap',
     transition: 'background 120ms var(--e-out), color 120ms var(--e-out)',
   });
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, flexShrink: 0,
-      borderRadius: 'var(--r-full, 999px)', background: 'var(--surface-2)',
-      boxShadow: 'inset 0 0 0 1px var(--line)',
-    }}>
+    // Four segments come to ~410px, which is wider than a phone. The strip
+    // scrolls inside itself rather than pushing the page sideways — the
+    // segments keep flexShrink:0 so they never squash into unreadable stubs.
+    <span
+      className="ats-lifecycle"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2,
+        maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none',
+        borderRadius: 'var(--r-full, 999px)', background: 'var(--surface-2)',
+        boxShadow: 'inset 0 0 0 1px var(--line)',
+      }}
+    >
+      <style>{'.ats-lifecycle::-webkit-scrollbar{display:none}'}</style>
       {segments.map(s => (
         <button key={s.key} type="button" style={seg(lifecycle === s.key)} onClick={() => onChange(s.key)} aria-pressed={lifecycle === s.key}>
           <span style={{ width: 6, height: 6, borderRadius: 99, background: s.dot, flexShrink: 0 }} />

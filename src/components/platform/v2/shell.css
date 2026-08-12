@@ -129,6 +129,16 @@
 .ds-shell .crumbs .now { color: var(--fg); font-weight: 550; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 900px) { .ds-shell .crumbs a, .ds-shell .crumbs .sep { display: none; } }
 
+/* Company switcher. Declared here rather than inline so the `desktop-only`
+   rule below can still hide it — an inline `display` wins over any
+   stylesheet, and this button is 198px wide, which is what pushed the appbar
+   past a 375px viewport. Keep its display in CSS. */
+.ds-shell .company-btn {
+  width: auto; padding: 0 10px; gap: 6px; display: flex; align-items: center;
+  font: 500 12.5px/1 var(--font); min-width: 0;
+}
+.ds-shell .company-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── Page container ──────────────────────────────────────────────── */
 .ds-shell .page { flex: 1; padding: var(--s6) var(--s6) var(--s16); }
 @media (max-width: 720px) { .ds-shell .page { padding: var(--s5) var(--s4) var(--s12); } }

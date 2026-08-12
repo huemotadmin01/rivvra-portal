@@ -65,9 +65,11 @@ function AppBarV2({ onMenu }) {
       {/* Company switcher — only when the org has multiple legal entities */}
       {hasMultipleCompanies && (
         <div ref={companyRef} style={{ position: 'relative' }}>
+          {/* Layout lives in .company-btn, not an inline style: an inline
+              `display: flex` outranks the stylesheet, so `desktop-only` could
+              never hide this button and it overflowed the bar on phones. */}
           <button
-            className="icon-btn desktop-only"
-            style={{ width: 'auto', padding: '0 10px', gap: 6, display: 'flex', alignItems: 'center', font: '500 12.5px/1 var(--font)' }}
+            className="icon-btn company-btn desktop-only"
             onClick={() => setCompanyOpen((o) => !o)}
             disabled={switching}
           >
