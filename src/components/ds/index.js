@@ -26,6 +26,7 @@ export { Spinner, PageSpinner } from './Feedback/Spinner';
 export { Button } from './Button/Button';
 export { Avatar } from './Data/Avatar';
 export { Chip } from './Data/Chip';
+export { Meter } from './Data/Meter';
 export { RecordMeta } from './Data/RecordMeta';
 export { Stat } from './Data/Stat';
 export { ArchivedToggle } from './Filter/ArchivedToggle';

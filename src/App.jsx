@@ -85,6 +85,7 @@ const ExpenseDetail = lazy(() => import('./pages/expenses/ExpenseDetail'));
 
 // Lazy-loaded: To-Do app pages
 const TodoDashboard = lazy(() => import('./pages/todo/TodoDashboard'));
+const TodoDashboardV2 = lazy(() => import('./pages/todo/TodoDashboardV2'));
 const TodoTasks = lazy(() => import('./pages/todo/TodoTasks'));
 const TodoTasksV2 = lazy(() => import('./pages/todo/TodoTasksV2'));
 const TodoTeamTasks = lazy(() => import('./pages/todo/TodoTeamTasks'));
@@ -664,7 +665,7 @@ function App() {
 
               {/* To-Do app routes — gated by todo access */}
               <Route element={<AppAccessGate appId="todo" />}>
-                <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><TodoDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><PageSwitch v2={TodoDashboardV2} legacy={TodoDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/todo/tasks" element={<ErrorBoundary><PageSwitch v2={TodoTasksV2} legacy={TodoTasks} /></ErrorBoundary>} />
                 <Route path="/org/:slug/todo/team" element={<ErrorBoundary><PageSwitch v2={TodoTeamTasksV2} legacy={TodoTeamTasks} /></ErrorBoundary>} />
               </Route>
