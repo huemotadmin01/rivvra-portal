@@ -1361,7 +1361,7 @@ export default function ContactDetail() {
       {/* Activities Tab */}
       {activeTab === 'activities' && (
         <>
-          <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} />
+          <ActivityPanel orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} canEdit={isAdmin} />
           <div className="mt-4">
             <SignRequestWidget
               orgSlug={orgSlug}
@@ -1449,7 +1449,9 @@ export default function ContactDetail() {
             </span>
           </div>
 
-          {/* Upload area */}
+          {/* Upload area — admin only, and not on an archived contact
+              (isAdmin already folds in !archived). */}
+          {isAdmin && (
           <div className="mb-4">
             <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-dark-600 rounded-xl text-sm text-dark-400 hover:border-rivvra-500 hover:text-rivvra-400 transition-colors cursor-pointer">
               {attachUploading ? (
@@ -1474,6 +1476,7 @@ export default function ContactDetail() {
               }} />
             </label>
           </div>
+          )}
 
           {/* File list + Preview */}
           {attachLoading ? (
@@ -1512,12 +1515,14 @@ export default function ContactDetail() {
                           <Eye size={14} />
                         </span>
                       )}
-                      <button onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDelete({ kind: 'attachment', item: doc });
-                      }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
-                        <Trash2 size={14} />
-                      </button>
+                      {isAdmin && (
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDelete({ kind: 'attachment', item: doc });
+                        }} className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
