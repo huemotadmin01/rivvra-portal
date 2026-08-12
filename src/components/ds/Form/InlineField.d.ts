@@ -31,6 +31,17 @@ export interface InlineFieldProps {
   placeholder?: string;
   /** Non-blocking amber hint under the value (format nudges). */
   warn?: string;
+  /**
+   * Externally-driven error: a preflight or server validation marking this
+   * field, NOT a failed save. Adds a danger rule down the row, reddens the
+   * label, and shows the message in read *and* edit mode. An empty value
+   * reads "Required" instead of an em dash, and `warn` is suppressed — one
+   * message per field.
+   *
+   * The field's own save error always wins: it describes something the user
+   * just did and carries a retry affordance.
+   */
+  error?: string;
   maxLength?: number;
   /** Applied to each keystroke while editing (e.g. uppercase). */
   transform?: (raw: string) => string;
