@@ -32,65 +32,423 @@
        file shrinking to nothing is the migration finishing.
    ───────────────────────────────────────────────────────────────────────── */
 
-/* ── Text ───────────────────────────────────────────────────────────────── */
-.ds-shell .text-white { color: var(--fg); }
-.ds-shell .text-dark-50,
+/* Text — muted → body only; see note in the generator about 700/950 */
+.ds-shell .text-dark-50 { color: var(--fg); }
 .ds-shell .text-dark-100 { color: var(--fg); }
-.ds-shell .text-dark-200,
+.ds-shell .text-dark-200 { color: var(--fg-2); }
 .ds-shell .text-dark-300 { color: var(--fg-2); }
 .ds-shell .text-dark-400 { color: var(--fg-3); }
 .ds-shell .text-dark-500 { color: var(--fg-4); }
 .ds-shell .text-dark-600 { color: var(--fg-faint); }
-
-/* Hover variants — same mapping, one step brighter, matching the original
-   intent of "goes lighter on hover" in a dark-only palette. */
+.ds-shell .text-white { color: var(--fg); }
 .ds-shell .hover\:text-white:hover { color: var(--fg); }
 .ds-shell .hover\:text-dark-200:hover,
 .ds-shell .hover\:text-dark-300:hover { color: var(--fg-2); }
 
-/* ── Surfaces ───────────────────────────────────────────────────────────── */
-.ds-shell .bg-dark-950 { background: var(--bg); }
-.ds-shell .bg-dark-900 { background: var(--surface-1); }
+/* Surfaces — every shade x every Tailwind opacity step */
+.ds-shell .bg-dark-950\/85,
+.ds-shell .bg-dark-950,
+.ds-shell .bg-dark-950\/5,
+.ds-shell .bg-dark-950\/10,
+.ds-shell .bg-dark-950\/20,
+.ds-shell .bg-dark-950\/25,
+.ds-shell .bg-dark-950\/30,
+.ds-shell .bg-dark-950\/40,
+.ds-shell .bg-dark-950\/50,
+.ds-shell .bg-dark-950\/60,
+.ds-shell .bg-dark-950\/70,
+.ds-shell .bg-dark-950\/75,
+.ds-shell .bg-dark-950\/80,
+.ds-shell .bg-dark-950\/90,
+.ds-shell .bg-dark-950\/95 { background-color: var(--bg); }
+.ds-shell .bg-dark-900,
+.ds-shell .bg-dark-900\/5,
+.ds-shell .bg-dark-900\/10,
+.ds-shell .bg-dark-900\/20,
+.ds-shell .bg-dark-900\/25,
+.ds-shell .bg-dark-900\/30,
+.ds-shell .bg-dark-900\/40,
+.ds-shell .bg-dark-900\/50,
+.ds-shell .bg-dark-900\/60,
+.ds-shell .bg-dark-900\/70,
+.ds-shell .bg-dark-900\/75,
+.ds-shell .bg-dark-900\/80,
+.ds-shell .bg-dark-900\/90,
+.ds-shell .bg-dark-900\/95 { background-color: var(--surface-1); }
 .ds-shell .bg-dark-850,
-.ds-shell .bg-dark-800 { background: var(--surface-2); }
-.ds-shell .bg-dark-700 { background: var(--surface-3); }
-.ds-shell .bg-dark-600 { background: var(--surface-4); }
-.ds-shell .hover\:bg-dark-800:hover { background: var(--surface-2); }
-.ds-shell .hover\:bg-dark-700:hover { background: var(--surface-3); }
-
-/* Translucent card backgrounds used by the legacy list rows. */
+.ds-shell .bg-dark-850\/5,
+.ds-shell .bg-dark-850\/10,
+.ds-shell .bg-dark-850\/20,
+.ds-shell .bg-dark-850\/25,
+.ds-shell .bg-dark-850\/30,
+.ds-shell .bg-dark-850\/40,
+.ds-shell .bg-dark-850\/50,
+.ds-shell .bg-dark-850\/60,
+.ds-shell .bg-dark-850\/70,
+.ds-shell .bg-dark-850\/75,
+.ds-shell .bg-dark-850\/80,
+.ds-shell .bg-dark-850\/90,
+.ds-shell .bg-dark-850\/95 { background-color: var(--surface-2); }
+.ds-shell .bg-dark-800,
+.ds-shell .bg-dark-800\/5,
+.ds-shell .bg-dark-800\/10,
+.ds-shell .bg-dark-800\/20,
+.ds-shell .bg-dark-800\/25,
+.ds-shell .bg-dark-800\/30,
 .ds-shell .bg-dark-800\/40,
+.ds-shell .bg-dark-800\/50,
 .ds-shell .bg-dark-800\/60,
-.ds-shell .bg-dark-800\/70 { background: var(--surface-2); }
-.ds-shell .hover\:bg-dark-800\/40:hover,
-.ds-shell .hover\:bg-dark-800\/60:hover { background: var(--surface-2); }
+.ds-shell .bg-dark-800\/70,
+.ds-shell .bg-dark-800\/75,
+.ds-shell .bg-dark-800\/80,
+.ds-shell .bg-dark-800\/90,
+.ds-shell .bg-dark-800\/95 { background-color: var(--surface-2); }
+.ds-shell .bg-dark-750,
+.ds-shell .bg-dark-750\/5,
+.ds-shell .bg-dark-750\/10,
+.ds-shell .bg-dark-750\/20,
+.ds-shell .bg-dark-750\/25,
+.ds-shell .bg-dark-750\/30,
+.ds-shell .bg-dark-750\/40,
+.ds-shell .bg-dark-750\/50,
+.ds-shell .bg-dark-750\/60,
+.ds-shell .bg-dark-750\/70,
+.ds-shell .bg-dark-750\/75,
+.ds-shell .bg-dark-750\/80,
+.ds-shell .bg-dark-750\/90,
+.ds-shell .bg-dark-750\/95 { background-color: var(--surface-3); }
+.ds-shell .bg-dark-700,
+.ds-shell .bg-dark-700\/5,
+.ds-shell .bg-dark-700\/10,
+.ds-shell .bg-dark-700\/20,
+.ds-shell .bg-dark-700\/25,
+.ds-shell .bg-dark-700\/30,
+.ds-shell .bg-dark-700\/40,
+.ds-shell .bg-dark-700\/50,
+.ds-shell .bg-dark-700\/60,
+.ds-shell .bg-dark-700\/70,
+.ds-shell .bg-dark-700\/75,
+.ds-shell .bg-dark-700\/80,
+.ds-shell .bg-dark-700\/90,
+.ds-shell .bg-dark-700\/95 { background-color: var(--surface-3); }
+.ds-shell .bg-dark-600,
+.ds-shell .bg-dark-600\/5,
+.ds-shell .bg-dark-600\/10,
+.ds-shell .bg-dark-600\/20,
+.ds-shell .bg-dark-600\/25,
+.ds-shell .bg-dark-600\/30,
+.ds-shell .bg-dark-600\/40,
+.ds-shell .bg-dark-600\/50,
+.ds-shell .bg-dark-600\/60,
+.ds-shell .bg-dark-600\/70,
+.ds-shell .bg-dark-600\/75,
+.ds-shell .bg-dark-600\/80,
+.ds-shell .bg-dark-600\/90,
+.ds-shell .bg-dark-600\/95 { background-color: var(--surface-4); }
 
-/* ── Lines ──────────────────────────────────────────────────────────────── */
+/* Lines and dividers */
+.ds-shell .border-dark-900,
+.ds-shell .border-dark-900\/5,
+.ds-shell .border-dark-900\/10,
+.ds-shell .border-dark-900\/20,
+.ds-shell .border-dark-900\/25,
+.ds-shell .border-dark-900\/30,
+.ds-shell .border-dark-900\/40,
+.ds-shell .border-dark-900\/50,
+.ds-shell .border-dark-900\/60,
+.ds-shell .border-dark-900\/70,
+.ds-shell .border-dark-900\/75,
+.ds-shell .border-dark-900\/80,
+.ds-shell .border-dark-900\/90,
+.ds-shell .border-dark-900\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-900 > * + *,
+.ds-shell .divide-dark-900\/5 > * + *,
+.ds-shell .divide-dark-900\/10 > * + *,
+.ds-shell .divide-dark-900\/20 > * + *,
+.ds-shell .divide-dark-900\/25 > * + *,
+.ds-shell .divide-dark-900\/30 > * + *,
+.ds-shell .divide-dark-900\/40 > * + *,
+.ds-shell .divide-dark-900\/50 > * + *,
+.ds-shell .divide-dark-900\/60 > * + *,
+.ds-shell .divide-dark-900\/70 > * + *,
+.ds-shell .divide-dark-900\/75 > * + *,
+.ds-shell .divide-dark-900\/80 > * + *,
+.ds-shell .divide-dark-900\/90 > * + *,
+.ds-shell .divide-dark-900\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-850,
+.ds-shell .border-dark-850\/5,
+.ds-shell .border-dark-850\/10,
+.ds-shell .border-dark-850\/20,
+.ds-shell .border-dark-850\/25,
+.ds-shell .border-dark-850\/30,
+.ds-shell .border-dark-850\/40,
+.ds-shell .border-dark-850\/50,
+.ds-shell .border-dark-850\/60,
+.ds-shell .border-dark-850\/70,
+.ds-shell .border-dark-850\/75,
+.ds-shell .border-dark-850\/80,
+.ds-shell .border-dark-850\/90,
+.ds-shell .border-dark-850\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-850 > * + *,
+.ds-shell .divide-dark-850\/5 > * + *,
+.ds-shell .divide-dark-850\/10 > * + *,
+.ds-shell .divide-dark-850\/20 > * + *,
+.ds-shell .divide-dark-850\/25 > * + *,
+.ds-shell .divide-dark-850\/30 > * + *,
+.ds-shell .divide-dark-850\/40 > * + *,
+.ds-shell .divide-dark-850\/50 > * + *,
+.ds-shell .divide-dark-850\/60 > * + *,
+.ds-shell .divide-dark-850\/70 > * + *,
+.ds-shell .divide-dark-850\/75 > * + *,
+.ds-shell .divide-dark-850\/80 > * + *,
+.ds-shell .divide-dark-850\/90 > * + *,
+.ds-shell .divide-dark-850\/95 > * + * { border-color: var(--line); }
 .ds-shell .border-dark-800,
-.ds-shell .border-dark-700 { border-color: var(--line); }
-.ds-shell .border-dark-600,
-.ds-shell .border-dark-500 { border-color: var(--line-2); }
+.ds-shell .border-dark-800\/5,
+.ds-shell .border-dark-800\/10,
+.ds-shell .border-dark-800\/20,
+.ds-shell .border-dark-800\/25,
+.ds-shell .border-dark-800\/30,
+.ds-shell .border-dark-800\/40,
+.ds-shell .border-dark-800\/50,
+.ds-shell .border-dark-800\/60,
+.ds-shell .border-dark-800\/70,
+.ds-shell .border-dark-800\/75,
+.ds-shell .border-dark-800\/80,
+.ds-shell .border-dark-800\/90,
+.ds-shell .border-dark-800\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-800 > * + *,
+.ds-shell .divide-dark-800\/5 > * + *,
+.ds-shell .divide-dark-800\/10 > * + *,
+.ds-shell .divide-dark-800\/20 > * + *,
+.ds-shell .divide-dark-800\/25 > * + *,
+.ds-shell .divide-dark-800\/30 > * + *,
+.ds-shell .divide-dark-800\/40 > * + *,
+.ds-shell .divide-dark-800\/50 > * + *,
+.ds-shell .divide-dark-800\/60 > * + *,
+.ds-shell .divide-dark-800\/70 > * + *,
+.ds-shell .divide-dark-800\/75 > * + *,
+.ds-shell .divide-dark-800\/80 > * + *,
+.ds-shell .divide-dark-800\/90 > * + *,
+.ds-shell .divide-dark-800\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-750,
+.ds-shell .border-dark-750\/5,
+.ds-shell .border-dark-750\/10,
+.ds-shell .border-dark-750\/20,
+.ds-shell .border-dark-750\/25,
+.ds-shell .border-dark-750\/30,
+.ds-shell .border-dark-750\/40,
+.ds-shell .border-dark-750\/50,
+.ds-shell .border-dark-750\/60,
+.ds-shell .border-dark-750\/70,
+.ds-shell .border-dark-750\/75,
+.ds-shell .border-dark-750\/80,
+.ds-shell .border-dark-750\/90,
+.ds-shell .border-dark-750\/95 { border-color: var(--line); }
+.ds-shell .divide-dark-750 > * + *,
+.ds-shell .divide-dark-750\/5 > * + *,
+.ds-shell .divide-dark-750\/10 > * + *,
+.ds-shell .divide-dark-750\/20 > * + *,
+.ds-shell .divide-dark-750\/25 > * + *,
+.ds-shell .divide-dark-750\/30 > * + *,
+.ds-shell .divide-dark-750\/40 > * + *,
+.ds-shell .divide-dark-750\/50 > * + *,
+.ds-shell .divide-dark-750\/60 > * + *,
+.ds-shell .divide-dark-750\/70 > * + *,
+.ds-shell .divide-dark-750\/75 > * + *,
+.ds-shell .divide-dark-750\/80 > * + *,
+.ds-shell .divide-dark-750\/90 > * + *,
+.ds-shell .divide-dark-750\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-700\/15,
+.ds-shell .border-dark-700,
+.ds-shell .border-dark-700\/5,
+.ds-shell .border-dark-700\/10,
+.ds-shell .border-dark-700\/20,
+.ds-shell .border-dark-700\/25,
+.ds-shell .border-dark-700\/30,
+.ds-shell .border-dark-700\/40,
 .ds-shell .border-dark-700\/50,
 .ds-shell .border-dark-700\/60,
-.ds-shell .border-dark-700\/80 { border-color: var(--line); }
+.ds-shell .border-dark-700\/70,
+.ds-shell .border-dark-700\/75,
+.ds-shell .border-dark-700\/80,
+.ds-shell .border-dark-700\/90,
+.ds-shell .border-dark-700\/95 { border-color: var(--line); }
 .ds-shell .divide-dark-700 > * + *,
-.ds-shell .divide-dark-800 > * + *,
-.ds-shell .divide-dark-800\/70 > * + * { border-color: var(--line); }
+.ds-shell .divide-dark-700\/5 > * + *,
+.ds-shell .divide-dark-700\/10 > * + *,
+.ds-shell .divide-dark-700\/20 > * + *,
+.ds-shell .divide-dark-700\/25 > * + *,
+.ds-shell .divide-dark-700\/30 > * + *,
+.ds-shell .divide-dark-700\/40 > * + *,
+.ds-shell .divide-dark-700\/50 > * + *,
+.ds-shell .divide-dark-700\/60 > * + *,
+.ds-shell .divide-dark-700\/70 > * + *,
+.ds-shell .divide-dark-700\/75 > * + *,
+.ds-shell .divide-dark-700\/80 > * + *,
+.ds-shell .divide-dark-700\/90 > * + *,
+.ds-shell .divide-dark-700\/95 > * + * { border-color: var(--line); }
+.ds-shell .border-dark-600,
+.ds-shell .border-dark-600\/5,
+.ds-shell .border-dark-600\/10,
+.ds-shell .border-dark-600\/20,
+.ds-shell .border-dark-600\/25,
+.ds-shell .border-dark-600\/30,
+.ds-shell .border-dark-600\/40,
+.ds-shell .border-dark-600\/50,
+.ds-shell .border-dark-600\/60,
+.ds-shell .border-dark-600\/70,
+.ds-shell .border-dark-600\/75,
+.ds-shell .border-dark-600\/80,
+.ds-shell .border-dark-600\/90,
+.ds-shell .border-dark-600\/95 { border-color: var(--line-2); }
+.ds-shell .divide-dark-600 > * + *,
+.ds-shell .divide-dark-600\/5 > * + *,
+.ds-shell .divide-dark-600\/10 > * + *,
+.ds-shell .divide-dark-600\/20 > * + *,
+.ds-shell .divide-dark-600\/25 > * + *,
+.ds-shell .divide-dark-600\/30 > * + *,
+.ds-shell .divide-dark-600\/40 > * + *,
+.ds-shell .divide-dark-600\/50 > * + *,
+.ds-shell .divide-dark-600\/60 > * + *,
+.ds-shell .divide-dark-600\/70 > * + *,
+.ds-shell .divide-dark-600\/75 > * + *,
+.ds-shell .divide-dark-600\/80 > * + *,
+.ds-shell .divide-dark-600\/90 > * + *,
+.ds-shell .divide-dark-600\/95 > * + * { border-color: var(--line-2); }
+.ds-shell .border-dark-500,
+.ds-shell .border-dark-500\/5,
+.ds-shell .border-dark-500\/10,
+.ds-shell .border-dark-500\/20,
+.ds-shell .border-dark-500\/25,
+.ds-shell .border-dark-500\/30,
+.ds-shell .border-dark-500\/40,
+.ds-shell .border-dark-500\/50,
+.ds-shell .border-dark-500\/60,
+.ds-shell .border-dark-500\/70,
+.ds-shell .border-dark-500\/75,
+.ds-shell .border-dark-500\/80,
+.ds-shell .border-dark-500\/90,
+.ds-shell .border-dark-500\/95 { border-color: var(--line-2); }
+.ds-shell .divide-dark-500 > * + *,
+.ds-shell .divide-dark-500\/5 > * + *,
+.ds-shell .divide-dark-500\/10 > * + *,
+.ds-shell .divide-dark-500\/20 > * + *,
+.ds-shell .divide-dark-500\/25 > * + *,
+.ds-shell .divide-dark-500\/30 > * + *,
+.ds-shell .divide-dark-500\/40 > * + *,
+.ds-shell .divide-dark-500\/50 > * + *,
+.ds-shell .divide-dark-500\/60 > * + *,
+.ds-shell .divide-dark-500\/70 > * + *,
+.ds-shell .divide-dark-500\/75 > * + *,
+.ds-shell .divide-dark-500\/80 > * + *,
+.ds-shell .divide-dark-500\/90 > * + *,
+.ds-shell .divide-dark-500\/95 > * + * { border-color: var(--line-2); }
 
-/* ── Form controls ──────────────────────────────────────────────────────── */
-/* Legacy inputs set background and border separately; both need bridging or
-   the field renders as a dark hole in a light panel. */
-.ds-shell input.bg-dark-800,
-.ds-shell select.bg-dark-800,
-.ds-shell textarea.bg-dark-800,
-.ds-shell input.bg-dark-900,
-.ds-shell select.bg-dark-900,
-.ds-shell textarea.bg-dark-900 {
-  background: var(--surface-2);
-  color: var(--fg);
+/* Gradient stops — flattened; see note below */
+.ds-shell .from-dark-950,
+.ds-shell .from-dark-950\/5,
+.ds-shell .from-dark-950\/10,
+.ds-shell .from-dark-950\/20,
+.ds-shell .from-dark-950\/25,
+.ds-shell .from-dark-950\/30,
+.ds-shell .from-dark-950\/40,
+.ds-shell .from-dark-950\/50,
+.ds-shell .from-dark-950\/60,
+.ds-shell .from-dark-950\/70,
+.ds-shell .from-dark-950\/75,
+.ds-shell .from-dark-950\/80,
+.ds-shell .from-dark-950\/90,
+.ds-shell .from-dark-950\/95,
+.ds-shell .from-dark-900,
+.ds-shell .from-dark-900\/5,
+.ds-shell .from-dark-900\/10,
+.ds-shell .from-dark-900\/20,
+.ds-shell .from-dark-900\/25,
+.ds-shell .from-dark-900\/30,
+.ds-shell .from-dark-900\/40,
+.ds-shell .from-dark-900\/50,
+.ds-shell .from-dark-900\/60,
+.ds-shell .from-dark-900\/70,
+.ds-shell .from-dark-900\/75,
+.ds-shell .from-dark-900\/80,
+.ds-shell .from-dark-900\/90,
+.ds-shell .from-dark-900\/95,
+.ds-shell .from-dark-850,
+.ds-shell .from-dark-850\/5,
+.ds-shell .from-dark-850\/10,
+.ds-shell .from-dark-850\/20,
+.ds-shell .from-dark-850\/25,
+.ds-shell .from-dark-850\/30,
+.ds-shell .from-dark-850\/40,
+.ds-shell .from-dark-850\/50,
+.ds-shell .from-dark-850\/60,
+.ds-shell .from-dark-850\/70,
+.ds-shell .from-dark-850\/75,
+.ds-shell .from-dark-850\/80,
+.ds-shell .from-dark-850\/90,
+.ds-shell .from-dark-850\/95,
+.ds-shell .from-dark-800,
+.ds-shell .from-dark-800\/5,
+.ds-shell .from-dark-800\/10,
+.ds-shell .from-dark-800\/20,
+.ds-shell .from-dark-800\/25,
+.ds-shell .from-dark-800\/30,
+.ds-shell .from-dark-800\/40,
+.ds-shell .from-dark-800\/50,
+.ds-shell .from-dark-800\/60,
+.ds-shell .from-dark-800\/70,
+.ds-shell .from-dark-800\/75,
+.ds-shell .from-dark-800\/80,
+.ds-shell .from-dark-800\/90,
+.ds-shell .from-dark-800\/95,
+.ds-shell .from-dark-750,
+.ds-shell .from-dark-750\/5,
+.ds-shell .from-dark-750\/10,
+.ds-shell .from-dark-750\/20,
+.ds-shell .from-dark-750\/25,
+.ds-shell .from-dark-750\/30,
+.ds-shell .from-dark-750\/40,
+.ds-shell .from-dark-750\/50,
+.ds-shell .from-dark-750\/60,
+.ds-shell .from-dark-750\/70,
+.ds-shell .from-dark-750\/75,
+.ds-shell .from-dark-750\/80,
+.ds-shell .from-dark-750\/90,
+.ds-shell .from-dark-750\/95,
+.ds-shell .from-dark-700,
+.ds-shell .from-dark-700\/5,
+.ds-shell .from-dark-700\/10,
+.ds-shell .from-dark-700\/20,
+.ds-shell .from-dark-700\/25,
+.ds-shell .from-dark-700\/30,
+.ds-shell .from-dark-700\/40,
+.ds-shell .from-dark-700\/50,
+.ds-shell .from-dark-700\/60,
+.ds-shell .from-dark-700\/70,
+.ds-shell .from-dark-700\/75,
+.ds-shell .from-dark-700\/80,
+.ds-shell .from-dark-700\/90,
+.ds-shell .from-dark-700\/95,
+.ds-shell .from-dark-600,
+.ds-shell .from-dark-600\/5,
+.ds-shell .from-dark-600\/10,
+.ds-shell .from-dark-600\/20,
+.ds-shell .from-dark-600\/25,
+.ds-shell .from-dark-600\/30,
+.ds-shell .from-dark-600\/40,
+.ds-shell .from-dark-600\/50,
+.ds-shell .from-dark-600\/60,
+.ds-shell .from-dark-600\/70,
+.ds-shell .from-dark-600\/75,
+.ds-shell .from-dark-600\/80,
+.ds-shell .from-dark-600\/90,
+.ds-shell .from-dark-600\/95 { --tw-gradient-from: var(--surface-2); }
+.ds-shell [class*="bg-gradient-to-"][class*="from-dark-"],
+.ds-shell [class*="bg-gradient-to-"][class*="to-dark-"] {
+  background-image: none;
+  background-color: var(--surface-2);
 }
-.ds-shell input::placeholder,
-.ds-shell textarea::placeholder { color: var(--fg-faint); }
 
 /* ── Composite legacy classes ───────────────────────────────────────────── */
 /* The atomic-utility mappings above miss these entirely: `src/index.css`
@@ -128,27 +486,94 @@
   border-color: var(--line);
 }
 
-/* Translucent surfaces used by the modal shells and their footers. */
-.ds-shell .bg-dark-900\/95,
-.ds-shell .bg-dark-900\/80,
-.ds-shell .bg-dark-900\/40 { background: var(--surface-1); }
-.ds-shell .bg-dark-800\/50,
-.ds-shell .bg-dark-800\/80,
-.ds-shell .bg-dark-800\/95 { background: var(--surface-2); }
-.ds-shell .bg-dark-700\/50 { background: var(--surface-3); }
-.ds-shell .border-dark-800\/50,
-.ds-shell .border-dark-700\/80 { border-color: var(--line); }
 
-/* Gradient stops. A `bg-gradient-to-b from-dark-800 to-dark-800/70` header
-   keeps its own dark fill regardless of the flat-background rules above, so
-   the stop colours need bridging too. Flattening to a single surface is
-   deliberate — the gradient was decoration on a dark-only palette and reads
-   as a smudge once the surface is light. */
-.ds-shell .from-dark-800,
-.ds-shell .from-dark-900 { --tw-gradient-from: var(--surface-2); }
-.ds-shell .to-dark-800\/70,
-.ds-shell .to-dark-900\/70 { --tw-gradient-to: var(--surface-2); }
-.ds-shell [class*="bg-gradient-to-"][class*="from-dark-"] {
-  background-image: none;
-  background-color: var(--surface-2);
-}
+
+
+/* ── Semantic accents ───────────────────────────────────────────────────── */
+/* Originally left alone on the theory that accents "read acceptably in both
+   themes". The light-theme contrast sweep disproved that: a `text-emerald-400`
+   chip on an `emerald-500/10` tint measured 1.64:1, and `text-amber-400` on
+   its tint 1.45:1 — both far below the 3:1 floor. Those values are picked to
+   glow on a dark surface, and there is no dark surface any more.
+
+   Mapped by MEANING rather than hue, so nothing changes what a colour says:
+   emerald/green/teal → brand, red/rose → danger, amber/orange/yellow → warn,
+   blue/sky/cyan/indigo/purple → info. The 200-500 steps of a family are the
+   same role at different emphasis, so they collapse onto one token; the
+   tokens already carry a light-theme value with adequate contrast.
+
+   Backgrounds are NOT remapped — an `emerald-500/10` tint is a 10% wash that
+   works over either surface. Only the text on top of it was failing. */
+.ds-shell .text-amber-200,
+.ds-shell .text-amber-300,
+.ds-shell .text-amber-400,
+.ds-shell .text-amber-500 { color: var(--warn); }
+.ds-shell .text-blue-200,
+.ds-shell .text-blue-300,
+.ds-shell .text-blue-400,
+.ds-shell .text-blue-500 { color: var(--info); }
+.ds-shell .text-cyan-200,
+.ds-shell .text-cyan-300,
+.ds-shell .text-cyan-400,
+.ds-shell .text-cyan-500 { color: var(--info); }
+.ds-shell .text-rivvra-200,
+.ds-shell .text-rivvra-300,
+.ds-shell .text-rivvra-400,
+.ds-shell .text-rivvra-500 { color: var(--brand); }
+.ds-shell .text-emerald-200,
+.ds-shell .text-emerald-300,
+.ds-shell .text-emerald-400,
+.ds-shell .text-emerald-500 { color: var(--brand); }
+.ds-shell .text-fuchsia-200,
+.ds-shell .text-fuchsia-300,
+.ds-shell .text-fuchsia-400,
+.ds-shell .text-fuchsia-500 { color: var(--info); }
+.ds-shell .text-green-200,
+.ds-shell .text-green-300,
+.ds-shell .text-green-400,
+.ds-shell .text-green-500 { color: var(--brand); }
+.ds-shell .text-indigo-200,
+.ds-shell .text-indigo-300,
+.ds-shell .text-indigo-400,
+.ds-shell .text-indigo-500 { color: var(--info); }
+.ds-shell .text-orange-200,
+.ds-shell .text-orange-300,
+.ds-shell .text-orange-400,
+.ds-shell .text-orange-500 { color: var(--warn); }
+.ds-shell .text-purple-200,
+.ds-shell .text-purple-300,
+.ds-shell .text-purple-400,
+.ds-shell .text-purple-500 { color: var(--info); }
+.ds-shell .text-red-200,
+.ds-shell .text-red-300,
+.ds-shell .text-red-400,
+.ds-shell .text-red-500 { color: var(--danger); }
+.ds-shell .text-rose-200,
+.ds-shell .text-rose-300,
+.ds-shell .text-rose-400,
+.ds-shell .text-rose-500 { color: var(--danger); }
+.ds-shell .text-sky-200,
+.ds-shell .text-sky-300,
+.ds-shell .text-sky-400,
+.ds-shell .text-sky-500 { color: var(--info); }
+.ds-shell .text-teal-200,
+.ds-shell .text-teal-300,
+.ds-shell .text-teal-400,
+.ds-shell .text-teal-500 { color: var(--brand); }
+.ds-shell .text-violet-200,
+.ds-shell .text-violet-300,
+.ds-shell .text-violet-400,
+.ds-shell .text-violet-500 { color: var(--info); }
+.ds-shell .text-yellow-200,
+.ds-shell .text-yellow-300,
+.ds-shell .text-yellow-400,
+.ds-shell .text-yellow-500 { color: var(--warn); }
+
+/* Deliberately NOT bridged, so the next person doesn't "fix" them:
+     text-dark-950, text-dark-700  — dark text sitting ON a bright fill
+       (btn-primary is `text-dark-950` on green). Mapping these to --fg
+       would put light text on a light button in dark theme.
+     bg-dark-400, bg-dark-500      — decorative mid-grey fills (kanban
+       dots, meter tracks). They read on either surface.
+     border-dark-300/30            — a light hairline, already fine.
+*/
