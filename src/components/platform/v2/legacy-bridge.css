@@ -91,3 +91,64 @@
 }
 .ds-shell input::placeholder,
 .ds-shell textarea::placeholder { color: var(--fg-faint); }
+
+/* ── Composite legacy classes ───────────────────────────────────────────── */
+/* The atomic-utility mappings above miss these entirely: `src/index.css`
+   defines component classes with @apply, which bakes the dark palette into a
+   single class name. `.input-field` is the one that bites — white text on a
+   dark translucent fill, i.e. invisible in a light-theme modal — and the ATS
+   hire/offer flow uses it 24 times.
+
+   Opacity-modified utilities (`bg-dark-800/50`, `bg-dark-900/95`) have the
+   same problem and can't be selected generically without also catching
+   `hover:` variants, so the ones actually in use are listed explicitly. */
+
+.ds-shell .input-field {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+.ds-shell .input-field:focus { border-color: var(--brand); }
+.ds-shell .input-field::placeholder { color: var(--fg-faint); }
+
+.ds-shell .card {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+
+.ds-shell .btn-secondary,
+.ds-shell .btn-oauth {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+
+.ds-shell .glass {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+
+/* Translucent surfaces used by the modal shells and their footers. */
+.ds-shell .bg-dark-900\/95,
+.ds-shell .bg-dark-900\/80,
+.ds-shell .bg-dark-900\/40 { background: var(--surface-1); }
+.ds-shell .bg-dark-800\/50,
+.ds-shell .bg-dark-800\/80,
+.ds-shell .bg-dark-800\/95 { background: var(--surface-2); }
+.ds-shell .bg-dark-700\/50 { background: var(--surface-3); }
+.ds-shell .border-dark-800\/50,
+.ds-shell .border-dark-700\/80 { border-color: var(--line); }
+
+/* Gradient stops. A `bg-gradient-to-b from-dark-800 to-dark-800/70` header
+   keeps its own dark fill regardless of the flat-background rules above, so
+   the stop colours need bridging too. Flattening to a single surface is
+   deliberate — the gradient was decoration on a dark-only palette and reads
+   as a smudge once the surface is light. */
+.ds-shell .from-dark-800,
+.ds-shell .from-dark-900 { --tw-gradient-from: var(--surface-2); }
+.ds-shell .to-dark-800\/70,
+.ds-shell .to-dark-900\/70 { --tw-gradient-to: var(--surface-2); }
+.ds-shell [class*="bg-gradient-to-"][class*="from-dark-"] {
+  background-image: none;
+  background-color: var(--surface-2);
+}
