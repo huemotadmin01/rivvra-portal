@@ -39,7 +39,10 @@
 .ds-shell .text-dark-300 { color: var(--fg-2); }
 .ds-shell .text-dark-400 { color: var(--fg-3); }
 .ds-shell .text-dark-500 { color: var(--fg-4); }
-.ds-shell .text-dark-600 { color: var(--fg-faint); }
+/* dark-600 is muted TEXT in the legacy UI (empty states, captions), not
+   decoration — mapping it to --fg-faint rendered "No documents uploaded"
+   at 2.52:1. It belongs on the muted-text tier with dark-500. */
+.ds-shell .text-dark-600 { color: var(--fg-4); }
 .ds-shell .text-white { color: var(--fg); }
 .ds-shell .hover\:text-white:hover { color: var(--fg); }
 .ds-shell .hover\:text-dark-200:hover,
