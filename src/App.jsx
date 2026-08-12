@@ -220,6 +220,8 @@ const DocumentsList = lazy(() => import('./pages/documents/DocumentsList'));
 const DocumentDetail = lazy(() => import('./pages/documents/DocumentDetail'));
 const DocumentsManageFolders = lazy(() => import('./pages/documents/ManageFolders'));
 const DocumentsManageTags = lazy(() => import('./pages/documents/ManageTags'));
+const DocumentsManageFoldersV2 = lazy(() => import('./pages/documents/documentsConfigV2').then(m => ({ default: m.ManageFoldersV2 })));
+const DocumentsManageTagsV2 = lazy(() => import('./pages/documents/documentsConfigV2').then(m => ({ default: m.ManageTagsV2 })));
 
 // Lazy-loaded: Invoicing app pages
 const InvoicingDashboard = lazy(() => import('./pages/invoicing/InvoicingDashboard'));
@@ -647,8 +649,8 @@ function App() {
                 <Route path="/org/:slug/documents" element={<ErrorBoundary><PageSwitch v2={DocumentsListV2} legacy={DocumentsList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/documents/:id" element={<ErrorBoundary><DocumentDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="documents" requiredRole="admin" />}>
-                  <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><DocumentsManageFolders /></ErrorBoundary>} />
-                  <Route path="/org/:slug/documents/manage/tags" element={<ErrorBoundary><DocumentsManageTags /></ErrorBoundary>} />
+                  <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><PageSwitch v2={DocumentsManageFoldersV2} legacy={DocumentsManageFolders} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/documents/manage/tags" element={<ErrorBoundary><PageSwitch v2={DocumentsManageTagsV2} legacy={DocumentsManageTags} /></ErrorBoundary>} />
                 </Route>
               </Route>
 
