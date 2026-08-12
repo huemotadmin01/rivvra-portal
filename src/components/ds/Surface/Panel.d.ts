@@ -2,6 +2,8 @@ import * as React from 'react';
 
 export interface PanelProps extends React.HTMLAttributes<HTMLElement> {
   /** Header label. Omit (along with `actions`) to render a bare surface. */
+  /** Leading icon in the header row, beside the title. */
+  icon?: React.ReactNode;
   title?: React.ReactNode;
   /** Right-aligned header controls — buttons, segmented switches, chips. */
   actions?: React.ReactNode;
