@@ -212,6 +212,7 @@ const CrmConfigLostReasons = lazy(() => import('./pages/crm/CrmConfigLostReasons
 
 // Lazy-loaded: Sign app pages
 const SignDashboard = lazy(() => import('./pages/sign/SignDashboard'));
+const SignDashboardV2 = lazy(() => import('./pages/sign/SignDashboardV2'));
 const SignTemplates = lazy(() => import('./pages/sign/SignTemplates'));
 const SignTemplateEditor = lazy(() => import('./pages/sign/SignTemplateEditor'));
 const SignRequests = lazy(() => import('./pages/sign/SignRequests'));
@@ -643,7 +644,7 @@ function App() {
 
               {/* Sign app routes — gated by sign access */}
               <Route element={<AppAccessGate appId="sign" />}>
-                <Route path="/org/:slug/sign/dashboard" element={<ErrorBoundary><SignDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/dashboard" element={<ErrorBoundary><PageSwitch v2={SignDashboardV2} legacy={SignDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/requests" element={<ErrorBoundary><SignRequests /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/requests/:requestId" element={<ErrorBoundary><SignRequestDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/templates" element={<ErrorBoundary><SignTemplates /></ErrorBoundary>} />
