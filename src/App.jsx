@@ -60,12 +60,15 @@ const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 const SettingsGeneral = lazy(() => import('./components/settings/SettingsGeneral'));
 const SettingsTeam = lazy(() => import('./components/settings/SettingsTeam'));
 const UserDetail = lazy(() => import('./pages/settings/UserDetail'));
+const UserDetailV2 = lazy(() => import('./pages/settings/UserDetailV2'));
 const SettingsOutreach = lazy(() => import('./components/settings/SettingsOutreach'));
 const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimesheet'));
 const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
 const SettingsPolicies = lazy(() => import('./components/settings/SettingsPolicies'));
 const MyPolicies = lazy(() => import('./pages/ess/MyPolicies'));
 const MyDocuments = lazy(() => import('./pages/ess/MyDocuments'));
+const MyPoliciesV2 = lazy(() => import('./pages/ess/MyPoliciesV2'));
+const MyDocumentsV2 = lazy(() => import('./pages/ess/MyDocumentsV2'));
 const DocumentVault = lazy(() => import('./pages/DocumentVault'));
 const SettingsEmailLogs = lazy(() => import('./components/settings/SettingsEmailLogs'));
 const SettingsCrm = lazy(() => import('./components/settings/SettingsCrm'));
@@ -220,6 +223,8 @@ const DocumentsList = lazy(() => import('./pages/documents/DocumentsList'));
 const DocumentDetail = lazy(() => import('./pages/documents/DocumentDetail'));
 const DocumentsManageFolders = lazy(() => import('./pages/documents/ManageFolders'));
 const DocumentsManageTags = lazy(() => import('./pages/documents/ManageTags'));
+const DocumentsManageFoldersV2 = lazy(() => import('./pages/documents/documentsConfigV2').then(m => ({ default: m.ManageFoldersV2 })));
+const DocumentsManageTagsV2 = lazy(() => import('./pages/documents/documentsConfigV2').then(m => ({ default: m.ManageTagsV2 })));
 
 // Lazy-loaded: Invoicing app pages
 const InvoicingDashboard = lazy(() => import('./pages/invoicing/InvoicingDashboard'));
@@ -436,9 +441,9 @@ function App() {
               <Route path="/org/:slug/my-profile" element={<MyProfilePage />} />
               {/* Company Policies (ESS) — any authenticated member with a linked
                   employee record; intentionally NOT behind an app/country gate. */}
-              <Route path="/org/:slug/my-policies" element={<ErrorBoundary><MyPolicies /></ErrorBoundary>} />
+              <Route path="/org/:slug/my-policies" element={<ErrorBoundary><PageSwitch v2={MyPoliciesV2} legacy={MyPolicies} /></ErrorBoundary>} />
               {/* My Documents (ESS) — HR-shared documents; same gating as policies. */}
-              <Route path="/org/:slug/my-documents" element={<ErrorBoundary><MyDocuments /></ErrorBoundary>} />
+              <Route path="/org/:slug/my-documents" element={<ErrorBoundary><PageSwitch v2={MyDocumentsV2} legacy={MyDocuments} /></ErrorBoundary>} />
 
               {/* Employee onboarding wizard — outside AppAccessGate (any authenticated employee can access) */}
               <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><EmployeeOnboardingWizard /></ErrorBoundary>} />
@@ -467,7 +472,7 @@ function App() {
               <Route path="/org/:slug/settings/profile" element={<SettingsProfileRedirect />} />
               <Route element={<OrgAdminGate />}>
                 <Route path="/org/:slug/settings/general" element={<SettingsPageWrapper><SettingsGeneral /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/users/:userId" element={<SettingsPageWrapper><UserDetail /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/users/:userId" element={<SettingsPageWrapper><PageSwitch v2={UserDetailV2} legacy={UserDetail} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/users" element={<SettingsPageWrapper><SettingsTeam /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><SettingsOutreach /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheet /></SettingsPageWrapper>} />
@@ -647,8 +652,8 @@ function App() {
                 <Route path="/org/:slug/documents" element={<ErrorBoundary><PageSwitch v2={DocumentsListV2} legacy={DocumentsList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/documents/:id" element={<ErrorBoundary><DocumentDetail /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="documents" requiredRole="admin" />}>
-                  <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><DocumentsManageFolders /></ErrorBoundary>} />
-                  <Route path="/org/:slug/documents/manage/tags" element={<ErrorBoundary><DocumentsManageTags /></ErrorBoundary>} />
+                  <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><PageSwitch v2={DocumentsManageFoldersV2} legacy={DocumentsManageFolders} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/documents/manage/tags" element={<ErrorBoundary><PageSwitch v2={DocumentsManageTagsV2} legacy={DocumentsManageTags} /></ErrorBoundary>} />
                 </Route>
               </Route>
 
