@@ -17,6 +17,7 @@ import { ChevronDown, Search, Check } from 'lucide-react';
 export function ComboBox({
   value = '',
   onChange,
+  onSearch,
   options = [],
   placeholder = 'Search…',
   emptyLabel = 'Select…',
@@ -56,6 +57,16 @@ export function ComboBox({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Server-search mode. The local filter below still runs over whatever the
+  // caller hands back, so a partial overlap between query and result set is
+  // fine — and an option universe larger than one page stops being silently
+  // truncated to the pre-load limit.
+  useEffect(() => {
+    if (!onSearch || !open) return undefined;
+    const id = setTimeout(() => onSearch(search.trim()), 250);
+    return () => clearTimeout(id);
+  }, [search, open, onSearch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

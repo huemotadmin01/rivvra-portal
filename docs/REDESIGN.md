@@ -171,6 +171,22 @@ No money surfaces, no send paths. The recipe that worked five times:
 
 ### Open defects, not yet fixed
 
+- **`ds/ConfirmDialog` renders a `danger` confirm as a brand-green primary
+  button.** The dialog signals destructiveness with the icon tile only, so
+  "Delete permanently" on Document Detail looks exactly like a benign
+  confirm. Found in 6a; not fixed here because the fix changes the button on
+  every existing consumer at once. The component already withholds Enter for
+  `danger` — the styling should follow the same intent.
+- **`ds/Chip` tinted text fails AA on its own soft background in light
+  theme** — `warn` 4.35, `brand` 4.37, against 4.5. Present on every
+  migrated page since the first 6a batch. Needs a token change, not a
+  per-page workaround. Recipe and standing numbers in `REDESIGN-QA.md`.
+- **A policy whose PDF fails to render can never be acknowledged.**
+  `PolicyReaderModal`'s scroll gate leaves `reachedEnd` false when the render
+  errors, so "I acknowledge" stays locked while the only offered path is
+  Download. Inherited from the legacy component, not introduced by the
+  migration — but on staging, where every policy download 500s, it is the
+  only state you can reach.
 - `InlineField` read mode is a click-only `div` — every migrated detail page
   is mouse-only for inline editing.
 - `ShellSwitch` renders the legacy shell until the org fetch resolves; a
