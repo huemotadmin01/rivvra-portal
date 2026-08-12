@@ -240,10 +240,14 @@ function ActivityItem({ activity, onToggle, onDelete, highlight, onOpenEmailBody
     >
       {/* Done toggle — hide for notes */}
       {!isNote ? (
-        <button onClick={() => onToggle(activity._id, !activity.isDone)}
+        // Without onToggle the same box renders as a static indicator, so a
+        // read-only viewer still sees done/not-done.
+        <button onClick={onToggle ? () => onToggle(activity._id, !activity.isDone) : undefined}
+          disabled={!onToggle}
+          aria-label={onToggle ? 'Toggle done' : undefined}
           className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-            activity.isDone ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'border-dark-600 hover:border-dark-400'
-          }`}>
+            activity.isDone ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : `border-dark-600 ${onToggle ? 'hover:border-dark-400' : ''}`
+          } ${onToggle ? '' : 'cursor-default'}`}>
           {activity.isDone && <Check size={10} />}
         </button>
       ) : (
@@ -274,10 +278,12 @@ function ActivityItem({ activity, onToggle, onDelete, highlight, onOpenEmailBody
         </p>
       </div>
 
-      <button onClick={() => onDelete(activity._id)}
-        className="opacity-0 group-hover:opacity-100 text-dark-600 hover:text-red-400 transition-opacity flex-shrink-0">
-        <Trash2 size={12} />
-      </button>
+      {onDelete && (
+        <button onClick={() => onDelete(activity._id)}
+          className="opacity-0 group-hover:opacity-100 text-dark-600 hover:text-red-400 transition-opacity flex-shrink-0">
+          <Trash2 size={12} />
+        </button>
+      )}
     </div>
   );
 }
@@ -361,7 +367,11 @@ function ActivityForm({ mode, onSubmit, onCancel }) {
 // the panel re-fetches. Used to surface server-side async events (e.g.
 // email_sent rows recorded after a fire-and-forget send completes)
 // without waiting for a manual page reload.
-export default function ActivityPanel({ orgSlug, entityType, entityId, refreshKey = 0 }) {
+// `canEdit` gates the write affordances (Log Note / Schedule Activity /
+// complete / delete). It defaults to true so every existing call site keeps
+// its current behaviour; contacts passes the page's own admin predicate.
+// The other entity types should adopt it too — tracked separately.
+export default function ActivityPanel({ orgSlug, entityType, entityId, refreshKey = 0, canEdit = true }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formMode, setFormMode] = useState(null); // null | 'note' | 'activity'
@@ -456,27 +466,31 @@ export default function ActivityPanel({ orgSlug, entityType, entityId, refreshKe
           >
             <ActivityIcon size={10} /> Changes
           </button>
-          <button
-            onClick={() => setFormMode(formMode === 'note' ? null : 'note')}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-              formMode === 'note' ? 'bg-rivvra-500/20 text-rivvra-400' : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
-            }`}
-          >
-            <MessageSquare size={10} /> Log Note
-          </button>
-          <button
-            onClick={() => setFormMode(formMode === 'activity' ? null : 'activity')}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-              formMode === 'activity' ? 'bg-rivvra-500/20 text-rivvra-400' : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
-            }`}
-          >
-            <ClipboardList size={10} /> Schedule Activity
-          </button>
+          {canEdit && (
+            <>
+              <button
+                onClick={() => setFormMode(formMode === 'note' ? null : 'note')}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                  formMode === 'note' ? 'bg-rivvra-500/20 text-rivvra-400' : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
+                }`}
+              >
+                <MessageSquare size={10} /> Log Note
+              </button>
+              <button
+                onClick={() => setFormMode(formMode === 'activity' ? null : 'activity')}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                  formMode === 'activity' ? 'bg-rivvra-500/20 text-rivvra-400' : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
+                }`}
+              >
+                <ClipboardList size={10} /> Schedule Activity
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Form */}
-      {formMode && (
+      {canEdit && formMode && (
         <ActivityForm
           mode={formMode}
           onSubmit={handleCreate}
@@ -499,8 +513,8 @@ export default function ActivityPanel({ orgSlug, entityType, entityId, refreshKe
               <div key={a._id} className="group">
                 <ActivityItem
                   activity={a}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
+                  onToggle={canEdit ? handleToggle : undefined}
+                  onDelete={canEdit ? handleDelete : undefined}
                   highlight={highlightId === a._id}
                   onOpenEmailBody={entityType === 'ats_application'
                     ? (logId, subject) => setEmailDrawer({ logId, subject })
