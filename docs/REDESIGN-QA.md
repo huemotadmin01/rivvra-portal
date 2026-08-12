@@ -60,7 +60,7 @@ const over = (f,b) => [0,1,2].map(i => f[i]*f[3] + b[i]*(1-f[3]));
 // WCAG ratio, threshold 4.5 (3.0 for ≥24px, or ≥18.66px bold).
 ```
 
-Two things that will give you false failures:
+Three things that will give you false failures:
 
 - **Let the theme transition finish.** Sampling right after the theme toggle
   returns *interpolated* colours mid-transition. A first pass read the To-Do
@@ -70,6 +70,10 @@ Two things that will give you false failures:
   checkOpacity: true, checkVisibilityCSS: true })` catches text inside a
   hidden wrapper; checking only the element's own `display`/`visibility`/
   `opacity` does not.
+- **Ignore disabled controls.** WCAG 1.4.3 exempts them, and ds `Button`
+  dims to `opacity: .45` when disabled, so a locked primary button reports
+  around 2.2 every time. A disabled "I acknowledge" on the policy reader is
+  the expected reading, not a defect.
 
 ### Standing result (phase 6a)
 

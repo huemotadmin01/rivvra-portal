@@ -6,9 +6,9 @@
 // employee record in the active company, grouped by category, with the reader
 // modal handling preview / download / acknowledge.
 //
-// PolicyReaderModal is still the legacy component — it owns the read-then-
-// acknowledge flow, and acknowledgement is a compliance record, so it moves in
-// its own change rather than riding along with a layout pass.
+// The reader moved to PolicyReaderModalV2 in its own change (phase 6a), with
+// the read-then-acknowledge gate reproduced exactly — acknowledgement is a
+// compliance record.
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -17,7 +17,7 @@ import { useOrg } from '../../context/OrgContext';
 import { useToast } from '../../context/ToastContext';
 import { usePolicyAck } from '../../context/PolicyAckContext';
 import { api } from '../../utils/api';
-import PolicyReaderModal from './PolicyReaderModal';
+import PolicyReaderModalV2 from './PolicyReaderModalV2';
 import { Chip, EmptyState, PageHeader, Panel, Spinner } from '../../components/ds';
 
 const FONT = "'Inter', system-ui, sans-serif";
@@ -171,7 +171,7 @@ export default function MyPoliciesV2() {
       )}
 
       {reading && (
-        <PolicyReaderModal
+        <PolicyReaderModalV2
           policy={reading}
           orgSlug={orgSlug}
           onAcknowledge={acknowledgePolicy}
