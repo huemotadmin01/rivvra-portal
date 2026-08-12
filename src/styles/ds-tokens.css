@@ -50,6 +50,10 @@
   /* Status */
   --warn: #FBBF24; --warn-soft: rgba(251, 191, 36, 0.13);
   --danger: #F87171; --danger-soft: rgba(248, 113, 113, 0.13);
+  /* Text on a solid --danger fill. Dark theme's danger is a light red, so
+     the label goes dark — the same inversion --brand-fg makes for --brand. */
+  --danger-fg:   #1A0505;
+  --danger-glow: rgba(248, 113, 113, 0.20);
   --info: #60A5FA; --info-soft: rgba(96, 165, 250, 0.13);
 
   /* App accents — icon tints, chips, group accent bars.
@@ -108,6 +112,8 @@
 
   --warn: #B45309; --warn-soft: rgba(180, 83, 9, 0.10);
   --danger: #B91C1C; --danger-soft: rgba(185, 28, 28, 0.09);
+  --danger-fg:   #FFFFFF;
+  --danger-glow: rgba(185, 28, 28, 0.14);
   --info: #1D4ED8; --info-soft: rgba(29, 78, 216, 0.09);
 
   --a-outreach: #15803D;

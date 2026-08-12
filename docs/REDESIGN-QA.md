@@ -196,3 +196,12 @@ Both found by using the components rather than reading them:
   latent clobber with no caller yet. All three now merge.
 - **`ds/Tabs` reserved a scrollbar gutter** that rendered as a stray rule beside
   the underline.
+- **`ds/ConfirmDialog` rendered a `danger` confirm as a brand-green primary
+  button** — "Delete permanently" looked exactly like "Save", with only the
+  icon tile hinting at the consequence. `ds/Button` gains a `danger` variant
+  (new `--danger-fg` / `--danger-glow` tokens) and the dialog uses it when
+  `danger` is set. Measured after the fix: white on `#B91C1C` at **6.47:1** in
+  light, `#1A0505` on `#F87171` at **7.11:1** in dark. Six existing call sites
+  pick it up. Note the CRM/ATS config pages still show the *legacy* dialog —
+  `ds/ConfigList` imports `shared/ConfirmDialog`, the deprecation already
+  tracked in `REDESIGN.md`.
