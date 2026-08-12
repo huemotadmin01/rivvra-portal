@@ -153,6 +153,7 @@ const CrmConfigStagesV2 = lazy(() => import('./pages/crm/CrmConfigStagesV2'));
 const CrmConfigTagsV2 = lazy(() => import('./pages/crm/CrmConfigTagsV2'));
 const CrmConfigLostReasonsV2 = lazy(() => import('./pages/crm/CrmConfigLostReasonsV2'));
 const ContactsConfigV2 = lazy(() => import('./pages/contacts/ContactsConfigV2'));
+const ContactDetailV2 = lazy(() => import('./pages/contacts/ContactDetailV2'));
 const LeadsPageV2 = lazy(() => import('./pages/LeadsPageV2'));
 const MyListsPageV2 = lazy(() => import('./pages/MyListsPageV2'));
 const TeamListsPageV2 = lazy(() => import('./pages/TeamListsPageV2'));
@@ -580,7 +581,7 @@ function App() {
                   <Route path="/org/:slug/contacts/config" element={<ErrorBoundary><PageSwitch v2={ContactsConfigV2} legacy={ContactsConfig} /></ErrorBoundary>} />
                 </Route>
                 <Route path="/org/:slug/contacts/new-record" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
-                <Route path="/org/:slug/contacts/:contactId" element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/contacts/:contactId" element={<ErrorBoundary><PageSwitch v2={ContactDetailV2} legacy={ContactDetail} /></ErrorBoundary>} />
               </Route>
 
               {/* CRM app routes — gated by crm access */}
