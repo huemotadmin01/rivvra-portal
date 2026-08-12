@@ -194,3 +194,35 @@
   .ds-shell .mobile-only { display: grid; }
   .ds-shell .desktop-only { display: none; }
 }
+
+/* ── Rich-text bodies (job descriptions, KB articles) ───────────────────── */
+/* Not a bridge shim — a real v2 style. The legacy page styled JD HTML with
+   Tailwind arbitrary variants (`[&_h3]:text-white`), which paint the child
+   element, so no `.text-white` rule can reach them: headings and <strong>
+   rendered pure white on a white panel, contrast 1.00, i.e. invisible.
+   Token-driven and theme-correct instead. */
+.ds-shell .ds-prose {
+  font: 450 13px/1.65 var(--font);
+  color: var(--fg-2);
+}
+.ds-shell .ds-prose p { margin-bottom: 8px; }
+.ds-shell .ds-prose p:last-child { margin-bottom: 0; }
+.ds-shell .ds-prose h1,
+.ds-shell .ds-prose h2,
+.ds-shell .ds-prose h3,
+.ds-shell .ds-prose h4 {
+  color: var(--fg);
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+.ds-shell .ds-prose h1 { font-size: 15px; }
+.ds-shell .ds-prose h2,
+.ds-shell .ds-prose h3 { font-size: 13.5px; }
+.ds-shell .ds-prose h4 { font-size: 13px; margin: 8px 0 4px; }
+.ds-shell .ds-prose strong { color: var(--fg); font-weight: 600; }
+.ds-shell .ds-prose ul { list-style: disc; padding-left: 20px; margin-bottom: 8px; }
+.ds-shell .ds-prose ol { list-style: decimal; padding-left: 20px; margin-bottom: 8px; }
+.ds-shell .ds-prose li { margin-bottom: 2px; }
+.ds-shell .ds-prose a { color: var(--brand); text-decoration: underline; }
+.ds-shell .ds-prose-editable { cursor: text; margin: 0 -8px; padding: 4px 8px; border-radius: var(--r-1); }
+.ds-shell .ds-prose-editable:hover { background: var(--surface-2); }
