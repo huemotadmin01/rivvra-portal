@@ -26,9 +26,14 @@ export function Tabs({ tabs = [], value, onChange, sticky = false, stickyTop = 0
   return (
     <div
       role="tablist"
+      className="ds-tablist"
       onKeyDown={onKeyDown}
       style={{
         display: 'flex', gap: 2, overflowX: 'auto', borderBottom: '1px solid var(--line, rgba(255,255,255,.07))',
+        // The gutter macOS reserves for the overlay scrollbar reads as a stray
+        // rule beside the underline. Tabs stay reachable by drag and by arrow
+        // keys, and a clipped tab is its own overflow affordance.
+        scrollbarWidth: 'none',
         ...(sticky ? {
           position: 'sticky', top: stickyTop, zIndex: 20,
           background: 'color-mix(in srgb, var(--bg, #06080b) 90%, transparent)',
@@ -68,6 +73,7 @@ export function Tabs({ tabs = [], value, onChange, sticky = false, stickyTop = 0
           </button>
         );
       })}
+      <style>{'.ds-tablist::-webkit-scrollbar{display:none}'}</style>
     </div>
   );
 }

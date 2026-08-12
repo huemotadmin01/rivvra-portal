@@ -81,6 +81,31 @@ shell, those three classes must travel with it. Noted in each file.
 
 ---
 
+## The detail archetype (phase 3)
+
+`pages/contacts/ContactDetailV2.jsx` is the reference. The shape:
+
+- **Header** in a bare `Panel`: identity block (`Avatar` or a type glyph),
+  `EditableHeading`, status `Chip`s, quick links, `RecordMeta`, and the
+  destructive actions right-aligned.
+- **`Tabs` bound to `?tab=`**, not to component state, so a tab is linkable and
+  survives reload. An unknown `?tab=` falls back to the first tab.
+- **Body**: `Panel` per section in an auto-fit grid, each a stack of
+  `InlineField` / `InlineComboField` rows. Related records go in a `DataTable`
+  inside a `flush` Panel.
+
+Two rules the archetype depends on:
+
+1. **`onSave` must reject on failure.** `InlineField` is pessimistic — it keeps
+   the editor open with the user's text and offers retry. A handler that
+   swallows its error and only toasts leaves the field claiming it saved.
+2. **Archived records are read-only.** Fold the archive state into the page's
+   admin predicate once (`isAdmin = isAdminRaw && !record.archived`) rather
+   than at each of the ~24 call sites, and keep the raw predicate for the
+   un-archive control.
+
+---
+
 ## Deprecations in flight
 
 | Shim | Replacement | Remove after |
