@@ -47,9 +47,21 @@
   --brand-line: rgba(34, 197, 94, 0.28);
   --brand-glow: rgba(34, 197, 94, 0.20);
 
+  /* Ink — text sitting ON a *-soft tint (status chips, badges, tinted rows).
+     On a dark surface the accent itself is already the readable choice, so
+     these alias it; the light theme overrides them. Split out rather than
+     darkening --brand/--warn because those are also the button fill and the
+     active-tab underline, where the current values are correct. */
+  --brand-ink: var(--brand);
+  --warn-ink:  var(--warn);
+
   /* Status */
   --warn: #FBBF24; --warn-soft: rgba(251, 191, 36, 0.13);
   --danger: #F87171; --danger-soft: rgba(248, 113, 113, 0.13);
+  /* Text on a solid --danger fill. Dark theme's danger is a light red, so
+     the label goes dark — the same inversion --brand-fg makes for --brand. */
+  --danger-fg:   #1A0505;
+  --danger-glow: rgba(248, 113, 113, 0.20);
   --info: #60A5FA; --info-soft: rgba(96, 165, 250, 0.13);
 
   /* App accents — icon tints, chips, group accent bars.
@@ -108,7 +120,17 @@
 
   --warn: #B45309; --warn-soft: rgba(180, 83, 9, 0.10);
   --danger: #B91C1C; --danger-soft: rgba(185, 28, 28, 0.09);
+  --danger-fg:   #FFFFFF;
+  --danger-glow: rgba(185, 28, 28, 0.14);
   --info: #1D4ED8; --info-soft: rgba(29, 78, 216, 0.09);
+
+  /* On paper a 10% tint barely darkens the surface, so the accent has to go
+     darker than its own value to clear AA as small text on top of it.
+     Measured against the real composited tints: brand 4.37 → 6.25,
+     warn 4.35 → 5.55. Danger (5.63) and info (5.77) already clear it, so
+     they keep their accent value and get no ink override. */
+  --brand-ink: #12652F;
+  --warn-ink:  #9A4708;
 
   --a-outreach: #15803D;
   --a-ess:      #1D4ED8;

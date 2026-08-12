@@ -205,6 +205,7 @@ const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
 const CrmOpportunityDetailV2 = lazy(() => import('./pages/crm/CrmOpportunityDetailV2'));
 const CrmOpportunityNew = lazy(() => import('./pages/crm/CrmOpportunityNew'));
+const CrmOpportunityNewV2 = lazy(() => import('./pages/crm/CrmOpportunityNewV2'));
 const CrmConfigStages = lazy(() => import('./pages/crm/CrmConfigStages'));
 const CrmConfigTags = lazy(() => import('./pages/crm/CrmConfigTags'));
 const CrmConfigLostReasons = lazy(() => import('./pages/crm/CrmConfigLostReasons'));
@@ -225,6 +226,7 @@ const CareersJobDetail = lazy(() => import('./pages/careers/CareersJobDetail'));
 // Lazy-loaded: Documents app pages
 const DocumentsList = lazy(() => import('./pages/documents/DocumentsList'));
 const DocumentDetail = lazy(() => import('./pages/documents/DocumentDetail'));
+const DocumentDetailV2 = lazy(() => import('./pages/documents/DocumentDetailV2'));
 const DocumentsManageFolders = lazy(() => import('./pages/documents/ManageFolders'));
 const DocumentsManageTags = lazy(() => import('./pages/documents/ManageTags'));
 const DocumentsManageFoldersV2 = lazy(() => import('./pages/documents/documentsConfigV2').then(m => ({ default: m.ManageFoldersV2 })));
@@ -603,7 +605,7 @@ function App() {
                 <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><CrmDashboard /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><PageSwitch v2={CrmOpportunitiesV2} legacy={CrmOpportunities} /></ErrorBoundary>} />
-                <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><CrmOpportunityNew /></ErrorBoundary>} />
+                <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><PageSwitch v2={CrmOpportunityNewV2} legacy={CrmOpportunityNew} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><PageSwitch v2={CrmOpportunityDetailV2} legacy={CrmOpportunityDetail} /></ErrorBoundary>} />
                 {/* 2026-05-14: Reporting merged into Dashboard — keep old path redirecting */}
                 <Route path="/org/:slug/crm/reporting" element={<CrmReportingRedirect />} />
@@ -654,7 +656,7 @@ function App() {
               {/* Documents app — read for any member, manage pages admin-only */}
               <Route element={<AppAccessGate appId="documents" />}>
                 <Route path="/org/:slug/documents" element={<ErrorBoundary><PageSwitch v2={DocumentsListV2} legacy={DocumentsList} /></ErrorBoundary>} />
-                <Route path="/org/:slug/documents/:id" element={<ErrorBoundary><DocumentDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/documents/:id" element={<ErrorBoundary><PageSwitch v2={DocumentDetailV2} legacy={DocumentDetail} /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="documents" requiredRole="admin" />}>
                   <Route path="/org/:slug/documents/manage/folders" element={<ErrorBoundary><PageSwitch v2={DocumentsManageFoldersV2} legacy={DocumentsManageFolders} /></ErrorBoundary>} />
                   <Route path="/org/:slug/documents/manage/tags" element={<ErrorBoundary><PageSwitch v2={DocumentsManageTagsV2} legacy={DocumentsManageTags} /></ErrorBoundary>} />

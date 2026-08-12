@@ -25,12 +25,39 @@
    Rules for touching this file:
      - Scoped under `.ds-shell` on purpose. The legacy shell must keep its
        original palette exactly — this file must never affect it.
-     - Only the fixed grey scale and `white` are bridged. Semantic accents
-       (emerald, red, amber, blue) already read acceptably in both themes and
-       carry meaning a remap could quietly change.
+     - Accent TEXT is bridged too, by meaning rather than hue — see the
+       "Semantic accents" block below for why the original "accents read
+       acceptably in both themes" assumption did not survive measurement.
+       Accent *backgrounds* are still left alone: a 10% wash works over
+       either surface.
+     - A colour set inline cannot be reached from here at all. Those go
+       through the variable-with-fallback pattern in the next block.
      - Delete a block the moment its last legacy consumer is migrated. This
        file shrinking to nothing is the migration finishing.
    ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Inline-style escape hatches ──────────────────────────────────────────
+   Class remapping cannot reach a colour set as an inline `style`, because an
+   inline style outranks any stylesheet rule short of `!important`. Where a
+   legacy component has to set a colour inline — a sticky table cell must
+   paint an opaque background or the scrolling columns show through it — the
+   component reads a variable with its original colour as the fallback, and
+   the real value is defined here.
+
+   That keeps the contract intact in both directions: the legacy shell never
+   sees these declarations and renders exactly as before, while inside the v2
+   shell the colour follows the theme.
+
+   `ResizableTable` (Customer Invoices, Vendor Bills): the pinned Number and
+   Status columns held a hardcoded near-black, so in light theme they stayed
+   black islands and the invoice numbers inside them measured a 1.00 contrast
+   ratio — the same colour as their background, literally invisible.
+   Cells match the table's own `bg-dark-850` surface so the pinned column
+   blends with its row; the header keeps the one-step lift it always had. */
+.ds-shell {
+  --rt-sticky-head: var(--surface-3);
+  --rt-sticky-cell: var(--surface-2);
+}
 
 /* Text — muted → body only; see note in the generator about 700/950 */
 .ds-shell .text-dark-50 { color: var(--fg); }
@@ -469,7 +496,7 @@
   border-color: var(--line-2);
   color: var(--fg);
 }
-.ds-shell .input-field:focus { border-color: var(--brand); }
+.ds-shell .input-field:focus { border-color: var(--brand-ink); }
 .ds-shell .input-field::placeholder { color: var(--fg-faint); }
 
 .ds-shell .card {
@@ -513,7 +540,7 @@
 .ds-shell .text-amber-200,
 .ds-shell .text-amber-300,
 .ds-shell .text-amber-400,
-.ds-shell .text-amber-500 { color: var(--warn); }
+.ds-shell .text-amber-500 { color: var(--warn-ink); }
 .ds-shell .text-blue-200,
 .ds-shell .text-blue-300,
 .ds-shell .text-blue-400,
@@ -553,7 +580,7 @@
 .ds-shell .text-amber-500\/70,
 .ds-shell .text-amber-500\/75,
 .ds-shell .text-amber-500\/80,
-.ds-shell .text-amber-500\/90 { color: var(--warn); }
+.ds-shell .text-amber-500\/90 { color: var(--warn-ink); }
 .ds-shell .text-blue-200,
 .ds-shell .text-blue-200\/40,
 .ds-shell .text-blue-200\/50,
@@ -649,7 +676,7 @@
 .ds-shell .text-emerald-500\/70,
 .ds-shell .text-emerald-500\/75,
 .ds-shell .text-emerald-500\/80,
-.ds-shell .text-emerald-500\/90 { color: var(--brand); }
+.ds-shell .text-emerald-500\/90 { color: var(--brand-ink); }
 .ds-shell .text-fuchsia-200,
 .ds-shell .text-fuchsia-200\/40,
 .ds-shell .text-fuchsia-200\/50,
@@ -713,7 +740,7 @@
 .ds-shell .text-green-500\/70,
 .ds-shell .text-green-500\/75,
 .ds-shell .text-green-500\/80,
-.ds-shell .text-green-500\/90 { color: var(--brand); }
+.ds-shell .text-green-500\/90 { color: var(--brand-ink); }
 .ds-shell .text-indigo-200,
 .ds-shell .text-indigo-200\/40,
 .ds-shell .text-indigo-200\/50,
@@ -777,7 +804,7 @@
 .ds-shell .text-orange-500\/70,
 .ds-shell .text-orange-500\/75,
 .ds-shell .text-orange-500\/80,
-.ds-shell .text-orange-500\/90 { color: var(--warn); }
+.ds-shell .text-orange-500\/90 { color: var(--warn-ink); }
 .ds-shell .text-purple-200,
 .ds-shell .text-purple-200\/40,
 .ds-shell .text-purple-200\/50,
@@ -873,7 +900,7 @@
 .ds-shell .text-rivvra-500\/70,
 .ds-shell .text-rivvra-500\/75,
 .ds-shell .text-rivvra-500\/80,
-.ds-shell .text-rivvra-500\/90 { color: var(--brand); }
+.ds-shell .text-rivvra-500\/90 { color: var(--brand-ink); }
 .ds-shell .text-rose-200,
 .ds-shell .text-rose-200\/40,
 .ds-shell .text-rose-200\/50,
@@ -969,7 +996,7 @@
 .ds-shell .text-teal-500\/70,
 .ds-shell .text-teal-500\/75,
 .ds-shell .text-teal-500\/80,
-.ds-shell .text-teal-500\/90 { color: var(--brand); }
+.ds-shell .text-teal-500\/90 { color: var(--brand-ink); }
 .ds-shell .text-violet-200,
 .ds-shell .text-violet-200\/40,
 .ds-shell .text-violet-200\/50,
@@ -1033,7 +1060,7 @@
 .ds-shell .text-yellow-500\/70,
 .ds-shell .text-yellow-500\/75,
 .ds-shell .text-yellow-500\/80,
-.ds-shell .text-yellow-500\/90 { color: var(--warn); }
+.ds-shell .text-yellow-500\/90 { color: var(--warn-ink); }
 
 
 /* Neutral ramps wearing accent names. gray/zinc/slate are used across the

@@ -15,6 +15,10 @@ import { Button } from '../Button/Button';
  * click, meaning Enter is frequently still held from whatever the user was
  * typing. Destructive confirmations require the button. Escape always
  * cancels, in both variants.
+ *
+ * `danger` also fills the confirm button with the danger colour. It used to
+ * render brand-green like any other confirm, with only the icon tile hinting
+ * at the consequence — so "Delete permanently" looked exactly like "Save".
  */
 export function ConfirmDialog({
   open,
@@ -52,7 +56,7 @@ export function ConfirmDialog({
         <>
           <span style={{ flex: 1 }} />
           <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>{cancelLabel}</Button>
-          <Button variant="primary" size="sm" disabled={busy} onClick={onConfirm}>
+          <Button variant={danger ? 'danger' : 'primary'} size="sm" disabled={busy} onClick={onConfirm}>
             {busy ? 'Working…' : confirmLabel}
           </Button>
         </>

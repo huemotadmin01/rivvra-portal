@@ -51,6 +51,14 @@ export function Button({
       background: 'transparent',
       color: 'var(--fg-2, #a2aebc)',
     },
+    // Destructive confirm. Same weight as `primary` — a delete is still the
+    // dialog's main action — but the fill carries the warning, so it never
+    // reads as the safe choice.
+    danger: {
+      background: 'var(--danger, #ef4444)',
+      color: 'var(--danger-fg, #fff)',
+      boxShadow: '0 1px 0 rgba(255,255,255,.14) inset, 0 6px 18px -8px var(--danger-glow, rgba(239,68,68,.2))',
+    },
   };
 
   return (
