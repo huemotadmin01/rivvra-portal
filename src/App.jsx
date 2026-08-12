@@ -86,7 +86,9 @@ const ExpenseDetail = lazy(() => import('./pages/expenses/ExpenseDetail'));
 // Lazy-loaded: To-Do app pages
 const TodoDashboard = lazy(() => import('./pages/todo/TodoDashboard'));
 const TodoTasks = lazy(() => import('./pages/todo/TodoTasks'));
+const TodoTasksV2 = lazy(() => import('./pages/todo/TodoTasksV2'));
 const TodoTeamTasks = lazy(() => import('./pages/todo/TodoTeamTasks'));
+const TodoTeamTasksV2 = lazy(() => import('./pages/todo/TodoTeamTasksV2'));
 
 // Lazy-loaded: Timesheet app pages
 const TimesheetDashboard = lazy(() => import('./pages/timesheet/TimesheetDashboard'));
@@ -110,6 +112,7 @@ const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
 const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
 const MyFnfReceipt = lazy(() => import('./pages/timesheet/MyFnfReceipt'));
 const AlumniPolicyPage = lazy(() => import('./pages/settings/AlumniPolicyPage'));
+const AlumniPolicyPageV2 = lazy(() => import('./pages/settings/AlumniPolicyPageV2'));
 const AlumniDirectoryPage = lazy(() => import('./pages/employee/AlumniDirectory'));
 const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
 const TaxReportsPage = lazy(() => import('./pages/payroll/TaxReportsPage'));
@@ -517,7 +520,7 @@ function App() {
                   <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><MySalaryPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-fnf" element={<ErrorBoundary><MyFnfReceipt /></ErrorBoundary>} />
-                  <Route path="/org/:slug/settings/alumni-policy" element={<ErrorBoundary><AlumniPolicyPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/settings/alumni-policy" element={<ErrorBoundary><PageSwitch v2={AlumniPolicyPageV2} legacy={AlumniPolicyPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/alumni" element={<ErrorBoundary><PageSwitch v2={AlumniDirectoryV2} legacy={AlumniDirectoryPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/declarations" element={<ErrorBoundary><MyTaxDeclarationsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/report" element={<ErrorBoundary><MyTaxReportPage /></ErrorBoundary>} />
@@ -660,8 +663,8 @@ function App() {
               {/* To-Do app routes — gated by todo access */}
               <Route element={<AppAccessGate appId="todo" />}>
                 <Route path="/org/:slug/todo/dashboard" element={<ErrorBoundary><TodoDashboard /></ErrorBoundary>} />
-                <Route path="/org/:slug/todo/tasks" element={<ErrorBoundary><TodoTasks /></ErrorBoundary>} />
-                <Route path="/org/:slug/todo/team" element={<ErrorBoundary><TodoTeamTasks /></ErrorBoundary>} />
+                <Route path="/org/:slug/todo/tasks" element={<ErrorBoundary><PageSwitch v2={TodoTasksV2} legacy={TodoTasks} /></ErrorBoundary>} />
+                <Route path="/org/:slug/todo/team" element={<ErrorBoundary><PageSwitch v2={TodoTeamTasksV2} legacy={TodoTeamTasks} /></ErrorBoundary>} />
               </Route>
 
               {/* Invoicing app routes — admin only */}
