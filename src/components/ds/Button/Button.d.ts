@@ -1,8 +1,10 @@
 import * as React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Visual weight. `primary` is the Rivvra green CTA. */
-  variant?: 'primary' | 'secondary' | 'ghost';
+  /** Visual weight. `primary` is the Rivvra green CTA; `danger` is the same
+   *  weight in the danger fill, for the confirm button on a destructive
+   *  dialog. Do not use `primary` for anything that deletes. */
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   /** Control height: 30 / 38 / 44px. */
   size?: 'sm' | 'md' | 'lg';
   /** Stretch to fill the container width. */
