@@ -124,10 +124,16 @@ export default function TaskCardV2({
     });
   }
 
+  // A done row is de-emphasised by muting the *title* (strikethrough, --fg-4)
+  // rather than by dimming the whole row. The legacy card used `opacity-60` on
+  // the container, which multiplies down through every descendant: measured in
+  // light theme, a priority chip inside a done row came out at 2.39 against a
+  // 4.5 floor, and the AI-guide link at 2.55. Opacity is not a colour, so no
+  // palette remap can reach it — the dimming itself has to go.
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', gap: 12,
-      padding: '12px 14px', opacity: isDone ? 0.62 : 1,
+      padding: '12px 14px',
     }}>
       {/* Select checkbox */}
       {showCheckbox && (

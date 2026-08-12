@@ -21,6 +21,10 @@ export interface StatProps extends React.HTMLAttributes<HTMLDivElement> {
    * reads as "falling, and that's the win".
    */
   invert?: boolean;
+  /** Makes the card a real `<button>`. Dashboard tiles usually link into the
+   *  filtered list behind the number — pass this rather than wrapping the
+   *  card, so it stays keyboard-reachable. */
+  onClick?: React.MouseEventHandler<HTMLElement>;
 }
 
 /** KPI card with delta, comparison note, and an optional corner sparkline. */

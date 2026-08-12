@@ -161,7 +161,7 @@ No money surfaces, no send paths. The recipe that worked five times:
 
 | what | why it waits |
 |---|---|
-| `CrmDashboard`, `TodoDashboard`, and the other dashboards | need a ds chart component that does not exist |
+| ~~dashboards — need a ds chart component that does not exist~~ | **Wrong; unblocked in phase 7.** See below. |
 | `CrmPipeline`, `AtsPipeline` | kanban archetype, not yet designed |
 | KB pages | redesigned separately in July — migrating risks undoing that |
 | Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
@@ -169,8 +169,74 @@ No money surfaces, no send paths. The recipe that worked five times:
 | Sign (7 pages) | `PublicSigningPage` is externally facing; send paths |
 | `ats/applicationDetailParts.jsx` + `HireModal` | only stops being debt once legacy `AtsApplicationDetail` retires (~26 Aug, per the two-week rule) |
 
+---
+
+## The dashboard archetype (phase 7)
+
+`pages/todo/TodoDashboardV2.jsx` is the reference.
+
+**The blocker was not real.** Dashboards sat in the deferred table for months
+as "need a ds chart component that does not exist". They do not:
+**none of the ten dashboards imports recharts.** Only two files in the whole
+app do — `TeamDashboardPage` and `invoicing/Profitability` — and neither is a
+dashboard. What the dashboards actually render is stat tiles, proportion bars
+built from divs, and lists.
+
+Worth remembering as a pattern: the entry was written from the *category name*
+rather than from the files. A whole class of pages was parked on a dependency
+nobody had checked for.
+
+The shape:
+
+- **KPI row**: `Stat` per metric, each with `onClick` into the filtered list
+  behind its number. `Stat` renders a real `<button>` when given `onClick` —
+  every legacy dashboard hand-rolled that wrapper, and a `div` with an
+  `onClick` would have made the whole row mouse-only.
+- **Body**: a `Panel` per region on an auto-fit grid, the primary region
+  spanning two columns.
+- **Proportions**: `Meter`, never a hand-rolled track. The legacy pattern was
+  `bg-dark-800 rounded-full h-2` with a width-set inner div — a fixed dark
+  track that survived the theme swap only by accident of the palette bridge.
+- **Charts**: only where the question is genuinely a distribution or a trend.
+  Wrap recharts, which already ships in the bundle. Not needed yet.
+
+### What this cost, and what to check next
+
+Two small primitives (`Meter`, and `onClick` on `Stat`), and the nine
+remaining dashboards are unblocked.
+
+Before starting the next archetype, **verify its blocker against the files.**
+Kanban and forms are the other two entries — and the form archetype turns out
+to be largely built already, since phase 6a shipped `Field`, `Input`,
+`Textarea`, `Select` and `ComboBox` plus two working forms
+(`TaskFormModalV2`, `CrmOpportunityNewV2`). What it still lacks is the
+unsaved-change guard.
+
+### Opacity is not a colour
+
+Found twice, once in legacy and once in our own new code, so it is worth
+stating as a rule: **do not express "de-emphasised" with `opacity` on a
+container.** It multiplies through every descendant, and no palette remap can
+reach it — the bridge maps colours.
+
+`TaskCardV2` dimmed a done row to `opacity: .62`, which put the priority chip
+inside it at **2.39** against a 4.5 floor and the AI-guide link at 2.55. It now
+mutes the *title* (strikethrough, `--fg-4`) and leaves the rest at full
+strength; the row still reads as done. The same pattern is still open across
+the statutory report pages — see `THEMING.md`.
+
 ### Open defects, not yet fixed
 
+- **Aged Receivables / Payables can drop a row.** `AgedReceivables.jsx:76` and
+  `AgedPayables.jsx:70` key rows as `` `${row.customerId || i}-${currency}` ``.
+  Two rows for the same counterparty in the same currency collide, and React
+  warns "Encountered two children with the same key" then may omit or duplicate
+  one. Observed live on staging with `69e3e771f6e20f6d943fb5b8-INR`.
+  `TaxReport.jsx:206` has the same shape. Not fixed here: these are money
+  reports, and the right fix depends on whether duplicate counterparty rows are
+  expected (key needs the ageing bucket too) or whether something upstream
+  should have merged them. **Worth checking against a real receivables total
+  before trusting either report.**
 - `InlineField` read mode is a click-only `div` — every migrated detail page
   is mouse-only for inline editing.
 - `ShellSwitch` renders the legacy shell until the org fetch resolves; a

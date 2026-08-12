@@ -29,17 +29,31 @@ const Arrow = ({ down }) => (
 /**
  * KPI card. `delta` drives the arrow direction from its sign; `invert` flips
  * only the tone, for metrics where falling is the win (time-to-fill, backlog).
+ *
+ * Pass `onClick` and it becomes a real `<button>`. Dashboard KPI tiles are
+ * almost always a link into the filtered list behind the number, and the
+ * legacy dashboards each hand-rolled that as a `<button>` wrapper — a `div`
+ * with an onClick would have made every one of them mouse-only.
  */
-export function Stat({ label, value, delta, note, icon, color = 'var(--brand, #22c55e)', points, invert = false, style, ...rest }) {
+export function Stat({ label, value, delta, note, icon, color = 'var(--brand, #22c55e)', points, invert = false, onClick, style, ...rest }) {
   const rising = delta != null && delta >= 0;
   const good = invert ? !rising : rising;
+  const interactive = typeof onClick === 'function';
+  const Tag = interactive ? 'button' : 'div';
   return (
-    <div
+    <Tag
+      onClick={onClick}
+      type={interactive ? 'button' : undefined}
       style={{
         position: 'relative', overflow: 'hidden', padding: 16,
         background: 'var(--surface-1, #101720)', borderRadius: 'var(--r-3, 16px)',
         boxShadow: '0 0 0 1px var(--line, rgba(255,255,255,.07)), var(--lift, inset 0 1px 0 rgba(255,255,255,.05))',
         color,
+        ...(interactive ? {
+          display: 'block', width: '100%', textAlign: 'left', border: 'none',
+          font: 'inherit', cursor: 'pointer',
+          transition: 'box-shadow 180ms var(--e-out, cubic-bezier(.2,.9,.28,1))',
+        } : null),
         ...style,
       }}
       {...rest}
@@ -67,6 +81,6 @@ export function Stat({ label, value, delta, note, icon, color = 'var(--brand, #2
         </div>
       )}
       {points && points.length > 1 && <Spark points={points} color={color} />}
-    </div>
+    </Tag>
   );
 }
