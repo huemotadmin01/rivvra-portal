@@ -60,7 +60,7 @@ export function TagPicker({
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '4px 0' }}>
       {value.length === 0 && !editable && (
-        <span style={{ font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-faint, #4a5563)' }}>
+        <span style={{ font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4, #828e9f)' }}>
           {emptyLabel}
         </span>
       )}

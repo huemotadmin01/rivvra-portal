@@ -107,7 +107,7 @@ export function InlineComboField({
         <span style={labelStyle}>{label}</span>
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 20, font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg, #eef2f6)' }}>
-            {resolvedDisplay || <span style={{ color: 'var(--fg-faint, #4a5563)' }}>— None —</span>}
+            {resolvedDisplay || <span style={{ color: 'var(--fg-4, #828e9f)' }}>— None —</span>}
             {editable && status === 'idle' && (
               <Pencil size={12} className="ds-combo-pencil" style={{ color: 'var(--fg-4, #828e9f)', flexShrink: 0, opacity: 0, transition: 'opacity 120ms ease' }} />
             )}
