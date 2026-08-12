@@ -33,6 +33,59 @@ Two things that will mislead you if you don't know them:
 
 ---
 
+## The contrast audit
+
+`REDESIGN.md` step 6 points here for the recipe; here it is. Run it in the
+console on each migrated route, **in light theme** — light is where a dark-only
+legacy colour that survived the migration shows up as near-invisible text.
+
+The method that matters: resolve every colour by **painting it onto a 1×1
+canvas and reading the pixel back**, never by parsing the computed-style
+string. `getComputedStyle` hands back `rgb()`, `rgba()`, `color(…)` and
+sometimes an unresolved `color-mix()`; painting normalises all of them, and it
+is the only way to get the true alpha. Then composite each ancestor's
+background down to the document canvas — a translucent chip on a translucent
+panel is not the colour either one declares.
+
+```js
+const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+const ctx = cv.getContext('2d', { willReadFrequently: true });
+const rgba = s => { ctx.clearRect(0,0,1,1); ctx.fillStyle = '#000';
+  try { ctx.fillStyle = s } catch { return null }
+  ctx.fillRect(0,0,1,1); const d = ctx.getImageData(0,0,1,1).data;
+  return [d[0], d[1], d[2], d[3]/255]; };
+const over = (f,b) => [0,1,2].map(i => f[i]*f[3] + b[i]*(1-f[3]));
+// walk ancestors, composite each non-transparent background down, then
+// composite the text colour (times element opacity) onto the result;
+// WCAG ratio, threshold 4.5 (3.0 for ≥24px, or ≥18.66px bold).
+```
+
+Two things that will give you false failures:
+
+- **Let the theme transition finish.** Sampling right after the theme toggle
+  returns *interpolated* colours mid-transition. A first pass read the To-Do
+  sidebar at 1.67 and the active tab at 1.12; both were fully legible, and a
+  re-run once settled reported neither. Wait a beat, then sample.
+- **Test ancestor visibility, not just the element's.** `el.checkVisibility({
+  checkOpacity: true, checkVisibilityCSS: true })` catches text inside a
+  hidden wrapper; checking only the element's own `display`/`visibility`/
+  `opacity` does not.
+
+### Standing result (phase 6a)
+
+Every migrated route reports the same two ds-level failures and nothing else:
+
+| where | ratio | needs |
+|---|---|---|
+| `Chip` tinted text on its own soft background (`warn`, `brand`) | 4.35–4.37 | 4.5 |
+| App-bar notification badge count (white on `--brand`) | 2.03 | 4.5 |
+
+Both are token pairings in `ds/`, not page code — `MyPoliciesV2` has shipped
+with the `Chip` one since phase 6a's first batch. Fixing them means moving a
+shared token, which changes every migrated page at once, so it wants its own
+change rather than a per-page workaround. Pages should keep reporting zero
+failures *beyond* these two.
+
 ## Route sweep — 23 v2 routes
 
 All rendered. **Zero console errors, zero unhandled rejections** across the
