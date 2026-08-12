@@ -135,6 +135,7 @@ const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'
 const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
+const EmployeeDetailV2 = lazy(() => import('./pages/employee/EmployeeDetailV2'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
 const EmployeeQuickCreate = lazy(() => import('./pages/employee/EmployeeQuickCreate'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
@@ -572,7 +573,7 @@ function App() {
                 </Route>
                 <Route path="/org/:slug/employee/assets" element={<ErrorBoundary><AssetList /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/assets/:assetId" element={<ErrorBoundary><AssetDetail /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><EmployeeDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><PageSwitch v2={EmployeeDetailV2} legacy={EmployeeDetail} /></ErrorBoundary>} />
               </Route>
 
               {/* Contacts app routes — gated by contacts access */}
