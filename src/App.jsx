@@ -66,6 +66,8 @@ const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmploy
 const SettingsPolicies = lazy(() => import('./components/settings/SettingsPolicies'));
 const MyPolicies = lazy(() => import('./pages/ess/MyPolicies'));
 const MyDocuments = lazy(() => import('./pages/ess/MyDocuments'));
+const MyPoliciesV2 = lazy(() => import('./pages/ess/MyPoliciesV2'));
+const MyDocumentsV2 = lazy(() => import('./pages/ess/MyDocumentsV2'));
 const DocumentVault = lazy(() => import('./pages/DocumentVault'));
 const SettingsEmailLogs = lazy(() => import('./components/settings/SettingsEmailLogs'));
 const SettingsCrm = lazy(() => import('./components/settings/SettingsCrm'));
@@ -438,9 +440,9 @@ function App() {
               <Route path="/org/:slug/my-profile" element={<MyProfilePage />} />
               {/* Company Policies (ESS) — any authenticated member with a linked
                   employee record; intentionally NOT behind an app/country gate. */}
-              <Route path="/org/:slug/my-policies" element={<ErrorBoundary><MyPolicies /></ErrorBoundary>} />
+              <Route path="/org/:slug/my-policies" element={<ErrorBoundary><PageSwitch v2={MyPoliciesV2} legacy={MyPolicies} /></ErrorBoundary>} />
               {/* My Documents (ESS) — HR-shared documents; same gating as policies. */}
-              <Route path="/org/:slug/my-documents" element={<ErrorBoundary><MyDocuments /></ErrorBoundary>} />
+              <Route path="/org/:slug/my-documents" element={<ErrorBoundary><PageSwitch v2={MyDocumentsV2} legacy={MyDocuments} /></ErrorBoundary>} />
 
               {/* Employee onboarding wizard — outside AppAccessGate (any authenticated employee can access) */}
               <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><EmployeeOnboardingWizard /></ErrorBoundary>} />
