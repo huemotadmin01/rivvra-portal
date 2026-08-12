@@ -180,6 +180,7 @@ const AtsApplicationDetail = lazy(() => import('./pages/ats/AtsApplicationDetail
 const AtsApplicationDetailV2 = lazy(() => import('./pages/ats/AtsApplicationDetailV2'));
 const AtsJobPositions = lazy(() => import('./pages/ats/AtsJobPositions'));
 const AtsJobDetail = lazy(() => import('./pages/ats/AtsJobDetail'));
+const AtsJobDetailV2 = lazy(() => import('./pages/ats/AtsJobDetailV2'));
 const AtsJobNew = lazy(() => import('./pages/ats/AtsJobNew'));
 const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
 const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
@@ -612,7 +613,7 @@ function App() {
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><PageSwitch v2={AtsApplicationDetailV2} legacy={AtsApplicationDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><PageSwitch v2={AtsJobPositionsV2} legacy={AtsJobPositions} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/new" element={<ErrorBoundary><AtsJobNew /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><AtsJobDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><PageSwitch v2={AtsJobDetailV2} legacy={AtsJobDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId/applications/new" element={<ErrorBoundary><AtsApplicationNew /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><PageSwitch v2={AtsCandidatesV2} legacy={AtsCandidates} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
