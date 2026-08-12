@@ -138,6 +138,7 @@ const KnowledgeBasePage = lazy(() => import('./pages/kb/KnowledgeBasePage'));
 
 // Lazy-loaded: Employee app pages
 const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
+const EmployeeDashboardV2 = lazy(() => import('./pages/employee/EmployeeDashboardV2'));
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
 const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
@@ -567,7 +568,7 @@ function App() {
 
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
-                <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><EmployeeDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><PageSwitch v2={EmployeeDashboardV2} legacy={EmployeeDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
