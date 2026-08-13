@@ -220,7 +220,38 @@ The shape:
   `bg-dark-800 rounded-full h-2` with a width-set inner div — a fixed dark
   track that survived the theme swap only by accident of the palette bridge.
 - **Charts**: only where the question is genuinely a distribution or a trend.
-  Wrap recharts, which already ships in the bundle. Not needed yet.
+  Wrap recharts, which already ships in the bundle. **Still not needed** — see
+  below.
+
+### The one "real chart" turned out not to need one either
+
+`AtsDashboard` held the only hand-rolled chart in the app: an SVG donut with a
+fixed 12-colour palette. Validated against the light surface, that palette
+**fails outright** — slots 2 and 3 (`#a855f7`, `#3b82f6`), which sit *adjacent*
+in the ring, are ΔE **0.9** apart under deuteranopia, i.e. the same colour to
+the most common form of colour blindness. Seven of the twelve also fall below
+3:1 on the light surface, and the track ring was a hardcoded `#1f2937` that
+stayed dark in light theme.
+
+The answer was not a better palette. Both donuts plot a **magnitude comparison
+across close values** — 11 recruiters, 9 clients — and a donut is the wrong
+form for that past ~6 segments. Ranked **one-hue horizontal bars** answer "who
+has the most" directly, need no categorical palette at all (nothing to
+validate, no CVD risk), and keep every category named instead of folding the
+9th onward into "Other" to fit a colour budget.
+
+**The rule to carry forward: pick the form before the colour.** A palette
+problem is often a form problem wearing a disguise. If a categorical palette
+*is* genuinely needed later, validate it — don't eyeball ΔE.
+
+### Copy first, then edit — it is measurable
+
+`AtsDashboardV2` was produced by `cp` followed by targeted edits, and every
+rewritten leaf kept its original signature so no call site moved. Result: the
+~680-line main component body differs from legacy in **four places** — two
+component renames, one comment, two colour props. Every fetch, gate, CSV
+builder and derived metric is byte-identical, and that is checkable with
+`diff` rather than trusted. Retyping a 1,400-line file cannot make that claim.
 
 ### What this cost, and what to check next
 

@@ -196,6 +196,7 @@ const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
 const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
 const AtsApplicationNew = lazy(() => import('./pages/ats/AtsApplicationNew'));
 const AtsDashboard = lazy(() => import('./pages/ats/AtsDashboard'));
+const AtsDashboardV2 = lazy(() => import('./pages/ats/AtsDashboardV2'));
 const AtsMyApprovals = lazy(() => import('./pages/ats/AtsMyApprovals'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
@@ -636,7 +637,7 @@ function App() {
                 {/* 2026-05-14: Dashboard is the ATS landing for everyone,
                     so it sits outside the admin gate. Old /ats/reporting
                     path still redirects in for bookmark continuity. */}
-                <Route path="/org/:slug/ats/dashboard" element={<ErrorBoundary><AtsDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/dashboard" element={<ErrorBoundary><PageSwitch v2={AtsDashboardV2} legacy={AtsDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/reporting" element={<AtsReportingRedirect />} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
                   <Route path="/org/:slug/ats/config" element={<ErrorBoundary><PageSwitch v2={AtsConfigV2} legacy={AtsConfig} /></ErrorBoundary>} />
