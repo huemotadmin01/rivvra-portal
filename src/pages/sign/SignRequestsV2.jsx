@@ -1,16 +1,19 @@
 // ============================================================================
 // SignRequestsV2.jsx — Signature request list, on ds (phase 10)
 // ============================================================================
-// Copied verbatim from SignRequests.jsx, then edited leaf-first — and only
-// the LIST. The three modals below (NewRequest, QuickSend, BulkSend) are
-// byte-identical copies: between them they hold every outward-facing path on
-// this page (createRequest, createEnvelopeRequest, quickSendPrepare,
-// bulkSend), so leaving them untouched makes "the send behaviour did not
-// change" provable by diff instead of by argument. They still theme, because
-// the palette bridge covers legacy classes inside the v2 shell. They want
-// their own change, with the send paths as its subject.
+// Copied from SignRequests.jsx, then edited leaf-first.
 //
-// Migrated here: page chrome, filters, the bulk bar, the table, pagination.
+// The three modals (NewRequest, QuickSend, BulkSend) hold every outward-facing
+// path on this page: createRequest, createEnvelopeRequest, quickSendPrepare,
+// bulkSend. Their PRESENTATION is migrated here; their logic is not. In each
+// one the boundary is the `return (` — everything above it (state, effects,
+// validation, and every handler that talks to the API) is byte-identical to
+// legacy, so "the send behaviour did not change" stays provable by diff. Each
+// form control keeps its exact value/onChange binding; a dropped binding here
+// would be a broken send, not a cosmetic bug.
+//
+// Migrated: page chrome, filters, the bulk bar, the table, pagination, and the
+// three modals' markup.
 // Unchanged: filters stay LOCAL state (not URL params) exactly as in legacy,
 // the debounced search + fetch-sequence guard, the page-clamp guard, the
 // ?create / ?quicksend / ?template deep links, the signAdmin gate on bulk
@@ -40,8 +43,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { formatDateUTC, formatDateTime } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
 import {
-  BulkActionBar, Button, Chip, DataTable, EmptyState, FilterBar, Meter,
-  PageHeader, Pagination, SelectChip, Spinner,
+  BulkActionBar, Button, Chip, DataTable, EmptyState, Field, FileDrop, FilterBar,
+  Input, Meter, Modal, PageHeader, Pagination, SearchInput, Select, SelectChip, Spinner, Textarea,
 } from '../../components/ds';
 
 const FONT = "'Inter', system-ui, sans-serif";
@@ -60,6 +63,32 @@ function RowAction({ title, tone, children, ...rest }) {
     >
       {children}
     </Button>
+  );
+}
+
+/** One labelled line on the review step: icon, caps label, value. */
+function ReviewRow({ icon: Icon, label, children, accent = false, align = 'center' }) {
+  return (
+    <div style={{ display: 'flex', alignItems: align, gap: 12 }}>
+      <Icon
+        size={16}
+        style={{ color: accent ? 'var(--a-sign)' : 'var(--fg-4)', flexShrink: 0, marginTop: align === 'flex-start' ? 2 : 0 }}
+      />
+      <div style={{ minWidth: 0 }}>
+        <p style={{
+          font: `600 10.5px/1 ${FONT}`, textTransform: 'uppercase',
+          letterSpacing: '.08em', color: 'var(--fg-4)',
+        }}>
+          {label}
+        </p>
+        <p style={{
+          font: `${accent ? 550 : 450} 13px/1.45 ${FONT}`,
+          color: accent ? 'var(--fg)' : 'var(--fg-2)', marginTop: 3,
+        }}>
+          {children}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -212,7 +241,6 @@ const makeSignerId = () => `signer_${++_signerIdCounter}_${Date.now()}`;
 const EMPTY_SIGNER = () => ({ _dragId: makeSignerId(), name: '', email: '', roleId: '', roleName: '' });
 
 function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateId }) {
-  const modalRef = useRef(null);
   const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
@@ -429,99 +457,123 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
   const stepLabels = ['Select Template', 'Add Signers', 'Options', 'Review & Send'];
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    <Modal
+      open={show}
+      onClose={saving ? undefined : onClose}
+      size="lg"
+      title="New Signature Request"
+      footer={
+        <>
+          {step > 1 && (
+            <Button variant="secondary" onClick={() => setStep((s) => s - 1)} iconLeft={<ArrowLeft size={14} />}>
+              Back
+            </Button>
+          )}
+          <span style={{ flex: 1 }} />
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          {step < 4 ? (
+            <Button onClick={() => setStep((s) => s + 1)} disabled={!canGoNext()} iconRight={<ArrowRight size={14} />}>
+              Next
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              disabled={saving}
+              iconLeft={saving ? <Spinner size={14} /> : <Send size={14} />}
+            >
+              Send Request
+            </Button>
+          )}
+        </>
+      }
     >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="request-modal-title"
-        className="bg-dark-800 rounded-xl p-6 border border-dark-700 w-full max-w-2xl my-8"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h3 id="request-modal-title" className="text-lg font-semibold text-white">
-            New Signature Request
-          </h3>
-          <button onClick={onClose} className="text-dark-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
+      {/* Step indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        {stepLabels.map((label, i) => {
+          const stepNum = i + 1;
+          const isActive = stepNum === step;
+          const isDone = stepNum < step;
+          return (
+            <div key={stepNum} style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <span
+                style={{
+                  width: 26, height: 26, flexShrink: 0, display: 'grid', placeItems: 'center',
+                  borderRadius: '50%', font: `700 11px/1 ${FONT}`,
+                  // The active pip was white on indigo-500 — 4.07 against a
+                  // 4.5 floor, and indigo is not a colour the bridge remaps.
+                  // --brand-fg on --brand is the ds pairing built for this.
+                  background: isActive ? 'var(--brand)' : isDone ? 'var(--brand-soft)' : 'var(--surface-3)',
+                  color: isActive ? 'var(--brand-fg)' : isDone ? 'var(--brand-ink)' : 'var(--fg-4)',
+                }}
+              >
+                {isDone ? <Check size={12} /> : stepNum}
+              </span>
+              <span
+                style={{
+                  font: `550 11.5px/1.3 ${FONT}`,
+                  color: isActive ? 'var(--fg)' : 'var(--fg-4)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {label}
+              </span>
+              {i < stepLabels.length - 1 && (
+                <span style={{ flex: 1, height: 1, background: 'var(--line-2)', minWidth: 8 }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-        {/* Step Indicator */}
-        <div className="flex items-center gap-2 mb-6">
-          {stepLabels.map((label, i) => {
-            const stepNum = i + 1;
-            const isActive = stepNum === step;
-            const isDone = stepNum < step;
-            return (
-              <div key={stepNum} className="flex items-center gap-2 flex-1">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    isActive
-                      ? 'bg-indigo-500 text-white'
-                      : isDone
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-dark-700 text-dark-500'
-                  }`}
-                >
-                  {isDone ? <Check size={12} /> : stepNum}
-                </div>
-                <span
-                  className={`text-xs font-medium hidden sm:inline ${
-                    isActive ? 'text-white' : 'text-dark-500'
-                  }`}
-                >
-                  {label}
-                </span>
-                {i < stepLabels.length - 1 && (
-                  <div className="flex-1 h-px bg-dark-700 hidden sm:block" />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Step 1: Select Template */}
-        {step === 1 && (
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-dark-300 mb-1">
-              Choose a template <span className="text-red-400">*</span>
-            </label>
-            {loadingTemplates ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-dark-400" />
-              </div>
-            ) : templates.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText size={32} className="text-dark-500 mx-auto mb-2" />
-                <p className="text-dark-400 text-sm">No templates available. Upload a template first.</p>
-              </div>
-            ) : (
-              <>
+      {/* Step 1: Select Template */}
+      {step === 1 && (
+        <Field label="Choose a template" required>
+          {loadingTemplates ? (
+            <div style={{ display: 'grid', placeItems: 'center', padding: 32 }}><Spinner /></div>
+          ) : templates.length === 0 ? (
+            <EmptyState compact icon={<FileText size={22} />} title="No templates available">
+              Upload a template first.
+            </EmptyState>
+          ) : (
+            <>
               {/* Envelope docs list */}
               {envelopeDocs.length > 0 && (
-                <div className="mb-3 p-3 bg-indigo-500/5 border border-indigo-500/20 rounded-lg">
-                  <p className="text-xs text-indigo-400 font-medium mb-2">Envelope ({envelopeDocs.length} documents)</p>
-                  <div className="space-y-1">
+                <div style={{
+                  marginBottom: 12, padding: 12, borderRadius: 'var(--r-2)',
+                  background: 'var(--brand-soft)',
+                  boxShadow: 'inset 0 0 0 1px var(--brand-line)',
+                }}>
+                  <p style={{ font: `600 11px/1 ${FONT}`, color: 'var(--brand-ink)', marginBottom: 8 }}>
+                    Envelope ({envelopeDocs.length} documents)
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {envelopeDocs.map((d, idx) => (
-                      <div key={d._id} className="flex items-center justify-between text-sm">
-                        <span className="text-dark-200">{idx + 1}. {d.name}</span>
-                        <button onClick={() => removeFromEnvelope(d._id)} className="text-dark-500 hover:text-red-400"><X size={12} /></button>
+                      <div key={d._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ font: `450 13px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>{idx + 1}. {d.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFromEnvelope(d._id)}
+                          aria-label={`Remove ${d.name} from envelope`}
+                          style={{ padding: '0 6px', color: 'var(--fg-3)' }}
+                        >
+                          <X size={12} />
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
                 {templates.map((tpl) => {
-                  const inEnvelope = envelopeDocs.some(d => d._id === tpl._id);
+                  const inEnvelope = envelopeDocs.some((d) => d._id === tpl._id);
+                  const picked = selectedTemplate?._id === tpl._id || inEnvelope;
                   return (
                     <button
                       key={tpl._id}
+                      type="button"
+                      aria-pressed={picked}
                       onClick={() => {
                         if (isEnvelope || envelopeDocs.length > 0) {
                           if (!inEnvelope) addToEnvelope(tpl);
@@ -529,301 +581,264 @@ function NewRequestModal({ show, onClose, onSaved, orgSlug, preSelectedTemplateI
                           setSelectedTemplate(tpl);
                         }
                       }}
-                      className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3 ${
-                        selectedTemplate?._id === tpl._id || inEnvelope
-                          ? 'bg-indigo-500/10 border-indigo-500/30'
-                          : 'bg-dark-900 border-dark-700 hover:border-dark-600'
-                      }`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                        textAlign: 'left', padding: 14, borderRadius: 'var(--r-3)',
+                        background: picked ? 'var(--brand-soft)' : 'var(--surface-2)',
+                        boxShadow: `inset 0 0 0 1px ${picked ? 'var(--brand-line)' : 'var(--line)'}`,
+                        transition: 'background 120ms var(--e-out), box-shadow 180ms var(--e-out)',
+                      }}
                     >
-                      <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                        <FileText size={18} className="text-indigo-400" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-white font-medium truncate">{tpl.name}</p>
-                        <p className="text-dark-400 text-xs mt-0.5">
+                      <span style={{
+                        width: 38, height: 38, flexShrink: 0, display: 'grid', placeItems: 'center',
+                        borderRadius: 'var(--r-2)', background: 'color-mix(in srgb, var(--a-sign) 14%, transparent)',
+                      }}>
+                        <FileText size={17} style={{ color: 'var(--a-sign)' }} />
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{
+                          display: 'block', font: `550 13.5px/1.4 ${FONT}`, color: 'var(--fg)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {tpl.name}
+                        </span>
+                        <span style={{ display: 'block', font: `450 11.5px/1.4 ${FONT}`, color: 'var(--fg-3)', marginTop: 2 }}>
                           {tpl.numPages || tpl.pageCount || tpl.pages || 0} pages
-                          {tpl.signItems?.length ? ` \u2022 ${tpl.signItems.length} fields` : ''}
-                        </p>
-                      </div>
-                      {(selectedTemplate?._id === tpl._id || inEnvelope) && (
-                        <Check size={18} className="text-indigo-400 flex-shrink-0" />
-                      )}
+                          {tpl.signItems?.length ? ` • ${tpl.signItems.length} fields` : ''}
+                        </span>
+                      </span>
+                      {picked && <Check size={17} style={{ color: 'var(--brand-ink)', flexShrink: 0 }} />}
                     </button>
                   );
                 })}
               </div>
-              {/* Add document to envelope button */}
+
+              {/* Add document to envelope */}
               {selectedTemplate && !isEnvelope && envelopeDocs.length === 0 && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => { addToEnvelope(selectedTemplate); setSelectedTemplate(null); }}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 mt-2"
+                  iconLeft={<Plus size={12} />}
+                  style={{ marginTop: 8, alignSelf: 'flex-start', color: 'var(--brand-ink)' }}
                 >
-                  <Plus size={12} /> Add another document (create envelope)
-                </button>
+                  Add another document (create envelope)
+                </Button>
               )}
-              </>
-            )}
-          </div>
-        )}
+            </>
+          )}
+        </Field>
+      )}
 
-        {/* Step 2: Add Signers (drag to reorder) */}
-        {step === 2 && (
-          <div className="space-y-4">
-            <p className="text-sm text-dark-400 mb-2">
-              {parallelSign
-                ? 'Add signers. Everyone will receive the email at the same time and can sign in any order.'
-                : 'Add signers and drag to reorder. They will sign in this order.'}
-            </p>
-            {signers.length > 1 && (
-              <label className="flex items-start gap-2 text-xs text-dark-300 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={parallelSign}
-                  onChange={(e) => setParallelSign(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="font-medium text-dark-200">Send to everyone at once (parallel)</span>
-                  <span className="block text-dark-500 mt-0.5">
-                    Off = sequential — each signer is emailed only after the previous one finishes.
-                  </span>
+      {/* Step 2: Add Signers (drag to reorder) */}
+      {step === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ font: `450 13px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>
+            {parallelSign
+              ? 'Add signers. Everyone will receive the email at the same time and can sign in any order.'
+              : 'Add signers and drag to reorder. They will sign in this order.'}
+          </p>
+          {signers.length > 1 && (
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 9, padding: '10px 12px',
+              borderRadius: 'var(--r-2)', background: 'var(--surface-2)',
+              boxShadow: 'inset 0 0 0 1px var(--line)', cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={parallelSign}
+                onChange={(e) => setParallelSign(e.target.checked)}
+                style={{ marginTop: 2, width: 15, height: 15, accentColor: 'var(--brand)', cursor: 'pointer' }}
+              />
+              <span>
+                <span style={{ display: 'block', font: `550 12.5px/1.4 ${FONT}`, color: 'var(--fg)' }}>
+                  Send to everyone at once (parallel)
                 </span>
-              </label>
-            )}
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={signers.map((s) => s._dragId)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {signers.map((signer, idx) => (
-                    <SortableSignerCard
-                      key={signer._dragId}
-                      signer={signer}
-                      idx={idx}
-                      totalSigners={signers.length}
-                      updateSigner={updateSigner}
-                      removeSigner={removeSigner}
-                      roles={selectableRoles}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-            <button
-              type="button"
-              onClick={addSigner}
-              className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              <Plus size={14} />
-              Add another signer
-            </button>
-          </div>
-        )}
-
-        {/* Step 3: Options */}
-        {step === 3 && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Subject</label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="e.g. Please sign: NDA Agreement"
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Message</label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Optional message to include in the signing email..."
-                rows={3}
-                className="input-field resize-none"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Validity Date</label>
-                <input
-                  type="date"
-                  value={validityDate}
-                  onChange={(e) => setValidityDate(e.target.value)}
-                  className="input-field"
-                />
+                <span style={{ display: 'block', font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 2 }}>
+                  Off = sequential — each signer is emailed only after the previous one finishes.
+                </span>
+              </span>
+            </label>
+          )}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={signers.map((s) => s._dragId)} strategy={verticalListSortingStrategy}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto' }}>
+                {signers.map((signer, idx) => (
+                  <SortableSignerCard
+                    key={signer._dragId}
+                    signer={signer}
+                    idx={idx}
+                    totalSigners={signers.length}
+                    updateSigner={updateSigner}
+                    removeSigner={removeSigner}
+                    roles={selectableRoles}
+                  />
+                ))}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-300 mb-1">Remind every</label>
-                <select
-                  value={reminderDays}
-                  onChange={(e) => setReminderDays(Number(e.target.value))}
-                  className="input-field"
-                >
-                  <option value={1}>Daily</option>
-                  <option value={2}>Every 2 days</option>
-                  <option value={3}>Every 3 days</option>
-                  <option value={7}>Weekly (default)</option>
-                  <option value={14}>Every 2 weeks</option>
-                  <option value={0}>No reminders</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">CC Emails</label>
-              <input
-                type="text"
-                value={ccEmails}
-                onChange={(e) => setCcEmails(e.target.value)}
-                placeholder="comma separated emails"
-                className="input-field"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Review & Send */}
-        {step === 4 && (
-          <div className="space-y-4">
-            <div className="bg-dark-900 rounded-xl p-5 border border-dark-700 space-y-4">
-              {/* Template */}
-              <div className="flex items-center gap-3">
-                <FileText size={16} className="text-indigo-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-dark-500 uppercase tracking-wide">Template</p>
-                  <p className="text-white font-medium">{selectedTemplate?.name || 'None'}</p>
-                </div>
-              </div>
-
-              {/* Subject */}
-              {subject && (
-                <div className="flex items-center gap-3">
-                  <Mail size={16} className="text-dark-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-dark-500 uppercase tracking-wide">Subject</p>
-                    <p className="text-dark-300 text-sm">{subject}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Message */}
-              {message && (
-                <div className="flex items-start gap-3">
-                  <MessageSquare size={16} className="text-dark-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-dark-500 uppercase tracking-wide">Message</p>
-                    <p className="text-dark-300 text-sm whitespace-pre-wrap">{message}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Validity — format consistently as "9 May 2026" (matches the
-                  detail-page format) instead of leaking the ISO yyyy-mm-dd
-                  the input control stores. */}
-              {validityDate && (
-                <div className="flex items-center gap-3">
-                  <Calendar size={16} className="text-dark-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-dark-500 uppercase tracking-wide">Valid Until</p>
-                    <p className="text-dark-300 text-sm">{formatDateUTC(validityDate) || validityDate}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Reminder cadence */}
-              <div className="flex items-center gap-3">
-                <Clock size={16} className="text-dark-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-dark-500 uppercase tracking-wide">Reminders</p>
-                  <p className="text-dark-300 text-sm">
-                    {reminderDays === 0
-                      ? 'No reminders'
-                      : reminderDays === 1
-                        ? 'Every day until signed'
-                        : `Every ${reminderDays} days until signed`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Signers (with signing order) */}
-              <div>
-                <p className="text-xs text-dark-500 uppercase tracking-wide mb-2">
-                  Signing Order ({signers.length} {signers.length === 1 ? 'signer' : 'signers'})
-                </p>
-                <div className="space-y-2">
-                  {signers.map((s, i) => (
-                    <div key={s._dragId || i} className="flex items-center gap-3 bg-dark-800 rounded-lg px-3 py-2">
-                      <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-white text-sm font-medium truncate">{s.name}</p>
-                        <p className="text-dark-400 text-xs truncate">{s.email}</p>
-                      </div>
-                      {s.roleName && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-dark-700 text-dark-400">
-                          {s.roleName}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* CC */}
-              {ccEmails && (
-                <div>
-                  <p className="text-xs text-dark-500 uppercase tracking-wide mb-1">CC</p>
-                  <p className="text-dark-400 text-sm">{ccEmails}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Navigation buttons */}
-        <div className="flex items-center justify-between gap-3 pt-5 mt-5 border-t border-dark-700">
-          <div>
-            {step > 1 && (
-              <button
-                onClick={() => setStep((s) => s - 1)}
-                className="flex items-center gap-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
-              >
-                <ArrowLeft size={14} />
-                Back
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-dark-400 hover:text-white text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            {step < 4 ? (
-              <button
-                onClick={() => setStep((s) => s + 1)}
-                disabled={!canGoNext()}
-                className="btn-primary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next
-                <ArrowRight size={14} />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={saving}
-                className="btn-primary flex items-center gap-2"
-              >
-                {saving && <Loader2 size={16} className="animate-spin" />}
-                <Send size={14} />
-                Send Request
-              </button>
-            )}
-          </div>
+            </SortableContext>
+          </DndContext>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addSigner}
+            iconLeft={<Plus size={14} />}
+            style={{ alignSelf: 'flex-start', color: 'var(--brand-ink)' }}
+          >
+            Add another signer
+          </Button>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* Step 3: Options */}
+      {step === 3 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Field label="Subject" htmlFor="srq-subject">
+            <Input
+              id="srq-subject"
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="e.g. Please sign: NDA Agreement"
+            />
+          </Field>
+          <Field label="Message" htmlFor="srq-message">
+            <Textarea
+              id="srq-message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Optional message to include in the signing email…"
+              rows={3}
+              style={{ resize: 'none' }}
+            />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <Field label="Validity Date" htmlFor="srq-validity">
+              <Input
+                id="srq-validity"
+                type="date"
+                value={validityDate}
+                onChange={(e) => setValidityDate(e.target.value)}
+              />
+            </Field>
+            <Field label="Remind every" htmlFor="srq-reminder">
+              <Select
+                id="srq-reminder"
+                value={reminderDays}
+                onChange={(e) => setReminderDays(Number(e.target.value))}
+              >
+                <option value={1}>Daily</option>
+                <option value={2}>Every 2 days</option>
+                <option value={3}>Every 3 days</option>
+                <option value={7}>Weekly (default)</option>
+                <option value={14}>Every 2 weeks</option>
+                <option value={0}>No reminders</option>
+              </Select>
+            </Field>
+          </div>
+          <Field label="CC Emails" htmlFor="srq-cc">
+            <Input
+              id="srq-cc"
+              type="text"
+              value={ccEmails}
+              onChange={(e) => setCcEmails(e.target.value)}
+              placeholder="comma separated emails"
+            />
+          </Field>
+        </div>
+      )}
+
+      {/* Step 4: Review & Send */}
+      {step === 4 && (
+        <div style={{
+          padding: 18, borderRadius: 'var(--r-3)', background: 'var(--surface-2)',
+          boxShadow: 'inset 0 0 0 1px var(--line)',
+          display: 'flex', flexDirection: 'column', gap: 16,
+        }}>
+          <ReviewRow icon={FileText} label="Template" accent>
+            {selectedTemplate?.name || 'None'}
+          </ReviewRow>
+
+          {subject && <ReviewRow icon={Mail} label="Subject">{subject}</ReviewRow>}
+
+          {message && (
+            <ReviewRow icon={MessageSquare} label="Message" align="flex-start">
+              <span style={{ whiteSpace: 'pre-wrap' }}>{message}</span>
+            </ReviewRow>
+          )}
+
+          {/* Validity — formatted as "9 May 2026" to match the detail page,
+              rather than leaking the ISO yyyy-mm-dd the input stores. */}
+          {validityDate && (
+            <ReviewRow icon={Calendar} label="Valid Until">
+              {formatDateUTC(validityDate) || validityDate}
+            </ReviewRow>
+          )}
+
+          <ReviewRow icon={Clock} label="Reminders">
+            {reminderDays === 0
+              ? 'No reminders'
+              : reminderDays === 1
+                ? 'Every day until signed'
+                : `Every ${reminderDays} days until signed`}
+          </ReviewRow>
+
+          <div>
+            <p style={{
+              font: `600 10.5px/1 ${FONT}`, textTransform: 'uppercase',
+              letterSpacing: '.08em', color: 'var(--fg-4)', marginBottom: 8,
+            }}>
+              Signing Order ({signers.length} {signers.length === 1 ? 'signer' : 'signers'})
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {signers.map((sg, i) => (
+                <div key={sg._dragId || i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+                  borderRadius: 'var(--r-2)', background: 'var(--surface-3)',
+                }}>
+                  {/* Solid accent, not accent-on-its-own-tint: over surface-3
+                      that pairing measured 3.95 against a 4.5 floor. The
+                      numeral is the signing order, so it has to be readable. */}
+                  <span style={{
+                    width: 24, height: 24, flexShrink: 0, display: 'grid', placeItems: 'center',
+                    borderRadius: '50%', background: 'var(--a-sign)',
+                    font: `700 11px/1 ${FONT}`, color: 'var(--bg)',
+                  }}>
+                    {i + 1}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{
+                      display: 'block', font: `550 13px/1.35 ${FONT}`, color: 'var(--fg)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {sg.name}
+                    </span>
+                    <span style={{
+                      display: 'block', font: `450 11.5px/1.35 ${FONT}`, color: 'var(--fg-3)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {sg.email}
+                    </span>
+                  </span>
+                  {sg.roleName && <Chip>{sg.roleName}</Chip>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {ccEmails && (
+            <div>
+              <p style={{
+                font: `600 10.5px/1 ${FONT}`, textTransform: 'uppercase',
+                letterSpacing: '.08em', color: 'var(--fg-4)', marginBottom: 4,
+              }}>
+                CC
+              </p>
+              <p style={{ font: `450 13px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>{ccEmails}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -939,138 +954,197 @@ function QuickSendModal({ show, onClose, onSaved, orgSlug }) {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
-          <div className="flex items-center gap-2">
-            <Zap size={18} className="text-amber-400" />
-            <h2 className="text-lg font-semibold text-white">Quick Send</h2>
-          </div>
-          <div className="flex items-center gap-1">
+    <Modal
+      open={show}
+      onClose={preparing ? undefined : () => onClose()}
+      size="md"
+      icon={<Zap size={18} style={{ color: 'var(--warn)' }} />}
+      tone="warn"
+      title="Quick Send"
+      footer={
+        step === 1 ? (
+          <>
             {hasDraft && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Throw away the current draft and start over"
                 onClick={() => {
                   if (window.confirm('Discard the file and signer details you entered?')) reset();
                 }}
-                className="text-[11px] text-dark-400 hover:text-red-300 px-2 py-1 rounded"
-                title="Throw away the current draft and start over"
+                style={{ color: 'var(--danger)' }}
               >
                 Discard
-              </button>
+              </Button>
             )}
-            <button
-              onClick={() => onClose()}
-              className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"
-              title={hasDraft ? 'Hide for now — your draft is preserved' : 'Close'}
-            ><X size={18} /></button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-5">
-          {/* Step 1: Upload PDF */}
-          {step === 1 && (
-            <>
-              <div
-                onDrop={(e) => { e.preventDefault(); handleFile(e); }}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-dark-600 hover:border-indigo-500/50 rounded-xl p-8 text-center transition-colors cursor-pointer"
-                onClick={() => document.getElementById('qs-pdf-input').click()}
-              >
-                {file ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <FileText size={24} className="text-indigo-400" />
-                    <div className="text-left">
-                      <p className="text-white text-sm font-medium">{file.name}</p>
-                      <p className="text-dark-500 text-xs">{(file.size / 1024).toFixed(0)} KB</p>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="text-dark-400 hover:text-red-400 p-1"><X size={14} /></button>
-                  </div>
-                ) : (
-                  <>
-                    <Upload size={32} className="mx-auto text-dark-500 mb-3" />
-                    <p className="text-dark-300 text-sm font-medium">Drop a file here or click to upload</p>
-                    <p className="text-dark-500 text-xs mt-1">PDF, PNG, or JPG &middot; up to 10 MB</p>
-                  </>
-                )}
-                <input id="qs-pdf-input" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={handleFile} className="hidden" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Document Name</label>
-                <input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. NDA Agreement" className="input-field w-full" />
-              </div>
-              <button
-                onClick={() => setStep(2)}
-                disabled={!file}
-                title={!file ? 'Upload a file first.' : ''}
-                className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40"
-              >
-                Next <ArrowRight size={14} />
-              </button>
-            </>
-          )}
-
-          {/* Step 2: Signers */}
-          {step === 2 && (
-            <>
-              <p className="text-dark-400 text-sm">Add people who need to sign this document. Signer 1 signs first, then Signer 2, and so on. Next you'll drop signature / text fields onto the document in the editor before it actually sends.</p>
-              <div className="space-y-3">
-                {signers.map((s, idx) => (
-                  <div key={idx} className="bg-dark-900 rounded-lg p-3 border border-dark-700 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-dark-500">Signer {idx + 1}</span>
-                      {signers.length > 1 && (
-                        <button onClick={() => removeSigner(idx)} className="text-dark-500 hover:text-red-400"><X size={14} /></button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input value={s.name} onChange={e => updateSigner(idx, 'name', e.target.value)} placeholder="Name" className="input-field text-sm" />
-                      <input value={s.email} onChange={e => updateSigner(idx, 'email', e.target.value)} placeholder="Email *" type="email" className="input-field text-sm" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={addSigner} className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"><Plus size={14} /> Add Signer</button>
-
-              {/* Sequential vs parallel — only meaningful with 2+ signers.
-                  Off = sequential (default). Carries through to the
-                  editor and from there to POST /sign/requests via URL
-                  query param. */}
-              {signers.length > 1 && (
-                <label className="flex items-start gap-2 text-xs text-dark-300 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={qsParallel}
-                    onChange={(e) => setQsParallel(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    <span className="font-medium text-dark-200">Send to everyone at once</span>
-                    <span className="block text-dark-500 mt-0.5">
-                      {qsParallel
-                        ? 'All signers get the email immediately and can sign in any order.'
-                        : 'Sequential — each signer is emailed only after the previous one finishes.'}
-                    </span>
-                  </span>
-                </label>
-              )}
-
-              <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button
-                  onClick={handlePrepare}
-                  disabled={preparing || signers.some(s => !s.email?.trim() || !s.name?.trim())}
-                  title={signers.some(s => !s.email?.trim() || !s.name?.trim()) ? 'Each signer needs a name and email.' : ''}
-                  className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40"
+            <span style={{ flex: 1 }} />
+            <Button
+              onClick={() => setStep(2)}
+              disabled={!file}
+              title={!file ? 'Upload a file first.' : ''}
+              iconRight={<ArrowRight size={14} />}
+            >
+              Next
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={() => setStep(1)} iconLeft={<ArrowLeft size={14} />}>Back</Button>
+            <span style={{ flex: 1 }} />
+            <Button
+              onClick={handlePrepare}
+              disabled={preparing || signers.some((sg) => !sg.email?.trim() || !sg.name?.trim())}
+              title={signers.some((sg) => !sg.email?.trim() || !sg.name?.trim()) ? 'Each signer needs a name and email.' : ''}
+              iconLeft={preparing ? <Spinner size={14} /> : undefined}
+              iconRight={preparing ? undefined : <ArrowRight size={14} />}
+            >
+              {preparing ? 'Preparing…' : 'Continue to Editor'}
+            </Button>
+          </>
+        )
+      }
+    >
+      {/* Step 1: Upload */}
+      {step === 1 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* handleFile takes the raw event and reads e.dataTransfer or
+              e.target itself, so FileDrop's chosen File is handed back in the
+              shape it expects rather than being re-plumbed. */}
+          <FileDrop
+            filled={!!file}
+            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+            aria-label="Choose a PDF, PNG or JPG to send"
+            onSelect={(picked) => handleFile({ target: { files: [picked] } })}
+          >
+            {file ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <FileText size={22} style={{ color: 'var(--brand)' }} />
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ font: `550 13px/1.4 ${FONT}`, color: 'var(--fg)' }}>{file.name}</p>
+                  <p style={{ font: `450 11.5px/1.4 ${FONT}`, color: 'var(--fg-3)' }}>
+                    {(file.size / 1024).toFixed(0)} KB
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Remove file"
+                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  style={{ padding: '0 6px', color: 'var(--danger)' }}
                 >
-                  {preparing ? <><Loader2 size={14} className="animate-spin" /> Preparing...</> : <>Continue to Editor <ArrowRight size={14} /></>}
-                </button>
+                  <X size={14} />
+                </Button>
               </div>
-            </>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <Upload size={28} style={{ color: 'var(--fg-4)' }} />
+                <p style={{ font: `550 13px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>
+                  Drop a file here or click to upload
+                </p>
+                <p style={{ font: `450 11.5px/1 ${FONT}`, color: 'var(--fg-3)' }}>
+                  PDF, PNG, or JPG &middot; up to 10 MB
+                </p>
+              </div>
+            )}
+          </FileDrop>
+
+          <Field label="Document Name" htmlFor="qs-reference">
+            <Input
+              id="qs-reference"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. NDA Agreement"
+            />
+          </Field>
+        </div>
+      )}
+
+      {/* Step 2: Signers */}
+      {step === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ font: `450 13px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>
+            Add people who need to sign this document. Signer 1 signs first, then Signer 2, and so on.
+            Next you&rsquo;ll drop signature / text fields onto the document in the editor before it actually sends.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {signers.map((sg, idx) => (
+              <div key={idx} style={{
+                padding: 12, borderRadius: 'var(--r-2)', background: 'var(--surface-2)',
+                boxShadow: 'inset 0 0 0 1px var(--line)',
+                display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ font: `500 11.5px/1 ${FONT}`, color: 'var(--fg-3)' }}>Signer {idx + 1}</span>
+                  {signers.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove signer ${idx + 1}`}
+                      onClick={() => removeSigner(idx)}
+                      style={{ padding: '0 6px', color: 'var(--fg-3)' }}
+                    >
+                      <X size={14} />
+                    </Button>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+                  <Input
+                    value={sg.name}
+                    onChange={(e) => updateSigner(idx, 'name', e.target.value)}
+                    placeholder="Name"
+                    aria-label={`Signer ${idx + 1} name`}
+                  />
+                  <Input
+                    value={sg.email}
+                    onChange={(e) => updateSigner(idx, 'email', e.target.value)}
+                    placeholder="Email *"
+                    type="email"
+                    aria-label={`Signer ${idx + 1} email`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addSigner}
+            iconLeft={<Plus size={14} />}
+            style={{ alignSelf: 'flex-start', color: 'var(--brand-ink)' }}
+          >
+            Add Signer
+          </Button>
+
+          {/* Sequential vs parallel — only meaningful with 2+ signers. Off =
+              sequential (default). Carries through to the editor and from
+              there to POST /sign/requests via URL query param. */}
+          {signers.length > 1 && (
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 9, padding: '10px 12px',
+              borderRadius: 'var(--r-2)', background: 'var(--surface-2)',
+              boxShadow: 'inset 0 0 0 1px var(--line)', cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={qsParallel}
+                onChange={(e) => setQsParallel(e.target.checked)}
+                style={{ marginTop: 2, width: 15, height: 15, accentColor: 'var(--brand)', cursor: 'pointer' }}
+              />
+              <span>
+                <span style={{ display: 'block', font: `550 12.5px/1.4 ${FONT}`, color: 'var(--fg)' }}>
+                  Send to everyone at once
+                </span>
+                <span style={{ display: 'block', font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', marginTop: 2 }}>
+                  {qsParallel
+                    ? 'All signers get the email immediately and can sign in any order.'
+                    : 'Sequential — each signer is emailed only after the previous one finishes.'}
+                </span>
+              </span>
+            </label>
           )}
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }
 
@@ -1184,214 +1258,270 @@ function BulkSendModal({ show, onClose, onSaved, orgSlug }) {
 
   if (!show) return null;
 
+  const bulkFooter = {
+    1: (
+      <>
+        <span style={{ flex: 1 }} />
+        <Button onClick={() => setStep(2)} disabled={!selectedTemplate} iconRight={<ArrowRight size={14} />}>Next</Button>
+      </>
+    ),
+    2: (
+      <>
+        <Button variant="secondary" onClick={() => setStep(1)} iconLeft={<ArrowLeft size={14} />}>Back</Button>
+        <span style={{ flex: 1 }} />
+        <Button
+          onClick={handlePreview}
+          disabled={!csvFile || loading}
+          iconLeft={loading ? <Spinner size={14} /> : undefined}
+          iconRight={loading ? undefined : <ArrowRight size={14} />}
+        >
+          {loading ? 'Parsing…' : 'Preview'}
+        </Button>
+      </>
+    ),
+    3: (
+      <>
+        <Button variant="secondary" onClick={() => setStep(2)} iconLeft={<ArrowLeft size={14} />}>Back</Button>
+        <span style={{ flex: 1 }} />
+        <Button onClick={() => setStep(4)} iconRight={<ArrowRight size={14} />}>Next</Button>
+      </>
+    ),
+    4: (
+      <>
+        <Button variant="secondary" onClick={() => setStep(3)} iconLeft={<ArrowLeft size={14} />}>Back</Button>
+        <span style={{ flex: 1 }} />
+        <Button
+          onClick={handleBulkSend}
+          disabled={sending}
+          iconLeft={sending ? <Spinner size={14} /> : <Send size={14} />}
+        >
+          {sending ? 'Sending…' : `Send ${previewRows.length} Requests`}
+        </Button>
+      </>
+    ),
+    5: (
+      <>
+        <span style={{ flex: 1 }} />
+        <Button onClick={() => { reset(); onClose(); }}>Done</Button>
+      </>
+    ),
+  }[step];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
-          <div className="flex items-center gap-2">
-            <Users size={18} className="text-blue-400" />
-            <h2 className="text-lg font-semibold text-white">Bulk Send</h2>
-          </div>
-          <button onClick={() => { reset(); onClose(); }} className="text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-700"><X size={18} /></button>
-        </div>
-        <div className="p-6 space-y-5">
-          {/* Step 1: Select Template */}
-          {step === 1 && (
-            <>
-              <p className="text-dark-400 text-sm">Choose a template to send to multiple recipients.</p>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-                <input
-                  type="text"
-                  value={templateSearch}
-                  onChange={(e) => setTemplateSearch(e.target.value)}
-                  placeholder="Search templates…"
-                  className="input-field w-full pl-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {filteredTemplates.length === 0 ? (
-                  <p className="text-dark-500 text-xs text-center py-4">
-                    {templateSearch ? 'No templates match that search.' : 'No templates yet.'}
-                  </p>
-                ) : (
-                  filteredTemplates.map(t => (
-                    <button key={t._id} onClick={() => setSelectedTemplate(t)}
-                      className={`w-full text-left p-3 rounded-lg border transition-all ${selectedTemplate?._id === t._id ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-dark-900 border-dark-700 hover:border-dark-600'}`}>
-                      <div className="flex items-center gap-3">
-                        <FileText size={16} className="text-indigo-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-white text-sm font-medium">{t.name}</p>
-                          <p className="text-dark-500 text-xs">{t.numPages || 1} page(s) &middot; {(t.signItems || []).length} field(s)</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-              <button onClick={() => setStep(2)} disabled={!selectedTemplate} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
-                Next <ArrowRight size={14} />
-              </button>
-            </>
-          )}
-
-          {/* Step 2: Upload CSV */}
-          {step === 2 && (
-            <>
-              <p className="text-dark-400 text-sm">
-                Upload a CSV with columns: <span className="text-dark-200 font-medium">name, email</span> (required), phone, company (optional).
-                {' '}
-                <a
-                  href={sampleCsvHref}
-                  download="rivvra-bulk-send-sample.csv"
-                  className="text-indigo-400 hover:text-indigo-300 underline"
-                >
-                  Download sample
-                </a>
+    <Modal
+      open={show}
+      onClose={sending ? undefined : () => { reset(); onClose(); }}
+      size="lg"
+      icon={<Users size={18} style={{ color: 'var(--info)' }} />}
+      tone="info"
+      title="Bulk Send"
+      footer={bulkFooter}
+    >
+      {/* Step 1: Select Template */}
+      {step === 1 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ font: `450 13px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>
+            Choose a template to send to multiple recipients.
+          </p>
+          <SearchInput
+            value={templateSearch}
+            onChange={setTemplateSearch}
+            placeholder="Search templates…"
+            aria-label="Search templates"
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+            {filteredTemplates.length === 0 ? (
+              <p style={{ font: `450 12px/1.5 ${FONT}`, color: 'var(--fg-3)', textAlign: 'center', padding: '16px 0' }}>
+                {templateSearch ? 'No templates match that search.' : 'No templates yet.'}
               </p>
-              <div className="border-2 border-dashed border-dark-600 hover:border-indigo-500/50 rounded-xl p-6 text-center transition-colors cursor-pointer"
-                onDrop={(e) => { e.preventDefault(); handleCsvFile(e.dataTransfer?.files?.[0]); }}
-                onDragOver={(e) => e.preventDefault()}
-                onClick={() => document.getElementById('bs-csv-input').click()}>
-                {csvFile ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <FileText size={20} className="text-emerald-400" />
-                    <span className="text-white text-sm">{csvFile.name}</span>
-                    <button onClick={(e) => { e.stopPropagation(); setCsvFile(null); }} className="text-dark-400 hover:text-red-400"><X size={14} /></button>
-                  </div>
-                ) : (
-                  <>
-                    <Upload size={28} className="mx-auto text-dark-500 mb-2" />
-                    <p className="text-dark-300 text-sm">Drop CSV here or click to upload</p>
-                  </>
-                )}
-                <input
-                  id="bs-csv-input"
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    // Reset so re-selecting the same file after removal still fires onChange.
-                    e.target.value = '';
-                    handleCsvFile(f);
-                  }}
-                  className="hidden"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button onClick={handlePreview} disabled={!csvFile || loading} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
-                  {loading ? <><Loader2 size={14} className="animate-spin" /> Parsing...</> : <>Preview <ArrowRight size={14} /></>}
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Step 3: Preview */}
-          {step === 3 && (
-            <>
-              <p className="text-dark-400 text-sm">{previewRows.length} valid recipients found.</p>
-              {previewErrors.length > 0 && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                  <p className="text-red-400 text-xs font-medium mb-1">{previewErrors.length} error(s):</p>
-                  {previewErrors.slice(0, 5).map((e, i) => <p key={i} className="text-red-300 text-xs">{e}</p>)}
-                </div>
-              )}
-              <div className="overflow-x-auto max-h-48">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-dark-700">
-                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Name</th>
-                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Email</th>
-                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Phone</th>
-                      <th className="text-left px-3 py-2 text-dark-400 font-medium">Company</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewRows.slice(0, 20).map((r, i) => (
-                      <tr key={i} className="border-b border-dark-700/50">
-                        <td className="px-3 py-1.5 text-dark-200">{r.name}</td>
-                        <td className="px-3 py-1.5 text-dark-300">{r.email}</td>
-                        <td className="px-3 py-1.5 text-dark-400 text-xs">{r.phone || '—'}</td>
-                        <td className="px-3 py-1.5 text-dark-400 text-xs">{r.company || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {previewRows.length > 20 && <p className="text-dark-500 text-xs text-center mt-2">...and {previewRows.length - 20} more</p>}
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep(2)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button onClick={() => setStep(4)} className="flex-1 btn-primary flex items-center justify-center gap-2">Next <ArrowRight size={14} /></button>
-              </div>
-            </>
-          )}
-
-          {/* Step 4: Options */}
-          {step === 4 && (
-            <>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Subject</label>
-                <input value={subject} onChange={e => setSubject(e.target.value)} placeholder={`Signature Request - ${selectedTemplate?.name}`} className="input-field w-full" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">Message (optional)</label>
-                <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Add a message..." className="input-field w-full resize-none" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-dark-400 mb-1 block">Valid Until (optional)</label>
-                  <input type="date" value={validity} onChange={e => setValidity(e.target.value)} className="input-field w-full" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-dark-400 mb-1 block">Remind every</label>
-                  <select
-                    value={bulkReminderDays}
-                    onChange={(e) => setBulkReminderDays(Number(e.target.value))}
-                    className="input-field w-full"
+            ) : (
+              filteredTemplates.map((t) => {
+                const picked = selectedTemplate?._id === t._id;
+                return (
+                  <button
+                    key={t._id}
+                    type="button"
+                    aria-pressed={picked}
+                    onClick={() => setSelectedTemplate(t)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                      textAlign: 'left', padding: 12, borderRadius: 'var(--r-2)',
+                      background: picked ? 'var(--brand-soft)' : 'var(--surface-2)',
+                      boxShadow: `inset 0 0 0 1px ${picked ? 'var(--brand-line)' : 'var(--line)'}`,
+                    }}
                   >
-                    <option value={1}>Daily</option>
-                    <option value={2}>Every 2 days</option>
-                    <option value={3}>Every 3 days</option>
-                    <option value={7}>Weekly (default)</option>
-                    <option value={14}>Every 2 weeks</option>
-                    <option value={0}>No reminders</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-dark-400 mb-1 block">CC Emails (optional)</label>
-                <input
-                  type="text"
-                  value={bulkCcEmails}
-                  onChange={(e) => setBulkCcEmails(e.target.value)}
-                  placeholder="comma separated emails — applied to every request"
-                  className="input-field w-full"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep(3)} className="flex-1 btn-secondary flex items-center justify-center gap-2"><ArrowLeft size={14} /> Back</button>
-                <button onClick={handleBulkSend} disabled={sending} className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-40">
-                  {sending ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><Send size={14} /> Send {previewRows.length} Requests</>}
-                </button>
-              </div>
-            </>
-          )}
+                    <FileText size={16} style={{ color: 'var(--a-sign)', flexShrink: 0 }} />
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{
+                        display: 'block', font: `550 13px/1.4 ${FONT}`, color: 'var(--fg)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {t.name}
+                      </span>
+                      <span style={{ display: 'block', font: `450 11.5px/1.4 ${FONT}`, color: 'var(--fg-3)' }}>
+                        {t.numPages || 1} page(s) &middot; {(t.signItems || []).length} field(s)
+                      </span>
+                    </span>
+                    {picked && <Check size={16} style={{ color: 'var(--brand-ink)', flexShrink: 0, marginLeft: 'auto' }} />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
-          {/* Step 5: Result */}
-          {step === 5 && sendResult && (
-            <div className="text-center py-6">
-              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
-                <Check size={32} className="text-emerald-400" />
+      {/* Step 2: Upload CSV */}
+      {step === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ font: `450 13px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>
+            Upload a CSV with columns: <strong style={{ color: 'var(--fg-2)' }}>name, email</strong> (required),
+            phone, company (optional).{' '}
+            <a
+              href={sampleCsvHref}
+              download="rivvra-bulk-send-sample.csv"
+              style={{ color: 'var(--brand-ink)', textDecoration: 'underline' }}
+            >
+              Download sample
+            </a>
+          </p>
+          <FileDrop
+            filled={!!csvFile}
+            accept=".csv,text/csv"
+            aria-label="Choose a CSV of recipients"
+            onSelect={handleCsvFile}
+          >
+            {csvFile ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <FileText size={19} style={{ color: 'var(--brand)' }} />
+                <span style={{ font: `500 13px/1.4 ${FONT}`, color: 'var(--fg)' }}>{csvFile.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Remove CSV"
+                  onClick={(e) => { e.stopPropagation(); setCsvFile(null); }}
+                  style={{ padding: '0 6px', color: 'var(--danger)' }}
+                >
+                  <X size={14} />
+                </Button>
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Bulk Send Complete</h3>
-              <p className="text-dark-400 text-sm">{sendResult.created} request(s) created{sendResult.failed > 0 ? `, ${sendResult.failed} failed` : ''}.</p>
-              <button onClick={() => { reset(); onClose(); }} className="btn-primary mt-6">Done</button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <Upload size={26} style={{ color: 'var(--fg-4)' }} />
+                <p style={{ font: `450 13px/1.4 ${FONT}`, color: 'var(--fg-2)' }}>Drop CSV here or click to upload</p>
+              </div>
+            )}
+          </FileDrop>
+        </div>
+      )}
+
+      {/* Step 3: Preview */}
+      {step === 3 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ font: `450 13px/1.5 ${FONT}`, color: 'var(--fg-3)' }}>
+            {previewRows.length} valid recipients found.
+          </p>
+          {previewErrors.length > 0 && (
+            <div style={{
+              padding: 12, borderRadius: 'var(--r-2)', background: 'var(--danger-soft)',
+              boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent)',
+            }}>
+              <p style={{ font: `600 11.5px/1.4 ${FONT}`, color: 'var(--danger)', marginBottom: 4 }}>
+                {previewErrors.length} error(s):
+              </p>
+              {previewErrors.slice(0, 5).map((e, i) => (
+                <p key={i} style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-2)' }}>{e}</p>
+              ))}
             </div>
           )}
+          <div style={{ maxHeight: 220, overflow: 'auto' }}>
+            <DataTable
+              resizable={false}
+              density="compact"
+              columns={[
+                { key: 'name', header: 'Name', width: 150 },
+                { key: 'email', header: 'Email', width: 200 },
+                { key: 'phone', header: 'Phone', width: 120, muted: true },
+                { key: 'company', header: 'Company', width: 140, muted: true },
+              ]}
+              rows={previewRows.slice(0, 20)}
+              rowKey={(r, i) => `${r.email || 'row'}-${i}`}
+            />
+            {previewRows.length > 20 && (
+              <p style={{ font: `450 11.5px/1.5 ${FONT}`, color: 'var(--fg-3)', textAlign: 'center', marginTop: 8 }}>
+                …and {previewRows.length - 20} more
+              </p>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* Step 4: Options */}
+      {step === 4 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Field label="Subject" htmlFor="bs-subject">
+            <Input
+              id="bs-subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder={`Signature Request - ${selectedTemplate?.name}`}
+            />
+          </Field>
+          <Field label="Message (optional)" htmlFor="bs-message">
+            <Textarea
+              id="bs-message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={3}
+              placeholder="Add a message…"
+              style={{ resize: 'none' }}
+            />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <Field label="Valid Until (optional)" htmlFor="bs-validity">
+              <Input id="bs-validity" type="date" value={validity} onChange={(e) => setValidity(e.target.value)} />
+            </Field>
+            <Field label="Remind every" htmlFor="bs-reminder">
+              <Select
+                id="bs-reminder"
+                value={bulkReminderDays}
+                onChange={(e) => setBulkReminderDays(Number(e.target.value))}
+              >
+                <option value={1}>Daily</option>
+                <option value={2}>Every 2 days</option>
+                <option value={3}>Every 3 days</option>
+                <option value={7}>Weekly (default)</option>
+                <option value={14}>Every 2 weeks</option>
+                <option value={0}>No reminders</option>
+              </Select>
+            </Field>
+          </div>
+          <Field label="CC Emails (optional)" htmlFor="bs-cc">
+            <Input
+              id="bs-cc"
+              type="text"
+              value={bulkCcEmails}
+              onChange={(e) => setBulkCcEmails(e.target.value)}
+              placeholder="comma separated emails — applied to every request"
+            />
+          </Field>
+        </div>
+      )}
+
+      {/* Step 5: Result */}
+      {step === 5 && sendResult && (
+        <EmptyState
+          compact
+          tone="brand"
+          icon={<Check size={22} />}
+          title="Bulk Send Complete"
+        >
+          {sendResult.created} request(s) created
+          {sendResult.failed > 0 ? `, ${sendResult.failed} failed` : ''}.
+        </EmptyState>
+      )}
+    </Modal>
   );
 }
 
