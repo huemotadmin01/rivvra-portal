@@ -123,6 +123,7 @@ const PayrollSettingsPage = lazy(() => import('./pages/payroll/PayrollSettingsPa
 const MyTaxDeclarationsPage = lazy(() => import('./pages/payroll/MyTaxDeclarationsPage'));
 const MyTaxReportPage = lazy(() => import('./pages/payroll/MyTaxReportPage'));
 const FnFDashboard = lazy(() => import('./pages/payroll/FnFDashboard'));
+const FnFDashboardV2 = lazy(() => import('./pages/payroll/FnFDashboardV2'));
 
 const AttendanceApprovals = lazy(() => import('./pages/timesheet/AttendanceApprovals'));
 const LeaveApply = lazy(() => import('./pages/timesheet/LeaveApply'));
@@ -550,7 +551,7 @@ function App() {
                   <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/tax-reports" element={<ErrorBoundary><TaxReportsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/settings" element={<ErrorBoundary><PayrollSettingsPage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><FnFDashboard /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><PageSwitch v2={FnFDashboardV2} legacy={FnFDashboard} /></ErrorBoundary>} />
                 </Route>
               </Route>
 
