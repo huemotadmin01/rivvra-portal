@@ -118,6 +118,7 @@ const AlumniDirectoryPage = lazy(() => import('./pages/employee/AlumniDirectory'
 const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
 const TaxReportsPage = lazy(() => import('./pages/payroll/TaxReportsPage'));
 const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboardPage'));
+const PayrollDashboardPageV2 = lazy(() => import('./pages/payroll/PayrollDashboardPageV2'));
 const PayrollSettingsPage = lazy(() => import('./pages/payroll/PayrollSettingsPage'));
 const MyTaxDeclarationsPage = lazy(() => import('./pages/payroll/MyTaxDeclarationsPage'));
 const MyTaxReportPage = lazy(() => import('./pages/payroll/MyTaxReportPage'));
@@ -539,7 +540,7 @@ function App() {
               <Route element={<AppRoleGate appId="payroll" requiredRole="admin" />}>
                 <Route element={<CountryGate allowed={['IN']} appName="Payroll" />}>
                   <Route path="/org/:slug/payroll/process" element={<PayrollProcessRedirect />} />
-                  <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PayrollDashboardPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PageSwitch v2={PayrollDashboardPageV2} legacy={PayrollDashboardPage} /></ErrorBoundary>} />
 
                   <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
 
