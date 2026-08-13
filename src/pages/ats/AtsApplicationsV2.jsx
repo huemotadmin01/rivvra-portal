@@ -595,7 +595,9 @@ export default function AtsApplicationsV2() {
             <span style={{
               width: 28, height: 28, borderRadius: 999, flexShrink: 0, display: 'grid', placeItems: 'center',
               background: refused ? 'var(--danger-soft, rgba(239,68,68,.14))' : 'var(--brand-soft)',
-              color: refused ? 'var(--danger)' : 'var(--brand)',
+              // Initials are TEXT on their own tint — --brand there measures
+              // 4.37 in light. --brand-ink is the pairing built for it.
+              color: refused ? 'var(--danger)' : 'var(--brand-ink)',
               font: "600 11px/1 'Inter', system-ui, sans-serif",
             }}>
               {(app.candidateName || '?')[0].toUpperCase()}
