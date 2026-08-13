@@ -86,10 +86,11 @@ one change covers migrated and legacy chips alike.
 
 ---
 
-### 3. `opacity-*` on top of an already-correct colour — OPEN
+### 3. `opacity-*` on top of an already-correct colour — FIXED
 
-Found during this pass, **not fixed.** The bridge remaps colours; it cannot
-remap opacity, and opacity is what fails here.
+The bridge remaps colours; it cannot remap opacity, and opacity is what
+failed here. **Fixed** — and the scope turned out to be far smaller than the
+first estimate, which is the lesson worth keeping.
 
 The statutory report pages carry explanatory copy in `text-[11px] opacity-60`
 and similar. The colour underneath is already the right token — the extra
@@ -104,15 +105,25 @@ still had headroom. On paper it does not:
 | `invoicing/reports/payables` | 3.17 | "31-60 Days" |
 | `invoicing/reports/profitability` | 3.23 | "Total Costs" |
 
-There are **518 `opacity-{40,50,60,70}` occurrences across 192 legacy files**,
-so this is not a per-file edit. Two candidate fixes, neither taken here
-because both are judgement calls:
+**The 518-occurrences-across-192-files figure was misleading.** It counted
+every `opacity-*` utility, most of which sit on icons and decorative glyphs
+that never fail. Measuring what *actually* fell below AA reduced it to **one
+class pattern** — `text-xs|text-[11px] … opacity-60|70 … uppercase` on a KPI
+tile label — in **8 places across 7 files**.
 
-- **Raise the floor in the bridge** — e.g. `.ds-shell .opacity-60 { opacity: .82 }`.
-  One small block, no page edits. But `opacity` is also used on icons and
-  decorative glyphs, so it would lighten those too.
-- **Stop using opacity for muted text** and let the `--fg-*` ramp carry it.
-  Correct, but it is a real sweep across those 192 files.
+Three of those seven already had a V2 that supersedes them, and since light
+theme only exists inside the v2 shell, the legacy file is never rendered in
+light. **Real scope: 6 files.** The `opacity` was redundant anyway — the
+labels are already subordinate via `text-xs` + `uppercase` +
+`tracking-wider` — so it was removed rather than floored, leaving icon and
+`disabled:` opacity untouched.
+
+Measured after: `reports/tax` 10 → **0**, `tds` 10 → **0**, `receivables`
+12 → **0**, `payables` 6 → **0**, `profitability` 3 → **0**.
+
+**The lesson: count what fails, not what matches.** A grep for the mechanism
+over-counts by ~60× against a measurement of the symptom, and that gap is
+the difference between "a 192-file sweep" and an afternoon.
 
 Worth noting the failures are concentrated in the tax/GST report explanatory
 copy — text added by the July readability pass specifically so people could
