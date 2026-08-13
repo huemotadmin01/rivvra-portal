@@ -186,6 +186,7 @@ const ContactsConfig = lazy(() => import('./pages/contacts/ContactsConfig'));
 
 // Lazy-loaded: ATS app pages
 const AtsPipeline = lazy(() => import('./pages/ats/AtsPipeline'));
+const AtsPipelineV2 = lazy(() => import('./pages/ats/AtsPipelineV2'));
 const AtsApplications = lazy(() => import('./pages/ats/AtsApplications'));
 const AtsApplicationDetail = lazy(() => import('./pages/ats/AtsApplicationDetail'));
 const AtsApplicationDetailV2 = lazy(() => import('./pages/ats/AtsApplicationDetailV2'));
@@ -629,7 +630,7 @@ function App() {
               {/* ATS app routes — gated by ats access */}
               <Route element={<AppAccessGate appId="ats" />}>
                 <Route path="/org/:slug/ats" element={<AtsIndexRedirect />} />
-                <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><AtsPipeline /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><PageSwitch v2={AtsPipelineV2} legacy={AtsPipeline} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><PageSwitch v2={AtsApplicationsV2} legacy={AtsApplications} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><PageSwitch v2={AtsApplicationDetailV2} legacy={AtsApplicationDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><PageSwitch v2={AtsJobPositionsV2} legacy={AtsJobPositions} /></ErrorBoundary>} />
