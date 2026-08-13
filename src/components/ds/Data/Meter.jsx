@@ -27,10 +27,14 @@ export function Meter({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, ...style }} {...rest}>
+      {/* The label shrinks before the track does. It used to be flexShrink: 0,
+          which meant a narrow Meter gave all its width to the words and
+          collapsed the bar to a nub — the one part that has to stay readable.
+          Wide callers are unaffected: it only shrinks when there isn't room. */}
       {label && (
         <span style={{
           font: "450 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-3, #98a4b2)',
-          flexShrink: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {label}
         </span>
