@@ -357,7 +357,7 @@ deferring them does not hold:
 | `SignTemplates` | 840 | none — **migrated (phase 10)** |
 | `SignTemplateEditor` | 2,662 | none |
 | `SignRequestDetail` | 1,007 | 3 calls — **migrated (phase 10)** |
-| `SignRequests` | 2,221 | 4 calls — **list migrated (phase 10); modals deferred** |
+| `SignRequests` | 2,221 | 4 calls — **fully migrated (phase 10)** |
 
 None of them uses the three ds components that depend on `shell.css`
 (`SelectChip`, `GroupByChip`, `MoreFilters`), so the one documented
@@ -376,24 +376,42 @@ imported by four v2 pages (`ContactDetailV2`, `CrmOpportunityDetailV2`,
 four pages into a page migration would make the send-path review harder, not
 easier. It wants its own change.
 
-### SignRequests: the list is migrated, the three modals are not
+### Migrating a modal that sends: where to put the boundary
 
-`SignRequests.jsx` is 2,221 lines, and **1,281 of them are three modals**
-(`NewRequestModal`, `QuickSendModal`, `BulkSendModal`) that between them hold
-every outward-facing path on the page — `createRequest`,
-`createEnvelopeRequest`, `quickSendPrepare`, `bulkSend`. The V2 copies all
-three **byte-identical**, so "the send behaviour did not change" is provable
-by diff rather than by argument. They render correctly anyway: the palette
-bridge covers legacy classes inside the v2 shell, verified in both themes.
+`SignRequests`' three modals (`NewRequestModal`, `QuickSendModal`,
+`BulkSendModal`) hold every outward-facing path on the page —
+`createRequest`, `createEnvelopeRequest`, `quickSendPrepare`, `bulkSend`.
+They were migrated in a second pass, and the technique generalises to any
+form whose submit does something irreversible:
+
+**Put the boundary at `return (`.** Everything above it — state, effects,
+validation, and every handler that talks to the API — stays byte-identical;
+only the JSX below is rewritten. That makes "the send behaviour did not
+change" a `diff`, not an argument. Verified per modal by extracting the
+region from the signature down to `if (!show) return null;` and comparing:
+`QuickSendModal` and `BulkSendModal` identical, `NewRequestModal` identical
+but for `modalRef`, which only ever carried the legacy dialog div's ref.
+
+**Every control keeps its exact `value`/`onChange` binding.** A dropped
+binding in a form like this is a broken send, not a cosmetic bug.
+
+**Where a ds primitive replaces a hand-rolled control, adapt to the old
+handler rather than rewriting it.** `QuickSendModal`'s `handleFile` reads
+`e.target.files?.[0] || e.dataTransfer?.files?.[0]`, so `ds/FileDrop` hands
+its `File` back in that shape. Proof it works: dropping
+`Verification_Only (2).pdf` still auto-names the document "Verification
+Only" — the legacy filename-tidying (extension, `(2)` suffix, underscore) ran
+untouched — and a `.docx` is still rejected.
+
+Two contrast fixes fell out of the audit: the wizard's active step pip was
+white on `indigo-500` (**4.07**, and indigo is not a colour the bridge
+remaps) and is now `--brand-fg` on `--brand`; the review step's signing-order
+pip was `--a-sign` on an 18% tint of itself over `surface-3` (**3.95**) and
+is now solid accent with `--bg` text.
 
 The earlier count in this table said "2 calls". That was wrong — it counted
-only the two calls in the list body and missed the modals. The real figure is
-four send paths plus `bulkDeleteRequests` and the row-level cancel/remind.
-
-One thing the modals do carry, found while auditing dark: the wizard's active
-step badge is white on `indigo-500`, which measures **4.07** against a 4.5
-floor. Indigo is not in the `dark-*` palette, so the bridge does not remap it.
-It belongs with the modals change, not here.
+only the list body and missed the modals. It is four, plus
+`bulkDeleteRequests` and the row-level cancel/remind.
 
 ### The signed-document tab asked for a file that isn't there
 
