@@ -49,6 +49,7 @@ export { InlineField } from './Form/InlineField';
 export { InlineSelect } from './Form/InlineSelect';
 export { Select } from './Form/Select';
 export { Textarea } from './Form/Textarea';
+export { FileDrop } from './Form/FileDrop';
 export { Switch, SettingRow } from './Form/Switch';
 export { TagPicker } from './Form/TagPicker';
 export { Logo, LogoLockup } from './Logo/Logo';

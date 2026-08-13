@@ -222,6 +222,7 @@ const CrmConfigLostReasons = lazy(() => import('./pages/crm/CrmConfigLostReasons
 const SignDashboard = lazy(() => import('./pages/sign/SignDashboard'));
 const SignDashboardV2 = lazy(() => import('./pages/sign/SignDashboardV2'));
 const SignTemplates = lazy(() => import('./pages/sign/SignTemplates'));
+const SignTemplatesV2 = lazy(() => import('./pages/sign/SignTemplatesV2'));
 const SignTemplateEditor = lazy(() => import('./pages/sign/SignTemplateEditor'));
 const SignRequests = lazy(() => import('./pages/sign/SignRequests'));
 const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
@@ -658,7 +659,7 @@ function App() {
                 <Route path="/org/:slug/sign/dashboard" element={<ErrorBoundary><PageSwitch v2={SignDashboardV2} legacy={SignDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/requests" element={<ErrorBoundary><SignRequests /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/requests/:requestId" element={<ErrorBoundary><SignRequestDetail /></ErrorBoundary>} />
-                <Route path="/org/:slug/sign/templates" element={<ErrorBoundary><SignTemplates /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/templates" element={<ErrorBoundary><PageSwitch v2={SignTemplatesV2} legacy={SignTemplates} /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/templates/:templateId/edit" element={<ErrorBoundary><SignTemplateEditor /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="sign" requiredRole="admin" />}>
                   <Route path="/org/:slug/sign/config" element={<ErrorBoundary><PageSwitch v2={SignConfigV2} legacy={SignConfig} /></ErrorBoundary>} />
