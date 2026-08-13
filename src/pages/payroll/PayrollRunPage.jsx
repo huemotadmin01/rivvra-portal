@@ -509,6 +509,23 @@ export default function PayrollRunPage() {
         })
       : searchedItems;
     const isFiltered = !!searchQuery || empTypeFilter !== 'all';
+
+    // ── Re-process affordances ────────────────────────────────────────────
+    // Release is per-employee, so a partially-released run CAN be re-processed:
+    // released rows are frozen server-side and only unreleased employees
+    // recompute. That is what lets external consultants — paid on the 15th of
+    // the following month — be processed after employees were already paid.
+    //
+    // The one case still refused is a legacy release-all: `payslipReleased`
+    // with no `releasedEmployeeIds`, where the server can't tell who was
+    // released. Surface that as a disabled button with the reason, rather than
+    // letting the click dead-end in an error toast.
+    const releasedCount = (run.releasedEmployeeIds || []).length;
+    const isLegacyReleaseAll = !!run.payslipReleased && releasedCount === 0;
+    const reprocessBlockedReason = isLegacyReleaseAll
+      ? 'Payslips were released to everyone without a per-employee list, so figures people have already seen can\'t be protected. Hold payslips first, then re-process.'
+      : null;
+    const frozenDrift = run.reprocessFrozenDrift || [];
     // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
     const columns = [
       { key: 'name', label: 'Employee' },
@@ -535,7 +552,21 @@ export default function PayrollRunPage() {
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status]}`}>{statusLabel(run.status)}</span>
               {run.inputsLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400" title="Attendance & timesheet inputs are frozen for this run">Inputs Locked</span>}
               {run.payrollLocked && <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${LOCKED_BADGE}`} title="Payroll figures are frozen — the normal state for a finished run">Payroll Locked</span>}
-              {run.payslipReleased && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">Released</span>}
+              {/* Partial release is the normal case when one cohort is paid on
+                  the 30th and another on the 15th of the following month —
+                  say so, rather than implying everyone can see their payslip. */}
+              {run.payslipReleased && (
+                releasedCount > 0 && releasedCount < (run.items || []).length ? (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400"
+                    title={`${releasedCount} of ${(run.items || []).length} payslips released. The rest stay hidden in ESS and can still be re-processed.`}
+                  >
+                    Released ({releasedCount}/{(run.items || []).length})
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-400">Released</span>
+                )
+              )}
             </div>
             <p className="text-sm text-dark-400">
               FY {run.financialYear} | {statutoryItems.length} employee{statutoryItems.length === 1 ? '' : 's'}{contractorItems.length > 0 && <>, {contractorItems.length} contractor{contractorItems.length === 1 ? '' : 's'}</>}
@@ -553,7 +584,12 @@ export default function PayrollRunPage() {
             {run.status === 'processed' && (
               <>
                 {!run.payrollLocked && (
-                  <button onClick={handleProcess} disabled={processing} className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50">
+                  <button
+                    onClick={handleProcess}
+                    disabled={processing || !!reprocessBlockedReason}
+                    title={reprocessBlockedReason || 'Recompute this run. Released payslips keep the figures already paid.'}
+                    className="flex items-center gap-2 px-3 py-2 border border-dark-600 text-dark-300 rounded-lg hover:bg-dark-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
                     {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-dark-300/30 border-t-dark-300" /> : <Play size={14} />}
                     {processing ? 'Processing...' : 'Re-process'}
                   </button>
@@ -577,6 +613,47 @@ export default function PayrollRunPage() {
             )}
           </div>
         </div>
+
+        {/* Frozen-row drift — a released employee's inputs changed after they
+            were paid, so the last re-process kept the paid figure and recorded
+            what it would otherwise have become. Not an error: you file what you
+            actually paid, and a genuine correction goes out as arrears. But it
+            must be visible, or the run and its inputs disagree in silence. */}
+        {frozenDrift.length > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={15} className="text-amber-400 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-amber-300">
+                  {frozenDrift.length} released payslip{frozenDrift.length === 1 ? '' : 's'} kept the figure already paid
+                </p>
+                <p className="text-xs text-dark-400 mt-0.5">
+                  July data changed after these employees were paid. Their rows were left untouched — recomputing would have moved a figure they have already received. Pay any genuine correction as arrears in a later run.
+                </p>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="text-xs min-w-full">
+                    <thead>
+                      <tr className="text-dark-500">
+                        <th className="text-left font-medium pr-4 pb-1">Employee</th>
+                        <th className="text-right font-medium pr-4 pb-1">Paid net</th>
+                        <th className="text-right font-medium pb-1">Would have become</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {frozenDrift.map((d) => (
+                        <tr key={d.employeeId} className="text-dark-300">
+                          <td className="pr-4 py-0.5">{d.employeeName}</td>
+                          <td className="text-right pr-4 py-0.5 tabular-nums">{formatMoney(d.storedNet)}</td>
+                          <td className="text-right py-0.5 tabular-nums text-amber-400">{formatMoney(d.wouldBeNet)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Action Bar — split so that irreversible run-state changes (which lock
             figures or email employees) can never be mistaken for a harmless file
