@@ -57,7 +57,7 @@ import InviteEmployeeModal from '../../components/employee/InviteEmployeeModal';
 import LaunchPlanModal from '../../components/employee/LaunchPlanModal';
 import PlanProgress from '../../components/employee/PlanProgress';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
-import SignRequestWidget from '../../components/shared/SignRequestWidget';
+import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import ReleaseDocumentsPanel from '../../components/employee/ReleaseDocumentsPanel';
 import { withFromContext } from '../../utils/entityDescribe';
@@ -1735,7 +1735,7 @@ export default function EmployeeDetail() {
 
       {/* ── Sign Requests ──────────────────────────────────────────────── */}
       <div className="mt-5">
-        <SignRequestWidget
+        <SignRequestWidgetV2
           orgSlug={currentOrg?.slug}
           linkedModel="employee"
           linkedId={employeeId}

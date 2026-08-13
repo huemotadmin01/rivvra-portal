@@ -368,13 +368,23 @@ What genuinely makes Sign expensive is **size**: ~10,600 lines across six
 files, with two over 2,200. That is a scheduling fact, not a design blocker,
 and it should be recorded as such rather than as an archetype problem.
 
-`shared/SignRequestWidget.jsx` (dark-only, listed under Deprecations) still
-wants rebuilding. It was **deliberately left out of the `SignRequestDetail`
-change**: it is a 315-line shared island with its own create-and-send path,
-imported by four v2 pages (`ContactDetailV2`, `CrmOpportunityDetailV2`,
-`AtsApplicationDetailV2`, `EmployeeDetailV2`). Folding a send path that touches
-four pages into a page migration would make the send-path review harder, not
-easier. It wants its own change.
+`shared/SignRequestWidget.jsx` is **migrated** as
+`shared/v2/SignRequestWidgetV2.jsx` (phase 10), and the four v2 pages
+(`ContactDetailV2`, `CrmOpportunityDetailV2`, `AtsApplicationDetailV2`,
+`EmployeeDetailV2`) now import it. The legacy file stays for the legacy pages.
+Everything above its `return (` — including `handleSend`, which calls
+createRequest and emails the signers — is byte-identical.
+
+**ds `Modal` does not portal.** It positions itself with an inline
+`position: fixed`, so any ancestor with a `transform` or `filter` creates a
+containing block and traps it — the modal lands off-centre and clipped. The
+legacy widget already carried a `createPortal(…, document.body)` wrapper with
+a comment explaining exactly that, and the V2 keeps it wrapped around ds
+`Modal` rather than dropping it. Verified at runtime: the dialog's parent is
+`document.body`, it sits outside `.ds-shell`, and it centres across the full
+viewport including the sidebar. **Any future caller that renders ds `Modal`
+beneath a transformed ancestor needs the same wrapper** — or ds `Modal` should
+learn to portal itself.
 
 ### SignTemplateEditor: two corrections, and a partial by design
 

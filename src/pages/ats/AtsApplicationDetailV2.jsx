@@ -10,7 +10,7 @@ import atsApi from '../../utils/atsApi';
 import signApi from '../../utils/signApi';
 import employeeApi from '../../utils/employeeApi';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
-import SignRequestWidget from '../../components/shared/SignRequestWidget';
+import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import AttachmentsPanel from '../../components/ats/AttachmentsPanel';
 import AiResumeInsights from '../../components/ats/AiResumeInsights';
@@ -1855,7 +1855,7 @@ export default function AtsApplicationDetail() {
             <AttachmentsPanel orgSlug={orgSlug} applicationId={applicationId} readOnly={!canEdit} />
           </Panel>
 
-          {/* SignRequestWidget brings its own card styling, header, list,
+          {/* SignRequestWidgetV2 brings its own Panel, header, list,
               and "+ Send other document" composer modal — same component
               CRM / Employee / Contact use. Wrapping it in a SectionCard
               caused two nested headers and duplicated the request list
@@ -1863,7 +1863,7 @@ export default function AtsApplicationDetail() {
               "Request Signature" button was removed since this widget
               already provides an in-place entry point and the new
               "Offer" header button owns the offer-letter flow. */}
-          <SignRequestWidget
+          <SignRequestWidgetV2
             orgSlug={orgSlug}
             linkedModel="ats_application"
             linkedId={applicationId}
