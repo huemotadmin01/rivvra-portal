@@ -17,7 +17,7 @@ function AgingCard({ label, amount, color, currency }) {
   };
   return (
     <div className={`rounded-xl border p-5 ${colorMap[color] || colorMap.blue}`}>
-      <span className="text-xs font-medium opacity-70 uppercase tracking-wider">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
       <p className="text-2xl font-bold mt-2">{formatCurrency(amount, currency)}</p>
     </div>
   );
@@ -71,9 +71,24 @@ function CurrencyBlock({ currency, summary, customers, isMobile }) {
                 </tr>
               </thead>
               <tbody>
+                {/* The row index is part of the key on purpose. This report can
+                    legitimately return TWO rows for the same customerId: invoices
+                    carry a denormalised counterparty name and the aggregation
+                    groups by name as well as id, so a renamed counterparty
+                    splits into two rows sharing one id. Keying on id alone
+                    collided, and React warns that duplicate keys may omit or
+                    duplicate children.
+
+                    Observed live on staging: customer 69e3e771f6e20f6d943fb5b8
+                    rendered as both "…Fufec" (₹790,634.50) and "…Fufeco"
+                    (₹637,757.76) — one counterparty, ₹14.28L split in two.
+
+                    This makes the RENDER correct. It deliberately does NOT
+                    merge the rows: that would change a money figure, and the
+                    split is real data. See REDESIGN.md. */}
                 {customers.map((row, i) => (
                   <tr
-                    key={`${row.customerId || i}-${currency}`}
+                    key={`${row.customerId || 'x'}-${currency}-${i}`}
                     className="border-b border-dark-700/50 hover:bg-dark-800/50 transition-colors"
                   >
                     <td className="px-5 py-3 text-white font-medium">{row.customerName || '-'}</td>

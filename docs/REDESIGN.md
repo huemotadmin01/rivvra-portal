@@ -331,26 +331,26 @@ was dead code in both, which is how they drifted unnoticed for months.
 
 ### Open defects, not yet fixed
 
-- **Aged Receivables / Payables can drop a row.** `AgedReceivables.jsx:76` and
-  `AgedPayables.jsx:70` key rows as `` `${row.customerId || i}-${currency}` ``.
-  Two rows for the same counterparty in the same currency collide, and React
-  warns "Encountered two children with the same key" then may omit or duplicate
-  one. Observed live on staging with `69e3e771f6e20f6d943fb5b8-INR`.
-  `TaxReport.jsx:206` has the same shape. Not fixed here: these are money
-  reports, and the right fix depends on whether duplicate counterparty rows are
-  expected (key needs the ageing bucket too) or whether something upstream
-  should have merged them. **Worth checking against a real receivables total
-  before trusting either report.**
+- **Aged Receivables / Payables split one counterparty across two rows.**
+  *Render fixed; the underlying data issue is NOT.* The report can return two
+  rows sharing a `customerId` because invoices carry a **denormalised**
+  counterparty name and the aggregation groups by name as well as id — so a
+  rename splits one party in two. Live on staging: customer
+  `69e3e771f6e20f6d943fb5b8` appears as both "Todin Hutop Hatik Fufec"
+  (₹790,634.50) and "…Fufeco" (₹637,757.76) — **one customer, ₹14.28L shown
+  as two partial lines**. The duplicate React key is fixed (index added, so
+  rows can no longer be omitted or duplicated), but the rows are deliberately
+  NOT merged in the frontend: that would change a money figure, and the split
+  is real data. The fix belongs in the aggregation (group by id alone) or in a
+  backfill of the denormalised names. Related: the CRM rename cascade, whose
+  19-opportunity remediation is still pending.
+
 - **A policy whose PDF fails to render can never be acknowledged.**
   `PolicyReaderModal`'s scroll gate leaves `reachedEnd` false when the render
   errors, so "I acknowledge" stays locked while the only offered path is
   Download. Inherited from the legacy component, not introduced by the
   migration — but on staging, where every policy download 500s, it is the
   only state you can reach.
-- **`opacity-*` on small text, across the statutory reports** — 2.67 on the
-  GST and TDS explanatory copy. 518 occurrences over 192 files, so it is a
-  bridge-wide opacity floor or a real sweep, not a per-file edit. See
-  `THEMING.md`.
 
 *(Fixed and removed from this list: `ds/ConfirmDialog`'s brand-green danger
 confirm, closed by the `Button` `danger` variant; and `ds/Chip`'s sub-AA

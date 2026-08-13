@@ -31,9 +31,9 @@ function Kpi({ label, amount, tone, hint }) {
   };
   return (
     <div className={`rounded-xl border p-4 ${tones[tone] || tones.blue}`}>
-      <span className="text-[11px] font-medium opacity-70 uppercase tracking-wider">{label}</span>
+      <span className="text-[11px] font-medium uppercase tracking-wider">{label}</span>
       <p className="text-xl font-bold mt-1.5">{formatCurrency(amount, 'INR')}</p>
-      {hint && <p className="text-[11px] opacity-60 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] mt-1">{hint}</p>}
     </div>
   );
 }
