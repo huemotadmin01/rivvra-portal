@@ -240,6 +240,7 @@ const DocumentsManageTagsV2 = lazy(() => import('./pages/documents/documentsConf
 
 // Lazy-loaded: Invoicing app pages
 const InvoicingDashboard = lazy(() => import('./pages/invoicing/InvoicingDashboard'));
+const InvoicingDashboardV2 = lazy(() => import('./pages/invoicing/InvoicingDashboardV2'));
 const InvoiceList = lazy(() => import('./pages/invoicing/InvoiceList'));
 const InvoiceForm = lazy(() => import('./pages/invoicing/InvoiceForm'));
 const InvoiceDetail = lazy(() => import('./pages/invoicing/InvoiceDetail'));
@@ -267,6 +268,7 @@ const InvoicingSettingsPage = lazy(() => import('./components/settings/SettingsI
 // Lazy-loaded: Incentive app pages
 const IncentiveMyEarnings = lazy(() => import('./pages/incentive/MyEarnings'));
 const IncentiveDashboard = lazy(() => import('./pages/incentive/IncentiveDashboard'));
+const IncentiveDashboardV2 = lazy(() => import('./pages/incentive/IncentiveDashboardV2'));
 const IncentiveRecordsList = lazy(() => import('./pages/incentive/RecordsList'));
 const IncentiveRecordForm = lazy(() => import('./pages/incentive/RecordForm'));
 const IncentiveRecordDetail = lazy(() => import('./pages/incentive/RecordDetail'));
@@ -679,7 +681,7 @@ function App() {
               {/* Invoicing app routes — admin only */}
               <Route element={<AppAccessGate appId="invoicing" />}>
                 <Route element={<AppRoleGate appId="invoicing" requiredRole="admin" />}>
-                  <Route path="/org/:slug/invoicing/dashboard" element={<ErrorBoundary><InvoicingDashboard /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/dashboard" element={<ErrorBoundary><PageSwitch v2={InvoicingDashboardV2} legacy={InvoicingDashboard} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices" element={<ErrorBoundary><InvoiceList /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/new" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/:invoiceId/edit" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
@@ -716,7 +718,7 @@ function App() {
                 <Route path="/org/:slug/incentive/records/:recordId" element={<ErrorBoundary><IncentiveRecordDetail /></ErrorBoundary>} />
                 {/* Admin-only */}
                 <Route element={<AppRoleGate appId="incentive" requiredRole="admin" />}>
-                  <Route path="/org/:slug/incentive/dashboard" element={<ErrorBoundary><IncentiveDashboard /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/dashboard" element={<ErrorBoundary><PageSwitch v2={IncentiveDashboardV2} legacy={IncentiveDashboard} /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/records" element={<ErrorBoundary><IncentiveRecordsList /></ErrorBoundary>} />
                   {/* /records/new removed — drafts are auto-created from paid invoices only.
                       /records/:recordId/edit kept so admins can tweak existing drafts before approval. */}
