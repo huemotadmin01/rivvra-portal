@@ -196,7 +196,7 @@ it.
 | Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
 | Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
 | `expenses/ExpenseDetail` | moved here out of group 1: FX arithmetic and totals rendered in the page, plus approval/reimbursement transitions |
-| Sign (7 pages) | `PublicSigningPage` is externally facing; send paths |
+| Sign — `PublicSigningPage` only | **Genuinely blocked, and the only one.** It renders in the public/no-auth route block, OUTSIDE `.ds-shell`, so the palette bridge never reaches it and there is no theme toggle. The other Sign pages are inside the shell; see below. |
 | `ats/applicationDetailParts.jsx` + `HireModal` | only stops being debt once legacy `AtsApplicationDetail` retires (~26 Aug, per the two-week rule) |
 
 ---
@@ -336,6 +336,40 @@ ATS's was keyboard-reachable but let clicks bubble, so rating a card would
 also open it. Neither call site passed `onChange`, so the interactive path
 was dead code in both, which is how they drifted unnoticed for months.
 `ds/RatingStars` takes the correct half of each.
+
+---
+
+## Sign — the blocker was real for ONE page, not seven
+
+Checked against the files, as the other three deferred entries should have
+been. `PublicSigningPage` really is externally facing: its route sits in the
+public/no-auth block, outside `.ds-shell`, so neither the palette bridge nor
+the theme toggle reaches it. Migrating it means committing to whatever
+palette it renders with, on a legally-significant signing surface. That one
+stays deferred on its merits.
+
+The other five are ordinary in-shell pages, and the reason given for
+deferring them does not hold:
+
+| page | lines | send path? |
+|---|---|---|
+| `SignConfig` | 666 | none — **migrated (phase 10)** |
+| `SignTemplates` | 840 | none |
+| `SignTemplateEditor` | 2,662 | none |
+| `SignRequestDetail` | 1,007 | 3 calls |
+| `SignRequests` | 2,221 | 2 calls |
+
+None of them uses the three ds components that depend on `shell.css`
+(`SelectChip`, `GroupByChip`, `MoreFilters`), so the one documented
+out-of-shell hazard is not in play either. Three of the five have no send
+path at all.
+
+What genuinely makes Sign expensive is **size**: ~10,600 lines across six
+files, with two over 2,200. That is a scheduling fact, not a design blocker,
+and it should be recorded as such rather than as an archetype problem.
+
+`shared/SignRequestWidget.jsx` (dark-only, listed under Deprecations) still
+wants rebuilding and belongs with `SignRequestDetail`.
 
 ### Open defects, not yet fixed
 
