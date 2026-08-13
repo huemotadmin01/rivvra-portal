@@ -138,6 +138,7 @@ const KnowledgeBasePage = lazy(() => import('./pages/kb/KnowledgeBasePage'));
 
 // Lazy-loaded: Employee app pages
 const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
+const EmployeeDashboardV2 = lazy(() => import('./pages/employee/EmployeeDashboardV2'));
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
 const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
@@ -195,11 +196,13 @@ const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
 const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
 const AtsApplicationNew = lazy(() => import('./pages/ats/AtsApplicationNew'));
 const AtsDashboard = lazy(() => import('./pages/ats/AtsDashboard'));
+const AtsDashboardV2 = lazy(() => import('./pages/ats/AtsDashboardV2'));
 const AtsMyApprovals = lazy(() => import('./pages/ats/AtsMyApprovals'));
 const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 
 // Lazy-loaded: CRM app pages
 const CrmDashboard = lazy(() => import('./pages/crm/CrmDashboard'));
+const CrmDashboardV2 = lazy(() => import('./pages/crm/CrmDashboardV2'));
 const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
@@ -567,7 +570,7 @@ function App() {
 
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
-                <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><EmployeeDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><PageSwitch v2={EmployeeDashboardV2} legacy={EmployeeDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
@@ -603,7 +606,7 @@ function App() {
               {/* CRM app routes — gated by crm access */}
               <Route element={<AppAccessGate appId="crm" />}>
                 <Route path="/org/:slug/crm" element={<CrmIndexRedirect />} />
-                <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><CrmDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><PageSwitch v2={CrmDashboardV2} legacy={CrmDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><PageSwitch v2={CrmOpportunitiesV2} legacy={CrmOpportunities} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><PageSwitch v2={CrmOpportunityNewV2} legacy={CrmOpportunityNew} /></ErrorBoundary>} />
@@ -635,7 +638,7 @@ function App() {
                 {/* 2026-05-14: Dashboard is the ATS landing for everyone,
                     so it sits outside the admin gate. Old /ats/reporting
                     path still redirects in for bookmark continuity. */}
-                <Route path="/org/:slug/ats/dashboard" element={<ErrorBoundary><AtsDashboard /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/dashboard" element={<ErrorBoundary><PageSwitch v2={AtsDashboardV2} legacy={AtsDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/reporting" element={<AtsReportingRedirect />} />
                 <Route element={<AppRoleGate appId="ats" requiredRole="admin" />}>
                   <Route path="/org/:slug/ats/config" element={<ErrorBoundary><PageSwitch v2={AtsConfigV2} legacy={AtsConfig} /></ErrorBoundary>} />
