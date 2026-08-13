@@ -82,6 +82,7 @@ const SettingsPayroll = lazy(() => import('./components/settings/SettingsPayroll
 // Lazy-loaded: Expenses app pages
 const ExpenseList = lazy(() => import('./pages/expenses/ExpenseList'));
 const ExpenseDetail = lazy(() => import('./pages/expenses/ExpenseDetail'));
+const ExpenseDetailV2 = lazy(() => import('./pages/expenses/ExpenseDetailV2'));
 
 // Lazy-loaded: To-Do app pages
 const TodoDashboard = lazy(() => import('./pages/todo/TodoDashboard'));
@@ -733,10 +734,10 @@ function App() {
               {/* Expenses app routes — default-enabled for all org members */}
               <Route element={<AppAccessGate appId="expenses" />}>
                 <Route path="/org/:slug/expenses" element={<ErrorBoundary><PageSwitch v2={ExpenseListV2} legacy={ExpenseList} /></ErrorBoundary>} />
-                <Route path="/org/:slug/expenses/new" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/new" element={<ErrorBoundary><PageSwitch v2={ExpenseDetailV2} legacy={ExpenseDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/expenses/team" element={<ErrorBoundary><PageSwitch v2={ExpenseListV2} legacy={ExpenseList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/expenses/all" element={<ErrorBoundary><PageSwitch v2={ExpenseListV2} legacy={ExpenseList} /></ErrorBoundary>} />
-                <Route path="/org/:slug/expenses/:id" element={<ErrorBoundary><ExpenseDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/expenses/:id" element={<ErrorBoundary><PageSwitch v2={ExpenseDetailV2} legacy={ExpenseDetail} /></ErrorBoundary>} />
               </Route>
             </Route>
 
