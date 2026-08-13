@@ -43,7 +43,10 @@ export function FilterChip({
       style={{
         ...base,
         background: active ? 'var(--brand-soft, rgba(34,197,94,.13))' : 'var(--surface-3, #1c242f)',
-        color: active ? 'var(--brand, #22c55e)' : 'var(--fg-2, #bac4d0)',
+        // --brand-ink, not --brand: the accent on its own 10% tint measures
+        // 4.37 against a 4.5 floor on paper. Same pairing, and the same fix,
+        // as ds/Chip. In dark --brand-ink aliases --brand, so nothing moves.
+        color: active ? 'var(--brand-ink, #22c55e)' : 'var(--fg-2, #bac4d0)',
         boxShadow: active ? 'inset 0 0 0 1px var(--brand-line, rgba(34,197,94,.28))' : 'none',
         ...style,
       }}
