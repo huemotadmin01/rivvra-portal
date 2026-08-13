@@ -354,7 +354,7 @@ deferring them does not hold:
 | page | lines | send path? |
 |---|---|---|
 | `SignConfig` | 666 | none — **migrated (phase 10)** |
-| `SignTemplates` | 840 | none |
+| `SignTemplates` | 840 | none — **migrated (phase 10)** |
 | `SignTemplateEditor` | 2,662 | none |
 | `SignRequestDetail` | 1,007 | 3 calls |
 | `SignRequests` | 2,221 | 2 calls |
@@ -370,6 +370,26 @@ and it should be recorded as such rather than as an archetype problem.
 
 `shared/SignRequestWidget.jsx` (dark-only, listed under Deprecations) still
 wants rebuilding and belongs with `SignRequestDetail`.
+
+### A shell reset was eating legacy button borders
+
+Migrating `SignTemplates` surfaced a defect in `shell.css`, not in any page:
+
+```css
+.ds-shell button { … border: none; … }   /* removed */
+```
+
+Tailwind's preflight already zeroes button borders app-wide, so this added
+nothing — but at specificity (0,1,1) it beat the `border` **width** utility
+(0,1,0). The bridge only ever remaps border *colours*, so every legacy button
+carrying a bare `border` lost its outline the moment it was rendered inside a
+v2 page. `sign/TagPicker`'s tag pills flattened into bare text, which is how it
+was found; a sweep of the legacy components v2 pages import shows TagPicker is
+the only one affected, so the fix is narrow.
+
+The general rule this implies: **element-level resets in `shell.css` must stay
+weaker than the utilities the bridge remaps.** A reset that duplicates
+preflight is not free — it changes who wins.
 
 ### Open defects, not yet fixed
 

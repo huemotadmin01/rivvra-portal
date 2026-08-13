@@ -17,7 +17,13 @@
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'cv05' 1, 'cv08' 1, 'ss03' 1;
 }
-.ds-shell button { cursor: pointer; border: none; background: none; color: inherit; font-family: inherit; }
+/* No `border: none` here. Tailwind's preflight already zeroes button borders
+   app-wide, so this rule added nothing — but at (0,1,1) it out-specified the
+   `border` width utility (0,1,0), so every LEGACY button rendered inside a v2
+   page silently lost its outline. Found on Sign Templates, where TagPicker's
+   tag pills flattened into bare text. Element-level resets in here must stay
+   weaker than the utilities the bridge is remapping. */
+.ds-shell button { cursor: pointer; background: none; color: inherit; font-family: inherit; }
 .ds-shell a { color: var(--brand); text-decoration: none; }
 .ds-shell a:hover { color: var(--brand-hi); }
 .ds-shell ::selection { background: var(--brand-soft); color: var(--fg); }
