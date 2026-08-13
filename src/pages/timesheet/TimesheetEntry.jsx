@@ -361,7 +361,11 @@ export default function TimesheetEntry() {
   const buildEntries = () => {
     return Object.entries(entries)
       .filter(([day, entry]) => {
-        if (isBeforeProjectStart(parseInt(day))) return false; // skip days before project start
+        // Never persist a day outside this assignment's window. Holidays and
+        // approved leave are auto-populated across the whole month, so without
+        // this an ended engagement would save the *next* engagement's leave and
+        // holiday days onto itself — double-counting them across both timesheets.
+        if (isDayDisabled(parseInt(day))) return false;
         // Only include entries the user explicitly set (has a status or non-empty hours)
         if (entry.status === 'weekend') return false; // weekends are display-only, never save
         if (entry.status === 'leave' || entry.status === 'holiday') return true;
@@ -379,13 +383,15 @@ export default function TimesheetEntry() {
       });
   };
 
+  // Footer totals count exactly the days buildEntries persists, so what the
+  // consultant sees matches what gets submitted.
   const totalHours = Object.entries(entries).reduce((sum, [d, e]) => {
-    if (isBeforeProjectStart(parseInt(d))) return sum;
+    if (isDayDisabled(parseInt(d))) return sum;
     return sum + (e.status === 'working' ? (parseFloat(e.hours) || 0) : 0);
   }, 0);
   const totalDays = totalHours / 8;
-  const totalLeaves = Object.entries(entries).filter(([d, e]) => !isBeforeProjectStart(parseInt(d)) && e.status === 'leave').length;
-  const totalHolidays = Object.entries(entries).filter(([d, e]) => !isBeforeProjectStart(parseInt(d)) && e.status === 'holiday').length;
+  const totalLeaves = Object.entries(entries).filter(([d, e]) => !isDayDisabled(parseInt(d)) && e.status === 'leave').length;
+  const totalHolidays = Object.entries(entries).filter(([d, e]) => !isDayDisabled(parseInt(d)) && e.status === 'holiday').length;
 
   // Helper: fetch existing timesheet for current month/year/project and sync state
   const refreshTimesheet = async () => {
@@ -460,8 +466,11 @@ export default function TimesheetEntry() {
     const today = new Date();
     const unfilledDays = [];
     for (let d = 1; d <= daysInMonth; d++) {
-      if (isBeforeProjectStart(d)) continue; // skip days before project start
-      if (isAfterLwd(d)) continue; // skip days after employee's last working date
+      // Skip every day the grid itself disables — before the assignment start,
+      // after the assignment end, or beyond the employee's LWD. Omitting the
+      // end-date guard here made an ended engagement impossible to submit: the
+      // days were greyed out and unfillable, yet still demanded.
+      if (isDayDisabled(d)) continue;
       const date = new Date(year, month - 1, d);
       if (date > today) continue; // skip future days
       const entry = entries[d] || { hours: '', status: null };
