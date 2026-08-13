@@ -357,7 +357,7 @@ deferring them does not hold:
 | `SignTemplates` | 840 | none — **migrated (phase 10)** |
 | `SignTemplateEditor` | 2,662 | none |
 | `SignRequestDetail` | 1,007 | 3 calls — **migrated (phase 10)** |
-| `SignRequests` | 2,221 | 2 calls |
+| `SignRequests` | 2,221 | 4 calls — **list migrated (phase 10); modals deferred** |
 
 None of them uses the three ds components that depend on `shell.css`
 (`SelectChip`, `GroupByChip`, `MoreFilters`), so the one documented
@@ -375,6 +375,25 @@ imported by four v2 pages (`ContactDetailV2`, `CrmOpportunityDetailV2`,
 `AtsApplicationDetailV2`, `EmployeeDetailV2`). Folding a send path that touches
 four pages into a page migration would make the send-path review harder, not
 easier. It wants its own change.
+
+### SignRequests: the list is migrated, the three modals are not
+
+`SignRequests.jsx` is 2,221 lines, and **1,281 of them are three modals**
+(`NewRequestModal`, `QuickSendModal`, `BulkSendModal`) that between them hold
+every outward-facing path on the page — `createRequest`,
+`createEnvelopeRequest`, `quickSendPrepare`, `bulkSend`. The V2 copies all
+three **byte-identical**, so "the send behaviour did not change" is provable
+by diff rather than by argument. They render correctly anyway: the palette
+bridge covers legacy classes inside the v2 shell, verified in both themes.
+
+The earlier count in this table said "2 calls". That was wrong — it counted
+only the two calls in the list body and missed the modals. The real figure is
+four send paths plus `bulkDeleteRequests` and the row-level cancel/remind.
+
+One thing the modals do carry, found while auditing dark: the wizard's active
+step badge is white on `indigo-500`, which measures **4.07** against a 4.5
+floor. Indigo is not in the `dark-*` palette, so the bridge does not remap it.
+It belongs with the modals change, not here.
 
 ### The signed-document tab asked for a file that isn't there
 
