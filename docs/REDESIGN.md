@@ -355,7 +355,7 @@ deferring them does not hold:
 |---|---|---|
 | `SignConfig` | 666 | none — **migrated (phase 10)** |
 | `SignTemplates` | 840 | none — **migrated (phase 10)** |
-| `SignTemplateEditor` | 2,662 | none |
+| `SignTemplateEditor` | 2,662 | **1 call — corrected below**; chrome migrated (phase 10) |
 | `SignRequestDetail` | 1,007 | 3 calls — **migrated (phase 10)** |
 | `SignRequests` | 2,221 | 4 calls — **fully migrated (phase 10)** |
 
@@ -375,6 +375,37 @@ imported by four v2 pages (`ContactDetailV2`, `CrmOpportunityDetailV2`,
 `AtsApplicationDetailV2`, `EmployeeDetailV2`). Folding a send path that touches
 four pages into a page migration would make the send-path review harder, not
 easier. It wants its own change.
+
+### SignTemplateEditor: two corrections, and a partial by design
+
+**It has a send path.** This table said "none". `handleQuickSendSubmit` saves
+the placed fields, then calls `createRequest`, which emails the signers. The
+count was taken from a grep that missed it.
+
+**It had no contrast defects.** The audit came back clean in both themes
+before any change, so unlike every other page in this slice, migrating it was
+consistency work rather than repair. That changes the risk/benefit: there was
+nothing broken to justify touching the risky parts.
+
+So the change is deliberately partial. Migrated: the header, context menu,
+tag strip, mobile toggles, the send dialog (onto ds `Modal` + `Field`), and
+the left sidebar. Left alone: `fieldMeta` / `clamp` / `snapYToSiblings`, and
+`PageContainer` / `FieldOverlay` / `PdfThumbnailStrip` — the canvas layer that
+owns drag, resize and the normalised `posX`/`posY` deciding where a signature
+lands on a legally-binding document. **A fractional error there does not show
+up in a screenshot**, and the surrounding panel classes it would buy are
+already themed correctly by the bridge. Converting them is churn against real
+risk.
+
+The verification that matters for this page is not a screenshot: fetch the
+template's `signItems` and compare each stored `posX`/`posY`/`width`/`height`
+against the rendered box as a fraction of the page canvas. All six fields on
+`LOA Certificate` matched to four decimals.
+
+A note on method: a batch of multi-line string replacements against this file
+missed 7 of 11 targets in one pass — the same failure that produced the
+`SignConfig` reset. On a file this size, anchor on single lines or slice by
+index, and re-verify the untouched regions by diff after every pass.
 
 ### Migrating a modal that sends: where to put the boundary
 

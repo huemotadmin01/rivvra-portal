@@ -224,6 +224,7 @@ const SignDashboardV2 = lazy(() => import('./pages/sign/SignDashboardV2'));
 const SignTemplates = lazy(() => import('./pages/sign/SignTemplates'));
 const SignTemplatesV2 = lazy(() => import('./pages/sign/SignTemplatesV2'));
 const SignTemplateEditor = lazy(() => import('./pages/sign/SignTemplateEditor'));
+const SignTemplateEditorV2 = lazy(() => import('./pages/sign/SignTemplateEditorV2'));
 const SignRequests = lazy(() => import('./pages/sign/SignRequests'));
 const SignRequestsV2 = lazy(() => import('./pages/sign/SignRequestsV2'));
 const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
@@ -662,7 +663,7 @@ function App() {
                 <Route path="/org/:slug/sign/requests" element={<ErrorBoundary><PageSwitch v2={SignRequestsV2} legacy={SignRequests} /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/requests/:requestId" element={<ErrorBoundary><PageSwitch v2={SignRequestDetailV2} legacy={SignRequestDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/sign/templates" element={<ErrorBoundary><PageSwitch v2={SignTemplatesV2} legacy={SignTemplates} /></ErrorBoundary>} />
-                <Route path="/org/:slug/sign/templates/:templateId/edit" element={<ErrorBoundary><SignTemplateEditor /></ErrorBoundary>} />
+                <Route path="/org/:slug/sign/templates/:templateId/edit" element={<ErrorBoundary><PageSwitch v2={SignTemplateEditorV2} legacy={SignTemplateEditor} /></ErrorBoundary>} />
                 <Route element={<AppRoleGate appId="sign" requiredRole="admin" />}>
                   <Route path="/org/:slug/sign/config" element={<ErrorBoundary><PageSwitch v2={SignConfigV2} legacy={SignConfig} /></ErrorBoundary>} />
                 </Route>
