@@ -186,6 +186,7 @@ const ContactsConfig = lazy(() => import('./pages/contacts/ContactsConfig'));
 
 // Lazy-loaded: ATS app pages
 const AtsPipeline = lazy(() => import('./pages/ats/AtsPipeline'));
+const AtsPipelineV2 = lazy(() => import('./pages/ats/AtsPipelineV2'));
 const AtsApplications = lazy(() => import('./pages/ats/AtsApplications'));
 const AtsApplicationDetail = lazy(() => import('./pages/ats/AtsApplicationDetail'));
 const AtsApplicationDetailV2 = lazy(() => import('./pages/ats/AtsApplicationDetailV2'));
@@ -206,6 +207,7 @@ const AtsConfig = lazy(() => import('./pages/ats/AtsConfig'));
 const CrmDashboard = lazy(() => import('./pages/crm/CrmDashboard'));
 const CrmDashboardV2 = lazy(() => import('./pages/crm/CrmDashboardV2'));
 const CrmPipeline = lazy(() => import('./pages/crm/CrmPipeline'));
+const CrmPipelineV2 = lazy(() => import('./pages/crm/CrmPipelineV2'));
 const CrmOpportunities = lazy(() => import('./pages/crm/CrmOpportunities'));
 const CrmOpportunityDetail = lazy(() => import('./pages/crm/CrmOpportunityDetail'));
 const CrmOpportunityDetailV2 = lazy(() => import('./pages/crm/CrmOpportunityDetailV2'));
@@ -611,7 +613,7 @@ function App() {
               <Route element={<AppAccessGate appId="crm" />}>
                 <Route path="/org/:slug/crm" element={<CrmIndexRedirect />} />
                 <Route path="/org/:slug/crm/dashboard" element={<ErrorBoundary><PageSwitch v2={CrmDashboardV2} legacy={CrmDashboard} /></ErrorBoundary>} />
-                <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><CrmPipeline /></ErrorBoundary>} />
+                <Route path="/org/:slug/crm/pipeline" element={<ErrorBoundary><PageSwitch v2={CrmPipelineV2} legacy={CrmPipeline} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities" element={<ErrorBoundary><PageSwitch v2={CrmOpportunitiesV2} legacy={CrmOpportunities} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/new" element={<ErrorBoundary><PageSwitch v2={CrmOpportunityNewV2} legacy={CrmOpportunityNew} /></ErrorBoundary>} />
                 <Route path="/org/:slug/crm/opportunities/:opportunityId" element={<ErrorBoundary><PageSwitch v2={CrmOpportunityDetailV2} legacy={CrmOpportunityDetail} /></ErrorBoundary>} />
@@ -628,7 +630,7 @@ function App() {
               {/* ATS app routes — gated by ats access */}
               <Route element={<AppAccessGate appId="ats" />}>
                 <Route path="/org/:slug/ats" element={<AtsIndexRedirect />} />
-                <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><AtsPipeline /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/pipeline" element={<ErrorBoundary><PageSwitch v2={AtsPipelineV2} legacy={AtsPipeline} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><PageSwitch v2={AtsApplicationsV2} legacy={AtsApplications} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><PageSwitch v2={AtsApplicationDetailV2} legacy={AtsApplicationDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><PageSwitch v2={AtsJobPositionsV2} legacy={AtsJobPositions} /></ErrorBoundary>} />

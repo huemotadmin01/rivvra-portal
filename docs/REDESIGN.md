@@ -183,7 +183,7 @@ it.
 | what | why it waits |
 |---|---|
 | ~~dashboards — need a ds chart component that does not exist~~ | **Wrong; unblocked in phase 7.** See below. |
-| `CrmPipeline`, `AtsPipeline` | kanban archetype, not yet designed |
+| ~~`CrmPipeline`, `AtsPipeline` — kanban archetype, not yet designed~~ | **Wrong; done in phase 8.** Nothing needed designing — see below. |
 | KB pages | redesigned separately in July — migrating risks undoing that |
 | Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
 | Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
@@ -277,6 +277,57 @@ inside it at **2.39** against a 4.5 floor and the AI-guide link at 2.55. It now
 mutes the *title* (strikethrough, `--fg-4`) and leaves the rest at full
 strength; the row still reads as done. The same pattern is still open across
 the statutory report pages — see `THEMING.md`.
+
+---
+
+## The kanban archetype (phase 8)
+
+`pages/crm/CrmPipelineV2.jsx` is the reference.
+
+**The blocker was not real — the third of three checked, and the third to be
+stale.** `@dnd-kit` was already installed and already used by three pages,
+both boards already implemented the same pattern (`DndContext` +
+`SortableContext` + `useSortable` + drag overlay), and every generic
+primitive they need already existed in `ds`. The work was extraction.
+
+### ds/Kanban is presentational only
+
+It does not import dnd-kit. The caller runs `useSortable`/`useDroppable` and
+passes `dragRef`, `dragProps`, `style`, `isDragging`, `dropRef`, `isOver`
+down. Same split the filter controls use — `ds/` is controlled, the binding
+lives in the page — applied to drag instead of routing.
+
+That answers the real open question, which the deferred entry never named:
+*may a ds component depend on a behavioural library?* No. It keeps a board
+renderable read-only with no DnD at all, and means swapping dnd-kit later
+touches two pages rather than the design system.
+
+`dropTarget` is a prop, not a house rule, because the two boards genuinely
+differ and both work: CRM registers the whole column, ATS only the body —
+and ATS therefore needs its `col:` id prefix, or a drop on an **empty**
+column resolves `over` to null and snaps back.
+
+### Gate parity is proven by diff, not by runtime test
+
+`AtsPipeline` carries ten drop gates. Verifying which drops get refused at
+runtime would mean manufacturing ten broken application states on staging —
+a resume-less candidate, an offer-less hire, an unsigned rate confirmation —
+and any one missed is a silent hole.
+
+Instead the migration leaves the main component body untouched and proves it:
+the body diff is **two lines** (the board wrapper), with `canDragCard`,
+`handleDragEnd` and the full gate-flag set individually verified identical.
+One check, all ten gates, cannot sample wrong. **Use this shape for any page
+whose correctness lives in a branch you cannot easily trigger.**
+
+### Duplication is where drift hides
+
+`EvalStars` existed in both boards and had diverged so that each copy carried
+the bug the other had fixed — CRM's was mouse-only but contained its clicks;
+ATS's was keyboard-reachable but let clicks bubble, so rating a card would
+also open it. Neither call site passed `onChange`, so the interactive path
+was dead code in both, which is how they drifted unnoticed for months.
+`ds/RatingStars` takes the correct half of each.
 
 ### Open defects, not yet fixed
 
