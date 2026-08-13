@@ -14,7 +14,7 @@ import {
 } from '../../components/ds';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
 // Legacy island: dark-only, belongs to the Sign surface and migrates with it.
-import SignRequestWidget from '../../components/shared/SignRequestWidget';
+import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import {
   Archive, ArchiveRestore, Briefcase, ExternalLink, FileText, MapPin,
   MoreHorizontal, RotateCcw, Tag, Trash2, Trophy, Unlink, User, XCircle,
@@ -48,8 +48,8 @@ const CONVERT_HINT = 'Required to convert to a Job Position';
 /* v2 CRM Opportunity Detail (phase 5a) — the detail archetype from
    ContactDetailV2, plus a stage pipeline and a wider action row.
 
-   The Details body is fully migrated. SignRequestWidget stays legacy (Sign
-   surface). */
+   The Details body is fully migrated, and SignRequestWidgetV2 came with the
+   Sign surface in phase 10. */
 export default function CrmOpportunityDetailV2() {
   const { orgSlug: slug, isOrgAdmin } = useOrg();
   const { opportunityId } = useParams();
@@ -658,7 +658,7 @@ export default function CrmOpportunityDetailV2() {
           </Panel>
 
           {!opp.isConverted && (
-            <SignRequestWidget
+            <SignRequestWidgetV2
               orgSlug={slug}
               linkedModel="crm_opportunity"
               linkedId={opportunityId}

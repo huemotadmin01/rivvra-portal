@@ -18,9 +18,9 @@ import {
   SkeletonHeader, SkeletonPage, SkeletonTabs, SkeletonTwoCard, Spinner, Tabs, TagPicker,
 } from '../../components/ds';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
-// Legacy islands still rendered inside the v2 shell. SignRequestWidget is
-// dark-only; it belongs to the Sign surface and migrates with it.
-import SignRequestWidget from '../../components/shared/SignRequestWidget';
+// SignRequestWidgetV2 — migrated with the Sign surface (phase 10). Its send
+// path (createRequest) is byte-identical to the legacy widget.
+import SignRequestWidgetV2 from '../../components/shared/v2/SignRequestWidgetV2';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import {
   Archive, ArchiveRestore, Briefcase, Building2, Eye, FileText, Globe, Mail, MapPin,
@@ -788,7 +788,7 @@ export default function ContactDetailV2() {
         <>
           <ActivityPanelV2 orgSlug={orgSlug} entityType="crm_contact" entityId={contactId} canEdit={isAdmin} />
           <div style={{ marginTop: 16 }}>
-            <SignRequestWidget
+            <SignRequestWidgetV2
               orgSlug={orgSlug}
               linkedModel="contact"
               linkedId={contactId}
