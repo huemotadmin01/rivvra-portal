@@ -140,22 +140,30 @@ two To-Do pages brought `components/todo/v2/{TaskCardV2,TaskFormModalV2}`
 with them, and three ds primitives the forms needed: `Textarea`, `Select`
 and `ComboBox`.
 
-### `expenses/ExpenseDetail` — stopped, not migrated
+### `expenses/ExpenseDetail` — migrated in phase 9, on explicit instruction
 
-Listed in group 1 as carrying no money surface. It does, on two counts, so
-it was left alone rather than shipped:
+Held back twice because it is a money surface on two counts: it does FX
+arithmetic in the page, and it owns the approval and reimbursement
+transitions. Migrated when asked, under the strictest discipline in this
+project.
 
-- **It computes and displays money.** `lineConverted()` does FX arithmetic in
-  the page (`Math.round(amt * rate * 100) / 100`), `totalAmount` sums the
-  converted lines, and both render through `formatCurrency` against the
-  claim currency. That is display of derived money, which the standing rule
-  says to propose rather than ship.
-- **It owns approval and reimbursement transitions** — submit, approve,
-  reject, cancel, sync to Employee Bill, reimburse and reverse.
+Nothing that produces a number or moves a claim between states was touched,
+and that is verified by diff rather than by eye — `lineConverted()` including
+its `sameCcy` short-circuit, the `totalAmount` reduce, every `formatCurrency`
+call site argument-for-argument, and the full `expensesApi` call set
+(submit / resubmit / withdraw / approve / reject / cancel / delete / sync /
+reimburse / reverse) all compare identical. The declaration set is identical
+too: nothing cut, nothing added.
 
-It is also 1,323 lines, roughly three times the largest page in the group.
-It belongs with the invoicing/payroll bucket below: parity-proven rendering,
-reviewed on its own.
+**A limit worth stating: no claim on staging has a cross-currency line.** The
+runtime money-parity check therefore only exercises the `rate = 1` path. The
+FX branch is covered by the static diff of `lineConverted` and nothing else —
+if a real multi-currency claim ever appears, re-run the harness against it.
+
+`STATUS_META` keeps `approved` on the same **warn** tone as `submitted`
+rather than a success tone. Bills are created on approval, so a happy-path
+claim never lingers in `approved` — that state means the bill failed to sync
+and has to read as "needs attention", not "done".
 
 ### The recipe (worked seven times)
 
