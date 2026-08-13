@@ -356,7 +356,7 @@ deferring them does not hold:
 | `SignConfig` | 666 | none — **migrated (phase 10)** |
 | `SignTemplates` | 840 | none — **migrated (phase 10)** |
 | `SignTemplateEditor` | 2,662 | none |
-| `SignRequestDetail` | 1,007 | 3 calls |
+| `SignRequestDetail` | 1,007 | 3 calls — **migrated (phase 10)** |
 | `SignRequests` | 2,221 | 2 calls |
 
 None of them uses the three ds components that depend on `shell.css`
@@ -369,7 +369,27 @@ files, with two over 2,200. That is a scheduling fact, not a design blocker,
 and it should be recorded as such rather than as an archetype problem.
 
 `shared/SignRequestWidget.jsx` (dark-only, listed under Deprecations) still
-wants rebuilding and belongs with `SignRequestDetail`.
+wants rebuilding. It was **deliberately left out of the `SignRequestDetail`
+change**: it is a 315-line shared island with its own create-and-send path,
+imported by four v2 pages (`ContactDetailV2`, `CrmOpportunityDetailV2`,
+`AtsApplicationDetailV2`, `EmployeeDetailV2`). Folding a send path that touches
+four pages into a page migration would make the send-path review harder, not
+easier. It wants its own change.
+
+### The signed-document tab asked for a file that isn't there
+
+`SignRequestDetail` initialises `docTab` to `'signed'` before the request has
+loaded, and never reconciles it:
+
+```js
+const [docTab, setDocTab] = useState('signed');   // legacy — never revisited
+```
+
+A request with a certificate but no signed PDF therefore renders a lone
+"Certificate" tab and then fetches `/signed-pdf`, which 404s, so the panel
+reads "Failed to load PDF". **No request in staging has a `signedPdfUrl`**, so
+all 46 signed requests there hit it. The V2 derives `activeDocTab` from what
+actually exists; the legacy file still has the bug.
 
 ### A shell reset was eating legacy button borders
 
