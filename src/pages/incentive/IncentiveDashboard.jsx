@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
+import { formatMoney } from '../../utils/formatCurrency';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import IncentiveNotificationsBanner from '../../components/incentive/IncentiveNotificationsBanner';
@@ -16,14 +17,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-function formatINR(amount) {
-  if (amount == null) return '\u20B90';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+
 
 function StatCard({ label, value, icon: Icon, color, sub }) {
   return (
@@ -44,6 +38,11 @@ export default function IncentiveDashboard() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
+  // Was a local formatINR that hard-coded INR and dropped paise. This page is
+  // company-scoped and /incentive/summary carries no currency, so the active
+  // company's currency is the correct source. Kept in step with
+  // IncentiveDashboardV2 so both sides of the PageSwitch print identically.
+  const money = (amount) => formatMoney(amount, currentCompany?.currency || 'INR');
   const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
@@ -141,28 +140,28 @@ export default function IncentiveDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
           label="Paid"
-          value={formatINR(stats.paid?.amount)}
+          value={money(stats.paid?.amount)}
           sub={`${stats.paid?.count || 0} records`}
           icon={CheckCircle2}
           color="bg-emerald-950 text-emerald-400"
         />
         <StatCard
           label="Approved (pending payout)"
-          value={formatINR(stats.approved?.amount)}
+          value={money(stats.approved?.amount)}
           sub={`${stats.approved?.count || 0} records`}
           icon={Clock}
           color="bg-blue-950 text-blue-400"
         />
         <StatCard
           label="Draft"
-          value={formatINR(stats.draft?.amount)}
+          value={money(stats.draft?.amount)}
           sub={`${stats.draft?.count || 0} records`}
           icon={FileText}
           color="bg-dark-800 text-dark-300"
         />
         <StatCard
           label={month ? 'Forecast (this month)' : 'YTD Paid'}
-          value={formatINR(month ? stats.forecast?.amount : data?.ytd?.amount)}
+          value={money(month ? stats.forecast?.amount : data?.ytd?.amount)}
           sub={month ? 'Approved + draft for this month' : 'Calendar YTD'}
           icon={TrendingUp}
           color="bg-fuchsia-950 text-fuchsia-400"
@@ -170,6 +169,7 @@ export default function IncentiveDashboard() {
       </div>
 
       <WaitingOnPayrollCard
+          money={money}
         count={waiting.count}
         groups={waiting.groups}
         open={waitingOpen}
@@ -192,7 +192,7 @@ export default function IncentiveDashboard() {
                 <div
                   key={t.month}
                   className="flex-1 flex flex-col items-center gap-1"
-                  title={`${t.month}: ${formatINR(t.amount)}`}
+                  title={`${t.month}: ${money(t.amount)}`}
                 >
                   <div
                     className="w-full bg-fuchsia-600 rounded-t"
@@ -227,7 +227,7 @@ export default function IncentiveDashboard() {
                     {i + 1}. {e.name || '—'}
                   </span>
                   <span className="font-semibold text-white">
-                    {formatINR(e.amount)}
+                    {money(e.amount)}
                   </span>
                 </li>
               ))}
@@ -256,10 +256,10 @@ export default function IncentiveDashboard() {
                   <td className="px-2 py-2 text-white">{c.clientName}</td>
                   <td className="px-2 py-2 text-right text-dark-300">{c.count}</td>
                   <td className="px-2 py-2 text-right text-dark-300">
-                    {formatINR(c.netProfit)}
+                    {money(c.netProfit)}
                   </td>
                   <td className="px-2 py-2 text-right font-semibold text-white">
-                    {formatINR(c.incentive)}
+                    {money(c.incentive)}
                   </td>
                 </tr>
               ))}
@@ -271,7 +271,10 @@ export default function IncentiveDashboard() {
   );
 }
 
-function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry }) {
+// `money` is passed in: this component sits at module scope and cannot see
+// the page's company-scoped formatter. Threading it keeps one currency
+// source for the whole page.
+function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, money }) {
   if (error) {
     return (
       <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
@@ -348,7 +351,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry })
                     {(g.invoiceNumbers || []).join(', ') || '—'}
                   </td>
                   <td className="px-3 py-2 text-right text-dark-300">
-                    {formatINR(g.untaxedInvoicedValue)}
+                    {money(g.untaxedInvoicedValue)}
                   </td>
                   <td className="px-3 py-2 text-amber-300">
                     {g.reason === 'salary_hold'

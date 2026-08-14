@@ -4,17 +4,24 @@
 // ============================================================================
 // Byte-identical copy with only presentation rewritten.
 //
-// `formatINR` below is copied CHARACTER-FOR-CHARACTER and deliberately not
-// replaced with the shared helper. It is a third money formatter in this
-// codebase — alongside utils/formatCurrency's `formatCurrency` and
-// `formatMoney` — and it is not equivalent to either: it hard-codes INR
-// regardless of company currency, pins maximumFractionDigits to 0 so paise
-// are dropped, and returns '₹0' rather than an em-dash for null.
+// Money on this page now prints through the shared `formatMoney`, taking its
+// currency from the ACTIVE COMPANY (phase 13, on request). The local
+// `formatINR` it replaces hard-coded INR and pinned maximumFractionDigits to
+// 0, so it both mislabelled non-INR companies and dropped paise.
 //
-// Swapping it would silently change every figure on this page. That is a
-// product decision about how incentive money prints, not a layout one, so it
-// stays exactly as it was and the divergence is logged in REDESIGN.md
-// instead.
+// Why the company and not the record: this page shows AGGREGATES, and the
+// /incentive/summary payload carries no currency at all — only bare numbers.
+// The dashboard is company-scoped, so the active company's currency is the
+// only correct source available to it. Per-record screens (RecordsList,
+// RecordDetail, MyEarnings) should pass `record.currency` instead, which is
+// what utils/formatCurrency's header means by "pass the record's own
+// currency field" — see the note in REDESIGN.md.
+//
+// Two consequences, both intended:
+//   • a USD or CAD company no longer sees its incentives labelled with ₹
+//   • paise now print when a figure has them, so the number on screen equals
+//     the number stored, and the list agrees with RecordDetail (which was
+//     already showing 2dp)
 // ============================================================================
 
 import { useEffect, useState } from 'react';
@@ -31,15 +38,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Button, Chip, EmptyState, Panel, Spinner, Stat } from '../../components/ds';
-
-function formatINR(amount) {
-  if (amount == null) return '\u20B90';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatMoney } from '../../utils/formatCurrency';
 
 // Legacy passed Tailwind tint classes; map them to semantic tokens so the
 // tiles theme. Unrecognised values fall back to muted ink rather than
@@ -68,6 +67,9 @@ export default function IncentiveDashboardV2() {
   const { currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { currentCompany } = useCompany();
+  // Company-scoped page, company-scoped currency. Falls back to INR only when
+  // the company has none set, which preserves the previous behaviour exactly.
+  const money = (amount) => formatMoney(amount, currentCompany?.currency || 'INR');
   const { showToast } = useToast();
   const navigate = useNavigate();
   const orgSlug = currentOrg?.slug;
@@ -165,28 +167,28 @@ export default function IncentiveDashboardV2() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
           label="Paid"
-          value={formatINR(stats.paid?.amount)}
+          value={money(stats.paid?.amount)}
           sub={`${stats.paid?.count || 0} records`}
           icon={CheckCircle2}
           color="bg-emerald-950 text-emerald-400"
         />
         <StatCard
           label="Approved (pending payout)"
-          value={formatINR(stats.approved?.amount)}
+          value={money(stats.approved?.amount)}
           sub={`${stats.approved?.count || 0} records`}
           icon={Clock}
           color="bg-blue-950 text-blue-400"
         />
         <StatCard
           label="Draft"
-          value={formatINR(stats.draft?.amount)}
+          value={money(stats.draft?.amount)}
           sub={`${stats.draft?.count || 0} records`}
           icon={FileText}
           color="bg-dark-800 text-dark-300"
         />
         <StatCard
           label={month ? 'Forecast (this month)' : 'YTD Paid'}
-          value={formatINR(month ? stats.forecast?.amount : data?.ytd?.amount)}
+          value={money(month ? stats.forecast?.amount : data?.ytd?.amount)}
           sub={month ? 'Approved + draft for this month' : 'Calendar YTD'}
           icon={TrendingUp}
           color="bg-fuchsia-950 text-fuchsia-400"
@@ -194,6 +196,7 @@ export default function IncentiveDashboardV2() {
       </div>
 
       <WaitingOnPayrollCard
+          money={money}
         count={waiting.count}
         groups={waiting.groups}
         open={waitingOpen}
@@ -216,7 +219,7 @@ export default function IncentiveDashboardV2() {
                 <div
                   key={t.month}
                   className="flex-1 flex flex-col items-center gap-1"
-                  title={`${t.month}: ${formatINR(t.amount)}`}
+                  title={`${t.month}: ${money(t.amount)}`}
                 >
                   <div
                     className="w-full bg-fuchsia-600 rounded-t"
@@ -251,7 +254,7 @@ export default function IncentiveDashboardV2() {
                     {i + 1}. {e.name || '—'}
                   </span>
                   <span className="font-semibold text-white">
-                    {formatINR(e.amount)}
+                    {money(e.amount)}
                   </span>
                 </li>
               ))}
@@ -280,10 +283,10 @@ export default function IncentiveDashboardV2() {
                   <td className="px-2 py-2 text-white">{c.clientName}</td>
                   <td className="px-2 py-2 text-right text-dark-300">{c.count}</td>
                   <td className="px-2 py-2 text-right text-dark-300">
-                    {formatINR(c.netProfit)}
+                    {money(c.netProfit)}
                   </td>
                   <td className="px-2 py-2 text-right font-semibold text-white">
-                    {formatINR(c.incentive)}
+                    {money(c.incentive)}
                   </td>
                 </tr>
               ))}
@@ -295,7 +298,10 @@ export default function IncentiveDashboardV2() {
   );
 }
 
-function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry }) {
+// `money` is passed in: this component sits at module scope and cannot see
+// the page's company-scoped formatter. Threading it keeps one currency
+// source for the whole page.
+function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, money }) {
   if (error) {
     return (
       <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
@@ -372,7 +378,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry })
                     {(g.invoiceNumbers || []).join(', ') || '—'}
                   </td>
                   <td className="px-3 py-2 text-right text-dark-300">
-                    {formatINR(g.untaxedInvoicedValue)}
+                    {money(g.untaxedInvoicedValue)}
                   </td>
                   <td className="px-3 py-2 text-amber-300">
                     {g.reason === 'salary_hold'
