@@ -298,7 +298,7 @@ export default function KnowledgeBasePage() {
               onEdit={() => { setEditing(article); setMode('edit'); }}
             />
           ) : articleError ? (
-            <EmptyState title="Article not available" text={articleError} />
+            <KbEmptyState title="Article not available" text={articleError} />
           ) : (
             <LandingView groups={groups} onOpen={openArticle} />
           )}
@@ -353,7 +353,7 @@ function SearchResults({ q, searching, results, onOpen }) {
         <span>Results for <span className="text-dark-200 font-medium">“{q.trim()}”</span></span>
         {searching && <Loader2 size={13} className="animate-spin text-dark-500" />}
       </div>
-      {!searching && results.length === 0 && <EmptyState title="No matches" text="Try a different term or browse the apps on the left." />}
+      {!searching && results.length === 0 && <KbEmptyState title="No matches" text="Try a different term or browse the apps on the left." />}
       <div className="space-y-2">
         {results.map((r) => (
           <button key={r.id || r.slug} type="button" onClick={() => onOpen(r.slug)} className="w-full text-left p-4 rounded-lg bg-dark-950 border border-dark-800 hover:border-sky-500/30 transition-colors">
@@ -371,7 +371,7 @@ function SearchResults({ q, searching, results, onOpen }) {
 }
 
 function LandingView({ groups, onOpen }) {
-  if (groups.length === 0) return <EmptyState title="Nothing here yet" text="Articles will appear as they’re published for the apps you can access." />;
+  if (groups.length === 0) return <KbEmptyState title="Nothing here yet" text="Articles will appear as they’re published for the apps you can access." />;
   return (
     <div>
       <p className="text-sm text-dark-400 mb-6">Browse how-to guides by app, search above, or use <span className="text-rivvra-400">Ask AI</span> for a direct answer.</p>
@@ -397,7 +397,10 @@ function LandingView({ groups, onOpen }) {
   );
 }
 
-function EmptyState({ title, text }) {
+// Named KbEmptyState, not EmptyState: ds exports an `EmptyState` too, and a
+// bare local of the same name means anyone later importing the ds barrel into
+// this file gets a silent shadow rather than an error.
+function KbEmptyState({ title, text }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <BookOpen size={36} className="text-dark-600 mb-3" />
