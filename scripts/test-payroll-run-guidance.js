@@ -5,7 +5,7 @@
 //   node scripts/test-payroll-run-guidance.js
 
 import assert from 'node:assert';
-import { nextAction, splitByRelease, finalizeWarning, isPayslipReleasedFor, runSteps, isReleasable } from '../src/utils/payrollRunGuidance.js';
+import { nextAction, splitByRelease, finalizeWarning, isPayslipReleasedFor, runSteps, isReleasable, lockConflicts } from '../src/utils/payrollRunGuidance.js';
 
 let passed = 0;
 const check = (name, fn) => {
@@ -244,6 +244,30 @@ check('all on salary hold → Finalize, naming them (the Rakesh/Rahul/Kishu shap
   assert.strictEqual(n.key, 'finalize');
   assert.match(n.caution, /3 employees are on salary hold/);
   assert.strictEqual(runSteps(run).find(s => s.key === 'release').state, 'done');
+});
+
+
+console.log('\nlockConflicts()\n');
+
+check('payroll locked while a re-process is needed → flagged', () => {
+  const run = { status: 'processed', payrollLocked: true, payslipReleased: true,
+    releasedEmployeeIds: ['1'], items: [item(1, 5000), { employeeId: '2', employeeName: 'E', netSalary: 0 }] };
+  const c = lockConflicts(run);
+  assert.strictEqual(c.length, 1);
+  assert.strictEqual(c[0].lock, 'payroll');
+});
+
+check('payroll locked but nothing needs computing → silent', () => {
+  const run = { status: 'processed', payrollLocked: true, payslipReleased: true,
+    releasedEmployeeIds: ['1', '2'], items: [item(1, 5000), item(2, 4000)] };
+  assert.strictEqual(lockConflicts(run).length, 0, 'a lock that blocks nothing must stay quiet');
+});
+
+check('adjustments lock never blocks the main flow', () => {
+  const run = { status: 'processed', inputsLocked: true, payslipReleased: true,
+    releasedEmployeeIds: ['1'], items: [item(1, 5000), item(2, 4000)] };
+  assert.strictEqual(lockConflicts(run).length, 0);
+  assert.strictEqual(nextAction(run).key, 'release');
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ' — FAILURES ABOVE' : ''}`);

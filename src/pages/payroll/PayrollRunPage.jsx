@@ -15,7 +15,7 @@ import {
 import { useToast } from '../../context/ToastContext';
 import { formatMoney } from '../../utils/formatCurrency';
 import {
-  isPayslipReleasedFor, isReleasable, splitByRelease, nextAction, finalizeWarning, LOCK_EFFECTS,
+  isPayslipReleasedFor, isReleasable, splitByRelease, nextAction, finalizeWarning, lockConflicts, LOCK_EFFECTS,
 } from '../../utils/payrollRunGuidance';
 import PayrollRunStepStrip from '../../components/PayrollRunStepStrip';
 import {
@@ -553,6 +553,7 @@ export default function PayrollRunPage() {
     // The one next step. Drives both the banner and which button is primary.
     const next = nextAction(run);
     const finalizeCaution = finalizeWarning(run);
+    const lockBlockers = lockConflicts(run);
     const isNext = (key) => next?.key === key;
     const reprocessBlockedReason = run.payrollLocked
       ? 'Payroll is locked for this run. Use Unlock Payroll to re-process.'
@@ -683,6 +684,13 @@ export default function PayrollRunPage() {
                     <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {next.caution}
                   </p>
                 )}
+                {/* A lock only ever needs to announce itself when it is the
+                    reason something is unavailable — never as "click me". */}
+                {lockBlockers.map(c => (
+                  <p key={c.lock} className="text-xs text-amber-400 mt-1 flex items-start gap-1.5">
+                    <Lock size={12} className="mt-0.5 shrink-0" /> {c.message}
+                  </p>
+                ))}
               </div>
             </div>
           </div>
@@ -736,7 +744,13 @@ export default function PayrollRunPage() {
           <div className="mb-4 space-y-2">
             {/* ── Run state: changes the run, some of it irreversible ── */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 w-full sm:w-auto sm:mr-1">Run state</span>
+              {/* Labelled "optional" because they are: a run goes Process →
+                  Release → Finalize → Mark paid without either lock ever being
+                  clicked. Sitting unlabelled next to the real steps is what led
+                  HR to ask which of them to click first. */}
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 w-full sm:w-auto sm:mr-1" title="Optional safeguards. Neither is a step — a run completes without them.">
+                Safeguards <span className="text-dark-600 normal-case font-normal tracking-normal">(optional)</span>
+              </span>
               <button onClick={() => handleToggleLock('inputs')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.inputsLocked ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`} title={run.inputsLocked ? LOCK_EFFECTS.inputs.unlock : LOCK_EFFECTS.inputs.lock}>
                 {togglingLock === 'inputs' ? <Loader2 size={12} className="animate-spin" /> : run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}
                 {run.inputsLocked ? 'Unlock Adjustments' : 'Lock Adjustments'}
@@ -745,6 +759,10 @@ export default function PayrollRunPage() {
                 {togglingLock === 'payroll' ? <Loader2 size={12} className="animate-spin" /> : run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}
                 {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
               </button>
+              {/* Payslips are part of the flow, unlike the two locks above —
+                  hence its own label rather than sitting under "Safeguards". */}
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 w-full sm:w-auto sm:mx-1 sm:pl-2 sm:border-l sm:border-dark-700">Payslips</span>
+
               {/* Release/Hold — Release EMAILS payslips to employees, so it gets a
                   filled primary treatment, never the bordered download look.
                   These are NOT mutually exclusive: a partially-released run has

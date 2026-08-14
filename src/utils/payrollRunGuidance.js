@@ -242,16 +242,40 @@ export function runSteps(run) {
   }));
 }
 
-/** Plain-language statement of what each lock actually prevents. */
+/**
+ * Plain-language statement of what each lock actually prevents, and when it is
+ * worth using.
+ *
+ * Neither lock is a step. A run goes Process → Release → Finalize → Mark paid
+ * without either being touched, which is why they carry an "Optional" tag and
+ * never appear as a next action. Presenting them alongside the real steps, at
+ * equal weight and with no guidance, is what made HR ask which to click first.
+ */
 export const LOCK_EFFECTS = {
   // Enforced in exactly one place in the API — the ad-hoc adjustments endpoint.
-  // It does NOT freeze attendance or timesheets, despite the name.
+  // It does NOT freeze attendance or timesheets, despite the old name.
   inputs: {
-    lock: 'Blocks ad-hoc earnings and deductions on this run. Does not freeze attendance or timesheets.',
+    lock: 'Blocks ad-hoc earnings and deductions on this run. Does not freeze attendance or timesheets. Optional — use once you are sure no more manual line items are coming.',
     unlock: 'Allow ad-hoc earnings and deductions on this run again.',
   },
   payroll: {
-    lock: 'Blocks re-processing this run. Figures stay exactly as they are.',
+    lock: 'Blocks re-processing this run. Figures stay exactly as they are. Optional — use when figures are settled but you are not ready to finalize. Finalizing blocks re-processing anyway.',
     unlock: 'Allow this run to be re-processed.',
   },
 };
+
+/**
+ * Is a lock currently getting in the way of the next action?
+ *
+ * The only guidance a lock ever needs: not "click me", but "I am why the thing
+ * you are trying to do is unavailable".
+ */
+export function lockConflicts(run) {
+  const conflicts = [];
+  if (!run) return conflicts;
+  const next = nextAction(run);
+  if (run.payrollLocked && (next?.key === 'process' || next?.key === 'blocked')) {
+    conflicts.push({ lock: 'payroll', message: 'Payroll is locked, which blocks the re-process this run needs.' });
+  }
+  return conflicts;
+}
