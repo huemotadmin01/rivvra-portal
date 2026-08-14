@@ -207,7 +207,7 @@ export default function LeaveBalancesV2() {
                       </Button>
                     </div>
                     {item.fnfEncashed && (
-                      <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--r-2)', background: 'var(--brand-soft)', color: 'var(--brand)', font: '450 12px/1.5 var(--font)' }}>
+                      <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--r-2)', background: 'var(--brand-soft)', color: 'var(--brand-ink)', font: '450 12px/1.5 var(--font)' }}>
                         ✓ Leave balance encashed in Full &amp; Final settlement
                         {item.fnfEncashmentAmount ? ` — ₹${Number(item.fnfEncashmentAmount).toLocaleString('en-IN')}` : ''}
                       </div>

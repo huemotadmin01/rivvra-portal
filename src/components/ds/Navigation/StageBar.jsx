@@ -40,7 +40,10 @@ export function StageBar({
           bg = 'var(--danger-soft, rgba(239,68,68,.14))'; fg = 'var(--danger, #ef4444)';
           ring = 'color-mix(in srgb, var(--danger, #ef4444) 30%, transparent)';
         } else if (active) {
-          bg = 'var(--brand-soft, rgba(34,197,94,.14))'; fg = 'var(--brand, #22c55e)';
+          // --brand-ink, not --brand: the accent on its own tint measures
+          // 4.37 on paper against a 4.5 floor. Same fix as ds/Chip and
+          // ds/FilterChip. In dark, --brand-ink aliases --brand.
+          bg = 'var(--brand-soft, rgba(34,197,94,.14))'; fg = 'var(--brand-ink, #22c55e)';
           ring = 'color-mix(in srgb, var(--brand, #22c55e) 30%, transparent)';
         } else if (past && !lost) {
           bg = 'color-mix(in srgb, var(--brand, #22c55e) 8%, transparent)';

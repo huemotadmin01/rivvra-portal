@@ -60,7 +60,15 @@ const over = (f,b) => [0,1,2].map(i => f[i]*f[3] + b[i]*(1-f[3]));
 // WCAG ratio, threshold 4.5 (3.0 for ≥24px, or ≥18.66px bold).
 ```
 
-Three things that will give you false failures:
+Four things that will give you false failures:
+
+- **The browser pane returns stale computed styles while it is hidden.**
+  Found during the phase-11 sweep: after a theme toggle the sidebar kept
+  reporting the *dark* `--fg` (`#EEF2F6`) for 15+ seconds, long past any
+  transition, while `--fg` at the same node correctly resolved to the light
+  value. A screenshot — which forces a paint — made the next read correct
+  (`rgb(22,25,29)`, and the audit went clean). If a "failure" survives a long
+  settle, take a screenshot and re-read before believing it.
 
 - **Let the theme transition finish.** Sampling right after the theme toggle
   returns *interpolated* colours mid-transition. A first pass read the To-Do

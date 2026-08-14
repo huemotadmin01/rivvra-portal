@@ -84,6 +84,34 @@ Danger (5.63) and info (5.77) already cleared the floor and got no override.
 Both `ds/Chip` and the bridge's accent-text rules read the ink tokens, so the
 one change covers migrated and legacy chips alike.
 
+#### The sweep, and what it actually found (phase 11)
+
+`--brand`-as-text got swept across **27 v2 routes**, measured in light theme.
+The measured answer is much narrower than the grep:
+
+- A grep for `color: 'var(--brand)'` returns **32 sites**.
+- Only **one route** produced brand-coloured contrast failures.
+
+The reason is that the failing pairing is not "brand as text" in general:
+
+| `--brand` text on… | ratio | verdict |
+|---|---|---|
+| `--surface-1` (white) | **5.02** | passes |
+| `--surface-2` (`#F6F3EE`) | **4.53** | passes, barely |
+| `--brand-soft` (its own tint) | **4.37** | **fails** |
+
+So only accent-on-its-own-tint fails — exactly what `--brand-ink` exists for.
+Most of the 32 grep hits are icons on a tint, and icons are graphics judged at
+3:1 (WCAG 1.4.11), which 4.37 clears.
+
+Four sites carried brand *text* on a brand tint and were fixed:
+`ds/StageBar` (the current-stage pill, which fixes every stage pipeline at
+once), `AtsApplicationsV2` and `AtsJobPositionsV2` initial badges, and a
+`LeaveBalancesV2` callout. In dark `--brand-ink` aliases `--brand`, so all
+four are provably no-ops there.
+
+**The lesson, again: count what fails, not what matches.** 32 → 4.
+
 ---
 
 ### 3. `opacity-*` on top of an already-correct colour — FIXED
