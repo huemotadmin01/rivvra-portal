@@ -420,10 +420,43 @@ with a token read from staging Mongo:
    `gray-600` because it sits on `bg-gray-100` rather than a white card
    (`gray-500` measured 4.39 there — same token, different surface).
 
-Both views now audit clean. Still open upstream: the date field on that
-staging request holds a **name**, not a date, so the real defect is whatever
-writes non-date values into a date field. The formatter fix stops it looking
-like a system error; it does not fix the data.
+Both views now audit clean.
+
+#### Correction: the "Invalid Date" was a staging scrub artifact
+
+The first write-up of this said the root cause was upstream — something
+writing non-date values into a date field, with real documents affected.
+**That was wrong, and it was investigated and closed the same day.**
+
+The verify payload's `previousValues` returned **five entries, all fake
+names** (`Micaban Bo`, `Letaku Povejud`, `Dara`, `Kun`). That is the staging
+scrub: `scripts/scrub-staging.js` pseudonymises `sign_request_values`, and it
+does not exempt date fields. Nothing wrote a bad date — the scrub overwrote a
+good one.
+
+Every production path into `formatDisplayDate` yields a bare `YYYY-MM-DD`:
+
+| path | shape |
+|---|---|
+| autofill → `todayStr()` | `YYYY-MM-DD`, built from local parts |
+| the signer's own input | `<input type="date">`, spec-guaranteed |
+| `serverSignedAt` | already coerced, `.toISOString().slice(0, 10)` |
+| `request.validity` | already coerced, `.split('T')[0]` |
+| `previousValues` | written by the two paths above |
+| `prefillData` (SignRequestWidget) | name/email/phone/company only — no dates |
+
+The author had already defended both ISO-shaped paths explicitly, which is
+exactly why only scrubbed values ever tripped it.
+
+**The fix still stands, as hardening rather than a bug fix.**
+`toLocaleDateString` on an invalid `Date` returns the literal string rather
+than throwing, so that `try/catch` could never fire; falling back to the raw
+value is cheap and is what the `catch` already intended.
+
+**The lesson worth keeping:** when a defect reproduces only on staging, check
+the scrub before blaming the app. Scrubbed data can make a healthy code path
+look broken — and worse, can make a *type* look violated when only the value
+was replaced.
 
 ### KB — measured, and deliberately left alone
 
