@@ -56,6 +56,24 @@ export function splitByRelease(run) {
 }
 
 /**
+ * Name the people behind a count, when there are few enough to be useful.
+ *
+ * "2 employees have no computed pay" makes HR go hunting through 68 rows to
+ * find out who. Naming them costs nothing and is the whole point of the
+ * warning. Above a handful, a list stops being readable and the count is the
+ * better summary.
+ */
+function nameList(items, max = 3) {
+  if (!items.length || items.length > max) return '';
+  const names = items.map((i) => i.employeeName).filter(Boolean);
+  if (!names.length) return '';
+  const joined = names.length === 1
+    ? names[0]
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return ` (${joined})`;
+}
+
+/**
  * The single next action for a run.
  *
  * @returns {null | {
@@ -111,7 +129,7 @@ export function nextAction(run) {
         ? `${released.length} payslip${released.length === 1 ? ' has' : 's have'} already gone out. These ${releasable.length} have not — releasing emails them and makes them visible in ESS.`
         : 'Releasing emails payslips to employees and makes them visible in ESS.',
       caution: needsCompute.length > 0
-        ? `${needsCompute.length} more employee${needsCompute.length === 1 ? ' has' : 's have'} no computed pay and ${needsCompute.length === 1 ? 'is' : 'are'} excluded — check their attendance, then re-process.`
+        ? `${needsCompute.length} more employee${needsCompute.length === 1 ? ' has' : 's have'} no computed pay and ${needsCompute.length === 1 ? 'is' : 'are'} excluded${nameList(needsCompute)} — check their attendance, then re-process.`
         : undefined,
     };
   }
@@ -122,7 +140,7 @@ export function nextAction(run) {
     return {
       key: 'process',
       label: 'Re-process',
-      headline: `re-process — ${needsCompute.length} employee${needsCompute.length === 1 ? ' has' : 's have'} no pay computed`,
+      headline: `re-process — ${needsCompute.length} employee${needsCompute.length === 1 ? ' has' : 's have'} no pay computed${nameList(needsCompute)}`,
       why: 'These employees are in the run but nothing has been computed for them, so there is no payslip to release. Check their attendance is submitted, then re-process — already-released rows keep the figures they were paid.',
     };
   }
@@ -133,7 +151,7 @@ export function nextAction(run) {
     headline: 'finalize this run',
     why: 'Everyone who can be released has been. Finalizing is required before the run can be marked paid.',
     caution: onHold.length > 0
-      ? `${onHold.length} employee${onHold.length === 1 ? ' is' : 's are'} on salary hold and will not receive a payslip.`
+      ? `${onHold.length} employee${onHold.length === 1 ? ' is' : 's are'} on salary hold${nameList(onHold)} and will not receive a payslip.`
       : undefined,
   };
 }

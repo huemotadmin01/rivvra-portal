@@ -752,12 +752,16 @@ export default function PayrollRunPage() {
                   {togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />} Hold Payslips
                 </button>
               )}
-              {unreleasedItems.length > 0 && (
+              {/* Counts what can ACTUALLY be released, matching the banner and
+                  the modal's default selection. Using the raw unreleased count
+                  promised 37 when only 34 could go out — salary holds and rows
+                  with no computed pay are excluded everywhere else. */}
+              {releasableItems.length > 0 && (
                 <button onClick={openReleaseModal} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs ${isNext('release') ? BTN_PRIMARY : BTN_SECONDARY}`} title="Emails payslips to the selected employees and makes them visible in ESS">
                   <Send size={12} />
                   {releasedItems.length > 0
-                    ? `Release Remaining (${unreleasedItems.length})`
-                    : 'Release Payslips to Employees'}
+                    ? `Release Remaining (${releasableItems.length})`
+                    : `Release Payslips to Employees (${releasableItems.length})`}
                 </button>
               )}
             </div>

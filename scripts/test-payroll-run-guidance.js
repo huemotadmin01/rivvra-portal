@@ -190,4 +190,30 @@ check('strip stays consistent with nextAction on the July run', () => {
   assert.strictEqual(stateOf(runSteps(july), 'release'), 'current');
 });
 
+
+console.log('\nnaming (Q: "who are these employees?")\n');
+
+check('few uncomputed employees are named, not just counted', () => {
+  const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
+    items: [item(1, 5000), item(2, 4000),
+      { employeeId: '3', employeeName: 'Rakesh Padme', netSalary: 0 },
+      { employeeId: '4', employeeName: 'RAHUL CHALINDRAWAR', netSalary: 0 }] };
+  const n = nextAction(run);
+  assert.match(n.caution, /Rakesh Padme and RAHUL CHALINDRAWAR/);
+});
+
+check('many uncomputed employees stay a count, no unreadable list', () => {
+  const items = [item(1, 5000), item(2, 4000)];
+  for (let i = 3; i <= 12; i++) items.push({ employeeId: String(i), employeeName: `Emp ${i}`, netSalary: 0 });
+  const n = nextAction({ status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'], items });
+  assert.match(n.caution, /10 more employees/);
+  assert.ok(!n.caution.includes('Emp 3'), 'should not list 10 names');
+});
+
+check('salary-hold employee is named too', () => {
+  const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
+    items: [item(1, 5000), { employeeId: '2', employeeName: 'Nutan (Kishu Sharma)', netSalary: 0, salaryHold: true }] };
+  assert.match(nextAction(run).caution, /Nutan \(Kishu Sharma\)/);
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ' — FAILURES ABOVE' : ''}`);
