@@ -282,3 +282,51 @@ through and lifting the backdrop — which is why the light reading was the
 lower of the two. Test that state, not the dark one.
 
 Both verified with the panel open and closed, in both themes.
+
+
+---
+
+## The app-bar notification badge — FIXED
+
+The last standing entry in every audit, at **2.03**. It needed two fixes, not
+one, and the second is the interesting half.
+
+`NotificationBell` drew the badge as `bg-rivvra-500 text-white`:
+
+- `text-white` **is** bridge-mapped — to `--fg`. On the green fill that is
+  `#EEF2F6` on `#22C55E` = **2.05** in dark. (In light `--fg` goes near-black,
+  which is why this only ever showed up in dark audits.)
+- `bg-rivvra-500` is **not** bridge-mapped. It stayed the dark-theme green
+  `#22C55E` in light theme too — a second, quieter bug: the badge never
+  followed the theme at all.
+
+Changing only the text would have swapped one failure for another, because
+`--brand-fg` is white in light and that on the unmapped `#22C55E` is 2.30. So
+both halves move to tokens — `--brand` + `--brand-fg`, the pairing `ds/Button`
+already uses for its primary fill:
+
+| theme | fill | text | ratio |
+|---|---|---|---|
+| dark | `#22C55E` | `#041209` | **8.36** |
+| light | `#15803D` | `#FFFFFF` | **5.02** |
+
+The literal fallbacks (`var(--brand, #22c55e)`) matter: `NotificationBell` is
+shared with the legacy `TopBar`, which renders outside `.ds-shell`. Tokens
+still resolve there — `ds-tokens.css` defines them on `:root` — so the legacy
+shell gets the fix too.
+
+**The lesson:** when a fill and its text come from different sources, check
+whether *both* are themed. A bridge-mapped foreground over an unmapped
+background is the pairing most likely to be wrong, because the two halves move
+independently.
+
+### Status
+
+`todo/dashboard`, `ats/applications`, `crm/opportunities`, `sign/requests` and
+`expenses/all` now report **zero** contrast failures in both themes —
+app-bar included.
+
+Still outside the audit's reach: `PublicSigningPage`, which renders in the
+public/no-auth route block outside `.ds-shell`. `TopBar`'s own activities
+badge (`bg-red-500` / `bg-rivvra-500` + `text-white`, legacy shell only) has
+the same shape as this one and was left alone.
