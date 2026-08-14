@@ -216,4 +216,34 @@ check('salary-hold employee is named too', () => {
   assert.match(nextAction(run).caution, /Nutan \(Kishu Sharma\)/);
 });
 
+
+console.log('\nLock Payroll interaction\n');
+
+check('payroll locked + uncomputed rows → says unlock, not "re-process"', () => {
+  const run = { status: 'processed', payrollLocked: true, payslipReleased: true,
+    releasedEmployeeIds: ['1'], items: [item(1, 5000), { employeeId: '2', employeeName: 'Emp 2', netSalary: 0 }] };
+  const n = nextAction(run);
+  assert.strictEqual(n.key, 'blocked');
+  assert.strictEqual(n.label, null, 'no button to offer while locked');
+  assert.match(n.why, /Unlock payroll/);
+});
+
+check('payroll unlocked + uncomputed rows → re-process as normal', () => {
+  const run = { status: 'processed', payrollLocked: false, payslipReleased: true,
+    releasedEmployeeIds: ['1'], items: [item(1, 5000), { employeeId: '2', employeeName: 'Emp 2', netSalary: 0 }] };
+  assert.strictEqual(nextAction(run).key, 'process');
+});
+
+check('all on salary hold → Finalize, naming them (the Rakesh/Rahul/Kishu shape)', () => {
+  const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
+    items: [item(1, 5000),
+      { employeeId: '2', employeeName: 'Rakesh Padme', netSalary: 0, salaryHold: { reason: 'x' } },
+      { employeeId: '3', employeeName: 'RAHUL CHALINDRAWAR', netSalary: 0, salaryHold: { reason: 'x' } },
+      { employeeId: '4', employeeName: 'Nutan (Kishu Sharma)', netSalary: 0, salaryHold: { reason: 'x' } }] };
+  const n = nextAction(run);
+  assert.strictEqual(n.key, 'finalize');
+  assert.match(n.caution, /3 employees are on salary hold/);
+  assert.strictEqual(runSteps(run).find(s => s.key === 'release').state, 'done');
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ' — FAILURES ABOVE' : ''}`);

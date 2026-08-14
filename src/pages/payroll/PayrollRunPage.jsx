@@ -554,9 +554,11 @@ export default function PayrollRunPage() {
     const next = nextAction(run);
     const finalizeCaution = finalizeWarning(run);
     const isNext = (key) => next?.key === key;
-    const reprocessBlockedReason = isLegacyReleaseAll
-      ? 'Payslips were released to everyone without a per-employee list, so figures people have already seen can\'t be protected. Hold payslips first, then re-process.'
-      : null;
+    const reprocessBlockedReason = run.payrollLocked
+      ? 'Payroll is locked for this run. Use Unlock Payroll to re-process.'
+      : isLegacyReleaseAll
+        ? 'Payslips were released to everyone without a per-employee list, so figures people have already seen can\'t be protected. Hold payslips first, then re-process.'
+        : null;
     const frozenDrift = run.reprocessFrozenDrift || [];
     // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
     const columns = [
@@ -615,17 +617,19 @@ export default function PayrollRunPage() {
             )}
             {run.status === 'processed' && (
               <>
-                {!run.payrollLocked && (
-                  <button
-                    onClick={handleProcess}
-                    disabled={processing || !!reprocessBlockedReason}
-                    title={reprocessBlockedReason || 'Recompute this run. Released payslips keep the figures already paid.'}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${isNext('process') ? BTN_PRIMARY : BTN_SECONDARY}`}
-                  >
-                    {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-dark-300/30 border-t-dark-300" /> : <Play size={14} />}
-                    {processing ? 'Processing...' : 'Re-process'}
-                  </button>
-                )}
+                {/* Shown disabled rather than hidden when payroll is locked.
+                    Hiding it made the button vanish with no explanation, which
+                    reads as a broken page — especially when the banner is
+                    telling you a re-process is what's needed. */}
+                <button
+                  onClick={handleProcess}
+                  disabled={processing || !!reprocessBlockedReason}
+                  title={reprocessBlockedReason || 'Recompute this run. Released payslips keep the figures already paid.'}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${isNext('process') ? BTN_PRIMARY : BTN_SECONDARY}`}
+                >
+                  {processing ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-dark-300/30 border-t-dark-300" /> : <Play size={14} />}
+                  {processing ? 'Processing...' : 'Re-process'}
+                </button>
                 {/* Demoted unless it is genuinely the next step. Finalizing makes
                     the run un-processable, so being the loudest button on a run
                     with a cohort still to compute is actively harmful. */}

@@ -137,6 +137,16 @@ export function nextAction(run) {
   // Nobody releasable, but rows still have nothing computed. This must NOT fall
   // through to Finalize: finalizing would block the re-process they need.
   if (needsCompute.length > 0) {
+    // Lock Payroll blocks processing, so pointing at Re-process would send HR
+    // to a button that isn't available. Name the lock instead.
+    if (run.payrollLocked) {
+      return {
+        key: 'blocked',
+        label: null,
+        headline: `payroll is locked, but ${needsCompute.length} employee${needsCompute.length === 1 ? ' has' : 's have'} no pay computed${nameList(needsCompute)}`,
+        why: 'Re-processing is blocked while payroll is locked. Unlock payroll to compute them, or put them on salary hold if they are not being paid for this month.',
+      };
+    }
     return {
       key: 'process',
       label: 'Re-process',
