@@ -69,6 +69,20 @@ const statusLabel = (s) => STATUS_LABELS[s] || String(s || '').replace(/\b\w/g, 
 // never red. Red is reserved for genuine problems (missing attendance, LOP).
 const LOCKED_BADGE = 'bg-dark-700 text-dark-200 border border-dark-600';
 
+// Mirrors isPayslipReleasedFor() in the API. Release is tracked PER EMPLOYEE via
+// releasedEmployeeIds, so a run can be released to one cohort while another is
+// still pending — employees on the 30th, external consultants on the 15th of the
+// following month. Reading the run-level `payslipReleased` flag alone is wrong:
+// it hid the Release button entirely once any employee had been released, which
+// left no way to release the remaining cohort.
+// An absent/empty array on a released run means a legacy release-all.
+function isPayslipReleasedFor(run, employeeId) {
+  if (!run?.payslipReleased) return false;
+  const ids = run.releasedEmployeeIds;
+  if (!Array.isArray(ids) || ids.length === 0) return true;
+  return ids.some(id => String(id) === String(employeeId));
+}
+
 // The employment-type bucket a row falls into. Contractors carry
 // `payrollMode: 'contractor'` and default to external_consultant; everyone
 // else defaults to confirmed. Shared by the tabs and the row filter so the
@@ -375,7 +389,13 @@ export default function PayrollRunPage() {
   // Release payslips with employee selection — on-hold employees excluded
   const openReleaseModal = () => {
     const items = selectedRun?.items || [];
-    setReleaseSelection(new Set(items.filter(i => !i.salaryHold).map(i => i.employeeId)));
+    // Default to only those NOT already released — re-releasing re-sends the
+    // payslip email to someone who received it weeks ago.
+    setReleaseSelection(new Set(
+      items
+        .filter(i => !i.salaryHold && !isPayslipReleasedFor(selectedRun, i.employeeId))
+        .map(i => i.employeeId)
+    ));
     setShowReleaseModal(true);
   };
 
@@ -522,6 +542,10 @@ export default function PayrollRunPage() {
     // letting the click dead-end in an error toast.
     const releasedCount = (run.releasedEmployeeIds || []).length;
     const isLegacyReleaseAll = !!run.payslipReleased && releasedCount === 0;
+    // Split the run by who has actually been released, so Release and Hold can
+    // both be offered on a partially-released run.
+    const releasedItems = (run.items || []).filter(i => isPayslipReleasedFor(run, i.employeeId));
+    const unreleasedItems = (run.items || []).filter(i => !isPayslipReleasedFor(run, i.employeeId));
     const reprocessBlockedReason = isLegacyReleaseAll
       ? 'Payslips were released to everyone without a per-employee list, so figures people have already seen can\'t be protected. Hold payslips first, then re-process.'
       : null;
@@ -672,14 +696,22 @@ export default function PayrollRunPage() {
                 {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
               </button>
               {/* Release/Hold — Release EMAILS payslips to employees, so it gets a
-                  filled primary treatment, never the bordered download look. */}
-              {run.payslipReleased ? (
-                <button onClick={() => setShowHoldPayslipsConfirm(true)} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50" title="Hide released payslips from employees again">
+                  filled primary treatment, never the bordered download look.
+                  These are NOT mutually exclusive: a partially-released run has
+                  both people to release and people who could be held, and the
+                  old either/or on run.payslipReleased hid Release completely as
+                  soon as the first cohort went out. */}
+              {releasedItems.length > 0 && (
+                <button onClick={() => setShowHoldPayslipsConfirm(true)} disabled={togglingRelease} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50" title={`Hide the ${releasedItems.length} released payslip${releasedItems.length === 1 ? '' : 's'} from employees again`}>
                   {togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />} Hold Payslips
                 </button>
-              ) : (
+              )}
+              {unreleasedItems.length > 0 && (
                 <button onClick={openReleaseModal} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rivvra-600 text-white hover:bg-rivvra-700 shadow-sm" title="Emails payslips to the selected employees and makes them visible in ESS">
-                  <Send size={12} /> Release Payslips to Employees
+                  <Send size={12} />
+                  {releasedItems.length > 0
+                    ? `Release Remaining (${unreleasedItems.length})`
+                    : 'Release Payslips to Employees'}
                 </button>
               )}
             </div>
@@ -1424,32 +1456,39 @@ export default function PayrollRunPage() {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs text-dark-400">{releaseSelection.size} of {items.length} selected</span>
                   <div className="flex gap-2">
-                    {/* On-hold employees are excluded from Select All and their rows disabled */}
-                    <button onClick={() => setReleaseSelection(new Set(items.filter(i => !i.salaryHold).map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
+                    {/* On-hold and already-released employees are excluded from
+                        Select All and their rows disabled — re-releasing would
+                        re-send a payslip email to someone who already has it. */}
+                    <button onClick={() => setReleaseSelection(new Set(items.filter(i => !i.salaryHold && !isPayslipReleasedFor(run, i.employeeId)).map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
                     <button onClick={() => setReleaseSelection(new Set())} className="text-[10px] text-dark-400 hover:text-dark-300">Deselect All</button>
                   </div>
                 </div>
-                {items.map(item => (
-                  <label key={item.employeeId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-dark-750 ${item.salaryHold ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                    <input
-                      type="checkbox"
-                      checked={releaseSelection.has(item.employeeId)}
-                      disabled={!!item.salaryHold}
-                      onChange={() => {
-                        if (item.salaryHold) return;
-                        const next = new Set(releaseSelection);
-                        next.has(item.employeeId) ? next.delete(item.employeeId) : next.add(item.employeeId);
-                        setReleaseSelection(next);
-                      }}
-                      className="rounded border-dark-600"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm text-white">{item.employeeName}</span>
-                      {item.salaryHold && <span className="text-[9px] text-orange-400 ml-2">On Hold</span>}
-                    </div>
-                    <span className="text-xs text-green-400">{formatMoney(item.netSalary)}</span>
-                  </label>
-                ))}
+                {items.map(item => {
+                  const alreadyReleased = isPayslipReleasedFor(run, item.employeeId);
+                  const locked = !!item.salaryHold || alreadyReleased;
+                  return (
+                    <label key={item.employeeId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-dark-750 ${locked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={releaseSelection.has(item.employeeId)}
+                        disabled={locked}
+                        onChange={() => {
+                          if (locked) return;
+                          const next = new Set(releaseSelection);
+                          next.has(item.employeeId) ? next.delete(item.employeeId) : next.add(item.employeeId);
+                          setReleaseSelection(next);
+                        }}
+                        className="rounded border-dark-600"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm text-white">{item.employeeName}</span>
+                        {item.salaryHold && <span className="text-[9px] text-orange-400 ml-2">On Hold</span>}
+                        {alreadyReleased && !item.salaryHold && <span className="text-[9px] text-green-400 ml-2">Already released</span>}
+                      </div>
+                      <span className="text-xs text-green-400">{formatMoney(item.netSalary)}</span>
+                    </label>
+                  );
+                })}
                 <div className="flex gap-3 pt-3">
                   <button onClick={() => setShowReleaseModal(false)} className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700">Cancel</button>
                   <button onClick={handleReleasePayslips} disabled={releasing || releaseSelection.size === 0} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
