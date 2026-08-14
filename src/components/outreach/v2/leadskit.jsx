@@ -57,7 +57,7 @@ export function OutreachStatusChip({ status }) {
 export function ProfileTypeChip({ type }) {
   if (type === 'client') return <Chip tone="info">Client</Chip>;
   if (type === 'candidate') return <Chip tone="info" style={{ color: 'var(--a-ats, #8b5cf6)', background: 'color-mix(in srgb, var(--a-ats, #8b5cf6) 14%, transparent)' }}>Candidate</Chip>;
-  return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+  return <span style={{ color: 'var(--fg-4)' }}>—</span>;
 }
 
 const missingEmail = (email) => !email || email === 'noemail@domain.com';
@@ -309,17 +309,17 @@ export function LeadsTableV2({
             )}
             <td style={td()}><ProfileTypeChip type={lead.profileType} /></td>
             <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /></td>
-            <td style={td({ color: 'var(--fg-3)' })}>{lead.companyName || lead.company || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
-            <td style={td({ color: 'var(--fg-3)' })}>{lead.location || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
+            <td style={td({ color: 'var(--fg-3)' })}>{lead.companyName || lead.company || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
+            <td style={td({ color: 'var(--fg-3)' })}>{lead.location || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
             <td style={td({ color: 'var(--fg-3)' })}>
-              {missingEmail(lead.email) ? <span style={{ color: 'var(--fg-faint)' }}>Not found</span> : lead.email}
+              {missingEmail(lead.email) ? <span style={{ color: 'var(--fg-4)' }}>Not found</span> : lead.email}
             </td>
             <td style={td()}>
               {lead.notes?.length ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--fg-3)' }}>
                   <StickyNote size={12} style={{ color: 'var(--fg-4)' }} /> {lead.notes.length}
                 </span>
-              ) : <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+              ) : <span style={{ color: 'var(--fg-4)' }}>—</span>}
             </td>
           </tr>
         );

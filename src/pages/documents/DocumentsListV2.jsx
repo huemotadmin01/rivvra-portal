@@ -244,7 +244,7 @@ export default function DocumentsListV2() {
           {grouped.map(([groupName, groupDocs]) => (
             <section key={groupName}>
               <h3 style={{ font: "600 10.5px/1 'Inter', system-ui, sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-4)', margin: '0 0 8px 2px' }}>
-                {groupName} <span style={{ color: 'var(--fg-faint)' }}>· {groupDocs.length}</span>
+                {groupName} <span style={{ color: 'var(--fg-4)' }}>· {groupDocs.length}</span>
               </h3>
               <DocsGridV2 docs={groupDocs} tagsById={tagsById} onOpen={open} />
             </section>

@@ -243,8 +243,11 @@ export function InlineField({
         <span style={labelStyle}>{label}</span>
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 20, font: "450 13px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg, #eef2f6)' }}>
+            {/* The em-dash below is this field's answer — "no value" — not
+                decoration, so it uses the lowest TEXT tier. --fg-faint
+                measures ~2.5 and is reserved for separators and glyphs. */}
             {display || (
-              <span style={{ color: showExternalError ? 'var(--danger, #ef4444)' : 'var(--fg-faint, #4a5563)' }}>
+              <span style={{ color: showExternalError ? 'var(--danger, #ef4444)' : 'var(--fg-4, #828e9f)' }}>
                 {showExternalError ? 'Required' : '—'}
               </span>
             )}

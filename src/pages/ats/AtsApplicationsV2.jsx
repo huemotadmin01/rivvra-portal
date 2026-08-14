@@ -51,7 +51,7 @@ function legacyToRec(legacy) {
 function FeedbackChip({ result, legacy }) {
   let rec = result?.recommendation;
   if (!rec && legacy && typeof legacy === 'string') rec = legacyToRec(legacy);
-  if (!rec) return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+  if (!rec) return <span style={{ color: 'var(--fg-4)' }}>—</span>;
   const tone = rec === 'Proceed' ? 'brand' : rec === 'Awaited' ? 'warn' : 'danger';
   return <Chip tone={tone} title={legacy || ''}>{rec}</Chip>;
 }
@@ -59,7 +59,7 @@ function FeedbackChip({ result, legacy }) {
 function RoundCell({ interview }) {
   const dt = formatDateTimeShort(interview?.datetime);
   if (!interview || (!dt && !interview.recommendation && !interview.legacyFeedback)) {
-    return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+    return <span style={{ color: 'var(--fg-4)' }}>—</span>;
   }
   return (
     <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -73,7 +73,7 @@ function RoundCell({ interview }) {
 
 function InterviewSummaryCell({ app }) {
   const interviews = app.interviews || [];
-  if (interviews.length === 0 && !app.currentRoundKey) return <span style={{ color: 'var(--fg-faint)' }}>—</span>;
+  if (interviews.length === 0 && !app.currentRoundKey) return <span style={{ color: 'var(--fg-4)' }}>—</span>;
   let primary = app.currentRoundKey ? interviews.find(i => i.roundKey === app.currentRoundKey) : null;
   if (!primary) {
     const scheduled = interviews.filter(i => i.datetime);
@@ -87,7 +87,7 @@ function InterviewSummaryCell({ app }) {
         {label && <span style={{ color: 'var(--fg-2)', fontWeight: 550, marginRight: 5 }}>{label}</span>}
         {dt
           ? <span style={{ color: 'var(--fg-4)' }}>{dt}</span>
-          : (label ? <span style={{ color: 'var(--fg-4)' }}>not scheduled</span> : <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          : (label ? <span style={{ color: 'var(--fg-4)' }}>not scheduled</span> : <span style={{ color: 'var(--fg-4)' }}>—</span>)}
       </span>
       {interviews.length > 0 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -618,14 +618,14 @@ export default function AtsApplicationsV2() {
           </span>
         </td>
         <td style={td({ color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })} title={app.candidateEmail || ''}>
-          {app.candidateEmail || <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+          {app.candidateEmail || <span style={{ color: 'var(--fg-4)' }}>—</span>}
         </td>
         <td style={td({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
           {app.jobPositionId && app.jobName ? (
             <Link to={orgPath(`/ats/jobs/${app.jobPositionId}`)} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--fg-2)' }}>
               {app.jobName}
             </Link>
-          ) : (app.jobName || <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          ) : (app.jobName || <span style={{ color: 'var(--fg-4)' }}>—</span>)}
         </td>
         <td style={td()}>
           <StageBadge stageName={stages.find((s) => s._id === app.stageId)?.name || app.stageName || app.stageId?.name} />
@@ -635,7 +635,7 @@ export default function AtsApplicationsV2() {
             <Link to={orgPath(`/employee/${app.recruiterId}`)} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--fg-2)' }}>
               {app.recruiterName}
             </Link>
-          ) : (app.recruiterName || <span style={{ color: 'var(--fg-faint)' }}>—</span>)}
+          ) : (app.recruiterName || <span style={{ color: 'var(--fg-4)' }}>—</span>)}
         </td>
         <td style={td({ textAlign: 'center' })}><EvalStars value={app.evaluation || 0} /></td>
         <td style={td({ textAlign: 'center' })}><AiScoreBadge score={app.aiJobFitScore} size="sm" /></td>

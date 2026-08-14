@@ -205,7 +205,7 @@ export function DataTable({
                         fontVariantNumeric: c.align === 'right' ? 'tabular-nums' : 'normal',
                       }}
                     >
-                      {c.render ? c.render(row, i) : row?.[c.key] ?? <span style={{ color: 'var(--fg-faint, #4a5563)' }}>—</span>}
+                      {c.render ? c.render(row, i) : row?.[c.key] ?? <span style={{ color: 'var(--fg-4, #828e9f)' }}>—</span>}
                     </td>
                   ))}
                 </tr>

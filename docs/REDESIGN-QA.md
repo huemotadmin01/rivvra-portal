@@ -78,6 +78,15 @@ Four things that will give you false failures:
   checkOpacity: true, checkVisibilityCSS: true })` catches text inside a
   hidden wrapper; checking only the element's own `display`/`visibility`/
   `opacity` does not.
+- **A gradient ANCESTOR, not just the element.** `getComputedStyle`
+  returns `transparent` for a `linear-gradient`, so a text node sitting on a
+  gradient composites against whatever is behind it and can report 1.00.
+  Guarding only the element itself is not enough — `ds/Avatar` paints a
+  gradient and puts its initials in a child, which is why every candidate
+  list reports ~26 phantom failures at exactly 1.00. Walk up: if any ancestor
+  between the text and its first opaque background has a `backgroundImage`
+  other than `none`, skip the node rather than trusting the composite.
+
 - **Ignore disabled controls.** WCAG 1.4.3 exempts them, and ds `Button`
   dims to `opacity: .45` when disabled, so a locked primary button reports
   around 2.2 every time. A disabled "I acknowledge" on the policy reader is

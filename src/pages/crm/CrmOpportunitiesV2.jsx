@@ -371,7 +371,7 @@ export default function CrmOpportunitiesV2() {
       >
         {columns.map((col) => (
           <td key={col.key} style={{ padding: '11px 14px', font: '450 13.5px/1.45 var(--font)', color: 'var(--fg-2)', textAlign: col.align || 'left', borderBottom: '1px solid var(--line)', verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {col.render ? col.render(opp) : opp?.[col.key] ?? <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+            {col.render ? col.render(opp) : opp?.[col.key] ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
           </td>
         ))}
       </tr>
