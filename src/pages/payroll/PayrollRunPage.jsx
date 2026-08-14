@@ -148,6 +148,7 @@ export default function PayrollRunPage() {
   const [creating, setCreating] = useState(false);
   const [showMarkPaidConfirm, setShowMarkPaidConfirm] = useState(false);
   const [showHoldPayslipsConfirm, setShowHoldPayslipsConfirm] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [loadError, setLoadError] = useState(null);
   // In-flight guards for the remaining financial / destructive actions
@@ -228,9 +229,13 @@ export default function PayrollRunPage() {
     finally { setProcessing(false); }
   };
 
+  // Finalize makes a run un-processable (process accepts only draft/processed/
+  // processing). On a run with a cohort still to come that blocks the rest of
+  // the month, so the confirmation spells out the consequence instead of the
+  // old generic "no further edits will be allowed".
   const handleFinalize = async () => {
     if (finalizing) return;
-    if (!confirm('Finalize this payroll run? No further edits will be allowed.')) return;
+    setShowFinalizeConfirm(false);
     setFinalizing(true);
     try {
       const res = await finalizePayrollRun(orgSlug, selectedRun._id);
@@ -541,7 +546,10 @@ export default function PayrollRunPage() {
     const isLegacyReleaseAll = !!run.payslipReleased && releasedCount === 0;
     // Split the run by who has actually been released, so Release and Hold can
     // both be offered on a partially-released run.
-    const { released: releasedItems, unreleased: unreleasedItems } = splitByRelease(run);
+    const {
+      released: releasedItems, unreleased: unreleasedItems,
+      releasable: releasableItems, needsCompute: needsComputeItems,
+    } = splitByRelease(run);
     // The one next step. Drives both the banner and which button is primary.
     const next = nextAction(run);
     const finalizeCaution = finalizeWarning(run);
@@ -574,7 +582,7 @@ export default function PayrollRunPage() {
             <div className="flex flex-wrap items-center gap-3 gap-y-1.5">
               <h1 className="text-xl font-semibold text-white">{MONTHS[run.month]} {run.year}</h1>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status]}`}>{statusLabel(run.status)}</span>
-              {run.inputsLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400" title="Attendance & timesheet inputs are frozen for this run">Inputs Locked</span>}
+              {run.inputsLocked && <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400" title={LOCK_EFFECTS.inputs.lock}>Adjustments Locked</span>}
               {run.payrollLocked && <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${LOCKED_BADGE}`} title="Payroll figures are frozen — the normal state for a finished run">Payroll Locked</span>}
               {/* Partial release is the normal case when one cohort is paid on
                   the 30th and another on the 15th of the following month —
@@ -622,7 +630,7 @@ export default function PayrollRunPage() {
                     the run un-processable, so being the loudest button on a run
                     with a cohort still to compute is actively harmful. */}
                 <button
-                  onClick={handleFinalize}
+                  onClick={() => setShowFinalizeConfirm(true)}
                   disabled={finalizing}
                   title={finalizeCaution || 'Locks the run so it can be marked paid.'}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm disabled:opacity-50 ${isNext('finalize') ? BTN_PRIMARY_FINALIZE : BTN_SECONDARY}`}
@@ -727,7 +735,7 @@ export default function PayrollRunPage() {
               <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 w-full sm:w-auto sm:mr-1">Run state</span>
               <button onClick={() => handleToggleLock('inputs')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.inputsLocked ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`} title={run.inputsLocked ? LOCK_EFFECTS.inputs.unlock : LOCK_EFFECTS.inputs.lock}>
                 {togglingLock === 'inputs' ? <Loader2 size={12} className="animate-spin" /> : run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}
-                {run.inputsLocked ? 'Unlock Inputs' : 'Lock Inputs'}
+                {run.inputsLocked ? 'Unlock Adjustments' : 'Lock Adjustments'}
               </button>
               <button onClick={() => handleToggleLock('payroll')} disabled={!!togglingLock} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border disabled:opacity-50 ${run.payrollLocked ? 'border-dark-500 text-dark-200 bg-dark-700/60 hover:bg-dark-700' : 'border-dark-600 text-dark-300 hover:bg-dark-700'}`} title={run.payrollLocked ? LOCK_EFFECTS.payroll.unlock : LOCK_EFFECTS.payroll.lock}>
                 {togglingLock === 'payroll' ? <Loader2 size={12} className="animate-spin" /> : run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}
@@ -1537,6 +1545,60 @@ export default function PayrollRunPage() {
                   <button onClick={handleReleasePayslips} disabled={releasing || releaseSelection.size === 0} className="flex-1 px-3 py-2 bg-rivvra-600 text-white rounded-lg text-sm hover:bg-rivvra-700 disabled:opacity-50 flex items-center justify-center gap-2">
                     {releasing && <Loader2 size={14} className="animate-spin" />}
                     {releasing ? 'Releasing...' : `Release (${releaseSelection.size})`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Finalize Confirmation Modal — finalizing makes the run
+            un-processable, which on a two-cohort month blocks the work still to
+            come. State that plainly, and name who has no payslip yet. */}
+        {showFinalizeConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !finalizing && setShowFinalizeConfirm(false)}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${finalizeCaution ? 'bg-amber-500/10' : 'bg-purple-500/10'}`}>
+                    {finalizeCaution
+                      ? <AlertTriangle size={20} className="text-amber-400" />
+                      : <Lock size={20} className="text-purple-400" />}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-white">Finalize this run?</h3>
+                    <p className="text-xs text-dark-400">{MONTHS[run.month]} {run.year}</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-dark-300">
+                  Finalizing marks the run complete so it can be paid. <span className="text-white font-medium">It also blocks re-processing</span> — figures can no longer be recomputed unless you unfinalize.
+                </p>
+
+                {finalizeCaution && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                    <p className="text-xs text-amber-300 font-medium">{finalizeCaution}</p>
+                    <ul className="text-xs text-dark-400 space-y-1">
+                      {releasableItems.length > 0 && (
+                        <li>• {releasableItems.length} ready to release but not yet sent.</li>
+                      )}
+                      {needsComputeItems.length > 0 && (
+                        <li>• {needsComputeItems.length} with no pay computed — these need a re-process, which finalizing prevents.</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button onClick={() => setShowFinalizeConfirm(false)} disabled={finalizing}
+                    className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700 disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleFinalize} disabled={finalizing}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm text-white disabled:opacity-50 flex items-center justify-center gap-2 ${finalizeCaution ? 'bg-amber-600 hover:bg-amber-700' : 'bg-purple-600 hover:bg-purple-700'}`}>
+                    {finalizing && <Loader2 size={14} className="animate-spin" />}
+                    {finalizing ? 'Finalizing...' : finalizeCaution ? 'Finalize anyway' : 'Finalize'}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 # Plan: guided run state on the Payroll Run page
 
-**Status:** proposal — nothing implemented. Needs sign-off on §7 before coding.
+**Status:** **Phases 1–3 SHIPPED** (2026-08-13). Decisions 1 and 2 in §7 are settled
+and marked below; 3–5 remain open but are not blocking anything.
 **Drafted:** 2026-08-13
 **Trigger:** HR could not tell which of `Finalize`, `Lock Inputs`, `Lock Payroll`,
 `Hold Payslips` and `Re-process` to click, or in what order.
@@ -169,10 +170,14 @@ anyway, confirm with that sentence. **Whether to hard-block is a §7 decision.**
 
 ## 7. Decisions needed before coding
 
-1. **`Lock Inputs`** — rename to `Lock Adjustments` (honest, cheap), or extend it to
-   actually freeze attendance/timesheets for the period (real behaviour change,
-   affects who can edit what)?
-2. **Finalize with unreleased rows** — demote + confirm, or hard-block?
+1. ~~**`Lock Inputs`** — rename or extend?~~ **DECIDED: renamed to `Lock Adjustments`.**
+   Extending it to freeze attendance/timesheets was rejected as actively harmful here:
+   external consultants submit their July timesheets in August, so a locked July run
+   would lock out exactly the people the 15th-of-month cycle depends on. Revisit only
+   with per-cohort scoping.
+2. ~~**Finalize with unreleased rows** — demote or hard-block?~~ **DECIDED: confirm
+   dialog naming the consequence.** A hard block would remove any way to close a run
+   whose last few will never be paid, forcing HR to salary-hold them to proceed.
 3. **"Figures look computed"** — how does the UI distinguish "this cohort is ready to
    release" from "this cohort still needs a re-process"? Options: net > 0; timesheet
    approved for the period; or an explicit per-cohort marker.
@@ -200,9 +205,16 @@ Then walk the July run itself and confirm the strip reads
 
 ## 10. Phasing
 
-1. **Phase 1 (small, high value):** next-action banner + single-primary rule + honest
-   lock tooltips. Fixes the confusion without new UI vocabulary.
-2. **Phase 2:** the step strip.
-3. **Phase 3:** the Finalize guard and the `Lock Inputs` resolution from §7.
+1. ~~**Phase 1:** next-action banner + single-primary rule + honest lock tooltips.~~
+   **SHIPPED** `2d4e5886`.
+2. ~~**Phase 2:** the step strip.~~ **SHIPPED** `90e0806f`, four steps rather than
+   seven — see `runSteps()` for why that keeps §7.4 open instead of guessing it.
+   Shipped alongside excluding zero-value payslips from release.
+3. ~~**Phase 3:** Finalize guard + `Lock Inputs` resolution.~~ **SHIPPED** — rename to
+   `Lock Adjustments` (label, badge, tooltip and the in-product KB), and a Finalize
+   confirmation that names how many have no payslip and states plainly that finalizing
+   blocks re-processing.
 
-Phase 1 alone would have prevented today's question.
+Logic lives in `src/utils/payrollRunGuidance.js` as pure functions with no persisted
+state; `scripts/test-payroll-run-guidance.js` covers them, including the live July
+shape asserting a partially-released run never reads as ready to finalize.
