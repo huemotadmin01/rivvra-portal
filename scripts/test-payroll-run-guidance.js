@@ -5,7 +5,7 @@
 //   node scripts/test-payroll-run-guidance.js
 
 import assert from 'node:assert';
-import { nextAction, splitByRelease, finalizeWarning, isPayslipReleasedFor } from '../src/utils/payrollRunGuidance.js';
+import { nextAction, splitByRelease, finalizeWarning, isPayslipReleasedFor, runSteps, isReleasable } from '../src/utils/payrollRunGuidance.js';
 
 let passed = 0;
 const check = (name, fn) => {
@@ -59,20 +59,39 @@ check('paid → done, no button', () => {
   assert.strictEqual(n.label, null);
 });
 
-check('unreleased rows with NO computed pay → Re-process, not Release', () => {
+check('unreleased rows with NO computed pay → Re-process, never Finalize', () => {
   const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
     items: [item(1, 5000), item(2, 0), item(3, 0)] };
   const n = nextAction(run);
-  assert.strictEqual(n.key, 'process');
-  assert.match(n.headline, /no figures yet/);
+  assert.strictEqual(n.key, 'process', 'must not fall through to Finalize');
+  assert.match(n.headline, /no pay computed/);
 });
 
-check('mixed computed/uncomputed unreleased → Release, with a caution', () => {
+check('mixed computed/uncomputed unreleased → Release the computed, caution the rest', () => {
   const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
     items: [item(1, 5000), item(2, 4000), item(3, 0)] };
   const n = nextAction(run);
   assert.strictEqual(n.key, 'release');
-  assert.match(n.caution, /1 of them still have no computed net pay/);
+  assert.match(n.label, /\(1\)/, 'only the computed row is releasable');
+  assert.match(n.caution, /1 more employee has no computed pay/);
+});
+
+check('zero-net rows are NOT releasable', () => {
+  const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
+    items: [item(1, 5000), item(2, 4000), item(3, 0), item(4, 0, { salaryHold: true })] };
+  const { releasable, needsCompute, onHold } = splitByRelease(run);
+  assert.strictEqual(releasable.length, 1);
+  assert.strictEqual(needsCompute.length, 1);
+  assert.strictEqual(onHold.length, 1);
+  assert.strictEqual(isReleasable(run, item(3, 0)), false);
+  assert.strictEqual(isReleasable(run, item(2, 4000)), true);
+});
+
+check('uncomputed rows keep the Release step open (no premature Finalize)', () => {
+  const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
+    items: [item(1, 5000), item(2, 0)] };
+  assert.strictEqual(runSteps(run).find(s => s.key === 'release').state, 'current');
+  assert.match(finalizeWarning(run), /1 employee has no payslip yet/);
 });
 
 check('salary-hold rows do not block reaching Finalize', () => {
@@ -109,6 +128,66 @@ check('fully released run → no warning', () => {
 
 check('already finalized → no warning', () => {
   assert.strictEqual(finalizeWarning({ ...july, status: 'finalized' }), null);
+});
+
+console.log('\nrunSteps()\n');
+
+const stateOf = (steps, key) => steps.find(s => s.key === key).state;
+
+check('exactly one step is current, always', () => {
+  for (const run of [
+    { status: 'draft', items: [] },
+    july,
+    { ...july, releasedEmployeeIds: july.items.map(i => i.employeeId) },
+    { ...july, status: 'finalized' },
+    { ...july, status: 'paid' },
+  ]) {
+    const cur = runSteps(run).filter(s => s.state === 'current');
+    assert.ok(cur.length <= 1, `expected <=1 current, got ${cur.length}`);
+  }
+});
+
+check('draft → Process current, everything else upcoming', () => {
+  const s = runSteps({ status: 'draft', items: [] });
+  assert.strictEqual(stateOf(s, 'process'), 'current');
+  assert.strictEqual(stateOf(s, 'release'), 'upcoming');
+  assert.strictEqual(stateOf(s, 'markPaid'), 'upcoming');
+});
+
+check('THE JULY CASE: 31/68 → Process done, Release current (not done)', () => {
+  const s = runSteps(july);
+  assert.strictEqual(stateOf(s, 'process'), 'done');
+  assert.strictEqual(stateOf(s, 'release'), 'current', 'partial release must NOT read as complete');
+  assert.strictEqual(stateOf(s, 'finalize'), 'upcoming');
+  assert.strictEqual(s.find(x => x.key === 'release').detail, '31/68 released');
+});
+
+check('all released → Release done, Finalize current', () => {
+  const s = runSteps({ ...july, releasedEmployeeIds: july.items.map(i => i.employeeId) });
+  assert.strictEqual(stateOf(s, 'release'), 'done');
+  assert.strictEqual(stateOf(s, 'finalize'), 'current');
+});
+
+check('finalized → Mark paid current', () => {
+  const s = runSteps({ ...july, status: 'finalized', releasedEmployeeIds: july.items.map(i => i.employeeId) });
+  assert.strictEqual(stateOf(s, 'finalize'), 'done');
+  assert.strictEqual(stateOf(s, 'markPaid'), 'current');
+});
+
+check('paid → every step done, nothing current', () => {
+  const s = runSteps({ ...july, status: 'paid', releasedEmployeeIds: july.items.map(i => i.employeeId) });
+  assert.ok(s.every(x => x.state === 'done'));
+});
+
+check('salary-hold-only remainder still lets Release read done', () => {
+  const run = { status: 'processed', payslipReleased: true, releasedEmployeeIds: ['1'],
+    items: [item(1, 5000), item(2, 0, { salaryHold: true })] };
+  assert.strictEqual(stateOf(runSteps(run), 'release'), 'done');
+});
+
+check('strip stays consistent with nextAction on the July run', () => {
+  assert.strictEqual(nextAction(july).key, 'release');
+  assert.strictEqual(stateOf(runSteps(july), 'release'), 'current');
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ' — FAILURES ABOVE' : ''}`);

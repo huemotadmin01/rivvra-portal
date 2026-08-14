@@ -15,8 +15,9 @@ import {
 import { useToast } from '../../context/ToastContext';
 import { formatMoney } from '../../utils/formatCurrency';
 import {
-  isPayslipReleasedFor, splitByRelease, nextAction, finalizeWarning, LOCK_EFFECTS,
+  isPayslipReleasedFor, isReleasable, splitByRelease, nextAction, finalizeWarning, LOCK_EFFECTS,
 } from '../../utils/payrollRunGuidance';
+import PayrollRunStepStrip from '../../components/PayrollRunStepStrip';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   Edit2, X, FileText, IndianRupee, Eye, EyeOff, Banknote, FileSpreadsheet,
@@ -386,12 +387,11 @@ export default function PayrollRunPage() {
   // Release payslips with employee selection — on-hold employees excluded
   const openReleaseModal = () => {
     const items = selectedRun?.items || [];
-    // Default to only those NOT already released — re-releasing re-sends the
-    // payslip email to someone who received it weeks ago.
+    // Only rows that can actually be released: not already released (that would
+    // re-send an email received weeks ago), not on salary hold, and with pay
+    // actually computed (net 0 would email an empty payslip).
     setReleaseSelection(new Set(
-      items
-        .filter(i => !i.salaryHold && !isPayslipReleasedFor(selectedRun, i.employeeId))
-        .map(i => i.employeeId)
+      items.filter(i => isReleasable(selectedRun, i)).map(i => i.employeeId)
     ));
     setShowReleaseModal(true);
   };
@@ -645,6 +645,10 @@ export default function PayrollRunPage() {
             )}
           </div>
         </div>
+
+        {/* Where the run has got to. Pairs with the banner below: the strip says
+            where you ARE, the banner says what to DO. */}
+        <PayrollRunStepStrip run={run} />
 
         {/* Next step — the run header offers six controls of equal weight in an
             order unrelated to when they should be used. This states the one next
@@ -1490,16 +1494,20 @@ export default function PayrollRunPage() {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs text-dark-400">{releaseSelection.size} of {items.length} selected</span>
                   <div className="flex gap-2">
-                    {/* On-hold and already-released employees are excluded from
-                        Select All and their rows disabled — re-releasing would
-                        re-send a payslip email to someone who already has it. */}
-                    <button onClick={() => setReleaseSelection(new Set(items.filter(i => !i.salaryHold && !isPayslipReleasedFor(run, i.employeeId)).map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
+                    {/* Select All means "everyone who can actually be released":
+                        excludes already-released (would re-email), salary holds,
+                        and rows with no computed pay (would email an empty
+                        payslip). */}
+                    <button onClick={() => setReleaseSelection(new Set(items.filter(i => isReleasable(run, i)).map(i => i.employeeId)))} className="text-[10px] text-rivvra-400 hover:text-rivvra-300">Select All</button>
                     <button onClick={() => setReleaseSelection(new Set())} className="text-[10px] text-dark-400 hover:text-dark-300">Deselect All</button>
                   </div>
                 </div>
                 {items.map(item => {
                   const alreadyReleased = isPayslipReleasedFor(run, item.employeeId);
-                  const locked = !!item.salaryHold || alreadyReleased;
+                  // Net 0 means nothing was computed — releasing emails an empty
+                  // payslip, so the row is locked out the same as a salary hold.
+                  const noPay = !alreadyReleased && !item.salaryHold && !(Number(item.netSalary) > 0);
+                  const locked = !!item.salaryHold || alreadyReleased || noPay;
                   return (
                     <label key={item.employeeId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-dark-750 ${locked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
@@ -1518,6 +1526,7 @@ export default function PayrollRunPage() {
                         <span className="text-sm text-white">{item.employeeName}</span>
                         {item.salaryHold && <span className="text-[9px] text-orange-400 ml-2">On Hold</span>}
                         {alreadyReleased && !item.salaryHold && <span className="text-[9px] text-green-400 ml-2">Already released</span>}
+                        {noPay && <span className="text-[9px] text-amber-400 ml-2" title="No pay computed — releasing would email an empty payslip. Check attendance, then re-process.">No pay computed</span>}
                       </div>
                       <span className="text-xs text-green-400">{formatMoney(item.netSalary)}</span>
                     </label>

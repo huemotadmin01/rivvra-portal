@@ -25,15 +25,34 @@ export function isPayslipReleasedFor(run, employeeId) {
   return ids.some((id) => String(id) === String(employeeId));
 }
 
+/**
+ * Can this row be released right now?
+ *
+ * Two things disqualify a row, and both must email nobody:
+ *  - salary hold: deliberately withheld.
+ *  - nothing computed (net <= 0): releasing would email an EMPTY payslip. Seen
+ *    on the July run — two external consultants sat at 0/23 days with
+ *    attendance not_submitted and would have been included in a Select All.
+ */
+export function isReleasable(run, item) {
+  if (isPayslipReleasedFor(run, item.employeeId)) return false;
+  if (item.salaryHold) return false;
+  return Number(item.netSalary) > 0;
+}
+
 /** Split a run's rows by release state. */
 export function splitByRelease(run) {
   const items = run?.items || [];
   const released = items.filter((i) => isPayslipReleasedFor(run, i.employeeId));
   const unreleased = items.filter((i) => !isPayslipReleasedFor(run, i.employeeId));
-  // Salary-hold rows can never be released, so they must not count as work
+  // Held rows can never be released, so they must not count as work
   // outstanding — otherwise the run could never reach "ready to finalize".
-  const releasable = unreleased.filter((i) => !i.salaryHold);
-  return { items, released, unreleased, releasable };
+  const onHold = unreleased.filter((i) => i.salaryHold);
+  // Uncomputed rows are NOT the same as held: they are outstanding work. They
+  // block "ready to finalize" and point at a re-process, never at Finalize.
+  const needsCompute = unreleased.filter((i) => !i.salaryHold && !(Number(i.netSalary) > 0));
+  const releasable = unreleased.filter((i) => isReleasable(run, i));
+  return { items, released, unreleased, releasable, onHold, needsCompute };
 }
 
 /**
@@ -49,7 +68,7 @@ export function splitByRelease(run) {
  */
 export function nextAction(run) {
   if (!run) return null;
-  const { released, unreleased, releasable } = splitByRelease(run);
+  const { released, releasable, onHold, needsCompute } = splitByRelease(run);
 
   if (run.status === 'paid') {
     return {
@@ -84,17 +103,6 @@ export function nextAction(run) {
 
   // status === 'processed'
   if (releasable.length > 0) {
-    // Rows with nothing computed are not ready to go out — releasing them would
-    // email a zero payslip. Point at a re-process instead.
-    const uncomputed = releasable.filter((i) => !(Number(i.netSalary) > 0));
-    if (uncomputed.length === releasable.length) {
-      return {
-        key: 'process',
-        label: 'Re-process',
-        headline: `re-process — ${releasable.length} employee${releasable.length === 1 ? ' has' : 's have'} no figures yet`,
-        why: 'These employees are in the run but nothing has been computed for them, so there is no payslip to release. Re-processing computes them; already-released rows keep the figures they were paid.',
-      };
-    }
     return {
       key: 'release',
       label: `Release Payslips (${releasable.length})`,
@@ -102,20 +110,30 @@ export function nextAction(run) {
       why: released.length > 0
         ? `${released.length} payslip${released.length === 1 ? ' has' : 's have'} already gone out. These ${releasable.length} have not — releasing emails them and makes them visible in ESS.`
         : 'Releasing emails payslips to employees and makes them visible in ESS.',
-      caution: uncomputed.length > 0
-        ? `${uncomputed.length} of them still have no computed net pay — re-process first, or deselect them.`
+      caution: needsCompute.length > 0
+        ? `${needsCompute.length} more employee${needsCompute.length === 1 ? ' has' : 's have'} no computed pay and ${needsCompute.length === 1 ? 'is' : 'are'} excluded — check their attendance, then re-process.`
         : undefined,
     };
   }
 
-  const heldBack = unreleased.length - releasable.length;
+  // Nobody releasable, but rows still have nothing computed. This must NOT fall
+  // through to Finalize: finalizing would block the re-process they need.
+  if (needsCompute.length > 0) {
+    return {
+      key: 'process',
+      label: 'Re-process',
+      headline: `re-process — ${needsCompute.length} employee${needsCompute.length === 1 ? ' has' : 's have'} no pay computed`,
+      why: 'These employees are in the run but nothing has been computed for them, so there is no payslip to release. Check their attendance is submitted, then re-process — already-released rows keep the figures they were paid.',
+    };
+  }
+
   return {
     key: 'finalize',
     label: 'Finalize',
     headline: 'finalize this run',
     why: 'Everyone who can be released has been. Finalizing is required before the run can be marked paid.',
-    caution: heldBack > 0
-      ? `${heldBack} employee${heldBack === 1 ? ' is' : 's are'} on salary hold and will not receive a payslip.`
+    caution: onHold.length > 0
+      ? `${onHold.length} employee${onHold.length === 1 ? ' is' : 's are'} on salary hold and will not receive a payslip.`
       : undefined,
   };
 }
@@ -130,9 +148,70 @@ export function nextAction(run) {
  */
 export function finalizeWarning(run) {
   if (!run || run.status !== 'processed') return null;
-  const { releasable } = splitByRelease(run);
-  if (releasable.length === 0) return null;
-  return `${releasable.length} employee${releasable.length === 1 ? ' has' : 's have'} no payslip yet. Finalizing blocks re-processing — release them first.`;
+  const { releasable, needsCompute } = splitByRelease(run);
+  const outstanding = releasable.length + needsCompute.length;
+  if (outstanding === 0) return null;
+  return `${outstanding} employee${outstanding === 1 ? ' has' : 's have'} no payslip yet. Finalizing blocks re-processing — deal with them first.`;
+}
+
+/**
+ * The month's sequence, with where this run has got to.
+ *
+ * Four steps, not the seven the plan sketched. Enumerating cohorts
+ * (Release A → Pay A → Re-process → Release B) would hard-code Huemot's
+ * two-date shape onto every tenant and needs a per-org setting to be correct
+ * — see docs/PAYROLL-RUN-GUIDANCE.md §7.4, still open. Instead the Release
+ * step carries its own progress (`31/68 released`) and stays `current` until
+ * nobody is left, which describes a one-cohort and a two-cohort month equally
+ * well without configuration.
+ *
+ * `current` is always the first step that isn't done, so exactly one is ever
+ * current. The strip says where the run IS; the banner (nextAction) says what
+ * to DO — during a re-process those differ, which is intended.
+ *
+ * @returns {{key: string, label: string, state: 'done'|'current'|'upcoming', detail?: string}[]}
+ */
+export function runSteps(run) {
+  const items = run?.items || [];
+  const { released, releasable, needsCompute } = splitByRelease(run);
+  const status = run?.status;
+  const processed = ['processed', 'finalized', 'paid'].includes(status);
+
+  const steps = [
+    {
+      key: 'process',
+      label: 'Process',
+      done: processed,
+      detail: processed ? `${items.length} row${items.length === 1 ? '' : 's'}` : undefined,
+    },
+    {
+      key: 'release',
+      label: 'Release payslips',
+      // Done only when nobody is left to release AND nobody is still waiting to
+      // be computed. A partially released run is deliberately still in progress
+      // — treating 31/68 as complete is what would walk HR into finalizing early.
+      done: processed && releasable.length === 0 && needsCompute.length === 0,
+      detail: items.length ? `${released.length}/${items.length} released` : undefined,
+    },
+    {
+      key: 'finalize',
+      label: 'Finalize',
+      done: ['finalized', 'paid'].includes(status),
+    },
+    {
+      key: 'markPaid',
+      label: 'Mark paid',
+      done: status === 'paid',
+    },
+  ];
+
+  const firstOpen = steps.findIndex((s) => !s.done);
+  return steps.map((s, i) => ({
+    key: s.key,
+    label: s.label,
+    detail: s.detail,
+    state: s.done ? 'done' : (i === firstOpen ? 'current' : 'upcoming'),
+  }));
 }
 
 /** Plain-language statement of what each lock actually prevents. */
