@@ -190,6 +190,14 @@ function formatDisplayDate(dateStr) {
   try {
     const [y, m, d] = dateStr.split('-').map(Number);
     const date = new Date(y, m - 1, d);
+    // toLocaleDateString on an invalid Date RETURNS the literal string
+    // "Invalid Date" — it does not throw — so the catch below never fires for
+    // a malformed input and that string got painted onto the document a
+    // counterparty is about to sign. Anything that is not a bare YYYY-MM-DD
+    // hits this: an ISO datetime ("2026-05-04T12:00:00.000Z"), a dd/mm/yyyy
+    // string, or free text. Fall back to the raw value, which is what the
+    // catch was already trying to do.
+    if (Number.isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   } catch {
     return dateStr;
@@ -323,7 +331,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -401,7 +409,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                     className="w-full border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 hover:border-gray-400 transition-colors flex flex-col items-center justify-center text-center p-6"
                     style={{ minHeight: '180px' }}
                   >
-                    <Download className="w-8 h-8 text-gray-400 mb-2 rotate-180" />
+                    <Download className="w-8 h-8 text-gray-500 mb-2 rotate-180" />
                     <p className="text-sm font-medium text-gray-700">Click to upload an image of your signature</p>
                     <p className="text-xs text-gray-500 mt-1">PNG or JPG &middot; up to 2 MB</p>
                   </button>
@@ -443,7 +451,7 @@ function SignaturePadModal({ isOpen, onClose, onAdopt, type = 'signature', signe
                 />
                 {isEmpty && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p className="text-gray-400 text-sm sm:text-sm text-base">
+                    <p className="text-gray-500 text-sm sm:text-sm text-base">
                       {isMobile ? 'Use your finger to sign' : 'Sign here'}
                     </p>
                   </div>
@@ -2062,7 +2070,7 @@ export default function PublicSigningPage() {
             You'll receive an email when it's your turn to sign.
           </p>
           <div className="mt-6 pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-400">Powered by Rivvra Sign</p>
+            <p className="text-xs text-gray-500">Powered by Rivvra Sign</p>
           </div>
         </div>
       </div>
@@ -2136,12 +2144,12 @@ export default function PublicSigningPage() {
               path. For known terminal states the body already explains
               what happened so this would just add visual noise. */}
           {variant.tone === 'error' && (
-            <p className="mt-4 text-xs text-gray-400">
+            <p className="mt-4 text-xs text-gray-500">
               If you believe this is an error, please contact the sender.
             </p>
           )}
-          <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-400 flex items-center justify-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-gray-400" />
+          <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-500 flex items-center justify-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-gray-500" />
             <span>Secured by</span>
             <a href="https://www.rivvra.com" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:text-indigo-600 font-medium">
               Rivvra Sign
@@ -2237,8 +2245,8 @@ export default function PublicSigningPage() {
           )}
 
           <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-center gap-1.5">
-            <Shield size={12} className="text-gray-400" />
-            <span className="text-[11px] text-gray-400">Secured by Rivvra Sign</span>
+            <Shield size={12} className="text-gray-500" />
+            <span className="text-[11px] text-gray-500">Secured by Rivvra Sign</span>
           </div>
         </div>
       </div>
@@ -2416,7 +2424,7 @@ export default function PublicSigningPage() {
         <div className="fixed bottom-16 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-80 z-40 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl">
           <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">All fields</span>
-            <button onClick={() => setShowFieldsList(false)} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => setShowFieldsList(false)} className="text-gray-500 hover:text-gray-600">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -2462,12 +2470,12 @@ export default function PublicSigningPage() {
                     <ItemIcon className="w-3.5 h-3.5 text-gray-500" />
                     <span className="flex-1 text-xs text-gray-700 truncate">
                       {item.label || meta.label}
-                      <span className="text-gray-400"> · p{(item.page || 0) + 1}</span>
+                      <span className="text-gray-500"> · p{(item.page || 0) + 1}</span>
                     </span>
                     {filled ? (
                       <Check className="w-3.5 h-3.5 text-green-500" />
                     ) : (
-                      <span className="text-[10px] text-gray-400">empty</span>
+                      <span className="text-[10px] text-gray-500">empty</span>
                     )}
                   </button>
                 );
@@ -2620,12 +2628,12 @@ export default function PublicSigningPage() {
               onChange={(e) => setRefuseReason(e.target.value.slice(0, 500))}
               rows={4}
               placeholder="e.g. I don't agree to clause 4.2 / the rate is incorrect / wrong candidate"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
               autoFocus
               disabled={refusing}
             />
             <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-xs text-gray-400">{refuseReason.length}/500</span>
+              <span className="text-xs text-gray-500">{refuseReason.length}/500</span>
               <span className="text-xs text-gray-500">Required for legal record</span>
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">
@@ -2705,9 +2713,13 @@ export default function PublicSigningPage() {
       )}
 
       {/* ── Compliance Footer ─────────────────────────────────────────── */}
+      {/* gray-600, not gray-500: this footer sits on the page's bg-gray-100,
+          not on a white card, where gray-500 measures 4.39 against a 4.5
+          floor. Same token, different surface — check the backdrop, not just
+          the token. */}
       <div className="mt-6 py-4 border-t border-gray-200 text-center">
-        <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-          <Shield size={12} className="text-gray-400" />
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-600">
+          <Shield size={12} className="text-gray-600" />
           <span>Compliant with eIDAS (EU), ESIGN Act (US) &amp; UETA</span>
         </div>
       </div>

@@ -196,7 +196,7 @@ it.
 | Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
 | Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
 | `expenses/ExpenseDetail` | moved here out of group 1: FX arithmetic and totals rendered in the page, plus approval/reimbursement transitions |
-| Sign — `PublicSigningPage` only | **Genuinely blocked, and the only one.** It renders in the public/no-auth route block, OUTSIDE `.ds-shell`, so the palette bridge never reaches it and there is no theme toggle. The other Sign pages are inside the shell; see below. |
+| Sign — `PublicSigningPage` only | **Assessed in phase 12 — the premise was half wrong. It is not dark-broken; it is a deliberate standalone LIGHT surface. Do not migrate it to ds. See below.** |
 | `ats/applicationDetailParts.jsx` + `HireModal` | only stops being debt once legacy `AtsApplicationDetail` retires (~26 Aug, per the two-week rule) |
 
 ---
@@ -385,6 +385,45 @@ a comment explaining exactly that, and the V2 keeps it wrapped around ds
 viewport including the sidebar. **Any future caller that renders ds `Modal`
 beneath a transformed ancestor needs the same wrapper** — or ds `Modal` should
 learn to portal itself.
+
+### PublicSigningPage — do NOT put ds components on it
+
+The deferral said the bridge cannot reach it and there is no theme toggle.
+Both true, and both beside the point. Measured in phase 12:
+
+- It is a **deliberate standalone light surface** — white document on
+  `bg-gray-50`/`bg-gray-100`, an indigo action bar, a signing toolbar. That is
+  right for an external counterparty, who has no theme preference and is being
+  shown a legal document.
+- `data-theme` is **unset** on this route, so the ds tokens — which are defined
+  on `:root` and therefore *do* resolve here — fall to their **dark** defaults.
+
+**That is the real blocker, and it is the opposite of the one recorded.** Drop a
+ds `Button` or `Panel` onto this page today and it renders *dark on a light
+document*. Migrating it means first giving the route an explicit light token
+context (e.g. `data-theme="light"` on its root, since custom properties
+inherit), and only then reaching for ds. Nobody should do half of that.
+
+What phase 12 actually fixed, both found by loading the real signing surface
+with a token read from staging Mongo:
+
+1. **`formatDisplayDate` printed the literal string "Invalid Date" onto the
+   document.** `toLocaleDateString` on an invalid `Date` *returns* `"Invalid
+   Date"` rather than throwing, so the function's own `try/catch` never fired.
+   Anything that is not a bare `YYYY-MM-DD` hit it — an ISO datetime
+   (`2026-05-04T12:00:00.000Z`), `04/05/2026`, or free text. A counterparty
+   about to sign saw `Date: Invalid Date`. Now falls back to the raw value,
+   which is what the `catch` was already trying to do.
+2. **Contrast.** `text-gray-400` on this page's light cards is **2.54** —
+   under the 4.5 text floor *and* the 3.0 graphics floor, so its icons failed
+   too. Sixteen sites moved to `gray-500`; the compliance footer needed
+   `gray-600` because it sits on `bg-gray-100` rather than a white card
+   (`gray-500` measured 4.39 there — same token, different surface).
+
+Both views now audit clean. Still open upstream: the date field on that
+staging request holds a **name**, not a date, so the real defect is whatever
+writes non-date values into a date field. The formatter fix stops it looking
+like a system error; it does not fix the data.
 
 ### KB — measured, and deliberately left alone
 
