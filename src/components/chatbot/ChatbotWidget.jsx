@@ -421,7 +421,13 @@ export default function ChatbotWidget() {
             <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400 ring-2 ring-dark-900 shadow-[0_0_6px_rgba(52,211,153,0.5)]" aria-hidden="true" />
           </span>
           <span className="leading-none">Ask AI</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-0.5 text-[10px] font-mono text-dark-500 group-hover:text-dark-400 px-1.5 py-0.5 rounded border border-dark-700 bg-dark-950/40 leading-none transition-colors">⌘K</kbd>
+          {/* dark-300, not dark-500. This launcher renders OUTSIDE .ds-shell
+              (it is a sibling of ShellSwitch in App.jsx), so the palette
+              bridge never reaches it and these classes stay on the raw dark
+              scale whatever the theme. The pill is translucent, so its worst
+              case is a LIGHT page showing through and lifting the backdrop:
+              dark-500 measured 3.76 there against a 4.5 floor. */}
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-0.5 text-[10px] font-mono text-dark-300 group-hover:text-dark-100 px-1.5 py-0.5 rounded border border-dark-700 bg-dark-950/40 leading-none transition-colors">⌘K</kbd>
         </button>
       )}
 
@@ -619,7 +625,10 @@ export default function ChatbotWidget() {
                 </button>
               )}
             </div>
-            <div className="text-[10px] text-dark-500 px-1 pt-1">
+            {/* dark-400, not dark-500 — same reason as the launcher's ⌘K
+                hint: this widget renders outside .ds-shell, so the bridge
+                never reaches it and dark-500 sits at 3.75 on this panel. */}
+            <div className="text-[10px] text-dark-400 px-1 pt-1">
               Press Enter to send · Shift+Enter for newline · Searches your real ATS data
             </div>
           </form>

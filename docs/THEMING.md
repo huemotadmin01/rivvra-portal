@@ -247,9 +247,38 @@ selected one — the state the user is most likely looking at.
 
 Outreach's counts were checked and pass: they never sit on `--surface-4`.
 
-### Still open
+### The Ask AI widget renders OUTSIDE the shell — FIXED (the hints)
 
-The `⌘K` hint inside the legacy floating **Ask AI** widget, 3.76 light /
-3.99 dark. It is a deliberately dark pill with a fixed `slate-500` hint that
-the bridge does not remap, and it belongs to a component outside this
-migration.
+Chasing the `⌘K` hint turned up something structural. In `App.jsx`,
+`<ChatbotWidget />` is a **sibling of `<ShellSwitch />`**, not a child:
+
+```jsx
+<ShellSwitch />
+<ChatbotWidget />        {/* outside .ds-shell */}
+```
+
+The palette bridge is `.ds-shell`-scoped, so it never reaches this widget.
+Every class in it — `bg-dark-900/95`, `text-dark-500`, `border-dark-700` —
+stays on the **raw Tailwind dark scale** whatever the theme, even though the
+bridge has mappings for all of them. Confirmed at runtime:
+`kbd.closest('.ds-shell')` is `null`.
+
+That is the same category as `PublicSigningPage`: a surface the bridge cannot
+see. It is the only *in-app* one.
+
+**Why it was not "fixed" by moving it inside the shell.** The widget is
+deliberately a dark glassy pill — gradient star, glow, backdrop blur. Inside
+the shell the bridge would map `bg-dark-900/95` to `--surface-1`, turning it
+white in light theme. That is a design change, not a bug fix. It is left
+outside, and its own colours were made legible on the pill it actually has:
+
+| hint | was | now |
+|---|---|---|
+| launcher `⌘K` | `dark-500`, 3.76 light / 3.99 dark | `dark-300` |
+| composer "Press Enter to send…" | `dark-500`, 3.75 | `dark-400` |
+
+The launcher is translucent, so its worst case is a **light** page showing
+through and lifting the backdrop — which is why the light reading was the
+lower of the two. Test that state, not the dark one.
+
+Both verified with the panel open and closed, in both themes.
