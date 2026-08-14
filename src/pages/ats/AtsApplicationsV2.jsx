@@ -151,8 +151,15 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
         <button key={s.key} type="button" style={seg(lifecycle === s.key)} onClick={() => onChange(s.key)} aria-pressed={lifecycle === s.key}>
           <span style={{ width: 6, height: 6, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
           {s.label}
+          {/* The count follows the segment. On the ACTIVE pill the backdrop
+              is --surface-4, the darkest surface, where --fg-4 measures 4.31
+              against a 4.5 floor; --fg-2 there is 8.50. Inactive segments sit
+              on --surface-2, where --fg-4 is 5.12 and correct. */}
           {counts[s.key] != null && (
-            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
+            <span style={{
+              font: '600 10px/1 var(--font)', fontVariantNumeric: 'tabular-nums',
+              color: lifecycle === s.key ? 'var(--fg-2)' : 'var(--fg-4)',
+            }}>{counts[s.key]}</span>
           )}
         </button>
       ))}

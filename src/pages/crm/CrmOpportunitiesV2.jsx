@@ -126,8 +126,15 @@ function LifecycleToggleV2({ lifecycle, counts, onChange }) {
         <button key={s.key} type="button" style={seg(lifecycle === s.key)} onClick={() => onChange(s.key)} aria-pressed={lifecycle === s.key}>
           <span style={{ width: 6, height: 6, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
           {s.label}
+          {/* Same rule as the ATS lifecycle strip: on the ACTIVE pill the
+              backdrop is --surface-4, where --fg-4 measures ~4.0–4.3 against
+              a 4.5 floor. Inactive segments sit on --surface-2, where --fg-4
+              is correct. */}
           {counts[s.key] != null && (
-            <span style={{ font: '600 10px/1 var(--font)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{counts[s.key]}</span>
+            <span style={{
+              font: '600 10px/1 var(--font)', fontVariantNumeric: 'tabular-nums',
+              color: lifecycle === s.key ? 'var(--fg-2)' : 'var(--fg-4)',
+            }}>{counts[s.key]}</span>
           )}
         </button>
       ))}

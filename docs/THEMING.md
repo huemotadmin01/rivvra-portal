@@ -219,10 +219,37 @@ and the disabled-lock glyphs. Icons are graphics, judged at 3:1.
 is, it is content — use `--fg-4` at the faintest. `--fg-faint` is for marks
 that carry no information on their own.
 
+### The follow-up, and a correction — FIXED
+
+That count was recorded here as `FilterBar`'s `resultCount`. **It was not.**
+`FilterBar` sits on `--surface-1`, where `--fg-4` measures 5.66 and is fine.
+
+Measuring the actual element found the count inside the **active segment of a
+lifecycle strip** — "Ongoing 598", "Open 28". The strip's selected pill is
+`--surface-4`, the darkest surface token, and the count was pinned to
+`--fg-4`:
+
+| count on… | ratio |
+|---|---|
+| `--fg-4` on `--surface-2` (inactive segment) | 5.12 — fine |
+| `--fg-4` on `--surface-4` (**active** pill) | **4.01–4.31** — fails |
+| `--fg-2` on `--surface-4` | **8.50** |
+
+The segment's *label* already switched with state (`on ? --fg : --fg-4`); only
+the count was left behind on a fixed tier. Now it follows the segment too, in
+both strips that use the pattern — `AtsApplicationsV2` and
+`CrmOpportunitiesV2`.
+
+**The generalisable bit:** when a control swaps its background by state, every
+piece of text inside it has to swap with it. A child pinned to one tier will
+be correct in one state and wrong in the other, and the wrong state is the
+selected one — the state the user is most likely looking at.
+
+Outreach's counts were checked and pass: they never sit on `--surface-4`.
+
 ### Still open
 
-`FilterBar`'s result count (`"598 applications"`) measures **4.3**. It already
-uses `--fg-4`; the shortfall is the FilterBar's own surface being darker than
-white, not the token being wrong. `--fg-3` there measures ~6.6. Left alone
-because it is a different failure from the em-dashes and changes the chrome of
-every list page.
+The `⌘K` hint inside the legacy floating **Ask AI** widget, 3.76 light /
+3.99 dark. It is a deliberately dark pill with a fixed `slate-500` hint that
+the bridge does not remap, and it belongs to a component outside this
+migration.
