@@ -192,7 +192,7 @@ it.
 |---|---|
 | ~~dashboards — need a ds chart component that does not exist~~ | **Wrong; unblocked in phase 7.** See below. |
 | ~~`CrmPipeline`, `AtsPipeline` — kanban archetype, not yet designed~~ | **Wrong; done in phase 8.** Nothing needed designing — see below. |
-| KB pages | redesigned separately in July — migrating risks undoing that |
+| ~~KB pages~~ | **Assessed in phase 11 and deliberately NOT migrated — see below.** The concern was right. |
 | Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
 | Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
 | `expenses/ExpenseDetail` | moved here out of group 1: FX arithmetic and totals rendered in the page, plus approval/reimbursement transitions |
@@ -385,6 +385,39 @@ a comment explaining exactly that, and the V2 keeps it wrapped around ds
 viewport including the sidebar. **Any future caller that renders ds `Modal`
 beneath a transformed ancestor needs the same wrapper** — or ds `Modal` should
 learn to portal itself.
+
+### KB — measured, and deliberately left alone
+
+The deferral said "redesigned separately in July — migrating risks undoing
+that". That was a guess. It is now measured, and it was right.
+
+`pages/kb/` is three files and 730 lines: `KnowledgeBasePage` composing
+`KbAskPanel` and `KbArticleEditor`, behind one route. Checked in the browser
+across all four views — landing, article, Ask panel, and the article editor —
+in **both themes**:
+
+| | result |
+|---|---|
+| inside `.ds-shell`? | **yes** — the palette bridge reaches it |
+| contrast failures | **zero**, every view, both themes |
+| sidebar absent? | deliberate — `PlatformLayoutV2.jsx:85` excludes `knowledgeBase` explicitly, because KB has its own article nav |
+
+So there is nothing broken to repair. Migrating it would mean rewriting a
+coherent three-week-old redesign into ds primitives for consistency alone,
+against the risk of regressing it — the same trade as `SignTemplateEditor`,
+but more clear-cut, because here the defect count is zero and the design is
+recent and deliberate.
+
+**What was changed:** one thing. The page declared a local `EmptyState`, which
+shadows the ds export of the same name — anyone later importing the ds barrel
+into this file would get a silent shadow rather than an error. Renamed to
+`KbEmptyState`.
+
+A note on method: the light-theme screenshot showed the app cards as grey
+slabs and looked like a real defect. It was the theme cross-fade caught
+mid-transition. Measuring after the paint settled found zero failures and the
+cards rendering correctly. **Screenshot, then measure — do not act on the
+screenshot alone.**
 
 ### SignTemplateEditor: two corrections, and a partial by design
 
