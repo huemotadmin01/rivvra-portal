@@ -67,7 +67,9 @@ export function Tabs({ tabs = [], value, onChange, sticky = false, stickyTop = 0
             {t.count != null && (
               <span style={{
                 font: "600 10px/1 'Inter', system-ui, sans-serif", fontVariantNumeric: 'tabular-nums',
-                color: on ? 'var(--fg-3, #98a4b2)' : 'var(--fg-faint, #4a5563)',
+                // A tab's count is content, and it stays readable when the
+                // tab is inactive. --fg-faint would put it at ~2.5.
+                color: on ? 'var(--fg-3, #98a4b2)' : 'var(--fg-4, #828e9f)',
               }}>{t.count}</span>
             )}
           </button>

@@ -603,7 +603,7 @@ export default function CrmOpportunityDetailV2() {
                 displayValue={
                   opp.expectedRevenue != null && opp.expectedRevenue !== '' && Number(opp.expectedRevenue) !== 0
                     ? <span>{formatMoney(opp.expectedRevenue, currencyCode)}</span>
-                    : <span style={{ color: 'var(--fg-faint, #4a5563)' }}>—</span>
+                    : <span style={{ color: 'var(--fg-4, #828e9f)' }}>—</span>
                 }
               />
             </div>

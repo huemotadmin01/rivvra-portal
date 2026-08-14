@@ -156,7 +156,7 @@ export default function ExpenseListV2() {
         return (
           <span style={{ minWidth: 0, display: 'block' }}>
             <span style={{ display: 'block', color: 'var(--fg)', fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {r.title || <span style={{ color: 'var(--fg-faint)', fontStyle: 'italic', fontWeight: 450 }}>Untitled</span>}
+              {r.title || <span style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 450 }}>Untitled</span>}
             </span>
             <span style={{ display: 'block', font: '450 11px/1.3 var(--font)', color: 'var(--fg-4)' }}>
               {lineCount} {lineCount === 1 ? 'line' : 'lines'}
@@ -232,7 +232,7 @@ export default function ExpenseListV2() {
             {STATUS_TABS.map((t) => (
               <button key={t.key || 'all'} type="button" style={tabBtn(statusTab === t.key)} onClick={() => setStatusTab(t.key)}>
                 {t.label}
-                <span style={{ font: '600 10px/1 var(--font)', color: statusTab === t.key ? 'var(--fg-2)' : 'var(--fg-faint)', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ font: '600 10px/1 var(--font)', color: statusTab === t.key ? 'var(--fg-2)' : 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
                   {tabCounts[t.key] || 0}
                 </span>
               </button>

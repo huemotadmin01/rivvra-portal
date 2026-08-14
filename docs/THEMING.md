@@ -187,3 +187,42 @@ A practical note: the naive audit is O(elements × depth) canvas reads and
 takes tens of seconds on a 300-element page. Memoising the effective
 background per element — each element's is its own background composited over
 its parent's — brings a full page to about 40ms.
+
+
+---
+
+## `--fg-faint` was carrying content (phase 11) — FIXED
+
+`--fg-faint` is documented at the top of `ds-tokens.css` as **decoration
+ONLY** — separator dots, disabled glyphs. It had drifted into carrying the
+one thing a reader most needs to resolve: the answer "there is no value here".
+
+Empty cells, empty inline fields and empty detail rows all rendered their
+em-dash in `--fg-faint`, which measures **2.52 in light and 2.46 in dark**
+against a 4.5 floor. An em-dash standing in for a value is the cell's content,
+not its ornament.
+
+Repointed to `--fg-4`, the lowest **text** tier (~5.66 light, ~5.61 dark):
+
+| where | note |
+|---|---|
+| `ds/Table/DataTable` | the empty-cell fallback — the single biggest source |
+| `ds/Form/InlineField` | the empty-value em-dash |
+| `ds/Navigation/Tabs` | the count badge on an inactive tab |
+| 9 v2 pages | their own em-dash and "no value" placeholders |
+
+Decoration keeps `--fg-faint` and is correct there: breadcrumb separators,
+drag handles, empty rating stars, `ConfigDot`, the `RecordMeta` clock icon,
+and the disabled-lock glyphs. Icons are graphics, judged at 3:1.
+
+**Rule of thumb:** if removing it would leave the reader unsure what the value
+is, it is content — use `--fg-4` at the faintest. `--fg-faint` is for marks
+that carry no information on their own.
+
+### Still open
+
+`FilterBar`'s result count (`"598 applications"`) measures **4.3**. It already
+uses `--fg-4`; the shortfall is the FilterBar's own surface being darker than
+white, not the token being wrong. `--fg-3` there measures ~6.6. Left alone
+because it is a different failure from the em-dashes and changes the chrome of
+every list page.

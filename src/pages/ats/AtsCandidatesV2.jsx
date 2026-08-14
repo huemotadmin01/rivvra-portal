@@ -323,7 +323,7 @@ export default function AtsCandidatesV2() {
       >
         {columns.map((col) => (
           <td key={col.key} style={{ padding: pad, font: density === 'compact' ? '450 13px/1.4 var(--font)' : '450 13.5px/1.45 var(--font)', color: col.muted ? 'var(--fg-3)' : 'var(--fg-2)', textAlign: col.align || 'left', borderBottom: '1px solid var(--line)', verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {col.render ? col.render(c) : c?.[col.key] ?? <span style={{ color: 'var(--fg-faint)' }}>—</span>}
+            {col.render ? col.render(c) : c?.[col.key] ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
           </td>
         ))}
       </tr>

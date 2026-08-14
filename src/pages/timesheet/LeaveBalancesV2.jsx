@@ -159,20 +159,20 @@ export default function LeaveBalancesV2() {
                   <span style={{ display: 'block', font: '450 10px/1.4 var(--font)', color: 'var(--warn)' }}>as of FY {item.financialYear}</span>
                 )}
                 {item.employeeStatus && item.employeeStatus !== 'active' && !item.financialYear && (
-                  <span style={{ display: 'block', font: '450 10px/1.4 var(--font)', color: 'var(--fg-faint)' }}>no balance record</span>
+                  <span style={{ display: 'block', font: '450 10px/1.4 var(--font)', color: 'var(--fg-4)' }}>no balance record</span>
                 )}
               </td>
-              <td style={td({ fontSize: 12, color: 'var(--fg-3)' })}>{item.departmentName || item.department || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
+              <td style={td({ fontSize: 12, color: 'var(--fg-3)' })}>{item.departmentName || item.department || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
               {visibleTypes.map(lt => {
                 const b = balances[lt.code];
-                if (!b) return <td key={lt.code} style={td({ textAlign: 'center', color: 'var(--fg-faint)', fontSize: 12 })}>—</td>;
+                if (!b) return <td key={lt.code} style={td({ textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 })}>—</td>;
                 const available = b.available ?? 0;
                 const entitled = b.entitled ?? b.accrued ?? 0;
                 if (item.fnfEncashed) {
                   return (
                     <td key={lt.code} style={td({ textAlign: 'center', fontSize: 12 })}>
                       <span style={{ color: 'var(--fg-4)' }}>0</span>
-                      <span style={{ fontSize: 10, color: 'var(--fg-faint)' }}>/{fmt(entitled)}</span>
+                      <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>/{fmt(entitled)}</span>
                     </td>
                   );
                 }
@@ -181,7 +181,7 @@ export default function LeaveBalancesV2() {
                     <span style={{ fontWeight: 550, color: available <= 0 ? 'var(--danger)' : available <= 2 ? 'var(--warn)' : 'var(--brand)' }}>
                       {fmt(available)}
                     </span>
-                    <span style={{ fontSize: 10, color: 'var(--fg-faint)' }}>/{fmt(entitled)}</span>
+                    <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>/{fmt(entitled)}</span>
                   </td>
                 );
               })}
