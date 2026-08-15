@@ -51,7 +51,7 @@ export default function IncentiveDashboard() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState('');
   const [data, setData] = useState(null);
-  const [waiting, setWaiting] = useState({ count: 0, groups: [] });
+  const [waiting, setWaiting] = useState({ count: 0, groups: [], otherIssues: null });
   const [waitingOpen, setWaitingOpen] = useState(false);
   const [waitingError, setWaitingError] = useState(false);
   // "Create anyway" — the consultant is on hold and a decision has been made not
@@ -91,6 +91,7 @@ export default function IncentiveDashboard() {
         setWaiting({
           count: waitingOutcome.res.count || 0,
           groups: waitingOutcome.res.groups || [],
+          otherIssues: waitingOutcome.res.otherIssues || null,
         });
         setWaitingError(false);
       } else if (!waitingOutcome.ok) {
@@ -177,6 +178,7 @@ export default function IncentiveDashboard() {
       <WaitingOnPayrollCard
         count={waiting.count}
         groups={waiting.groups}
+        otherIssues={waiting.otherIssues}
         open={waitingOpen}
         onToggle={() => setWaitingOpen((v) => !v)}
         error={waitingError}
@@ -311,11 +313,24 @@ export default function IncentiveDashboard() {
           </table></div>
         </div>
       )}
+      {/* Data problems the ledger now sees but this widget never could: a line
+          with no consultant, unusable service dates. Real, but a different job
+          — kept as a count so they cannot bury the rows needing a decision. */}
+      {open && otherIssues?.count > 0 && (
+        <p className="mt-3 text-xs text-dark-400">
+          Also {otherIssues.count} invoice line{otherIssues.count === 1 ? '' : 's'} with a data problem
+          {Object.entries(otherIssues.byReason || {}).length > 0 && ' — '}
+          {Object.entries(otherIssues.byReason || {})
+            .map(([reason, n]) => `${n} ${reason.replace(/_/g, ' ')}`)
+            .join(', ')}
+          . These need the invoice fixed, not a salary decision.
+        </p>
+      )}
     </div>
   );
 }
 
-function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, onCreateAnyway, creatingKey }) {
+function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, onCreateAnyway, creatingKey, otherIssues }) {
   if (error) {
     return (
       <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
@@ -396,7 +411,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, o
                     {formatINR(g.untaxedInvoicedValue)}
                   </td>
                   <td className="px-3 py-2 text-amber-300">
-                    {g.reason === 'salary_hold'
+                    {g.reason === 'salary_hold' || g.reason === 'salary_on_hold'
                       ? 'Salary on hold'
                       : 'Payslip not released'}
                   </td>
@@ -404,7 +419,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, o
                     {/* Only for a hold. "Payslip not released" resolves itself
                         when payroll runs, and overriding it would pre-empt a
                         figure that is about to arrive on its own. */}
-                    {g.reason === 'salary_hold' && (
+                    {(g.reason === 'salary_hold' || g.reason === 'salary_on_hold') && (
                       <button
                         type="button"
                         onClick={() => onCreateAnyway(g)}
