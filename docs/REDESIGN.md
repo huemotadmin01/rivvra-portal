@@ -944,3 +944,63 @@ categories. Never promise an outcome the server does not produce.
 taxes list. They were created to prove the two defects above and cannot be
 removed through the API — `DELETE` only deactivates, and `?hard` / `?force` /
 `?permanent` are all ignored. They need a DB-level delete.
+
+### Batch 5 — product catalogue and invoicing settings
+
+`invoicing/products`, `invoicing/config/products`, `invoicing/config/settings`
+and `settings/invoicing` — two components, four routes. Product money parity:
+**14 values, identical.** Contrast: 0 failures across 106 / 92 nodes.
+
+#### `ProductCatalog` — the nuance worth the whole pass
+
+```js
+defaultPrice: form.defaultPrice !== '' ? Number(form.defaultPrice) : undefined
+```
+
+Blank sends **`undefined`, not `0`**. "No default price" and "priced at zero"
+are different claims: the first leaves the line open for the invoice to set,
+the second asserts free. Coercing blank to 0 would silently price every
+unpriced product.
+
+Proven at runtime without writing a row, by patching `window.fetch` to capture
+the POST body and return a synthetic 499:
+
+```
+{"name":"ZZ PRICE PROBE","type":"service","description":"","hsnSacCode":"",
+ "unit":"","internalRef":"","taxIds":[],"active":true}
+```
+
+`defaultPrice` absent — `undefined` survives to `JSON.stringify`, which drops
+the key. **Worth reusing: intercept-and-block is how you verify a payload on a
+write surface without leaving a record behind.** It is strictly better than
+create-then-delete, which this pass has already shown can leave residue when
+delete turns out to be soft.
+
+That capture also settles a loose end from batch 4: `type: "service"` is
+present, so `ConfigList` does seed select defaults correctly, and the tax
+anomaly really was the server dropping `type`.
+
+`description` is deliberately **not** trimmed while every sibling field is.
+Kept as-is rather than tidied into consistency.
+
+#### `SettingsInvoicing` is mounted at TWO routes
+
+`/invoicing/config/settings` and `/settings/invoicing`, the latter inside
+`SettingsPageWrapper` which supplies its own "Settings" heading. That is why
+the legacy renders a bare stack of section cards with no page header — and why
+the v2 does the same. **Do not add a `PageHeader` there.** Both routes are
+flag-switched together so the page cannot look like two different products
+depending on how you reached it. Verified on both mounts.
+
+Three behaviours preserved that a settings rewrite loses easily:
+
+- **Every Save button saves the whole object.** `saveSettings(section)` uses
+  its argument only to pick which spinner shows; the PUT body is the entire
+  `settings` state. Pressing Save under Defaults also persists unsaved Feature
+  toggles. That is the existing contract.
+- **`requireConsultantOnLines` is tri-state** — `null` auto / `true` always /
+  `false` never. A checkbox would collapse auto into never.
+- **The sequence preview** is what the next invoice number will look like.
+
+Both seed actions (`seedDefaults`, `seedTdsDefaults`) are carried over
+untouched and were deliberately not triggered.
