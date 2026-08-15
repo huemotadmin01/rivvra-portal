@@ -1004,3 +1004,70 @@ Three behaviours preserved that a settings rewrite loses easily:
 
 Both seed actions (`seedDefaults`, `seedTdsDefaults`) are carried over
 untouched and were deliberately not triggered.
+
+### Batch 6 — the statutory reports (GST and TDS)
+
+`reports/tax` (which is `TaxReport` → `GstReport`) and `reports/tds`. Three
+files, two routes.
+
+Money parity: **GST 88 values identical; TDS 131 money figures identical.**
+Contrast: 0 failures across 668 nodes.
+
+#### Chrome only, and this is where that rule earns the most
+
+Migrated: page header, Sync-GSTN button, granularity segmented control, FY
+picker, the two CSV buttons, and the error / loading states. Byte-identical:
+every figure and table, the `HowToRead` primer and every `TermHint` from the
+readability pass (cd5ef6e5), both statutory modals, and the export handlers.
+
+**No export was triggered during verification.** `downloadStatutoryCsv`
+produces GSTR-1; `tds26q` is vendor deductee rows and `tds24q` is employee-wise
+salary TDS. These are filing artefacts. A layout pass has no business
+generating one, so they are covered by the static diff and nothing else — the
+same standard applied to the vendor-bill AI import in batch 2.
+
+#### The switch on `TaxReport` is the load-bearing line
+
+```js
+if (currentCompany?.currency === 'INR') return <GstReportV2 />;
+```
+
+An INR company gets the statutory GST report on this route; everyone else gets
+the generic collected-vs-paid report. They are **separate components on
+purpose** so a company switch remounts cleanly instead of changing hook order.
+Only the *target* moved, so both branches are on ds together — otherwise
+switching companies would flip the page between two design systems.
+
+#### Two process notes
+
+- The route aliases are `TaxReportInv` / `TdsReportInv`, not `TaxReport` /
+  `TdsReport` — `TaxReportsPage` from payroll already owns the obvious name.
+  The wiring assertion caught this rather than silently patching nothing.
+- Slicing the header out of `TaxReport` by searching for `{loading` cut into
+  the middle of the date-filter block, because the first match was inside the
+  Generate button, not at the top level. **Anchor a slice on a structural
+  marker** (`{/* Date Range Filter */}`), never on a token that recurs at a
+  deeper nesting level. The build caught this one; a subtler version would not
+  have been caught.
+
+#### Harness note
+
+The TDS capture differs from legacy at exactly one index: `'CSV 24'` vs
+`'CSV24'`. That is the money regex spanning the two CSV **button labels**,
+whose surrounding whitespace changed when they became ds Buttons. Every value
+that starts with a currency symbol is identical. Worth knowing before treating
+a one-index diff as a figure drift.
+
+### Still to do in invoicing
+
+`reports/gst-2b` and `reports/profitability` are **not** in this batch and are
+not "reports" in the same sense:
+
+- **GST 2B reconciliation** has four write endpoints — `importGstr`,
+  `reconcileGstr`, `annotateGstr`, `updateBillReference`. It is a
+  reconciliation *workflow* and needs its own verification cycle.
+- **Profitability** writes adjustments and access grants
+  (`saveProfitAdjustment`, `setProfitabilityAccess`), is owner-gated, and is
+  one of only two files in the app that import recharts.
+
+Then bank reconciliation, follow-ups, and `InvoiceDetail` last and alone.
