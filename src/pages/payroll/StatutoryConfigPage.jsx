@@ -84,7 +84,11 @@ export default function StatutoryConfigPage({ embedded = false }) {
     setForm({
       pfEnabled: s.pfEnabled !== false && sal.pfApplicable !== false,
       pfCappedAt15K: s.pfCappedAt15K ?? sal.pfCappedAt15K ?? true,
-      esiEnabled: s.esiEnabled || false,
+      // `?? true` mirrors the calculator's `esiEnabled !== false`: an absent
+      // flag means enabled, and the ₹21,000 wage ceiling decides eligibility at
+      // run time. `|| false` showed unticked for an employee the run would
+      // treat as ESI-enabled.
+      esiEnabled: s.esiEnabled ?? true,
       // Deliberately NOT the platform's `?? true` policy default. This raises
       // the ESI wage ceiling from ₹21,000 to ₹25,000, and defaulting it on
       // would start deducting ESI from employees earning ₹21K–₹25K who are not
