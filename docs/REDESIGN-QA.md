@@ -254,3 +254,34 @@ appear.
 
 Money parity against the legacy capture: **114 / 36 / 115 values, identical
 and in the same order.**
+
+## The import-drift check (phase 14 batch 2)
+
+Two of the four defects found in the invoicing pass were the same bug: an
+import list trimmed against the *migrated* chrome while a **retained** legacy
+block still used the icon. The build passes — Vite resolves the module fine —
+and the page crashes on mount with `X is not defined`.
+
+Cheaper than finding it by page load:
+
+```js
+const body = src.slice(src.indexOf("from 'lucide-react';"));   // after the import
+const imported = new Set(/import \{([^}]*)\} from 'lucide-react';/.exec(src)[1]
+  .split(',').map(s => s.trim()).filter(Boolean));
+const used = LUCIDE.filter(n => new RegExp(`<${n}[\\s/>]`).test(body));
+// require: used - imported === ∅   and   imported - used === ∅
+```
+
+Run it whenever a migration **keeps** part of the legacy render. If the whole
+body is rewritten the risk disappears, which is exactly why it is easy to
+forget on a partial migration.
+
+## Phase 14 batch 2 result
+
+`invoicing/{invoices,bills,employee-bills,payments}` — **0 contrast failures
+across 841 text nodes**, light theme. Money parity **44 / 26 / 22 / 20 values,
+identical and in order**.
+
+Not exercised, deliberately: the vendor-bill AI import
+(`extractVendorBill` → `createInvoice` → `uploadAttachment`). Running it would
+create a real financial record on staging.
