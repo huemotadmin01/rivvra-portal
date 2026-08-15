@@ -458,6 +458,48 @@ the scrub before blaming the app. Scrubbed data can make a healthy code path
 look broken — and worse, can make a *type* look violated when only the value
 was replaced.
 
+### Incentive money printed the wrong currency (phase 13)
+
+Five files in `pages/incentive/` each carried their own `formatINR`, and they
+were not even consistent with one another — `RecordDetail` kept paise,
+the dashboard and `RecordsList` pinned `maximumFractionDigits: 0` and dropped
+them. All five hard-coded INR.
+
+This was recorded as a latent risk. **It was not latent.** The org has four
+companies — INR, CAD, USD, INR — and the Incentive dashboard is
+company-scoped. On the USD company the "Waiting on payroll" table was
+rendering real USD invoice values as **₹464, ₹5,200, ₹4,536, ₹7,680**. The
+first check missed it by querying only `/incentive/records` (empty for that
+company) and not noticing the card draws from invoices, which are not.
+
+Both dashboards now use the shared `formatMoney`, with the currency taken
+from the **active company**:
+
+```js
+const money = (amount) => formatMoney(amount, currentCompany?.currency || 'INR');
+```
+
+**Why the company and not the record**, given `utils/formatCurrency`'s header
+says to pass the record's own currency: this page shows AGGREGATES, and
+`/incentive/summary` returns no currency at all — only bare numbers. A
+company-scoped total has exactly one correct currency, and it is the
+company's. Per-record screens are a different matter (below).
+
+Two intended consequences: a USD/CAD company stops seeing ₹, and paise print
+when a figure has them — so YTD reads `₹19,84,580.17`, matching the stored
+figure, and the list agrees with `RecordDetail`, which already showed 2dp.
+
+One trap worth knowing: `WaitingOnPayrollCard` sits at module scope and cannot
+see the page's formatter, so `money` is threaded to it as a prop. ESLint's
+`no-undef` caught that — a module-scope `formatINR` had hidden the coupling.
+
+**Still on the old formatter, deliberately not touched here:**
+`RecordsList`, `RecordDetail` and `MyEarnings`. These are per-record surfaces
+where `record.currency` IS present, so the correct fix is to pass that, not
+the company's — a different change with different review. `MyEarnings`
+already has a currency-aware wrapper that falls back to `formatINR` only for
+INR, which is the pattern the other two should follow.
+
 ### KB — measured, and deliberately left alone
 
 The deferral said "redesigned separately in July — migrating risks undoing
