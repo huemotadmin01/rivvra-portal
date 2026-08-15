@@ -6,6 +6,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { currencySymbol } from '../../utils/formatCurrency';
 import { useOrg } from '../../context/OrgContext';
 import { usePlatform } from '../../context/PlatformContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -20,13 +21,29 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatINR(amount) {
-  if (amount == null) return '\u20B90';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
+// Each row carries its own `currency` (the reporting currency the incentive
+// was computed in). Reading it is what utils/formatCurrency's header means by
+// "pass the record's own currency field" — the previous local formatINR
+// hard-coded INR, so a non-INR record printed a ₹ glyph over a foreign figure.
+//
+// The ROUNDING is deliberately unchanged from that formatINR: whole units, no
+// paise. This dense list has never shown paise and the shared formatCurrency /
+// formatMoney helpers both would — switching precision on a commission surface
+// is a product decision, not part of fixing the currency. Only the symbol and
+// grouping locale are now derived from the record.
+function formatAmount(amount, ccy) {
+  const cur = String(ccy || 'INR').toUpperCase();
+  if (amount == null) return `${currencySymbol(cur)}0`;
+  try {
+    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: cur,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    // Unknown/garbage ISO code — Intl throws rather than degrading.
+    return `${cur} ${Math.round(Number(amount) || 0)}`;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -371,9 +388,9 @@ export default function RecordsList() {
                       <td className="py-3 px-4 text-dark-300">{r.consultantName || '—'}</td>
                       <td className="py-3 px-4 text-dark-300">{r.recruiterName || '—'}</td>
                       <td className="py-3 px-4 text-dark-300">{r.accountManagerName || '—'}</td>
-                      <td className="py-3 px-4 text-right text-dark-300">{formatINR(r.netProfit)}</td>
+                      <td className="py-3 px-4 text-right text-dark-300">{formatAmount(r.netProfit, r.currency)}</td>
                       <td className="py-3 px-4 text-right font-medium text-white">
-                        {formatINR((r.recruiterIncentive || 0) + (r.accountManagerIncentive || 0))}
+                        {formatAmount((r.recruiterIncentive || 0) + (r.accountManagerIncentive || 0), r.currency)}
                       </td>
                       <td className="py-3 px-4 text-dark-400">{r.payoutMonth || '—'}</td>
                       <td className="py-3 px-4 text-center">
