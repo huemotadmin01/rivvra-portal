@@ -876,3 +876,71 @@ the filtering effect is not.
   it alone renders a bare unlabelled toggle, which is what shipped to the first
   screenshot. Visible text has to sit beside it. Worth knowing before the next
   page reaches for a toggle in a toolbar.
+
+### Batch 4 — taxes and TDS (statutory rates)
+
+`config/taxes` and `config/tds`, onto ds `ConfigList`. Rate parity against a
+pre-edit capture: **22 and 17 values, identical.** Contrast: 0 failures across
+168 / 109 nodes.
+
+Three things preserved exactly, each of which a rewrite would have flattened:
+
+- **The type-conditional 100 cap.** `if (form.type === 'percentage' && rateNum
+  > 100)`. A fixed-amount tax may exceed 100 — it is money, not a percent.
+  Verified both ways at runtime: percentage 150 is refused, fixed 150 is not.
+- **The India gate on TDS.** `companyCountry !== 'IN'` returns the India-only
+  screen, and stays *after* all hooks so hook order is stable. Verified by
+  switching to the US company: gate shown, zero rows rendered.
+- **The TDS payload defaults**, `Number(x) || 0` and `ratePanMissing || 20` —
+  20 being the statutory no-PAN rate. `||` not `??`, because a blank string
+  must fall through. All 15 legacy defaults across both pages were checked
+  mechanically against the `fields` block.
+
+Also caught before it shipped: I had guessed the TDS list response key as
+`res.configs`; it is `res.rows`. That would have rendered an empty table.
+
+---
+
+## 🔴 Two server-side defects found while testing this batch
+
+Neither is caused by the migration — legacy sends the identical payload — and
+neither is fixed here, because both live in the API repo and one changes what a
+tax *is*. Raising them rather than working around them.
+
+### 1. `type` is not persisted on taxes. Every tax is stored as `percentage`.
+
+```
+POST /invoicing/taxes  {"name":"…","rate":150,"type":"fixed",…}
+→ stored: {"rate":150,"type":"percentage"}          # scope and inclusive DO persist
+```
+
+Same for `type: 'group'`, and a `PUT {type:'fixed'}` does not change it either.
+
+Two consequences, the second one material:
+
+- The Type picker offers three options and only one of them is real. Fixed and
+  group taxes cannot be created at all.
+- **It converts the 100 cap into a bypass.** Choose Fixed, enter 150 — the
+  frontend correctly allows it (fixed amounts may exceed 100), the server drops
+  the type, and the row is stored as **150 %**. A rate that the percentage
+  guard exists specifically to prevent.
+
+The frontend guard is not the right place to patch this: capping fixed taxes
+would break the legitimate case. The fix belongs in the API — either persist
+`type`, or reject a payload whose type it will not honour.
+
+### 2. Tax delete is a soft delete, and both the legacy copy and the toast said otherwise.
+
+The legacy dialog read *"This permanently removes the tax. If invoices
+reference it, deletion will be refused."* Observed: `DELETE` returns 200 and
+flips `active: false`. A brand-new, entirely unreferenced tax was soft-deleted
+exactly the same way, and the row stays in the list.
+
+`TaxesConfigV2` corrects the copy to say *deactivate* — the same correction
+Slice 4 made to CRM lost reasons, and the same one this pass made to expense
+categories. Never promise an outcome the server does not produce.
+
+**Staging residue:** three inactive `ZZ TEST TAX …` rows remain in the staging
+taxes list. They were created to prove the two defects above and cannot be
+removed through the API — `DELETE` only deactivates, and `?hard` / `?force` /
+`?permanent` are all ignored. They need a DB-level delete.
