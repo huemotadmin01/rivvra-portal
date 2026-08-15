@@ -811,3 +811,68 @@ found the first one.
 - **`handleSort` keeps its two-state asc/desc toggle.** ds `DataTable` offers a
   three-state cycle whose third state is "unsorted"; these fetches have no
   unsorted mode, so the cycle is adapted down rather than introduced.
+
+### Batch 3 — three config pages
+
+`config/payment-terms`, `config/expense-categories`, `config/journals`, onto ds
+`ConfigList` — the same master-data archetype the CRM config pages use.
+
+Taxes, TDS and the product catalogue are **not** in this batch. They carry
+rates and prices, so they get their own passes; these three carry none.
+
+#### The rule shifts here, because the kit owns the form
+
+On the lists, "nothing above `return (` moves" was enough. `ConfigList` owns
+the create/edit form and its state, so the page's `form`/`editingId` plumbing
+necessarily goes. What must survive is narrower and more important:
+**validation and payload construction**, lifted verbatim out of `handleSave`
+into a `buildPayload(values, isNew)` that onCreate/onUpdate both call.
+
+Checked by extracting every payload key expression, guard and transform from
+both files and comparing the sets. The legacy form-state entries drop out (they
+have no counterpart by design); everything that reaches the server is matched.
+
+**That check caught a real defect.** `JournalsConfig` seeds a new journal's
+currency from `currentCompany?.currency || 'INR'`, not a hard `'INR'`. My first
+version used `defaultValue: 'INR'` — on a USD company every new journal would
+have been created in the wrong currency. Same class as the incentive
+`formatINR` hardcoding, one batch after writing that up. It is now proven the
+other way too: opening New on the USD company shows the currency select
+prefilled `USD`.
+
+`ConfigList` renders a thrown Error inline, so the validation throws instead of
+toasting — the message lands beside the field and the modal keeps the input.
+
+#### Verified against the real endpoints
+
+Unlike the vendor-bill AI flow, these write paths are safe to exercise: the
+entities are org config with real delete endpoints. Full cycle on payment
+terms, checked at the wire rather than in the UI:
+
+| step | result |
+|---|---|
+| duplicate name | rejected inline, nothing written (still 9 terms) |
+| create | `{name: "ZZ TEST TERM (delete me)", days: 7, isDefault: false, active: true}` — `days` a **Number**, not a string |
+| edit | `days: 9` |
+| delete | row gone, back to 9 terms |
+
+Test row cleaned up. `isDefault` was deliberately left false throughout —
+setting it would have changed the org's default payment term. The default is
+still `Due on Receipt`.
+
+`showInactive` on expense categories is a FETCH parameter, not a client filter;
+confirmed on the wire as `?includeInactive=1`. The list does not visibly change
+because staging has **zero** inactive categories — the round-trip is verified,
+the filtering effect is not.
+
+#### Two smaller findings
+
+- **Legacy expense-category delete had no confirmation at all** — one click
+  deactivated. Now confirmed, per the Slice-4 ruling. The copy says
+  *deactivate*, because that is what the endpoint does (it soft-deletes; with
+  `showInactive` on, the row stays and flips). Promising deletion would have
+  repeated the CRM lost-reasons mistake.
+- **ds `Switch`'s `label` is the ACCESSIBLE name, not a visible one.** Passing
+  it alone renders a bare unlabelled toggle, which is what shipped to the first
+  screenshot. Visible text has to sit beside it. Worth knowing before the next
+  page reaches for a toggle in a toolbar.

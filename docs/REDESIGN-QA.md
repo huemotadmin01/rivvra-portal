@@ -285,3 +285,49 @@ identical and in order**.
 Not exercised, deliberately: the vendor-bill AI import
 (`extractVendorBill` → `createInvoice` → `uploadAttachment`). Running it would
 create a real financial record on staging.
+
+## Verifying a config page's write path (phase 14 batch 3)
+
+Config entities are org master data with real delete endpoints, so unlike the
+vendor-bill AI import these are safe to exercise end to end on staging. Do it —
+a rendered form proves nothing about what reaches the server.
+
+**Check the payload at the wire, not in the UI.** `curl` the list endpoint
+after each step. The create above returned `days: 7` as a **Number**; a form
+that posted `"7"` would look identical on screen.
+
+Two rules for the test row:
+
+- Name it so it is unmistakable — `ZZ TEST … (delete me)` — and delete it in
+  the same session.
+- **Never set a "default" flag.** Creating a payment term or journal with
+  `isDefault: true` changes what future invoices inherit. Leave it false and
+  confirm afterwards that the real default is untouched.
+
+**Driving a ds modal from the console:** `computer` clicks take
+screenshot-space coordinates and a stale screenshot will send them to the wrong
+control — during this batch that silently hit Cancel twice and looked like "the
+error never rendered". Prefer driving the DOM directly:
+
+```js
+const setNative = (el, v) => {                       // React-compatible
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+};
+[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Create').click();
+```
+
+Then assert on state (`aria-checked`, whether the submit button still exists)
+rather than on a screenshot.
+
+**Confirm a fetch-param filter reached the network.** `showInactive` looks like
+a client filter and is not. Wrap `window.fetch`, toggle once, and read the URL —
+`?includeInactive=1`. Staging had no inactive rows, so the list looked
+unchanged either way; without the wire check that is indistinguishable from a
+dead toggle.
+
+## Phase 14 batch 3 result
+
+`invoicing/config/{payment-terms,expense-categories,journals}` — **0 contrast
+failures** across 67 / 64 / 183 nodes, light theme. Full create → edit → delete
+verified on payment terms and cleaned up.
