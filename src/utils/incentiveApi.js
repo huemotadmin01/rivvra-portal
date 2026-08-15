@@ -138,6 +138,18 @@ const incentiveApi = {
     return api.request(`${base(slug)}/waiting-on-payroll`);
   },
 
+  // Create the draft the salary gate skipped, using an admin-supplied cost
+  // basis. For a consultant who will never be paid for that month, waiting for
+  // payroll is waiting for something that will not happen — meanwhile the
+  // recruiters and AMs who earned incentive on a paid invoice get nothing.
+  // Produces an ordinary draft: editable, approved like any other.
+  createWithSalary(slug, data) {
+    return api.request(`${base(slug)}/create-with-salary`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // ---------- EXPORT ----------
   async exportRecordsCsv(slug, params = {}) {
     const token = localStorage.getItem('rivvra_token');

@@ -54,6 +54,11 @@ export default function IncentiveDashboard() {
   const [waiting, setWaiting] = useState({ count: 0, groups: [] });
   const [waitingOpen, setWaitingOpen] = useState(false);
   const [waitingError, setWaitingError] = useState(false);
+  // "Create anyway" — the consultant is on hold and a decision has been made not
+  // to wait for payroll that may never come.
+  const [createTarget, setCreateTarget] = useState(null);
+  const [createSalary, setCreateSalary] = useState('');
+  const [creatingKey, setCreatingKey] = useState(null);
 
   useEffect(() => {
     if (orgSlug) load();
@@ -176,7 +181,46 @@ export default function IncentiveDashboard() {
         onToggle={() => setWaitingOpen((v) => !v)}
         error={waitingError}
         onRetry={load}
+        creatingKey={creatingKey}
+        onCreateAnyway={(g) => {
+          setCreateTarget(g);
+          // Default to the salary payroll computed and then withheld. It is
+          // knowable, and it keeps the incentive from swinging on whether the
+          // consultant was eventually paid. ₹0 stays one keystroke away.
+          setCreateSalary(g.heldSalary != null ? String(g.heldSalary) : '');
+        }}
       />
+
+      {createTarget && (
+        <CreateAnywayModal
+          group={createTarget}
+          salary={createSalary}
+          onSalary={setCreateSalary}
+          busy={!!creatingKey}
+          onCancel={() => { setCreateTarget(null); setCreateSalary(''); }}
+          onConfirm={async () => {
+            const g = createTarget;
+            const key = `${g.consultantEmployeeId}|${g.serviceMonth}`;
+            setCreatingKey(key);
+            try {
+              await incentiveApi.createWithSalary(orgSlug, {
+                invoiceId: (g.invoiceIds || [])[0],
+                consultantEmployeeId: g.consultantEmployeeId,
+                serviceMonth: g.serviceMonth,
+                consultantSalarySnapshot: Number(createSalary),
+              });
+              showToast('Incentive draft created');
+              setCreateTarget(null);
+              setCreateSalary('');
+              load();
+            } catch (err) {
+              showToast(err?.message || 'Could not create the draft', 'error');
+            } finally {
+              setCreatingKey(null);
+            }
+          }}
+        />
+      )}
 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -271,7 +315,7 @@ export default function IncentiveDashboard() {
   );
 }
 
-function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry }) {
+function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, onCreateAnyway, creatingKey }) {
   if (error) {
     return (
       <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
@@ -334,6 +378,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry })
                 <th className="text-left px-3 py-2 font-medium">Invoices</th>
                 <th className="text-right px-3 py-2 font-medium">Value</th>
                 <th className="text-left px-3 py-2 font-medium">Reason</th>
+                <th className="text-right px-3 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -355,12 +400,105 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry })
                       ? 'Salary on hold'
                       : 'Payslip not released'}
                   </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {/* Only for a hold. "Payslip not released" resolves itself
+                        when payroll runs, and overriding it would pre-empt a
+                        figure that is about to arrive on its own. */}
+                    {g.reason === 'salary_hold' && (
+                      <button
+                        type="button"
+                        onClick={() => onCreateAnyway(g)}
+                        disabled={!!creatingKey}
+                        className="px-2.5 py-1 rounded-lg text-xs border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 disabled:opacity-50"
+                        title="Create the incentive draft now, using a cost basis you choose"
+                      >
+                        {creatingKey === `${g.consultantEmployeeId}|${g.serviceMonth}`
+                          ? 'Creating…' : 'Create anyway'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table></div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Creating a draft the salary gate skipped.
+//
+// The whole point is that the cost basis is a DECISION, not a default, so the
+// modal states both readings plainly rather than quietly picking one:
+//   • the salary payroll computed and withheld — margin as originally intended,
+//     and it does not move if the consultant is eventually paid after all
+//   • ₹0 — we are never paying them, so the full invoice is margin and the
+//     incentive comes out larger
+function CreateAnywayModal({ group, salary, onSalary, busy, onCancel, onConfirm }) {
+  const held = group.heldSalary;
+  const n = Number(salary);
+  const valid = salary !== '' && Number.isFinite(n) && n >= 0;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !busy && onCancel()}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-white">Create incentive draft</h3>
+            <p className="text-xs text-dark-400 mt-0.5">
+              {group.consultantName || 'Consultant'} · {group.serviceMonth}
+              {(group.invoiceNumbers || []).length > 0 && ` · ${group.invoiceNumbers.join(', ')}`}
+            </p>
+          </div>
+
+          <p className="text-sm text-dark-300">
+            This consultant&apos;s salary is on hold, so no draft was created. Choose the
+            cost basis to calculate margin from — it decides what the recruiter and
+            account manager earn.
+          </p>
+
+          <div>
+            <label className="block text-xs text-dark-400 mb-1">Consultant cost for this month</label>
+            <input
+              type="number"
+              min="0"
+              value={salary}
+              onChange={(e) => onSalary(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-600 text-white text-sm"
+              placeholder="0"
+            />
+            <div className="flex gap-2 mt-2">
+              {held != null && (
+                <button type="button" onClick={() => onSalary(String(held))}
+                  className="px-2 py-1 rounded-lg text-[11px] border border-dark-600 text-dark-300 hover:bg-dark-700">
+                  Use held salary (₹{Math.round(held).toLocaleString('en-IN')})
+                </button>
+              )}
+              <button type="button" onClick={() => onSalary('0')}
+                className="px-2 py-1 rounded-lg text-[11px] border border-dark-600 text-dark-300 hover:bg-dark-700">
+                Not paying — ₹0
+              </button>
+            </div>
+            <p className="text-[11px] text-dark-500 mt-2">
+              ₹0 treats the full invoice as margin, so the incentive comes out higher.
+              The held figure keeps it as originally intended, and stays correct if
+              you end up paying them later.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button onClick={onCancel} disabled={busy}
+              className="flex-1 px-3 py-2 border border-dark-600 rounded-lg text-sm text-dark-300 hover:bg-dark-700 disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={onConfirm} disabled={busy || !valid}
+              className="flex-1 px-3 py-2 rounded-lg text-sm bg-rivvra-600 text-white hover:bg-rivvra-700 disabled:opacity-50">
+              {busy ? 'Creating…' : 'Create draft'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
