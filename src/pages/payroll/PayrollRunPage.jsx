@@ -8,7 +8,7 @@ import {
   downloadPFChallan, downloadESIChallan, downloadPTChallan,
   lockInputs, unlockInputs, lockPayroll, unlockPayroll,
   releasePayslips, holdPayslips,
-  setAdHocAdjustment, createSalaryHold, releaseSalaryHold,
+  setAdHocAdjustment, createSalaryHold, releaseSalaryHold, decideSalaryHold,
   downloadPayslipPdf, downloadAllPayslips, downloadBankTransfer, downloadPayrollExport, downloadPayrollSheet,
   downloadBankSheetHdfc, downloadBankSheetNonHdfc,
 } from '../../utils/payrollApi';
@@ -374,6 +374,31 @@ export default function PayrollRunPage() {
       showToast('Salary hold applied');
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
     finally { setSavingHold(false); }
+  };
+
+  // A hold says "not paying this month". It does NOT say whether that is final,
+  // and those are different things: undecided leaves the incentive waiting for a
+  // payroll release, decided settles the cost at ₹0 so the incentive can be
+  // created. The hold stays active either way — the employee is still off bank
+  // sheets and payslips.
+  const [decidingHoldId, setDecidingHoldId] = useState(null);
+  const handleDecideHold = async (holdId, decision) => {
+    if (decidingHoldId) return;
+    setDecidingHoldId(holdId);
+    try {
+      await decideSalaryHold(orgSlug, selectedRun._id, holdId, decision);
+      setSelectedRun(prev => ({
+        ...prev,
+        items: prev.items.map(i => (i.salaryHold?._id === holdId
+          ? { ...i, salaryHold: { ...i.salaryHold, decision } }
+          : i)),
+      }));
+      showToast(decision === 'will_not_pay'
+        ? 'Marked as not paying — incentive can now be created'
+        : 'Returned to undecided');
+    } catch (err) {
+      showToast(err?.response?.data?.message || err.message || 'Failed', 'error');
+    } finally { setDecidingHoldId(null); }
   };
 
   const handleReleaseHold = async (holdId) => {
@@ -1360,8 +1385,37 @@ export default function PayrollRunPage() {
                             {item.salaryHold && (
                               <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 flex items-center justify-between">
                                 <div>
-                                  <p className="text-xs font-medium text-orange-400">Salary On Hold</p>
+                                  <p className="text-xs font-medium text-orange-400">
+                                    Salary On Hold
+                                    {item.salaryHold.decision === 'will_not_pay' && (
+                                      <span className="ml-2 px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 text-[9px] font-medium">
+                                        Decided — not paying
+                                      </span>
+                                    )}
+                                  </p>
                                   <p className="text-xs text-dark-400 mt-0.5">{item.salaryHold.reason}</p>
+                                  <p className="text-[11px] text-dark-500 mt-1">
+                                    {item.salaryHold.decision === 'will_not_pay'
+                                      ? 'Cost settled at ₹0, so incentive drafts can be created for this month.'
+                                      : 'Undecided — incentive stays on hold until this is settled or the salary is paid.'}
+                                  </p>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDecideHold(
+                                        item.salaryHold._id,
+                                        item.salaryHold.decision === 'will_not_pay' ? 'undecided' : 'will_not_pay',
+                                      );
+                                    }}
+                                    disabled={decidingHoldId === item.salaryHold._id}
+                                    className="mt-2 px-2.5 py-1 rounded-lg text-[11px] border border-orange-500/30 text-orange-300 hover:bg-orange-500/10 disabled:opacity-50"
+                                  >
+                                    {decidingHoldId === item.salaryHold._id
+                                      ? 'Saving…'
+                                      : item.salaryHold.decision === 'will_not_pay'
+                                        ? 'Back to undecided'
+                                        : 'We are not paying this month'}
+                                  </button>
                                 </div>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleReleaseHold(item.salaryHold._id); }}
