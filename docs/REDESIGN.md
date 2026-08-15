@@ -1138,3 +1138,28 @@ That is worth stating plainly: **the contrast audit has been blind to every
 chart in the app for the whole project.** Only two files import recharts, so
 the exposure is small — but `TeamDashboardPage` is the other one and has never
 been checked this way.
+
+### Batch 9 — bank reconciliation and follow-ups
+
+`reconciliation` and `follow-ups`. Chrome only on both; write-path diff
+**9 and 11 occurrences, PRESERVED**. Contrast: 0 failures (241 / 38 nodes).
+
+**`follow-ups` has the strictest reason in the pass:** `sendFollowUp` **emails
+the customer** about an overdue invoice. Not fired. The send path and
+`updateFollowUpConfig` are byte-identical, and only the header and its Refresh
+action moved. Money parity on the overdue table: **28 values identical.**
+
+**`reconciliation` writes too** — `reconcileLine` asserts that a bank line
+matches a recorded payment, and `createBankStatement` imports one. Neither
+fired.
+
+⚠️ **Second unverifiable table in the pass.** No bank statement exists on
+staging, so only the empty state renders — the statement list, the line table
+and the suggestion matcher were never exercised. Same category as the GSTR-2B
+table in batch 7, and the same decision: importing a statement would create
+financial records that batch 4 showed cannot be cleaned up afterwards.
+
+Two of the twenty-one invoicing pages migrated so far now rest on the static
+diff alone for their main table. Both are reconciliation surfaces, and both
+are unverifiable for the same reason — staging has no imported source
+documents. That is a gap in the staging dataset, not in the method.
