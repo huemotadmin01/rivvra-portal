@@ -266,6 +266,8 @@ const GstReconciliation = lazy(() => import('./pages/invoicing/GstReconciliation
 const InvoiceAnalysis = lazy(() => import('./pages/invoicing/InvoiceAnalysis'));
 const InvoiceListV2 = lazy(() => import('./pages/invoicing/InvoiceListV2'));
 const PaymentTermsConfigV2 = lazy(() => import('./pages/invoicing/PaymentTermsConfigV2'));
+const TaxesConfigV2 = lazy(() => import('./pages/invoicing/TaxesConfigV2'));
+const TdsConfigV2 = lazy(() => import('./pages/invoicing/TdsConfigV2'));
 const ExpenseCategoriesConfigV2 = lazy(() => import('./pages/invoicing/ExpenseCategoriesConfigV2'));
 const JournalsConfigV2 = lazy(() => import('./pages/invoicing/JournalsConfigV2'));
 const VendorBillListV2 = lazy(() => import('./pages/invoicing/VendorBillListV2'));
@@ -719,8 +721,8 @@ function App() {
                   <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><PageSwitch v2={InvoiceAnalysisV2} legacy={InvoiceAnalysis} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/profitability" element={<ErrorBoundary><Profitability /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/products" element={<ErrorBoundary><ProductCatalog /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/config/taxes" element={<ErrorBoundary><TaxesConfig /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/config/tds" element={<ErrorBoundary><TdsConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/taxes" element={<ErrorBoundary><PageSwitch v2={TaxesConfigV2} legacy={TaxesConfig} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/config/tds" element={<ErrorBoundary><PageSwitch v2={TdsConfigV2} legacy={TdsConfig} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/payment-terms" element={<ErrorBoundary><PageSwitch v2={PaymentTermsConfigV2} legacy={PaymentTermsConfig} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/expense-categories" element={<ErrorBoundary><PageSwitch v2={ExpenseCategoriesConfigV2} legacy={ExpenseCategoriesConfig} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/journals" element={<ErrorBoundary><PageSwitch v2={JournalsConfigV2} legacy={JournalsConfig} /></ErrorBoundary>} />
