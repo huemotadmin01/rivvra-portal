@@ -331,3 +331,56 @@ dead toggle.
 `invoicing/config/{payment-terms,expense-categories,journals}` — **0 contrast
 failures** across 67 / 64 / 183 nodes, light theme. Full create → edit → delete
 verified on payment terms and cleaned up.
+
+## A sixth false-failure mode: SVG text measured by `color`
+
+The audit reads `getComputedStyle(el).color`. **SVG `<text>` is painted with
+`fill`, not `color`** — `color` is inherited, unused, and on a chart label it
+is whatever the surrounding panel set. Measuring it produced a 1.06 "failure"
+on a Y-axis tick that actually renders at 6.63.
+
+`<text>` and `<tspan>` therefore need the fill-based measurement, not the page
+sweep:
+
+```js
+const texts = [...document.querySelectorAll('text')]
+  .filter(t => t.closest('.recharts-responsive-container'));
+texts.map(t => rgba(getComputedStyle(t).fill));   // fill, never color
+```
+
+This cuts both ways, and the second direction is the dangerous one: the page
+sweep will also **miss real chart failures**, because it never reads the
+property that paints. That is exactly what happened here — see the
+`--fg-3` fix below, which the sweep did not flag at all.
+
+## Theming a recharts chart without touching its props (phase 14)
+
+`Profitability` hard-codes four dark-only chart colours: X tick `#9ca3af`,
+Y tick `#6b7280`, zero line `#374151`, hover cursor white @ 3%. In light theme
+the X ticks measured **2.29:1** — below AA — and the zero line and cursor were
+near-invisible.
+
+**A CSS declaration beats an SVG presentation attribute.** So the recharts
+props are left exactly as they are and a scoped stylesheet themes all four:
+
+```css
+.pf-chart .recharts-cartesian-axis-tick-value { fill: var(--fg-3); }
+.pf-chart .recharts-yAxis .recharts-cartesian-axis-tick-value { fill: var(--fg-4); }
+.pf-chart .recharts-reference-line line { stroke: var(--line-strong); }
+.pf-chart .recharts-tooltip-cursor { fill: var(--surface-3); opacity: .45; }
+```
+
+Component diff stays clean; result is 2.29 → **6.63** in light, 6.84 in dark,
+all 17 chart labels passing AA in both.
+
+Two traps, both hit:
+
+- **`var()` does not resolve inside a presentation attribute.** It has to be
+  CSS. Passing `var(--fg-3)` to recharts' `tick={{ fill }}` silently does
+  nothing.
+- **The wrapper must be `display: contents`.** A plain `<div>` around
+  `ResponsiveContainer` breaks its height chain and the chart renders at zero
+  height — it vanishes entirely.
+- The tick TEXT class is `recharts-cartesian-axis-tick-value`; the *group* is
+  `recharts-cartesian-axis-tick-label`. Targeting `…-tick text` matches
+  nothing. Verify the class on a live node before trusting a chart selector.

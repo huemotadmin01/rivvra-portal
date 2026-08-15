@@ -1110,3 +1110,31 @@ actually has a 2B.** That is the one thing this batch cannot tell you.
 This is the first page in the pass where the money-parity harness had nothing
 to compare — worth noting as a category. A page can be diff-clean, audit-clean
 and still unverified, and the honest move is to say which.
+
+### Batch 8 — Profitability
+
+`reports/profitability`. Money parity: **94 values identical.** Page audit: 1
+flagged, and it was a false positive (see below).
+
+**Chrome only**, for three reasons stacked on one page: it writes
+(`saveProfitAdjustment` moves net profit; `setProfitabilityAccess` grants or
+revokes access to net-profit figures — neither triggered), it is owner-gated,
+and it is one of only two files importing recharts.
+
+The methodology paragraph under the title is kept **verbatim**. It is the
+page's only defence against being read against the Customer Invoices list: it
+states GST-exclusion, service-period recognition and ECB conversion, and says
+outright that the totals will not match. Shortening it for a tidier header
+would remove the warning, not the discrepancy.
+
+#### A real light-theme defect the standard audit could not see
+
+The chart's axis ticks were hard-coded `#9ca3af` — **2.29:1** in light theme.
+The page sweep did not flag it, because it reads `color` and SVG text paints
+with `fill`. Fixed with a scoped stylesheet (2.29 → 6.63); the audit's blind
+spot and the fix are both written up in `REDESIGN-QA.md`.
+
+That is worth stating plainly: **the contrast audit has been blind to every
+chart in the app for the whole project.** Only two files import recharts, so
+the exposure is small — but `TeamDashboardPage` is the other one and has never
+been checked this way.

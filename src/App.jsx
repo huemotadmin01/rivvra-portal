@@ -270,6 +270,7 @@ const TaxesConfigV2 = lazy(() => import('./pages/invoicing/TaxesConfigV2'));
 const ProductCatalogV2 = lazy(() => import('./pages/invoicing/ProductCatalogV2'));
 const TaxReportInvV2 = lazy(() => import('./pages/invoicing/TaxReportV2'));
 const GstReconciliationV2 = lazy(() => import('./pages/invoicing/GstReconciliationV2'));
+const ProfitabilityV2 = lazy(() => import('./pages/invoicing/ProfitabilityV2'));
 const TdsReportInvV2 = lazy(() => import('./pages/invoicing/TdsReportV2'));
 const SettingsInvoicingV2 = lazy(() => import('./components/settings/SettingsInvoicingV2'));
 const TdsConfigV2 = lazy(() => import('./pages/invoicing/TdsConfigV2'));
@@ -724,7 +725,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/reports/tds" element={<ErrorBoundary><PageSwitch v2={TdsReportInvV2} legacy={TdsReportInv} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/gst-2b" element={<ErrorBoundary><PageSwitch v2={GstReconciliationV2} legacy={GstReconciliation} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><PageSwitch v2={InvoiceAnalysisV2} legacy={InvoiceAnalysis} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/reports/profitability" element={<ErrorBoundary><Profitability /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/profitability" element={<ErrorBoundary><PageSwitch v2={ProfitabilityV2} legacy={Profitability} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/products" element={<ErrorBoundary><PageSwitch v2={ProductCatalogV2} legacy={ProductCatalog} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/taxes" element={<ErrorBoundary><PageSwitch v2={TaxesConfigV2} legacy={TaxesConfig} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/tds" element={<ErrorBoundary><PageSwitch v2={TdsConfigV2} legacy={TdsConfig} /></ErrorBoundary>} />
