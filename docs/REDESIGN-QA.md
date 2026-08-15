@@ -222,3 +222,35 @@ Both found by using the components rather than reading them:
   pick it up. Note the CRM/ATS config pages still show the *legacy* dialog —
   `ds/ConfigList` imports `shared/ConfirmDialog`, the deprecation already
   tracked in `REDESIGN.md`.
+
+---
+
+## Money parity: two things the harness does that look like findings
+
+Both hit during the phase-14 invoicing pass. Neither is a defect.
+
+- **`<style>` content is in `textContent`.** `scripts/money-parity.js` reads
+  `document.body.textContent`, which includes the text of any `<style>`
+  element in the body. ds `DataTable` injects
+  `@keyframes rv-pulse{0%,100%{opacity:.5}50%{opacity:.85}}`, so a v2 capture
+  picks up three phantom values — `0%`, `100%`, `50%` — that the legacy page
+  never had. They appear because the regex matches percentages (deliberately:
+  a dashboard's rates drift like its money). Filter `x.endsWith('%')` before
+  diffing, or compare only the currency-prefixed values. Aged receivables went
+  114 → 120 purely from this.
+
+- **Regex greediness merges a figure with the next label's digits.** The
+  capture for a card reading `₹20,23,922.27` above a `1-30 Days` label comes
+  back as `₹20,23,922.271`. Harmless — the harness is a *string* comparator and
+  the same merge happens on both sides, so it still catches a real drift. Do
+  not "fix" it by trimming, or legacy and v2 stop being comparable.
+
+## Phase 14 result
+
+`invoicing/reports/{receivables,payables,analysis}` — **0 contrast failures
+across 634 text nodes**, light theme, all four false-failure guards applied.
+No `Chip` on these pages, so the standing ds-level `Chip` failure does not
+appear.
+
+Money parity against the legacy capture: **114 / 36 / 115 values, identical
+and in the same order.**

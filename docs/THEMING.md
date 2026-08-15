@@ -330,3 +330,39 @@ Still outside the audit's reach: `PublicSigningPage`, which renders in the
 public/no-auth route block outside `.ds-shell`. `TopBar`'s own activities
 badge (`bg-red-500` / `bg-rivvra-500` + `text-white`, legacy shell only) has
 the same shape as this one and was left alone.
+
+---
+
+## `--attn`: adding a status tone (phase 14)
+
+The aging reports (aged AR/AP, and follow-ups when it migrates) need **four**
+severity steps, not three. The legacy pages ran emerald → amber → orange → red,
+and collapsing orange into amber would erase the 31-60 bucket's distinction
+from 1-30 — on a report whose entire point is that ramp.
+
+So `--attn` / `--attn-soft` / `--attn-ink` joined `warn` and `danger`. It is a
+**status** tone. Do not reach for `--a-employee` because the dark hue happens
+to match: that is an app accent, and app accents are scoped to identity, not
+severity.
+
+**The light value was measured, not picked.** On paper the whole
+warn→attn→danger stretch compresses, so the number that governs legibility is
+the *weakest adjacent gap*, not the average:
+
+| light `--attn-ink` | ΔE to `--warn-ink` | ΔE to `--danger` | weakest link |
+|---|---|---|---|
+| `#9A3412` (first try) | 11.9 | 18.5 | **11.9** |
+| `#9C2B06` (shipped) | 14.8 | 15.0 | **14.8** |
+| `#A81E05` | 22.3 | 8.8 | 8.8 |
+
+Pushing away from warn pulls toward danger; the balanced value wins because a
+ramp is only as readable as its closest pair. `#9C2B06` measures 6.58 on its
+own tint and 7.17 on the page background — both AAA.
+
+Dark needed no tuning: `#FBBF24` → `#FB923C` → `#F87171` sits at ΔE 31.4 and
+39.7, which is the luxury of having the full range above the surface rather
+than below it.
+
+**Generalisable:** when adding a tone to an ordered scale, measure every
+adjacent pair and optimise the minimum. Optimising "distance from the one it
+looked like" just moves the collision along the scale.

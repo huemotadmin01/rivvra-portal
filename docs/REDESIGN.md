@@ -669,3 +669,78 @@ tinted text, closed by `--brand-ink` / `--warn-ink`.)*
 - `SignRequestWidget` is dark-only; the palette bridge covers it, but it is
   still legacy markup.
 - Not ours: every `/documents/{id}/preview` request 500s on staging.
+
+---
+
+## The invoicing money pass (phase 14)
+
+Invoicing is the largest thing left: **26 routes, ~14k LOC, 27% of everything
+remaining.** It sat in the deferred table as "salary/statutory display —
+parity-proven rendering, reviewed separately". That deferral was right, unlike
+three of the others.
+
+### The rule for this pass
+
+Tighter than the ordinary migration recipe. **Nothing above `return (` moves.**
+Not reformatted, not renamed, not "tidied". Every fetch, projection, sort and
+arithmetic expression stays byte-identical, and that is checked mechanically
+rather than by eye:
+
+```
+extract every .reduce / .sort / `?? ` fallback / ternary / Array.isArray guard
+from both files, normalise the row-variable name, compare the sets
+```
+
+On the first batch this reported `AgedReceivables 3, AgedPayables 3,
+InvoiceAnalysis 15 — IDENTICAL`. It also **caught a real bug**: generating
+`AgedPayablesV2` from the receivables file by substitution produced
+`Array.isArray(data?.byVendor) ? data.byCustomer : []` — a ternary testing one
+field and returning another, so the vendor table would always be empty. The
+build was green. Eyeballing the diff would not reliably have caught it.
+
+Then the runtime check caught a second one the build also missed: the same
+substitution rewrote `<Users>` to `<Building2>` in the JSX but left the import
+line as `import { ArrowLeft, Users }`. Page crashed on load with
+`Building2 is not defined`.
+
+**Two mechanical checks, two real defects, zero from the build.** Same lesson
+as every prior phase, now with the money pass's own version of it: string
+surgery across a mirrored file pair needs both a logic diff and a page load.
+
+### Batch 1 — the three read-only reports
+
+`reports/receivables`, `reports/payables`, `reports/analysis`. Chosen first
+because they are pure display: no post, no send, no state transition, so the
+standing "never trigger" rules cannot be brushed against while proving the
+method.
+
+Money parity vs the legacy capture: **114 / 36 / 115 values, identical, same
+order.** Contrast: **0 failures across 634 nodes** in light theme.
+
+`reports/tax` was deliberately left out of the batch. It is a tab host that
+embeds `GstReport` and the 2B reconciliation — a statutory surface that wants
+its own pass, not absorption into a layout batch.
+
+### Two ds additions this pass earned
+
+- **`DataTable` `totals`** — a `<tfoot>` row, keyed by **column key** rather
+  than position, so reordering columns cannot slide a total under the wrong
+  header. Every money report in the product ends in a totals row and none of
+  the 62 migrated pages had one; building it once unblocks the whole block.
+- **`--attn`** — a fourth severity tone for the aging ramps. See `THEMING.md`
+  for why the light value was measured rather than picked.
+
+### What clipped, and why it matters more here
+
+The aging cards were a fixed `repeat(6, 1fr)`. `1fr` floors at the content
+width, so a lakh-scale figure at 24px pushed the 90+ and Total cards off the
+right edge. On most surfaces that is a layout nit; on a money surface a clipped
+figure is a wrong figure. `repeat(auto-fit, minmax(190px, 1fr))` wraps to a
+second row instead — the correct failure mode.
+
+### Order for the rest of invoicing
+
+Read-only reports first (done), then the lists, then config, and
+`InvoiceDetail` (5,189 lines, and it posts and sends) last and alone. The
+statutory reports — GST, GST 2B, TDS, Profitability — each get their own batch:
+they are the ones where a rendering change is a filing risk, not a cosmetic one.

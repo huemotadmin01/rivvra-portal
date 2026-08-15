@@ -264,6 +264,9 @@ const TaxReportInv = lazy(() => import('./pages/invoicing/TaxReport'));
 const TdsReportInv = lazy(() => import('./pages/invoicing/TdsReport'));
 const GstReconciliation = lazy(() => import('./pages/invoicing/GstReconciliation'));
 const InvoiceAnalysis = lazy(() => import('./pages/invoicing/InvoiceAnalysis'));
+const AgedReceivablesV2 = lazy(() => import('./pages/invoicing/AgedReceivablesV2'));
+const AgedPayablesV2 = lazy(() => import('./pages/invoicing/AgedPayablesV2'));
+const InvoiceAnalysisV2 = lazy(() => import('./pages/invoicing/InvoiceAnalysisV2'));
 const Profitability = lazy(() => import('./pages/invoicing/Profitability'));
 const SettingsInvoicing = lazy(() => import('./components/settings/SettingsInvoicing'));
 const JournalsConfig = lazy(() => import('./pages/invoicing/JournalsConfig'));
@@ -702,12 +705,12 @@ function App() {
                   <Route path="/org/:slug/invoicing/products" element={<ErrorBoundary><ProductCatalog /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliation /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><AgedReceivables /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><AgedPayables /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><PageSwitch v2={AgedReceivablesV2} legacy={AgedReceivables} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><PageSwitch v2={AgedPayablesV2} legacy={AgedPayables} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/tax" element={<ErrorBoundary><TaxReportInv /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/tds" element={<ErrorBoundary><TdsReportInv /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/gst-2b" element={<ErrorBoundary><GstReconciliation /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><InvoiceAnalysis /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reports/analysis" element={<ErrorBoundary><PageSwitch v2={InvoiceAnalysisV2} legacy={InvoiceAnalysis} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/profitability" element={<ErrorBoundary><Profitability /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/products" element={<ErrorBoundary><ProductCatalog /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/config/taxes" element={<ErrorBoundary><TaxesConfig /></ErrorBoundary>} />
