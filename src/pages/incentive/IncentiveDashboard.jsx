@@ -313,19 +313,6 @@ export default function IncentiveDashboard() {
           </table></div>
         </div>
       )}
-      {/* Data problems the ledger now sees but this widget never could: a line
-          with no consultant, unusable service dates. Real, but a different job
-          — kept as a count so they cannot bury the rows needing a decision. */}
-      {open && otherIssues?.count > 0 && (
-        <p className="mt-3 text-xs text-dark-400">
-          Also {otherIssues.count} invoice line{otherIssues.count === 1 ? '' : 's'} with a data problem
-          {Object.entries(otherIssues.byReason || {}).length > 0 && ' — '}
-          {Object.entries(otherIssues.byReason || {})
-            .map(([reason, n]) => `${n} ${reason.replace(/_/g, ' ')}`)
-            .join(', ')}
-          . These need the invoice fixed, not a salary decision.
-        </p>
-      )}
     </div>
   );
 }
@@ -437,6 +424,20 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, o
             </tbody>
           </table></div>
         </div>
+      )}
+      {/* Reasons the ledger sees that the old live scan never could — a line
+          with no consultant, unusable service dates. Real, but a different job:
+          someone fixes an invoice, nobody picks a salary basis. Kept as a count
+          so they cannot bury the rows that need a decision. */}
+      {open && otherIssues?.count > 0 && (
+        <p className="mt-3 text-xs text-dark-400">
+          Also {otherIssues.count} invoice line{otherIssues.count === 1 ? '' : 's'} with a data problem
+          {Object.entries(otherIssues.byReason || {}).length > 0 && ' — '}
+          {Object.entries(otherIssues.byReason || {})
+            .map(([reason, n]) => `${n} ${reason.replace(/_/g, ' ')}`)
+            .join(', ')}
+          . These need the invoice fixed, not a salary decision.
+        </p>
       )}
     </div>
   );
