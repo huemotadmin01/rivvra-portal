@@ -1071,3 +1071,42 @@ not "reports" in the same sense:
   one of only two files in the app that import recharts.
 
 Then bank reconciliation, follow-ups, and `InvoiceDetail` last and alone.
+
+### Batch 7 — GSTR-2B reconciliation
+
+`reports/gst-2b`. One route, one file, and the most conservative migration in
+the pass.
+
+**Chrome only:** page header, return-period picker, the upload and re-reconcile
+buttons, and the India-gate screen. Byte-identical: all four write handlers,
+the bucket definitions, the match logic, the CSV column order and the
+`HowToRead` primer. Workflow-expression diff: **32 occurrences, PRESERVED.**
+
+Four write paths, none triggered:
+
+| endpoint | what it does |
+|---|---|
+| `importGstr2b` | uploads a GSTR-2B JSON for a period |
+| `reconcileGstr2b` | re-runs the match for a period |
+| `annotateGstr2bRow` | marks a row reviewed |
+| `updateBillReference` | writes `vendorInvoiceNumber` onto a real vendor bill |
+
+#### ⚠️ The verification limit, stated plainly
+
+**No period on staging has a GSTR-2B uploaded.** Checked 2026-04 through
+2026-07 and 2025-12 — every one returns zero rows. So the bucket cards, the
+reconciliation table and every figure in it **were never rendered** during
+verification. Only the empty state and the India gate were. Their correctness
+rests on the static diff alone.
+
+I did not fabricate a 2B to get around this. Uploading one is a statutory
+write, and batch 4 established that staging rows of this kind cannot reliably
+be removed afterwards — three `ZZ TEST TAX` rows are still there. Creating
+reconciliation state to prove a layout change is the wrong trade.
+
+**Before this page is enabled for a production org, look at it on a period that
+actually has a 2B.** That is the one thing this batch cannot tell you.
+
+This is the first page in the pass where the money-parity harness had nothing
+to compare — worth noting as a category. A page can be diff-clean, audit-clean
+and still unverified, and the honest move is to say which.
