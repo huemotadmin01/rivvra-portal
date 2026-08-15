@@ -572,7 +572,7 @@ export default function PayrollRunPage() {
     // Split the run by who has actually been released, so Release and Hold can
     // both be offered on a partially-released run.
     const {
-      released: releasedItems, unreleased: unreleasedItems,
+      released: releasedItems,
       releasable: releasableItems, needsCompute: needsComputeItems,
     } = splitByRelease(run);
     // The one next step. Drives both the banner and which button is primary.
