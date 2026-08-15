@@ -16,6 +16,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import incentiveApi from '../../utils/incentiveApi';
 import { validateRecordField } from '../../utils/incentiveValidate';
+import { currencySymbol } from '../../utils/formatCurrency';
 import InlineField from '../../components/shared/InlineField';
 import InlineComboField from '../../components/shared/InlineComboField';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
@@ -28,13 +29,30 @@ import {
 // Formatters
 // ---------------------------------------------------------------------------
 
-function formatINR(amount) {
-  if (amount == null) return '\u20B90';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(amount);
+// Reporting-currency formatter for `record.currency` amounts. The formatINR it
+// replaces hard-coded the ₹ glyph and en-IN grouping, while the LABELS beside
+// several of these values already read `(${record.currency || 'INR'})` — so a
+// record reporting in anything but INR would print e.g. "Untaxed invoice (USD)"
+// above a ₹ figure. Every staging record currently reports in INR, so this is a
+// latent defect, not one I could reproduce; it is fixed here by construction.
+// Native amounts keep using formatCurrency(..., record.nativeCurrency), which
+// was already correct.
+//
+// Rounding, the null case and the grouping locale for INR are byte-identical to
+// the old formatINR (2 dp, null -> "₹0", en-IN). Only non-INR behaviour is new.
+function formatReported(amount, ccy) {
+  const cur = String(ccy || 'INR').toUpperCase();
+  if (amount == null) return `${currencySymbol(cur)}0`;
+  try {
+    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: cur,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Unknown/garbage ISO code — Intl throws rather than degrading.
+    return `${cur} ${Number(amount).toFixed(2)}`;
+  }
 }
 
 function formatCurrency(amount, ccy) {
@@ -475,13 +493,13 @@ export default function RecordDetail() {
             <ul className="text-xs text-amber-300/90 space-y-1 list-disc list-inside">
               {salaryExceedsInvoice && (
                 <li>
-                  Consultant salary ({formatINR(record.consultantSalarySnapshot)})
-                  exceeds invoice value ({formatINR(record.untaxedInvoicedValue)})
+                  Consultant salary ({formatReported(record.consultantSalarySnapshot, record.currency)})
+                  exceeds invoice value ({formatReported(record.untaxedInvoicedValue, record.currency)})
                   — net profit is negative.
                 </li>
               )}
               {negativeProfit && !salaryExceedsInvoice && (
-                <li>Net profit is negative ({formatINR(record.netProfit)}).</li>
+                <li>Net profit is negative ({formatReported(record.netProfit, record.currency)}).</li>
               )}
               {noRecruiterOrAm && (
                 <li>No Recruiter or AM assigned — record cannot be approved.</li>
@@ -699,7 +717,7 @@ export default function RecordDetail() {
                 displayValue={
                   record.consultantSalarySnapshot != null ? (
                     <span>
-                      {formatINR(record.consultantSalarySnapshot)}
+                      {formatReported(record.consultantSalarySnapshot, record.currency)}
                       {record.salaryProvisional && (
                         <span className="ml-1 text-xs text-amber-400">(provisional)</span>
                       )}
@@ -719,7 +737,7 @@ export default function RecordDetail() {
             ) : (
               <ReadRow
                 k="Salary (snapshot)"
-                v={formatINR(record.consultantSalarySnapshot)}
+                v={formatReported(record.consultantSalarySnapshot, record.currency)}
                 note={record.salaryProvisional ? 'provisional' : null}
               />
             )}
@@ -755,21 +773,21 @@ export default function RecordDetail() {
                 value={record.untaxedInvoicedValue}
                 required
                 editable
-                displayValue={formatINR(record.untaxedInvoicedValue)}
+                displayValue={formatReported(record.untaxedInvoicedValue, record.currency)}
                 placeholder="0"
                 onSave={handleFieldSave}
               />
             ) : (
               <ReadRow
                 k={`Untaxed invoice${record.nativeCurrency ? ` (${record.currency || 'INR'})` : ''}`}
-                v={formatINR(record.untaxedInvoicedValue)}
+                v={formatReported(record.untaxedInvoicedValue, record.currency)}
               />
             )}
             <ReadRow
               k="Net profit"
               v={
                 <span className={negativeProfit ? 'text-red-400' : ''}>
-                  {formatINR(record.netProfit)}
+                  {formatReported(record.netProfit, record.currency)}
                 </span>
               }
               strong
@@ -790,7 +808,7 @@ export default function RecordDetail() {
                     : '—'
                 }
               />
-              <ReadRow k="Your incentive" v={formatINR(record.yourIncentive)} strong />
+              <ReadRow k="Your incentive" v={formatReported(record.yourIncentive, record.currency)} strong />
               {record.alsoRole && (
                 <ReadRow
                   k="Note"
@@ -833,7 +851,7 @@ export default function RecordDetail() {
                   placeholder="Blank = use rate"
                   displayValue={
                     record.recruiterAmountOverride != null
-                      ? formatINR(record.recruiterAmountOverride)
+                      ? formatReported(record.recruiterAmountOverride, record.currency)
                       : null
                   }
                   onSave={handleFieldSave}
@@ -845,11 +863,11 @@ export default function RecordDetail() {
                 // the audit reader needs to know it was applied.
                 <ReadRow
                   k="Override (₹)"
-                  v={formatINR(record.recruiterAmountOverride)}
+                  v={formatReported(record.recruiterAmountOverride, record.currency)}
                   note="manual override"
                 />
               ) : null}
-              <ReadRow k="Incentive" v={formatINR(record.recruiterIncentive)} strong />
+              <ReadRow k="Incentive" v={formatReported(record.recruiterIncentive, record.currency)} strong />
               {/* Per-party status: visible whenever a per-party status is
                   present (skipped on legacy pre-Phase-2 records that only have
                   the record-level status). */}
@@ -926,7 +944,7 @@ export default function RecordDetail() {
                 placeholder="Blank = use rate"
                 displayValue={
                   record.accountManagerAmountOverride != null
-                    ? formatINR(record.accountManagerAmountOverride)
+                    ? formatReported(record.accountManagerAmountOverride, record.currency)
                     : null
                 }
                 onSave={handleFieldSave}
@@ -937,11 +955,11 @@ export default function RecordDetail() {
               // visible signal that an override was applied at approval.)
               <ReadRow
                 k="Override (₹)"
-                v={formatINR(record.accountManagerAmountOverride)}
+                v={formatReported(record.accountManagerAmountOverride, record.currency)}
                 note="manual override"
               />
             ) : null}
-            <ReadRow k="Incentive" v={formatINR(record.accountManagerIncentive)} strong />
+            <ReadRow k="Incentive" v={formatReported(record.accountManagerIncentive, record.currency)} strong />
             {record.accountManagerEmployeeId && record.accountManagerStatus &&
               record.accountManagerStatus !== 'n/a' && (
                 <ReadRow
