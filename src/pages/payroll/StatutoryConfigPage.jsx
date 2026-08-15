@@ -214,7 +214,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-medium">{item.employee.fullName || item.employee.name || item.employee.email}</span>
-                      {s.stopSalaryProcessing && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium" title="Excluded from payroll runs">Salary on hold</span>}
+                      {s.stopSalaryProcessing && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium" title="Excluded from every payroll run until unticked. Not the same as a monthly salary hold on the run page.">Processing stopped</span>}
                     </div>
                     <div className="text-xs text-dark-400">{item.employee.email}</div>
                   </td>
@@ -408,12 +408,21 @@ export default function StatutoryConfigPage({ embedded = false }) {
                 <label className="flex items-start gap-2 text-sm text-dark-300">
                   <input type="checkbox" checked={form.stopSalaryProcessing} onChange={e => setForm(f => ({ ...f, stopSalaryProcessing: e.target.checked }))} className="rounded border-dark-600 mt-0.5" />
                   <span className={form.stopSalaryProcessing ? 'text-red-400' : ''}>
-                    Hold salary — skip this employee in payroll runs
-                    <span className="block text-[11px] text-dark-500">Use for absconding, unpaid-leave or dispute cases. No payslip is generated while this is on.</span>
+                    Stop salary processing — leave this employee out of every payroll run
+                    <span className="block text-[11px] text-dark-500">
+                      Indefinite, for absconding or dispute cases. This is <strong>not</strong> the
+                      monthly &ldquo;salary hold&rdquo; on the payroll run page — that withholds one
+                      month and can be released or marked as decided. This one excludes the employee
+                      from every run until you untick it.
+                    </span>
+                    <span className="block text-[11px] text-amber-500/80 mt-1">
+                      Applies to confirmed employees only. External and billable internal consultants
+                      are not affected by this flag — hold them per month on the run page instead.
+                    </span>
                   </span>
                 </label>
                 {form.stopSalaryProcessing && (
-                  <p className="text-xs text-red-400/70">This employee will be excluded from every payroll run until you untick this.</p>
+                  <p className="text-xs text-red-400/70">This employee will be excluded from every payroll run until you untick this. No payslip is generated meanwhile.</p>
                 )}
               </fieldset>
 
