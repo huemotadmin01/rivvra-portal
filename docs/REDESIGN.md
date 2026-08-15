@@ -744,3 +744,70 @@ Read-only reports first (done), then the lists, then config, and
 `InvoiceDetail` (5,189 lines, and it posts and sends) last and alone. The
 statutory reports — GST, GST 2B, TDS, Profitability — each get their own batch:
 they are the ones where a rendering change is a filing risk, not a cosmetic one.
+
+### Batch 2 — the four list routes
+
+`invoicing/invoices`, `invoicing/bills`, `invoicing/employee-bills`,
+`invoicing/payments` — three components, four routes (`VendorBillList` serves
+both bill routes via `mode`).
+
+Money parity vs a legacy capture taken before any edit: **44 / 26 / 22 / 20
+values, identical, same order.** Contrast: **0 failures across 841 nodes** in
+light theme.
+
+#### `ResizableTable` is KEPT, not replaced
+
+The obvious move was to swap it for ds `DataTable`. That would have been wrong
+twice over:
+
+1. It is **already themed for the v2 shell.** `legacy-bridge.css` defines
+   `--rt-sticky-head` / `--rt-sticky-cell` under `.ds-shell` *and names these
+   two pages in the comment* — the pinned columns had held a hardcoded
+   near-black, so in light theme the invoice numbers inside them measured a
+   1.00 contrast ratio. Someone already did this work.
+2. It owns three things ds `DataTable` does not: **column widths persisted per
+   user** (`storageKey`), **sticky left/right columns**, and a **footer slot**.
+   On a seven-column money table whose footer carries the per-currency page
+   totals, none of those are cosmetic.
+
+So these two pages migrate their **chrome** — header, tab strip, toolbar,
+loading and empty states — and leave the table, its money cells and its totals
+footer rendering through unchanged code. That is a smaller diff *and* a safer
+one. `PaymentsList`, which never used `ResizableTable`, moves fully to
+`DataTable`.
+
+Worth generalising: **check whether the bridge already covers a legacy
+component before replacing it.** The migration's job is the design system, not
+the component count.
+
+#### `VendorBillList` is the batch's write surface
+
+Its AI import runs `extractVendorBill` → `createInvoice` → `uploadAttachment` —
+it creates real vendor bills. Chrome-only migration there is deliberate, and
+the extraction flow was **never exercised** during verification: a run would
+have created a financial record on staging and burned an AI call. It is
+covered by the logic diff, not by a page load. Stated plainly rather than
+implied.
+
+#### Two more defects the build didn't catch
+
+Same shape as batch 1, so it is now a pattern rather than an anecdote:
+
+- Trimming the lucide import list broke the **retained** `ResizableTable`
+  footer — `ChevronLeft is not defined`, crash on mount. The chrome no longer
+  used those icons; the block I deliberately kept still did.
+- One icon was left imported but unused after the swap.
+
+Both are now checked mechanically instead of by eye — extract every `<Icon`
+referenced *after* the import statement, diff against the imported set, and
+require `missing` and `unused` to be empty. Cheaper than the page load that
+found the first one.
+
+#### Deliberately not changed
+
+- **Filters stay in local state, not the URL.** `listkit`'s `useListParams` is
+  the house pattern, but moving a money list's filters into the URL changes
+  what a bookmark means. Product decision, not a layout one.
+- **`handleSort` keeps its two-state asc/desc toggle.** ds `DataTable` offers a
+  three-state cycle whose third state is "unsorted"; these fetches have no
+  unsorted mode, so the cycle is adapted down rather than introduced.

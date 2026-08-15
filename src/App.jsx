@@ -264,6 +264,9 @@ const TaxReportInv = lazy(() => import('./pages/invoicing/TaxReport'));
 const TdsReportInv = lazy(() => import('./pages/invoicing/TdsReport'));
 const GstReconciliation = lazy(() => import('./pages/invoicing/GstReconciliation'));
 const InvoiceAnalysis = lazy(() => import('./pages/invoicing/InvoiceAnalysis'));
+const InvoiceListV2 = lazy(() => import('./pages/invoicing/InvoiceListV2'));
+const VendorBillListV2 = lazy(() => import('./pages/invoicing/VendorBillListV2'));
+const PaymentsListV2 = lazy(() => import('./pages/invoicing/PaymentsListV2'));
 const AgedReceivablesV2 = lazy(() => import('./pages/invoicing/AgedReceivablesV2'));
 const AgedPayablesV2 = lazy(() => import('./pages/invoicing/AgedPayablesV2'));
 const InvoiceAnalysisV2 = lazy(() => import('./pages/invoicing/InvoiceAnalysisV2'));
@@ -693,15 +696,15 @@ function App() {
               <Route element={<AppAccessGate appId="invoicing" />}>
                 <Route element={<AppRoleGate appId="invoicing" requiredRole="admin" />}>
                   <Route path="/org/:slug/invoicing/dashboard" element={<ErrorBoundary><PageSwitch v2={InvoicingDashboardV2} legacy={InvoicingDashboard} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/invoices" element={<ErrorBoundary><InvoiceList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/invoices" element={<ErrorBoundary><PageSwitch v2={InvoiceListV2} legacy={InvoiceList} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/new" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/:invoiceId/edit" element={<ErrorBoundary><InvoiceForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/:invoiceId" element={<ErrorBoundary><InvoiceDetail /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/bills" element={<ErrorBoundary><VendorBillList /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/employee-bills" element={<ErrorBoundary><VendorBillList mode="employee" /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/bills" element={<ErrorBoundary><PageSwitch v2={VendorBillListV2} legacy={VendorBillList} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/employee-bills" element={<ErrorBoundary><PageSwitch v2={VendorBillListV2} legacy={VendorBillList} mode="employee" /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills/new" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills/:billId/edit" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PaymentsList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PageSwitch v2={PaymentsListV2} legacy={PaymentsList} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/products" element={<ErrorBoundary><ProductCatalog /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliation /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
