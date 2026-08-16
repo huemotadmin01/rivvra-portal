@@ -366,3 +366,51 @@ than below it.
 **Generalisable:** when adding a tone to an ordered scale, measure every
 adjacent pair and optimise the minimum. Optimising "distance from the one it
 looked like" just moves the collision along the scale.
+
+---
+
+## App-card accents: a whole palette outside the token system (phase 15)
+
+`AppBentoCard`'s `colorConfig` carried thirteen hard-coded **dark-theme** hexes
+(`#4ade80`, `#60a5fa`, `#fb923c`, …) used as `iconColor` — which paints the
+eyebrow label, the CTA text and the icon tint on every card of the app
+launcher. On a white card in light theme they measured **1.67–2.98:1**. Every
+app label on the first page a user sees failed AA.
+
+Fixed by moving them into tokens (`--acc-<family>`), dark keeping the existing
+value and light taking the first Tailwind step that clears 4.5:1 on white —
+measured, not chosen:
+
+| family | dark | light | on white |
+|---|---|---|---|
+| rivvra | `#4ADE80` | `#15803D` | 5.02 |
+| blue | `#60A5FA` | `#2563EB` | 5.17 |
+| purple | `#C084FC` | `#9333EA` | 5.38 |
+| orange | `#FB923C` | `#C2410C` | 5.18 |
+| cyan | `#22D3EE` | `#0E7490` | 5.36 |
+| amber | `#FBBF24` | `#B45309` | 5.02 |
+| emerald | `#34D399` | `#047857` | 5.48 |
+| indigo | `#818CF8` | `#4F46E5` | 6.29 |
+| teal | `#2DD4BF` | `#0F766E` | 5.47 |
+| fuchsia | `#E879F9` | `#C026D3` | 4.71 |
+| slate | `#CBD5E1` | `#475569` | 7.58 |
+| sky | `#38BDF8` | `#0369A1` | 5.93 |
+| rose | `#FB7185` | `#E11D48` | 4.70 |
+
+Only the **text** colour moved. Each family keeps its `rgb` triple for the
+card tint and glow, which work at 10–18% alpha on either theme.
+
+Two smaller fixes in the same file: the card border was a hard-coded
+`rgb(30, 41, 59)` (now `--line-2`), and the hovered CTA label was `#0a0f0d`
+(now `--brand-fg`).
+
+**`var()` works in inline `style` objects** — unlike SVG presentation
+attributes, where it silently does nothing (see the recharts note in
+`REDESIGN-QA.md`). That difference is why this fix is a one-line-per-entry
+change and the chart one needed a stylesheet.
+
+**The pattern, third time now:** a palette defined outside the token system is
+invisible to the theme and to the audit until something renders it on the
+other background. Charts (`recharts`), the bridge's `text-white`, and now the
+app-card accents. Worth grepping for hex literals in any component that paints
+text before assuming a page is theme-clean.
