@@ -1163,3 +1163,50 @@ Two of the twenty-one invoicing pages migrated so far now rest on the static
 diff alone for their main table. Both are reconciliation surfaces, and both
 are unverifiable for the same reason — staging has no imported source
 documents. That is a gap in the staging dataset, not in the method.
+### Batch 10 — the invoice/bill "form" routes, and a bridge fix worth more than the batch
+
+**`InvoiceForm` and `VendorBillForm` are not forms.** Mirroring Odoo, "New"
+immediately creates a blank draft and redirects to the detail page; the edit
+routes are straight redirects. The only rendered output is a spinner, so that
+is all that moved — the create-and-redirect effects, including the `creating`
+guards that stop a re-render creating a second draft, are byte-identical.
+
+Neither route was loaded on staging, for the obvious reason: **visiting them
+creates an invoice.** Verified by reading the effect.
+
+#### `InvoiceDetail` — assessed and deliberately NOT migrated
+
+5,189 lines and 33 API methods, including `sendInvoice`, `emailInvoice`,
+`generateEInvoice`, `recordPayment`, `createCreditNote`, `cancelInvoice` and
+`setGstHold`. Its chrome is a bespoke full-bleed document editor with a
+20-button conditional action bar and a status stepper — not a `PageHeader`
+shape. Rebuilding it would be the highest-risk, lowest-value change in the
+pass.
+
+Measured instead: on a posted invoice in light theme it reported **one**
+failure. That one turned out not to be a page problem at all.
+
+#### 🔴 The bridge mapped `text-white` on saturated fills to `--fg`
+
+`.ds-shell .text-white { color: var(--fg); }` is right for the common case —
+`text-white` as "the bright text tier" on a dark surface. It is wrong for the
+other meaning: **the label on a coloured button or pill**, where the fill does
+not change with the theme and the text must stay white.
+
+InvoiceDetail's status stepper showed it: white-on-`bg-blue-600` computed to
+`#16191D` on `#2563EB` — **3.36:1**, below AA. **259 places in the codebase
+pair `text-white` with a saturated `bg-*` utility**, so this was never one
+page's bug.
+
+Fixed in `legacy-bridge.css` by restoring `#FFF` when `text-white` co-occurs
+with a saturated fill. InvoiceDetail then measured **0 failures in both
+themes**.
+
+Same shape as the NotificationBell badge fix already in `THEMING.md`: when a
+fill and its text come from different sources, a bridge-mapped foreground over
+an unmapped background is the pairing most likely to be wrong. That note
+predicted this class of bug; it just had not been swept for.
+
+**Generalisable:** a utility name that encodes a *value* (`text-white`) can
+carry two different *roles*. A bridge that maps it by value gets one of them
+wrong, and which one is invisible until a light theme exists.
