@@ -271,6 +271,8 @@ const ProductCatalogV2 = lazy(() => import('./pages/invoicing/ProductCatalogV2')
 const TaxReportInvV2 = lazy(() => import('./pages/invoicing/TaxReportV2'));
 const GstReconciliationV2 = lazy(() => import('./pages/invoicing/GstReconciliationV2'));
 const ProfitabilityV2 = lazy(() => import('./pages/invoicing/ProfitabilityV2'));
+const BankReconciliationV2 = lazy(() => import('./pages/invoicing/BankReconciliationV2'));
+const FollowUpsV2 = lazy(() => import('./pages/invoicing/FollowUpsV2'));
 const TdsReportInvV2 = lazy(() => import('./pages/invoicing/TdsReportV2'));
 const SettingsInvoicingV2 = lazy(() => import('./components/settings/SettingsInvoicingV2'));
 const TdsConfigV2 = lazy(() => import('./pages/invoicing/TdsConfigV2'));
@@ -717,8 +719,8 @@ function App() {
                   <Route path="/org/:slug/invoicing/bills/:billId/edit" element={<ErrorBoundary><VendorBillForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/payments" element={<ErrorBoundary><PageSwitch v2={PaymentsListV2} legacy={PaymentsList} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/products" element={<ErrorBoundary><PageSwitch v2={ProductCatalogV2} legacy={ProductCatalog} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><BankReconciliation /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/reconciliation" element={<ErrorBoundary><PageSwitch v2={BankReconciliationV2} legacy={BankReconciliation} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/follow-ups" element={<ErrorBoundary><PageSwitch v2={FollowUpsV2} legacy={FollowUps} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/receivables" element={<ErrorBoundary><PageSwitch v2={AgedReceivablesV2} legacy={AgedReceivables} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/payables" element={<ErrorBoundary><PageSwitch v2={AgedPayablesV2} legacy={AgedPayables} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/reports/tax" element={<ErrorBoundary><PageSwitch v2={TaxReportInvV2} legacy={TaxReportInv} /></ErrorBoundary>} />
