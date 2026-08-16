@@ -72,6 +72,30 @@
 .ds-shell .text-dark-600 { color: var(--fg-4); }
 .ds-shell .text-white { color: var(--fg); }
 .ds-shell .hover\:text-white:hover { color: var(--fg); }
+
+/* …EXCEPT when text-white sits on a SATURATED FILL.
+   `text-white` means two different things in the legacy UI: "the bright text
+   tier" (on a dark surface — themed above, correctly), and "the label on a
+   coloured button/pill" (on blue-600, rivvra-500, red-500…), which must stay
+   white in BOTH themes because the fill underneath does not change.
+
+   Mapping both to --fg turns the second kind near-black on light. Found on
+   InvoiceDetail's status stepper: white-on-blue-600 became #16191D on
+   #2563EB — 3.36:1, below AA. 259 places in the codebase pair `text-white`
+   with a saturated `bg-*` utility, so this was not one page's problem.
+
+   Same shape as the NotificationBell badge fix in THEMING.md: when a fill and
+   its text come from different sources, a bridge-mapped foreground over an
+   unmapped background is the pairing most likely to be wrong. */
+.ds-shell [class*="bg-rivvra-"].text-white,
+.ds-shell [class*="bg-blue-"].text-white,
+.ds-shell [class*="bg-emerald-"].text-white,
+.ds-shell [class*="bg-green-"].text-white,
+.ds-shell [class*="bg-red-"].text-white,
+.ds-shell [class*="bg-amber-"].text-white,
+.ds-shell [class*="bg-orange-"].text-white,
+.ds-shell [class*="bg-purple-"].text-white,
+.ds-shell [class*="bg-indigo-"].text-white { color: #FFFFFF; }
 .ds-shell .hover\:text-dark-200:hover,
 .ds-shell .hover\:text-dark-300:hover { color: var(--fg-2); }
 
