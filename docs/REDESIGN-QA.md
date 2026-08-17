@@ -682,3 +682,80 @@ under itself.
 - **No writes** — confirmed zero `leave-request` calls in resource timing. The
   form was filled to a submittable state to render the LOP callout, and the
   submit button was never clicked.
+
+---
+
+## timesheet/approvals — three pieces of dead or half-built code, found by lint
+
+Approve / reject / revert move a timesheet into the state payroll reads, and the
+page also sends reminder emails, so everything above `return (` is spliced in
+verbatim (**109 lines, byte-identical**) and ten mutating paths are asserted by
+exact text — the two `window.confirm` gates, the reason-required check, all four
+endpoints, the `!t.isAttendance` filter, and both derived lists. The
+payroll-lock guard lives in the render and is asserted separately.
+
+### What lint found that reading didn't
+
+Running eslint on the **legacy** file as a baseline turned up two unused
+declarations, and chasing them produced three findings:
+
+1. **`statusColors` is dead.** A five-entry map of status → Tailwind fill,
+   declared at module scope and referenced nowhere — the calendar builds its
+   classes inline instead. This is the one thing **not** carried into v2:
+   copying it would be copying a decoy.
+2. **`toggleSelectAll` is dead in both files.** The bulk-reminder feature has
+   per-row checkboxes and a "Send Reminder (n)" button, but the select-all
+   handler is never wired to any control. `draftFiltered` exists **only** to
+   feed it, so it is dead too. Either the select-all checkbox was lost in a
+   refactor or it was never finished; both are preserved verbatim so the answer
+   stays the maintainer's.
+3. **`controllerRef` is not a ref.**
+   ```js
+   const controllerRef = { current: null };   // plain object, rebuilt every render
+   ```
+   `load()` writes the new `AbortController` onto *this* render's object, while
+   the effect cleanup closes over the object from the render it ran in. So the
+   abort at the top of `load()` does not reliably cancel the previous in-flight
+   request. **`AttendanceApprovals.jsx` has the identical line**, so it is a
+   two-file issue and the next page in the queue inherits it.
+
+Net lint: legacy 2 errors, v2 1 — the delta is exactly the dead map.
+
+### Day cells: the my-attendance fix, applied again
+
+Legacy painted the expanded calendar as saturated fills with white text.
+`bg-emerald-500` + white is **2.54:1** and `bg-blue-500` + white is **3.68:1**,
+both below AA at the 9px these render at. Same fix as my-attendance — the tint
+carries the state, the digit stays near-black/near-white. Weekend-work keeps
+legacy's ring, since it is the one state the fill alone doesn't distinguish.
+
+### Not reachable on staging data
+
+**The payroll-lock branch never renders.** `Cannot revert — payroll is
+{status} for this month` requires a run in `processed` or `finalized`; every
+month Apr–Aug 2026 reports `open`. The unlocked branch (Revert button) was
+exercised on June's 36 approved rows. The guard expression is preserved verbatim
+and asserted by text, but it has **not** been seen on screen.
+
+This is the fourth surface blocked the same way (GSTR-2B, bank statement,
+my-fnf receipt, now this). All of them need one seeding exercise, not four
+migrations — see the note under the statutory batches.
+
+### Added copy
+
+The reject dialog gains a `sub`: *"The contractor sees this reason and can
+resubmit."* Legacy had a bare title. Modal's API asks for the consequence there,
+and the reason is in fact shown to the contractor.
+
+### Verification
+
+- **0 contrast failures** across four surfaces — list and reject modal × light
+  and dark (197 / 197 / 101 / 101 nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (109 lines); 10 mutating paths + the payroll-lock guard
+  asserted
+- Exercised live: tab counts across three periods (Aug/Jul/Jun), row expansion,
+  the calendar grid on a leave-heavy month, Approve/Reject rendering only for
+  `submitted`, Revert rendering only for `approved`, and the reject modal opened
+  and cancelled
+- **No writes** — confirmed **zero** calls to `/approve`, `/reject`, `/revert`
+  or `/reminders/send` in resource timing. No reminder email was sent.
