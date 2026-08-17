@@ -759,3 +759,75 @@ and the reason is in fact shown to the contractor.
   and cancelled
 - **No writes** — confirmed **zero** calls to `/approve`, `/reject`, `/revert`
   or `/reminders/send` in resource timing. No reminder email was sent.
+
+---
+
+## attendance/approvals — the same half-built feature, decayed differently
+
+Sibling of `timesheet/approvals`: same approve / reject / revert / remind
+surface over attendance. Logic spliced in verbatim (**104 lines,
+byte-identical**), eight mutating paths asserted by exact text, payroll-lock
+guard asserted separately, and the ten-branch colour ladder checked branch by
+branch.
+
+### The select-all residue is different in each file
+
+The sibling has a `toggleSelectAll` handler wired to no control. **This file has
+no `toggleSelectAll` at all — yet still computes `draftFiltered`**, the list
+that only ever existed to feed it. So the same half-built select-all left a
+different residue in each file: one kept the handler and lost the checkbox, the
+other lost both and kept the input. Preserved (it is inside the verbatim slice);
+lint parity is legacy 1 error, v2 1.
+
+`controllerRef` is the same plain-object-not-a-ref defect flagged on the
+sibling, carried across unchanged.
+
+### `entryColors.upcoming` is unreachable
+
+Legacy's map defines an `upcoming` style — dashed border, muted — but the colour
+ladder has **no `status === 'upcoming'` branch**, so a future day falls through
+to the default grey. `upcoming` is a real status elsewhere in the attendance
+model (my-attendance renders it), so this is a genuine gap, not a spare key.
+Mirrored exactly in v2's `ENTRY_ACCENT` (kept, unused) and flagged rather than
+fixed — adding a branch changes what a reviewer sees.
+
+### Day cells
+
+Every entry in legacy's `entryColors` was a saturated fill with `text-white` at
+9px: emerald-500 **2.54:1**, amber-500 **2.15:1**, blue-500 **3.68:1**. Same fix
+as my-attendance and the sibling — tint carries the state, digit stays
+near-black. ½ variants take a weaker tint of the parent hue.
+
+### ⚠️ Four branches unreachable on staging data
+
+This page has the **worst** coverage of the batch, and it is a data problem, not
+a code one. Across **ten months (Nov 2025 – Aug 2026)** attendance exists only
+in `draft`, `approved` and `no_entry`. There is **no `submitted` and no
+`rejected` record anywhere.** So:
+
+| branch | why unreachable |
+|---|---|
+| Approve / Reject buttons | need `status === 'submitted'` |
+| Reject modal | only opens from the Reject button |
+| Rejection-reason `Callout` | needs `rejected` **and** a `rejectionReason` |
+| Payroll-lock message | every month reports `open` |
+
+What that leaves: the modal and the reject flow are the *same composition* as
+the sibling page's, which **was** verified live in #74 — but that is inference
+from a sibling, not verification of this page. Stated plainly rather than
+counted as covered.
+
+Fixing this needs seeding, not migration — now five surfaces deep (GSTR-2B,
+bank statement, my-fnf receipt, timesheet-approvals lock, and these four).
+
+### Verification
+
+- **0 contrast failures** across four surfaces — draft and approved views ×
+  light and dark (116 / 116 / 179 / 179 nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (104 lines); 8 mutating paths, the payroll-lock guard and
+  all 10 colour-ladder branches asserted
+- Exercised live: tab counts across two periods, row expansion, the calendar on
+  both a present-only month and one with leave days, the 7-item legend, the
+  summary row, and Revert rendering only for `approved`
+- **No writes** — zero calls to `/approve`, `/reject`, `/revert` or
+  `/reminders/send`. No reminder email sent.
