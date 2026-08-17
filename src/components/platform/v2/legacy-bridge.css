@@ -101,14 +101,92 @@
 .ds-shell .hover\:bg-rivvra-600:hover { background-color: var(--brand-lo); }
 .ds-shell [class*="bg-rivvra-"].text-white { color: var(--brand-fg); }
 
-.ds-shell [class*="bg-blue-"].text-white,
-.ds-shell [class*="bg-emerald-"].text-white,
-.ds-shell [class*="bg-green-"].text-white,
-.ds-shell [class*="bg-red-"].text-white,
-.ds-shell [class*="bg-amber-"].text-white,
-.ds-shell [class*="bg-orange-"].text-white,
-.ds-shell [class*="bg-purple-"].text-white,
-.ds-shell [class*="bg-indigo-"].text-white { color: #FFFFFF; }
+/* …and the brand button's ink is usually NOT text-white. The legacy brand
+   fill is bright green (#22C55E), so the label was written as `text-dark-950`
+   — correct against that fill, and the most common button in the app: 128
+   call sites. In light theme --brand resolves to #15803D, on which a
+   near-black ink measures 3.52:1. The ink has to follow the fill, so both
+   spellings resolve to --brand-fg.
+   Only the 900/950 ink tiers: text-dark-400/500 on a brand fill (6 sites) are
+   muted-text utilities that happen to share the class attribute, not the
+   button's label. */
+.ds-shell [class*="bg-rivvra-"].text-dark-900,
+.ds-shell [class*="bg-rivvra-"].text-dark-950 { color: var(--brand-fg); }
+
+/* …and the ink is chosen PER FILL, not per family.
+   The first version of this rule matched families with [class*="bg-blue-"],
+   which also catches the 400/500 steps. Those are light: white on emerald-500
+   is 2.54:1, on amber-500 2.15:1 — worse than the --fg mapping it replaced.
+   Measured across the 35 family/step pairs the codebase actually pairs with
+   `text-white`, white wins on 17 and loses on 18, so a blanket constant is
+   wrong whichever constant you pick.
+
+   Both lists are LITERALS, not tokens, and that is the point: the fill does
+   not change with the theme, so its ink must not either. Mapping these to
+   --fg is what produced the original bug — it flips the ink under a fixed
+   background. (That also repairs the dark theme, where --fg is near-white and
+   every fill in the second list was failing at ~2.5:1 before this rule
+   existed at all.)
+
+   Regenerate with scripts/ink-for-fill.js if new fills appear. */
+/* The dark fills. Generated — do not hand-edit.
+   indigo-500 is 4.47 and stays here as best-available; see the note below. */
+.ds-shell .bg-amber-700.text-white,
+.ds-shell .bg-amber-950.text-white,
+.ds-shell .bg-blue-600.text-white,
+.ds-shell .bg-blue-700.text-white,
+.ds-shell .bg-blue-950.text-white,
+.ds-shell .bg-emerald-700.text-white,
+.ds-shell .bg-emerald-950.text-white,
+.ds-shell .bg-fuchsia-600.text-white,
+.ds-shell .bg-fuchsia-700.text-white,
+.ds-shell .bg-fuchsia-950.text-white,
+.ds-shell .bg-green-700.text-white,
+.ds-shell .bg-indigo-500.text-white,
+.ds-shell .bg-indigo-600.text-white,
+.ds-shell .bg-indigo-700.text-white,
+.ds-shell .bg-orange-700.text-white,
+.ds-shell .bg-purple-600.text-white,
+.ds-shell .bg-purple-700.text-white,
+.ds-shell .bg-red-600.text-white,
+.ds-shell .bg-red-700.text-white,
+.ds-shell .bg-red-900.text-white,
+.ds-shell .bg-red-950.text-white,
+.ds-shell .bg-teal-700.text-white,
+.ds-shell .bg-zinc-900.text-white { color: #FFFFFF; }
+
+/* The light fills. White is unreadable on these; a near-black ink measures
+   4.5–10.6 on every one, in both themes.
+   purple-500 is 4.46 and stays here as best-available; see the note below. */
+.ds-shell .bg-amber-400.text-white,
+.ds-shell .bg-amber-500.text-white,
+.ds-shell .bg-amber-600.text-white,
+.ds-shell .bg-blue-400.text-white,
+.ds-shell .bg-blue-500.text-white,
+.ds-shell .bg-emerald-400.text-white,
+.ds-shell .bg-emerald-500.text-white,
+.ds-shell .bg-emerald-600.text-white,
+.ds-shell .bg-green-500.text-white,
+.ds-shell .bg-green-600.text-white,
+.ds-shell .bg-indigo-200.text-white,
+.ds-shell .bg-indigo-400.text-white,
+.ds-shell .bg-orange-400.text-white,
+.ds-shell .bg-orange-500.text-white,
+.ds-shell .bg-orange-600.text-white,
+.ds-shell .bg-purple-400.text-white,
+.ds-shell .bg-purple-500.text-white,
+.ds-shell .bg-red-400.text-white,
+.ds-shell .bg-red-500.text-white,
+.ds-shell .bg-teal-500.text-white,
+.ds-shell .bg-teal-600.text-white,
+.ds-shell .bg-zinc-100.text-white { color: #16191D; }
+
+/* Two fills (indigo-500 at 4.47, purple-500 at 4.46 — 39 sites between them)
+   land just under AA with EITHER ink, because the fill itself is the problem.
+   Fixing them means darkening the fill, which is a visible change across
+   already-merged pages, so it is proposed in REDESIGN-QA.md rather than done
+   here. Both are within rounding of the threshold and neither is a regression
+   from this rule. */
 .ds-shell .hover\:text-dark-200:hover,
 .ds-shell .hover\:text-dark-300:hover { color: var(--fg-2); }
 
