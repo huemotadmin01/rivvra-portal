@@ -23,6 +23,7 @@ export {
   SkeletonPendingList, SkeletonConfig, SkeletonInline, SkeletonEditor,
 } from './Feedback/Skeleton';
 export { Spinner, PageSpinner } from './Feedback/Spinner';
+export { Callout } from './Feedback/Callout';
 export { Button } from './Button/Button';
 export { Avatar } from './Data/Avatar';
 export { Chip } from './Data/Chip';

@@ -445,3 +445,82 @@ false-failure guards written down next to the bug each one hides.
 
 Final: **0 failures of 148 checked, both themes.** Guard diff PRESERVED —
 216 guard/logic occurrences identical, including all 9 `isDayDisabled` sites.
+
+---
+
+## my-attendance — an accent on a wash of itself, and opacity hiding the evidence
+
+This page is not a header-only migration: it is colour-coded end to end, and
+`statusConfig` — twelve statuses × six pre-baked Tailwind class strings on the
+fixed dark scale — is *why* it was dark-only. That table sits above `return (`.
+
+So the rule is stated more precisely here than "nothing above `return (`
+moves", because a blanket version would have blocked the migration entirely:
+
+> The **logic** above the return is spliced in verbatim and diffed byte-for-byte
+> (257 lines). `statusConfig` / `statusBanners` are **presentation** tables and
+> may be re-tokenised — but their **content** fields (label / short / emoji, and
+> every banner string) are asserted identical, because those are what the legend
+> and the mobile list actually render.
+
+Each status now names ONE `--acc-*` token and the render derives tint, border
+and dot from it, so a status can no longer be themed in one place and not
+another. Legacy's ½-variants used a lighter step of the same hue; there is one
+`--acc` step per family, so `half: true` takes a weaker tint of the parent hue
+instead of borrowing a different one.
+
+### The finding: don't let the ink carry the hue
+
+First audit: **31 failures in light** — P at 3.50, H at 3.96, muted — at 4.26.
+The cause was mine: I tinted the **cell** and then tinted the **pill** again on
+top, so the accent ink sat on a doubled wash of itself. Legacy got away with the
+same structure only because its ink was a light-400 on a dark ground; inverted,
+it collapses.
+
+This is the pairing `Chip` already documents ("the accent on its own tint
+measures ~4.35 against a 4.5 floor") — worse here because of the stacking.
+
+Tuning tint percentages per accent was whack-a-mole: 12% fixed emerald (4.69)
+and purple (4.50, on the line) but left amber at 4.29. The fix is structural,
+not numeric — **let the tint carry the status and keep the text near-black**:
+
+```js
+const cellInk   = (cfg) => (cfg.muted ? 'var(--fg-4)' : cfg.accent);  // legend dots, summary figures — neutral ground
+const statusInk = (cfg) => (cfg.muted ? 'var(--fg-3)' : 'var(--fg)'); // letter inside a TINTED cell
+```
+
+Every status clears AA by a wide margin in both themes, it stops depending on a
+per-accent constant, and it stops the page conveying status by hue alone.
+
+### `opacity` was hiding the problem, not solving it
+
+Legacy dimmed post-LWD and future cells with `opacity: .45/.55`. Opacity on a
+container blends the whole subtree toward the backdrop — it lowers real contrast
+while leaving `getComputedStyle(el).color` completely unchanged, so **the audit
+cannot see it**. Every measurement on a dimmed cell was optimistic.
+
+Muted days now get an explicit `--surface-2` and a muted ink, no opacity. The
+audit reports `dimmedByAncestorOpacity`, and a run is only trustworthy when that
+is **0** — otherwise the numbers are a floor, not a result. Treat a non-zero
+count as "unmeasured", not "passed".
+
+### New primitive
+
+`ds/Feedback/Callout` — tinted surface, icon, message, optional action. Four on
+this page alone, each previously hand-rolled with its own gradient and opacity
+stop. Tones follow Chip's table including its `-ink` correction. Already-merged
+pages still hand-roll this shape and could adopt it later; not retrofitted here.
+
+### Verification
+
+- **0 failures** across all four combinations — desktop and mobile × light and
+  dark (137 and 157 nodes), `dimmedByAncestorOpacity: 0` in every run
+- Logic block byte-identical (257 lines); 13 guard declarations identical across
+  both render paths; statusConfig key order and content fields identical
+- Toggle cycle exercised live: P → ½ → A → P, returning to its start
+- Guards exercised live: a future day, a weekend, and a future *holiday* all
+  refuse the click — the future guard correctly beats the holiday cycle
+- **Not exercised:** the holiday cycle (H → HW → ½HW → H). The only holiday in
+  the staging month is in the future, so the future guard shadows it. That code
+  is verbatim legacy.
+- No writes: nothing was saved or submitted; local edits discarded by reload
