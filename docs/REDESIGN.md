@@ -1210,3 +1210,41 @@ predicted this class of bug; it just had not been swept for.
 **Generalisable:** a utility name that encodes a *value* (`text-white`) can
 carry two different *roles*. A bridge that maps it by value gets one of them
 wrong, and which one is invisible until a light theme exists.
+
+### Timesheet batch 2 — the ESS money pages
+
+`my-salary`, `my-payslips`, `earnings`, `my-fnf`. These are what an employee
+sees about their own pay, so the money-pass rule applies at its strictest:
+**nothing above `return (` moved, and inside the render only the page header
+changed.**
+
+Money parity against captures taken before any edit:
+
+| page | values | result |
+|---|---:|---|
+| my-salary | 16 | identical |
+| my-payslips | 13 | identical |
+| earnings | 36 | identical |
+
+Contrast: 0 failures across 326 nodes in light theme.
+
+The `earnings` capture is the one worth noting — it includes the 2% TDS pair
+and the ₹1,923.84 / ₹94,268.16 gross-to-net split, which is exactly the kind
+of derived figure a re-layout disturbs without anyone noticing.
+
+**No PDF download was triggered** on any of the four. `downloadMyPayslipPdf`,
+`downloadImportedPayslipPdf`, `downloadPayslipPDF` and
+`downloadMyPayslipByMonth` all generate a real payslip document; a layout pass
+has no reason to produce one.
+
+⚠️ **`my-fnf` is unverified.** The staging user has no finalised settlement, so
+only the "has not been finalized yet" state renders — every settlement line
+and the total rest on the static diff alone. **Third page in the project with
+this shape**, after the GSTR-2B and bank-statement tables, and the same
+decision: finalising an F&F on staging is a payroll action with real
+consequences and is on the never-trigger list.
+
+That is now a pattern worth stating once: **every unverifiable page in this
+project is a settlement or reconciliation surface, and all of them are
+unverifiable because staging has no finalised instance of the thing.** It is a
+gap in the staging dataset, and it is the same gap each time.
