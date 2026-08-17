@@ -524,3 +524,97 @@ pages still hand-roll this shape and could adopt it later; not retrofitted here.
   the staging month is in the future, so the future guard shadows it. That code
   is verbatim legacy.
 - No writes: nothing was saved or submitted; local edits discarded by reload
+
+---
+
+## timesheet/users — a money page, and two things wrong with it that aren't mine
+
+`TimesheetUsers` sets the daily/monthly pay rate and the client billing rate
+that the contractor pay chain reads, so it gets the full money treatment: the
+logic above `return (` is spliced in byte-identical (177 lines) and every money
+string is asserted present on both sides (10 probes — the two rate render
+expressions, both `(₹)` labels, all three `RATE_TYPE_LABELS` entries, the
+billing-rate fallback, the proration formula, the PL badge).
+
+### 🔴 Finding 1 — `RATE_TYPE_LABELS` mixes currencies
+
+```js
+const RATE_TYPE_LABELS = {
+  daily:   '₹/day',
+  hourly:  '$/hour',    // ← not a typo in this doc
+  monthly: '₹/month',
+};
+```
+
+The client-billing-rate field relabels itself from this table. Pick **hourly**
+and the field says the number is **dollars**; pick daily or monthly and the same
+field says rupees. Nothing converts — it is one `clientBillingRate` number
+either way. So the label is the only thing telling anyone what the figure means,
+and for one of three options it says something different from the other two.
+
+This is **carried across unchanged and deliberately not fixed.** Changing what a
+rate label says changes what the stored number means, and that is a decision to
+take on purpose. It also sits against the standing rule that billing currency
+comes from the record, not a hardcoded glyph — the whole table is hardcoded ₹,
+which is the more general version of the same bug.
+
+### 🔴 Finding 2 — the status pill is an unconfirmed destructive control
+
+The Status cell looks like a badge. It is a `<button>`, and one click runs:
+
+```js
+await employeeApi.update(orgSlug, user._id, { status: newStatus });  // 'resigned'
+```
+
+No confirmation, no undo in the UI, and it is directly adjacent to the Edit
+button in a 91-row table. Marking someone resigned is what drives alumni
+handling and stops their payroll.
+
+Behaviour is **preserved exactly** — adding a confirm is a behaviour change and
+belongs in its own commit, not smuggled into a theme migration. V2 adds a
+`title` naming the consequence, which is as far as it should go unasked.
+
+### Money parity: 0 real diffs, and two harness lessons
+
+Captured legacy and v2 against the same 91 rows by temporarily pointing the
+route at the legacy component, then restored it. **455 cells compared, 74 money
+cells, 52 distinct values, 0 real differences.**
+
+Getting there took two corrections, both worth keeping:
+
+1. **Never key a parity capture on a display name.** The first diff reported 29
+   mismatches. The data has **16 duplicate names in 91 rows**, so a `Map` keyed
+   by name silently collapsed rows and compared the wrong pairs. Key on a unique
+   id, or on row index when both sides render the same list in the same order.
+2. **`innerText` inserts a newline between inline-flex children.** Five cells
+   differed as `"Daily1 PL"` vs `"Daily\n1 PL"`. Not a layout change — both chips
+   measured the same `getBoundingClientRect().top`, i.e. the same line. When a
+   text diff looks like whitespace, check geometry before believing it.
+
+A third, milder one: the wait-for-load predicate `/\d+ of \d+ users/` matched
+**"0 of 0 users"**, because v2 renders `PageHeader` outside the loading gate
+where legacy rendered a full-page skeleton. Wait on a non-zero count, not on the
+shape of the string.
+
+### Smaller notes
+
+- Legacy dimmed inactive rows with `opacity-50` on the `<tr>`. Replaced with a
+  muted name ink, for the reason recorded under my-attendance — container
+  opacity lowers real contrast while hiding it from the audit. Verified on the
+  Resigned view: `dimmedByAncestorOpacity: 0`, rows still clearly distinct.
+- Badge hues move to `Chip`'s tone set (admin purple → `warn`, manager blue →
+  `info`, pay type indigo/amber → `info`/`warn`). Hand-rolling accent chips to
+  preserve the exact hue is the pairing that failed on my-attendance, and Chip's
+  tones already carry the measured `-ink` corrections. Hue here is decoration.
+- Lint: legacy has 2 errors, v2 has 1. The remaining one (`err` unused in
+  `toggleActive`'s catch) is inside the byte-identical slice and stays there.
+
+### Verification
+
+- **0 contrast failures** across six surfaces — list, modal, and the Resigned
+  view × light and dark (688 / 691 / 716 / 716 / 596 / 596 nodes),
+  `dimmedByAncestorOpacity: 0` throughout
+- Search exercised (`Gopor` → 2 of 169) and the Status chip (78 resigned + 91
+  active = 169)
+- **No writes**: no user created, no user updated, no status toggled. The modal
+  was opened and dismissed with Escape.
