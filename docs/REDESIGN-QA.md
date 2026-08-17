@@ -384,3 +384,64 @@ Two traps, both hit:
 - The tick TEXT class is `recharts-cartesian-axis-tick-value`; the *group* is
   `recharts-cartesian-axis-tick-label`. Targeting `…-tick text` matches
   nothing. Verify the class on a live node before trusting a chart selector.
+
+---
+
+## my-timesheet — the ink on a fill depends on the fill, not the family
+
+`my-timesheet` opened with 13 failures, all on the "Working" day badges at
+**2.47:1**, and the cause was a rule added two batches earlier in this file.
+
+That rule fixed a real bug — the bridge mapped `text-white` to `--fg`, which
+turns the label on a coloured button near-black in light theme — but it
+matched with `[class*="bg-blue-"]`, i.e. per colour FAMILY. Family is the
+wrong unit. `bg-blue-700` and `bg-blue-400` want opposite inks.
+
+Measured over the 39 family/step pairs the codebase actually pairs with
+`text-white`: white wins on 17 and loses on 22. There is no single constant
+that is right, so `scripts/ink-for-fill.js` computes both lists and emits the
+CSS. Re-run it with `--css` whenever a new fill appears; it exits non-zero on
+a fill missing from its palette table.
+
+**The generalisable part:** both inks are *literals*, not tokens. The fill
+does not change with the theme, so the ink must not either. Mapping this class
+of pairing to `--fg` is what produced the original bug — it flips the ink
+under a fixed background. Anywhere a fill and its text come from different
+sources, that is the pairing to check.
+
+This also repaired the **dark** theme, where `--fg` is near-white and all 22
+light fills were sitting at ~2.5:1 — a pre-existing failure that predates the
+rule and had never been reported, because the audit only ever ran on the page
+being migrated.
+
+### A second finding, 128 call sites
+
+The last remaining failure was the **Submit** button at 3.52:1 — and it is the
+app's primary brand button. The brand ink rule only matched `.text-white`, but
+the legacy brand fill is bright green, so its label is written `text-dark-950`.
+In light theme `--brand` resolves to `#15803D`, on which a near-black ink is
+3.52. 128 elements pair `bg-rivvra-*` with `text-dark-950`. Both spellings now
+resolve to `--brand-fg` (→ 5.02).
+
+### Proposed, not done
+
+`indigo-500` (4.47, 22 sites) and `purple-500` (4.46, 17 sites) miss AA with
+*either* ink — the fill itself is too mid-tone. Fixing them means darkening the
+fill, a visible change across already-merged pages, so it is left alone here.
+Both are within rounding of the threshold and neither is a regression.
+
+### Harness: false-failure mode #5 is not just for hidden elements
+
+The dark-theme run reported 25 sidebar failures at 1.67:1. `--fg-2` resolved
+correctly to `#BAC4D0`, but `.sb-item`'s computed `color` was frozen at the
+*light* value in both themes — the pane was not painting, so the `color`
+transition never advanced. `getComputedStyle` returned a stale value on a
+fully visible element, 800 ms after the switch.
+
+**Force a paint (take a screenshot) between switching the theme and reading
+computed styles.** After the paint: `rgb(186, 196, 208)`, 0 failures. The
+audit itself is now `scripts/contrast-audit.browser.js`, with all six
+false-failure guards written down next to the bug each one hides.
+
+Final: **0 failures of 148 checked, both themes.** Guard diff PRESERVED —
+216 guard/logic occurrences identical, including all 9 `isDayDisabled` sites.
