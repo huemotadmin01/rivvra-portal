@@ -87,7 +87,20 @@
    Same shape as the NotificationBell badge fix in THEMING.md: when a fill and
    its text come from different sources, a bridge-mapped foreground over an
    unmapped background is the pairing most likely to be wrong. */
-.ds-shell [class*="bg-rivvra-"].text-white,
+/* The BRAND fill is a special case of the rule below. `bg-rivvra-*` is the
+   most common coloured button in the app (~650 uses) and it was never bridged
+   at all — it stayed raw #22C55E, on which white measures 2.28:1 in either
+   theme. Map the fill to the brand token and pair it with --brand-fg, which
+   is the inversion THEMING.md already established for the notification badge:
+   dark #22C55E + #041209 = 8.36, light #15803D + #FFFFFF = 5.02. */
+.ds-shell .bg-rivvra-400 { background-color: var(--brand-hi); }
+.ds-shell .bg-rivvra-500 { background-color: var(--brand); }
+.ds-shell .bg-rivvra-600 { background-color: var(--brand-lo); }
+.ds-shell .bg-rivvra-700 { background-color: var(--brand-lo); }
+.ds-shell .hover\:bg-rivvra-400:hover { background-color: var(--brand-hi); }
+.ds-shell .hover\:bg-rivvra-600:hover { background-color: var(--brand-lo); }
+.ds-shell [class*="bg-rivvra-"].text-white { color: var(--brand-fg); }
+
 .ds-shell [class*="bg-blue-"].text-white,
 .ds-shell [class*="bg-emerald-"].text-white,
 .ds-shell [class*="bg-green-"].text-white,
