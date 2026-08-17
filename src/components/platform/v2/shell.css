@@ -23,7 +23,18 @@
    page silently lost its outline. Found on Sign Templates, where TagPicker's
    tag pills flattened into bare text. Element-level resets in here must stay
    weaker than the utilities the bridge is remapping. */
-.ds-shell button { cursor: pointer; background: none; color: inherit; font-family: inherit; }
+/* `background: none` was removed here for the same reason `border: none` was:
+   `.ds-shell button` is specificity 0-1-1 and beats a Tailwind utility like
+   `.bg-rivvra-500` (0-1-0), so EVERY legacy button inside the v2 shell lost
+   its fill. Tailwind preflight already resets `background-color: transparent`
+   on buttons at element specificity (0-0-1), which is the intended reset and
+   still lets utilities win.
+
+   Symptom that surfaced it: ESS → Holiday Calendar's "Add Holiday" and
+   "Save Calendar" rendered as unfilled buttons. Invisible once the
+   text-white-on-saturated-fill bridge rule (phase 14 batch 10) correctly
+   forced their label white — white on the light page background, 1.06:1. */
+.ds-shell button { cursor: pointer; color: inherit; font-family: inherit; }
 .ds-shell a { color: var(--brand); text-decoration: none; }
 .ds-shell a:hover { color: var(--brand-hi); }
 .ds-shell ::selection { background: var(--brand-soft); color: var(--fg); }

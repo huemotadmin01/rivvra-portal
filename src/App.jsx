@@ -176,6 +176,9 @@ const CrmOpportunitiesV2 = lazy(() => import('./pages/crm/CrmOpportunitiesV2'));
 const DocumentsListV2 = lazy(() => import('./pages/documents/DocumentsListV2'));
 const ExpenseListV2 = lazy(() => import('./pages/expenses/ExpenseListV2'));
 const LeaveBalancesV2 = lazy(() => import('./pages/timesheet/LeaveBalancesV2'));
+const MyAssetsV2 = lazy(() => import('./pages/timesheet/MyAssetsV2'));
+const HolidayCalendarV2 = lazy(() => import('./pages/timesheet/HolidayCalendarV2'));
+const LeaveMyRequestsV2 = lazy(() => import('./pages/timesheet/LeaveMyRequestsV2'));
 const LeaveHistoryV2 = lazy(() => import('./pages/timesheet/LeaveHistoryV2'));
 const LeaveReportsV2 = lazy(() => import('./pages/timesheet/LeaveReportsV2'));
 
@@ -549,13 +552,13 @@ function App() {
                   <Route path="/org/:slug/timesheet/projects" element={<ErrorBoundary><TimesheetProjects /></ErrorBoundary>} />
                   {/* Leave Management */}
                   <Route path="/org/:slug/timesheet/leave/apply" element={<ErrorBoundary><LeaveApply /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/leave/my-requests" element={<ErrorBoundary><LeaveMyRequests /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/leave/my-requests" element={<ErrorBoundary><PageSwitch v2={LeaveMyRequestsV2} legacy={LeaveMyRequests} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/approvals" element={<ErrorBoundary><LeaveApprovals /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/balances" element={<ErrorBoundary><PageSwitch v2={LeaveBalancesV2} legacy={LeaveBalances} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/balances/:employeeId" element={<ErrorBoundary><PageSwitch v2={LeaveHistoryV2} legacy={LeaveHistory} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><PageSwitch v2={LeaveReportsV2} legacy={LeaveReports} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><HolidayCalendar /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/my-assets" element={<ErrorBoundary><MyAssets /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><PageSwitch v2={HolidayCalendarV2} legacy={HolidayCalendar} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-assets" element={<ErrorBoundary><PageSwitch v2={MyAssetsV2} legacy={MyAssets} /></ErrorBoundary>} />
                   {/* Employee-facing statutory payroll pages */}
                   <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><MySalaryPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />

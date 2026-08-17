@@ -414,3 +414,49 @@ invisible to the theme and to the audit until something renders it on the
 other background. Charts (`recharts`), the bridge's `text-white`, and now the
 app-card accents. Worth grepping for hex literals in any component that paints
 text before assuming a page is theme-clean.
+
+---
+
+## `.ds-shell button { background: none }` ate every legacy button fill
+
+Found in phase 16 on ESS → Holiday Calendar. `shell.css` carried:
+
+```css
+.ds-shell button { cursor: pointer; background: none; … }
+```
+
+`.ds-shell button` is specificity **0-1-1**; a Tailwind utility like
+`.bg-rivvra-500` is **0-1-0**. So the shell won, and **every legacy `<button>`
+with a Tailwind background lost its fill inside the v2 shell.**
+
+This is the *same bug* as the `border: none` in that rule, which was already
+found and removed. The `background` half survived. Tailwind preflight resets
+`background-color: transparent` on buttons at element specificity (0-0-1),
+which is the intended reset and still lets utilities win — so the shell
+declaration was pure loss.
+
+**Why it stayed hidden:** with no fill, `text-white` mapped to `--fg` and the
+button read as a plain text button — degraded, but legible. The phase-14
+bridge rule then correctly forced those labels white, and white-on-nothing is
+1.06:1. The earlier fix did not cause this; it *exposed* it.
+
+### And `bg-rivvra-*` was never bridged at all
+
+Even with the fill restored it measured 2.28: raw `#22C55E` with white text,
+in both themes. `bg-rivvra-*` — the most common coloured button in the app,
+~650 uses — had no bridge rule.
+
+Now mapped to the brand tokens, paired with `--brand-fg` rather than white,
+which is the inversion this document already established for the notification
+badge:
+
+| theme | fill | text | ratio |
+|---|---|---|---|
+| dark | `#22C55E` | `#041209` | **8.41** |
+| light | `#15803D` | `#FFFFFF` | **5.02** |
+
+**Generalisable:** a shell reset written as `element` + `class` outranks every
+utility. Reset with the framework's own preflight, or scope resets to a class
+the utilities can beat. And when you fix a foreground, check the background
+it sits on is still being painted — a "fix" that makes text white is only
+correct if the fill survived.
