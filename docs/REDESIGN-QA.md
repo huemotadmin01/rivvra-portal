@@ -618,3 +618,67 @@ shape of the string.
   active = 169)
 - **No writes**: no user created, no user updated, no status toggled. The modal
   was opened and dismissed with Escape.
+
+---
+
+## leave/apply — proving a pay-affecting preview by driving it, not by reading it
+
+`LeaveApply` previews how many days a request costs and how many become **LOP —
+Loss of Pay**. That preview is pay-affecting, so the same rule as the other
+money pages: everything above `return (` is spliced in verbatim (**207 lines,
+byte-identical**), plus the two date helpers that live above the component and
+were checked separately.
+
+Seven pay-affecting expressions are asserted by exact text — `lopDays`,
+`available`, the half-day `0.5` branch, the weekend test, the business-day
+count, the half-day-on-non-working-day guard, and `halfDayAllowed`.
+
+**But expression equality is not behavioural equality**, and this page's output
+depends on fetched holidays, on which calendar years get fetched, and on
+singular/plural wording. So it was driven, in both renders, over the same six
+cases:
+
+| case | days | LOP |
+|---|---|---|
+| 24–28 Aug (28th is Raksha Bandhan) | 4 | — |
+| 29–30 Aug (weekend only) | *no working days* | — |
+| 24 Aug – 4 Sep | 9 | 5 days |
+| 28 Dec – 4 Jan (**cross-year**) | 5 | 1 day |
+| half-day on Sat 29 | *half-day warning* | — |
+| half-day on Mon 24 | 0.5 | — |
+
+**36 assertions, 0 differences.** The cross-year case is the one worth keeping:
+it confirms both 2026 and 2027 holiday fetches fire (the bug the `neededYears`
+comment describes), and it is the only case that exercises the singular
+`1 day` branch of `{lopDays} day{lopDays !== 1 ? 's' : ''}`.
+
+### Harness notes
+
+- **One case per `javascript_tool` call.** Three chained cases (~6 s of waits)
+  timed out; each case alone is fine. The first probe also hung on its own
+  toggle-reset loop — when a driver times out, suspect the driver before the page.
+- **Compare only the keys both captures carry.** The first diff showed 4
+  mismatches that were `undefined` vs `null` — the v2 and legacy probes had
+  drifted to different shapes. Same family as the duplicate-name artifact on
+  timesheet/users: *the comparison was wrong, not the code.*
+
+### `leaveTypeAccent`
+
+`config/leaveTypes.js` already existed to stop two pages disagreeing about leave
+type labels and colours. It gains `leaveTypeAccent(code)` — the same tone map
+resolved to `--acc-*` tokens instead of fixed-dark Tailwind classes, so v2 reads
+tokens without the mapping being duplicated into the page. Two tones have no
+`--acc` family: `red` → `--danger` (which is what it means), `pink` →
+`--acc-rose`. The accent is used as **text on a neutral card**, never as a fill
+under itself.
+
+### Verification
+
+- **0 contrast failures** in both themes (69 nodes each),
+  `dimmedByAncestorOpacity: 0`
+- Logic block byte-identical (207 lines); both date helpers identical; 7
+  pay-affecting expressions and 6 preview strings asserted
+- Build green, lint clean (legacy baseline also clean)
+- **No writes** — confirmed zero `leave-request` calls in resource timing. The
+  form was filled to a submittable state to render the LOP callout, and the
+  submit button was never clicked.

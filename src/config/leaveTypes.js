@@ -90,6 +90,32 @@ export function leaveTypeTextClasses(code) {
   return TEXT_CLASSES[toneOf(code)];
 }
 
+/**
+ * Same tone map, resolved to a theme token instead of a fixed-dark Tailwind
+ * class. This is what the v2 pages read; `leaveTypeTextClasses` above stays for
+ * the legacy render until it retires.
+ *
+ * Two tones have no `--acc` family: `red` takes `--danger`, which is what it
+ * means anyway, and `pink` takes `--acc-rose`, the nearest hue that exists.
+ * Use this for text or a dot on a NEUTRAL surface — an accent on a wash of
+ * itself is the pairing documented in REDESIGN-QA.md as failing AA.
+ */
+const ACCENT_TOKENS = {
+  red: 'var(--danger)',
+  blue: 'var(--acc-blue)',
+  emerald: 'var(--acc-emerald)',
+  purple: 'var(--acc-purple)',
+  pink: 'var(--acc-rose)',
+  cyan: 'var(--acc-cyan)',
+  slate: 'var(--acc-slate)',
+  orange: 'var(--acc-orange)',
+  neutral: 'var(--fg-3)',
+};
+
+export function leaveTypeAccent(code) {
+  return ACCENT_TOKENS[toneOf(code)];
+}
+
 export function leaveTypeBadgeClasses(code) {
   return BADGE_CLASSES[toneOf(code)];
 }
