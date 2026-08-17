@@ -177,6 +177,10 @@ const DocumentsListV2 = lazy(() => import('./pages/documents/DocumentsListV2'));
 const ExpenseListV2 = lazy(() => import('./pages/expenses/ExpenseListV2'));
 const LeaveBalancesV2 = lazy(() => import('./pages/timesheet/LeaveBalancesV2'));
 const MyAssetsV2 = lazy(() => import('./pages/timesheet/MyAssetsV2'));
+const MySalaryPageV2 = lazy(() => import('./pages/payroll/MySalaryPageV2'));
+const MyPayslipsPageV2 = lazy(() => import('./pages/payroll/MyPayslipsPageV2'));
+const TimesheetEarningsV2 = lazy(() => import('./pages/timesheet/TimesheetEarningsV2'));
+const MyFnfReceiptV2 = lazy(() => import('./pages/timesheet/MyFnfReceiptV2'));
 const HolidayCalendarV2 = lazy(() => import('./pages/timesheet/HolidayCalendarV2'));
 const LeaveMyRequestsV2 = lazy(() => import('./pages/timesheet/LeaveMyRequestsV2'));
 const LeaveHistoryV2 = lazy(() => import('./pages/timesheet/LeaveHistoryV2'));
@@ -545,7 +549,7 @@ function App() {
                   <Route path="/org/:slug/timesheet/dashboard" element={<ErrorBoundary><TimesheetDashboard /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-timesheet" element={<ErrorBoundary><TimesheetEntry /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-attendance" element={<ErrorBoundary><MyAttendancePage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><TimesheetEarnings /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/earnings" element={<ErrorBoundary><PageSwitch v2={TimesheetEarningsV2} legacy={TimesheetEarnings} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/approvals" element={<ErrorBoundary><TimesheetApprovals /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/attendance/approvals" element={<ErrorBoundary><AttendanceApprovals /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/users" element={<ErrorBoundary><TimesheetUsers /></ErrorBoundary>} />
@@ -560,9 +564,9 @@ function App() {
                   <Route path="/org/:slug/timesheet/holidays" element={<ErrorBoundary><PageSwitch v2={HolidayCalendarV2} legacy={HolidayCalendar} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/my-assets" element={<ErrorBoundary><PageSwitch v2={MyAssetsV2} legacy={MyAssets} /></ErrorBoundary>} />
                   {/* Employee-facing statutory payroll pages */}
-                  <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><MySalaryPage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><MyPayslipsPage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/my-fnf" element={<ErrorBoundary><MyFnfReceipt /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-salary" element={<ErrorBoundary><PageSwitch v2={MySalaryPageV2} legacy={MySalaryPage} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-payslips" element={<ErrorBoundary><PageSwitch v2={MyPayslipsPageV2} legacy={MyPayslipsPage} /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/my-fnf" element={<ErrorBoundary><PageSwitch v2={MyFnfReceiptV2} legacy={MyFnfReceipt} /></ErrorBoundary>} />
                   <Route path="/org/:slug/settings/alumni-policy" element={<ErrorBoundary><PageSwitch v2={AlumniPolicyPageV2} legacy={AlumniPolicyPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/alumni" element={<ErrorBoundary><PageSwitch v2={AlumniDirectoryV2} legacy={AlumniDirectoryPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/tax/declarations" element={<ErrorBoundary><MyTaxDeclarationsPage /></ErrorBoundary>} />
