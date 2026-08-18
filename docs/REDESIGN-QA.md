@@ -2244,3 +2244,88 @@ The acknowledgment report was opened (a GET): **141 rows**, header
 Stronger than #92, where one attempt was blocked. Here nothing was even tried —
 which is what the interceptor is supposed to report on a page whose delete is
 irreversible.
+
+## #94 — settings batch 7: `settings/email-logs`
+
+487 lines, and the first fully **read-only** page in the settings run — every
+request it makes is a GET, including "Check Delivery". Spliced in verbatim: the
+state/fetch/helpers block (**93 lines**) and the pagination-window algorithm
+(**11 lines**), which lives in the render.
+
+### Rendered parity
+
+All **20 rows byte-identical** (date, subject, recipient, app, status), plus
+`50 emails logged`, `Showing 1–20 of 50`, and the page buttons.
+
+Pagination and filters driven live:
+
+| action | result |
+|---|---|
+| page 3 | `Showing 41–50 of 50`, 10 rows, `aria-current` on 3 |
+| Previous | `Showing 21–40 of 50` |
+| App = Sign | `47 emails logged`, `Showing 1–20 of 47` |
+| Clear | back to 50, **0 of my chips still pressed** |
+
+### 🔴 The App filter list has drifted from the apps that send email
+
+`APPS = ['auth', 'ats', 'sign', 'org']` drives both the filter chips and
+`APP_LABELS` / `APP_COLORS`. Queried the endpoint directly — the 50 logs
+actually carry four **different** app values:
+
+```
+timesheet, sign, employee, expenses
+```
+
+So today:
+
+- **Three of the four filter chips (`Auth`, `ATS`, `Org`) match nothing.**
+- **Three real senders (`timesheet`, `employee`, `expenses`) have no chip at
+  all** — those emails are unreachable by the App filter.
+- `APP_LABELS[log.app] || log.app` falls back to the raw string, so they render
+  lowercase and unlabelled next to a properly-cased `Sign`.
+- `APP_COLORS[log.app] || APP_COLORS.auth` gives all three the **same** colour
+  as `auth`, so three distinct senders are visually identical.
+
+Visible in the screenshot: a `timesheet` badge in auth-slate beside a `Sign`
+badge in indigo. Carried across unchanged and reported — the fix is a data
+question (which apps should be filterable), not a layout one.
+
+### On the badge palette
+
+Legacy used three colour maps spanning **eight** hues — more than `Chip` has
+tones. Rather than add five accent/ink token pairs for one page, these render
+as a local `Tag`: the accent carries the hue in a 14% tint **and a dot**, and
+the ink stays `--fg`.
+
+That is the structural fix from my-attendance — an accent ink on a wash of
+itself is the pairing that fails — so it passes by construction rather than by
+tuning, and all eight stay distinguishable.
+
+### ⚠️ Four surfaces unverifiable on this data
+
+Queried the API rather than expanding fifty rows by hand. Of 50 logs:
+`withResendId: 0`, `withDeliveryStatus: 0`, `withError: 0`, and every row is
+`status: 'sent'`. So these rest on the static diff alone:
+
+- the **Check Delivery** button (gated on `resendId` — correctly hidden, which
+  *was* confirmed live)
+- all eight **DELIVERY_COLORS** tags
+- the **error** Callout
+- the `failed` / `skipped` status tags
+
+### Verification
+
+- **0 contrast failures** in both themes (164 light / 166 dark), real paint
+  forced before each read
+- Slices byte-identical: 93 + 11 lines; the `Showing a–b of n` arithmetic
+  asserted
+- Lint parity **1 error = 1 error** — the same unused `err`, inherited from the
+  slice rather than quietly fixed
+- **No writes** — the page has none
+
+### A harness note
+
+Two `javascript_tool` calls timed out on a row expand that had in fact worked;
+a polling loop was spinning on a text regex that never matched because the
+label renders with different whitespace. The click was fine. When a poll times
+out, check whether the *predicate* is wrong before concluding the *page* is.
