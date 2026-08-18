@@ -106,6 +106,7 @@ const TimesheetPayroll = lazy(() => import('./pages/timesheet/TimesheetPayroll')
 
 // Lazy-loaded: Statutory Payroll pages
 const SalaryStructuresPage = lazy(() => import('./pages/payroll/SalaryStructuresPage'));
+const SalaryStructuresPageV2 = lazy(() => import('./pages/payroll/SalaryStructuresPageV2'));
 
 const StatutoryConfigPage = lazy(() => import('./pages/payroll/StatutoryConfigPage'));
 const StatutoryConfigPageV2 = lazy(() => import('./pages/payroll/StatutoryConfigPageV2'));
@@ -591,7 +592,7 @@ function App() {
                   <Route path="/org/:slug/payroll/process" element={<PayrollProcessRedirect />} />
                   <Route path="/org/:slug/payroll/pay-overview" element={<ErrorBoundary><PageSwitch v2={PayrollDashboardPageV2} legacy={PayrollDashboardPage} /></ErrorBoundary>} />
 
-                  <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><PageSwitch v2={SalaryStructuresPageV2} legacy={SalaryStructuresPage} /></ErrorBoundary>} />
 
                   <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><PageSwitch v2={StatutoryConfigPageV2} legacy={StatutoryConfigPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} /></ErrorBoundary>} />
