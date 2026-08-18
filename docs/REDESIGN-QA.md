@@ -1946,3 +1946,86 @@ That is an addition, not a copy change, and it is the only text v2 gained.
 migrated and not switched. Legacy page → legacy child, v2 tab → v2 child, so
 neither surface is half-styled. When EngagePage is migrated it should move to
 `EngageSettingsV2` in the same change.
+
+## #90 — settings batch 3: `settings/employee`
+
+304 lines. The state/fetch/save block is spliced in verbatim (**39 lines**),
+and two things in the render were treated as slices of their own.
+
+### `timesheetModeConfig` decides who fills a timesheet
+
+It lives in the render, not above `return (` — the shape that broke the method
+on `statutory-run` (#87). It maps each *employment type × billable* pair to
+`timesheet` or `attendance`, which is what payroll later reads day counts from,
+so it is carried across byte-identically: the seven-row `defaultConfig`, the
+reconciliation that guarantees every pair exists even when the stored config is
+partial, and the per-row updater.
+
+Verified rendered, row by row, legacy vs v2 — all seven identical:
+
+| type | billable | mode |
+|---|---|---|
+| Confirmed | Yes / No | attendance / attendance |
+| Internal Consultant | Yes / No | **timesheet** / attendance |
+| External Consultant | Yes | **timesheet** |
+| Intern | Yes / No | attendance / attendance |
+
+### The `??` defaults, all eight
+
+`billableByDefault ?? true` is **not** `|| false` — a stored `false` must stay
+false and a missing key must read as true. All eight defaults asserted present
+and identical: the one `?? true`, two `?? false`, `?? 'quarterly'`,
+`?? 'confirmed'`, `?? 'EMP'`, and the two `?? ''` on the Plan Roles selects.
+
+### Plan Roles write two keys per select
+
+Each writes the id **and** the denormalised name, looked up from `members`.
+Both `update()` calls and both member lookups are preserved — dropping the name
+write would leave plan tasks showing a blank assignee.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| visible text | **zero** word differences |
+| inputs | identical (`text=EMP`) |
+| 10 selects — value + full option list, in order | identical |
+| 7 timesheet-mode rows | identical |
+
+### Closing the toggle gap properly
+
+Legacy's hand-rolled `ToggleSwitch` exposes **no `role="switch"` and no
+`aria-checked`**, so the aria comparison came back empty for legacy and
+populated for v2 — the two were not comparable, which is not the same as
+matching.
+
+Rather than assert the states from the (byte-identical) `??` expressions, I
+re-pinned legacy and read the **painted background colour** of each toggle:
+`rgb(21,128,61)` / muted / muted → on, off, off. V2 reports
+`true, false, false`. They match, and `billableByDefault ?? true` renders as ON
+in both.
+
+The binding was checked too: toggling Profile Update Reminders reveals the
+Reminder Frequency select (default `quarterly`, options monthly/quarterly/
+yearly); toggling back hides it and restores the initial state. Local state
+only — Save was never clicked.
+
+The `aria-checked` v2 now exposes is a genuine accessibility gain: legacy's
+toggle was an unlabelled `<button>` with a coloured `<span>` and announced
+nothing.
+
+### Verification
+
+- **0 contrast failures** in both themes (66 nodes each), with a real paint
+  forced between the theme switch and the read — the mistake from #89
+- Slice byte-identical (39 lines); `timesheetModeConfig` derivation identical;
+  8 `??` defaults and 4 Plan-Roles writes asserted
+- Lint **0 = 0** — legacy was clean and so is v2
+- **No writes.** Save was never clicked. The one toggle exercised was local
+  state and was toggled back.
+
+### Toggle count
+
+Third of six hand-rolled `ToggleSwitch` copies removed. Three remain:
+`SettingsTimesheet`, `SettingsAts`, and the shared `components/ToggleSwitch.jsx`
+(used by `EngageSettings` and `SequenceDetailPage`).
