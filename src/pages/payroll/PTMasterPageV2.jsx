@@ -223,8 +223,7 @@ export default function PTMasterPageV2({ embedded = false }) {
             <EmptyState
               icon={<MapPin size={22} />}
               title={`No professional-tax slabs configured for FY ${fy}`}
-              sub="Load Rivvra's published state slabs to start from, then edit any state whose rates differ. Until slabs exist for this FY, payroll deducts no professional tax."
-              action={(
+              actions={(
                 <Button
                   size="sm"
                   onClick={handleSeed}
@@ -234,7 +233,9 @@ export default function PTMasterPageV2({ embedded = false }) {
                   {seeding ? 'Loading...' : 'Load Default PT Slabs'}
                 </Button>
               )}
-            />
+            >
+              {"Load Rivvra's published state slabs to start from, then edit any state whose rates differ. Until slabs exist for this FY, payroll deducts no professional tax."}
+            </EmptyState>
           </Panel>
         )}
 
@@ -262,7 +263,7 @@ export default function PTMasterPageV2({ embedded = false }) {
           <Panel>
             <EmptyState
               title={`No state matches “${stateSearch}”`}
-              action={<Button variant="ghost" size="sm" onClick={() => setStateSearch('')}>Clear search</Button>}
+              actions={<Button variant="ghost" size="sm" onClick={() => setStateSearch('')}>Clear search</Button>}
             />
           </Panel>
         )}
