@@ -1287,3 +1287,36 @@ Third, on pinning legacy for a parity capture: flipping `uiV2` in the cached
 org **does not hold** — the app refetches the org on mount and puts it back,
 so a capture taken that way can silently be V2-vs-V2. Pin by routing straight
 at the legacy component for the duration of the capture, then restore.
+
+### Payroll batch 6 — `payroll/settings`, and the accordion the system was missing
+
+The FY statutory config is the highest-leverage config surface in the product:
+every payroll run reads its slabs, cess, surcharge, PF and ESI rates from here.
+So the bar was higher than "logic spliced in verbatim" — every conversion was
+asserted on its own (22 probes), and all 65 rate inputs were compared rendered,
+legacy against v2, on both entry points.
+
+Two things worth carrying forward.
+
+**`ds` gained an `Accordion`.** Five titled collapsible sections, and the system
+had no primitive for it — every existing collapsible in a v2 page is a
+table-row expander, which is a different shape with different semantics. Built
+in `ds/` with a `.d.ts` rather than left local, per the standing rule, and
+deliberately **controlled**: a settings page needs to open a section from
+outside it (deep link, validation error, expand-all), and an internally
+stateful accordion cannot do that without a ref escape hatch. `settings`
+(7,260 lines) is next and is almost entirely this shape.
+
+**A number input cannot be probed for draft state.** Assigning an invalid
+intermediate like `"4."` to an `<input type="number">` clears it in the DOM
+before React ever sees it, so `el.value` cannot distinguish "draft held in
+React state" from "cleared". I read a `""` as a `DraftNumberInput` regression
+for a moment; the harness was wrong, not the code. **Ninth false-failure mode**,
+and the rule it yields is narrow but sharp: to test a controlled number input,
+drive it through a re-render and compare what comes back, not through
+`el.value` mid-edit.
+
+The re-render test is the one that actually earned its keep here. Typing a
+rate, collapsing the section, and re-expanding it forces the value back through
+`Number(raw) / 100` and then `toPercentDisplay` — which is the exact path that
+turns `8.33` into `8.330000000000002` if the rounding guard is ever dropped.

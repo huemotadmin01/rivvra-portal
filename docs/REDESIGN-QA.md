@@ -1528,3 +1528,104 @@ time. The tint and border already carry "this regime is better"; the ink is
 ⚠️ `SalaryStructuresPageV2`'s `Clear search` fix is verified by build and lint
 only — its search box renders behind `showSearch`, which the staging data does
 not satisfy. It is the identical one-token rename to the two confirmed live.
+
+## #86 — `payroll/settings` (FY statutory rates) + `ds/Accordion`
+
+The FY statutory config: income-tax slabs for both regimes, cess, surcharge,
+PF and ESI. **This is where every payroll run reads its rates from**, so the
+arithmetic was treated as untouchable rather than merely preserved.
+
+Logic spliced in verbatim (**97 lines, byte-identical**). On top of that, every
+conversion and row mutation was asserted individually — **22 probes**, all
+matching:
+
+- `toPercentDisplay`'s `Math.round(n * 10000) / 100` (the float-artifact guard)
+- `Number(raw) / 100` in both `SlabTable` and `ConfigField`
+- `showTax` branching to `tax` vs `rate`
+- `max === '' ? null` and `slab.max === null ? '' : slab.max` (the ∞ band)
+- `addRow`'s `(last.max || 0) + 1`, `removeRow`'s `length <= 1` guard
+- `DraftNumberInput`'s `draft !== null ? draft : (value ?? '')` and its
+  `onBlur` reset
+- the FY-select fallback that stops a blank select before seeding
+- the copy dialog's `/^\d{4}-\d{2}$/` gate
+- `CURRENT_FY`'s April boundary
+
+### Rendered parity — 65 rate values
+
+Every input on the page, all five sections open, legacy vs v2: **65 values,
+identical**. That is the whole statutory table — new-regime slabs 0/5/10/15/
+20/25/30, std deduction 75,000, 87A limit 12,00,000 / max 60,000; old-regime
+0/5/20/30 with 50,000 / 5,00,000 / 12,500; cess 4; surcharge 0/10/15/25/37;
+PF 12 / 3.67 / 8.33 / ceiling 15,000 / EDLI 0.5 / admin 0.5; ESI 0.75 / 3.25 /
+ceiling 21,000.
+
+Re-checked on the **embedded** entry point (Settings → Payroll → FY Rates):
+same 65 values, and the page header correctly suppressed.
+
+### The percent↔fraction round trip, driven live
+
+The risk this page carries is that a rate is stored as a fraction and edited as
+a percent, so a re-render has to survive `Number(raw) / 100` then
+`toPercentDisplay`. Typed four values into cess, collapsed and re-expanded the
+section each time to force a re-render straight off `config`:
+
+| typed | after round trip |
+|---|---|
+| 4.65 | 4.65 |
+| 8.33 | 8.33 |
+| 0.5 | 0.5 |
+| 12 | 12 |
+
+`8.33` is the one that matters — it is the EPS rate, and it is exactly the
+shape that produces `8.330000000000002` without the rounding guard.
+
+Add slab / remove slab round-tripped 16 → 17 → 16 bands. The copy dialog's
+gate rejects `''`, `2027` and `202-27`, and enables only on `2027-28`.
+
+### A false failure that was mine
+
+`"4."` read back as `""` and I briefly took it for a `DraftNumberInput`
+regression. It is not: assigning an invalid intermediate to an
+`<input type="number">` clears it in the DOM **before React sees it**, so the
+probe never delivered the value at all. `el.value` on a number input cannot
+distinguish "draft held in React state" from "cleared" — the harness was wrong,
+not the code.
+
+The real risk it pointed at was worth checking though: if `ds`'s `Input`
+defined its own `onBlur`, the draft would never reset and a partial value would
+stick forever. It does not — `Input` spreads `...rest` onto `<input>` and
+declares no handlers, so the behaviour is preserved by construction.
+
+### New primitive: `ds/Accordion`
+
+Five titled collapsible sections, and `ds` had no such thing — the existing
+collapsibles in v2 pages are all table-row expanders. Built in `ds/` with a
+`.d.ts` per the standing rule rather than left local to the page.
+
+Controlled on purpose: settings pages need to open a section from outside (deep
+link, validation error, expand-all), which an internally stateful version
+cannot do without a ref escape hatch. The chevron rotates rather than swapping
+glyphs, so open/closed is one element to a screen reader.
+
+The consumer queue is real — `settings` (7,260 lines) is next and is almost
+entirely this shape.
+
+### Verification
+
+- **0 contrast failures** in both themes with all five sections open
+  (112 light / 114 dark), and 118 with the copy dialog open
+- Logic byte-identical (97 lines); 22 arithmetic probes; 65 rate values
+- Both entry points exercised — the route and the embedded Settings tab
+- Lint parity **8 = 8** on the page (all inherited from the verbatim slice);
+  `Accordion.jsx`, `ds/index.js` and `App.jsx` clean; `SettingsPayroll.jsx`
+  unchanged from its baseline
+- **No writes.** Save rewrites the rates every payroll run uses, Seed
+  overwrites the FY 2025-26 config, and Copy creates an FY document with no
+  delete endpoint — all three are on the never-trigger list. The dialog was
+  opened, its validation gate exercised, and cancelled; local field edits were
+  discarded by reload, confirmed by cess reading `4` again afterwards.
+
+⚠️ **The super-admin wall is unverified.** The staging user *is* a super admin,
+so the `!isSuperAdmin` branch cannot render for them. Its copy and structure
+rest on the static diff alone. Verifying it needs a non-super-admin account —
+the same second-account gap the seeder hit on leave rejection in #80.
