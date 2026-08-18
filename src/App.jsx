@@ -67,6 +67,7 @@ const SettingsTimesheet = lazy(() => import('./components/settings/SettingsTimes
 const SettingsEmployee = lazy(() => import('./components/settings/SettingsEmployee'));
 const SettingsEmployeeV2 = lazy(() => import('./components/settings/SettingsEmployeeV2'));
 const SettingsPolicies = lazy(() => import('./components/settings/SettingsPolicies'));
+const SettingsPoliciesV2 = lazy(() => import('./components/settings/SettingsPoliciesV2'));
 const MyPolicies = lazy(() => import('./pages/ess/MyPolicies'));
 const MyDocuments = lazy(() => import('./pages/ess/MyDocuments'));
 const MyPoliciesV2 = lazy(() => import('./pages/ess/MyPoliciesV2'));
@@ -551,7 +552,7 @@ function App() {
                 <Route path="/org/:slug/settings/timesheet" element={<SettingsPageWrapper><SettingsTimesheet /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/payroll" element={<SettingsPageWrapper><SettingsPayroll /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/employee" element={<SettingsPageWrapper><PageSwitch v2={SettingsEmployeeV2} legacy={SettingsEmployee} /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/policies" element={<SettingsPageWrapper><SettingsPolicies /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/policies" element={<SettingsPageWrapper><PageSwitch v2={SettingsPoliciesV2} legacy={SettingsPolicies} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/email-logs" element={<SettingsPageWrapper><SettingsEmailLogs /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/crm" element={<SettingsPageWrapper><PageSwitch v2={SettingsCrmV2} legacy={SettingsCrm} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/ats" element={<SettingsPageWrapper><PageSwitch v2={SettingsAtsV2} legacy={SettingsAts} /></SettingsPageWrapper>} />

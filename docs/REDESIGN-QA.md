@@ -2176,3 +2176,71 @@ page reloaded, and the server state re-read: **1 FX row, USD→INR @ 85, cut-off
 A toast that reads like a rejection is not proof of a rejection. `sameCcy`
 shows a message and then keeps going — the only reliable way to know whether a
 guard *returns* is to watch the network, not the UI.
+
+## #93 — settings batch 6: `settings/policies`
+
+448 lines, three components. Two verbatim slices: the admin block (**70 lines**)
+and `PolicyEditor`'s state + `handleSubmit` (**64 lines**). **10 probes**.
+
+### ⚠️ This tab can permanently destroy an audit trail
+
+`deletePolicy` hits `/policies/:id/permanent`, which removes the document file
+**and every acknowledgment record for it** — the evidence that employees read
+the policy. `archivePolicy` is a softer write but still a write. Neither was
+triggered, nor either save path, nor an upload.
+
+### The `appliesTo` footgun, carried across with its comment
+
+Unchecking "All employees" and then selecting nothing sends `appliesTo: []`,
+which **the backend treats as everyone** — the exact opposite of the intent.
+The guard forcing an explicit choice, `finalAppliesTo = appliesAll ? ['ALL'] : appliesTo`,
+and the `filter((k) => k !== 'ALL')` on editor init are all byte-identical.
+
+Driven live: opened the editor on an "All employees" policy, unchecked the box,
+selected no type, clicked Save.
+
+> Select at least one employee type, or choose "All employees"
+
+…and **zero network attempts** — it returned before the fetch, dialog still
+open. (The one checked box remaining was "require acknowledgment", not an
+audience type; zero types selected is precisely what tripped the guard.)
+
+### The confirm dialog got safer
+
+Swapped `shared/ConfirmDialog` for the ds one — prop-compatible, with one
+deliberate difference: **Enter confirms only when `danger` is false**. Both
+confirms here are `danger: true`.
+
+Verified on the live Archive confirm: pressing Enter left the dialog open with
+**zero network attempts**; Escape cancelled. A stray keypress can no longer
+archive — or permanently delete — a policy. That is the whole reason the ds
+version exists, and this is the first page where it actually matters.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| visible text | **zero** word differences |
+| policy rows | 5, identical |
+| meta lines | identical — filename, `formatBytes` output, version, **and the All-employees vs N-types branch** |
+| ack counts | identical — `31, 27, 28, 12, 13` |
+| Show archived | identical (off) |
+
+The acknowledgment report was opened (a GET): **141 rows**, header
+`31 of 141 acknowledged (current version)` — matching the `31` on the list row
+— with both Pending and acknowledged states present. Closed on Escape.
+
+### Verification
+
+- **0 contrast failures** in both themes (60 dark / 62 light), real paint forced
+  before each read
+- Slices byte-identical: 70 + 64 lines; 10 probes
+- Lint **0 = 0**
+- **No writes — zero attempts.** The blocking interceptor from #92 was in place
+  for the whole session and recorded **nothing**: both guards returned before
+  the network, and Enter never confirmed. Server state re-read after reload:
+  same 5 policies, same meta lines.
+
+Stronger than #92, where one attempt was blocked. Here nothing was even tried —
+which is what the interceptor is supposed to report on a page whose delete is
+irreversible.
