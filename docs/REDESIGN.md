@@ -1361,3 +1361,42 @@ The fix was already sitting in the same file: `brand` and `warn` read
 The lesson is not "run the audit" — the audit worked. It is that a documented
 rule stopped being consulted at the moment it became inconvenient, and the
 place it was documented was the file being edited.
+
+### Settings batch 1 — and the difference between "dimmed" and "passing"
+
+Settings is ~7,500 legacy lines across 16 files, so it gets broken up by
+archetype rather than by size. This first batch takes the four app-settings
+tabs that share one shape — admin gate, cards of controls, optional save —
+because that shape is what the remaining twelve are.
+
+Two things worth carrying forward.
+
+**`opacity-60` is not a disabled state, it is an unmeasurable one.** Both
+placeholder tabs dimmed their unbuilt cards with container opacity. The
+contrast audit cannot see through that: it composites background colours, not
+ancestor alpha, so it would have reported those labels as comfortably passing
+when in fact nobody had measured what the user actually sees. The rule was
+already written under tax-declarations — a non-zero dim means *unmeasured* —
+but it was written about a value I had introduced, and this is the first time
+it showed up in legacy code.
+
+The fix is the same either way: let the state be carried by something the audit
+can reason about. A `Coming Soon` chip plus genuinely `disabled` controls says
+the same thing, and `disabled` is exempt from AA *by spec* — so the audit skips
+it deliberately rather than accidentally.
+
+**A tab that writes on every interaction should say so in its own source.**
+`SettingsTodo` has no Save button: all three selects call `handleSaveConfig`
+from `onChange`, and the blocklist writes on add and on remove. Changing one
+select changes AI-scan behaviour for every member of the org, immediately. That
+is the existing contract and it is carried across unchanged — but the v2 file
+now opens with a note saying so, because nothing in the UI signals it and the
+next person to test this tab will otherwise find out by doing it.
+
+Also worth recording: `ToggleSwitch` was duplicated **character for character**
+across two of these four files, and four more copies survive elsewhere
+(`SettingsTimesheet`, `SettingsEmployee`, `SettingsAts`, and the shared
+`components/ToggleSwitch.jsx`). ds has shipped `Switch` the whole time. Six
+copies of a toggle is what happens when the primitive exists but nothing
+prompts you to reach for it — the same failure mode as the `EmptyState` prop
+names in #85, and the reason to read the `.d.ts` before writing the page.

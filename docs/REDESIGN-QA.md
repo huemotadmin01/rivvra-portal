@@ -1739,3 +1739,93 @@ never-trigger list.
 That is now the fourth surface in this project unverifiable for the same
 reason: **staging has no instance of the exceptional state**, and manufacturing
 one means performing the action the rule exists to prevent.
+
+## #88 — settings batch 1: `crm`, `sign`, `contacts`, `todo`
+
+Settings is ~7,500 legacy lines across 16 files — far more than one batch. This
+takes the four app-settings tabs that share one archetype (admin gate → cards
+of controls → optional save), which is the shape the remaining twelve follow.
+
+`SettingsCrm`'s state/fetch/save block is spliced in verbatim (**38 lines**), as
+is `SettingsTodo`'s (**64 lines**, one deliberate change noted below). The two
+placeholder tabs carry no logic beyond their admin gate.
+
+### Rendered parity — all four tabs, legacy vs v2
+
+Every word, every `<select>` value **and full option list**, every `<input>`
+value and disabled state:
+
+| tab | words differing | selects | inputs |
+|---|---|---|---|
+| crm | none | identical | identical |
+| sign | none | identical | identical |
+| contacts | none | identical | identical |
+| todo | none | identical | identical |
+
+The CRM currency list matters more than it looks: `defaultCurrency` is what
+every CRM deal's revenue is reported in, so the eight options are carried
+across in the legacy order, value **and** label. Dropping or reordering one
+would silently re-denominate existing opportunities.
+
+`selectsMatch: true` on `todo` is also the proof that **nothing was written**
+between the legacy and v2 captures — the org's scan config reads identically
+before and after.
+
+### 🔴 `SettingsTodo` saves on every keystroke of interaction
+
+There is no Save button and no confirm step. All three selects call
+`handleSaveConfig` straight from `onChange`, and adding or removing a blocked
+sender writes on the spot. Touching any control on a live org immediately
+changes AI-scan behaviour **for every member of that org**.
+
+Carried across unchanged — it is the existing contract — but the v2 file now
+says so at the top, because the tab gives a tester no signal that it is live.
+
+### The `opacity-60` "Coming Soon" cards were unmeasurable, not passing
+
+Both placeholder tabs dimmed each unbuilt card with `opacity-60` and each
+control with `opacity-50`. **Container opacity is the one thing the contrast
+audit cannot see through** — by the rule written under tax-declarations, those
+nodes are *unmeasured*, not passed, and the audit in its current form would
+have reported a comfortable pass that wasn't real.
+
+Replaced with the signal carried by a `Coming Soon` chip and by controls being
+genuinely `disabled` — which IS exempt from AA by spec, and which the audit
+skips deliberately rather than accidentally. Same meaning, now measurable.
+
+### A third and fourth hand-rolled toggle
+
+`ToggleSwitch` was duplicated **character for character** in `SettingsContacts`
+and `SettingsSign`. Both are gone in favour of ds `Switch`.
+
+Four more copies survive elsewhere and are out of scope for this batch:
+`SettingsTimesheet`, `SettingsEmployee`, `SettingsAts`, and the shared
+`components/ToggleSwitch.jsx` (used by `EngageSettings` and
+`SequenceDetailPage`). Worth collapsing when those files are migrated.
+
+### Verification
+
+- **0 contrast failures** on all four tabs in **both** themes
+  (crm 34, sign 41, contacts 38, todo 191 nodes)
+- Slices byte-identical: CRM 38 lines, To-Do 64 lines
+- Rendered word/select/input parity on all four
+- V2 lint **clean on all four**; legacy baseline was clean on three, and
+  `SettingsTodo` had 2 problems. The `catch (err)` → `catch` in the To-Do slice
+  is the one deliberate deviation — it drops an unused binding, and the
+  `exhaustive-deps` disable comment matches the house pattern used in
+  `PayrollRunPage` and `TaxReportsPage`.
+- **No writes.** CRM's Save was never clicked; no To-Do select was changed and
+  no blocklist entry added or removed.
+
+### Deliberately not in this batch
+
+`SettingsOutreach` (71 lines) looks like the smallest tab of all, but its body
+is `<EngageSettings />` — **408 legacy lines** of send limits, unsubscribe and
+signature config. Migrating the 71-line shell alone would ship a tab that is
+half redesigned and half not. The two belong in one batch.
+
+Remaining in settings after this: `SettingsCompanies` (1,162), `SettingsTeam`
+(984), `SettingsGeneral` (866), `SettingsPayroll` (787, the tab hub itself),
+`SettingsTimesheet` (641), `SettingsEmailLogs` (487), `SettingsPolicies` (448),
+`SettingsIncentive` (447), `SettingsAts` (438), `SettingsEmployee` (304),
+`ReassignDataModal` (258), and `SettingsOutreach` + `EngageSettings` (479).
