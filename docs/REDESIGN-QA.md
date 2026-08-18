@@ -1116,3 +1116,71 @@ now says so rather than repeating a wrong explanation. Lint parity is **3 errors
   which renders solely when `betterRegime !== regime`. The account's better
   regime equals its current regime, so the button never appeared — this page was
   verified entirely read-only.
+
+---
+
+## The seeding script — and the claim it disproved
+
+`scripts/seed-staging-fixtures.js` creates the record states the timesheet/ESS
+QA passes could not reach. **Dry-run by default**, `--apply` to write,
+`--cleanup` to reverse, host-locked to staging, idempotent (probes first), and
+every free-text field it writes carries a `[QA-SEED]` tag.
+
+### I said "one seeding exercise unblocks all seven". That was wrong.
+
+Writing it forced the question of what each fixture actually *costs*, and the
+seven split three ways:
+
+| fixture | outcome |
+|---|---|
+| `attendance-submitted` | ✅ seeded |
+| `leave-pending` | ✅ seeded |
+| `attendance-rejected` | ⚠️ needs a **second account** |
+| `leave-rejected` | ⚠️ needs a **second account** |
+| `bank-statement` | ⚠️ possible, but **irreversible** — own flag |
+| `gstr2b` | ⚠️ operator must supply a real 2B export |
+| `payroll-lock` | ⛔ **refused** — payroll publish |
+| `fnf-receipt` | ⛔ **refused** — F&F settlement |
+| `proof-window` | ⛔ **not a data problem** — reads the clock |
+
+Two are on the standing never-trigger list, so the script refuses them *even
+with `--apply`* and prints why. One cannot be seeded at all.
+
+### Two constraints only the write path revealed
+
+The dry run passed cleanly and was still wrong twice. Both were found by
+actually calling the API:
+
+1. **`PATCH /attendance/:id/submit` → 403 Access denied.** Submit is
+   self-service; an admin cannot submit another employee's attendance. The
+   fixture had been scanning the admin-wide `/attendance/all` and picking any
+   draft. Fixed to scan the *self* endpoint.
+2. **`PATCH /leave-requests/:id/reject` → 403 "You cannot reject your own leave
+   request".** A correct self-approval guard — and it means one account can
+   never produce a rejected fixture. Both rejection fixtures now declare
+   `secondAccount: true` and explain how to supply one
+   (`RIVVRA_STAGING_APPROVER_EMAIL` / `_PASSWORD`).
+
+Neither is a bug. Both are the API being right, and both would have shipped as
+a broken script if the write path had been left untested — the same lesson as
+the green build that never caught a defect.
+
+### `bank-statement` is gated because it cannot be undone
+
+The API exposes list / create / update / suggestions / reconcile for bank
+statements and **no delete route**. A seeded statement is permanent, so it sits
+behind `--allow-permanent` rather than running with the rest. Same family as the
+three undeletable `ZZ TEST TAX` rows.
+
+### What the fixtures unblocked, verified on screen
+
+- **attendance/approvals** — `Submitted 0 → 1`; Approve and Reject now render,
+  and the reject modal opens. In #75 that modal was reported as *inferred from
+  the sibling page*, not verified. **It is verified now.**
+- **leave/approvals** — `Pending 0 → 1`; Approve/Reject render, reject modal
+  opens with its copy, and the `[QA-SEED]` tag is visible on the row
+- **0 contrast failures** across the newly-reachable states (54 nodes,
+  `dimmed: 0`)
+
+The fixtures are **left in place** — that is the point of them. `--cleanup
+--apply` reverses the two that can be reversed.
