@@ -983,3 +983,80 @@ read**, every time.
   table with Active chips, and both dialogs opened and dismissed
 - **No writes** — client and project counts re-queried after the run: still
   **25** and **4**, unchanged. Nothing created, edited or deleted.
+
+---
+
+## tax/declarations — the one page where source-text parity was not enough
+
+This page computes the 80C cap, the 80D total, the declared-deduction total and
+the HRA annualisation that feed TDS, and its regime toggle selects the slab
+table. Logic spliced in verbatim (**216 lines, byte-identical**), the five
+top-level helpers diffed separately, and **13 tax computations** asserted by
+exact text — including the payload's `Math.min(sumItems(items), section80CLimit)`
+and the `section80CItems` breakdown it travels with.
+
+### Why the ₹-string check had to escalate
+
+The source-text ₹ diff reported **7 of 23 strings missing**. They were not
+missing: the comparison cards became a two-row `map` and the summary rows a
+`row()` helper, so `₹{fmt(x)}` became `` `₹${fmt(x)}` ``. Identical output,
+different source.
+
+That is exactly the point where a text diff stops being evidence. So the page
+got a **rendered** capture instead — legacy and v2 driven with the same inputs
+(80C 120,000 + 80,000 over the 150,000 cap, 80D 25,000, rent 10,000/mo):
+
+```
+₹0  ₹1,32,600  ₹1,32,600  ₹1,50,000  ₹1,50,000  ₹1,50,000
+₹1,00,000  ₹1,00,000  ₹1,50,000  ₹25,000  ₹1,75,000
+```
+
+**11 strings, identical sequence, exact match.**
+
+A first pass showed `₹1,00,000` twice in legacy and once in v2. Not a defect —
+I had filled the landlord PAN in the v2 run, which clears the "Required when
+annual rent exceeds ₹1,00,000" error. Re-run with PAN empty on both: exact
+match. *Third time in this project a parity diff was the harness, not the code —
+always equalise the input state before believing a count.*
+
+### Computations exercised live, not just diffed
+
+- **80C cap:** 120,000 + 80,000 → `Total 80C (capped) ₹1,50,000` with the
+  `Capped at ₹1,50,000` warning, and Total Deductions ₹1,50,000
+- **80D flows in uncapped:** +25,000 → Total Deductions **₹1,75,000**
+- **HRA PAN threshold:** 8,000/mo (96,000/yr) → no PAN required; 10,000/mo
+  (1,20,000/yr) → required; entering a PAN clears it; input uppercases
+
+### Findings, all preserved
+
+- **Statutory figures are hardcoded prose.** The New Regime panel states
+  ₹75,000 standard deduction, 14% employer NPS and a ₹12,75,000 rebate ceiling
+  as literal text — while `section80CLimit` beside it is fetched from
+  `getPublicPlatformSetting('tax_declaration_sections')`. One is correctable
+  without a deploy and the others are not, so a finance act will silently split
+  them apart.
+- **`taxInfo` is dead state.** `setTaxInfo(taxRes.tax)` is called and `taxInfo`
+  is never read. Present in both files; lint parity legacy 4 / v2 4.
+- **`isProofWindow()`** hides the entire upload block outside Jan 1 – Mar 15, so
+  it is unreachable today. Seventh surface on the seeding list.
+
+### ⚠️ Staging footprint — declared, not hidden
+
+Verifying the Old Regime form needs the regime to *be* old, and that is a write.
+Judged acceptable: staging, the test user's own record, one toggle, reversible.
+
+- switched `new` → `old`, verified the form, switched back
+- **regime re-queried afterwards: `new` — restored**
+- the regime PUT created `declarations: {}` server-side where the field was
+  previously absent. It holds **none** of the typed test values (checked
+  explicitly), and `{}` normalises to the same all-zero render. Nothing was
+  saved — the Save button was never pressed — and there is no endpoint to
+  remove the empty object, so it is left as-is.
+
+### Verification
+
+- **0 contrast failures** in both themes on the Old Regime form, the richest
+  state (95 light / 98 dark nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (216 lines); 5 helpers identical; 13 tax computations and
+  all money expressions asserted; rendered money **exact match** with legacy
+- Build green; lint parity 4/4, every error inside the verbatim slice
