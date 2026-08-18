@@ -17,9 +17,11 @@ const TEMPLATE_LABELS = {
   ats_job_approval_request: 'Job Approval Request',
   ats_job_approved: 'Job Approved',
   ats_job_rejected: 'Job Rejected',
+  ats_job_on_hold: 'Job On Hold',
+  ats_job_closed: 'Job Closed',
 };
 
-const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_job_approval_request', 'ats_job_approved', 'ats_job_rejected'];
+const EVENT_TEMPLATE_KEYS = ['ats_refused', 'ats_job_approval_request', 'ats_job_approved', 'ats_job_rejected', 'ats_job_on_hold', 'ats_job_closed'];
 
 export default function EmailTemplatesSection({ orgSlug, showToast }) {
   const { currentCompany } = useCompany();
@@ -253,7 +255,7 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
       <div>
         <h3 className="text-lg font-semibold text-white mb-3">Event Email Templates</h3>
         <p className="text-dark-400 text-sm mb-4">
-          Emails triggered by specific events (refusal, job approval).
+          Emails triggered by specific events (refusal, job approval, job status changes).
         </p>
 
         <div className="bg-dark-800 rounded-lg border border-dark-700 overflow-x-auto">
@@ -274,6 +276,8 @@ export default function EmailTemplatesSection({ orgSlug, showToast }) {
                   ats_job_approval_request: 'Approver',
                   ats_job_approved: 'Recruiter',
                   ats_job_rejected: 'Recruiter',
+                  ats_job_on_hold: 'Recruiter',
+                  ats_job_closed: 'Recruiter',
                 };
                 return (
                   <tr key={key} className="border-b border-dark-700/50 hover:bg-dark-750/30">

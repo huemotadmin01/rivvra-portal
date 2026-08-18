@@ -490,6 +490,10 @@ function getSampleValue(placeholder) {
     interviewLink: 'https://meet.google.com/abc-defg-hij',
     approverName: 'Jane Smith',
     portalLink: 'https://www.rivvra.com/#/org/acme-corp/ats',
+    portalUrl: 'https://www.rivvra.com/#/org/acme-corp/ats/jobs',
+    recruiterName: 'HR Team',
+    department: 'IT',
+    changedByName: 'Jane Smith',
   };
   return samples[placeholder] || `[${placeholder}]`;
 }
