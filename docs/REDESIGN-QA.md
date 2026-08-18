@@ -2029,3 +2029,82 @@ nothing.
 Third of six hand-rolled `ToggleSwitch` copies removed. Three remain:
 `SettingsTimesheet`, `SettingsAts`, and the shared `components/ToggleSwitch.jsx`
 (used by `EngageSettings` and `SequenceDetailPage`).
+
+## #91 — settings batch 4: `settings/ats`
+
+438 lines, two components. Three verbatim slices — `CareersCard`'s whole
+state/effect/save block (**81 lines**), `SettingsAts`'s (**40 lines**), and the
+reporting-threshold block that lives in the render (**15 lines**).
+
+### ⚠️ This tab publishes to a public website
+
+`CareersCard`'s `enabled` toggle plus Save is the difference between a live
+public careers page and a 404. On this staging org the site is **already
+enabled**, with a live URL (`/careers/huemot-technology`).
+
+That Save was never clicked. It is a genuinely outward-facing action — it
+changes what anonymous visitors on the internet can see — which puts it a step
+beyond the usual "writes to staging are fine".
+
+### The threshold block is render-resident
+
+`updateThreshold` merges into `settings.reportingThresholds` rather than
+replacing it; a flat `update` would nuke the sibling thresholds every time one
+was edited. That, the three `Number.isFinite` defaults, and the comment saying
+the values **14 / 3 / 24 mirror `ATS_REPORTING_THRESHOLD_DEFAULTS` in the API
+(`src/ats.js`)** are all carried across byte-identically. The `|| 14`, `|| 3`,
+`|| 24` fallbacks in each `onChange` come with them.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| all 6 inputs | identical — thresholds `14 / 3 / 24`, tagline empty, colour `#2bb3b3`, logo empty |
+| Default Stage select | identical, all **10** options in order (First stage → Hired) |
+| public careers URL | identical |
+| 3 toggles | identical — `true, false, true` |
+
+`autoCreateCandidate ?? true` renders ON in both, and `?? true` is not
+`|| false`: a stored `false` must stay false.
+
+### Careers validation, driven live
+
+`colorValid` is `/^#[0-9a-fA-F]{6}$/`, and `hasChanges` gates Save:
+
+| state | error shown | `aria-invalid` | Save |
+|---|---|---|---|
+| at rest (no changes) | no | false | **disabled** |
+| `#12` | yes | true | **disabled** |
+| `#2563eb` | no | false | enabled |
+| restored to `#2bb3b3` | no | false | **disabled again** |
+
+The last row is the useful one: restoring the original value re-disables Save,
+which proves `hasChanges` works *and* that nothing was left dirty. Save was not
+clicked in the enabled state.
+
+### A capture bug of mine, caught
+
+The legacy toggle capture returned **4** states where the source declares only
+**3** `<ToggleSwitch>` usages — my selector (`rounded-full` + a `<span>` child)
+wasn't scoped and picked up a control from the app shell. Re-scoped to `main`:
+3 in, 0 out, and the three align with legacy's first three exactly.
+
+Worth noting because the failure mode is silent: an over-matching selector
+inflates a count, and a count that doesn't match is easy to explain away as
+"v2 renders one fewer" rather than "my selector is wrong."
+
+### Verification
+
+- **0 contrast failures** in both themes (63 nodes each), real paint forced
+  between the theme switch and each read
+- Three slices byte-identical: 81 + 40 + 15 lines
+- Lint parity **1 error = 1 error** — the empty `catch {}` in `handleCopyUrl`,
+  inherited unchanged from the slice rather than quietly fixed
+- **No writes.** Neither Save was clicked. The colour probe was local state and
+  was restored, confirmed by Save returning to disabled.
+
+### Toggle count
+
+Fourth of six hand-rolled `ToggleSwitch` copies removed. Two remain:
+`SettingsTimesheet` and the shared `components/ToggleSwitch.jsx` (used by
+`EngageSettings` and `SequenceDetailPage`).
