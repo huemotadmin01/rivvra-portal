@@ -337,6 +337,7 @@ const IncentiveRatesTable = lazy(() => import('./pages/incentive/RatesTable'));
 // IncentiveSettings was moved into the global Settings hub at
 // /org/:slug/settings/incentive — see components/settings/SettingsIncentive.
 const SettingsIncentive = lazy(() => import('./components/settings/SettingsIncentive'));
+const SettingsIncentiveV2 = lazy(() => import('./components/settings/SettingsIncentiveV2'));
 
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
@@ -561,7 +562,7 @@ function App() {
                 <Route path="/org/:slug/settings/companies/:companyId" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/todo" element={<SettingsPageWrapper><PageSwitch v2={SettingsTodoV2} legacy={SettingsTodo} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/invoicing" element={<SettingsPageWrapper><PageSwitch v2={SettingsInvoicingV2} legacy={SettingsInvoicing} /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/incentive" element={<SettingsPageWrapper><SettingsIncentive /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/incentive" element={<SettingsPageWrapper><PageSwitch v2={SettingsIncentiveV2} legacy={SettingsIncentive} /></SettingsPageWrapper>} />
               </Route>
 
               {/* Timesheet (ESS) app routes — gated by timesheet access + country (IN-only for now) + company match */}

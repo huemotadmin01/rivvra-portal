@@ -2108,3 +2108,71 @@ inflates a count, and a count that doesn't match is easy to explain away as
 Fourth of six hand-rolled `ToggleSwitch` copies removed. Two remain:
 `SettingsTimesheet` and the shared `components/ToggleSwitch.jsx` (used by
 `EngageSettings` and `SequenceDetailPage`).
+
+## #92 — settings batch 5: `settings/incentive`
+
+447 lines, and a money surface: the FX table decides what a recruiter or
+account manager is actually paid when an invoice is raised in a currency other
+than the company's functional one.
+
+Spliced in verbatim: the whole state/load/save/FX-row block (**131 lines**) and
+the three module tables — `DEFAULTS`, `BLANK_FX_ROW`, `CURRENCY_OPTIONS`
+(**26 lines**). **13 probes** asserted on top of that.
+
+### Three details that are cheap to lose and expensive to have lost
+
+- **`DEFAULTS` still carries `defaultRecruiterRate` / `defaultAccountManagerRate`
+  at `0.06`.** They are deliberately not rendered — the Rate Table owns them —
+  but `onSave` PUTs `{ ...form }`, so dropping them from the object would
+  **erase the resolver's Layer-4 fallback** on the next save. Asserted present.
+- **The `loadError` guard.** It exists so a failed fetch cannot render built-in
+  DEFAULTS and let a Save click overwrite the org's real settings. Both the
+  early return and `disabled={saving || loadError}` asserted.
+- **`CurrencySelect` re-offers an unknown stored code as "(legacy)"** rather
+  than silently resetting it to blank — which would drop an FX pair on the next
+  save. Asserted.
+
+### Rendered parity
+
+Zero word differences. Identical inputs (cut-off `25`, FX rate `85`), both
+selects identical including **all 11 options** (placeholder + 10 currencies),
+all three toggles identical, and the Save button's disabled state identical.
+
+### The validation chain, driven live behind a blocking interceptor
+
+Before touching Save I installed a fetch interceptor that **blocks and records
+any non-GET** to the incentive settings endpoint — so that even if my reading
+of a guard was wrong, nothing could land.
+
+| probe | result | reached the network? |
+|---|---|---|
+| row with only `from` set | “Please complete all FX rate rows…” | **no** — returned before fetch |
+| row duplicating an existing pair | “Duplicate FX pair USD → INR…” | **no** |
+| row with `from === to` | “Removed 1 same-currency row…” | **yes — blocked by the harness** |
+
+That third row is why the interceptor was there. **Same-currency is a
+warn-and-continue, not a blocker** — the toast reads like a rejection but
+execution falls through to the PUT. Had I trusted the wording and clicked Save
+without the net, I would have written to the org's incentive settings.
+
+The interceptor caught exactly one attempt. Afterwards, fetch was restored, the
+page reloaded, and the server state re-read: **1 FX row, USD→INR @ 85, cut-off
+25** — identical to the legacy capture taken before any of this. Nothing landed.
+
+### Verification
+
+- **0 contrast failures** in both themes (43 light / 45 dark), real paint forced
+  before each read
+- Slices byte-identical: 131 + 26 lines; 13 probes
+- Rendered parity on text, inputs, both selects with full option lists,
+  toggles, and Save state
+- Lint **0 = 0**
+- **No writes.** One save attempt reached the network layer via the
+  warn-and-continue path and was blocked by the harness; server state verified
+  unchanged afterwards.
+
+### Worth carrying forward
+
+A toast that reads like a rejection is not proof of a rejection. `sameCcy`
+shows a message and then keeps going — the only reliable way to know whether a
+guard *returns* is to watch the network, not the UI.
