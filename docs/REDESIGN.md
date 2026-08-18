@@ -1437,3 +1437,43 @@ so an API hiccup replaces the whole tab with the error boundary. Carried across
 unchanged and reported. **A swallowed error plus an unguarded read of the state
 it was supposed to populate is a crash waiting for a bad network day**, and this
 codebase has that pattern in more than one place.
+
+### Settings batch 5 — a toast that reads like a rejection isn't one
+
+`settings/incentive` is a money surface: its FX table decides what a recruiter
+or account manager is actually paid when an invoice is raised in a currency
+other than the company's functional one. 131 lines spliced verbatim, plus the
+three module tables and 13 probes.
+
+The finding worth keeping is about **how to verify a validation guard**.
+
+Before clicking Save I installed a fetch interceptor that blocked and recorded
+any non-GET to the settings endpoint. Three guards were exercised. Two returned
+before the network, as expected. The third — the same-currency row — showed
+this toast:
+
+> Removed 1 same-currency row (FX rates only apply across currencies).
+
+That reads like a rejection. It is not. `sameCcy` **warns and continues**:
+execution falls straight through to the PUT, and the interceptor caught the
+write. Had I trusted the wording, I would have saved to the org's incentive
+settings on the strength of a message that sounded like it had stopped me.
+
+So: **the UI is not evidence about control flow.** A guard that "shows an
+error" may or may not `return`, and the only reliable way to tell from the
+outside is to watch the network. When exercising validation on a surface that
+writes, put a blocking interceptor in first — not as a formality, but because
+this is the case it exists for.
+
+Two smaller things this page is a good example of:
+
+- **A field that isn't rendered can still be load-bearing.** `DEFAULTS` carries
+  `defaultRecruiterRate` / `defaultAccountManagerRate` at 0.06 with a comment
+  saying they are deliberately hidden. `onSave` PUTs `{ ...form }`, so deleting
+  them from the object — the obvious "dead code" cleanup — would erase the
+  resolver's fallback on the next save.
+- **A guard against your own form's defaults.** `loadError` exists so that a
+  failed fetch cannot render built-in DEFAULTS and let one Save click overwrite
+  the org's real settings. It is the sort of thing that looks like defensive
+  noise until you notice the form's initial state is a complete, plausible,
+  entirely wrong settings object.
