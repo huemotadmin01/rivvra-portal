@@ -1060,3 +1060,59 @@ Judged acceptable: staging, the test user's own record, one toggle, reversible.
 - Logic byte-identical (216 lines); 5 helpers identical; 13 tax computations and
   all money expressions asserted; rendered money **exact match** with legacy
 - Build green; lint parity 4/4, every error inside the verbatim slice
+
+---
+
+## tax/report — hardcoded labels sitting beside the numbers they describe
+
+The employee-facing tax computation: slab breakdown, surcharge, cess, rebate,
+YTD TDS and a month-by-month cumulative. Every figure comes from the server;
+the page only formats and signs them. Logic spliced in verbatim (**68 lines,
+byte-identical**), the three top-level helpers diffed separately, **13 money
+expressions** asserted — including `Row`'s
+`{negative ? '-' : ''}₹{fmt(Math.abs(value || 0))}` sign handling.
+
+Rendered parity against legacy on the same data: **41 figures, exact match, 0
+differences**, with the Monthly TDS breakdown expanded so the running
+cumulative column was compared too.
+
+### 🔴 The finding: a label that can contradict the number next to it
+
+```jsx
+<Row label={`Less: Standard Deduction (${report.regime === 'new' ? '₹75K' : '₹50K'})`}
+     value={-report.standardDeduction} negative />
+<Row label="Cess (4%)" value={report.cess} />
+```
+
+In both rows the **label is hardcoded** and the **value is server-computed**.
+They are rendered side by side in the same table row, so if the server's
+standard deduction or cess rate ever changes, the row will state one figure and
+show another — and the label is the more authoritative-looking of the two.
+
+This is the sharper form of the same problem written up under
+`tax/declarations`, where the hardcoded statutory prose at least sat in a
+separate panel from the computed numbers. Here they share a row. Preserved
+exactly; the fix is to derive the label from the value (or drop the parenthetical),
+which is a copy decision.
+
+### Lint: a spurious error worth not "fixing"
+
+Legacy reports `'Icon' is defined but never used` at `SummaryCard`, and it **is**
+used — `<Icon size={14} />` is two lines below. I initially assumed legacy's
+`icon: Icon` destructure-rename confused the rule and took `Icon` directly in
+v2; the error persisted, so that theory was wrong and the comment in the file
+now says so rather than repeating a wrong explanation. Lint parity is **3 errors
++ 1 warning on both sides**, identical set.
+
+### Verification
+
+- **0 contrast failures** in both themes with every section expanded
+  (101 light / 105 dark nodes), `dimmedByAncestorOpacity: 0`
+- Logic byte-identical (68 lines); `fmt`, `MONTH_NAMES` and `getCurrentFY`
+  identical; 13 money expressions asserted
+- **Rendered money: 41 figures, exact match** with legacy, monthly breakdown
+  expanded
+- **No writes.** The only mutating control is the "Switch to … Regime" button,
+  which renders solely when `betterRegime !== regime`. The account's better
+  regime equals its current regime, so the button never appeared — this page was
+  verified entirely read-only.
