@@ -910,3 +910,76 @@ Sixth surface needing the same seeding exercise.
   Leave pills, LOP callout, half-day chip, reason block, "Approved on" line, and
   Revert rendering only for `approved`
 - **No writes** — zero calls to any `/approve`, `/reject` or `/revert` endpoint
+
+---
+
+## timesheet/projects — three columns that nothing populates
+
+Small page, clean migration: logic spliced in verbatim (**57 lines,
+byte-identical**), all eight write paths asserted by exact text (2 PUT, 2 POST,
+2 DELETE, both `confirm()` gates). Lint clean on both sides.
+
+### 🔴 `billingCurrency` has no input anywhere
+
+`billingCurrency` appears **four** times in the legacy file:
+
+- initialised to `'INR'` in the `clientForm` state
+- reset to `'INR'` after a save
+- reset to `'INR'` when opening the Add dialog
+- rendered as a read-only **Currency** column
+
+…and is bound to **no input at all**. So a client created through this screen is
+always INR, and there is no way to change it here. Edit happens to preserve
+whatever a record already has, because `setClientForm(c)` spreads the whole
+object — but nothing in this UI can ever set it.
+
+Given the standing rule that billing currency comes from the record rather than
+a hardcoded glyph, a money-defining field with no input is worth naming. Carried
+across exactly as-is, hardcoded `'INR'` included.
+
+### 🔴 …and the API doesn't return it, or two other columns
+
+Checked the live endpoint rather than inferring. `GET /timesheet/clients`
+returns documents with exactly these keys:
+
+```
+_id, name, orgId, companyId, contactId, createdAt
+```
+
+No `billingCurrency`, no `contactPerson`, no `contactEmail`. So **three of the
+five client columns render em-dashes for all 25 clients** — verified on screen,
+not just in the payload.
+
+Two of those three (Contact Person, Contact Email) *do* have inputs in the
+dialog. Whether the API stores-but-doesn't-return them, or drops them the way it
+drops tax `type`, needs an API-side check — it cannot be settled from the
+frontend without creating a client, which was not done.
+
+### One deliberate render difference
+
+Legacy prints `{c.billingCurrency}` bare, so a missing value renders as an empty
+cell, while the adjacent Contact and Email columns explicitly print `|| '—'`.
+`DataTable` falls back to an em-dash for every column, so Currency now matches
+its neighbours. Strictly more consistent, and stated here because it is a
+rendered difference rather than a pure re-skin.
+
+### Harness: I hit the stale-paint artifact again
+
+Switched the theme and audited **in the same call**, and got the familiar 29
+sidebar failures at 1.67:1. The very next audit in the same batch — taken after
+a tab click forced a repaint — was 0/144 on the same page. The guard is already
+written down; the mistake is doing both in one `javascript_tool` call. **Force a
+paint (screenshot, or any real interaction) between the theme switch and the
+read**, every time.
+
+### Verification
+
+- **0 contrast failures** across eight surfaces — clients, projects, and both
+  modals × light and dark (144 / 60 / 150 / 67 nodes per theme),
+  `dimmedByAncestorOpacity: 0` throughout
+- Logic byte-identical (57 lines); 8 write paths asserted; `billingCurrency`
+  reference count identical (4) and still bound to no input
+- Exercised live: both tabs with counts, the 25-client table, the 4-project
+  table with Active chips, and both dialogs opened and dismissed
+- **No writes** — client and project counts re-queried after the run: still
+  **25** and **4**, unchanged. Nothing created, edited or deleted.
