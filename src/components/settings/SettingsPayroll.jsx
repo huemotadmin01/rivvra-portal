@@ -15,6 +15,7 @@ import { PageSwitch } from '../platform/v2/PageSwitch';
 
 const SalaryStructuresPage = lazy(() => import('../../pages/payroll/SalaryStructuresPage'));
 const StatutoryConfigPage = lazy(() => import('../../pages/payroll/StatutoryConfigPage'));
+const StatutoryConfigPageV2 = lazy(() => import('../../pages/payroll/StatutoryConfigPageV2'));
 const PTMasterPage = lazy(() => import('../../pages/payroll/PTMasterPage'));
 const PTMasterPageV2 = lazy(() => import('../../pages/payroll/PTMasterPageV2'));
 const PayrollSettingsPage = lazy(() => import('../../pages/payroll/PayrollSettingsPage'));
@@ -775,7 +776,7 @@ export default function SettingsPayroll() {
         {activeTab === 'tds' && <TdsConfigTab />}
         {activeTab === 'structures' && <SalaryStructuresPage embedded />}
         {activeTab === 'structure-mapping' && <StructureMappingTab />}
-        {activeTab === 'statutory' && <StatutoryConfigPage embedded />}
+        {activeTab === 'statutory' && <PageSwitch v2={StatutoryConfigPageV2} legacy={StatutoryConfigPage} embedded />}
         {activeTab === 'pt' && <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />}
         {activeTab === 'fy' && isSuperAdmin && <PayrollSettingsPage embedded />}
       </Suspense>

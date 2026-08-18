@@ -1256,3 +1256,63 @@ stored order.
 FY **2026-27 has no PT slabs on staging** — the page's own copy says that means
 "payroll deducts no professional tax" for the FY. Staging data is scrubbed so
 this may not mirror production, but it is worth a glance at the real org.
+
+---
+
+## payroll/statutory-config — the one place `?? true` is deliberately wrong
+
+Per-employee PF / ESI / PT / tax-regime, read by every payroll run. Logic
+spliced in verbatim (**78 lines, byte-identical**), `getPan` / `getBank` /
+`FILTERS` diffed separately, **10 statutory defaults** and **8 statutory copy
+strings** asserted.
+
+### Why the verbatim rule earns its keep here
+
+The house rule for a policy checkbox is `?? true` — absent means on. This file
+contains the documented exception:
+
+```js
+esiDisabilityCeiling: s.esiDisabilityCeiling === true,
+```
+
+Absent must mean **off**, because the flag raises the ESI wage ceiling from
+₹21,000 to ₹25,000 — defaulting it on would start deducting ESI from employees
+earning ₹21K–₹25K who are not entitled to it. Both the expression and the
+comment explaining it survive byte-identical, as does the matching `=== true`
+gate on the row badge.
+
+The other seven defaults (`pfEnabled ?? true`, `pfCappedAt15K ?? true`,
+`esiEnabled || false`, `ptEnabled ?? true`, `ptState || 'MH'`,
+`taxRegime || 'new'`, `stopSalaryProcessing || false`) are asserted too, along
+with the row-level `pfOn` / `ptOn` that mirror them so a badge can't disagree
+with the form.
+
+### Statutory copy carried across intact
+
+Eight strings asserted verbatim, including the ones that state actual rates:
+the PF ₹15,000 cap and its uncapped-cost warning, the ESI ₹21,000 default
+ceiling, the ₹25,000 disability ceiling with **0.75% employee / 3.25%
+employer**, and the "excluded from every payroll run" hold-salary warning.
+
+### Both entry points, again
+
+Route + the `statutory` tab in `SettingsPayroll`, both via the shared
+`PageSwitch`. **Verified on screen in both places**, with `embedded` correctly
+suppressing the page header in the tab (8 headers, 26 rows in each).
+
+### Not reachable on this data
+
+The **₹25,000 ceiling badge** needs an employee with ESI *on* **and**
+`esiDisabilityCeiling === true`. No staging employee has both, so the row badge
+whose `=== true` gate is the whole point of the exception above was not seen
+rendered. The expression is asserted present; the pixel is not verified.
+
+### Verification
+
+- **0 contrast failures** in both themes with the edit dialog open (309 nodes
+  each), `dimmed: 0`
+- Logic byte-identical (78 lines); helpers and `FILTERS` identical; 10 defaults
+  + 8 statutory strings asserted
+- Lint parity 1 = 1
+- **No writes** — the dialog was opened and cancelled; zero calls matching the
+  update endpoint's `statutory-config/:employeeId` shape
