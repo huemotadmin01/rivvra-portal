@@ -11,10 +11,12 @@ import { useToast } from '../../context/ToastContext';
 import { getOrgTdsConfig, updateOrgTdsConfig, getPayrollSettings, updatePayrollSettings, getSalaryStructures } from '../../utils/payrollApi';
 import timesheetApi from '../../utils/timesheetApi';
 import { Save, Plus, Trash2, Loader2, Star, AlertCircle, X, Calendar } from 'lucide-react';
+import { PageSwitch } from '../platform/v2/PageSwitch';
 
 const SalaryStructuresPage = lazy(() => import('../../pages/payroll/SalaryStructuresPage'));
 const StatutoryConfigPage = lazy(() => import('../../pages/payroll/StatutoryConfigPage'));
 const PTMasterPage = lazy(() => import('../../pages/payroll/PTMasterPage'));
+const PTMasterPageV2 = lazy(() => import('../../pages/payroll/PTMasterPageV2'));
 const PayrollSettingsPage = lazy(() => import('../../pages/payroll/PayrollSettingsPage'));
 
 const TABS = [
@@ -774,7 +776,7 @@ export default function SettingsPayroll() {
         {activeTab === 'structures' && <SalaryStructuresPage embedded />}
         {activeTab === 'structure-mapping' && <StructureMappingTab />}
         {activeTab === 'statutory' && <StatutoryConfigPage embedded />}
-        {activeTab === 'pt' && <PTMasterPage embedded />}
+        {activeTab === 'pt' && <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />}
         {activeTab === 'fy' && isSuperAdmin && <PayrollSettingsPage embedded />}
       </Suspense>
     </div>

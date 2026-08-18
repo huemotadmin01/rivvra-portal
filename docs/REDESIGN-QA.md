@@ -1184,3 +1184,75 @@ three undeletable `ZZ TEST TAX` rows.
 
 The fixtures are **left in place** — that is the point of them. `--cleanup
 --apply` reverses the two that can be reversed.
+
+---
+
+## payroll batch 1 — the dual-use problem, and extracting `PageSwitch`
+
+Payroll is 7 legacy pages / 4,424 LOC. Surveying it first turned up something
+that changes how the whole block has to be migrated.
+
+### All three config pages have two entry points
+
+`PTMasterPage`, `StatutoryConfigPage` and `SalaryStructuresPage` are each **both**
+a `/payroll/*` route **and** a tab inside `components/settings/SettingsPayroll`
+— they already take an `embedded` prop for it.
+
+`PageSwitch` was a local function inside `App.jsx`, so only routes could use it.
+Migrating the route alone would have left the same feature rendering **two
+different UIs depending on how you reached it** — precisely the "two places
+disagreed" shape behind the third hand-rolled leave-type map, the two
+`controllerRef` copies, and the select-all that decayed differently in each
+approvals file.
+
+So `PageSwitch` moves to `components/platform/v2/PageSwitch.jsx`. It already
+spreads extra props (`{ v2, legacy, ...props }`), so the embedded caller keeps
+its own:
+
+```jsx
+{activeTab === 'pt' && <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />}
+```
+
+One flag, both entry points, same commit. **Verified on screen: the route and
+the Settings > Payroll > PT Master tab both render v2**, with `embedded`
+correctly suppressing the page header in the tab.
+
+### The eslint config is missing `eslint-plugin-react`
+
+Chasing the `V2`/`Legacy` "unused" errors on the extracted file found the root
+cause of a false positive I had already met on `tax/report`'s `Icon`:
+
+```js
+extends: [js.configs.recommended, reactHooks…, reactRefresh…]   // no eslint-plugin-react
+```
+
+Without it there is no `react/jsx-uses-vars`, so **any variable used only as a
+JSX element name reports as unused** — every component received as a prop or
+param. The original `App.jsx` reported the same 2 errors, so the extraction
+moved them rather than adding any. Not fixed here: adding the plugin is a
+dependency + shared-config change that could surface new errors across the repo.
+
+### PTMasterPageV2
+
+Statutory money config, so full treatment: logic spliced in verbatim (**92
+lines, byte-identical**), the four top-level FY helpers diffed separately, and
+9 money/slab probes asserted — including `fmtCurrency`'s `== null → 'No limit'`
+and the slab-index bookkeeping that keeps display sorting from disturbing
+stored order.
+
+### Verification
+
+- **0 contrast failures** across four surfaces — route (expanded slab table) and
+  the embedded Settings tab × light and dark (141 / 143 / 42 nodes), `dimmed: 0`
+- Slab table renders `₹0 / ₹15,000 / ₹0`, `₹15,001 / ₹20,000 / ₹150`,
+  `₹20,001 / No limit / ₹200` — the null-max fallback exercised
+- Lint parity: v2 2 errors = legacy 2, both inside the verbatim slice;
+  `SettingsPayroll` unchanged at 8
+- **No writes** — Seed, Save and Edit were never clicked. Re-queried after:
+  FY 2025-26 still **20 states / 70 slabs**, default PT state still **MP**.
+
+### Noted while here
+
+FY **2026-27 has no PT slabs on staging** — the page's own copy says that means
+"payroll deducts no professional tax" for the FY. Staging data is scrubbed so
+this may not mirror production, but it is worth a glance at the real org.
