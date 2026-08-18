@@ -60,6 +60,7 @@ export { ConfirmDialog } from './Overlay/ConfirmDialog';
 export { Modal, Drawer } from './Overlay/Modal';
 export { Toast, ToastStack } from './Overlay/Toast';
 export { ConfigList, ConfigDot } from './Surface/ConfigList';
+export { Accordion } from './Surface/Accordion';
 export { EmptyState } from './Surface/EmptyState';
 export { PageHeader } from './Surface/PageHeader';
 export { KanbanBoard, KanbanColumn, KanbanCard, KanbanCardOverlay } from './Surface/Kanban';

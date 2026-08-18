@@ -20,6 +20,7 @@ const StatutoryConfigPageV2 = lazy(() => import('../../pages/payroll/StatutoryCo
 const PTMasterPage = lazy(() => import('../../pages/payroll/PTMasterPage'));
 const PTMasterPageV2 = lazy(() => import('../../pages/payroll/PTMasterPageV2'));
 const PayrollSettingsPage = lazy(() => import('../../pages/payroll/PayrollSettingsPage'));
+const PayrollSettingsPageV2 = lazy(() => import('../../pages/payroll/PayrollSettingsPageV2'));
 
 const TABS = [
   { id: 'disbursement', label: 'Disbursement' },
@@ -779,7 +780,7 @@ export default function SettingsPayroll() {
         {activeTab === 'structure-mapping' && <StructureMappingTab />}
         {activeTab === 'statutory' && <PageSwitch v2={StatutoryConfigPageV2} legacy={StatutoryConfigPage} embedded />}
         {activeTab === 'pt' && <PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} embedded />}
-        {activeTab === 'fy' && isSuperAdmin && <PayrollSettingsPage embedded />}
+        {activeTab === 'fy' && isSuperAdmin && <PageSwitch v2={PayrollSettingsPageV2} legacy={PayrollSettingsPage} embedded />}
       </Suspense>
     </div>
   );
