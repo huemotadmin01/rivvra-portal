@@ -1629,3 +1629,113 @@ entirely this shape.
 so the `!isSuperAdmin` branch cannot render for them. Its copy and structure
 rest on the static diff alone. Verifying it needs a non-super-admin account —
 the same second-account gap the seeder hit on leave rejection in #80.
+
+## #87 — `payroll/statutory-run` (Run Payroll) — the last payroll page
+
+1,660 lines, two views in one component: a run index and a run detail with a
+per-employee breakdown. This is the page that processes, finalizes, releases
+payslips and marks payroll paid.
+
+### The method had to change here
+
+Every previous page in this migration was safe because everything above
+`return (` was spliced in verbatim. **That is not sufficient on this page.**
+Most of the money math lives *in the render*:
+
+| block | what it computes |
+|---|---|
+| detail-view head | `computedTotalPf`, `computedTotalCtc`, and the type → search → sort pipeline |
+| summary cards | five `items.reduce(...)` totals |
+| expanded row | `liveAdHoc` → `baseGross` → `displayGross` → `baseDeductions` → `displayDeductions` → `displayNet` |
+| mark-paid dialog | the payable/held split that keeps on-hold employees out of the confirmed total |
+| list view | `presentStatuses` and `visibleRuns` |
+| list row | the `Number.isFinite` guards that show `—` instead of an empty cell for draft runs |
+
+So the 358-line pre-return splice was verified byte-identical **and** each of
+those six render-resident blocks was copied across and diffed on its own
+(indentation normalised for the nested ones). Nothing that produces a number
+was retyped. 46 `formatMoney` call sites, 31 distinct leaf fields — identical
+sets.
+
+The `displayNet` chain is the one that matters most: it deliberately strips
+ad-hoc deductions out of `item.totalDeductions` but leaves F&F in, so live
+edits flow through while the total still matches the printed payslip. Retyping
+that from memory would have been the single easiest way to silently change
+someone's net pay.
+
+### Rendered parity — 394 money values
+
+Legacy vs v2, same run (June 2026, the largest at 68 rows):
+
+| surface | values | result |
+|---|---:|---|
+| run index rows | 11 | identical |
+| summary cards | 5 | identical |
+| employee table | 365 | identical |
+| one expanded row | 13 | identical |
+
+The expanded row was chosen by **index, not name**, and happens to carry an
+ad-hoc earning (`1% of Profit +₹4,387`) and a placement incentive with its
+payout breakdown — so the live-ad-hoc path and the incentive path are both
+covered by the capture rather than merely present in the source.
+
+### The audit caught a failure I introduced in `ds`
+
+`finalized` had no Chip tone. Mapping it to `info` would have made it
+indistinguishable from `processed` — two adjacent lifecycle states rendering
+identically on a status column, which is real information loss. So `Chip`
+gained a `purple` tone.
+
+I shipped it with `fg: var(--acc-purple)` — an accent ink on a 14% wash of
+itself, **the exact pairing documented twice in THEMING.md as failing**, and
+the exact pairing the comment three lines above it in `Chip.jsx` already warns
+about. The audit measured it at **4.12** against a 4.5 floor in light theme.
+
+The fix was already in the file as precedent: `brand` and `warn` read
+`--brand-ink` / `--warn-ink` rather than the accent. Added `--acc-purple-ink`
+(dark `#C084FC`, unchanged — it sits on a dark surface; light `#6B21A8`) and
+pointed the tone at it. Re-measured: **0 failures**.
+
+Worth stating plainly: I predicted this failure while writing the tone, decided
+to let the audit adjudicate rather than guess, and the audit adjudicated
+against me. That is the tool working, but the cheaper path was to follow the
+rule already written in the same file.
+
+### Verification
+
+- **0 contrast failures** in both themes on the densest surface — the 68-row
+  run with a row expanded (817 light / 819 dark nodes)
+- 358-line splice byte-identical; **6 render-resident money blocks** diffed
+  individually; 394 rendered money values identical
+- Exercised live: run index, the four employment-type tabs (25/8/35 of 68),
+  search with its no-match state, **sorting** (money columns descend on first
+  click, `Employee` ascends A→Z, Reset restores the backend order), row expand
+  and collapse
+- Lint parity **0 = 0** — the legacy page was clean and so is the v2
+- `Chip` change is purely additive: one new tone key, two new tokens, no
+  existing tone touched
+
+### No writes — and this is the page where that mattered most
+
+Not triggered: **Process, Re-process, Finalize, Unfinalize, Mark Paid, Release
+Payslips, Hold Payslips, Lock/Unlock Inputs, Lock/Unlock Payroll, Create run,
+Delete run, Ad-hoc save, Hold/Release salary**, and every download.
+
+Two dialogs were opened read-only and cancelled:
+
+- **Release Payslips** — 68 checkboxes, Select All / Deselect All, and the
+  documented exclusion of on-hold employees. Cancelled; the run is still
+  unreleased. The Release button was never clicked — it emails 68 payslips.
+- **Mark Paid** on a `finalized` run — renders `₹2,25,902 across 1 employee`,
+  matching the index row. Cancelled; status still `Finalized`.
+
+⚠️ **The on-hold exclusion path is present but untested with data.** This run
+has no employee on salary hold (`disabled` checkbox count = 0), so Select All
+skipping held employees, the disabled row, the `On Hold` chip and the
+"Excludes N employees on salary hold" line in Mark Paid all rest on the static
+diff. Creating a hold to test it is a write to a payroll run, which is on the
+never-trigger list.
+
+That is now the fourth surface in this project unverifiable for the same
+reason: **staging has no instance of the exceptional state**, and manufacturing
+one means performing the action the rule exists to prevent.

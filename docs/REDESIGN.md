@@ -1320,3 +1320,44 @@ The re-render test is the one that actually earned its keep here. Typing a
 rate, collapsing the section, and re-expanding it forces the value back through
 `Number(raw) / 100` and then `toPercentDisplay` — which is the exact path that
 turns `8.33` into `8.330000000000002` if the rounding guard is ever dropped.
+
+### Payroll batch 7 — `statutory-run`, and the limit of the verbatim-slice method
+
+This is the last payroll page and the one that publishes. It is also the page
+that broke the method every other page in this migration relied on.
+
+**The verbatim slice is not a safety guarantee — it is a safety guarantee about
+one region of the file.** On `statutory-run`, most of the money math lives
+*inside the render*: the summary-card reducers, the per-row live-ad-hoc
+recomputation (`baseGross` → `displayNet`), the mark-paid payable/held split,
+both filter pipelines, and the draft-run em-dash guards. Splicing everything
+above `return (` and then hand-rewriting the JSX would have left every one of
+those to be retyped from memory.
+
+So the rule gets a second clause:
+
+> Splice the pre-return block verbatim **and then grep the render for
+> arithmetic**. Any expression in the JSX that computes rather than formats is
+> a slice of its own: copy it, diff it, and record the diff. On this page that
+> was six additional blocks; on most pages it is zero, which is exactly why it
+> is easy to forget.
+
+The `displayNet` chain is the concrete argument. It strips ad-hoc deductions
+out of `item.totalDeductions` but deliberately leaves F&F in, so live edits
+flow through while the total still matches the printed payslip. That is not a
+rule anyone reconstructs correctly from the variable names.
+
+**Second: the audit adjudicated against me, on a rule I had already written.**
+`finalized` needed a Chip tone that wasn't `info` (which would have made it
+identical to `processed`). I added a `purple` tone with the accent as its own
+ink — on a 14% wash of itself. That is the accent-on-its-own-tint pairing
+documented twice in THEMING.md, and warned about in a comment three lines above
+the line I added. It measured 4.12 against a 4.5 floor.
+
+The fix was already sitting in the same file: `brand` and `warn` read
+`--brand-ink` / `--warn-ink` precisely because of this. Added
+`--acc-purple-ink` and pointed the tone at it.
+
+The lesson is not "run the audit" — the audit worked. It is that a documented
+rule stopped being consulted at the moment it became inconvenient, and the
+place it was documented was the file being edited.

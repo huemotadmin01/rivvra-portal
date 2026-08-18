@@ -2,7 +2,7 @@ import * as React from 'react';
 
 export interface ChipProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** Semantic tint. `brand` also gains a 1px ring. */
-  tone?: 'neutral' | 'brand' | 'warn' | 'danger' | 'info';
+  tone?: 'neutral' | 'brand' | 'warn' | 'danger' | 'info' | 'purple';
   /** Leading status dot in the current colour. */
   dot?: boolean;
   /** Uppercase micro-label styling, for table cells and card corners. */
