@@ -99,6 +99,9 @@
   --acc-rivvra: #4ADE80;
   --acc-blue: #60A5FA;
   --acc-purple: #C084FC;
+  /* Chip's purple tone puts this ink on a 14% wash of itself. In dark that
+     measures fine; in light the accent is too light, so light overrides it. */
+  --acc-purple-ink: #C084FC;
   --acc-orange: #FB923C;
   --acc-cyan: #22D3EE;
   --acc-amber: #FBBF24;
@@ -186,6 +189,7 @@
   --acc-rivvra: #15803D;
   --acc-blue: #2563EB;
   --acc-purple: #9333EA;
+  --acc-purple-ink: #6B21A8;
   --acc-orange: #C2410C;
   --acc-cyan: #0E7490;
   --acc-amber: #B45309;

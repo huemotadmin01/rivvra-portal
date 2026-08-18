@@ -6,6 +6,9 @@ const TONES = {
   warn:    { bg: 'var(--warn-soft, rgba(245,158,11,.14))', fg: 'var(--warn-ink, #f59e0b)', ring: 'transparent' },
   danger:  { bg: 'var(--danger-soft, rgba(239,68,68,.14))', fg: 'var(--danger, #ef4444)', ring: 'transparent' },
   info:    { bg: 'var(--info-soft, rgba(59,130,246,.14))', fg: 'var(--info, #3b82f6)', ring: 'transparent' },
+  // Added for payroll's run lifecycle, where `finalized` sits between
+  // `processed` (info) and `paid` (brand) and must not read as either.
+  purple:  { bg: 'color-mix(in srgb, var(--acc-purple) 14%, transparent)', fg: 'var(--acc-purple-ink, #9333EA)', ring: 'transparent' },
 };
 
 /** Compact status pill. Pattern is bg/14, text/full, optional 1px ring. */
