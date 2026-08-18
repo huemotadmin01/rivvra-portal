@@ -58,6 +58,7 @@ const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 
 // Lazy-loaded: Platform settings
 const SettingsGeneral = lazy(() => import('./components/settings/SettingsGeneral'));
+const SettingsGeneralV2 = lazy(() => import('./components/settings/SettingsGeneralV2'));
 const SettingsTeam = lazy(() => import('./components/settings/SettingsTeam'));
 const UserDetail = lazy(() => import('./pages/settings/UserDetail'));
 const UserDetailV2 = lazy(() => import('./pages/settings/UserDetailV2'));
@@ -547,7 +548,7 @@ function App() {
               <Route path="/org/:slug/settings" element={<OrgSettingsRedirect />} />
               <Route path="/org/:slug/settings/profile" element={<SettingsProfileRedirect />} />
               <Route element={<OrgAdminGate />}>
-                <Route path="/org/:slug/settings/general" element={<SettingsPageWrapper><SettingsGeneral /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/general" element={<SettingsPageWrapper><PageSwitch v2={SettingsGeneralV2} legacy={SettingsGeneral} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/users/:userId" element={<SettingsPageWrapper><PageSwitch v2={UserDetailV2} legacy={UserDetail} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/users" element={<SettingsPageWrapper><SettingsTeam /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/outreach" element={<SettingsPageWrapper><PageSwitch v2={SettingsOutreachV2} legacy={SettingsOutreach} /></SettingsPageWrapper>} />

@@ -2406,3 +2406,75 @@ zero, and this is the second page in the project where that pattern appears.
 Fifth of six hand-rolled `ToggleSwitch` copies removed. **One remains** —
 `components/ToggleSwitch.jsx`, used by `EngageSettings` and
 `SequenceDetailPage`.
+
+## #96 — settings batch 9: `settings/general`
+
+866 lines, four components — and the page holding the three most destructive
+actions in the product. **Four verbatim slices**: `AuthenticationSection` (46),
+`DangerZoneSection` (53), `DataBackupSection` (66), page body (96). **14 probes.**
+
+### ⚠️ What was deliberately not done
+
+| action | why it stayed untouched |
+|---|---|
+| **Delete organization** | permanently removes every record in the workspace, for every member |
+| **Restore backup** | **replaces** all current data; anything since the backup is lost |
+| **Create backup** | a write |
+| Resend workspace URL email | sends mail |
+| Export data | downloads every record in the workspace |
+| Logo upload / remove, Save branding, Save authentication | writes |
+
+A blocking interceptor recorded any non-GET to `/api/org/*` for the whole
+session. It recorded **nothing**.
+
+### The gates, verified without arming them
+
+**Auth guard.** Turning both sign-in methods off is the one setting here that
+could lock every member out of the org. Toggled both off: the warning appeared
+and **both Save buttons stayed disabled**. Restored to the org's real config
+(Google off, Password on).
+
+**Delete gate.** Opened the confirm and typed only deliberately wrong values —
+every one left the button disabled:
+
+| typed | button |
+|---|---|
+| *(empty)* | disabled |
+| `huemot` (prefix) | disabled |
+| `huemot-technolog` (one char short) | disabled |
+| `HUEMOT-TECHNOLOGY` (wrong case) | disabled |
+| `huemot-technology ` (trailing space) | disabled |
+
+**I did not verify the enable case, and that is deliberate.** Typing the exact
+slug arms a button that erases the entire workspace one click later. A test
+that leaves the most destructive control in the product live-and-waiting is not
+worth the coverage. The rejection side is verified; the acceptance side rests
+on `confirmSlug !== slug` being byte-identical, which is probed.
+
+The restore gate could not be armed at all — this org has **no backups**, so no
+Restore button renders. `confirmText !== 'RESTORE'` is probed, not exercised.
+
+### Rendered parity
+
+Zero word differences. All four inputs identical (including the org's real
+website), all licence figures identical — `12 / 100 / 88 / 0` and
+`12 of 100 licenses used (12%)` — backup list identical (empty), danger zone
+present with its delete button.
+
+### Verification
+
+- **0 contrast failures** in both themes (79 nodes each), real paint forced
+  before each read
+- Four slices byte-identical (46 + 53 + 66 + 96 = 261 lines); 14 probes
+  covering all three confirmation gates, all three destructive endpoints, the
+  licence math and the three-field branding dirty-check
+- Lint parity **6 = 6** — including the unused `user` binding, kept rather than
+  quietly removed so the slice stays byte-identical
+- **No writes, zero attempts.**
+
+### Worth carrying forward
+
+There is a class of control where *verifying the happy path is itself the
+risk*. The right coverage for a type-the-slug delete is: probe the comparison
+in source, exercise every rejection live, and stop. Writing "verified" against
+the acceptance path would have meant arming it.
