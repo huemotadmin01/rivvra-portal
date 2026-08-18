@@ -1546,3 +1546,40 @@ committable. Toggled both off, confirmed the warning and the disabled Save,
 restored. The difference between the two cases is worth internalising: a
 **disabled-button** guard can be tested by entering the bad state; a
 **type-to-confirm** guard cannot, because entering the good state is the danger.
+
+### Settings batch 10 — prove the binding set, don't read the form
+
+`settings/companies` is the largest settings file (1,162 lines) and the one
+where a migration slip would be quietest: `handleSave` PUTs the **whole** form,
+and `populateForm` is what fills it. A field bound in the render but missing
+from `populateForm` goes to the server blank and **erases itself on the next
+save** — with no error, no toast, and nothing visibly wrong until someone
+notices the bank account number is gone.
+
+Reading a 30-field form twice and hoping to spot a gap is not verification. The
+check that actually settles it is mechanical:
+
+> Extract every field the render *binds* (through each `handle*Change` helper)
+> on both sides, and compare the sets. Equal sets, equal round-trip.
+
+31 on each side, no difference in either direction. That takes seconds and is
+not fooled by a form long enough that attention runs out halfway.
+
+The same pass surfaced a **data** defect the code was innocent of. The country
+code drives two gates, `cc === 'IN'`, which hide the PAN field and the whole
+IRP e-invoicing section. The default company stores `country: "India"` with
+`countryCode: "MP"` — a *state* code in the country-code field — so neither can
+be configured for it. The Tax ID label still reads "GSTIN", but only because
+that is the helper's default branch; it is right by accident.
+
+Two things worth keeping from that:
+
+- **A permissive default can hide a bad input.** `taxIdLabel` returns GSTIN for
+  anything it does not recognise, so `MP` looks correct while `cc === 'IN'`
+  quietly fails elsewhere. A default that swallows unknown values makes the
+  bad value invisible at exactly the place you would notice it.
+- **On staging, suspect the scrub before the app.** Another row on the same page
+  reads `country: "Titonur Racuc"`, which is plainly pseudonymised. `MP` is not
+  obviously scrubbed, but it could be — so the finding is written as "check this
+  field in production", not as a confirmed live bug. That distinction has been
+  wrong-way-round once already in this project.
