@@ -335,9 +335,10 @@ export default function MyTaxDeclarationsPageV2() {
           <EmptyState
             icon={<Shield size={22} />}
             title="Nothing to declare"
-            sub={BLOCK_COPY[blockReason]}
-            action={blockReason === 'error' ? <Button size="sm" onClick={loadData}>Retry</Button> : undefined}
-          />
+            actions={blockReason === 'error' ? <Button size="sm" onClick={loadData}>Retry</Button> : undefined}
+          >
+            {BLOCK_COPY[blockReason]}
+          </EmptyState>
         </Panel>
       </div>
     );

@@ -131,7 +131,9 @@ export default function MyTaxReportPageV2() {
           <EmptyState
             icon={<BarChart3 size={22} />}
             title="No report to show"
-            sub={
+            actions={blockReason === 'error' ? <Button size="sm" onClick={loadReport}>Retry</Button> : undefined}
+          >
+            {
               blockReason === 'not_linked'
                 ? "Your account isn't linked to an employee record — contact HR."
                 : blockReason === 'not_india'
@@ -140,8 +142,7 @@ export default function MyTaxReportPageV2() {
                     ? "We couldn't load your tax report. Please try again."
                     : `No tax data available for FY ${selectedFY}`
             }
-            action={blockReason === 'error' ? <Button size="sm" onClick={loadReport}>Retry</Button> : undefined}
-          />
+          </EmptyState>
         </Panel>
       ) : (
         <div style={{ display: 'grid', gap: 14 }}>

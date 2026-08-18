@@ -1428,3 +1428,103 @@ which is the empty `declarations: {}` the regime toggle created in #78.
 - Lint parity **0 = 0**
 - **No writes** — no save, no approve, no reject. The dialog was opened, edited
   in local state, and dismissed.
+
+## #85 — `payroll/tax-reports`
+
+Per-employee income tax report: a list of confirmed employees, an expandable
+row that fetches one report, and a full-report dialog with the detailed
+computation. Read-only — nothing on this page writes.
+
+Logic spliced in verbatim (**87 lines, byte-identical**), including the request
+ticket. `taxReport` is a single shared slot, so expanding two rows quickly
+fires two overlapping fetches and the slower one used to win — employee A's
+numbers landing under employee B. Every fetch takes a ticket and only the
+newest may write. That is carried across untouched.
+
+### This page is the worked answer for #79
+
+The ESS twin (`MyTaxReportPage`) was flagged in #79 for two hardcoded captions.
+This admin page had **already fixed both**, with the reasoning in comments:
+
+| row | ESS twin (#79) | here |
+|---|---|---|
+| `Less: Standard Deduction` | caption `(₹75K / ₹50K)` from the regime | no caption — the amount is FY-configurable (`fyStatutoryConfig`) and could disagree with the figure in the next column |
+| `Health & Education Cess` | caption `(4%)` | no caption — `cessRate` is per-FY configurable and **is not in the tax-report payload**, so `(4%)` was an assumption |
+
+Both comments are carried across verbatim. Fixing the ESS page is now a matter
+of copying them, not of re-deriving the argument.
+
+### 🔴 `EmptyState` was being called with props it does not have — 12 sites, 8 files
+
+The component's contract is `children` for the explanatory line and `actions`
+for the buttons. I have been passing `sub=` and `action=` since #76. React
+spreads unknown props onto the outer `<div>` and renders nothing, so **every
+one of those empty states shipped without its explanatory copy and without its
+button** — silently, in already-merged code.
+
+| file | what was invisible |
+|---|---|
+| `TaxReportsPageV2` | load-error **Retry**, search **Clear search** |
+| `StatutoryConfigPageV2` | **Clear search and filters**, the "no employees yet" copy |
+| `SalaryStructuresPageV2` | **Create your first structure**, **Clear search** |
+| `PTMasterPageV2` | **Load Default PT Slabs**, **Clear search** |
+| `MyTaxDeclarationsPageV2` | **Retry** + `BLOCK_COPY[blockReason]` |
+| `MyTaxReportPageV2` | **Retry** + the whole blocked-reason explanation |
+| `LeaveApplyV2` | why leave is unavailable |
+| `TimesheetProjectsV2` | "Add a client before creating projects." |
+
+The worst of these are the `Retry` buttons: an admin hitting a failed load had
+**no way to retry at all** except a full page reload.
+
+`EmptyState.d.ts` declares the correct contract — I wrote it, then did not
+follow it. Vite does not type-check, eslint has no JSX prop rule, and the build
+is happy either way. **This is the sixth time in this migration that the build
+passed on something visibly broken**, and the first where the wrong thing was
+invisible rather than wrong-looking, which is why it survived eight PRs.
+
+All 12 rewritten and re-verified live: `Clear search` restores 26 rows, and the
+`Retry` button — exercised by forcing `GET /statutory` to reject, clicking it,
+and letting the next attempt succeed — recovers from 0 rows to 26.
+
+### Restored on the way through
+
+Two things the first draft of the V2 page dropped, both caught by diffing the
+rendered output rather than the source:
+
+- the **Cumulative TDS** column and its running accumulator, which exists only
+  in the dialog's monthly table and is computed in the component — it is not a
+  payload field, so nothing else would have surfaced its absence
+- `{monthsProcessed} processed • {monthsRemaining} remaining` under Est.
+  Monthly TDS, and the `imported` marker on months carried over from an
+  imported payslip rather than processed in a Rivvra run
+
+Also restored: legacy distinguishes **three** empty states — request failed,
+company genuinely has no confirmed employees, and the search matched nothing.
+The first draft collapsed the last two into one, which is the exact conflation
+the legacy page carries a comment about having fixed.
+
+### One deliberate divergence
+
+Legacy sets `✓ Better by ₹…` in green **on a green wash** — an accent ink on a
+tint of itself, the pairing documented twice in THEMING.md as failing every
+time. The tint and border already carry "this regime is better"; the ink is
+`--fg`. Same structural fix as my-attendance and leave/approvals.
+
+### Verification
+
+- Money parity **legacy vs v2, same employee, 84 values in the same order**:
+  4 summary-row, 17 expanded-row, 63 dialog — zero differences.
+  The first attempt at this compared V2 to V2: flipping `uiV2` in the cached
+  org was undone by the app's own org refetch mid-load. Pinned properly by
+  temporarily routing straight at the legacy component, then restored.
+- **0 contrast failures** in both themes with the dialog open (287 light /
+  289 dark). The page uses no `opacity`, so nothing went unmeasured.
+- Exercised live: row expand and collapse, the full-report dialog, monthly
+  breakdown, regime comparison, search, the no-match empty state, and the
+  forced load failure with a successful Retry.
+- Lint parity **11 = 11** (all pre-existing); `TaxReportsPageV2.jsx` clean.
+- **No writes.** The page has no mutating endpoint.
+
+⚠️ `SalaryStructuresPageV2`'s `Clear search` fix is verified by build and lint
+only — its search box renders behind `showSearch`, which the staging data does
+not satisfy. It is the identical one-token rename to the two confirmed live.

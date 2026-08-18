@@ -302,12 +302,13 @@ export default function StatutoryConfigPageV2({ embedded = false }) {
           data.length === 0 ? (
             <EmptyState
               title="No employees to configure yet"
-              sub="Statutory settings appear here once employees exist for this company. Add employees in the Employee app and they will show up with the default PF, PT and New-regime settings."
-            />
+            >
+              {"Statutory settings appear here once employees exist for this company. Add employees in the Employee app and they will show up with the default PF, PT and New-regime settings."}
+            </EmptyState>
           ) : (
             <EmptyState
               title="No employee matches your search or filter"
-              action={<Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilter('all'); }}>Clear search and filters</Button>}
+              actions={<Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilter('all'); }}>Clear search and filters</Button>}
             />
           )
         )}

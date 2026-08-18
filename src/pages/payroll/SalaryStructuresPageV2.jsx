@@ -272,13 +272,14 @@ export default function SalaryStructuresPageV2({ embedded = false }) {
             <EmptyState
               icon={<Layers size={22} />}
               title="No salary structures yet"
-              sub="A salary structure is a reusable template that says how an employee's monthly gross is divided — for example Basic 50%, HRA 20%, Special Allowance 30%. Payroll uses it to work out each component from the gross, and to decide which parts count towards PF and tax."
-              action={(
+              actions={(
                 <Button size="sm" iconLeft={<Plus size={14} />} onClick={() => { resetForm(); setShowForm(true); }}>
                   Create your first structure
                 </Button>
               )}
-            />
+            >
+              {"A salary structure is a reusable template that says how an employee's monthly gross is divided — for example Basic 50%, HRA 20%, Special Allowance 30%. Payroll uses it to work out each component from the gross, and to decide which parts count towards PF and tax."}
+            </EmptyState>
             <p style={{ font: "400 11px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', maxWidth: 420, margin: '0 auto', textAlign: 'center' }}>
               Create one structure per pay band you use. Components must add up to 100%, and Basic must be
               at least 50% of gross to stay compliant with the New Wage Code. Mark one structure as the
@@ -291,7 +292,7 @@ export default function SalaryStructuresPageV2({ embedded = false }) {
           <Panel>
             <EmptyState
               title={`No structure matches “${search}”`}
-              action={<Button variant="ghost" size="sm" onClick={() => setSearch('')}>Clear search</Button>}
+              actions={<Button variant="ghost" size="sm" onClick={() => setSearch('')}>Clear search</Button>}
             />
           </Panel>
         )}

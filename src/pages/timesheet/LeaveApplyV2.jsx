@@ -255,8 +255,9 @@ export default function LeaveApplyV2() {
           <EmptyState
             icon={<AlertCircle size={22} />}
             title="Leave Management Unavailable"
-            sub="Leave management is not available for your employment type. Contact your manager for leave requests."
-          />
+          >
+            {"Leave management is not available for your employment type. Contact your manager for leave requests."}
+          </EmptyState>
         </Panel>
       </div>
     );

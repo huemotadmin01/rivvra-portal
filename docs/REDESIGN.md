@@ -1248,3 +1248,42 @@ That is now a pattern worth stating once: **every unverifiable page in this
 project is a settlement or reconciliation surface, and all of them are
 unverifiable because staging has no finalised instance of the thing.** It is a
 gap in the staging dataset, and it is the same gap each time.
+
+### Payroll batch 5 — `tax-reports`, and a house rule about `ds` prop names
+
+The page itself is a straightforward verbatim-slice migration: 87 identical
+logic lines, an expandable per-employee report, a full-report dialog, and 84
+money values that match legacy exactly in order and value.
+
+The thing worth carrying forward is what the batch turned up on the way.
+
+**`EmptyState` had been called with the wrong prop names since #76 — 12 sites
+across 8 already-merged files.** The contract is `children` and `actions`; I
+had been passing `sub` and `action`. React spreads unknown props onto the
+outer element and renders nothing, so those empty states shipped with no
+explanatory copy and no button — including two `Retry` buttons that were the
+only escape from a failed load.
+
+`EmptyState.d.ts` states the correct contract. Nothing enforces it: Vite does
+not type-check, and eslint has no rule for JSX prop names. So the standing
+rule for this migration gets one more line:
+
+> **A `ds` primitive's `.d.ts` is the contract, and nothing checks that you
+> followed it.** Before using a `ds` component in a new page, read its `.d.ts`
+> — not the last page that used it, which may be wrong in the same way.
+
+This is the sixth time the build passed on something visibly broken. It is the
+first where the defect was *invisible* — a missing button looks like a design
+choice — which is why it survived eight PRs instead of one.
+
+Second: the rendered-output diff earned its place again. Two things the first
+draft dropped were invisible to a source-text probe because they are computed
+in the component rather than read from the payload — the dialog's running
+**Cumulative TDS** column, and the `{monthsProcessed} processed •
+{monthsRemaining} remaining` caption. Nothing in a `formatMoney` field-set
+comparison can see either. Diff the rendering, not the source.
+
+Third, on pinning legacy for a parity capture: flipping `uiV2` in the cached
+org **does not hold** — the app refetches the org on mount and puts it back,
+so a capture taken that way can silently be V2-vs-V2. Pin by routing straight
+at the legacy component for the duration of the capture, then restore.

@@ -157,7 +157,7 @@ export default function TimesheetProjectsV2() {
           rows={clients}
           rowKey="_id"
           stickyHeader
-          empty={<EmptyState icon={<Building2 size={22} />} title="No clients yet" sub="Add a client before creating projects." />}
+          empty={<EmptyState icon={<Building2 size={22} />} title="No clients yet">{"Add a client before creating projects."}</EmptyState>}
         />
       ) : (
         <DataTable
