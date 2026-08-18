@@ -1363,3 +1363,68 @@ order and the same hues, so a given component keeps the colour it had.
 - **No writes** — form opened, edited in local state, cancelled. Re-queried
   after: still **4 structures**, first one still `Basic 35% / Personal Allowance
   35% / Special Allowance 30%`. The 33.33 split was never saved.
+
+---
+
+## payroll/tax-declarations — the admin twin, and a cap that only agrees by coincidence
+
+The admin counterpart to the ESS page from #78. A save here makes the backend
+recalculate TDS and reprocess the latest payroll run; an approve marks every
+uploaded proof verified. Logic spliced in verbatim (**205 lines,
+byte-identical**), `declStatusKey` / `approvalActionsFor` / `FILTER_ORDER`
+diffed separately, **16 tax-logic and copy probes** asserted.
+
+### 🔴 The two twins cap 80C differently
+
+| page | 80C cap |
+|---|---|
+| `timesheet/tax/declarations` (ESS) | `section80CLimit` from `getPublicPlatformSetting('tax_declaration_sections')` |
+| `payroll/tax-declarations` (admin) | **hardcoded** `Math.min(150000, …)`, labelled `(Max ₹1,50,000)` |
+
+Both write the `section80CTotal` that payroll reads. Change the platform
+setting and the two pages cap the same employee's 80C differently, depending on
+who edited it.
+
+Driven live, the admin page caps 120,000 + 80,000 → **₹1,50,000**, and +80D
+25,000 → **₹1,75,000** — *identical to the ESS twin's numbers in #78*. **They
+agree today only because the configurable value happens to equal the hardcoded
+one.** That is the whole finding: the divergence is latent, not visible.
+
+Carried across unchanged — the fix is to read the setting here too, which is a
+behaviour change on a TDS input.
+
+### The audit caught my own regression
+
+First run: **0 failures but `dimmed: 5`**. By the rule written under
+my-attendance, a non-zero `dimmedByAncestorOpacity` means those nodes are
+*unmeasured*, not passed — so it needed chasing rather than accepting.
+
+They were the filter-chip counts, and the `opacity: 0.75` on them was **mine**,
+written in this very file — the exact anti-pattern that rule exists for. Removed;
+the count inherits the button ink. Re-run: **`dimmed: 0`**, 274/276 nodes, 0
+failures.
+
+Worth noting the flag did its job on the author who added it.
+
+### Not reachable on this data
+
+`Awaiting approval 0`, `approved 0`, `rejected 0` — so `approvalActionsFor`
+returns `[]` for every row present, and **the approve/reject dialog never
+renders**. Verified only that the buttons are correctly *absent* for `declared`
+rows, which is the documented behaviour. The asymmetric reversal copy ("proofs
+already marked verified … stay verified") is asserted present, not seen.
+
+The `[QA-SEED]` fixture from #80 shows up here as `Fomuj Sekij Lo — Declared`,
+which is the empty `declarations: {}` the regime toggle created in #78.
+
+### Verification
+
+- **0 contrast failures** in both themes (274 / 276 nodes), `dimmed: 0` after
+  the fix
+- Logic byte-identical (205 lines); 3 workflow helpers identical; 16 probes
+- Exercised live: filter chips with counts, the documented `visibleFilters`
+  hiding of zero-count states, row derivation, the edit dialog, regime switch,
+  and the 80C cap
+- Lint parity **0 = 0**
+- **No writes** — no save, no approve, no reject. The dialog was opened, edited
+  in local state, and dismissed.
