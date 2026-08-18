@@ -1829,3 +1829,120 @@ Remaining in settings after this: `SettingsCompanies` (1,162), `SettingsTeam`
 `SettingsTimesheet` (641), `SettingsEmailLogs` (487), `SettingsPolicies` (448),
 `SettingsIncentive` (447), `SettingsAts` (438), `SettingsEmployee` (304),
 `ReassignDataModal` (258), and `SettingsOutreach` + `EngageSettings` (479).
+
+## #89 — settings batch 2: `outreach` + `EngageSettings`
+
+Deferred from #88 on purpose: `SettingsOutreach` is a 71-line shell whose body
+is `<EngageSettings />`, 408 more legacy lines. Migrating one without the other
+ships a half-redesigned tab. Both are done here.
+
+Two slices spliced in verbatim: `EngageSettings`'s state/load/save/reset block
+(**99 lines**) and `SignatureSection`'s iframe effect (**46 lines**).
+
+### What was treated as load-bearing
+
+- **The send-limit clamps.** `Math.min(200, Math.max(1, val))` daily and
+  `Math.min(50, Math.max(1, val))` hourly, with the `isNaN` early return. These
+  govern how many emails leave a real mailbox — typing 5000 into that field is
+  a domain-reputation problem, not a UI one. Driven live: `5000 → 200`,
+  `0 → 1`, `75 → 75`; `999 → 50`, `0 → 1`, `12 → 12`.
+- **`starterSignature` and its prefill guard.** `savedSig ? res.settings.signature
+  : starterSignature` — the starter is a prefill for *empty* signatures only and
+  must never overwrite one a rep has saved.
+- **The preview iframe's `sandbox="allow-same-origin"` with no
+  `allow-scripts`.** It renders HTML the user pasted, so granting scripts would
+  turn a settings field into stored XSS against its own author. Verified
+  present and unchanged on the rendered page.
+
+### 🔴 Pre-existing crash: the tab dies if the Gmail status call fails
+
+`SettingsOutreach` leaves `gmailStatus === null` when `api.getGmailStatus()`
+rejects or returns `success: false` (the `.catch(() => {})` swallows it), and
+`EngageSettings` then reads `gmailStatus.connected` unguarded.
+
+Forced the failure and reproduced it on **both**:
+
+```
+Something went wrong
+Cannot read properties of null (reading 'connected')
+```
+
+The entire tab is replaced by the error boundary. **Not fixed** — the
+expression is carried across byte-identically and the behaviour is confirmed
+identical to legacy, so this is reported rather than silently changed. The
+one-character fix is `gmailStatus?.connected`, which would render "Not
+connected" instead of crashing.
+
+### `ds/Button` gained a polymorphic `as`
+
+The Connect control is a real navigation (`href="#/outreach/engage"`). `Button`
+renders a `<button>` and had **no** `as` prop — writing `as="a" href=…` would
+have spread both onto a `<button>`, producing a control that looks like a link
+and navigates nowhere.
+
+That is the `EmptyState` failure from #85 exactly, and this time it was caught
+**before** writing the page, by reading `Button.d.ts` first. The rule from #85
+worked.
+
+Added `as` (default `'button'`), with `type` and `disabled` applied only for
+real buttons and `aria-disabled` used otherwise. Verified live: the Connect
+control is an `<a>`, carries `href="#/outreach/engage"`, and has no stray
+`type` attribute.
+
+### Tooltip copy moved to native `title`
+
+Legacy built each hint as an always-in-DOM `opacity-0 group-hover:opacity-100`
+div. Those are now native `title` attributes — which is why an `innerText` diff
+shows nine words "missing" from v2. They are not missing; all three strings
+were asserted present verbatim as `title` values:
+
+- `Name shown in the "From" field. Leave empty to use your profile name.`
+- `Maximum emails sent per day`
+- `Maximum emails sent per hour`
+
+### The audit's 5th false-failure mode, again
+
+First light-theme run: **19 failures**, every one a sidebar nav item with ink
+`rgb(186,196,208)` on white — a *dark-theme* foreground measured against a
+*light-theme* background. I had forced layout with `void document.body.offsetHeight`
+and assumed that was enough.
+
+It is not. **Layout is not paint.** After forcing a real paint the same ink
+computes to `rgb(52,60,70)` and all 19 vanish. The rule stands as written under
+my-attendance and gets one clarification: only a screenshot (or equivalent
+compositor flush) settles a theme switch — `offsetHeight` does not.
+
+### A method correction
+
+Earlier baselines in this project were taken with `eslint … && echo clean`,
+which reads the **exit code** — and eslint exits 0 when there are only
+warnings. Re-checked with full output: legacy `EngageSettings` has 1 warning
+(`exhaustive-deps` on `loadSettings`) and v2 has the same 1, inherited from the
+slice. Parity holds. The #88 files were re-checked too and are genuinely clean.
+
+### Verification
+
+- **0 contrast failures** in both themes (57 dark / 59 light) after a real paint
+- Slices byte-identical: 99 lines + 46 lines
+- Rendered parity: all four input/textarea values identical, **including the
+  full ~4KB HTML signature**, and the iframe `sandbox` attribute
+- Clamps driven live; tooltip copy asserted preserved; `as="a"` verified
+- Lint parity **1 warning = 1 warning**, same warning
+- **No writes.** Neither Save nor Reset was clicked. `handleReset` is not a
+  local form reset — it PUTs the defaults and would wipe the signature,
+  `fromName` and unsubscribe settings. The clamp probes were local state only
+  and were discarded by reload, confirmed by the limits reading 50/6 afterwards.
+
+### One deliberate addition
+
+The unsubscribe toggle had no label of its own in legacy — only a section
+heading and a paragraph. It now has a `SettingRow` label ("Add an unsubscribe
+link to every sequence email") and the `Switch` carries an accessible name.
+That is an addition, not a copy change, and it is the only text v2 gained.
+
+### `EngagePage` still renders the legacy child
+
+`EngageSettings` has a second consumer, `pages/EngagePage.jsx`, which is not
+migrated and not switched. Legacy page → legacy child, v2 tab → v2 child, so
+neither surface is half-styled. When EngagePage is migrated it should move to
+`EngageSettingsV2` in the same change.

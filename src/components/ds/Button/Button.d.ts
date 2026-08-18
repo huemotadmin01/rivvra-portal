@@ -15,6 +15,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** Node rendered after the label (usually an arrow). */
   iconRight?: React.ReactNode;
   children?: React.ReactNode;
+  /** Element to render. Use `"a"` only when the action is real navigation that
+   *  should keep link behaviour (middle-click, open in new tab). */
+  as?: 'button' | 'a';
+  /** Only meaningful with `as="a"`. */
+  href?: string;
 }
 
 /** Primary action control. Reads brand + surface tokens, so it themes automatically. */

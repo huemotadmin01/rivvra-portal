@@ -1400,3 +1400,40 @@ across two of these four files, and four more copies survive elsewhere
 copies of a toggle is what happens when the primitive exists but nothing
 prompts you to reach for it — the same failure mode as the `EmptyState` prop
 names in #85, and the reason to read the `.d.ts` before writing the page.
+
+### Settings batch 2 — the #85 rule paying for itself, and layout ≠ paint
+
+`SettingsOutreach` + `EngageSettings`, migrated together because a 71-line
+shell around a 408-line child is not two batches.
+
+**The rule from #85 worked.** The Connect control is a real link, and `Button`
+renders a `<button>` with no `as` prop — `as="a" href=…` would have spread both
+onto a button and produced something that looks like a link and navigates
+nowhere. That is precisely the `EmptyState` failure, and this time it was
+caught *before* writing the page because the rule now says to read the `.d.ts`
+first. `Button` gained a polymorphic `as` instead.
+
+Worth stating: the value of that rule is not that it prevents a class of bug,
+it is that it moves the discovery from "verified live, three steps later" to
+"before the first line was written."
+
+**Layout is not paint.** The light-theme audit reported 19 sidebar failures —
+dark-theme ink measured against a light-theme background. I had flushed with
+`void document.body.offsetHeight` and assumed that settled the theme switch.
+It forces layout; it does not force the compositor. After a real paint the same
+ink computes correctly and all 19 vanish. The 5th false-failure mode gets one
+clarification: **only a screenshot (or equivalent) settles a theme switch.**
+
+**A measurement method was also wrong.** Lint baselines in this project have
+sometimes been taken as `eslint … && echo clean`, which reads the exit code —
+and eslint exits 0 when there are only warnings. Re-checked with full output;
+the affected batches turned out to be accurate anyway, but the method was not
+sound and is not used again.
+
+Finally, a pre-existing crash worth naming because it is a shape that recurs:
+`SettingsOutreach` swallows a failed status call with `.catch(() => {})`, leaves
+its state `null`, and the child then reads `gmailStatus.connected` unguarded —
+so an API hiccup replaces the whole tab with the error boundary. Carried across
+unchanged and reported. **A swallowed error plus an unguarded read of the state
+it was supposed to populate is a crash waiting for a bad network day**, and this
+codebase has that pattern in more than one place.

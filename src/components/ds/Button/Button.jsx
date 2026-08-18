@@ -5,6 +5,11 @@ export function Button({
   disabled = false,
   iconRight = null,
   iconLeft = null,
+  // Render as something other than <button>. The only real use is `as="a"` for
+  // a navigation that must stay a link — middle-click, open-in-new-tab and
+  // "copy link address" are behaviours a button cannot give back. `type` and
+  // `disabled` are button-only attributes and are dropped for other elements.
+  as: As = 'button',
   children,
   // Pulled out of `rest` so a caller-supplied style merges with the computed
   // one. Spreading `rest` over `style=` replaced it wholesale, dropping the
@@ -61,16 +66,17 @@ export function Button({
     },
   };
 
+  const isButton = As === 'button';
   return (
-    <button
-      type="button"
-      disabled={disabled}
+    <As
+      {...(isButton ? { type: 'button', disabled } : {})}
+      {...(!isButton && disabled ? { 'aria-disabled': true } : {})}
       style={{ ...base, ...sizes[size], ...variants[variant], ...style }}
       {...rest}
     >
       {iconLeft}
       {children}
       {iconRight}
-    </button>
+    </As>
   );
 }
