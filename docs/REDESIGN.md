@@ -1477,3 +1477,37 @@ Two smaller things this page is a good example of:
   the org's real settings. It is the sort of thing that looks like defensive
   noise until you notice the form's initial state is a complete, plausible,
   entirely wrong settings object.
+
+### Settings batch 8 — `x || fallback` after `Number()` eats a legitimate zero
+
+`settings/timesheet` is the largest settings tab (641 lines) and the one with
+the sharpest write surface: two buttons that email every employee with a
+pending timesheet or attendance. Neither was clicked.
+
+The durable finding is a small one about a very common expression.
+
+The reminder day is clamped with:
+
+```js
+Math.min(10, Math.max(1, Number(e.target.value) || 5))
+```
+
+I predicted `0 → 1`. It is **`0 → 5`**, because `Number('0')` is `0`, which is
+falsy, so `|| 5` fires *before* the clamp ever runs. The `Math.max(1, …)` lower
+bound is unreachable except via a negative number.
+
+Confirmed by evaluating the same pure expression and comparing it against the
+DOM across five inputs — `0 → 5`, `-3 → 1`, `7 → 7`, `99 → 10`, blank `→ 5`.
+
+**My expectation was wrong, not the code**, and that is the point worth
+recording. `Number(x) || fallback` is written everywhere in this codebase as
+"parse, with a default", but it silently converts a deliberate `0` into the
+default. On a reminder-day field that is harmless. On a rate, a cap, a quota or
+a threshold it is not — and this is the second page in the project carrying the
+pattern.
+
+The check that settled it is also worth keeping: **evaluate the suspect
+expression as a pure function in the page, then compare it to what the DOM
+actually shows.** If they agree, the migration is faithful whatever the
+behaviour is, and the question moves from "did I break this?" to "should this
+behave this way?" — which is a question for the owner, not the migration.

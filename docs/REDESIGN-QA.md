@@ -2329,3 +2329,80 @@ Two `javascript_tool` calls timed out on a row expand that had in fact worked;
 a polling loop was spinning on a text regex that never matched because the
 label renders with different whitespace. The click was fine. When a poll times
 out, check whether the *predicate* is wrong before concluding the *page* is.
+
+## #95 — settings batch 8: `settings/timesheet` (ESS)
+
+641 lines, the largest settings tab. **145-line verbatim slice** — all state,
+both effects, both send handlers and all five leave-type mutators — plus
+**21 probes**.
+
+### ⚠️ Two buttons on this page email every employee
+
+`handleSendReminders` POSTs `/reminders/send` to everyone with a non-approved
+timesheet; `handleSendAttReminders` does the same for attendance. Both are
+outward-facing and on the never-trigger list. Neither was clicked — only their
+enabled state and their "last sent" copy were read. Neither Save was clicked
+either.
+
+### Leave accrual is the load-bearing part
+
+`accrualByEmployeeType` is what each employee's yearly quota is drawn from, so
+its mutator, the `?? lt.accrualPerYear ?? 0` fallback chain, the eligibility
+toggle and `Number(value) || 0` are all byte-identical. So are **16 `??`
+defaults** across app settings and leave policy — `requireApproval ?? true`,
+`proRataOnJoining ?? true`, `halfDayAllowed ?? true`, `overtimeMultiplier ?? 1.5`
+and the rest. Each is a policy decision, not a formatting choice.
+
+### Rendered parity — the strongest yet on a settings tab
+
+| surface | result |
+|---|---|
+| visible text | **zero** word differences |
+| inputs | **21**, identical |
+| selects | **6**, identical incl. full option lists |
+| toggles | **22**, identical — `22 = 22`, no over-match this time |
+| leave-type summary | identical — Sick 12/yr, Casual 4/yr, LOP 0/yr |
+
+Legacy's toggle states were read from painted background colour (its
+hand-rolled switch exposes no `aria-checked`); v2's from `aria-checked`. The
+counts agreed exactly, unlike the ATS capture in #91 where my selector
+over-matched.
+
+### The clamp does something I predicted wrong
+
+Legacy clamps the reminder day with
+`Math.min(10, Math.max(1, Number(e.target.value) || 5))`. I expected `0 → 1`.
+It is `0 → 5`, because **`Number('0')` is falsy, so `|| 5` fires before the
+clamp ever runs**. The `Math.max(1, …)` lower bound is only reachable with a
+negative number.
+
+Confirmed by evaluating the same pure expression and comparing to the DOM on
+five inputs — they agree exactly:
+
+| typed | result |
+|---|---|
+| `0` | **5** |
+| `-3` | 1 |
+| `7` | 7 |
+| `99` | 10 |
+| `` (blank) | 5 |
+
+My expectation was wrong, not the code. Carried across untouched. Worth writing
+down because `x || fallback` after a `Number()` silently swallows a legitimate
+zero, and this is the second page in the project where that pattern appears.
+
+### Verification
+
+- **0 contrast failures** in both themes (148 nodes each), real paint forced
+  before each read
+- Slice byte-identical (145 lines); `monthNames` identical; 21 probes
+- Lint parity **4 errors = 4 errors** — two unused `err` and two empty `catch`
+  blocks, inherited from the slice rather than quietly fixed
+- **No writes.** Neither Save, neither Send Reminders. The clamp probes were
+  local state and were restored; confirmed `5` again after reload.
+
+### Toggle count
+
+Fifth of six hand-rolled `ToggleSwitch` copies removed. **One remains** —
+`components/ToggleSwitch.jsx`, used by `EngageSettings` and
+`SequenceDetailPage`.
