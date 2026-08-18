@@ -109,6 +109,7 @@ const SalaryStructuresPage = lazy(() => import('./pages/payroll/SalaryStructures
 
 const StatutoryConfigPage = lazy(() => import('./pages/payroll/StatutoryConfigPage'));
 const PTMasterPage = lazy(() => import('./pages/payroll/PTMasterPage'));
+const PTMasterPageV2 = lazy(() => import('./pages/payroll/PTMasterPageV2'));
 const PayrollRunPage = lazy(() => import('./pages/payroll/PayrollRunPage'));
 const MySalaryPage = lazy(() => import('./pages/payroll/MySalaryPage'));
 const MyPayslipsPage = lazy(() => import('./pages/payroll/MyPayslipsPage'));
@@ -326,6 +327,7 @@ const SettingsIncentive = lazy(() => import('./components/settings/SettingsIncen
 
 // Lazy-loaded: Super Admin
 import SuperAdminRoute from './components/SuperAdminRoute';
+import { PageSwitch } from './components/platform/v2/PageSwitch';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
 const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'));
@@ -367,10 +369,6 @@ function ShellSwitch() {
 
 // Per-route variant of the same switch: migrated pages ship a v2 component
 // alongside the legacy one and the org flag picks which renders.
-function PageSwitch({ v2: V2, legacy: Legacy, ...props }) {
-  const { currentOrg } = useOrg();
-  return currentOrg?.uiV2 === true ? <V2 {...props} /> : <Legacy {...props} />;
-}
 
 // Wrapper that provides org context for /org/:slug/* routes
 function OrgPlatformLayout() {
@@ -595,7 +593,7 @@ function App() {
                   <Route path="/org/:slug/payroll/salary-structures" element={<ErrorBoundary><SalaryStructuresPage /></ErrorBoundary>} />
 
                   <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><StatutoryConfigPage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PTMasterPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/tax-reports" element={<ErrorBoundary><TaxReportsPage /></ErrorBoundary>} />
