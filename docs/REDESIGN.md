@@ -1511,3 +1511,38 @@ expression as a pure function in the page, then compare it to what the DOM
 actually shows.** If they agree, the migration is faithful whatever the
 behaviour is, and the question moves from "did I break this?" to "should this
 behave this way?" — which is a question for the owner, not the migration.
+
+### Settings batch 9 — when verifying the happy path is itself the risk
+
+`settings/general` holds the three most destructive actions in the product:
+delete the organization, restore a backup over all current data, and create a
+backup. Four verbatim slices, 14 probes, zero writes.
+
+The rule this page produced is about **what not to verify**.
+
+A type-the-slug delete has two sides. The rejection side — wrong value keeps
+the button disabled — is safe to exercise, and was, against five near-misses:
+empty, prefix, one character short, wrong case, trailing space. The acceptance
+side is different: typing the exact slug **arms** a control that erases the
+entire workspace, and leaves it armed until something navigates away.
+
+So the coverage for a guarded destructive action is:
+
+> Probe the comparison in source, exercise every rejection live, and stop.
+> Do not type the magic string. A test that leaves the most destructive control
+> in the product one click from firing has negative value, however green it
+> looks.
+
+The same applied to the backup restore, where the point was moot for a
+different reason worth recording: the org has no backups, so no Restore button
+renders at all. `confirmText !== 'RESTORE'` is probed, not exercised — and the
+writeup says which, rather than implying the dialog was driven.
+
+Second, smaller: the auth section contains the only setting on the page that
+can lock **every member** out of the org — turning both sign-in methods off.
+That one *is* safe to exercise, because the guard is a disabled Save rather
+than a confirmation, so the dangerous state is reachable without being
+committable. Toggled both off, confirmed the warning and the disabled Save,
+restored. The difference between the two cases is worth internalising: a
+**disabled-button** guard can be tested by entering the bad state; a
+**type-to-confirm** guard cannot, because entering the good state is the danger.
