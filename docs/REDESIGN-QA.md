@@ -831,3 +831,82 @@ bank statement, my-fnf receipt, timesheet-approvals lock, and these four).
   summary row, and Revert rendering only for `approved`
 - **No writes** — zero calls to `/approve`, `/reject`, `/revert` or
   `/reminders/send`. No reminder email sent.
+
+---
+
+## leave/approvals — I walked into the exact pairing I'd documented twice
+
+Logic spliced in verbatim (**80 lines, byte-identical**), `formatDate` checked
+separately, eight mutating paths asserted by exact text.
+
+### The finding I caused, and the one I inherited
+
+**Caused.** The first audit came back with **20 failures** — LOP at **4.21**,
+Casual Leave at **4.24**. I had hand-rolled the leave-type pill as
+`background: accent 14%` with `color: accent`: an accent on a wash of itself.
+That is the pairing `Chip`'s own comment documents at ~4.35, that my-attendance
+failed on, and that I explicitly warned about in the timesheet/users notes
+before doing it anyway. Fixed the same way as the day cells — the tint and ring
+carry the hue, the label ink is `--fg`.
+
+The lesson is not "remember the rule". It is that **any time a page needs a hue
+`Chip` doesn't have, hand-rolling is the failure path**, and the answer is
+always tint-plus-neutral-ink.
+
+**Inherited: a third hand-rolled leave-type map.** `config/leaveTypes.js` exists
+specifically because "LeaveApply and LeaveMyRequests each carried their own
+hand-rolled label/colour map and the two disagreed". This page carries a
+**third**, and it is narrower — 4 types where the shared module has 10. So
+`earned_leave`, `privilege_leave`, `maternity_leave`, `paternity_leave`,
+`bereavement_leave` and `unpaid_leave` render with a neutral pill and their
+**raw snake_case code** as the label (`leaveTypeLabels[code] || code`), where
+every other leave page shows a proper title.
+
+The split taken here is deliberate and narrow:
+
+- **Colour** moves to the shared `leaveTypeAccent`. Verified first that the
+  shared tone map is **identical** for all four types legacy knows (sick=red,
+  casual=blue, comp_off=purple, lop=orange), so nothing that renders today
+  changes — and the six missing types stop falling through to neutral.
+- **Labels** stay legacy's map, verbatim. Switching to `formatLeaveType` would
+  render `lop` as "Loss of Pay" where this page says "LOP". That is a copy
+  change, not a theme change.
+
+### Two smaller inherited nits, both preserved
+
+- **The LOP count can overstate.** `req.lopDays || req.totalDays || 0` — the
+  block renders when `isLOP` is true, so a request flagged LOP with `lopDays`
+  absent or `0` displays its **total** days as LOP days. LOP days are unpaid
+  days, so this is money-adjacent display. Preserved and flagged.
+- **Doubled warning marker.** The text begins with `⚠️` and the callout already
+  carries an `AlertTriangle` — legacy had both too. Visible in the screenshots
+  as "⚠ ⚠️1 LOP day". One-line copy fix, not taken here.
+
+### Harness: the Avatar gradient is a blind spot
+
+The audit skipped **50 nodes** as `gradient` — every `Avatar`, whose brand
+gradient fill defeats the composited-background walk. Measured by hand instead:
+white 12px bold initials against both gradient stops, **7.13** and **9.11**.
+Fine here, but worth knowing that `Avatar` initials are invisible to the audit
+everywhere it is used.
+
+### ⚠️ Unreachable on staging data
+
+`Pending 0` and `Rejected 0`, and unlike the approvals pages this one is **not
+period-scoped** (`getAllLeaveRequests` takes no month), so there is no other
+period to try. Out of reach: the Approve/Reject buttons, the reject modal, and
+the rejection-reason callout. The Revert path and everything else was exercised
+on the 50 approved requests.
+
+Sixth surface needing the same seeding exercise.
+
+### Verification
+
+- **0 contrast failures** in both themes (529 light / 532 dark nodes),
+  `dimmedByAncestorOpacity: 0`; `Avatar` initials measured separately
+- Logic byte-identical (80 lines); `formatDate` identical; 8 mutating paths and
+  8 display strings asserted
+- Exercised live: tab counts, the approved list with Sick Leave / LOP / Casual
+  Leave pills, LOP callout, half-day chip, reason block, "Approved on" line, and
+  Revert rendering only for `approved`
+- **No writes** — zero calls to any `/approve`, `/reject` or `/revert` endpoint

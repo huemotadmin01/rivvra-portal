@@ -184,6 +184,7 @@ const TimesheetUsersV2 = lazy(() => import('./pages/timesheet/TimesheetUsersV2')
 const LeaveApplyV2 = lazy(() => import('./pages/timesheet/LeaveApplyV2'));
 const TimesheetApprovalsV2 = lazy(() => import('./pages/timesheet/TimesheetApprovalsV2'));
 const AttendanceApprovalsV2 = lazy(() => import('./pages/timesheet/AttendanceApprovalsV2'));
+const LeaveApprovalsV2 = lazy(() => import('./pages/timesheet/LeaveApprovalsV2'));
 const MySalaryPageV2 = lazy(() => import('./pages/payroll/MySalaryPageV2'));
 const MyPayslipsPageV2 = lazy(() => import('./pages/payroll/MyPayslipsPageV2'));
 const TimesheetEarningsV2 = lazy(() => import('./pages/timesheet/TimesheetEarningsV2'));
@@ -564,7 +565,7 @@ function App() {
                   {/* Leave Management */}
                   <Route path="/org/:slug/timesheet/leave/apply" element={<ErrorBoundary><PageSwitch v2={LeaveApplyV2} legacy={LeaveApply} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/my-requests" element={<ErrorBoundary><PageSwitch v2={LeaveMyRequestsV2} legacy={LeaveMyRequests} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/timesheet/leave/approvals" element={<ErrorBoundary><LeaveApprovals /></ErrorBoundary>} />
+                  <Route path="/org/:slug/timesheet/leave/approvals" element={<ErrorBoundary><PageSwitch v2={LeaveApprovalsV2} legacy={LeaveApprovals} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/balances" element={<ErrorBoundary><PageSwitch v2={LeaveBalancesV2} legacy={LeaveBalances} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/balances/:employeeId" element={<ErrorBoundary><PageSwitch v2={LeaveHistoryV2} legacy={LeaveHistory} /></ErrorBoundary>} />
                   <Route path="/org/:slug/timesheet/leave/reports" element={<ErrorBoundary><PageSwitch v2={LeaveReportsV2} legacy={LeaveReports} /></ErrorBoundary>} />
