@@ -1316,3 +1316,50 @@ rendered. The expression is asserted present; the pixel is not verified.
 - Lint parity 1 = 1
 - **No writes** — the dialog was opened and cancelled; zero calls matching the
   update endpoint's `statutory-config/:employeeId` shape
+
+---
+
+## payroll/salary-structures — salary math, exercised rather than asserted
+
+The templates that split gross into Basic / HRA / the rest and decide which
+parts count for PF and tax. Logic spliced in verbatim (**100 lines,
+byte-identical**), the four top-level constants diffed separately
+(`EMPTY_COMPONENT`, `SEARCH_THRESHOLD`, `FALLBACK_COMPONENTS` 50/20/30,
+`pctDisplay`), and **12 salary-math probes** asserted.
+
+### The two rules are independent, and both were driven live
+
+Legacy carries an `EPSILON = 0.001` comparison with a comment explaining it:
+float equality would reject a legitimate 33.33/33.33/33.34 split, which sums to
+`100.00000000000001`, and print that artifact in the badge. Rather than trust
+the assertion, the form was driven:
+
+| input | Total badge | Basic ≥ 50 warning | submit |
+|---|---|---|---|
+| 50 / 20 / 30 | `Total: 100%` | — | enabled |
+| Basic → 40 | `Total: 90% — must be 100%` | shown | disabled |
+| **33.33 / 33.33 / 33.34** | **`Total: 100%`** | shown | disabled |
+
+The last row is the useful one: the epsilon tolerance accepts the sum with **no
+float artifact in the display**, while the separate `Basic >= 50` New Wage Code
+gate independently rejects it. Two rules, both working, neither masking the
+other.
+
+### Bar palette
+
+Legacy's `BAR_COLORS` was seven fixed Tailwind fills, index-based so a
+structure's bar keeps its colours between renders. Now seven tokens in the same
+order and the same hues, so a given component keeps the colour it had.
+
+### Verification
+
+- **0 contrast failures** in both themes with the edit form open (73 / 75
+  nodes), `dimmed: 0`
+- Logic byte-identical (100 lines); 4 constants identical; 12 salary-math probes
+  asserted
+- Both entry points verified on screen — route and the `structures` tab in
+  Settings (4 structures in each), `embedded` suppressing the page header
+- Lint parity **0 = 0**
+- **No writes** — form opened, edited in local state, cancelled. Re-queried
+  after: still **4 structures**, first one still `Basic 35% / Personal Allowance
+  35% / Special Allowance 30%`. The 33.33 split was never saved.
