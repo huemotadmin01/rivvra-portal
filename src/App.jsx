@@ -120,6 +120,7 @@ const AlumniPolicyPage = lazy(() => import('./pages/settings/AlumniPolicyPage'))
 const AlumniPolicyPageV2 = lazy(() => import('./pages/settings/AlumniPolicyPageV2'));
 const AlumniDirectoryPage = lazy(() => import('./pages/employee/AlumniDirectory'));
 const TaxDeclarationsPage = lazy(() => import('./pages/payroll/TaxDeclarationsPage'));
+const TaxDeclarationsPageV2 = lazy(() => import('./pages/payroll/TaxDeclarationsPageV2'));
 const TaxReportsPage = lazy(() => import('./pages/payroll/TaxReportsPage'));
 const PayrollDashboardPage = lazy(() => import('./pages/payroll/PayrollDashboardPage'));
 const PayrollDashboardPageV2 = lazy(() => import('./pages/payroll/PayrollDashboardPageV2'));
@@ -597,7 +598,7 @@ function App() {
                   <Route path="/org/:slug/payroll/statutory-config" element={<ErrorBoundary><PageSwitch v2={StatutoryConfigPageV2} legacy={StatutoryConfigPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/pt-master" element={<ErrorBoundary><PageSwitch v2={PTMasterPageV2} legacy={PTMasterPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/statutory-run" element={<ErrorBoundary><PayrollRunPage /></ErrorBoundary>} />
-                  <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><TaxDeclarationsPage /></ErrorBoundary>} />
+                  <Route path="/org/:slug/payroll/tax-declarations" element={<ErrorBoundary><PageSwitch v2={TaxDeclarationsPageV2} legacy={TaxDeclarationsPage} /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/tax-reports" element={<ErrorBoundary><TaxReportsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/settings" element={<ErrorBoundary><PayrollSettingsPage /></ErrorBoundary>} />
                   <Route path="/org/:slug/payroll/fnf" element={<ErrorBoundary><PageSwitch v2={FnFDashboardV2} legacy={FnFDashboard} /></ErrorBoundary>} />
