@@ -345,6 +345,7 @@ const InvoicingSettingsPage = lazy(() => import('./components/settings/SettingsI
 
 // Lazy-loaded: Incentive app pages
 const IncentiveMyEarnings = lazy(() => import('./pages/incentive/MyEarnings'));
+const IncentiveMyEarningsV2 = lazy(() => import('./pages/incentive/MyEarningsV2'));
 const IncentiveDashboard = lazy(() => import('./pages/incentive/IncentiveDashboard'));
 const IncentiveDashboardV2 = lazy(() => import('./pages/incentive/IncentiveDashboardV2'));
 const IncentiveRecordsList = lazy(() => import('./pages/incentive/RecordsList'));
@@ -352,6 +353,7 @@ const IncentiveRecordsListV2 = lazy(() => import('./pages/incentive/RecordsListV
 const IncentiveRecordForm = lazy(() => import('./pages/incentive/RecordForm'));
 const IncentiveRecordFormV2 = lazy(() => import('./pages/incentive/RecordFormV2'));
 const IncentiveRecordDetail = lazy(() => import('./pages/incentive/RecordDetail'));
+const IncentiveRecordDetailV2 = lazy(() => import('./pages/incentive/RecordDetailV2'));
 const IncentiveRatesTable = lazy(() => import('./pages/incentive/RatesTable'));
 // IncentiveSettings was moved into the global Settings hub at
 // /org/:slug/settings/incentive — see components/settings/SettingsIncentive.
@@ -792,8 +794,8 @@ function App() {
               {/* Incentive app routes — member for own earnings, admin for everything else */}
               <Route element={<AppAccessGate appId="incentive" />}>
                 {/* Member-accessible */}
-                <Route path="/org/:slug/incentive/my-earnings" element={<ErrorBoundary><IncentiveMyEarnings /></ErrorBoundary>} />
-                <Route path="/org/:slug/incentive/records/:recordId" element={<ErrorBoundary><IncentiveRecordDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/incentive/my-earnings" element={<ErrorBoundary><PageSwitch v2={IncentiveMyEarningsV2} legacy={IncentiveMyEarnings} /></ErrorBoundary>} />
+                <Route path="/org/:slug/incentive/records/:recordId" element={<ErrorBoundary><PageSwitch v2={IncentiveRecordDetailV2} legacy={IncentiveRecordDetail} /></ErrorBoundary>} />
                 {/* Admin-only */}
                 <Route element={<AppRoleGate appId="incentive" requiredRole="admin" />}>
                   <Route path="/org/:slug/incentive/dashboard" element={<ErrorBoundary><PageSwitch v2={IncentiveDashboardV2} legacy={IncentiveDashboard} /></ErrorBoundary>} />
