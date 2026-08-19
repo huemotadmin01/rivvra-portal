@@ -166,6 +166,7 @@ const EmployeeDashboardV2 = lazy(() => import('./pages/employee/EmployeeDashboar
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
 const EmployeeDirectoryV2 = lazy(() => import('./pages/employee/EmployeeDirectoryV2'));
 const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
+const OrgChartV2 = lazy(() => import('./pages/employee/OrgChartV2'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
 const EmployeeDepartmentsV2 = lazy(() => import('./pages/employee/EmployeeDepartmentsV2'));
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
@@ -174,6 +175,7 @@ const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
 const EmployeeQuickCreate = lazy(() => import('./pages/employee/EmployeeQuickCreate'));
 const EmployeeQuickCreateV2 = lazy(() => import('./pages/employee/EmployeeQuickCreateV2'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
+const EmployeeOnboardingWizardV2 = lazy(() => import('./pages/employee/EmployeeOnboardingWizardV2'));
 const PlanTemplates = lazy(() => import('./pages/employee/PlanTemplates'));
 const PlanTemplatesV2 = lazy(() => import('./pages/employee/PlanTemplatesV2'));
 const AssetList = lazy(() => import('./pages/employee/AssetList'));
@@ -533,7 +535,7 @@ function App() {
               <Route path="/org/:slug/my-documents" element={<ErrorBoundary><PageSwitch v2={MyDocumentsV2} legacy={MyDocuments} /></ErrorBoundary>} />
 
               {/* Employee onboarding wizard — outside AppAccessGate (any authenticated employee can access) */}
-              <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><EmployeeOnboardingWizard /></ErrorBoundary>} />
+              <Route path="/org/:slug/employee/onboarding" element={<ErrorBoundary><PageSwitch v2={EmployeeOnboardingWizardV2} legacy={EmployeeOnboardingWizard} /></ErrorBoundary>} />
               <Route path="/org/:slug/upgrade" element={<UpgradePage />} />
 
               {/* Outreach app routes — gated by outreach access */}
@@ -649,7 +651,7 @@ function App() {
               <Route element={<AppAccessGate appId="employee" />}>
                 <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><PageSwitch v2={EmployeeDashboardV2} legacy={EmployeeDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><PageSwitch v2={EmployeeDirectoryV2} legacy={EmployeeDirectory} /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/org-chart" element={<ErrorBoundary><PageSwitch v2={OrgChartV2} legacy={OrgChart} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><PageSwitch v2={EmployeeDepartmentsV2} legacy={EmployeeDepartments} /></ErrorBoundary>} />
                 {/* Add/Edit/Plan Templates require employee admin role */}
                 <Route element={<AppRoleGate appId="employee" requiredRole="admin" />}>
