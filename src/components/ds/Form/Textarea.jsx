@@ -1,9 +1,12 @@
+import { forwardRef } from 'react';
+
 /** Multi-line sibling of `Input`, sharing its surface, ring and radius so the
  *  two line up inside a `Field` stack. Resizes vertically only — horizontal
  *  resize breaks out of grid columns and is never what the user meant. */
-export function Textarea({ invalid = false, style, ...rest }) {
+export const Textarea = forwardRef(function Textarea({ invalid = false, style, ...rest }, ref) {
   return (
     <textarea
+      ref={ref}
       style={{
         padding: '9px 12px', width: '100%', minHeight: 76, resize: 'vertical',
         border: 'none', outline: 'none', borderRadius: 'var(--r-2, 12px)',
@@ -18,4 +21,4 @@ export function Textarea({ invalid = false, style, ...rest }) {
       {...rest}
     />
   );
-}
+});

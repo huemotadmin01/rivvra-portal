@@ -1,3 +1,5 @@
+import { forwardRef } from 'react';
+
 /** Form-height native `<select>` — the `Input` of a `Field` stack when the
  *  answer is one of a handful of fixed choices.
  *
@@ -6,9 +8,10 @@
  *  column of `Field`s lines up. Native on purpose: OS keyboard behaviour,
  *  type-ahead and mobile pickers come for free. When the list is long enough
  *  that the user needs to search it, reach for `ComboBox` instead. */
-export function Select({ invalid = false, children, style, ...rest }) {
+export const Select = forwardRef(function Select({ invalid = false, children, style, ...rest }, ref) {
   return (
     <select
+      ref={ref}
       style={{
         appearance: 'none', height: 38, padding: '0 30px 0 12px', width: '100%',
         border: 'none', outline: 'none', borderRadius: 'var(--r-2, 12px)',
@@ -27,4 +30,4 @@ export function Select({ invalid = false, children, style, ...rest }) {
       {children}
     </select>
   );
-}
+});

@@ -2269,3 +2269,86 @@ the fourth time in this project. A forced paint and a re-run: 0.
 Create application, resume upload, skill attach. A blocking interceptor was
 armed for the whole session and `__blocked` stayed empty throughout — nothing
 was written to staging, so there is nothing to clean up.
+
+---
+
+## Phase 23 — InvoiceDetail (the big one)
+
+`src/pages/invoicing/InvoiceDetail.jsx` (5,189) → `InvoiceDetailV2.jsx` (4,977),
+behind `PageSwitch`. Full record in
+[INVOICE-DETAIL-MIGRATION.md](INVOICE-DETAIL-MIGRATION.md).
+
+**19 verbatim slices, 2,051 spliced lines, 0 mismatches.** 26 money expressions
+asserted by exact string count. Lint identical to the legacy baseline at
+13 problems, including both React Compiler diagnostics.
+
+### Assembled by a script, not by hand
+
+At this size the verbatim-slice method stops being something you can hold in
+your head. `scratchpad/id-assemble.py` concatenates legacy line ranges with
+written render chunks and prints a manifest of where each splice landed; the
+verification step diffs the manifest back. "Byte-identical" becomes a checked
+claim rather than a careful intent — which is the only version of the claim
+worth making on a page that decides what a customer is billed.
+
+### A static totals panel proves almost nothing
+
+Reading a posted invoice's totals exercises `invoice.total` and nothing else —
+`localTotals`, `buildTaxBreakdown` and the whole draft arithmetic never run. So
+the draft was *driven*: same qty, same rate, same tax picked on both sides.
+
+| | V2 | legacy |
+|---|---|---|
+| 3 × ₹12,345.67 line amount | ₹37,037.01 | ₹37,037.01 |
+| Taxable Value | ₹37,037.01 | ₹37,037.01 |
+| IGST 18% | ₹6,666.66 | ₹6,666.66 |
+| Total | ₹43,703.67 | ₹43,703.67 |
+
+Every resulting write was rejected; the draft was re-read from the API
+afterwards and is unchanged. TDS was driven the same way inside
+`RecordPaymentModal` — 194J @ 10% on a ₹1,99,920 base gives ₹19,992 and a net of
+₹2,15,913.60, with nothing submitted.
+
+### The audit was lying, and it took a hand-measurement to catch it
+
+`parseColor` canvas-round-tripped `rgb`/`color`/`oklch` but not **`oklab`** —
+which is exactly what Chrome computes a Tailwind `bg-sky-500/15` to. The numeric
+fallback read L/a/b as R/G/B, and `[\d.]+` dropped the minus signs, so the chip's
+sky wash became a near-black at 15% and composited to a believable grey. It
+reported 4.29 on a node whose real ratio is 5.27.
+
+The tell was that the "failure" was in a shared component that has been on every
+audited page for months. Painting the colour on a canvas by hand gave a different
+answer than the tool. `parseColor` now paints *everything*, with a sentinel check
+so an unparseable value returns null instead of the previous fill.
+
+**A fabricated background is worse than no measurement, because it reads like a
+finding.** Every page audited before this fix was re-run; the two most recent
+(AtsApplicationNew, and this one) come back 0/0 with the corrected parser.
+
+### Theme cross-fade, fifth sighting
+
+A dark sweep reported 25 failures — every one a sidebar nav item, every one at
+exactly 1.67, and the *same count on all four pages in the sweep*. That identical
+count across unrelated pages is the signature: it is shell chrome caught
+mid-transition, not a page defect. Screenshot, settle, re-run: 0.
+
+### Not verifiable on this data
+
+Staging has no invoice carrying TDS, no draft with a non-zero stored total, and
+no invoice with a discount — so the totals panel's **TDS / Net Payable rows and
+the Discount row never rendered**. Byte-identity and the string-count assertions
+are the guarantee there. Said plainly rather than implied by a passing
+screenshot.
+
+### ds
+
+`Input`, `Select`, `Textarea` now `forwardRef` — `EditableField` needs the DOM
+node to focus and select on open, and without it click-to-edit puts the caret
+nowhere.
+
+### Interceptor note
+
+The blocking interceptor did **not** survive a Vite full reload triggered by
+editing `App.jsx` mid-session. Caught by checking `window.__armed` before the
+next interactive step. Check the flag; do not assume it.

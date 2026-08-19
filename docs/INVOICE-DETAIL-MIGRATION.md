@@ -1,135 +1,160 @@
-# InvoiceDetail → ds: execution plan
+# InvoiceDetail → ds: execution record
 
 `src/pages/invoicing/InvoiceDetail.jsx` is 5,189 lines — the largest page in the
-portal and the one that decides what a customer is billed. It does not fit in a
-single working session. This file is the plan, written so the rest is mechanical.
+portal and the one that decides what a customer is billed. This file was the
+plan; it is now the record of how it was done and what was verified.
 
-**Branch:** `phase-23/invoice-detail` · **Status:** money layer done, render not.
-
----
-
-## Done (committed, verified byte-identical)
-
-`src/pages/invoicing/InvoiceDetailV2.jsx` currently holds the head plus two
-verified splices and a `return null` marker. It is **not routed** — the route
-still renders legacy `InvoiceDetail`, so nothing is user-reachable.
-
-| slice | legacy lines | count |
-|---|---|---|
-| helpers | 33–111 | 79 |
-| data + money layer | 703–1971 | 1,269 |
-
-Helpers covered: `formatDate`, `formatFileSize`, `STATUS_STEPS`, `getStepIndex`,
-`getInvoiceTypeLabel`, `listUrlForDoc`, `GST_TREATMENTS`, `CURRENCIES`,
-`useDebounce`.
-
-## Remaining
-
-| piece | legacy lines | count |
-|---|---|---|
-| post-guard derivations (splice verbatim) | 2002–2100 | 99 |
-| main render (rewrite) | 2102–3736 | 1,635 |
-| 17 sub-components (splice logic, rewrite render) | 3737–5189 | 1,453 |
+**Status: DONE.** `InvoiceDetailV2.jsx` (4,977 lines) is routed behind
+`PageSwitch`.
 
 ---
+
+## How it was assembled
+
+Not hand-written. `scratchpad/id-assemble.py` concatenates the legacy file's
+line ranges with written render chunks, and prints a manifest mapping every
+splice to its position in the output. The manifest is what the verification step
+diffs back, so "byte-identical" is a checked claim rather than a careful intent.
+
+**19 verbatim slices, 2,051 spliced lines, 0 mismatches.**
+
+| slice | legacy | lines |
+|---|---|---|
+| helpers | 33–109 | 77 |
+| `EditableField` logic | 113–145 | 33 |
+| `ContactLookup` logic | 237–284 | 48 |
+| `ProductSearch` logic | 345–403 | 59 |
+| `TaxMultiSelect` logic | 450–497 | 48 |
+| `EmployeeSearch` logic | 549–628 | 80 |
+| **main data + money layer** | 703–1971 | **1,269** |
+| main derivations | 2002–2100 | 99 |
+| `InlineLineRow` sig + `lineTotal` | 3737–3746 | 10 |
+| `InlineLineRow` handlers | 3750–3768 | 19 |
+| `RecordPaymentModal` state | 4042–4058 | 17 |
+| **`RecordPaymentModal` money** | 4063–4211 | **149** |
+| `EmployeeBillRecordPaymentModal` state | 4470–4489 | 20 |
+| `EmployeeBillRecordPaymentModal` money | 4494–4561 | 68 |
+| `EmailInvoiceModal` state / submit | 4813–4819, 4824–4843 | 27 |
+| `CreditNoteModal` state / submit | 4916–4921, 4926–4941 | 22 |
+| `E_INVOICE_CANCEL_REASONS` | 5028–5033 | 6 |
+
+Rewritten: the render of every component above, the loading/error guard
+(legacy 1972–2001), plus `FormField`, `ActionBtn`, `CancelEInvoiceModal`,
+`GstHoldModal`. `ConfirmModal` and `ModalOverlay` are **deleted** — ds
+`ConfirmDialog` and `Modal` replace them.
 
 ## The money checklist
 
-Every one of these must survive byte-identical. This is the whole risk surface.
+26 expressions, each asserted by exact string count on both sides. All present
+exactly as often in V2 as in legacy. The four `lineTotal` variants are not
+interchangeable and were each copied to its own table:
 
-### Already spliced (verify still present after assembly)
-
-- `localTotals` — the four `Math.round(x * 100) / 100` returns
-- inclusive tax: `taxTotal += lineSubtotal - (lineSubtotal / (1 + tax.rate / 100));`
-- exclusive tax: `taxTotal += lineSubtotal * (tax.rate / 100);`
-- line subtotal: `const lineSubtotal = qty * price * (1 - discPct / 100);`
-- discount reduce: `return s + qty * price * (discPct / 100);`
-- unit price 6dp, both sites: `Math.round(rate * 1000000) / 1000000`
-- `buildTaxBreakdown`'s rate-weight sum: `const totalRate = entries.reduce((s, e) => s + e.rate, 0);`
-
-### Still to carry across — render-resident
-
-These live *inside* the JSX. Splicing above `return (` would lose all of them.
-
-| legacy line | expression |
+| branch | expression |
 |---|---|
-| 2006 | `const amountDue = invoice.amountDue ?? invoice.total ?? 0;` |
-| 2951 | `const lineTotal = li.subtotal ?? li.amount ?? ((li.quantity \|\| 0) * (li.unitPrice \|\| 0) * (1 - (Number(li.discount) \|\| 0) / 100));` |
-| 3038 | same shape, **no** `li.amount` fallback |
-| 3088 | same as 3038 |
-| 3139 | `const lineTotal = li.total ?? li.subtotal ?? ((li.quantity \|\| 0) * (li.unitPrice \|\| 0));` — **no discount term** |
-| 3203–3205 | `taxTotalFallback` |
-| 3258–3263 | Net Payable: `invoice.netPayable != null ? invoice.netPayable : ((isDraft ? localTotals.total : invoice.total) - (invoice.tdsAmount \|\| 0))` |
-| 2997 | FX line: `{li.originalCurrency} {Number(li.originalAmount).toLocaleString()} @ {Number(li.conversionRate).toFixed(2)}` |
-| 3746 | `InlineLineRow`'s own `lineTotal` |
+| EMPBI | `li.subtotal ?? li.amount ?? (qty * price * (1 - disc/100))` |
+| vendor bill | `li.subtotal ?? (qty * price * (1 - disc/100))` |
+| customer invoice | `li.subtotal ?? (qty * price * (1 - disc/100))` |
+| draft fallback | `li.total ?? li.subtotal ?? (qty * price)` — **no discount term** |
 
-The four `lineTotal` variants are **not interchangeable** — they differ in
-fallback chain and whether discount applies. Copy each to its own table.
+One check reads 2 in legacy and 3 in V2: `Math.round(rate * 1000000) / 1000000`.
+The third occurrence is the docblock at the top of the new file quoting it. Both
+real call sites are inside the verified main slice.
 
-### Still to carry across — modal money
+## Lint
 
-| legacy line | expression |
+Legacy **13 problems (10 errors, 3 warnings)**. V2 **13 problems (10 errors,
+3 warnings)** — the same set, at the shifted line numbers, including the two
+React Compiler diagnostics that must travel with the code that causes them:
+
+- `Cannot access refs during render` — inside `useDebounce`
+- `Calling setState synchronously within an effect` — `EditableField`'s
+  value-sync effect
+
+Neither is silenced.
+
+## Money parity against legacy
+
+The route was pinned at the legacy component, the same five documents loaded,
+and the totals panel captured on both sides.
+
+| document | result |
 |---|---|
-| 4100–4101 | TDS: `Math.round((Number(tdsBase) \|\| 0) * tdsRate) / 100`, then `Math.round(computed * 100) / 100` |
-| 4109 | `Math.max(0, Math.round(((Number(amountDue) \|\| 0) - tdsAmount) * 100) / 100)` |
-| 4211 | `RecordPaymentModal` remaining |
-| 4515 | `EmployeeBillRecordPaymentModal` remaining |
+| `INV/26-27/07/0001` — posted, IGST 18% | **identical** |
+| `BILL/26-27/07/0002` — vendor bill, GST 18%, fully paid | **identical** |
+| `EMPBI/26-27/07/0005` — employee bill | **identical** |
+| `EZ/26-27/07/0001` — posted, no tax | **identical** |
+| draft | **identical** |
 
----
+Character-for-character, including the ₹ lakh grouping.
 
-## Sub-component inventory (legacy 3737–5189)
+### The draft was driven, not just read
 
-| component | line | notes |
+A static totals panel on a posted invoice reads from `invoice.total` — it does
+not exercise `localTotals` at all. So the draft's line was typed into on both
+sides with the same input and the results compared:
+
+| | V2 | legacy |
 |---|---|---|
-| `InlineLineRow` | 3737 | own `lineTotal`; the editable line row |
-| `FormField` | 4006 | trivial |
-| `ActionBtn` | 4019 | → ds `Button`; carries legacy's unused-`Icon` lint |
-| `RecordPaymentModal` | 4042 | **money** — TDS + remaining |
-| `EmployeeBillRecordPaymentModal` | 4470 | **money** — remaining |
-| `EmailInvoiceModal` | 4813 | |
-| `CreditNoteModal` | 4916 | carries unused-`invoiceNumber` lint |
-| `ConfirmModal` | 4982 | → ds `ConfirmDialog` |
-| `CancelEInvoiceModal` | 5035 | + `E_INVOICE_CANCEL_REASONS` at 5028 |
-| `GstHoldModal` | 5117 | |
-| `ModalOverlay` | 5178 | → ds `Modal` |
+| qty 3 × rate ₹12,345.67 → line amount | ₹37,037.01 | ₹37,037.01 |
+| Taxable Value | ₹37,037.01 | ₹37,037.01 |
+| IGST 18% (`buildTaxBreakdown`) | ₹6,666.66 | ₹6,666.66 |
+| Total | ₹43,703.67 | ₹43,703.67 |
 
-Inline editors near the top, already inside the helper region or just after:
-`EditableField` (113), `ContactLookup` (237), `ProductSearch` (345),
-`TaxMultiSelect` (450), `EmployeeSearch` (549).
+Every resulting `PUT` was rejected by the interceptor. The draft was re-read
+from the API afterwards: qty 1, unit price 0, no taxes, totals 0 — unchanged.
 
----
+### TDS was driven too
 
-## Lint baseline
+In `RecordPaymentModal` on the ₹2,35,905.60 invoice, toggling TDS and picking
+194J @ 10% produced base 199920 → TDS 19992 → net 215913.6, and a summary of
+Due ₹2,35,905.60 / TDS Credit −₹19,992.00 / Payment Received −₹2,15,913.60 /
+Remaining ₹0.00. Nothing was submitted.
 
-Legacy: **13 problems** (10 errors, 3 warnings). Two are React Compiler
-diagnostics that must come across with the code that causes them and must not
-be silenced:
+## Not verifiable on this data
 
-- `98:3  Cannot access refs during render` — inside `useDebounce`
-- `118:21 Calling setState synchronously within an effect can trigger cascading renders`
+Staging holds **no invoice with a TDS amount, no draft with a non-zero stored
+total, and no invoice with a discount**. So the totals panel's **TDS / Net
+Payable rows and the Discount row never rendered**. Byte-identity and the
+string-count assertions are the guarantee there — stated plainly rather than
+implied by a passing screenshot.
 
-The unused-var errors on the current WIP file are an artefact of having no
-render — every symbol the render will consume reads as unused today. They
-resolve when the render lands; they are not new problems.
+## Contrast
 
----
+Four document types × two themes, plus `RecordPaymentModal` (with the TDS block
+expanded), `CreditNoteModal` and `GstHoldModal`: **0 failures**, 94–180 nodes
+per page.
 
-## Verification before shipping
+Two runs reported failures that were not real, and both are worth keeping:
 
-1. Assemble, then re-diff **every** slice above.
-2. Re-run the money checklist — each expression present exactly once.
-3. `npx esbuild --jsx=automatic <file> --outfile=/dev/null` before lint; a
-   bad slice boundary shows up as "Unexpected end of file", and a hand-rolled
-   bracket counter cannot find it (regex literals defeat it). Bisect with the
-   real parser.
-4. Wire `PageSwitch`, build.
-5. **Money parity against legacy**: pin the route at the legacy component
-   (`<ErrorBoundary><InvoiceDetail /></ErrorBoundary>`), capture Taxable Value /
-   each tax row / Discount / Total / TDS / Net Payable / Amount Paid / Amount
-   Due, then restore `PageSwitch` and capture the same. They must match to the
-   digit. Do this on **three** invoices: a draft, a posted customer invoice with
-   tax, and a vendor bill with TDS.
-6. Contrast audit, both themes, with the totals panel and at least one modal open.
-7. Never trigger: post, send, email, record payment, credit note, delete,
-   archive, e-invoice generate/cancel, GST hold. Arm the blocking `fetch`
-   interceptor before the page loads.
+1. **The colour-space bug — a harness defect, now fixed.** The audit reported
+   the `ActivityPanel` "Changes" chip at 4.29. Measuring by hand off a canvas
+   gave **5.27**. `parseColor` canvas-round-tripped `rgb`/`color`/`oklch` but
+   *not* `oklab`, which is what Chrome computes a Tailwind `bg-sky-500/15` to;
+   the numeric fallback read L/a/b as R/G/B and the `[\d.]+` regex silently
+   dropped the minus signs, fabricating a plausible grey background. It now
+   paints every colour through the canvas. **A fabricated background is worse
+   than no measurement, because it reads like a finding.**
+2. **The theme cross-fade, for the fifth time.** A dark run reported 25 failures,
+   all sidebar nav items, all at exactly 1.67. A screenshot showed them plainly
+   legible. Settled, re-ran: 0. The signature is an identical failure count on
+   every page in the sweep — that means shell chrome caught mid-transition, not
+   a page defect.
+
+## ds change this required
+
+`Input`, `Select` and `Textarea` now `forwardRef`. `EditableField` focuses and
+selects the control the moment it opens; without a real DOM handle, click-to-edit
+puts the caret nowhere. `.d.ts` declarations updated to
+`ForwardRefExoticComponent`. Three other v2 pages re-checked after the change.
+
+## Not triggered
+
+Post, send, email, record payment, credit note, delete, archive, e-invoice
+generate/cancel, GST hold. A blocking `fetch`/XHR interceptor was armed for the
+session; the only writes it caught were the five auto-saves from driving the
+draft, and the draft was verified unchanged afterwards.
+
+**One thing to know about the interceptor:** it did not survive a Vite full
+reload triggered mid-session by editing `App.jsx`. It was caught by checking
+`window.__armed` before the next interactive step, and re-armed. Check the flag,
+do not assume it.

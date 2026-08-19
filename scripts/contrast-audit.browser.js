@@ -9,21 +9,36 @@
  *   window.__contrastAudit()        -> { checked, failCount, fails, skipped }
  */
 window.__contrastAudit = function contrastAudit({ threshold = 4.5, largeThreshold = 3.0 } = {}) {
+  /**
+   * Resolve any CSS colour to sRGB by painting it.
+   *
+   * FALSE-FAILURE #7 — the colour space one. This used to canvas-round-trip
+   * only `rgb`/`color`/`oklch` and fall through to a numeric regex otherwise.
+   * Chrome hands back `oklab(0.685 -0.0912 -0.1422 / 0.15)` for a Tailwind
+   * `bg-sky-500/15`, the regex `[\d.]+` silently dropped the minus signs and
+   * read L/a/b as R/G/B — a near-black at 15%. Every such background composited
+   * to a plausible-looking grey and the node was reported as failing when the
+   * real ratio was a pass (measured 4.29 reported vs 5.27 actual on the
+   * ActivityPanel "Changes" chip). A fabricated background is worse than no
+   * measurement, because it reads like a finding. Paint everything.
+   */
   const parseColor = (s) => {
-    const m = s.match(/[\d.]+/g);
-    if (!m) return null;
-    if (s.startsWith('rgb') || s.startsWith('color') || s.startsWith('oklch')) {
-      // getComputedStyle may hand back oklch(); round-trip it through a canvas
-      // so we compare in sRGB like the eye does.
-      const ctx = contrastAudit._ctx || (contrastAudit._ctx =
-        document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
-      ctx.clearRect(0, 0, 1, 1);
-      ctx.fillStyle = s;
-      ctx.fillRect(0, 0, 1, 1);
-      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-      return [r, g, b, a / 255];
-    }
-    return [+m[0], +m[1], +m[2], m[3] === undefined ? 1 : +m[3]];
+    if (!s || s === 'none') return null;
+    const ctx = contrastAudit._ctx || (contrastAudit._ctx =
+      document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+    // fillStyle silently keeps its previous value when handed something it
+    // cannot parse, so seed a sentinel and check the assignment actually took.
+    ctx.fillStyle = '#000000';
+    ctx.fillStyle = s;
+    const took = ctx.fillStyle;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = s;
+    if (ctx.fillStyle !== took) return null; // unparseable in both directions
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = s;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return [r, g, b, a / 255];
   };
 
   const channel = (x) => {

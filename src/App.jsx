@@ -300,6 +300,7 @@ const InvoicingDashboardV2 = lazy(() => import('./pages/invoicing/InvoicingDashb
 const InvoiceList = lazy(() => import('./pages/invoicing/InvoiceList'));
 const InvoiceForm = lazy(() => import('./pages/invoicing/InvoiceForm'));
 const InvoiceDetail = lazy(() => import('./pages/invoicing/InvoiceDetail'));
+const InvoiceDetailV2 = lazy(() => import('./pages/invoicing/InvoiceDetailV2'));
 const VendorBillList = lazy(() => import('./pages/invoicing/VendorBillList'));
 const VendorBillForm = lazy(() => import('./pages/invoicing/VendorBillForm'));
 const PaymentsList = lazy(() => import('./pages/invoicing/PaymentsList'));
@@ -764,7 +765,7 @@ function App() {
                   <Route path="/org/:slug/invoicing/invoices" element={<ErrorBoundary><PageSwitch v2={InvoiceListV2} legacy={InvoiceList} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/new" element={<ErrorBoundary><PageSwitch v2={InvoiceFormV2} legacy={InvoiceForm} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/invoices/:invoiceId/edit" element={<ErrorBoundary><PageSwitch v2={InvoiceFormV2} legacy={InvoiceForm} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/invoicing/invoices/:invoiceId" element={<ErrorBoundary><InvoiceDetail /></ErrorBoundary>} />
+                  <Route path="/org/:slug/invoicing/invoices/:invoiceId" element={<ErrorBoundary><PageSwitch v2={InvoiceDetailV2} legacy={InvoiceDetail} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills" element={<ErrorBoundary><PageSwitch v2={VendorBillListV2} legacy={VendorBillList} /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/employee-bills" element={<ErrorBoundary><PageSwitch v2={VendorBillListV2} legacy={VendorBillList} mode="employee" /></ErrorBoundary>} />
                   <Route path="/org/:slug/invoicing/bills/new" element={<ErrorBoundary><PageSwitch v2={VendorBillFormV2} legacy={VendorBillForm} /></ErrorBoundary>} />

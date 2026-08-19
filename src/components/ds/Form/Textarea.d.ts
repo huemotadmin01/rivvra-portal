@@ -6,4 +6,6 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 }
 
 /** Multi-line text input. The `Input` of a `Field` stack, for prose. */
-export declare function Textarea(props: TextareaProps): JSX.Element;
+export declare const Textarea: React.ForwardRefExoticComponent<
+  TextareaProps & React.RefAttributes<HTMLTextAreaElement>
+>;

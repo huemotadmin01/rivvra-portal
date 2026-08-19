@@ -1,3 +1,5 @@
+import { forwardRef } from 'react';
+
 /** Labelled form control with hint and error text. Wraps any input as children. */
 export function Field({ label, hint, error, required = false, htmlFor, children, style, ...rest }) {
   return (
@@ -29,10 +31,13 @@ export function Field({ label, hint, error, required = false, htmlFor, children,
   );
 }
 
-/** Text input styled to the system. Pass `invalid` to show the danger ring. */
-export function Input({ invalid = false, style, ...rest }) {
+/** Text input styled to the system. Pass `invalid` to show the danger ring.
+ *  Forwards its ref — click-to-edit fields need the DOM node to focus and
+ *  select the existing value the moment they open. */
+export const Input = forwardRef(function Input({ invalid = false, style, ...rest }, ref) {
   return (
     <input
+      ref={ref}
       style={{
         height: 38, padding: '0 12px', width: '100%',
         border: 'none', outline: 'none', borderRadius: 'var(--r-2, 12px)',
@@ -47,4 +52,4 @@ export function Input({ invalid = false, style, ...rest }) {
       {...rest}
     />
   );
-}
+});
