@@ -113,10 +113,8 @@ const MyAttendancePage = lazy(() => import('./pages/timesheet/MyAttendancePage')
 const TimesheetEarnings = lazy(() => import('./pages/timesheet/TimesheetEarnings'));
 const TimesheetApprovals = lazy(() => import('./pages/timesheet/TimesheetApprovals'));
 const TimesheetUsers = lazy(() => import('./pages/timesheet/TimesheetUsers'));
-const TimesheetPayConfig = lazy(() => import('./pages/timesheet/TimesheetPayConfig'));
 const TimesheetProjects = lazy(() => import('./pages/timesheet/TimesheetProjects'));
 
-const TimesheetPayroll = lazy(() => import('./pages/timesheet/TimesheetPayroll'));
 
 // Lazy-loaded: Statutory Payroll pages
 const SalaryStructuresPage = lazy(() => import('./pages/payroll/SalaryStructuresPage'));
@@ -231,7 +229,6 @@ const LeaveReportsV2 = lazy(() => import('./pages/timesheet/LeaveReportsV2'));
 // Lazy-loaded: Contacts app pages
 const ContactsList = lazy(() => import('./pages/contacts/ContactsList'));
 const ContactDetail = lazy(() => import('./pages/contacts/ContactDetail'));
-const ContactForm = lazy(() => import('./pages/contacts/ContactForm'));
 const ContactsConfig = lazy(() => import('./pages/contacts/ContactsConfig'));
 
 // Lazy-loaded: ATS app pages
