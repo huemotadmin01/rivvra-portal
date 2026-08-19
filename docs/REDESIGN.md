@@ -2547,3 +2547,84 @@ verbatim copy is the guarantee there.
 
 Save contact, add to list, create list. The Add-to-List modal was opened and
 closed without selecting; the interceptor stayed empty throughout.
+
+---
+
+## Phase 28 — EngagePage
+
+`src/pages/EngagePage.jsx` (966) → `EngagePageV2.jsx` (956), behind
+`PageSwitch`. Route `/outreach/engage`.
+
+**4 verbatim slices, 376 spliced lines, 0 mismatches.** 15 metric/gate
+expressions asserted by string count. Lint matches the legacy baseline exactly
+at 6 problems.
+
+### What had to survive
+
+The whole 336-line logic layer, including the Gmail OAuth redirect exchange
+with its single-use-code dedupe and the optimistic `rivvra_gmail_connected`
+marker that survives the OrgRedirect remount, plus both setup gates:
+`handleToggleSequence` refuses to **activate** while `setupStatus.allComplete`
+is false, and `handleNewSequence` refuses to open the wizard on the same
+condition. Pausing is optimistic with a revert on failure.
+
+The per-sequence campaign metrics live inside the render, so that block was
+copied to its own cell: each rate clamps at 100% and reads `0%` before anything
+is sent, `finished` sums replied + repliedNotInterested + lostNoResponse +
+bounced, and `active` is enrolled minus that. These are the numbers someone
+judges a campaign by.
+
+### Parity
+
+Route pinned at the legacy component. Every table cell **identical**:
+
+| sequence | contacts | active/finished | delivered | opened | interested | bounced |
+|---|---|---|---|---|---|---|
+| Huemot Main Marketing Email | 19,572 | 2462/17110 | 68,204 | 46% | 0% | 8% |
+| Demo — Gmail Send Test | 2 | 0/2 | 2 | 100% | 0% | 0% |
+
+Quota `0/50`, count `2 Sequences`, and **New sequence disabled on both** —
+setup is incomplete on this org, so the gate is genuinely exercised rather
+than assumed.
+
+Also driven: sort toggles asc/desc on Contacts, the `draft` filter empties the
+list to the empty state at `0 of 2 Sequences`, search narrows to `1 of 2`, and
+the portalled row menu lands 4px below its trigger (772 → 776) with the right
+item set for an owned, shared, active sequence.
+
+### Two things deliberately not carried across
+
+- **`showFilterDropdown` / `filterLabel`** are dropped from the spliced logic.
+  They served a hand-rolled filter popover that ds `InlineSelect` replaces, and
+  splicing them whole would have shipped dead state — three new lint errors
+  that the legacy file does not have. The slice was split around them rather
+  than the lint being silenced.
+- **The local `EmptyState`** is replaced by the ds one; the name collided with
+  the ds export and the local was a plain card.
+
+### One thing deliberately kept
+
+`deliveredRate` is computed in the metrics block and never rendered — dead in
+legacy too. Carried across so the lint baseline matches. Deleting it is a
+silent decision about a metric someone may have meant to show; that is a call
+to make deliberately, not while migrating a page.
+
+### The ref that could not be a ds Button
+
+The row action menu is `createPortal`ed and positioned from its trigger's
+`getBoundingClientRect()`. ds `Button` does not forward refs, so that one
+control stays a plain `<button>` styled to match, with `aria-haspopup` and
+`aria-expanded` added. Adding `forwardRef` to `Button` would have been the
+bigger change for one call site.
+
+### Contrast
+
+Sequences 61 nodes, Settings tab 57, open row menu 66 — **0 failures**.
+
+A light run first reported 16 — every one a sidebar nav item, identical class,
+right after the theme toggle. Cross-fade, **sixth sighting**. Settled: 0.
+
+### Not triggered
+
+Activate, pause, delete, duplicate, share, export CSV, connect/disconnect
+Gmail. The row menu was opened and closed without selecting anything.

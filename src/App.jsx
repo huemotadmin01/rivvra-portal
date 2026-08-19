@@ -47,6 +47,7 @@ import UpgradePage from './pages/UpgradePage';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const DashboardPageV2 = lazy(() => import('./pages/DashboardPageV2'));
 const EngagePage = lazy(() => import('./pages/EngagePage'));
+const EngagePageV2 = lazy(() => import('./pages/EngagePageV2'));
 const SequenceWizardPage = lazy(() => import('./pages/SequenceWizardPage'));
 const LeadsPage = lazy(() => import('./pages/LeadsPage'));
 const MyListsPage = lazy(() => import('./pages/MyListsPage'));
@@ -547,7 +548,7 @@ function App() {
               {/* Outreach app routes — gated by outreach access */}
               <Route element={<AppAccessGate appId="outreach" />}>
                 <Route path="/org/:slug/outreach/dashboard" element={<ErrorBoundary><PageSwitch v2={DashboardPageV2} legacy={DashboardPage} /></ErrorBoundary>} />
-                <Route path="/org/:slug/outreach/engage" element={<EngagePage />} />
+                <Route path="/org/:slug/outreach/engage" element={<ErrorBoundary><PageSwitch v2={EngagePageV2} legacy={EngagePage} /></ErrorBoundary>} />
                 <Route path="/org/:slug/outreach/engage/new-sequence" element={<SequenceWizardPage />} />
                 <Route path="/org/:slug/outreach/engage/edit-sequence/:sequenceId" element={<SequenceWizardPage />} />
                 <Route path="/org/:slug/outreach/leads" element={<PageSwitch v2={LeadsPageV2} legacy={LeadsPage} />} />
