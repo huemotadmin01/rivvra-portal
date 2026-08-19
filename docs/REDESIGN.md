@@ -2352,3 +2352,128 @@ nowhere.
 The blocking interceptor did **not** survive a Vite full reload triggered by
 editing `App.jsx` mid-session. Caught by checking `window.__armed` before the
 next interactive step. Check the flag; do not assume it.
+
+---
+
+## Phase 26 — PublicSigningPage
+
+`src/pages/sign/PublicSigningPage.jsx` (2,728) → `PublicSigningPageV2.jsx`
+(2,903), plus `PublicSigningRoute.jsx`. **Opt-in; defaults to legacy.**
+
+This is the only page in the migration that an unauthenticated stranger opens
+from an email to sign a legal document, and three things about it broke the
+usual method.
+
+### 1. `PageSwitch` cannot gate this route
+
+`/sign/public/:requestId/:signerId/:token` lives outside `OrgPlatformLayout`,
+so there is no `OrgProvider`, no `currentOrg.uiV2`, and the verify endpoint
+returns `orgName` but no UI flag. The switch is therefore local and explicit:
+
+| URL | result |
+|---|---|
+| `?ui=v2` | v2, remembered in `localStorage` |
+| `?ui=v1` | legacy, preference cleared |
+| no param | **legacy** |
+
+All three verified. A counterparty part-way through a contract must not be
+handed a different UI because a flag defaulted the wrong way.
+
+### 2. ds tokens default to DARK, and this page must not
+
+`:root` in `ds-tokens.css` **is** the dark theme; light only arrives via
+`[data-theme='light']`, which nothing but the in-app `ThemeToggle` ever sets.
+An external signer has no toggle and no stored preference — so a naive ds port
+renders this page **dark for every counterparty**. That is a change to how a
+legal document is presented, and nobody asked for it.
+
+The page pins `data-theme="light"` on its own root. Verified by forcing
+`<html data-theme="dark">` and confirming the page still computes
+`--bg: rgb(250,248,244)`.
+
+### 3. The document surface is not re-themed at all
+
+Everything that paints on, or positions against, the PDF is spliced verbatim
+and keeps its own palette — **5 slices, 1,778 lines, 0 mismatches**:
+
+| slice | legacy | lines |
+|---|---|---|
+| helpers + signature pipeline | 21–205 | 185 |
+| `useIsMobileViewport` + `SignaturePadModal` logic | 210–321 | 112 |
+| `InlineFieldInput` (whole) | 559–692 | 134 |
+| `FittedText` / `PrevSignerValue` / `SignatureStamp` / `PdfPageWithFields` (whole) | 695–1344 | 650 |
+| main component logic | 1347–2043 | 697 |
+
+25 signature-chain expressions asserted by string count: the SHA-256 hash and
+its 12-hex truncation, the paper-knockout luminance loop and feather band, the
+1200×600 downscale that fixed the phone-photo 413, `penColor="#0f3a8a"`, and
+every field-geometry expression including `prevAnchoredTop` and the
+coarse-pointer compact gate.
+
+The dashed rose frame, the "Signed with Rivvra Sign" label and the truncated
+hash are **audit evidence the next signer is meant to inspect**. Re-tinting
+them to brand tokens would change what a legal document looks like. Only the
+chrome moved: header, banners, guard screens, bottom bar, modals, toast.
+
+### Lint
+
+Legacy 5 problems (4 errors, 1 warning). V2 **5 problems, the same set**. One
+new error appeared en route — `StatusCard({ icon: Icon })` reads to eslint as
+unused even though the JSX uses it — and was removed by taking `icon` as a
+rendered node instead.
+
+### Dropped
+
+The local `ConfirmDialog` (legacy 532–556) was declared and never called; the
+refuse flow has always had its own inline modal. 26 lines of dead code.
+
+### Carried across unchanged, deliberately
+
+`SignatureStamp` is passed `compact={isCompactScale}` but never destructures
+`compact`, so the prop is silently ignored. That matches the stated intent
+("always renders the full audit chrome"). Honouring it *or* deleting it would
+change what a signer sees on a signed document — so it stays exactly as-is,
+flagged rather than tidied.
+
+### The "missing fields" was my harness, not the app — FALSE FAILURE #8
+
+A public signing link needs a per-signer token that exists only in the sent
+email, and the authenticated API correctly does not return it. So the signing
+screen was exercised behind a stubbed `verify` response and a fixture PDF.
+
+Under that harness, `PdfPageWithFields` paints the PDF canvas but renders **no
+field overlay** — the whole overlay is gated on `rendered`, so the page looks
+like a document that simply has no fields on it. Priyanshu confirmed fields
+render fine on a real link, so this is a harness artifact. Chasing it anyway
+was worth it for what it ruled out, and worth writing down for the next person
+who builds a stub for this page.
+
+**What it is not.** Instrumenting the effect showed
+`run 1 start → run 1 cleanup → run 2 start → run 1 getPage (stale) → run 2
+getPage → run 2 about to render`, and then nothing. That interleaving looks
+exactly like a two-run race over the shared `renderTaskRef`, and I wrote a
+generation-counter guard for it. **The guard was inert and has been reverted:**
+the existing `if (!canvas || cancelled) return;` already bails the older run
+before it can touch the canvas or the task ref, because React always runs a
+cleanup before the next effect. There was no race to fix.
+
+**What it actually is.** `page.render()`'s promise never settles. Confirmed
+with StrictMode disabled — one run, not stale, reaches `page.render()` and
+hangs — so the double-mount is irrelevant. It reproduces with a hand-rolled
+PDF *and* one generated by jsPDF, on a cold full page load, in a production
+build, on the **legacy** page as well as v2. The same fixture renders fine when
+the route is entered by client-side navigation from an already-running app.
+That points at pdf.js worker initialisation on a cold load under the stub, not
+at either page.
+
+Legacy and v2 behave **identically** throughout — which is what byte-identity
+predicts, and is the parity evidence for the document surface.
+
+**Lesson: a stub that makes the page render at all is not a stub that makes it
+render truthfully.** Two independent things were wrong-looking here, and the
+one that matched a familiar pattern (a React effect race) was the one that was
+not real. Disabling StrictMode to collapse the run count was the experiment
+that settled it in one step; reach for that before writing a fix.
+
+Verified: the opt-in gate (all three directions), the terminal screens, the
+light-theme pin, contrast (0 failures).
