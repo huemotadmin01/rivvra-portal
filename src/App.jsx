@@ -164,6 +164,7 @@ const KnowledgeBasePage = lazy(() => import('./pages/kb/KnowledgeBasePage'));
 const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
 const EmployeeDashboardV2 = lazy(() => import('./pages/employee/EmployeeDashboardV2'));
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
+const EmployeeDirectoryV2 = lazy(() => import('./pages/employee/EmployeeDirectoryV2'));
 const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
 const EmployeeDepartmentsV2 = lazy(() => import('./pages/employee/EmployeeDepartmentsV2'));
@@ -174,9 +175,11 @@ const EmployeeQuickCreate = lazy(() => import('./pages/employee/EmployeeQuickCre
 const EmployeeQuickCreateV2 = lazy(() => import('./pages/employee/EmployeeQuickCreateV2'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
 const PlanTemplates = lazy(() => import('./pages/employee/PlanTemplates'));
+const PlanTemplatesV2 = lazy(() => import('./pages/employee/PlanTemplatesV2'));
 const AssetList = lazy(() => import('./pages/employee/AssetList'));
 const AssetListV2 = lazy(() => import('./pages/employee/AssetListV2'));
 const AssetDetail = lazy(() => import('./pages/employee/AssetDetail'));
+const AssetDetailV2 = lazy(() => import('./pages/employee/AssetDetailV2'));
 const AssetTypeConfig = lazy(() => import('./pages/employee/AssetTypeConfig'));
 const AssetTypeConfigV2 = lazy(() => import('./pages/employee/AssetTypeConfigV2'));
 
@@ -645,7 +648,7 @@ function App() {
               {/* Employee app routes — gated by employee access */}
               <Route element={<AppAccessGate appId="employee" />}>
                 <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><PageSwitch v2={EmployeeDashboardV2} legacy={EmployeeDashboard} /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><PageSwitch v2={EmployeeDirectoryV2} legacy={EmployeeDirectory} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><PageSwitch v2={EmployeeDepartmentsV2} legacy={EmployeeDepartments} /></ErrorBoundary>} />
                 {/* Add/Edit/Plan Templates require employee admin role */}
@@ -657,11 +660,11 @@ function App() {
                       remaining edit affordances. */}
                   <Route path="/org/:slug/employee/add" element={<ErrorBoundary><PageSwitch v2={EmployeeQuickCreateV2} legacy={EmployeeQuickCreate} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
-                  <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PlanTemplates /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PageSwitch v2={PlanTemplatesV2} legacy={PlanTemplates} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/assets/types" element={<ErrorBoundary><PageSwitch v2={AssetTypeConfigV2} legacy={AssetTypeConfig} /></ErrorBoundary>} />
                 </Route>
                 <Route path="/org/:slug/employee/assets" element={<ErrorBoundary><PageSwitch v2={AssetListV2} legacy={AssetList} /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/assets/:assetId" element={<ErrorBoundary><AssetDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/assets/:assetId" element={<ErrorBoundary><PageSwitch v2={AssetDetailV2} legacy={AssetDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><PageSwitch v2={EmployeeDetailV2} legacy={EmployeeDetail} /></ErrorBoundary>} />
               </Route>
 
