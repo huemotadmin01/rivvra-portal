@@ -166,15 +166,19 @@ const EmployeeDashboardV2 = lazy(() => import('./pages/employee/EmployeeDashboar
 const EmployeeDirectory = lazy(() => import('./pages/employee/EmployeeDirectory'));
 const OrgChart = lazy(() => import('./pages/employee/OrgChart'));
 const EmployeeDepartments = lazy(() => import('./pages/employee/EmployeeDepartments'));
+const EmployeeDepartmentsV2 = lazy(() => import('./pages/employee/EmployeeDepartmentsV2'));
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
 const EmployeeDetailV2 = lazy(() => import('./pages/employee/EmployeeDetailV2'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
 const EmployeeQuickCreate = lazy(() => import('./pages/employee/EmployeeQuickCreate'));
+const EmployeeQuickCreateV2 = lazy(() => import('./pages/employee/EmployeeQuickCreateV2'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
 const PlanTemplates = lazy(() => import('./pages/employee/PlanTemplates'));
 const AssetList = lazy(() => import('./pages/employee/AssetList'));
+const AssetListV2 = lazy(() => import('./pages/employee/AssetListV2'));
 const AssetDetail = lazy(() => import('./pages/employee/AssetDetail'));
 const AssetTypeConfig = lazy(() => import('./pages/employee/AssetTypeConfig'));
+const AssetTypeConfigV2 = lazy(() => import('./pages/employee/AssetTypeConfigV2'));
 
 // Lazy-loaded: v2 (redesign) pages — only downloaded by uiV2 orgs.
 const ContactsListV2 = lazy(() => import('./pages/contacts/ContactsListV2'));
@@ -643,7 +647,7 @@ function App() {
                 <Route path="/org/:slug/employee/dashboard" element={<ErrorBoundary><PageSwitch v2={EmployeeDashboardV2} legacy={EmployeeDashboard} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/directory" element={<ErrorBoundary><EmployeeDirectory /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
-                <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><EmployeeDepartments /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/departments" element={<ErrorBoundary><PageSwitch v2={EmployeeDepartmentsV2} legacy={EmployeeDepartments} /></ErrorBoundary>} />
                 {/* Add/Edit/Plan Templates require employee admin role */}
                 <Route element={<AppRoleGate appId="employee" requiredRole="admin" />}>
                   {/* /employee/add now uses the Odoo-style quick-create flow:
@@ -651,12 +655,12 @@ function App() {
                       EmployeeDetail page. EmployeeForm stays wired to
                       /employee/edit/:id until EmployeeDetail absorbs all
                       remaining edit affordances. */}
-                  <Route path="/org/:slug/employee/add" element={<ErrorBoundary><EmployeeQuickCreate /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/add" element={<ErrorBoundary><PageSwitch v2={EmployeeQuickCreateV2} legacy={EmployeeQuickCreate} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PlanTemplates /></ErrorBoundary>} />
-                  <Route path="/org/:slug/employee/assets/types" element={<ErrorBoundary><AssetTypeConfig /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/assets/types" element={<ErrorBoundary><PageSwitch v2={AssetTypeConfigV2} legacy={AssetTypeConfig} /></ErrorBoundary>} />
                 </Route>
-                <Route path="/org/:slug/employee/assets" element={<ErrorBoundary><AssetList /></ErrorBoundary>} />
+                <Route path="/org/:slug/employee/assets" element={<ErrorBoundary><PageSwitch v2={AssetListV2} legacy={AssetList} /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/assets/:assetId" element={<ErrorBoundary><AssetDetail /></ErrorBoundary>} />
                 <Route path="/org/:slug/employee/:employeeId" element={<ErrorBoundary><PageSwitch v2={EmployeeDetailV2} legacy={EmployeeDetail} /></ErrorBoundary>} />
               </Route>

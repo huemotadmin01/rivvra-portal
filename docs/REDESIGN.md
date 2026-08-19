@@ -1583,3 +1583,85 @@ Two things worth keeping from that:
   obviously scrubbed, but it could be — so the finding is written as "check this
   field in production", not as a confirmed live bug. That distinction has been
   wrong-way-round once already in this project.
+
+---
+
+## Phase 20 — Employee, batch 1 (asset types, departments, assets, quick-create)
+
+Four pages, 1,155 legacy lines. Slices byte-identical, lint parity exact on all
+four (1=1, 2=2, 2=2, 0=0 — same rules, same messages, only line numbers move).
+
+### The substitution that needed proving
+
+`EmployeeQuickCreate` used `EmployeePicker`, a Tailwind widget that matched a
+query against **name + employeeId + designation**. ds has no equivalent, and
+`ComboBox` searches only `label` and `sub` — two fields, not three.
+
+Folding the two extras into `sub` (`#11332222 · Java Backend with AWS`) keeps all
+three searchable, but "keeps" was a claim, not a fact. Verified by driving the
+live picker with one query per axis:
+
+| query | axis | options |
+|---|---|---|
+| `Hutafa` | name | 1 |
+| `11332222` | employeeId | 1 |
+| `Java Backend` | designation | 1 |
+| `zzzznope` | — | 0 |
+
+That is the whole point of a substitution: a component swap is only equivalent
+if you go and measure the thing the old one did.
+
+One deliberate difference: legacy capped the rendered list at `.slice(0, 50)`
+("cap render for sanity"); there are 62 manager options, so the last 12 were
+unreachable without typing. ds `ComboBox` shows all 62. That is a cap removal,
+not a behaviour change — noted rather than silently inherited.
+
+### A tone is a claim about meaning
+
+I first gave the department headcount chip `tone="warn"` — amber. Legacy painted
+it `bg-dark-700 text-dark-300`, plain grey. The contrast audit passed it in both
+themes, because amber-on-amber-wash is perfectly legible.
+
+Legibility was never the question. A headcount is not a warning state, and an
+amber chip on every card says something the legacy page did not say. Changed to
+`neutral`.
+
+**The audit cannot catch semantic drift.** It measures whether you can read the
+text, not whether the colour is telling the truth. Every tone assignment in a
+migration is a small editorial decision, and it needs a reason from the legacy
+file — not just a passing ratio.
+
+### Gates verified live, nothing written
+
+Both destructive/creating surfaces were exercised behind a blocking `fetch`
+interceptor (every non-GET rejected and logged). The blocked list stayed empty
+throughout, because nothing ever got far enough to fire:
+
+- **Department delete** is offered only at `employeeCount === 0`. Probed four
+  departments: Administration (0) and Marketing (0) show Delete; Admin (3) and
+  IT (99) do not.
+- **Asset create** stays disabled until type + non-blank name + assignee are all
+  set. Whitespace-only name keeps it disabled; it enables on the third condition
+  and not before.
+- **Quick-create** stays disabled through `a@b` and enables only after both
+  pickers are filled — the first-hire waiver does not apply here, and did not
+  fire.
+
+### Filter counts as an arithmetic check
+
+The Assets page shows both stat tiles and a filterable grid, fed by two separate
+API calls. Filtering by each status and counting cards gives 19 assigned + 8
+returned = 27 total, matching the tiles exactly. Two independent paths agreeing
+is worth more than either one looking plausible.
+
+That count needed one correction first: `[aria-label^="Open "]` also matched the
+layout's **"Open navigation"** button, inflating every bucket by exactly one.
+Consistent off-by-one across every measurement is the signature of an
+over-matching selector, not of a real discrepancy — the fourth time this
+particular mode has shown up.
+
+### Contrast
+
+4 routes × 2 themes, plus the department edit modal in both: **0 failures**,
+331 elements checked per theme. Screenshot before each read, since layout is not
+paint.
