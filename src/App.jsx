@@ -348,7 +348,9 @@ const IncentiveMyEarnings = lazy(() => import('./pages/incentive/MyEarnings'));
 const IncentiveDashboard = lazy(() => import('./pages/incentive/IncentiveDashboard'));
 const IncentiveDashboardV2 = lazy(() => import('./pages/incentive/IncentiveDashboardV2'));
 const IncentiveRecordsList = lazy(() => import('./pages/incentive/RecordsList'));
+const IncentiveRecordsListV2 = lazy(() => import('./pages/incentive/RecordsListV2'));
 const IncentiveRecordForm = lazy(() => import('./pages/incentive/RecordForm'));
+const IncentiveRecordFormV2 = lazy(() => import('./pages/incentive/RecordFormV2'));
 const IncentiveRecordDetail = lazy(() => import('./pages/incentive/RecordDetail'));
 const IncentiveRatesTable = lazy(() => import('./pages/incentive/RatesTable'));
 // IncentiveSettings was moved into the global Settings hub at
@@ -795,10 +797,10 @@ function App() {
                 {/* Admin-only */}
                 <Route element={<AppRoleGate appId="incentive" requiredRole="admin" />}>
                   <Route path="/org/:slug/incentive/dashboard" element={<ErrorBoundary><PageSwitch v2={IncentiveDashboardV2} legacy={IncentiveDashboard} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/incentive/records" element={<ErrorBoundary><IncentiveRecordsList /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/records" element={<ErrorBoundary><PageSwitch v2={IncentiveRecordsListV2} legacy={IncentiveRecordsList} /></ErrorBoundary>} />
                   {/* /records/new removed — drafts are auto-created from paid invoices only.
                       /records/:recordId/edit kept so admins can tweak existing drafts before approval. */}
-                  <Route path="/org/:slug/incentive/records/:recordId/edit" element={<ErrorBoundary><IncentiveRecordForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/records/:recordId/edit" element={<ErrorBoundary><PageSwitch v2={IncentiveRecordFormV2} legacy={IncentiveRecordForm} /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/rates" element={<ErrorBoundary><IncentiveRatesTable /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/settings" element={<IncentiveSettingsRedirect />} />
                 </Route>

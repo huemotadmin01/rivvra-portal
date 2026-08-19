@@ -1972,3 +1972,51 @@ is theme-aware, so the three shared legacy widgets kept on this page
 Worth stating once more, since it has now cost time three times: **do not judge a
 colour from a screenshot taken immediately after switching themes.** Re-read
 after it settles, or read the inline style instead.
+
+---
+
+## Phase 21 — Incentive, batch 1 (records list, record form)
+
+Two pages, 836 legacy lines. Both lint 0 = 0.
+
+### The render-resident sum this rule exists for
+
+`RecordsList`'s "Incentive (R+AM)" column is computed **inside the JSX**:
+
+```js
+formatAmount((r.recruiterIncentive || 0) + (r.accountManagerIncentive || 0), r.currency)
+```
+
+Splicing everything above `return (` would have missed it entirely. Five separate
+slices were taken and diffed instead: `formatAmount` (with the comment explaining
+why its rounding is deliberately whole-units), `STATUS_TABS`, `SHORT_STATUS`,
+`StatusCell`'s four-branch divergence rule, and the 99-line main block including
+`getTabCount`'s `reduce` over the status buckets.
+
+### Money parity, digit for digit
+
+Captured both renders of the same page by temporarily pinning the route at the
+legacy component. **Net Profit and Incentive (R+AM) match exactly across the
+first eight rows**, en-IN lakh grouping and all — ₹2,31,792 / ₹25,497,
+₹2,11,826 / ₹23,301, and so on. Tab counts match too, and reconcile:
+16 + 2 + 300 + 45 = **363**.
+
+### Findings — reported, not fixed
+
+**`RecordForm` labels the salary snapshot `(₹)` hardcoded** while the three money
+fields around it interpolate the record's own `currency`. On the record used for
+verification all four should read INR, so the page shows
+"Untaxed invoice value (INR)", "Recruiter amount override (INR)",
+"AM amount override (INR)" — and, between them, "Consultant salary snapshot (₹)".
+Consistent only by luck of the record's currency.
+
+`onSave`'s coercions are the other thing worth naming, and they are carried
+across byte-identically: an empty override becomes `null` (cleared) while a typed
+`0` becomes `Number(0)` (an override of zero). On a commission record those are
+very different instructions, and they hang entirely on `=== ''`.
+
+### Contrast
+
+2 themes, ~443 elements each: **0 failures**. Includes the strikethrough
+`cancelled` chips, which survive as a `Chip` with `textDecoration` rather than a
+bespoke pill class.
