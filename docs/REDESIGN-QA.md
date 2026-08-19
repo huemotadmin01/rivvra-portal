@@ -2575,3 +2575,69 @@ read cleanly. Verified it is a pure rename by counting each dependent
 expression on both sides — 1/1/1/2/1/1 either way. The initial count looked
 wrong only because the *helper definitions* also name their parameter `cc`,
 verbatim from legacy.
+
+## #98 — settings batch 11: `settings/users` (Users & Teams)
+
+984 lines, two components. **Two verbatim slices** — the page's state and
+handlers (**127 lines**) and `TeamSection`'s (**129**) — plus the derived member
+filters (9) and **11 probes**.
+
+### ⚠️ Every mutation left alone
+
+Invite Member, **Resend invite** (emails the invitee), **Update & Resend**
+(emails a *different* address), Cancel invite, Save rate limits, and in both
+TeamSections: Create / Rename / Delete team, Add / Remove member. None
+triggered.
+
+### The derived sets are the load-bearing part
+
+- **`eligible`** — active, not an owner, not already in a team **of this type**.
+  Its source of truth is `team.memberIds`, deliberately *not* the denormalised
+  `member.teamId`, so someone in a sales team is still offered for a
+  recruitment team. Both the derivation and the comment explaining it are
+  byte-identical.
+- **The team-lead pool** is `NO_LEAD_OPTION` + current members + `eligible`,
+  which is why a lead can be chosen from outside the team (the backend adds
+  them). All three spreads asserted.
+- **The `ComboSelect` remount key** — ``key={`add-${team.id}-${(team.memberIds || []).length}`}`` —
+  is what makes the picker visibly clear after each add.
+- **The rate-limit clamps**, `Math.min(50, Math.max(1, v))` hourly and
+  `Math.min(200, Math.max(1, v))` daily — the same ceilings Outreach enforces
+  per mailbox (#89).
+
+### Rendered parity — a 63-member org
+
+| surface | result |
+|---|---|
+| seats | `63/100 seats used`, identical |
+| org-role chips | **64**, identical in order |
+| team sections | both, identical |
+| team leads | 3, identical |
+| member counts | `63 / 5 / 5 / 5`, identical |
+| rate-limit badges | **10**, identical — including the non-default `20/hr · 200/day`, `25/hr · 200/day`, `30/hr · 200/day` |
+| pending-invites section | same state (absent) |
+
+The varied rate-limit badges are the useful ones: they prove the per-member
+values render from `memberRateLimits`, not from a default.
+
+Search driven live: `staging.invalid` matches all 63, `zzzznomatch` gives
+`No members match "zzzznomatch"`, clearing restores 64 chips exactly.
+
+### Verification
+
+- **0 contrast failures** in both themes (397 light / 399 dark) — the largest
+  node count audited in this project — real paint forced before each read
+- Slices byte-identical: 127 + 129 + 9 lines; 11 probes
+- Lint parity **7 = 7**, including the `'Icon' is defined but never used`
+  false positive (the eslint config still has no `eslint-plugin-react`, so
+  `react/jsx-uses-vars` never runs — documented under tax/report)
+- **No writes**
+
+### One measurement note
+
+`gradient: 25` in both themes — the fallback avatars. Legacy painted them with
+`bg-gradient-to-br from-dark-600 to-dark-700`; v2 uses ds `Avatar`, which also
+carries a gradient. So the same 25 nodes are unmeasurable in **both** versions,
+by the same guard, for the same reason. That is parity, not a regression — but
+it is still 25 nodes nobody has measured, and it is the `Avatar` limitation
+already recorded in THEMING.md.
