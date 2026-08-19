@@ -1411,6 +1411,106 @@ export default function InvoiceDetailV2() {
   };
 
   // ── Loading state ──
+  const status = invoice.status || 'draft';
+  const currency = editForm.currency || invoice.currency || 'INR';
+  const lineItems = isDraft ? (editForm.lines || []) : (invoice.lines || invoice.lineItems || []);
+  const payments = invoice.payments || [];
+  const amountDue = invoice.amountDue ?? invoice.total ?? 0;
+  const typeLabel = getInvoiceTypeLabel(invoice);
+
+  // Derive payment status (fallback from legacy status values when not set)
+  const paymentStatus = invoice.paymentStatus
+    || (status === 'paid' ? 'paid'
+      : status === 'partial' ? 'partial'
+      : status === 'cancelled' ? null
+      : status === 'draft' ? 'not_paid'
+      : 'not_paid');
+  const isFullyPaid = paymentStatus === 'paid' || status === 'paid';
+  const isLifecyclePosted = ['posted', 'viewed', 'partial', 'overdue', 'paid'].includes(status);
+  const isCancelled = status === 'cancelled';
+  const isReversed = Boolean(invoice.reversedByCreditNoteId);
+  const isCreditNote = invoice.type === 'credit_note';
+  const isActionablePosted = isLifecyclePosted && !isCancelled && !isFullyPaid && !isReversed && !isCreditNote;
+  // Compare against end-of-day so an invoice due TODAY is not flagged overdue.
+  const dueEndOfDay = invoice.dueDate ? new Date(invoice.dueDate) : null;
+  if (dueEndOfDay) dueEndOfDay.setHours(23, 59, 59, 999);
+  const isOverdue = Boolean(
+    dueEndOfDay
+    && dueEndOfDay < new Date()
+    && !isFullyPaid
+    && !isCancelled
+    && !isReversed
+    && !isCreditNote
+    && status !== 'draft'
+  );
+  const stepIndex = isFullyPaid ? 2 : isLifecyclePosted ? 1 : 0;
+
+  // Build address lines (multi-line display)
+  const addrObj = editForm.contactAddress || invoice.contactAddress || invoice.customer?.address;
+  const addressLines = typeof addrObj === 'object' && addrObj
+    ? [
+        [addrObj.street, addrObj.street2].filter(Boolean).join(', '),
+        [addrObj.city, addrObj.state, addrObj.zip].filter(Boolean).join(', '),
+        addrObj.country,
+      ].filter(Boolean)
+    : typeof addrObj === 'string' ? [addrObj] : [];
+  const addressStr = addressLines.join(', '); // fallback for any code using addressStr
+
+  // Payment terms display
+  const paymentTermDisplay = (() => {
+    const termId = isDraft ? (editForm.paymentTermId || invoice.paymentTermId) : invoice.paymentTermId;
+    if (termId && paymentTermsList.length) {
+      const found = paymentTermsList.find(pt => (pt._id || pt.id) === termId);
+      if (found) return found.name;
+    }
+    if (invoice.paymentTerms) {
+      return typeof invoice.paymentTerms === 'object' ? invoice.paymentTerms.name : invoice.paymentTerms;
+    }
+    return 'Due on Receipt';
+  })();
+
+  const paymentTermOptions = paymentTermsList.map(pt => ({
+    value: pt._id || pt.id,
+    label: pt.name,
+  }));
+
+  // Soft GST payment-hold toggle (vendor bills). Manual holds win over the
+  // reconciliation auto-hold. Does not block recording a payment — just warns.
+  const submitGstHold = async (onHoldFlag, reason) => {
+    try {
+      setActionLoading('gstHold');
+      const res = await invoicingApi.setGstHold(orgSlug, invoiceId, { onHold: onHoldFlag, reason });
+      setInvoice(prev => ({ ...prev, gstHold: res.gstHold }));
+      setGstHoldModal(null);
+      showToast(onHoldFlag ? 'Payment held' : 'Payment hold released', 'success');
+    } catch (e) { showToast(e.message || 'Failed to update hold', 'error'); }
+    finally { setActionLoading(null); }
+  };
+  const handleToggleGstHold = () => {
+    const held = !!invoice.gstHold?.onHold;
+    if (held) {
+      submitGstHold(false, '');
+    } else {
+      setGstHoldModal({ reason: 'GST not yet filed by vendor (not in 2B)' });
+    }
+  };
+  const onHold = !!invoice.gstHold?.onHold;
+
+  // On-demand live GSTIN status check (active/cancelled) via the IRP lookup.
+  const checkGstinLive = async () => {
+    const g = ((isDraft ? editForm.vendorGstin : invoice.vendorGstin) || '').trim();
+    if (!g) return;
+    setGstinLiveLoading(true); setGstinLive(null);
+    try {
+      const r = await invoicingApi.validateGstin(orgSlug, g);
+      setGstinLive(r.live || { status: 'unknown', source: 'disabled' });
+    } catch {
+      setGstinLive({ status: 'unknown', source: 'error' });
+    } finally {
+      setGstinLiveLoading(false);
+    }
+  };
+
   // ───────────────────────────────────────────────────────────────────────
   // WORK IN PROGRESS — the render is not written yet.
   //
