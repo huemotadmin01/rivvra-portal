@@ -2352,3 +2352,115 @@ nowhere.
 The blocking interceptor did **not** survive a Vite full reload triggered by
 editing `App.jsx` mid-session. Caught by checking `window.__armed` before the
 next interactive step. Check the flag; do not assume it.
+
+---
+
+## Phase 26 — PublicSigningPage ⚠️ NOT MERGED
+
+`src/pages/sign/PublicSigningPage.jsx` (2,728) → `PublicSigningPageV2.jsx`
+(2,903), plus `PublicSigningRoute.jsx`. **Opt-in, defaults to legacy, and the
+PR is deliberately left open** — see "What I could not verify".
+
+This is the only page in the migration that an unauthenticated stranger opens
+from an email to sign a legal document, and three things about it broke the
+usual method.
+
+### 1. `PageSwitch` cannot gate this route
+
+`/sign/public/:requestId/:signerId/:token` lives outside `OrgPlatformLayout`,
+so there is no `OrgProvider`, no `currentOrg.uiV2`, and the verify endpoint
+returns `orgName` but no UI flag. The switch is therefore local and explicit:
+
+| URL | result |
+|---|---|
+| `?ui=v2` | v2, remembered in `localStorage` |
+| `?ui=v1` | legacy, preference cleared |
+| no param | **legacy** |
+
+All three verified. A counterparty part-way through a contract must not be
+handed a different UI because a flag defaulted the wrong way.
+
+### 2. ds tokens default to DARK, and this page must not
+
+`:root` in `ds-tokens.css` **is** the dark theme; light only arrives via
+`[data-theme='light']`, which nothing but the in-app `ThemeToggle` ever sets.
+An external signer has no toggle and no stored preference — so a naive ds port
+renders this page **dark for every counterparty**. That is a change to how a
+legal document is presented, and nobody asked for it.
+
+The page pins `data-theme="light"` on its own root. Verified by forcing
+`<html data-theme="dark">` and confirming the page still computes
+`--bg: rgb(250,248,244)`.
+
+### 3. The document surface is not re-themed at all
+
+Everything that paints on, or positions against, the PDF is spliced verbatim
+and keeps its own palette — **5 slices, 1,778 lines, 0 mismatches**:
+
+| slice | legacy | lines |
+|---|---|---|
+| helpers + signature pipeline | 21–205 | 185 |
+| `useIsMobileViewport` + `SignaturePadModal` logic | 210–321 | 112 |
+| `InlineFieldInput` (whole) | 559–692 | 134 |
+| `FittedText` / `PrevSignerValue` / `SignatureStamp` / `PdfPageWithFields` (whole) | 695–1344 | 650 |
+| main component logic | 1347–2043 | 697 |
+
+25 signature-chain expressions asserted by string count: the SHA-256 hash and
+its 12-hex truncation, the paper-knockout luminance loop and feather band, the
+1200×600 downscale that fixed the phone-photo 413, `penColor="#0f3a8a"`, and
+every field-geometry expression including `prevAnchoredTop` and the
+coarse-pointer compact gate.
+
+The dashed rose frame, the "Signed with Rivvra Sign" label and the truncated
+hash are **audit evidence the next signer is meant to inspect**. Re-tinting
+them to brand tokens would change what a legal document looks like. Only the
+chrome moved: header, banners, guard screens, bottom bar, modals, toast.
+
+### Lint
+
+Legacy 5 problems (4 errors, 1 warning). V2 **5 problems, the same set**. One
+new error appeared en route — `StatusCard({ icon: Icon })` reads to eslint as
+unused even though the JSX uses it — and was removed by taking `icon` as a
+rendered node instead.
+
+### Dropped
+
+The local `ConfirmDialog` (legacy 532–556) was declared and never called; the
+refuse flow has always had its own inline modal. 26 lines of dead code.
+
+### Carried across unchanged, deliberately
+
+`SignatureStamp` is passed `compact={isCompactScale}` but never destructures
+`compact`, so the prop is silently ignored. That matches the stated intent
+("always renders the full audit chrome"). Honouring it *or* deleting it would
+change what a signer sees on a signed document — so it stays exactly as-is,
+flagged rather than tidied.
+
+### What I could not verify — and why this is not merged
+
+A public signing link needs a per-signer token that exists only in the sent
+email. The authenticated API deliberately does not return it (correctly). So
+the signing screen was exercised behind a stubbed `verify` response and a
+hand-built fixture PDF.
+
+Under that harness, **`PdfPageWithFields` paints the PDF canvas but renders no
+field overlay** — on a cold full page load, in a production build, on the
+**legacy** page as well as v2. Instrumenting the render effect showed
+`effect-run → cleanup → effect-run` with the `await task.promise` never
+resolving: two overlapping runs each cancel the other's render task through the
+shared `renderTaskRef`, and whichever run wins the canvas is the one whose
+`cancelled` flag is already set, so `setRendered(true)` never fires.
+
+Legacy and v2 behave **identically** here — which is exactly what byte-identity
+predicts, and is the parity evidence for the document surface. But I could not
+establish whether the race is a real production defect or an artifact of the
+synthetic fixture, and I am not merging a signing page on that footing.
+
+**Open question for Priyanshu:** is this reproducible with a real signing link?
+If it is, it is a live bug on the legacy page — a signer sees the document and
+no fields, and cannot sign — and it needs fixing in the shared effect before
+either page ships. Fixing it means editing the one block I promised not to
+move, which is a decision to take deliberately rather than in passing.
+
+Verified without the PDF: the opt-in gate (all three directions), the terminal
+screens, the light-theme pin, contrast (0 failures).

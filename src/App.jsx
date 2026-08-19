@@ -279,7 +279,7 @@ const SignRequestDetail = lazy(() => import('./pages/sign/SignRequestDetail'));
 const SignRequestDetailV2 = lazy(() => import('./pages/sign/SignRequestDetailV2'));
 const SignConfig = lazy(() => import('./pages/sign/SignConfig'));
 const SignConfigV2 = lazy(() => import('./pages/sign/SignConfigV2'));
-const PublicSigningPage = lazy(() => import('./pages/sign/PublicSigningPage'));
+const PublicSigningRoute = lazy(() => import('./pages/sign/PublicSigningRoute'));
 
 // Lazy-loaded: Public careers (no auth)
 const CareersHome = lazy(() => import('./pages/careers/CareersHome'));
@@ -821,7 +821,7 @@ function App() {
             {/* ============================================================ */}
             {/* PUBLIC SIGNING PAGE — no auth required, token-based access    */}
             {/* ============================================================ */}
-            <Route path="/sign/public/:requestId/:signerId/:token" element={<PublicSigningPage />} />
+            <Route path="/sign/public/:requestId/:signerId/:token" element={<PublicSigningRoute />} />
 
             {/* ============================================================ */}
             {/* PUBLIC CAREERS — no auth, gated by org.careersEnabled         */}
