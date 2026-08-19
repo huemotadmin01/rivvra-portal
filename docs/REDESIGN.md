@@ -2107,3 +2107,71 @@ reload.
 
 2 pages × 2 themes: **0 failures** (520 elements on MyEarnings, 65 on
 RecordDetail), after the banner fix.
+
+---
+
+## Phase 24 — MyProfilePage
+
+957 legacy lines → 862. Lint 1 = 1 (the same unused `passwordAuthAllowed`,
+which sits inside the verbatim slice).
+
+Four slices, all byte-identical: `TIMEZONE_OPTIONS` with its rationale comment,
+`resolvePhotoUrl`, the 263-line data layer, and the two masking helpers.
+
+### The sensitive surface here is masking, not money
+
+```js
+maskAccount  → '••••' + acc.slice(-4)
+maskAadhaar  → '•••• •••• ' + aadhaar.slice(-4)
+```
+
+Both guard on `length < 4` and **return the raw value** when it is shorter — so
+a short or malformed account number is shown in full, by design. That is worth
+knowing about but is not a bug to fix mid-migration, and either function is one
+transposed character away from printing a whole bank account or Aadhaar number.
+Diffed, then re-checked by exact string count on both sides.
+
+### A gate that is not where it looks
+
+The Set/Change Password button's `disabled` only tests
+`!newPassword || newPassword !== confirmPassword`. **The 10-character floor is
+not on the button** — it lives inside `handlePasswordSubmit`. So five matching
+characters *enables* the button:
+
+| state | button |
+|---|---|
+| empty | disabled |
+| new only, 5 chars | disabled |
+| both match, 5 chars | **enabled** |
+| new 12 chars, confirm mismatched | disabled |
+
+Clicking it in that enabled-but-invalid state produced
+"Password must be at least 10 characters" and **zero write attempts** — the
+floor holds where it actually lives. Carried across unchanged.
+
+The lesson is the one this project keeps relearning from the other direction:
+a disabled button is not the guard, it is a hint about the guard. Test the
+submit path, not the affordance.
+
+### Delete-account gate
+
+Rejects every near-miss — lowercase, trailing space, one character short — and
+the exact phrase was never typed, so the delete was never armed.
+
+### Parity
+
+Captured both renders by pinning the route at the legacy component. All five
+data tabs are **character-for-character identical**, including every `—`
+placeholder. Work Info, Personal (with its 6-field address block), Emergency,
+Bank & Statutory, Account Security.
+
+### Unverifiable on this data
+
+The staging account has `bankDetails.accountNumber`, `statutory.aadhaar`, IFSC
+and PAN all `null`, so both tabs render `—` and **the masking branch is never
+entered**. Byte-identity is the guarantee here, not observation — stated plainly
+rather than implied by a passing screenshot.
+
+### Contrast
+
+6 tabs × 2 themes = 12 audits: **0 failures**.
