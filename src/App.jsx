@@ -55,6 +55,7 @@ const TeamListsPage = lazy(() => import('./pages/TeamListsPage'));
 
 // Lazy-loaded: Standalone pages
 const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
+const MyProfilePageV2 = lazy(() => import('./pages/MyProfilePageV2'));
 
 // Lazy-loaded: Platform settings
 const SettingsGeneral = lazy(() => import('./components/settings/SettingsGeneral'));
@@ -529,7 +530,7 @@ function App() {
             {/* ============================================================ */}
             <Route element={<ProtectedRoute><OrgPlatformLayout /></ProtectedRoute>}>
               <Route path="/org/:slug/home" element={<OnboardingGate><AppLauncherPage /></OnboardingGate>} />
-              <Route path="/org/:slug/my-profile" element={<MyProfilePage />} />
+              <Route path="/org/:slug/my-profile" element={<PageSwitch v2={MyProfilePageV2} legacy={MyProfilePage} />} />
               {/* Company Policies (ESS) — any authenticated member with a linked
                   employee record; intentionally NOT behind an app/country gate. */}
               <Route path="/org/:slug/my-policies" element={<ErrorBoundary><PageSwitch v2={MyPoliciesV2} legacy={MyPolicies} /></ErrorBoundary>} />
