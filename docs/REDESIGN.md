@@ -1775,3 +1775,109 @@ a component that no longer exists).
 
 3 routes x 2 themes, with the plan-template editor and the asset return modal
 open: **0 failures**.
+
+---
+
+## Phase 20 — Employee, batch 3 (org chart, onboarding wizard)
+
+Two pages, 1,575 legacy lines. The employee app is now 100% v2.
+
+### Geometry does not get modernised
+
+`OrgChart` is mostly maths. The card metrics, `layoutTree`, the L-shaped
+connector path expression, the cycle-breaking tree builder, the pan/zoom/fit
+handlers, and `reassignManager` are all spliced in byte-identically — 87 lines
+of constants and layout, 219 lines of component logic, plus the connector path
+and `matchesSearch` diffed on their own.
+
+Three things were deliberately not verbatim, each diffed around: the connector
+`stroke` (a hardcoded slate rgba, now a token, so the lines survive the light
+theme), the avatar ink, and `handleClick`'s unused `e` parameter — which was one
+of legacy's three lint errors, so lint goes 5 → 4.
+
+The avatar is the interesting one. Legacy drew initials in `avatarColors[0]` over
+that same colour at 25% — accent on its own tint, the pairing this project has
+measured at ~4.1 before. The name hash and the eight-colour palette are
+unchanged, so an employee keeps their colour; the tint carries the identity and
+the ink is `--fg`.
+
+### A false failure that cost a detour, twice
+
+Searching the org chart highlights matching cards with an amber border. Probing
+`getComputedStyle(card).borderTopColor` after typing returned **white at 11%** —
+identical to the unhighlighted default. It looked like `--warn-ink` was failing
+to resolve inside `color-mix`.
+
+It wasn't. Reading `el.getAttribute('style')` — what React actually set — showed
+`border: 2px solid color-mix(in srgb, var(--warn-ink) 55%, transparent)` on
+exactly the matching card and `var(--line-2)` on every other, and probing
+`color-mix` live resolved it to amber at 55%. A screenshot shows the highlight
+plainly. **Computed styles read without a forced paint are stale** — mode five on
+the list, and it is still the one that fools me.
+
+The light theme then produced the same shape of scare twice more: cards rendered
+grey with unreadable text, and stepper circles came out dark. Both were the
+theme cross-fade caught mid-transition; both settled correctly on a second look.
+
+Two rules worth holding onto:
+- **The inline style attribute is the better probe.** It is what React set, it
+  needs no paint, and it distinguishes "the code took the wrong branch" from
+  "the harness read a stale value" — which the computed value cannot.
+- **A colour that looks wrong right after a theme switch is a transition, not a
+  bug,** until it is still wrong a second later.
+
+### ds `Stepper` — a new primitive, and why
+
+The wizard's audit surfaced one real AA failure at **4.22**: the active step's
+numeral, painted `text-rivvra-400` on `bg-rivvra-500/20` inside the legacy
+`OnboardingStepper`. Brand ink on a 20% wash of the same brand — the same
+failure mode as the purple Chip in #87 and the avatar above.
+
+`StageBar` is not a substitute: it is a row of pipeline chips for a record that
+can move *backwards*, whereas a wizard step is reached by passing validation.
+So `Navigation/Stepper` is new, with a `.d.ts` that says plainly why the ink is
+never the accent.
+
+The legacy `OnboardingStepper` is left untouched — the legacy wizard still
+renders it, and this migration does not edit pages it is not migrating. The V2
+page imports the step *list* from it, so the two cannot drift.
+
+### Statutory validation, verified rather than assumed
+
+Half of what the onboarding wizard collects is statutory. The whole data layer —
+`INITIAL_FORM`, every mutator, all of `validateStep` with its six format
+patterns, and `handleSubmit` — is spliced in byte-identically, and the field sets
+were compared mechanically rather than by reading: **42 bound fields on each
+side, no difference in either direction**, and identical error-key sets.
+
+Then exercised live, behind a blocking interceptor:
+
+| input | result |
+|---|---|
+| account `12ab34cd56` | masked to `123456` |
+| aadhaar `1234-5678-9012` | masked to `123456789012` |
+| ifsc `sbin0001234` / pan `abcde1234f` | upper-cased |
+| account `1234` | "must be 9-18 digits" |
+| pan `NOTAPAN123` | "Invalid PAN format" |
+| aadhaar `123` | "must be 12 digits" |
+| phone `0000055925` | "valid 10-digit mobile" (fails `^[6-9]`) |
+
+### Findings — reported, not fixed
+
+**`IFSC_RE` is declared and never applied.** The IFSC field is checked for
+presence only. Demonstrated: `XXXXXXXXXXX` passes validation and the step
+advances, with the missing bank document as the only remaining error. A bank
+routing code with a defined format that is never enforced.
+
+**`address.street2` / `permanentAddress.street2`** are in `INITIAL_FORM` and go
+up in the submit payload, but no step renders an input for either.
+
+**`reassignManager` has no rollback** and is fired by a plain drag-drop or a
+single click in move mode — one gesture away from re-parenting a person. Its
+descendant check (the only thing stopping a manager being filed under their own
+report) is carried across byte-identically and was not triggered.
+
+### Contrast
+
+2 routes × 2 themes: **0 failures** after the Stepper fix, which was the only
+real one this batch.

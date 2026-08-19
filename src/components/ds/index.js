@@ -55,6 +55,7 @@ export { Switch, SettingRow } from './Form/Switch';
 export { TagPicker } from './Form/TagPicker';
 export { Logo, LogoLockup } from './Logo/Logo';
 export { StageBar } from './Navigation/StageBar';
+export { Stepper } from './Navigation/Stepper';
 export { Tabs } from './Navigation/Tabs';
 export { ConfirmDialog } from './Overlay/ConfirmDialog';
 export { Modal, Drawer } from './Overlay/Modal';
