@@ -2175,3 +2175,97 @@ rather than implied by a passing screenshot.
 ### Contrast
 
 6 tabs × 2 themes = 12 audits: **0 failures**.
+
+---
+
+## Phase 25 — AtsApplicationNew
+
+`src/pages/ats/AtsApplicationNew.jsx` (1,435) → `AtsApplicationNewV2.jsx`
+(1,530). Route `/ats/jobs/:jobId/applications/new`, behind `PageSwitch`.
+
+### Why the whole logic layer is one slice
+
+Almost every line of this page is a gate, so legacy 37–688 — **652 lines,
+diffed byte-identical** — is spliced in whole. The render was rebuilt on ds and
+contains no computation beyond `Math.min(8, …)` and a display `.slice(0, 12)`.
+
+| gate | what it actually says |
+|---|---|
+| `hasResume` | a fresh upload always counts; a **reused** resume only counts after `resumeConfirmed` |
+| `blockedByDuplicate` | hard-blocks on `ongoing` or `hired` only — a `refused` prior leaves Create **enabled** |
+| `canSubmit` | eight-condition conjunction over all of the above |
+
+Also verified with an identifier sweep: every name declared in the logic layer
+that the legacy render used is still used by the V2 render — zero dropped.
+
+### The duplicate banner has three faces, and they were all reachable
+
+The staging data had one of each, so none of this rests on reading the source:
+
+| prior application | banner | Create |
+|---|---|---|
+| `ongoing` (Direbe Dusoha Ku) | amber, "Already applied to this job" | **blocked** |
+| `refused` (Todumo Jako) | amber, "Previously refused for this job" | **enabled** once the resume is confirmed |
+| `hired` (Gopor Semoho, another job) | red, "Already hired into this role" | **blocked** |
+
+The refused row is the one worth stating out loud: the banner appears *and*
+Create stays live, because re-applying after a refusal is legitimate and the
+server's 409 is the real backstop.
+
+### The resume gate, watched flipping
+
+Picking an existing candidate loads their resume into an amber card reading
+"confirm to reuse, or upload a new file", with the checklist row still **unticked**
+and Create disabled. Clicking "Use this resume" flips the card to the brand ring
+and "will be attached to this application", the row ticks, and the bar changes to
+"Ready to create." That gap is the whole point of the 2026-05-13 fix — before
+it, prior-application files attached silently.
+
+### Selective blanking, observed
+
+Typing over a picked candidate must blank only the fields that came *from* the
+pick. Driven live:
+
+| field | before | after retyping the name |
+|---|---|---|
+| email (inherited) | `ud2701…@staging.invalid` | **blanked** |
+| linkedin (inherited) | `https://staging.invalid/in/…` | **blanked** |
+| phone (**typed by hand**) | `+91 99999 00000` | **kept** |
+
+The resume card reverted to the dropzone in the same tick, and Create went back
+to disabled. Leaving an inherited email in place is what would let the server's
+email-dedupe attach the application to the wrong candidate.
+
+### Parity
+
+Route pinned at the legacy component and the same states replayed. Empty state
+and the refused-duplicate state are text-identical, including
+"At least one of email or phone is required.", the full banner body, the
+Pipeline read-outs (`Stage New` / `Employment · External Consultant`) and every
+Summary row. Only difference: ds `Chip` renders `existing` / `you` / `inherited`
+in lower case where legacy uppercased them.
+
+### Contrast
+
+83 nodes, both themes, three duplicate states: **0 failures.**
+
+Two surfaces the audit *skips* were measured by hand instead of trusted to the
+exemption, because the accepted-suggestion chip is green ink on a green wash —
+exactly the shape that has failed before:
+
+| surface | dark | light |
+|---|---|---|
+| accepted AI chip (`disabled`) | 5.25 | 5.53 |
+| pending AI chip | — | 10.09 |
+| Create button | — | 5.02 |
+| danger banner | 5.69 | 5.56 |
+
+A first dark run reported 3 failures with dark ink measured against a *light*
+background — ratio 1.02. That is the theme cross-fade, caught mid-transition for
+the fourth time in this project. A forced paint and a re-run: 0.
+
+### Not triggered
+
+Create application, resume upload, skill attach. A blocking interceptor was
+armed for the whole session and `__blocked` stayed empty throughout — nothing
+was written to staging, so there is nothing to clean up.
