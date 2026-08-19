@@ -2641,3 +2641,82 @@ carries a gradient. So the same 25 nodes are unmeasurable in **both** versions,
 by the same guard, for the same reason. That is parity, not a regression — but
 it is still 25 nodes nobody has measured, and it is the `Avatar` limitation
 already recorded in THEMING.md.
+
+## #99 — settings batch 12: `settings/payroll` (the hub)
+
+787 lines. Four of its seven tabs were migrated in earlier batches and already
+route through `PageSwitch`; this does the three that were still inline —
+**Disbursement**, **TDS Configuration**, **Structure Mapping** — plus the shell.
+**Four verbatim slices** (79 + 71 + 75 + 50 = 275 lines) and **12 probes**.
+
+### The date math is the whole point of the Disbursement tab
+
+`moveToWorkdayClient`, `lastWorkingDayClient`, the on-or-before-15th variant,
+`calcDisbDateForRule` and the 6-month preview loop are carried across
+byte-identically. They mirror the backend, so a drift here would show admins
+one payday and pay on another.
+
+Driven live — all six preview rows identical, and **two of them show the
+weekend roll-back actually firing**:
+
+| salary month | disbursement date | note |
+|---|---|---|
+| August 2026 | Mon, 31 Aug 2026 | |
+| September 2026 | Wed, 30 Sept 2026 | |
+| **October 2026** | **Fri, 30 Oct 2026** | 31 Oct is a **Saturday** → rolled back |
+| November 2026 | Mon, 30 Nov 2026 | |
+| December 2026 | Thu, 31 Dec 2026 | |
+| **January 2027** | **Fri, 29 Jan 2027** | 31 Jan is a **Sunday** → rolled back 2 days |
+
+Those two rows are the useful ones: they prove `moveToWorkdayClient` is live and
+agreeing, not merely present in the source.
+
+### TDS percent↔fraction, same shape as FY Rates
+
+Rates are **stored as fractions** (0.02) and **edited as percents** (2.0):
+
+```
+read  → String(Math.round(section.rate * 10000) / 100)
+write → (parseFloat(v) / 100) || 0
+```
+
+with a `rateDrafts` map so a half-typed `2.` is not reformatted away — and
+`(def.rate * 100).toFixed(1)}% TDS` on the summary chip. All byte-identical,
+along with the save validation (`hasDefault`, non-empty sections).
+
+Rendered identically: **194C @ 2**, **194J @ 10**, **194H @ 5**, and the
+default chip reading `2.0% TDS`.
+
+### The hub keeps its `PageSwitch` calls
+
+`SettingsPayrollV2` only renders when `uiV2` is on, so switching inside it is
+redundant *today*. It is kept anyway: it means exactly **one** place decides
+which variant a tab gets, and the legacy hub and this one cannot drift apart if
+the flag moves.
+
+### Rendered parity — all three tabs
+
+| tab | words differing | inputs | selects |
+|---|---|---|---|
+| Disbursement | **none** | identical | identical (4) |
+| TDS Configuration | **none** | identical (9) | identical |
+| Structure Mapping | **none** | identical (`0 / 2 / 2`) | identical (4) |
+
+All seven tab labels identical, including the super-admin-only **FY Rates**.
+
+### Verification
+
+- **0 contrast failures** in both themes on all three tabs — dark 62/50/49,
+  light 64/52/51 — real paint forced before each read
+- Four slices byte-identical; 12 probes covering the TDS round-trip, the save
+  validation, the structure-mapping defaults, the UTC day-shift guard on custom
+  dates, and the four surviving `PageSwitch` calls
+- Lint parity **8 = 8**, all inherited
+- **No writes.** Save Disbursement Settings, Save TDS Configuration and Save
+  Structure Mapping were all left alone.
+
+### Settings is now complete except one modal
+
+`ReassignDataModal` (258 lines) is the only legacy file left in
+`components/settings/`. It is a modal opened from the user-detail page rather
+than a settings tab, so it belongs with that flow rather than this run.
