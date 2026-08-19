@@ -2477,3 +2477,73 @@ that settled it in one step; reach for that before writing a fix.
 
 Verified: the opt-in gate (all three directions), the terminal screens, the
 light-theme pin, contrast (0 failures).
+
+---
+
+## Phase 27 — DashboardPage (Outreach home)
+
+`src/pages/DashboardPage.jsx` (1,198) → `DashboardPageV2.jsx` (1,187), behind
+`PageSwitch`. Route `/outreach/dashboard` — the generic name is a leftover from
+before the platform grew other apps; this is the Outreach home, not a global one.
+
+**5 verbatim slices, 366 spliced lines, 0 mismatches.** 13 gate/derivation
+expressions asserted by string count.
+
+### Two computations that decide what the user is told
+
+Both are render-resident, so each was copied to its own cell rather than
+spliced with the logic:
+
+- **The daily email quota.** `effectiveLimit` is the `Math.min` of the user's
+  limit and the org's, `orgBound` picks which `sent` counter is displayed, and
+  `atLimit` is what tells someone their queued sequence emails have stopped
+  going out. Wrong either way, it hides a stopped campaign or invents one.
+- **`canExportCrm`**, which deliberately mirrors the backend's
+  `requireAppAccess('crm')` gate so the UI never offers an export the API will
+  403.
+
+### Parity
+
+Route pinned at the legacy component, same query and same filter on both sides:
+
+| | legacy | v2 |
+|---|---|---|
+| search `an` | 16,419 contacts found | 16,419 contacts found |
+| \+ location `Pune` | 1,194 contacts found | 1,194 contacts found |
+| Get Started | 2 of 3 steps complete | 2 of 3 steps complete |
+| all four stat tiles | value **and** zero-state CTA | identical |
+
+The stats row first looked like a mismatch — it was my extraction regex
+chunking ds `Stat`'s `note` onto a different line, not a difference in the
+page. Re-extracted structurally: identical. Worth remembering that a diff of
+two scraped strings is only as good as the scrape.
+
+### Deliberate render-layer change
+
+The local `Pagination` — numbered page buttons with a 5-wide sliding window —
+is replaced by ds `Pagination` (range readout plus prev/next). That loses
+"jump straight to page 7". It is the right trade here because this page's three
+siblings (`LeadsPageV2`, `MyListsPageV2`, `TeamContactsPageV2`) already use the
+ds one, and a search-results list that paginates differently from the contacts
+list it feeds is worse than losing the jump. Verified live: `1–25 of 1,194` →
+next → `26–50 of 1,194`. `searchTotalPages` still gates whether the control
+renders, matching legacy's `if (totalPages <= 1) return null;`.
+
+`ds` `Avatar` also collapses the photo/initials branch — `src` wins — while
+`initials` keeps the legacy derivation rather than Avatar's own.
+
+### Contrast
+
+Dashboard 74 nodes, search results 234, companies 24, Add-to-List modal 247 —
+both themes, **0 failures**.
+
+### Not verifiable on this data
+
+The staging account has Gmail disconnected, so `emailsToday && gmailStatus?.connected`
+is false and **the entire quota block never rendered** — on either page. The
+verbatim copy is the guarantee there.
+
+### Not triggered
+
+Save contact, add to list, create list. The Add-to-List modal was opened and
+closed without selecting; the interceptor stayed empty throughout.
