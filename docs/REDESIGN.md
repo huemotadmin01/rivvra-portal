@@ -2020,3 +2020,90 @@ very different instructions, and they hang entirely on `=== ''`.
 2 themes, ~443 elements each: **0 failures**. Includes the strikethrough
 `cancelled` chips, which survive as a `Chip` with `textDecoration` rather than a
 bespoke pill class.
+
+---
+
+## Phase 21 — Incentive, batch 2 (record detail, my earnings)
+
+Two pages, 1,941 legacy lines. **The incentive app is now 100% v2.**
+
+### Nine slices, because the logic is interleaved with the render
+
+`RecordDetail` defines its lifecycle handlers *after* the loading guard, so
+"splice everything above `return (`" does not describe this file at all. Five
+separate slices: both money formatters, `STATUS_LABEL`, `toOptions`, the
+141-line data layer, and the 151-line block holding the capability flags
+(`canApprove`, `canReverse`, …), the soft-warning derivations, `hardDeletePhrase`
+and all nine handlers. `MyEarnings` took four more.
+
+Three arithmetic expressions live *inside* `RecordDetail`'s JSX and came across
+with it: the FX line (`Number(record.fxRate).toFixed(4)`) and the two
+rate-to-percent conversions (`* 100`).
+
+### Money parity on a record that exercises all of it
+
+The verification record is cancelled, in USD, with both parties cancelled — so it
+covers the native/reported currency split, the FX line, the percent conversions,
+and the gating in one page. Legacy and v2 render identically:
+
+| | value |
+|---|---|
+| Invoice (USD) | `$4,752.00` |
+| FX rate | `1 USD = 85.0000 INR` |
+| Untaxed invoice (INR) | `₹4,03,920.00` |
+| Net profit | `₹3,20,587.00` |
+| Rate (both parties) | `5.00%` |
+| Incentive (both parties) | `₹16,029.35` |
+
+4,752 × 85 = 403,920, so the FX conversion is internally consistent too. The
+action set matched exactly: **Hard Delete, Restore Recruiter share, Restore AM
+share** — no Approve/Cancel/Reverse, because the record is cancelled.
+
+`MyEarnings` matched on stats (`₹7,53,777` YTD / 91 records), chip counts
+(All 210 · Draft 4 · Approved 1 · Cancelled 45) and every row, including the
+dual-role row that prints `₹8,606` with `+ ₹8,606` beneath it.
+
+### The hard-delete gate, driven to three near-misses
+
+`canConfirm` needs a non-empty reason **and** an exact match on the confirmation
+phrase. Driven live behind a blocking interceptor:
+
+| state | confirm button |
+|---|---|
+| no reason, no phrase | disabled |
+| reason only | disabled |
+| reason + wrong phrase | disabled |
+| correct phrase, no reason | disabled |
+
+Both conditions were never satisfied at once, so the delete was never armed.
+Zero write attempts recorded.
+
+### One shared component fixed, deliberately
+
+`IncentiveNotificationsBanner` used a hardcoded dark-mode fuchsia palette. In the
+light theme it stayed a dark lavender wash carrying blue-violet ink and measured
+**2.24–2.45** against a 4.5 floor across all eight of its text nodes.
+
+That is normally out of scope — it is shared with the legacy page. Two things
+changed the call: it is already rendered by `IncentiveDashboardV2`, a **shipped**
+v2 page, so the failure is live today; and the fix is presentation-only, swapping
+hardcoded colours for `--acc-purple` / `--fg` tokens with no logic touched.
+
+Worth separating clearly, because the audit did its job in one direction and not
+the other: it caught this (unreadable ink) but would never have caught the amber
+headcount chip from #100 (perfectly readable, wrong meaning). **Legibility and
+meaning are different checks.**
+
+### A scare that was not a write
+
+Mid-verification the notifications banner stopped rendering, and "Mark all read"
+is a write. Checked directly against the API rather than assuming: all three
+notifications were still `unreadOnly` — nothing had been marked. The component
+swallows fetch errors and renders `null` on an empty list, so a transient load
+looks identical to a dismissal. Nothing was written; the banner returned on
+reload.
+
+### Contrast
+
+2 pages × 2 themes: **0 failures** (520 elements on MyEarnings, 65 on
+RecordDetail), after the banner fix.
