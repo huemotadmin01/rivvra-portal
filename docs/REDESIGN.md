@@ -1665,3 +1665,113 @@ particular mode has shown up.
 4 routes × 2 themes, plus the department edit modal in both: **0 failures**,
 331 elements checked per theme. Screenshot before each read, since layout is not
 paint.
+
+---
+
+## Phase 20 — Employee, batch 2 (plan templates, asset detail, directory)
+
+Three pages, 1,435 legacy lines. Ten separate slices, each diffed.
+
+### A bug I shipped in the previous batch
+
+`AssetListV2` passed `onChange={e => setSearch(e.target.value)}` to ds
+`SearchInput`. `SearchInput` hands back the **string**, not the event, so
+`e.target` was `undefined` and the assets search box threw on every keystroke.
+It went out in #100.
+
+The batch-1 verification covered the status and type filters and reconciled
+their counts against the stat tiles. It never typed in the search box. The build
+passed, lint passed, and the contrast audit passed, because none of them execute
+an event handler.
+
+Fixed and re-verified by actually typing, one query per legacy match axis —
+`Lenovo` (name) → 4, `Headphone` (assetTypeName) → 3, `Reref` (assignedToName)
+→ 2, `zzz` → 0 with the empty state, clear → 27.
+
+Swept every other `SearchInput` call site: the rest pass the setter directly or
+carry a `typeof v === 'string'` shim. One site, now fixed.
+
+**The lesson is narrow and worth stating plainly:** when a ds primitive's
+callback signature differs from the DOM one it replaces, the only thing that
+catches a mistake is invoking it. "I verified the filters" is not "I verified
+the search" — adjacent controls are separate claims.
+
+### Slicing around a component that owns its own state
+
+Two pages needed the slice broken up rather than deviating silently.
+
+`EmployeeDirectory` coordinated which filter dropdown was open through an
+`openFilter` state and a `toggleFilter`. ds `SelectChip` owns its popover, so
+those lines have no counterpart. Rather than quietly dropping them, the file is
+spliced in **four** segments — 80-97, 101-190, 199-205, 211-242 — plus the
+render-resident page-window arithmetic at 481-491, each diffed separately. Then
+one more check: diff legacy 80-242 against the assembled result and enumerate
+every line with no counterpart. Exactly seven, all of them `openFilter`
+bookkeeping.
+
+`AssetDetail` had the same shape: `assignSearch` / `assignDropdown` /
+`reassignSearch` / `reassignDropdown` became unreadable once `ComboBox` took over
+the search box, but their **setters** are still called inside the byte-identical
+handlers. Kept as write-only state (`const [, setAssignSearch] = useState('')`)
+so the handlers never had to be edited. Three slices, and again the
+enumerate-the-difference check: exactly four lines, all four of them those.
+
+That enumeration step is the useful part. Diffing the slices you kept proves the
+slices you kept; listing what has no counterpart proves you did not lose anything
+you did not mean to.
+
+### Findings — reported, not fixed
+
+**`AssetDetail` still fetches assignable employees with `limit: 100`.** The same
+truncation that was fixed in `AssetList` (2026-07-21, replaced with server-side
+search) was never backported here. On staging the reassign picker offers exactly
+**100** options while the directory reports **141** employees — 41 people who
+cannot be assigned an asset from this page, with no error and no indication that
+the list is short. Carried across verbatim; fixing it means changing the fetch
+and moving the picker to server-side search, which is a behaviour change, not a
+migration.
+
+**`handleReassign` is two sequential writes with no rollback** — a `returnAsset`
+carrying a synthetic "Reassigned to another employee" note, then an `assign`. If
+the second fails the asset is left *returned*, unassigned to anyone, while the
+error reads "Failed to reassign". Carried across exactly, including that window.
+
+**Asset deduction amounts are hardcoded INR** in both the input prefix and
+`h.deductionAmount.toLocaleString('en-IN')`. Untouched, per the standing rule on
+money display.
+
+**Two `EmployeeDirectory` quirks**, both legacy, both carried: `activeFilterCount`
+counts `statusFilter`, which *defaults* to `'active'`, so the Clear affordance
+shows on first paint; and `clearAllFilters` sets status to `''`, which is not the
+initial `'active'` — clearing lands somewhere the page never started.
+
+### Arithmetic checks
+
+The directory's status filter refetches from the server, so the counts are
+independent measurements: 64 active + 72 resigned + 5 terminated = **141** = All
+Statuses. Department IT → 103, plus Billable → 96, Clear → back to 141 with the
+`(2)` suffix appearing only above one active filter, as legacy.
+
+The spliced page-window formula was exercised on both of its branches: at 6 total
+pages, page 3 shows 1-5 (`page <= 3`) and page 4 shows 2-6 (`page >= totalPages
+- 2`). ds `Pagination` was deliberately not adopted — it derives page count from
+`total`/`pageSize` and has no numbered buttons, so it would have changed which
+pages are reachable.
+
+### Unverifiable on this data
+
+All nine plan templates are seeded `isDefault` records, so the `!tpl.isDefault`
+guard leaves **zero** Delete buttons on the page. The delete path is correct by
+inspection and unexercisable here.
+
+### Lint
+
+`EmployeeDirectory` 0 = 0. Two pages improved rather than matched, both by
+deleting the offending code: `PlanTemplates` 2 -> 1 (unused `api` import),
+`AssetDetail` 2 -> 1 (unused `onCloseDropdown` inside the local `EmployeeLookup`,
+a component that no longer exists).
+
+### Contrast
+
+3 routes x 2 themes, with the plan-template editor and the asset return modal
+open: **0 failures**.

@@ -188,7 +188,9 @@ export default function AssetListV2() {
       {/* Filters */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={{ flex: '1 1 200px', maxWidth: 320 }}>
-          <SearchInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Search assets…" />
+          {/* SearchInput hands back the string, not the event — `e.target.value`
+              here threw on every keystroke. */}
+          <SearchInput value={search} onChange={setSearch} placeholder="Search assets…" width="100%" />
         </div>
         <Select value={statusFilter} aria-label="Filter by status"
           onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
