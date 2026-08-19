@@ -172,6 +172,7 @@ const EmployeeDepartmentsV2 = lazy(() => import('./pages/employee/EmployeeDepart
 const EmployeeDetail = lazy(() => import('./pages/employee/EmployeeDetail'));
 const EmployeeDetailV2 = lazy(() => import('./pages/employee/EmployeeDetailV2'));
 const EmployeeForm = lazy(() => import('./pages/employee/EmployeeForm'));
+const EmployeeFormV2 = lazy(() => import('./pages/employee/EmployeeFormV2'));
 const EmployeeQuickCreate = lazy(() => import('./pages/employee/EmployeeQuickCreate'));
 const EmployeeQuickCreateV2 = lazy(() => import('./pages/employee/EmployeeQuickCreateV2'));
 const EmployeeOnboardingWizard = lazy(() => import('./pages/employee/EmployeeOnboardingWizard'));
@@ -661,7 +662,7 @@ function App() {
                       /employee/edit/:id until EmployeeDetail absorbs all
                       remaining edit affordances. */}
                   <Route path="/org/:slug/employee/add" element={<ErrorBoundary><PageSwitch v2={EmployeeQuickCreateV2} legacy={EmployeeQuickCreate} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><EmployeeForm /></ErrorBoundary>} />
+                  <Route path="/org/:slug/employee/edit/:employeeId" element={<ErrorBoundary><PageSwitch v2={EmployeeFormV2} legacy={EmployeeForm} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/plan-templates" element={<ErrorBoundary><PageSwitch v2={PlanTemplatesV2} legacy={PlanTemplates} /></ErrorBoundary>} />
                   <Route path="/org/:slug/employee/assets/types" element={<ErrorBoundary><PageSwitch v2={AssetTypeConfigV2} legacy={AssetTypeConfig} /></ErrorBoundary>} />
                 </Route>

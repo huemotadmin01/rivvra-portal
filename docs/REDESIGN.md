@@ -1881,3 +1881,94 @@ report) is carried across byte-identically and was not triggered.
 
 2 routes × 2 themes: **0 failures** after the Stepper fix, which was the only
 real one this batch.
+
+---
+
+## Phase 20 — Employee, batch 4: `EmployeeForm` (the last one)
+
+2,332 lines, the largest single file in the project, and the one that carries
+contractor money: candidate rates, client billing rates, rate revisions with
+effective dates, and the rate history each revision appends to.
+
+**The employee app is now 100% v2.**
+
+### Nothing in this migration can change a number
+
+The first thing to establish, before touching anything, was whether any money
+maths lives in the render. Grepping the render for `toFixed`, `toLocaleString`,
+`reduce`, `*`, `/` returned **nothing arithmetic** — every rate is read and
+written, never computed, and all of the maths is server-side. `formatRate`, the
+one money *formatter*, sits at legacy line 834, inside the spliced region.
+
+So the whole risk surface reduces to binding fidelity, and that is checkable
+mechanically. Two slices, both byte-identical (84 lines of constants and
+`INITIAL_FORM`; 737 lines from `useParams` through `formatRate` — `validateForm`,
+`handleSubmit`, `saveAssignment`, the separation flow, the link/unlink pair, and
+`updateAssignmentNested`'s one-rate-at-a-time rule). Then:
+
+- **71 bound fields on each side, no difference in either direction.**
+- **Value-for-value parity against the legacy render of the same record**,
+  captured by temporarily pinning the route at the legacy component. 57 field
+  values legacy, 56 v2 — the single difference being the Billable
+  `<input type="checkbox">` (whose `.value` is the string `"on"`) becoming a ds
+  `Switch`, which is a `role="switch"` button and therefore not an `input`. Its
+  `aria-checked` is `true`, matching the checked box. Every other value matches
+  one-for-one, all six rate fields included.
+
+### The slice boundary that bit
+
+The first assembly did not parse: "Unexpected end of file". Tag balance was fine;
+a bracket-depth counter said the head and render fragments were individually
+balanced. The counter was lying, because it cannot tell a regex literal
+(`/^[A-Z]{5}[0-9]{4}[A-Z]$/`) from a block.
+
+Parsing the head **plus the slice alone** located it immediately: legacy line 842
+is `if (loading) {`, so a slice of 104–842 ended on an unclosed brace. Trimmed to
+104–840.
+
+**Bisect with the real parser, not a hand-rolled counter.** esbuild on a
+half-file found in one step what brace-counting could not find at all.
+
+### Findings — reported, not fixed
+
+**Every rate group is labelled `₹/day`, `$/hour`, `₹/month`.** Two currencies
+inside one group, hardcoded, with no conversion and no reference to the
+assignment's own billing currency. Four sites in the render plus the two
+`validateForm` error strings.
+
+This is not theoretical. The record used for parity has **candidate ₹6,000/day
+and client $23/hour on the same assignment**, and the revise-rate modal prints
+them one above the other via `formatRate`:
+
+> Candidate: ₹6,000/day
+> Client: $23/hour
+
+Whether that is a data problem or a labelling problem, changing a money label is
+a money change. Carried across untouched, raised here.
+
+### Verified live, nothing written
+
+Behind a blocking interceptor armed *before* the page loaded. The blocked list
+stayed empty throughout.
+
+- All 12 sections render and prefill from the record.
+- The revise-rate modal opens with current rates formatted by the spliced
+  `formatRate`, and effective date defaulted to today by `todayStr()`.
+- **Apply Revision with no rates entered wrote nothing** — `handleReviseRate`'s
+  `if (!hasBR && !hasCBR)` guard returned before the PUT, the modal stayed open,
+  and the interceptor recorded zero attempts.
+- Closed without applying.
+
+### Contrast — and a third false alarm
+
+2 themes: **0 failures**, 144 elements each.
+
+Light theme appeared to show the legacy `EmployeePicker` as a dark island. It was
+the theme cross-fade for the **third** time this session; on a fresh load the
+chip's ink is `rgb(22,25,29)`, i.e. `--fg`. The app's Tailwind `dark-*` palette
+is theme-aware, so the three shared legacy widgets kept on this page
+(`EmployeePicker`, `ComboSelect`, `AssignmentDocs`) theme correctly.
+
+Worth stating once more, since it has now cost time three times: **do not judge a
+colour from a screenshot taken immediately after switching themes.** Re-read
+after it settles, or read the inline style instead.
