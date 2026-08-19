@@ -12,4 +12,6 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
  * toolbars and filter strips, and `ComboBox` when the option list is long
  * enough to need searching.
  */
-export declare function Select(props: SelectProps): JSX.Element;
+export declare const Select: React.ForwardRefExoticComponent<
+  SelectProps & React.RefAttributes<HTMLSelectElement>
+>;

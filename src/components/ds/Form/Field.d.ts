@@ -22,5 +22,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   invalid?: boolean;
 }
 
-/** Text input styled to the system. */
-export declare function Input(props: InputProps): JSX.Element;
+/** Text input styled to the system. Forwards its ref to the `<input>`. */
+export declare const Input: React.ForwardRefExoticComponent<
+  InputProps & React.RefAttributes<HTMLInputElement>
+>;
