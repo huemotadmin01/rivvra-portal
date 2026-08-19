@@ -42,10 +42,10 @@ export default function PublicSigningRoute() {
     stored = param === 'v2' ? 'v2' : null;
   }
 
-  // NOTE: no local <Suspense>. App.jsx already wraps <Routes> in one, and a
-  // second boundary here re-orders when the signing page's effects fire
-  // relative to the pdf.js worker warm-up — enough to lose a pre-existing
-  // race in PdfPageWithFields's render effect (see docs/REDESIGN.md).
+  // No local <Suspense>: App.jsx already wraps <Routes> in one, and a second
+  // boundary here buys nothing. (An earlier version of this comment blamed it
+  // for a render race in PdfPageWithFields — that race did not exist; see the
+  // phase-26 correction in docs/REDESIGN.md.)
   const Page = stored === 'v2' ? PublicSigningPageV2 : PublicSigningPage;
   return <Page />;
 }
