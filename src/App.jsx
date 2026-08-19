@@ -86,6 +86,7 @@ const SettingsSignV2 = lazy(() => import('./components/settings/SettingsSignV2')
 const SettingsContacts = lazy(() => import('./components/settings/SettingsContacts'));
 const SettingsContactsV2 = lazy(() => import('./components/settings/SettingsContactsV2'));
 const SettingsCompanies = lazy(() => import('./components/settings/SettingsCompanies'));
+const SettingsCompaniesV2 = lazy(() => import('./components/settings/SettingsCompaniesV2'));
 const SettingsTodo = lazy(() => import('./components/settings/SettingsTodo'));
 const SettingsTodoV2 = lazy(() => import('./components/settings/SettingsTodoV2'));
 const SettingsPayroll = lazy(() => import('./components/settings/SettingsPayroll'));
@@ -561,9 +562,9 @@ function App() {
                 <Route path="/org/:slug/settings/ats" element={<SettingsPageWrapper><PageSwitch v2={SettingsAtsV2} legacy={SettingsAts} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/sign" element={<SettingsPageWrapper><PageSwitch v2={SettingsSignV2} legacy={SettingsSign} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/contacts" element={<SettingsPageWrapper><PageSwitch v2={SettingsContactsV2} legacy={SettingsContacts} /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/companies" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/companies/new" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
-                <Route path="/org/:slug/settings/companies/:companyId" element={<SettingsPageWrapper><SettingsCompanies /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/companies" element={<SettingsPageWrapper><PageSwitch v2={SettingsCompaniesV2} legacy={SettingsCompanies} /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/companies/new" element={<SettingsPageWrapper><PageSwitch v2={SettingsCompaniesV2} legacy={SettingsCompanies} /></SettingsPageWrapper>} />
+                <Route path="/org/:slug/settings/companies/:companyId" element={<SettingsPageWrapper><PageSwitch v2={SettingsCompaniesV2} legacy={SettingsCompanies} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/todo" element={<SettingsPageWrapper><PageSwitch v2={SettingsTodoV2} legacy={SettingsTodo} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/invoicing" element={<SettingsPageWrapper><PageSwitch v2={SettingsInvoicingV2} legacy={SettingsInvoicing} /></SettingsPageWrapper>} />
                 <Route path="/org/:slug/settings/incentive" element={<SettingsPageWrapper><PageSwitch v2={SettingsIncentiveV2} legacy={SettingsIncentive} /></SettingsPageWrapper>} />

@@ -2478,3 +2478,100 @@ There is a class of control where *verifying the happy path is itself the
 risk*. The right coverage for a type-the-slug delete is: probe the comparison
 in source, exercise every rejection live, and stop. Writing "verified" against
 the acceptance path would have meant arming it.
+
+## #97 — settings batch 10: `settings/companies`
+
+1,162 lines — the largest settings file. Legal entities: the record every
+invoice, payslip and PDF is issued against. **380-line verbatim slice** plus the
+**77 lines** of module constants and helpers.
+
+### The check that mattered most
+
+`handleSave` PUTs the whole form, and `populateForm` is what fills it. A field
+bound in the render but *missing* from `populateForm` would be sent blank and
+**silently erase itself on the next save**.
+
+So rather than eyeball it, I extracted every field bound through
+`handleChange` / `handleAddressChange` / `handleSocialChange` /
+`handleBankChange` / `handleEInvoiceCredChange` on both sides:
+
+```
+legacy bound fields: 31
+v2 bound fields:     31
+in legacy not v2:    none
+in v2 not legacy:    none
+```
+
+Also byte-identical: the `delete payload.eInvoiceCredentials` guard (blank means
+"keep the stored IRP secrets", which the API never returns), the
+`isDefault` delete guard, both upload guards (`image/*`, 2 MB), and all three
+`.toUpperCase()` normalisations.
+
+### Country-aware relabelling, driven live
+
+The helpers mirror `invoicePdfHelper.js` so the form and the printed invoice
+agree. Switching the country code re-labels correctly:
+
+| code | Tax ID | routing field | placeholder |
+|---|---|---|---|
+| `IN` (default branch) | GSTIN | IFSC Code | `29AALCR0152L1Z2` |
+| `US` | **EIN** | **SWIFT / BIC** | `12-3456789` |
+| `CA` | **BN** | **Transit / Institution** | `123456789RC0001` |
+
+Restored to the stored value afterwards; Save never clicked.
+
+### 🔴 A data defect the relabelling exposed
+
+The default company reads `country: "India"` but `countryCode: "MP"` — the
+**Madhya Pradesh state code**, in the country-code field.
+
+`cc === 'IN'` gates two things, so for that company:
+
+- the **PAN** field is not rendered at all, and
+- the entire **E-Invoicing / IRP API Credentials** section is hidden.
+
+An admin cannot enter a PAN or configure IRP credentials for a company that is
+plainly Indian. The Tax ID label still reads "GSTIN" only because that is the
+helper's *default* branch — it is right by accident, not because the code was
+recognised.
+
+Across the four companies: one correct `IN`, one `MP`, one `CA`, one `US`. So
+**one of the two Indian companies is affected**.
+
+⚠️ This is staging, where values are pseudonymised (`country: "Titonur Racuc"`
+on another row is clearly a scrub artifact). `MP` is a plausible real
+data-entry slip rather than obviously scrubbed, but I cannot tell from here.
+**Worth checking the same field in production before treating it as a live
+bug** — the same discipline as the "Invalid Date" scrub artifact in
+`sign_date_field_non_date_values_2026_08_14`.
+
+Carried across unchanged either way: the gate is `cc === 'IN'` in both versions.
+
+### Rendered parity
+
+| surface | result |
+|---|---|
+| list rows | 4, identical (name, Default chip, currency, location, tax ID) |
+| detail inputs | **24**, identical |
+| detail selects | 2, identical incl. full option lists (8 currencies, 8 GST treatments) |
+| detail labels | **20**, identical |
+| visible text | **zero** word differences |
+
+### Verification
+
+- **0 contrast failures** in both themes — list 50 nodes, detail 62 dark / 64
+  light, real paint forced before each read
+- Slices byte-identical (380 + 77); 31-field binding set proven equal; 7 guard
+  probes
+- Lint parity **4 = 4**, all inherited
+- **No writes.** Save/Create, Delete company, logo upload, signature upload,
+  signature remove and "Clear saved credentials" were all left alone. The
+  country-code probes were local form state and were restored.
+
+### One deliberate detail
+
+The `cc` alias (`const cc = form.address.countryCode`) makes six call sites
+read cleanly. Verified it is a pure rename by counting each dependent
+expression on both sides — 1/1/1/2/1/1 either way. The initial count looked
+wrong only because the *helper definitions* also name their parameter `cc`,
+verbatim from legacy.
