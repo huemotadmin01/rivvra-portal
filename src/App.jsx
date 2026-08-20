@@ -247,6 +247,7 @@ const AtsJobDetailV2 = lazy(() => import('./pages/ats/AtsJobDetailV2'));
 const AtsJobNew = lazy(() => import('./pages/ats/AtsJobNew'));
 const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
 const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
+const AtsCandidateDetailV2 = lazy(() => import('./pages/ats/AtsCandidateDetailV2'));
 const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
 const AtsApplicationNew = lazy(() => import('./pages/ats/AtsApplicationNew'));
 const AtsApplicationNewV2 = lazy(() => import('./pages/ats/AtsApplicationNewV2'));
@@ -724,7 +725,7 @@ function App() {
                 <Route path="/org/:slug/ats/jobs/:jobId/applications/new" element={<ErrorBoundary><PageSwitch v2={AtsApplicationNewV2} legacy={AtsApplicationNew} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><PageSwitch v2={AtsCandidatesV2} legacy={AtsCandidates} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><AtsCandidateDetail /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><PageSwitch v2={AtsCandidateDetailV2} legacy={AtsCandidateDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><PageSwitch v2={AtsMyApprovalsV2} legacy={AtsMyApprovals} /></ErrorBoundary>} />
                 {/* 2026-05-14: Dashboard is the ATS landing for everyone,
                     so it sits outside the admin gate. Old /ats/reporting
