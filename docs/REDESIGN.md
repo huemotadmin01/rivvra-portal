@@ -2717,3 +2717,90 @@ sidebar items, straight after the toggle. Cross-fade, **seventh sighting**.
 
 Nothing on this page writes; the only action is Refresh, which re-reads. The
 interceptor stayed empty throughout.
+
+---
+
+## Phase 30 — AdminPayrollSettingsPage
+
+`src/pages/admin/AdminPayrollSettingsPage.jsx` (738) →
+`AdminPayrollSettingsPageV2.jsx` (854). Route `/admin/settings/payroll`.
+**First page in the platform-admin area to move.**
+
+This page sets the numbers the whole platform computes payroll from — PF and
+ESI rates and ceilings, cess, surcharge slabs, both tax regimes, per-state PT
+slabs, and the default salary structure new workspaces inherit.
+
+**4 verbatim slices, 278 spliced lines, 0 mismatches.** 18 statutory
+expressions asserted by string count. Lint **14 → 13** (the one that goes is
+`Section`'s `Icon`, now a node).
+
+### Two structural facts, neither optional
+
+1. **`PageSwitch` cannot gate this route.** `/admin/*` lives outside
+   `OrgProvider`, and `useOrg()` **throws** with no provider — the switch would
+   crash rather than fall back. The v2 page is wired directly; the legacy file
+   is kept unreferenced so reverting is one line. Defensible only because the
+   whole area sits behind `SuperAdminRoute`.
+2. **`AdminLayout` is a hard-dark legacy shell** with no theme toggle, and
+   nothing under `/admin/*` writes `data-theme` — so ds tokens resolve from
+   `:root` (dark) and *happen* to agree. "Happen to" is not a guarantee: a
+   client-side hop from the org app in light theme carries the attribute over.
+   The page pins `data-theme="dark"` on its own root.
+
+### Two slips I made and caught
+
+Both were mine, both were in the direction of "slightly nicer", and both would
+have changed a statutory form:
+
+- **Per-slab visible labels.** Passing `label` to every slab cell rendered
+  "Slab 1 min / Slab 1 max / Slab 1 rate" above each row — duplicating the
+  Min/Max/Rate column headers and tripling the height of the editor. `NumField`
+  now separates `label` (visible) from `ariaLabel` (named but not drawn).
+- **A `min` that legacy never had.** `NumField` defaulted `min = '0'`, which
+  silently put a floor under the cess rate and all six regime
+  deduction/rebate fields — legacy omits `min` on exactly those seven. The
+  default is gone and every call site states it. Verified in the DOM: 7 inputs
+  with no `min`, cess at `step="0.01"` with none, PF/ESI at
+  `min="0" step="0.0001"`.
+
+A `step` or a `min` is not styling on this page. It decides what the spinner
+will round a statutory rate to.
+
+### The validator, driven
+
+`validateSlabs` runs before the API call and returns early, so both failure
+modes could be exercised without writing anything:
+
+| edit | message |
+|---|---|
+| slab 2 min 5000001 → 4000000 | `Surcharge slabs: slabs overlap around 4000000` |
+| slab 2 max cleared | `Surcharge slabs: only the last slab may have no upper limit` |
+
+Both restored afterwards and the table re-read cell by cell — the five
+surcharge slabs are back to `0–5000000 @ 0` … `50000001–∞ @ 0.37`. The
+interceptor never fired.
+
+### Verified without touching a privilege flag
+
+The page is behind `SuperAdminRoute`, which gates on `user.superAdmin`. Writing
+that flag into stored auth state is a privilege-escalation shape and was
+correctly refused, so the page was mounted through a **temporary unguarded
+route** instead, removed before commit. It loaded real platform data — FY
+2026-27 and 2025-26, PF 0.12 / 0.0367 / 0.0833, ESI 0.0075 / 0.0325 / 21000 —
+so no stubbing was needed either.
+
+### Contrast
+
+81 nodes with every section expanded: **0 failures**. One theme only, which is
+the point of the pin.
+
+### Flagged
+
+`copyPlatformPTMaster` is imported and never called — kept, because it says a
+copy-PT-master-between-FYs endpoint exists with no UI behind it. That is a
+missing feature, not dead code, and deleting the import would erase the clue.
+
+### Not triggered
+
+Save FY config, save PT state, save salary structure, seed FY, seed PT master,
+copy FY, run migration, verify migration.
