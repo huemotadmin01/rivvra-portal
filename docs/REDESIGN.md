@@ -3307,3 +3307,94 @@ member rows plus backup rows). No theme toggle involved: the page pins
 ### Not triggered
 
 Save, create backup, restore backup, delete backup, Login As.
+
+---
+
+## Phase 35 — admin/AdminEmailTemplatesPage
+
+`src/pages/admin/AdminEmailTemplatesPage.jsx` (497) →
+`AdminEmailTemplatesPageV2.jsx` (560). Wired directly, no `PageSwitch` —
+`/admin/*` is outside `OrgProvider`, same as phases 30 and 34.
+
+**3 verbatim slices, 240 spliced lines, 0 mismatches, 21 assertions.**
+Both files lint clean; project total unchanged at 729.
+
+This page edits the raw HTML body of all 66 transactional emails the platform
+sends. A mistake here does not look like a broken page — it looks like
+customers not receiving a login code.
+
+### Three things deliberately not re-themed
+
+1. **The preview surface stays white.** Email clients render on white. Theming
+   the preview to the dark admin shell would let an admin sign off on contrast
+   that does not exist in Gmail. Verified in the browser:
+   `panelBg: rgb(255, 255, 255)`.
+2. **`DOMPurify.sanitize(previewHtml)`** — and this one was *proven*, not
+   assumed. I stubbed the preview response locally (nothing left the browser)
+   with `<script>window.__xssFired=true</script>` and
+   `<img src=x onerror="…">`. Result: `scriptTags: 0`, `imgsWithOnerror: 0`,
+   `xssFired: false`, and the surviving DOM was exactly
+   `<p id="safe">Code: <b>123456</b> expires in 10 min</p><img src="x">`.
+3. **`GROUP_CONFIG` spliced whole**, including its now-unused `color` /
+   `bgColor` Tailwind strings. Its `match` predicates are the classification
+   contract; rewriting the object to drop two presentation fields would have
+   meant retyping them. ds tones are looked up separately by group id
+   (`GROUP_TONE`), so grouping is untouched and only the paint is new.
+
+### Parity
+
+Genuine legacy vs genuine v2 — this time with a canary, per false failure #12
+(`isV2` asserts the `data-theme="dark"` only v2 pins):
+
+| | legacy | v2 |
+|---|---|---|
+| header count | 66 templates | same |
+| group counts | 4 / 7 / 6 / 19 / 30 | **same** |
+| template keys, in order | 60 sampled | **identical** |
+
+The editor was opened on `otp` — the highest-stakes template on the platform —
+and loaded subject *"Your Rivvra verification code"* with an 836-character
+body, confirming `startEditing` fetches the FULL template rather than reusing
+the list row (which omits `htmlBody`, so editing from list data would save an
+empty body over a working one).
+
+### Guards and payloads
+
+- Whitespace-only subject → **"Subject and HTML body are required"**, 0 network.
+  The `.trim()` guard holds.
+- Valid save → `PUT …/superadmin/email-templates/otp` with the body unmodified.
+  Blocked; nothing written.
+- Preview → `{"sampleData":{"otp":"123456","expiryMinutes":"10"}}`, which is
+  `getSampleValue` resolving both of that template's placeholders correctly.
+
+### ⚠️ Flagged, not fixed
+
+Both are pre-existing feature gaps, measured against the live template set:
+
+- **`getSampleValue` covers 44 of 126 distinct placeholders — 35%.** The other
+  87 fall through to the `` `[${placeholder}]` `` branch, so for most templates
+  the Preview renders literals rather than content. That includes
+  `compensation` and `joiningDate` on the hired/offer mail — precisely the
+  fields an admin would want to eyeball before editing an offer template.
+- **Five placeholders inject raw HTML and are indistinguishable in the UI:**
+  `appAccessHtml`, `dueTodayListHtml`, `jobsTableHtml`, `messageHtml`,
+  `requiredDocumentsHtml`. Per the platform rule, `renderEmail` escapes every
+  key *without* the `Html` suffix, so these five are the unescaped ones — and
+  note `appAccess` and `appAccessHtml` both exist, which is that rule in the
+  wild. The page renders their chips identically to plain-text placeholders, so
+  nothing signals that editing around them concerns markup. None has a sample
+  value either, so the preview shows `[jobsTableHtml]` instead of a table.
+
+Adding samples or an "HTML" badge is a product change to the page that decides
+what customers receive, so both are left as findings.
+
+### Contrast
+
+Fresh load, no theme toggle (the page pins its own `data-theme="dark"`):
+**218 nodes collapsed / 236 with an editor open (11 placeholder chips), 0
+failures.**
+
+### Not triggered
+
+Save template. The preview POST was answered from a local stub and never left
+the browser.

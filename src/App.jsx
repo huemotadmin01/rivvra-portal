@@ -376,7 +376,10 @@ const AdminWorkspacesPage = lazy(() => import('./pages/admin/AdminWorkspacesPage
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
 const AdminWorkspaceDetailPage = lazy(() => import('./pages/admin/AdminWorkspaceDetailPageV2'));
-const AdminEmailTemplatesPage = lazy(() => import('./pages/admin/AdminEmailTemplatesPage'));
+// /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
+// useOrg THROWS with no provider) cannot gate this route. The v2 page ships
+// directly; the legacy file is kept unreferenced so this is a one-line revert.
+const AdminEmailTemplatesPage = lazy(() => import('./pages/admin/AdminEmailTemplatesPageV2'));
 const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage'));
 const AdminKbReviewPage = lazy(() => import('./pages/admin/AdminKbReviewPage'));
 // /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
