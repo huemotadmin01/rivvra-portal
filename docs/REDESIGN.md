@@ -3866,3 +3866,68 @@ AtsCandidateNew 14 / AtsJobNew 17 — **0 failures**.
 ### Not triggered
 
 Candidate creation, job creation, sequence activation.
+
+---
+
+## Status: the page migration is complete
+
+Every reachable page is either on ds or a recorded decision. Six entries remain
+in the "not behind PageSwitch / not V2" scan, and none of them is an
+outstanding page:
+
+| entry | lines | why it is not a gap |
+|---|---|---|
+| `PublicSigningRoute` | 51 | Not a page — the v1/v2 route wrapper written in phase 26. |
+| `components/admin/AdminLayout` | 60 | Not a page — the admin shell. |
+| `SequenceWizardPage` | 264 | **Deferred, phase 40.** A 1-line-of-markup shell over an 8-file, 1,272-line wizard subsystem with zero ds imports. The subsystem is the real work. |
+| `kb/KnowledgeBasePage` | 411 | **Deliberate skip**, predating this run. |
+| `careers/CareersHome` | 724 | **Deliberately not on ds, phase 32** — white-label, per-customer accent, theme-isolated. Got the a11y + contrast pass instead. |
+| `careers/CareersJobDetail` | 740 | Same as above. |
+
+**159 V2 page files ship.** Build clean; project lint sits at 729 problems, the
+same number it started this run at — every V2 file added is clean, and the count
+only moves when a legacy file is kept alongside its replacement.
+
+### What is genuinely left, in priority order
+
+1. **The wizard subsystem** (8 files, 1,272 lines) — the largest remaining block
+   of legacy Tailwind behind a live route.
+2. **`AnnouncementBanner`** — renders inside `PlatformLayoutV2` today. When it
+   migrates, `BannerPreview` in `AdminAnnouncementsPageV2` must move in the same
+   commit (phase 36).
+3. **The person picker.** `shared/EmployeeLookup` is still used by five migrated
+   V2 pages because ds `EntityLookup` has no equivalent of its
+   `probeSalesperson` link-gate (phase 33). Worth doing once, for all call sites.
+4. **`text-rivvra-400` as body text** — 176 files still use it. The completed
+   `--brand-as-text` sweep covered ds surfaces, not the legacy Tailwind tail.
+
+### Findings raised across the run and never fixed
+
+Each was left because fixing it is a product or API decision, not a migration:
+
+- `lookupEmployees` caps at 50 and ignores `search`/`limit` (phase 31).
+- `ALL_APPS` is stale — 4 enabled apps have no toggle (phase 34).
+- `getSampleValue` covers 44 of 126 email placeholders; 5 inject raw HTML with
+  no UI signal (phase 35).
+- Seats can display 0 but never be set to 0 (phase 34).
+- ID-field schemas mutate state in place; ID fields have no `isSystem` guard
+  (phase 37).
+- `saveCategory`'s toast mangles `id_field_schemas` (phase 37).
+- `recruiterOptions` and its `listRecruiters` fetch are dead (phase 33).
+- `deliveredRate` dead in EngagePage's metrics; `copyPlatformPTMaster` imported
+  and never called.
+
+### The false-failure catalogue, final
+
+Twelve entries. The three that cost the most time, and the rules that came out
+of them:
+
+- **#9/#11 — never audit contrast after a theme toggle.** `getComputedStyle`
+  returns the previous theme's values and survives a re-toggle. Set the theme,
+  **reload**, then audit.
+- **#10 — framer-motion intros freeze when the pane is backgrounded.** A
+  screenshot of a frozen page looks like a broken render; check
+  `document.hidden`. The contrast audit reads `color` and ignores opacity, so it
+  will pass a page that is invisible.
+- **#12 — editing a `lazy()` import path does not swap a loaded module.** Assert
+  a version-unique marker before trusting any legacy-vs-v2 comparison.
