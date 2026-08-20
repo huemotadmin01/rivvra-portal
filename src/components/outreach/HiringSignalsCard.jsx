@@ -24,7 +24,9 @@ export default function HiringSignalsCard({ orgSlug }) {
         api.request(`/api/org/${orgSlug}/signals/watchlist`),
       ]);
       setSignals((sigResp.signals || []).filter((s) => !s.ai || s.ai.relevant !== false));
-      setWatchCount((wlResp.watchlist || []).filter((w) => w.active !== false).length);
+      // Count only entries with a discovered feed — the rest are on the
+      // list but not actually watchable yet.
+      setWatchCount((wlResp.watchlist || []).filter((w) => w.active !== false && w.provider).length);
       setError(null);
     } catch (err) {
       setError(err.message || 'Failed to load signals');
@@ -66,7 +68,21 @@ export default function HiringSignalsCard({ orgSlug }) {
     }
   };
 
-  if (loading) return null;
+  // Skeleton while loading — returning null made the card pop in late and
+  // shift the page (the signals fetch is slow on the throttled DB tier).
+  if (loading) {
+    return (
+      <div className="mb-8 rounded-2xl border border-dark-700 bg-dark-850 p-4 sm:p-6">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-rivvra-500/10 text-rivvra-400 shrink-0"><Radar size={18} /></div>
+          <div>
+            <h3 className="text-base font-semibold text-white">Hiring Signals</h3>
+            <p className="text-xs text-dark-400 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Loading signals…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-8 rounded-2xl border border-dark-700 bg-dark-850 p-4 sm:p-6">
