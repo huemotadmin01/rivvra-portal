@@ -2628,3 +2628,92 @@ right after the theme toggle. Cross-fade, **sixth sighting**. Settled: 0.
 
 Activate, pause, delete, duplicate, share, export CSV, connect/disconnect
 Gmail. The row menu was opened and closed without selecting anything.
+
+---
+
+## Phase 29 — TeamDashboardPage
+
+`src/pages/TeamDashboardPage.jsx` (962) → `TeamDashboardPageV2.jsx` (964),
+behind `PageSwitch`. Route `/outreach/team-dashboard`, admin + team_lead only.
+
+**3 verbatim slices, 186 spliced lines, 0 mismatches.** 22 gate/metric
+expressions asserted by string count. Lint **3 → 1**: the two
+`'Icon' is defined but never used` errors go away because the two card
+components now take `icon` as a rendered node; the one that remains is the
+pre-existing dead `inSequenceData`, carried across deliberately.
+
+### The chart palette — the first page in this migration where colour is data
+
+This is a recharts page, so the `dataviz` skill applies: **compute the palette,
+don't eyeball it.** Running the validator on the seven `STATUS_CONFIG` colours
+found two separate things, and only one of them was mine to fix.
+
+**Mine.** The page had no light theme before, and its hexes were picked against
+a dark surface. On ds `--surface-1` in light (#FFFFFF), four of seven fall
+below 3:1 — `replied` 2.28, `no_response` 2.15, `bounced` 2.80, `lost` 2.56.
+Washed-out arcs on white is a defect the migration would *introduce*, so light
+gets its own steps, same hue per status, validated rather than flipped:
+
+```
+node scripts/validate_palette.js "#6b7280,#2563eb,#15803d,#dc2626,#854d0e,#ea580c,#64748b" \
+  --mode light --surface "#FFFFFF"
+  [PASS] Lightness band   [PASS] Normal-vision floor (17.5)   [PASS] Contrast vs surface
+```
+
+Verified live: dark renders `#3b82f6 / #22c55e / #ef4444 / #f59e0b / #f97316`
+— byte-identical to legacy — and the toggle swaps to the light steps through a
+`MutationObserver` on `data-theme`.
+
+The validator's remaining chroma-floor FAIL is it being applied slightly out of
+scope: it flags `not_contacted` and `lost_no_response` for "reading gray",
+which is exactly what those two statuses are meant to look like. **A status
+palette is not a categorical series palette.**
+
+**Not mine — flagged, not changed.** In dark, `bounced` #f97316 and
+`no_response` #f59e0b sit at **ΔE 9.6 normal vision** (6.2 deutan) — below the
+15 floor, genuinely hard to tell apart on adjacent arcs even with full colour
+vision. Pre-existing, and a real problem on a chart read to work out where
+deliverability is going wrong. Re-hueing it changes what a colour *means* on a
+dashboard people read daily, so it is reported rather than quietly fixed. My
+first attempt at light steps made this pair **worse** (ΔE 4.1) — which is
+exactly why the rule is to run the script instead of reasoning about it.
+
+What this file does do is make identity never colour-alone: donut legend,
+status-breakdown cards and both tooltips all carry the text label beside the
+swatch.
+
+### Parity
+
+The obvious approach failed twice, and both failures are worth recording.
+
+1. **Text scraping was ambiguous.** "In Sequence" appears in four places on
+   this page — a KPI, the funnel, the donut legend and a detail panel — so
+   `indexOf(label)` matched the wrong one and reported a mismatch that was not
+   there. Same lesson as phase 27, one page later.
+2. **The endpoint is not deterministic.** Two back-to-back
+   `getDashboardStats` calls with identical params returned
+   `not_contacted: 34` and then `12984`. That is server-side churn, nothing to
+   do with either page — but it makes a load-legacy-then-load-v2 comparison
+   worthless.
+
+So the payload was **pinned** — one captured response, `getDashboardStats`
+stubbed to return it, both pages rendered against it — and the whole page text
+compared. Identical except two things, neither of them a number:
+
+- legacy emits `All Teams89 members · <TIME>` as one text node where v2 emits
+  `All Teams` + `89 members · <TIME>`, because the badge is now a `Chip`
+- ds `Stat` renders its label as given, so `RESPONSE RATE` → `Response Rate`
+
+**Every figure on the page matches**: KPIs, funnel values and both conversion
+percentages (3% ↘ 26%), the full status distribution, and all four email rates
+(45.7% open, 54.2% click-to-open, 0.3% interested, 7.2% bounce).
+
+### Contrast
+
+165 nodes, both themes: **0 failures**. A light run first reported 14 — all
+sidebar items, straight after the toggle. Cross-fade, **seventh sighting**.
+
+### Not triggered
+
+Nothing on this page writes; the only action is Refresh, which re-reads. The
+interceptor stayed empty throughout.
