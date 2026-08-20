@@ -3607,3 +3607,88 @@ Fresh load, all three sections expanded (36 inputs, 8 checkboxes):
 ### Not triggered
 
 Save employment types, save reasons, save ID fields.
+
+---
+
+## Phase 38 — the admin trio (Workspaces, Overview, KB Review)
+
+Three pages in one batch, all under `/admin/*` so all wired directly:
+
+| page | lines | slices | spliced |
+|---|---|---|---|
+| `AdminWorkspacesPage` | 250 → 223 | 2 | 61 |
+| `AdminOverviewPage` | 232 → 245 | 2 | 52 |
+| `AdminKbReviewPage` | 242 → 283 | 2 | 69 |
+
+**6 verbatim slices, 182 spliced lines, 0 mismatches, 24 assertions.** All three
+V2 files lint clean; project total unchanged at 729.
+
+### `PlanBadge` was duplicated character-for-character
+
+The identical function existed in both `AdminWorkspacesPage` and
+`AdminOverviewPage`. The two copies agreed, but nothing *kept* them agreeing —
+add a plan tier to one and the other silently falls back to `free` styling. Now
+one definition in `pages/admin/adminShared.jsx`, tone map preserving legacy's
+exact grouping.
+
+### The risky part: ds `DataTable` sorts three ways, legacy sorts two
+
+Legacy's `toggleSort` flips asc/desc forever and never clears. ds `DataTable`
+cycles asc → desc → **cleared**. Wiring `onSortChange` straight through would
+have added a third state legacy never had.
+
+`DataTable` only proposes `null` for the column that is *already* the sorted one
+at desc, so `next ? next.key : sort` recovers the clicked key and hands it to
+legacy's own `toggleSort`. Verified by clicking Name three times:
+
+```
+click 1 → S, M, M, C   (desc)
+click 2 → C, M, M, S   (asc)
+click 3 → S, M, M, C   (desc — did NOT clear)
+```
+
+### Publishing guards, driven
+
+`AdminKbReviewPage`'s approve **publishes to the live platform docs every tenant
+reads**. Both write paths keep their native dialogs, and `reject`'s
+`window.prompt` has no ds equivalent at all — the null-vs-empty-string
+distinction is load-bearing (`null` = cancelled and `if (note === null) return;`
+bails; `''` = "reject, no reason" and proceeds). A ds dialog returning a plain
+string would collapse those.
+
+Staging had no drafts, so one was stubbed read-only to reach the path:
+
+```
+confirm: Publish "ATS Overview" to the live platform docs?
+prompt:  Reject this draft? Optional reason:
+network writes: []
+```
+
+`lineFlags` was exercised at the same time — the diff rendered three panes and
+correctly marked "Line two" removed. Its quirk is worth knowing and is now in
+the header: it is SET-based, so a line that merely *moved* counts as unchanged
+and duplicates collapse. That is why legacy shows both full bodies beside it.
+
+`AdminOverviewPage`'s registration toggle was driven too —
+`PUT …/superadmin/registration {"open":true}`, blocked. Staging registration
+stays **Closed**.
+
+### Parity
+
+All three compared against genuine legacy with the `isV2` canary:
+
+- **workspaces** — identical: 4 workspaces, same 6 headers, all 4 rows
+  cell-for-cell including `92/100` seats.
+- **overview** — identical: registration Closed, same stats, `95 / 110 used`.
+- **kb-review** — same values (0 / 0 / 17). One accounted difference: legacy's
+  `StatCard` renders value-then-label, ds `Stat` renders label-then-value, which
+  briefly made a naive regex read the numbers off by one. The values match; the
+  DOM order does not.
+
+### Contrast
+
+**kb-review 32 (draft expanded) / workspaces 41 / overview 41 — 0 failures each.**
+
+### Not triggered
+
+Registration toggle, draft approve (publish), draft reject.
