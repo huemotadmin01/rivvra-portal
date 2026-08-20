@@ -56,11 +56,15 @@ export default function HiringSignalsCard({ orgSlug }) {
     }
   };
 
+  // Scan runs detached on the server (~minutes across ~200 sources) — the
+  // request returns immediately; we show a note and refresh the list later.
+  const [scanNote, setScanNote] = useState(null);
   const scan = async () => {
     setScanning(true);
     try {
       await api.request(`/api/org/${orgSlug}/signals/scan`, { method: 'POST' });
-      await load();
+      setScanNote('Scan running in the background — new signals will appear here as sources are checked (takes a few minutes).');
+      setTimeout(() => { load(); setScanNote(null); }, 120000);
     } catch (err) {
       setError(err.message || 'Scan failed');
     } finally {
@@ -110,6 +114,7 @@ export default function HiringSignalsCard({ orgSlug }) {
       </div>
 
       {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+      {scanNote && <p className="text-xs text-rivvra-400 mb-3">{scanNote}</p>}
 
       {!watchCount ? (
         <div className="text-center py-6">
