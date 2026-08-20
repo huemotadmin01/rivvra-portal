@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
+import { Checkbox as Check } from '../Form/Checkbox';
 
 const DENSITY = {
   comfortable: { pad: '11px 14px', font: '450 13.5px/1.45', head: '9px 14px', h: 44 },
@@ -14,31 +15,6 @@ function SortGlyph({ state }) {
   );
 }
 
-function Check({ checked, indeterminate, onChange, label }) {
-  return (
-    <span
-      role="checkbox"
-      aria-checked={indeterminate ? 'mixed' : checked}
-      aria-label={label}
-      tabIndex={0}
-      onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
-      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onChange(!checked); } }}
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 15, height: 15, borderRadius: 4, cursor: 'pointer', flexShrink: 0,
-        background: checked || indeterminate ? 'var(--brand, #22c55e)' : 'transparent',
-        boxShadow: `inset 0 0 0 ${checked || indeterminate ? 0 : 1.5}px var(--line-strong, rgba(255,255,255,.18))`,
-        transition: 'background 120ms var(--e-out, ease), box-shadow 120ms var(--e-out, ease)',
-      }}
-    >
-      {indeterminate ? (
-        <span style={{ width: 7, height: 2, borderRadius: 1, background: 'var(--brand-fg, #041209)' }} />
-      ) : checked ? (
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--brand-fg, #041209)" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-      ) : null}
-    </span>
-  );
-}
 
 /**
  * The list surface the whole product is built on: sticky header, three-state

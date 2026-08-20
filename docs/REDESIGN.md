@@ -3507,3 +3507,103 @@ check says an element is missing, confirm with a DOM query before believing it.
 ### Not triggered
 
 Create, update, activate/deactivate, delete.
+
+---
+
+## Phase 37 — admin/AdminEmployeeSettingsPage
+
+`src/pages/admin/AdminEmployeeSettingsPage.jsx` (382) →
+`AdminEmployeeSettingsPageV2.jsx` (493). Wired directly — `/admin/*` is outside
+`OrgProvider`, as phases 30, 34, 35, 36.
+
+**2 verbatim slices, 59 spliced lines, 0 mismatches, 25 assertions.** V2 lints
+clean (legacy carries one pre-existing `icon: Icon` error); project total
+unchanged at 729.
+
+Three platform-wide tables every tenant inherits: employment types (payroll
+mode, leave eligibility, attendance vs ESS), separation reasons, and the
+per-country statutory ID fields with their validation regexes.
+
+### The page that barely splices
+
+This is the first page in the migration where the verbatim-slice method mostly
+does not apply. Only 59 lines are sliceable — the option tables and the
+load/save shell. **Eleven state updates are written inline in the JSX**, one
+per input, so they had to be transcribed by hand.
+
+That makes the string-count check the primary evidence here rather than a
+supplement: 25 assertions covering every one of those handlers, the
+`isSystem` gating, the add/delete row shapes and all three save calls. All
+match legacy exactly.
+
+Worth stating plainly: a byte-diff cannot reach hand-transcribed code, so the
+confidence on this page rests on the assertions plus the live comparison,
+not on the manifest.
+
+### Parity
+
+Genuine legacy vs genuine v2 (canary: `isV2`). **Identical** — the same 8
+inputs with the same `disabled` flags (all four system keys locked, all four
+labels editable), the same 8 select values, the same 4 checkbox states.
+
+### The handlers that would have been easy to get wrong
+
+Two edits were driven and the save payload read at the network boundary:
+
+```
+PUT …/superadmin/platform-settings/employment_types
+{"items":[{"key":"confirmed",…,"payrollMode":null,"leaveEligible":true,…}, …]}
+```
+
+- **`payrollMode: null`** — a real JSON null, not the string `"null"`. The
+  option value round-trips as the *string* `'null'` and the handler converts it
+  back (`e.target.value === 'null' ? null : e.target.value`). Getting that wrong
+  would write the string `"null"` as a payroll mode for every employee on the
+  "None (excluded)" type.
+- **`leaveEligible: true`** — a real boolean out of the new ds `Checkbox`.
+
+Blocked. Staging unchanged: `confirmed` still `statutory`, still 4 types / 8
+reasons / 4 ID fields.
+
+### New ds primitive: `Checkbox` — extracted, not written
+
+`DataTable` had carried a private `Check` component since row selection was
+built: a `span[role=checkbox]` with a drawn tick, Space/Enter toggling, and
+click-propagation stopped so a checkbox inside a clickable row does not open
+the row. It was always a general primitive; being private just meant every
+other surface had to hand-roll one.
+
+Moved to `ds/Form/Checkbox.jsx` with a `.d.ts`, `disabled` support added, and
+`DataTable` imports it back under its old name so its own usage is unchanged.
+**26 pages use `DataTable`**, so this was verified rather than assumed:
+`AtsCandidateDetailV2`'s table renders the same headers and rows with no
+console errors, and DataTable's single lint error is the same pre-existing
+`react-hooks/immutability` one it had at HEAD.
+
+### ⚠️ Flagged, not fixed
+
+- **The success toast mangles one of the three categories.** `saveCategory`
+  does `category.replace('_', ' ')` with a **string** pattern, which replaces
+  only the first underscore. `employment_types` and `separation_reasons` have
+  one each and read fine; `id_field_schemas` becomes **"id field_schemas saved
+  successfully"**. Cosmetic, pre-existing, and inside the verbatim slice.
+- **The ID-fields section mutates state in place.** Six handlers do
+  `const updated = { ...idSchemas }` — a *shallow* copy — then assign through
+  `updated.schemas.IN.fields[idx]`, which writes into the original state
+  object, before `setIdSchemas({ ...updated })` forces the re-render. It works
+  today only because the new top-level reference is what React compares. The
+  employment-types and separation-reasons sections use the correct immutable
+  pattern, so the page is internally inconsistent. Left verbatim; this is a
+  state-management correctness fix, not a migration one.
+- **ID fields have no `isSystem` concept at all** — unlike the other two
+  tables, every field including PAN and Aadhaar can be deleted with one click
+  and no confirmation.
+
+### Contrast
+
+Fresh load, all three sections expanded (36 inputs, 8 checkboxes):
+**32 nodes, 0 failures.**
+
+### Not triggered
+
+Save employment types, save reasons, save ID fields.
