@@ -374,7 +374,10 @@ const AdminWorkspaceDetailPage = lazy(() => import('./pages/admin/AdminWorkspace
 const AdminEmailTemplatesPage = lazy(() => import('./pages/admin/AdminEmailTemplatesPage'));
 const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPage'));
 const AdminKbReviewPage = lazy(() => import('./pages/admin/AdminKbReviewPage'));
-const AdminPayrollSettingsPage = lazy(() => import('./pages/admin/AdminPayrollSettingsPage'));
+// /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
+// useOrg THROWS with no provider) cannot gate this route. The v2 page ships
+// directly; the legacy file is kept unreferenced so this is a one-line revert.
+const AdminPayrollSettingsPage = lazy(() => import('./pages/admin/AdminPayrollSettingsPageV2'));
 const AdminEmployeeSettingsPage = lazy(() => import('./pages/admin/AdminEmployeeSettingsPage'));
 
 // Suspense fallback for lazy-loaded routes
