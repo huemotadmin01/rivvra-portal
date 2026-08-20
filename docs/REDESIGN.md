@@ -3398,3 +3398,112 @@ failures.**
 
 Save template. The preview POST was answered from a local stub and never left
 the browser.
+
+---
+
+## Phase 36 — admin/AdminAnnouncementsPage
+
+`src/pages/admin/AdminAnnouncementsPage.jsx` (420) →
+`AdminAnnouncementsPageV2.jsx` (490). Wired directly — `/admin/*` is outside
+`OrgProvider`, as phases 30, 34, 35.
+
+**3 verbatim slices, 140 spliced lines, 0 mismatches, 23 assertions.** Both
+files lint clean; project total unchanged at 729.
+
+Everything on this page is broadcast to real users in every workspace, and the
+page says so itself: *"Changes are live immediately — no deploy."*
+
+### The banner mirror is spliced verbatim — Tailwind and all
+
+This is the decision that matters here, and it runs the opposite way to the
+rest of the migration.
+
+`BannerPreview` exists for one stated reason: it is a *"pixel-faithful copy of
+AnnouncementBanner so admins see exactly what ships"*. And
+`components/platform/AnnouncementBanner` is imported by **both**
+`PlatformLayout` **and** `PlatformLayoutV2` — the same unmigrated teal Tailwind
+component renders inside the redesigned shell today.
+
+Re-theming the preview to ds tokens would modernise nothing. It would make the
+preview stop matching the banner it is a preview *of*, so an admin composing a
+launch banner would sign off on something users never see. The mirror is the
+feature.
+
+Confirmed in the browser — the preview's live classes are legacy's exactly:
+
+```
+flex items-center gap-3 px-4 py-2.5 bg-teal-500/10 border border-teal-500/20 rounded-lg text-sm
+inline-flex … bg-teal-500 text-dark-950 font-medium shrink-0
+```
+
+**The slice is drawn tightly around the teal box alone (legacy 58–71).** The
+first attempt spliced the whole component, which swept in the "Live preview"
+caption — chrome, not mirror — and the contrast audit promptly failed it at
+**3.92:1** (`text-dark-500`, on an 11px label needing 4.5). Narrowing the slice
+to just the mirror let the caption move to ds tokens and fixed it. Good
+reminder that a verbatim slice should contain exactly what must not change, and
+nothing else.
+
+⚠️ **When `AnnouncementBanner` is migrated, `BannerPreview` must move in the
+same commit.** They are one thing in two files and nothing but a comment
+enforces it.
+
+### Parity
+
+Genuine legacy vs genuine v2 (canary: `isV2` asserts the `data-theme` only v2
+pins). The rendered list row is **character-for-character identical** — status,
+title, target-app chip, body, audience label, "All workspaces", "until Sep 30,
+2026", "18 dismissed".
+
+### Guards and payloads, all blocked
+
+| path | observed |
+|---|---|
+| create, empty required field | native validation, **0 network** |
+| create, valid | `POST …/announcements` |
+| delete, 1st click | arms, button reads "Confirm?", 0 network |
+| delete, wait 4.6s | **disarms itself**, trash icon returns, 0 network |
+| delete, 2nd click in-window | `DELETE …/announcements/<id>` |
+| activate toggle | `PUT` with the **whole record** |
+
+Two payloads are worth quoting. The create proves the `orgSlugs` codec — typing
+`" Huemot-Technology , BILLING-Test ,, "` produced:
+
+```json
+{"orgSlugs":["huemot-technology","billing-test"],"activeUntil":null,"active":true}
+```
+
+trimmed, **lowercased**, empties dropped, and a cleared date sent as explicit
+`null` rather than `""`.
+
+The toggle proves the round-trip. Flipping active re-sends every field —
+including `activeUntil:"2026-09-30"`, unshifted by the
+`toISOString().split('T')[0]` UTC slice. Anything `toForm`/`toPayload` failed to
+round-trip would be silently blanked by a simple activate/deactivate, so this
+is the assertion that matters most on the page.
+
+Staging is untouched: still one announcement, still active, nothing created or
+deleted.
+
+### Small fidelity fix
+
+Legacy wrapped the checkbox and its text in a `<label>`, so clicking the text
+toggled it. A ds `Switch` is a `<button>`, which a `<label>` does not drive —
+so the row carries the click and the visible text is `aria-hidden`, avoiding a
+double announcement alongside the Switch's own accessible name.
+
+### Contrast
+
+Fresh load: **12 nodes (list) / 31 with the modal open and the preview
+populated, 0 failures.**
+
+### Measurement note
+
+`document.body.innerText` reported the preview as absent while
+`innerHTML` found it — the modal body is scroll-clipped and `innerText`
+approximates *rendered* text. The page was fine; the probe was wrong. When a
+check says an element is missing, confirm with a DOM query before believing it.
+
+### Not triggered
+
+Create, update, activate/deactivate, delete.
