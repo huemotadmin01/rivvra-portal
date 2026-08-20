@@ -46,6 +46,27 @@ export function OutreachStatusChip({ status }) {
   return <Chip tone={s.tone} dot>{s.label}</Chip>;
 }
 
+// AI reply-intent badge (2026-08-21). Shows WHY a lead is in Hot Leads:
+// a referral, a future window, etc. Only renders for intents that add
+// information beyond the status chip; hint (timing phrase / referred
+// person) goes in the tooltip.
+const INTENT_CHIP = {
+  referral: { tone: 'info', label: 'Referral' },
+  later: { tone: 'warn', label: 'Later' },
+  interested: { tone: 'brand', label: 'AI: Interested' },
+  wrong_person: { tone: 'neutral', label: 'Wrong person' },
+  left_company: { tone: 'neutral', label: 'Left company' },
+};
+export function ReplyIntentChip({ lead }) {
+  const s = INTENT_CHIP[lead?.lastReplyIntent];
+  if (!s) return null;
+  return (
+    <span title={lead.lastReplyIntentHint || ''} style={{ marginLeft: 6, display: 'inline-block' }}>
+      <Chip tone={s.tone}>{s.label}{lead.lastReplyIntentHint ? ' ·' : ''}</Chip>
+    </span>
+  );
+}
+
 export function ProfileTypeChip({ type }) {
   if (type === 'client') return <Chip tone="info">Client</Chip>;
   if (type === 'candidate') return <Chip tone="info" style={{ color: 'var(--a-ats, #8b5cf6)', background: 'color-mix(in srgb, var(--a-ats, #8b5cf6) 14%, transparent)' }}>Candidate</Chip>;
@@ -300,7 +321,7 @@ export function LeadsTableV2({
               </td>
             )}
             <td style={td()}><ProfileTypeChip type={lead.profileType} /></td>
-            <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /></td>
+            <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /><ReplyIntentChip lead={lead} /></td>
             <td style={td({ color: 'var(--fg-3)' })}>{lead.companyName || lead.company || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
             <td style={td({ color: 'var(--fg-3)' })}>{lead.location || <span style={{ color: 'var(--fg-faint)' }}>—</span>}</td>
             <td style={td({ color: 'var(--fg-3)' })}>

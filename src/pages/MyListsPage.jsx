@@ -1,3 +1,4 @@
+import ReplyIntentBadge from '../components/outreach/ReplyIntentBadge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
@@ -799,6 +800,7 @@ function MyListsPage() {
                                     <span className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap bg-dark-700 text-dark-400">Not Contacted</span>
                                   );
                                 })()}
+                                <ReplyIntentBadge lead={lead} />
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2 text-sm">
