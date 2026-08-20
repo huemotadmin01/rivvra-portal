@@ -3189,3 +3189,121 @@ then audit.** If a failure does appear, re-measure that element's
 ### Not triggered
 
 Archive, unarchive, AI re-score, and every inline field save. Nothing written.
+
+---
+
+## Phase 34 — admin/AdminWorkspaceDetailPage
+
+`src/pages/admin/AdminWorkspaceDetailPage.jsx` (550) →
+`AdminWorkspaceDetailPageV2.jsx` (600). Wired directly, no `PageSwitch` —
+`/admin/*` is outside `OrgProvider`, same as phase 30.
+
+**3 verbatim slices, 149 spliced lines, 0 mismatches, 24 assertions.**
+
+This is the most destructive page in the product: from here a Rivvra
+super-admin can overwrite an entire customer org's data from a backup, delete
+backups, change a workspace's plan and seats, and log in as any member of any
+org.
+
+### The confirmations deliberately stay as `window.confirm`
+
+Restore is guarded by **two sequential** `window.confirm` calls, delete by one,
+impersonation by one. Converting these to ds `ConfirmDialog` was the obvious
+"finish the migration" move and I did not do it:
+
+- A native confirm blocks the event loop. It cannot be click-through dismissed,
+  cannot be defeated by a mis-scoped Escape handler, and cannot double-fire from
+  a re-render.
+- The second restore confirm — *"Are you absolutely sure? This action cannot be
+  undone."* — exists purely as **friction**. Replacing it means writing new code
+  on the one path in this app that can destroy a customer's data, in exchange
+  for nicer typography on a super-admin-only screen.
+
+This is the one place in the migration where the legacy control is the safer
+control, and the header says so.
+
+### All four guards driven, nothing written
+
+With confirms auto-declined and non-GET requests blocked:
+
+| action | observed |
+|---|---|
+| Restore, decline #1 | 1 confirm, **second never shown**, 0 network |
+| Restore, accept #1 → decline #2 | both confirms shown in order, 0 network |
+| Delete | `Delete this backup? This cannot be undone.`, 0 network |
+| Login As | names the member, the workspace, and the audit log, 0 network |
+
+The restore confirm interpolates the **same** date string the table cell shows
+— they share one `backupDateStr` helper, so the string an admin reads before
+overwriting an org cannot drift from the row they clicked. Both size branches
+verified against synthetic rows: 3 500 000 B → `3.3 MB`, 512 000 B → `500 KB`.
+
+Save was driven too. The payload is exactly legacy's, and the part that matters
+is that `billing` stays **nested**:
+
+```
+PUT …/superadmin/workspaces/<id>
+{"plan":"pro","billing":{"seatsTotal":100},"enabledApps":[…],"uiV2":false}
+```
+
+Flattening that to a top-level `seatsTotal` would have silently dropped every
+seat-count change. Staging is unchanged: plan `pro`, seats 100, `uiV2` still
+true, `ats` still enabled, 0 backups.
+
+### Parity
+
+Genuine legacy vs genuine v2, same workspace: **every field identical** — plan
+`pro` and all five options in order, seats `100` with `min=1`, all six app
+toggles, 90 members, and the first three member rows cell-for-cell including
+the long `appAccess` strings and the `alumni` status.
+
+### A regression I introduced, caught by needing a soft nav
+
+I rendered "Back to Workspaces" as `Button as="a" href`, which is a **full page
+load**. Legacy used a react-router `<Link>` — a soft nav. In an SPA that means
+booting the whole app to go one route up. Now a `BackToWorkspaces` component
+that keeps the `href` (so middle-click and open-in-new-tab still work) and
+calls `navigate()` on plain click — which is what `<Link>` does internally.
+
+Found only because I needed a client-side navigation to re-run an effect; the
+build and lint were clean.
+
+### ⚠️ Flagged, not fixed
+
+- **`ALL_APPS` is stale, and four enabled apps are invisible.** The constant
+  lists six apps; this org has **ten** enabled — `sign`, `payroll`, `todo` and
+  `invoicing` have no toggle on this page. They are *preserved* on save
+  (`editApps` seeds from the full `enabledApps` and `toggleApp` only adds or
+  removes the clicked id), so nothing is dropped — but a super-admin cannot see
+  or change them here. Verified against the live workspace record. Changing the
+  list is a product decision about what super-admins may toggle on customer
+  orgs.
+- **Seats has an asymmetry.** It loads as `seatsTotal || 0` but the input
+  coerces with `parseInt(…) || 1` under `min={1}`. So a workspace can *display*
+  0 seats yet can never be *set* to 0. Billing-adjacent; left exactly as-is.
+
+### False failure #12 — editing a `lazy()` import path does not swap a loaded module
+
+My first legacy-vs-v2 comparison reported the two pages as identical on every
+field. They were: **both snapshots were v2.** Pointing the `lazy(() => import(…))`
+at the legacy file and letting HMR apply it does not replace an already-resolved
+module — the old one stays cached, so the route kept rendering v2.
+
+It was caught by a canary: the snapshot recorded `pinnedTheme: true`, and only
+v2 pins `data-theme="dark"`. Without that field the phase would have shipped on
+a comparison of a page against itself.
+
+**The rule: when swapping which component a route renders, assert a marker only
+one of the two versions has before trusting the comparison.** Earlier phases
+were safe by luck — those routes sat behind `PageSwitch` with *both* modules
+referenced, so both were genuinely loadable.
+
+### Contrast
+
+**895 nodes, 0 failures** — the largest surface audited in this migration (90
+member rows plus backup rows). No theme toggle involved: the page pins
+`data-theme="dark"` on its own root, per the phase-33 rule.
+
+### Not triggered
+
+Save, create backup, restore backup, delete backup, Login As.
