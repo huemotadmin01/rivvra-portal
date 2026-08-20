@@ -358,6 +358,7 @@ const IncentiveRecordFormV2 = lazy(() => import('./pages/incentive/RecordFormV2'
 const IncentiveRecordDetail = lazy(() => import('./pages/incentive/RecordDetail'));
 const IncentiveRecordDetailV2 = lazy(() => import('./pages/incentive/RecordDetailV2'));
 const IncentiveRatesTable = lazy(() => import('./pages/incentive/RatesTable'));
+const IncentiveRatesTableV2 = lazy(() => import('./pages/incentive/RatesTableV2'));
 // IncentiveSettings was moved into the global Settings hub at
 // /org/:slug/settings/incentive — see components/settings/SettingsIncentive.
 const SettingsIncentive = lazy(() => import('./components/settings/SettingsIncentive'));
@@ -809,7 +810,7 @@ function App() {
                   {/* /records/new removed — drafts are auto-created from paid invoices only.
                       /records/:recordId/edit kept so admins can tweak existing drafts before approval. */}
                   <Route path="/org/:slug/incentive/records/:recordId/edit" element={<ErrorBoundary><PageSwitch v2={IncentiveRecordFormV2} legacy={IncentiveRecordForm} /></ErrorBoundary>} />
-                  <Route path="/org/:slug/incentive/rates" element={<ErrorBoundary><IncentiveRatesTable /></ErrorBoundary>} />
+                  <Route path="/org/:slug/incentive/rates" element={<ErrorBoundary><PageSwitch v2={IncentiveRatesTableV2} legacy={IncentiveRatesTable} /></ErrorBoundary>} />
                   <Route path="/org/:slug/incentive/settings" element={<IncentiveSettingsRedirect />} />
                 </Route>
               </Route>

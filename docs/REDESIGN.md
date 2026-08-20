@@ -2804,3 +2804,147 @@ missing feature, not dead code, and deleting the import would erase the clue.
 
 Save FY config, save PT state, save salary structure, seed FY, seed PT master,
 copy FY, run migration, verify migration.
+
+---
+
+## Phase 31 — incentive/RatesTable
+
+`src/pages/incentive/RatesTable.jsx` (710) → `RatesTableV2.jsx` (649), behind
+`PageSwitch` at `/org/:slug/incentive/rates`.
+
+**2 verbatim slices, 204 spliced lines, 0 mismatches** against the manifest.
+
+The whole page is one thing: what percentage every incentive record gets
+computed at. So the slices are drawn around that and nothing else — the lane
+model and both display formatters (legacy 25–75), then every piece of state and
+every handler (legacy 78–230). Only the chrome is new.
+
+### Parity
+
+Legacy and v2 were rendered at the same route, minutes apart, against the same
+four staging rows, and the tables compared cell by cell:
+
+| | legacy | v2 |
+|---|---|---|
+| table body (4 rows × 7 cells) | — | **byte-identical** |
+| `min` / `max` / `step` on both rate inputs | 0 / 100 / 0.01 | same |
+| `maxLength` on tier / note | 80 / 500 | same |
+
+22 string-count assertions over the rate expressions, all passing — including
+both directions of the conversion (`Number(ratePct) / 100` and
+`(Number(r.rate) || 0) * 100`), the `n > 100` bound, and the two lane
+ternaries. Two counts deliberately differ and are asserted at their new values:
+`laneOfRow` 4→3 (legacy's `DisplayRow` and `EditingRow` are now one cell
+renderer) and `fmtPct` 3→5 (two new aria-labels on the row buttons).
+
+Reminder to self, third time now: strip comments before counting. My own
+docblock quoting `Number(newRate.ratePct) / 100` counted as a second occurrence.
+
+### The payloads, read at the network boundary
+
+The strongest check available without writing anything. With the blocking
+interceptor armed, all three mutations were driven and their bodies inspected:
+
+```
+POST  /incentive/rates          {"role":"recruiter","rate":0.05,"effectiveFrom":"2026-09-01",
+                                 "note":"…","employeeId":"699b…","tier":null}
+PUT   /incentive/rates/<tier>   {"rate":0.075,…,"tier":"Team Lead"}
+PUT   /incentive/rates/<org>    {"rate":0.05,…}          ← no `tier` key
+```
+
+That last line is the point. `saveEdit` only sends `tier` when the row is
+already on the tier lane; on an org row the key is absent, so an edit cannot
+move a row between lanes. "5" → `0.05` and `0.075` → `"7.50"` → `0.075` both
+round-trip exactly.
+
+All three were blocked. Staging still has its original four rows with their
+April `updatedAt` timestamps.
+
+The tier lane has no rows on staging, so its edit branch was exercised by
+stubbing a synthetic tier row into the `GET /rates` response — read-only, and
+the only way to reach that branch without creating a rate.
+
+### Two new ds primitives
+
+**`RadioCards`** (`ds/Form/RadioCards.jsx`). Legacy's `ScopeRadio` was a local
+button row, and the page comment says why it exists: "three radios so the lane
+is unmissable… we don't want admins to silently create the wrong layer."
+Collapsing that to a dropdown would have thrown away the one thing it was for.
+So it became a real primitive: single-select where the options need explaining
+and all of them stay on screen. Unlike the button row it replaces it is an
+actual radiogroup — one tab stop, arrow keys, hints inside the accessible name.
+
+**`ComboBox` gains `keywords`** — matched by the search box, never rendered.
+Legacy's `EmployeePicker` searched name, email, designation *and* employee code
+while displaying only the designation. Without `keywords` the choice would have
+been "show the code or lose the ability to search it", on a picker where
+picking the wrong person assigns the wrong rate. Verified: typing `11212215`
+narrows 50 options to 1, and the code appears nowhere on the page.
+
+### The bug the build could not have caught
+
+`RadioCards` shipped its arrow-key handler with the focus chase in a
+`requestAnimationFrame`. Lint clean, build clean, and **wrong**: the arrow key
+moved the selection but left focus on the old card, now `tabIndex={-1}`. Tab
+out and back would have skipped the group entirely.
+
+The cause is worth remembering. The selection lives in the *caller's* state, so
+the card we want to focus does not exist in its selected form until React has
+committed the parent's re-render — and React's commit can land after the rAF.
+The fix is a `pendingFocus` ref read in an effect, which by definition runs
+after commit. Found by pressing an arrow key. Nothing else would have found it.
+
+### Departures, stated
+
+- **No clear-to-empty on the employee picker.** Legacy showed the selection as
+  a chip with an X. `ComboBox` has no such affordance. Re-picking works and both
+  lane switches already reset `employeeId`, so the only lost move is "deselect
+  and leave the form invalid". Judged not worth a second primitive.
+- **The form grid.** Legacy packed six controls into a `md:grid-cols-6` strip
+  that only held together at one breakpoint. The lane-specific control now gets
+  its own row and the rest sit in an auto-fit row, so field order is stable at
+  every width. Caught by looking at the page, not by reading the code.
+- **ds `ConfirmDialog`** replaces `shared/ConfirmDialog`. Verified that Enter no
+  longer confirms a `danger` dialog — pressed it, dialog stayed open, no DELETE
+  attempted. Escape still cancels.
+- Four form controls moved from `aria-label` to real `<label for>`. Same
+  accessible names (Role, Rate %, Effective from, Note), now clickable.
+
+### ⚠️ Flagged, not fixed
+
+`incentiveApi.lookupEmployees` returns **exactly 50 employees and ignores both
+`limit` and `search`** — verified directly against the staging API. The
+Per-employee picker therefore cannot reach anyone past the first 50, and typing
+a 51st person's name finds nothing. Pre-existing and server-side; fixing it is
+an API change. This is the same shape as the asset Assign-To `limit:100`
+truncation.
+
+### Contrast
+
+Fully expanded (picker open with 50 options, a row in edit): **light 156 nodes /
+0 failures, dark 158 / 0**.
+
+### False failure #9 — the audit read light-theme backdrops after a theme switch
+
+One dark run reported 11 failures whose backgrounds were light-theme values
+(`rgb(246,243,238)`) while their ink was already dark. Identical at +900ms and
++3000ms, so not obviously a cross-fade. Direct measurement of every flagged node
+gave correct dark values (`rgb(20,27,36)` on `rgb(14,19,26)`), the screenshot
+showed a correct dark page, and a clean light→dark→audit round-trip gave 0.
+
+I could not pin the mechanism and am not going to invent one. The rule that
+falls out: **a contrast run taken right after a theme toggle on a heavy DOM is
+not trustworthy — re-toggle, settle, and re-run before believing a failure.**
+
+### Drive-by: three v2 pages had inert responsive padding
+
+`DashboardPageV2`, `EngagePageV2` and `TeamDashboardPageV2` were written as
+`style={{ padding: 16 }} className="sm:p-6"`. Inline styles beat Tailwind
+classes, so the class never applied and all three rendered 16px on desktop
+instead of the 24px every other v2 page uses. My own regression from phases
+27–29. All four call sites now use the house `clamp(12px, 2vw, 24px)`; measured
+24px at 1272px wide.
+
+### Not triggered
+
+Add rate, save edit, delete rate. Nothing written to staging.

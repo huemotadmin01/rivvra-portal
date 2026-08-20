@@ -71,8 +71,14 @@ export function ComboBox({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return options;
+    // `keywords` is matched but never drawn. Records are often disambiguated by
+    // an identifier nobody wants on screen — an employee code, a legacy ref, a
+    // GSTIN — and without this the caller has to choose between showing it and
+    // being able to search it.
     return options.filter(
-      (o) => String(o.label).toLowerCase().includes(q) || String(o.sub ?? '').toLowerCase().includes(q)
+      (o) => String(o.label).toLowerCase().includes(q)
+        || String(o.sub ?? '').toLowerCase().includes(q)
+        || String(o.keywords ?? '').toLowerCase().includes(q)
     );
   }, [options, search]);
 

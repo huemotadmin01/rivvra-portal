@@ -706,7 +706,7 @@ function DashboardPageV2() {
   return (
     <>
       <div style={{ minHeight: '100vh' }}>
-        <div style={{ padding: 16 }} className="sm:p-6 lg:p-8">
+        <div style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
           {/* ======== WELCOME SECTION ======== */}
           <div style={{ textAlign: 'center', marginBottom: 32, paddingTop: 32 }}>
             <h1 style={{ font: "700 26px/1.16 'Inter', system-ui, sans-serif", letterSpacing: '-0.02em', color: 'var(--fg)', margin: '0 0 8px' }}>

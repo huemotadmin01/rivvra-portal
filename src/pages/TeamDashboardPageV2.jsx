@@ -421,7 +421,7 @@ export default function TeamDashboardPageV2() {
   ];
 
   return (
-    <div style={{ padding: 16, maxWidth: 1400, margin: '0 auto', display: 'grid', gap: 20 }} className="sm:p-6">
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1400, margin: '0 auto', display: 'grid', gap: 20 }}>
       {/* Header */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>

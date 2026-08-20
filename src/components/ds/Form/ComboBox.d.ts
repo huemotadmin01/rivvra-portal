@@ -6,6 +6,10 @@ export interface ComboBoxOption {
   /** Secondary line under the label — designation, email, whatever disambiguates.
    *  Also searched. */
   sub?: string;
+  /** Extra text matched by the search box but never rendered. For identifiers
+   *  that should be findable without taking up a line — employee codes, legacy
+   *  refs, tax numbers. */
+  keywords?: string;
 }
 
 export interface ComboBoxProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'value' | 'onChange' | 'style'> {
