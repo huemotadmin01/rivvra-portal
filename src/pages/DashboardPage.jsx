@@ -14,6 +14,7 @@ import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import ComingSoonModal from '../components/ComingSoonModal';
 import { useExtensionDetector } from '../hooks/useExtensionDetector';
+import HiringSignalsCard from '../components/outreach/HiringSignalsCard';
 
 // ==================== Outreach Get Started Checklist ====================
 function OutreachGetStarted({ gmailConnected, contactsCount, sequencesCount, orgPath }) {
@@ -424,7 +425,7 @@ function AddToListModal({ isOpen, onClose, lists, onSelect, onCreateList, lead }
 // ==================== Main Dashboard Page ====================
 function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
-  const { hasAppAccess } = useOrg();
+  const { hasAppAccess, currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { installed: extInstalled, dismiss: dismissExt, isDismissed: isExtDismissed, chromeStoreUrl } = useExtensionDetector();
   const [extBannerDismissed, setExtBannerDismissed] = useState(false);
@@ -911,6 +912,9 @@ function DashboardPage() {
                   orgPath={orgPath}
                 />
               )}
+
+              {/* Hiring Signals (2026-08-20) — fresh postings at watched companies */}
+              {currentOrg?.slug && <HiringSignalsCard orgSlug={currentOrg.slug} />}
 
               {/* Extension Install Banner */}
               {!extInstalled && !extBannerDismissed && !isExtDismissed() && (
