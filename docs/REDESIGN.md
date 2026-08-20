@@ -3074,3 +3074,118 @@ tell you an element is invisible.
 
 No application was submitted. The blocking interceptor was armed throughout;
 validation failures never reach the network, so nothing was written.
+
+---
+
+## Phase 33 — ats/AtsCandidateDetail
+
+`src/pages/ats/AtsCandidateDetail.jsx` (592) → `AtsCandidateDetailV2.jsx` (656),
+behind `PageSwitch`.
+
+**2 verbatim slices, 229 spliced lines, 0 mismatches.**
+
+The interesting thing on this page is not the layout, it is the permission
+lattice — nine derived booleans deciding who reads and who writes. All nine are
+inside the `main.logic` slice and **19 string-count assertions** pin them,
+including the two subtle ones:
+
+- `isMine` `String()`-coerces both sides. This is the ObjectId-vs-string
+  comparison that has already caused a visibility bug elsewhere on the platform.
+- `crossCompanySafe = !!currentCompanyId && !isCrossCompany`. The
+  `!!currentCompanyId` half is the load-race fix: an *unresolved* company
+  context must not count as writable, or a cross-company candidate is briefly
+  editable before the context settles.
+
+### Parity
+
+Legacy and v2 rendered at the same route against the same staging candidate.
+**`body.innerText` is identical** — every contact value, the whole AI-resume
+block (summary, 11 years, extracted skills, 5 work-history entries, 6 education
+rows), owner, rating, and both RecordMeta dates. Two differences, both accounted:
+
+| difference | why |
+|---|---|
+| `Applications(1)` → `Applications` + a chip | count moved into the Panel's `actions` |
+| Applied column always visible | legacy hid it below `md`; ds `DataTable` has no per-column breakpoint. Checked at 375px: page does **not** overflow (`scrollWidth 375 = clientWidth`), table fits at 317px, no data loss |
+
+### Payloads read at the network boundary
+
+With the blocking interceptor armed, every write path was driven and its body
+inspected. Four attempted, four blocked:
+
+```
+PATCH …/candidates/<id>/archive   {"cascade":true}
+PUT   …/candidates/<id>           {"mobile":"+15550001111"}
+PUT   …/candidates/<id>           {"evaluation":3}      ← number, not "3"
+```
+
+That last one is the point of the whole `saveField` coercion: the select hands
+back a **string**, and `[0,1,2,3].includes(Number(v)) ? n : 0` is what turns it
+into a number the API will accept. Staging is unchanged — `mobile` still null,
+`evaluation` still null, `updatedAt` still 19 Jul.
+
+The archive dialog also correctly stays open when the write fails, and the
+`isAdmin` branch of the active-applications warning rendered.
+
+### Two components deliberately not swapped
+
+**`shared/EmployeeLookup` stays.** ds `EntityLookup` nominally supersedes it,
+but EmployeeLookup carries a `probeSalesperson` check gating whether the
+selection renders as a hyperlink — precisely so a legacy `managerId` with no
+employee record does not link to a 404. `EntityLookup` has no equivalent.
+Decisive point: **every other migrated ATS page keeps EmployeeLookup too**
+(`AtsApplicationDetailV2`, `AtsJobDetailV2`, `AtsApplicationNewV2`, plus
+`AssetDetailV2`). Only the two contacts/CRM V2 pages use `EntityLookup`, and
+those pick contacts, not employees. A manager picker that behaved differently
+here than on the application page is the "two places disagreed" shape
+`PageSwitch` itself was extracted to avoid. Migrating the person picker is its
+own job, for all call sites at once.
+
+**`SkillsPicker` / `StageBadge` / `AiResumeInsights`** are ATS-domain
+components shared with the other ATS pages, not chrome.
+
+The archive dialog uses ds `Modal`, not `ConfirmDialog` — it has three actions,
+not two. `onClose` is passed `undefined` while archiving, which is how ds Modal
+is told to be non-dismissible, preserving legacy's rule that neither Escape nor
+a scrim click can hide an archive in flight.
+
+### Flagged, not fixed
+
+- **`recruiterOptions` is dead — and so is the fetch behind it.** `listRecruiters`
+  fires on every candidate-detail load, sets `recruiters` state, feeds a `useMemo`
+  that nothing renders. Its comment claims it "fuels the manager dropdown"; that
+  dropdown is `EmployeeLookup`, which fetches its own list from
+  `/contacts/salespersons`. So: one wasted request per page view plus a
+  misleading comment. Dead in legacy too (identical single lint error), kept
+  verbatim for parity. Project lint 726 → 727 is exactly this error now existing
+  in both files.
+- **`StageBadge stageName={app.stageName}`** renders the denormalised stage
+  cache rather than resolving `stageId`. Consistent with the platform-wide note
+  that `stageName` is a stale cache; rendered as legacy does, not re-derived.
+
+### False failure #11 — a contrast audit taken after a theme toggle is worthless
+
+This sharpens #9 into a hard rule, because it cost real time twice.
+
+Three separate "failures" were chased on this page: "Add Skill" failing in
+light, then the *same* element failing in dark, then the AppBar company name
+failing in light and appearing to be a genuine shared-shell bug. Every one was a
+**stale computed style** left over from toggling the theme. `getComputedStyle`
+kept returning the previous theme's value — light `--brand-ink` on a dark
+background and vice versa — and it survived a full dark → wait → light → wait
+re-toggle, which is why the mitigation recorded in #9 was not enough.
+
+Measured properly, on **fresh page loads with no toggling**:
+
+| theme | nodes | failures |
+|---|---|---|
+| dark | 94 | **0** |
+| light | 94 | **0** |
+
+**The rule: never audit contrast after a theme toggle. Set the theme, reload,
+then audit.** If a failure does appear, re-measure that element's
+`getComputedStyle` directly before believing the audit.
+
+### Not triggered
+
+Archive, unarchive, AI re-score, and every inline field save. Nothing written.
