@@ -41,6 +41,7 @@ export { SelectChip } from './Filter/SelectChip';
 export { FilterChip } from './Filter/FilterChip';
 export { SavedViews } from './Filter/SavedViews';
 export { SearchInput } from './Filter/SearchInput';
+export { Checkbox } from './Form/Checkbox';
 export { ComboBox } from './Form/ComboBox';
 export { EditableHeading } from './Form/EditableHeading';
 export { EntityLookup } from './Form/EntityLookup';

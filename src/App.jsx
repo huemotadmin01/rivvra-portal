@@ -389,7 +389,10 @@ const AdminKbReviewPage = lazy(() => import('./pages/admin/AdminKbReviewPage'));
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
 const AdminPayrollSettingsPage = lazy(() => import('./pages/admin/AdminPayrollSettingsPageV2'));
-const AdminEmployeeSettingsPage = lazy(() => import('./pages/admin/AdminEmployeeSettingsPage'));
+// /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
+// useOrg THROWS with no provider) cannot gate this route. The v2 page ships
+// directly; the legacy file is kept unreferenced so this is a one-line revert.
+const AdminEmployeeSettingsPage = lazy(() => import('./pages/admin/AdminEmployeeSettingsPageV2'));
 
 // Suspense fallback for lazy-loaded routes
 function PageLoader() {
