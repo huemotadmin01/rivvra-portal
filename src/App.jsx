@@ -52,6 +52,7 @@ const SequenceWizardPage = lazy(() => import('./pages/SequenceWizardPage'));
 const LeadsPage = lazy(() => import('./pages/LeadsPage'));
 const MyListsPage = lazy(() => import('./pages/MyListsPage'));
 const TeamDashboardPage = lazy(() => import('./pages/TeamDashboardPage'));
+const TeamDashboardPageV2 = lazy(() => import('./pages/TeamDashboardPageV2'));
 const TeamContactsPage = lazy(() => import('./pages/TeamContactsPage'));
 const TeamListsPage = lazy(() => import('./pages/TeamListsPage'));
 
@@ -556,7 +557,7 @@ function App() {
                 <Route path="/org/:slug/outreach/lists" element={<PageSwitch v2={MyListsPageV2} legacy={MyListsPage} />} />
                 <Route path="/org/:slug/outreach/lists/:leadId" element={<PageSwitch v2={MyListsPageV2} legacy={MyListsPage} />} />
                 <Route path="/org/:slug/outreach/settings" element={<OrgOutreachSettingsRedirect />} />
-                <Route path="/org/:slug/outreach/team-dashboard" element={<TeamDashboardPage />} />
+                <Route path="/org/:slug/outreach/team-dashboard" element={<ErrorBoundary><PageSwitch v2={TeamDashboardPageV2} legacy={TeamDashboardPage} /></ErrorBoundary>} />
                 <Route path="/org/:slug/outreach/team-contacts" element={<PageSwitch v2={TeamContactsPageV2} legacy={TeamContactsPage} />} />
                 <Route path="/org/:slug/outreach/team-contacts/:leadId" element={<PageSwitch v2={TeamContactsPageV2} legacy={TeamContactsPage} />} />
                 <Route path="/org/:slug/outreach/team-lists" element={<PageSwitch v2={TeamListsPageV2} legacy={TeamListsPage} />} />
