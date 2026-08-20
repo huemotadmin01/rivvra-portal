@@ -248,10 +248,12 @@ const AtsJobPositions = lazy(() => import('./pages/ats/AtsJobPositions'));
 const AtsJobDetail = lazy(() => import('./pages/ats/AtsJobDetail'));
 const AtsJobDetailV2 = lazy(() => import('./pages/ats/AtsJobDetailV2'));
 const AtsJobNew = lazy(() => import('./pages/ats/AtsJobNew'));
+const AtsJobNewV2 = lazy(() => import('./pages/ats/AtsJobNewV2'));
 const AtsCandidates = lazy(() => import('./pages/ats/AtsCandidates'));
 const AtsCandidateDetail = lazy(() => import('./pages/ats/AtsCandidateDetail'));
 const AtsCandidateDetailV2 = lazy(() => import('./pages/ats/AtsCandidateDetailV2'));
 const AtsCandidateNew = lazy(() => import('./pages/ats/AtsCandidateNew'));
+const AtsCandidateNewV2 = lazy(() => import('./pages/ats/AtsCandidateNewV2'));
 const AtsApplicationNew = lazy(() => import('./pages/ats/AtsApplicationNew'));
 const AtsApplicationNewV2 = lazy(() => import('./pages/ats/AtsApplicationNewV2'));
 const AtsDashboard = lazy(() => import('./pages/ats/AtsDashboard'));
@@ -745,11 +747,11 @@ function App() {
                 <Route path="/org/:slug/ats/applications" element={<ErrorBoundary><PageSwitch v2={AtsApplicationsV2} legacy={AtsApplications} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/applications/:applicationId" element={<ErrorBoundary><PageSwitch v2={AtsApplicationDetailV2} legacy={AtsApplicationDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs" element={<ErrorBoundary><PageSwitch v2={AtsJobPositionsV2} legacy={AtsJobPositions} /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/jobs/new" element={<ErrorBoundary><AtsJobNew /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/jobs/new" element={<ErrorBoundary><PageSwitch v2={AtsJobNewV2} legacy={AtsJobNew} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId" element={<ErrorBoundary><PageSwitch v2={AtsJobDetailV2} legacy={AtsJobDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/jobs/:jobId/applications/new" element={<ErrorBoundary><PageSwitch v2={AtsApplicationNewV2} legacy={AtsApplicationNew} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates" element={<ErrorBoundary><PageSwitch v2={AtsCandidatesV2} legacy={AtsCandidates} /></ErrorBoundary>} />
-                <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><AtsCandidateNew /></ErrorBoundary>} />
+                <Route path="/org/:slug/ats/candidates/new" element={<ErrorBoundary><PageSwitch v2={AtsCandidateNewV2} legacy={AtsCandidateNew} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/candidates/:candidateId" element={<ErrorBoundary><PageSwitch v2={AtsCandidateDetailV2} legacy={AtsCandidateDetail} /></ErrorBoundary>} />
                 <Route path="/org/:slug/ats/my-approvals" element={<ErrorBoundary><PageSwitch v2={AtsMyApprovalsV2} legacy={AtsMyApprovals} /></ErrorBoundary>} />
                 {/* 2026-05-14: Dashboard is the ATS landing for everyone,
