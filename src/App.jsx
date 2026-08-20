@@ -370,8 +370,14 @@ import SuperAdminRoute from './components/SuperAdminRoute';
 import { PageSwitch } from './components/platform/v2/PageSwitch';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
-const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'));
-const AdminWorkspacesPage = lazy(() => import('./pages/admin/AdminWorkspacesPage'));
+// /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
+// useOrg THROWS with no provider) cannot gate this route. The v2 page ships
+// directly; the legacy file is kept unreferenced so this is a one-line revert.
+const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPageV2'));
+// /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
+// useOrg THROWS with no provider) cannot gate this route. The v2 page ships
+// directly; the legacy file is kept unreferenced so this is a one-line revert.
+const AdminWorkspacesPage = lazy(() => import('./pages/admin/AdminWorkspacesPageV2'));
 // /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
@@ -384,7 +390,10 @@ const AdminEmailTemplatesPage = lazy(() => import('./pages/admin/AdminEmailTempl
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
 const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AdminAnnouncementsPageV2'));
-const AdminKbReviewPage = lazy(() => import('./pages/admin/AdminKbReviewPage'));
+// /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
+// useOrg THROWS with no provider) cannot gate this route. The v2 page ships
+// directly; the legacy file is kept unreferenced so this is a one-line revert.
+const AdminKbReviewPage = lazy(() => import('./pages/admin/AdminKbReviewPageV2'));
 // /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
