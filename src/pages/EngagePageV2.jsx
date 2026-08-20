@@ -433,7 +433,7 @@ function EngagePageV2() {
   // Detail view
   if (view === 'detail' && selectedSequenceId) {
     return (
-      <div style={{ padding: 16, maxWidth: 1280, margin: '0 auto' }} className="sm:p-6 lg:p-8">
+      <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1280, margin: '0 auto' }}>
         <SequenceDetailPage
           sequenceId={selectedSequenceId}
           onBack={handleBackToList}
@@ -443,7 +443,7 @@ function EngagePageV2() {
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 1280, margin: '0 auto' }} className="sm:p-6 lg:p-8">
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', maxWidth: 1280, margin: '0 auto' }}>
       {/* Setup Guide (replaces gmail banners when active) */}
       {showSetupGuide && (
         <EngageSetupGuide
