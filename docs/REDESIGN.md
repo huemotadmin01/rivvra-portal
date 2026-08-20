@@ -3692,3 +3692,89 @@ All three compared against genuine legacy with the `isV2` canary:
 ### Not triggered
 
 Registration toggle, draft approve (publish), draft reject.
+
+---
+
+## Phase 39 — DocumentVault + AdminLoginPage
+
+Two standalone pages, both outside `OrgProvider`, both wired directly.
+
+| page | lines | slices | spliced |
+|---|---|---|---|
+| `DocumentVault` | 127 → 176 | 2 | 41 |
+| `AdminLoginPage` | 240 → 283 | 1 | 112 |
+
+**3 slices, 153 spliced lines, 0 mismatches, 18 assertions.** Both lint clean;
+project total unchanged at 729.
+
+### DocumentVault
+
+A top-level, identity-scoped page — not org-scoped, deliberately. It lists every
+release document shared with the signed-in person across all workspaces,
+*including ones where they are a fully-archived ex-employee*. It is how someone
+pulls their Form-16 years after leaving, which is why nothing here is gated on
+org membership and why grouping is by workspace.
+
+Verified against real staging data: two Form-16s under the right employer, sizes
+through the `< 1024 KB` branch (`103 KB`, `61 KB`), and a per-document
+`aria-label` the legacy buttons did not have. **Download was not triggered** —
+downloading a file needs explicit permission.
+
+### AdminLoginPage — the whole auth path spliced
+
+This is the one `/admin/*` page not behind `SuperAdminRoute`, because it is how
+you get behind it. Every branch is a different security outcome, so all of it is
+verbatim:
+
+- The redirect fires only on `isAuthenticated && user?.superAdmin` — an
+  authenticated NON-super-admin stays put.
+- **Both** login paths re-check `result.user?.superAdmin` *after* a successful
+  credential exchange and refuse otherwise. Dropping that second check would
+  hand the admin console to any customer.
+- `googleInitialized` is a ref, not state, so the GSI script injects once.
+
+Verified without entering any credentials: submitting empty produced *"Please
+enter a valid email address"*, then a valid-looking email with no password
+produced *"Please enter your password"* — **zero network calls** either time. To
+reach the page at all, an invalid token was left in storage so `devAuthBoot`
+would not re-seed; no privileges were fabricated.
+
+### The legacy comparison caught me rewriting copy
+
+My first pass invented new wording on an auth page — "Platform administration —
+authorised personnel only", "Sign in", "Super admin access is logged and
+audited", and placeholders `you@rivvra.com` / `••••••••`. None of that is a
+migration; it is a product edit nobody asked for.
+
+It also **reordered the page**: legacy puts the Google button *above* the form,
+which is the only reason the divider reads "or sign in with email". My version
+had the form first, leaving the divider saying "or" into nothing.
+
+All of it was restored from legacy: copy, placeholders, order, and
+`disabled={loading || !email || !password}`. `body.innerText` is now
+character-for-character identical to legacy.
+
+The one deliberate addition kept: `autocomplete="username"` /
+`"current-password"`, which legacy omitted entirely. It is additive, changes no
+app behaviour, and is what lets a password manager fill the form.
+
+`RivvraLogo` and the `mesh-gradient grid-pattern` backdrop stay — brand identity
+shared with the other auth surfaces, and re-theming one alone would break the
+family. The Google button's `#admin-google-signin-button` id is the contract
+with Google's script; renaming it silently removes Google sign-in.
+
+### Contrast
+
+DocumentVault 11 / AdminLogin 7 — **0 failures**.
+
+### Lesson repeated twice this session
+
+Both `AdminOverviewPage` and `AdminLoginPage` had their `main.logic` slice cut
+one line short, because I counted back from `return (` instead of locating the
+closing `};`. Both produced an immediate parse error, so neither shipped — but
+the rule is: **find the closing brace explicitly, never infer it from the line
+before the return.**
+
+### Not triggered
+
+Document download, admin sign-in (no credentials entered).

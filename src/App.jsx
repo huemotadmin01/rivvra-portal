@@ -79,7 +79,10 @@ const MyPolicies = lazy(() => import('./pages/ess/MyPolicies'));
 const MyDocuments = lazy(() => import('./pages/ess/MyDocuments'));
 const MyPoliciesV2 = lazy(() => import('./pages/ess/MyPoliciesV2'));
 const MyDocumentsV2 = lazy(() => import('./pages/ess/MyDocumentsV2'));
-const DocumentVault = lazy(() => import('./pages/DocumentVault'));
+// /document-vault is a top-level route outside OrgProvider (deliberately —
+// ex-employees reach it with no org membership), so PageSwitch cannot gate
+// it. Ships directly; the legacy file is kept unreferenced.
+const DocumentVault = lazy(() => import('./pages/DocumentVaultV2'));
 const SettingsEmailLogs = lazy(() => import('./components/settings/SettingsEmailLogs'));
 const SettingsEmailLogsV2 = lazy(() => import('./components/settings/SettingsEmailLogsV2'));
 const SettingsCrm = lazy(() => import('./components/settings/SettingsCrm'));
@@ -369,7 +372,8 @@ const SettingsIncentiveV2 = lazy(() => import('./components/settings/SettingsInc
 import SuperAdminRoute from './components/SuperAdminRoute';
 import { PageSwitch } from './components/platform/v2/PageSwitch';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
-const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
+// /admin/login is outside OrgProvider. Ships directly; legacy unreferenced.
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPageV2'));
 // /admin/* lives outside OrgProvider, so PageSwitch (which calls useOrg, and
 // useOrg THROWS with no provider) cannot gate this route. The v2 page ships
 // directly; the legacy file is kept unreferenced so this is a one-line revert.
