@@ -3778,3 +3778,91 @@ before the return.**
 ### Not triggered
 
 Document download, admin sign-in (no credentials entered).
+
+---
+
+## Phase 40 — AtsJobNew + AtsCandidateNew (and why SequenceWizardPage is deferred)
+
+| page | lines | slices | spliced |
+|---|---|---|---|
+| `AtsCandidateNew` | 196 → 182 | 2 | 46 |
+| `AtsJobNew` | 275 → 273 | 2 | 87 |
+
+**4 slices, 133 spliced lines, 0 mismatches, 20 assertions.** Both behind
+`PageSwitch`, both lint clean, project total unchanged at 729.
+
+### The slices are drawn around a crash
+
+Both pages declare every `useState`/`useEffect` **before** the non-admin early
+return, and legacy says why: putting the gate first changes the hook COUNT when
+the role flips, which produced a *"Rendered fewer hooks than expected"* crash in
+production in May.
+
+So the slice boundaries are: hooks (verbatim) → the ds-themed gate → handlers
+(verbatim). The gate sits *between* two spliced blocks precisely so re-theming
+it could not move it relative to the hooks. An assertion checks the invariant
+directly — **0 hooks declared after `if (!isAdmin)`** on either page.
+
+### Payloads read at the network boundary
+
+`AtsCandidateNew`, with the three optional fields left empty:
+
+```json
+{"name":"Harness Candidate","email":"harness@example.invalid"}
+```
+
+Trimmed, and phone / mobile / linkedinProfile **omitted entirely** rather than
+sent as `""` — that is the `|| undefined` on each optional.
+
+`AtsJobNew`, with Expected Hires cleared:
+
+```json
+{"name":"Harness Internal Role","expectedHires":1,
+ "isClientRole":false,"source":"Direct","approvalStatus":null}
+```
+
+Four things at once: a blank hires field became `1` not `NaN`
+(`parseInt(…, 10) || 1`); `isClientRole: false` keeps internal roles out of the
+CRM funnel; and **`approvalStatus: null` lands the job at draft** — legacy's own
+comment notes the endpoint otherwise defaults to `'pending'`, stranding jobs in
+pending-with-no-approver limbo.
+
+Both blocked. Nothing created on staging.
+
+### Copy drift, caught again
+
+`AtsJobNew`'s subtitle and its "Job Title" label, and `AtsCandidateNew`'s submit
+button, had all drifted in my first pass — I had written "Job Name" and a
+"Creating…" label legacy never had. Restored from legacy before shipping. That
+is three phases running where comparing against legacy caught me rewriting
+user-facing text; the discipline is now: **diff the copy, not just the data.**
+
+### ⚠️ SequenceWizardPage is deferred, deliberately
+
+`src/pages/SequenceWizardPage.jsx` (264) is **not** migrated, and counting it as
+a page would misrepresent the work. Measured:
+
+- Its render is 61 lines, of which **exactly one** carries its own markup (the
+  wrapper `div`'s className). Five lines mount wizard components.
+- Those components — `WizardStepper`, `BuilderSelection`, `ComposeStep`,
+  `EmailStepEditor`, `RichBodyEditor`, `ScheduleStep`, `ReviewStep`,
+  `TemplatePreviewModal` — are **8 files, 1,272 lines, with zero ds imports.**
+
+Migrating the page means changing one className and leaving every pixel a user
+actually sees on legacy Tailwind. The real work is the wizard subsystem, which
+is larger than several of the pages already done and deserves its own scoped
+task rather than being smuggled in as "the last page".
+
+Its logic is worth preserving when that happens: `handleActivate` tracks
+`activated` / `activateErr` separately because swallowing the `resumeSequence`
+error used to tell the user a sequence was live when it was still a draft (e.g.
+Gmail disconnected server-side). **Sequence activation is on the never-trigger
+list and was not exercised.**
+
+### Contrast
+
+AtsCandidateNew 14 / AtsJobNew 17 — **0 failures**.
+
+### Not triggered
+
+Candidate creation, job creation, sequence activation.
