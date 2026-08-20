@@ -2948,3 +2948,129 @@ instead of the 24px every other v2 page uses. My own regression from phases
 ### Not triggered
 
 Add rate, save edit, delete rate. Nothing written to staging.
+
+---
+
+## Phase 32 — careers/* : deliberately NOT migrated to ds
+
+`CareersHome.jsx` (698) and `CareersJobDetail.jsx` (646) stay off the design
+system. This is a decision, not a gap — the same call as Knowledge Base, and
+for stronger reasons.
+
+### Why
+
+1. **They are white-labelled.** `org.branding.primaryColor` drives every accent
+   on the page. ds primitives read `--brand`, which is Rivvra green. Migrating
+   means either dropping per-customer branding from a customer's own careers
+   site, or threading an accent override through every ds component — which
+   would corrupt the token contract for the ~50 pages that depend on it. The
+   staging org's accent is `#2bb3b3`; a candidate should see that, not ours.
+2. **They deliberately refuse theming.** Both set
+   `documentElement.style.background = '#fafafa'` on mount and restore on
+   unmount, and say so in their headers: "Hard-isolated from the dark portal."
+   Light/dark from tokens is the whole value ds adds, and these pages opt out on
+   purpose. A candidate's OS dark mode should not repaint their prospective
+   employer's careers site.
+3. **They are a marketing surface, not a data surface.** Mesh gradients,
+   count-up hero stats, staggered scroll reveals. Rebuilt out of `DataTable` /
+   `Panel` / `Stat` they would read as an admin console, which is worse for the
+   person they exist for.
+
+**If this is ever revisited**, the blocker to solve first is (1): ds needs a
+supported per-instance accent override before a white-label surface can use it.
+
+### What was done instead
+
+The verification pass, which is where the migration's value actually comes from.
+Every defect below was confirmed in a browser against live staging data before
+being touched, and re-confirmed after.
+
+| | before | after |
+|---|---|---|
+| CareersHome — form controls with no accessible name | 4 of 4 | 0 |
+| CareersHome — contrast failures (104 nodes) | 5 | **0** |
+| CareersJobDetail — apply-form controls with no accessible name | 5 of 5 | 0 |
+| CareersJobDetail — contrast failures (27 base / 43 sheet open) | 7 | **0** |
+
+### The finding worth keeping
+
+**A customer-chosen brand colour cannot be used raw as both ink and fill.** The
+accent was used two ways, and the staging teal failed both:
+
+- as ink on `#fafafa` — the hero's accent half, stat-tile numbers — **2.45:1**
+- as fill under hardcoded `text-white` — every CTA — **2.56:1**
+
+They fail in opposite directions, so there is no single rule that fixes it: a
+dark accent breaks the ink usage, a light accent breaks the fill usage, and a
+mid-luminance accent like teal breaks both at once. New `careers/accent.js`:
+`readableOn()` picks the foreground by luminance (teal's CTA went 2.56 → 6.92,
+white → near-black), and `accentInk()` darkens the ink just enough to clear the
+bar, leaving already-passing colours untouched. Checked across 8 hues including
+pure white and pure black.
+
+Residual, stated honestly: for the *default* indigo `#5b6cff` the best available
+foreground is 4.25:1 on a 14px button — better than the ~3.5 it had, still short
+of 4.5. Closing that would mean darkening the customer's fill, which is their
+brand colour on their primary CTA. Not mine to change.
+
+### The apply form had no labels at all
+
+`Field` rendered its `<label>` as a **sibling** of the control, with no `htmlFor`
+and no wrapping. Every input on a public job application — name, email, phone,
+LinkedIn — resolved to a `null` accessible name. Screen reader: "edit text",
+four times. `Field` now takes a render prop so it can hand the control a
+generated `id`, plus `aria-invalid` and an `aria-describedby` pointing at that
+field's own error. Driven with a real failed submit: all five fields report
+`aria-invalid=true` and their `aria-describedby` resolves to the right message.
+
+### A regression I introduced, caught by driving the form
+
+Passing `required` through to the inputs turned on **native HTML5 validation**,
+which preempts the submit event — so the page's own `validate()` never ran and
+none of its messages could appear. That silently removes the only thing telling
+a candidate that a generic URL will not do in the LinkedIn field. Now
+`aria-required`, which announces the same thing and changes no behaviour.
+
+The build was clean the whole time. Clicking Submit found it.
+
+### The mobile apply sheet was an inescapable modal
+
+It is the primary conversion path on phones and shipped as a plain `<div>`: no
+`role="dialog"`, no `aria-modal`, focus left behind it on `<body>`, Escape did
+nothing, and the page behind the scrim stayed tabbable. Now a real dialog with a
+focus trap, scroll lock, Escape, and focus returned to the opener — all verified.
+
+Its `max-h-[92vh] max-h-[92dvh]` looked like a dvh-with-fallback but Tailwind
+orders its own output and **vh won** — measured 747.04px at 812 tall, exactly
+92vh. The `dvh` never applied, so the sheet ignored mobile browser chrome, which
+is the only reason `dvh` was reached for. Now set inline.
+
+### Not verified
+
+**Reduced motion.** Both pages now wrap in `MotionConfig reducedMotion="user"`
+and `useCountUp` short-circuits on `useReducedMotion()`. I could not exercise
+either: this harness cannot emulate `prefers-reduced-motion`, patching
+`matchMedia` came too late for framer-motion's cached query, and forcing
+`reducedMotion="always"` had no effect because `useReducedMotion()` reads the
+media query directly rather than consulting `MotionConfig`. The code follows the
+documented API and its failure mode is the status quo (animations still play),
+but it is **unverified**, not verified.
+
+### False failure #10 — framer-motion intros freeze when the pane is backgrounded
+
+A screenshot showed the hero washed out with the stats card and CTA missing. It
+looked like `MotionConfig` had broken the page. It had not: `document.hidden`
+was `true`, so `requestAnimationFrame` was paused and every
+`initial → animate` reveal was frozen at `opacity: 0`. Confirmed by stashing to
+HEAD and reloading — **unmodified HEAD froze identically**.
+
+Two lessons. Any page with framer-motion intro reveals will screenshot as broken
+while the pane is backgrounded — check `document.hidden` before believing it.
+And the contrast audit gave a clean pass on that same frozen page, because it
+reads `color` and composited backgrounds and **ignores opacity** — so it cannot
+tell you an element is invisible.
+
+### Not triggered
+
+No application was submitted. The blocking interceptor was armed throughout;
+validation failures never reach the network, so nothing was written.

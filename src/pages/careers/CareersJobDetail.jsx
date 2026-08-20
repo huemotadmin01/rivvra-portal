@@ -11,10 +11,11 @@
 //            an animated check-in card.
 // ============================================================================
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useId } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { API_BASE_URL } from '../../utils/config';
+import { readableOn } from './accent';
 import DOMPurify from 'dompurify';
 import {
   Loader2, ChevronLeft, Briefcase, MapPin, Clock, Building2,
@@ -107,6 +108,42 @@ export default function CareersJobDetail() {
     };
   }, []);
 
+  // The mobile apply sheet is the primary conversion path on phones, and it
+  // shipped as a plain <div>: no dialog role, focus left behind it on <body>,
+  // and Escape did nothing. Verified in the browser before fixing.
+  const sheetRef = useRef(null);
+  const sheetOpenerRef = useRef(null);
+  useEffect(() => {
+    if (!mobileApplyOpen) return undefined;
+    sheetOpenerRef.current = document.activeElement;
+    const node = sheetRef.current;
+    // Focus the first control so a keyboard user lands inside the sheet.
+    node?.querySelector('input, button, [href], select, textarea')?.focus();
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setMobileApplyOpen(false); return; }
+      if (e.key !== 'Tab' || !node) return;
+      // Trap: without this, Tab walks straight out of the sheet and into the
+      // page behind the scrim, which is still fully interactive.
+      const f = [...node.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0];
+      const last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      // Return focus to whatever opened the sheet, not to the top of the page.
+      if (sheetOpenerRef.current?.isConnected) sheetOpenerRef.current.focus();
+    };
+  }, [mobileApplyOpen]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError(null);
@@ -134,6 +171,7 @@ export default function CareersJobDetail() {
   const accent = org?.branding?.primaryColor || DEFAULT_ACCENT;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="min-h-screen bg-[#fafafa] text-zinc-900 antialiased" style={{ '--accent': accent }}>
       {/* Slim top bar — shows the job's specific company logo + name (the
           entity the candidate would actually join), not the org shell. */}
@@ -172,7 +210,7 @@ export default function CareersJobDetail() {
             {job.requiredExperience && <span className="text-zinc-600">{job.requiredExperience} experience</span>}
           </div>
           {job.publishedAt && (
-            <p className="mt-3 text-xs text-zinc-400 inline-flex items-center gap-1.5">
+            <p className="mt-3 text-xs text-zinc-500 inline-flex items-center gap-1.5">
               <Clock size={12} /> Posted {new Date(job.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </p>
           )}
@@ -231,8 +269,8 @@ export default function CareersJobDetail() {
       <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/95 to-transparent">
         <button
           onClick={() => setMobileApplyOpen(true)}
-          className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-sm font-medium text-white shadow-lg active:scale-[0.98] transition-transform"
-          style={{ background: accent, boxShadow: `0 8px 24px -8px ${accent}80` }}
+          className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-sm font-medium shadow-lg active:scale-[0.98] transition-transform"
+          style={{ background: accent, color: readableOn(accent), boxShadow: `0 8px 24px -8px ${accent}80` }}
         >
           Apply for this role <ArrowRight size={16} />
         </button>
@@ -249,14 +287,28 @@ export default function CareersJobDetail() {
               onClick={() => setMobileApplyOpen(false)}
             />
             <motion.div
+              ref={sheetRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Apply for ${job.name}`}
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[92vh] max-h-[92dvh] overflow-y-auto"
+              // `max-h` is set inline rather than via two Tailwind classes.
+              // `max-h-[92vh] max-h-[92dvh]` looked like a dvh-with-fallback but
+              // Tailwind orders its own output, and vh won — measured 747.04px
+              // at 812 tall, i.e. exactly 92vh. The dvh never applied, so the
+              // sheet ignored mobile browser chrome, which is the entire reason
+              // dvh was reached for.
+              style={{ maxHeight: '92dvh' }}
+              className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl overflow-y-auto"
             >
               <div className="sticky top-0 bg-white border-b border-zinc-100 px-5 py-3 flex items-center justify-between rounded-t-3xl">
                 <div className="w-8 h-1 bg-zinc-200 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 -top-3" />
                 <p className="text-sm font-semibold text-zinc-900">Apply</p>
-                <button onClick={() => setMobileApplyOpen(false)} className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors">
+                {/* type="button": a bare <button> defaults to type="submit",
+                    which would submit the apply form if this header ever moved
+                    inside it. */}
+                <button type="button" onClick={() => setMobileApplyOpen(false)} aria-label="Close apply form" className="p-1.5 rounded-lg hover:bg-zinc-100 transition-colors">
                   <X size={16} className="text-zinc-500" />
                 </button>
               </div>
@@ -277,6 +329,7 @@ export default function CareersJobDetail() {
 
       <Footer org={org} />
     </div>
+    </MotionConfig>
   );
 }
 
@@ -429,7 +482,7 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
         <p className="text-sm text-zinc-600 max-w-md mx-auto text-center">
           Thanks for applying to <span className="font-medium text-zinc-900">{jobName}</span>. Our team will reach out if your profile is a fit.
         </p>
-        <p className="text-xs text-zinc-400 mt-4 text-center">Reference · <span className="font-mono">{done.ref}</span></p>
+        <p className="text-xs text-zinc-500 mt-4 text-center">Reference · <span className="font-mono">{done.ref}</span></p>
       </motion.div>
     );
   }
@@ -449,9 +502,10 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
           <motion.div
             initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
+            role="alert"
             className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 flex items-start gap-2"
           >
-            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-red-700">{serverError}</p>
           </motion.div>
         )}
@@ -459,41 +513,53 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
 
       <div className="space-y-4">
         <Field icon={User} label="Full name" required error={fieldErrors.name}>
-          <input
-            type="text" value={form.name} onChange={setField('name')}
-            placeholder="Jane Doe"
-            className={inputCls(fieldErrors.name, accent)}
-            autoComplete="name" maxLength={100}
-          />
+          {(a) => (
+            <input
+              {...a}
+              type="text" value={form.name} onChange={setField('name')}
+              placeholder="Jane Doe"
+              className={inputCls(fieldErrors.name, accent)}
+              autoComplete="name" maxLength={100}
+            />
+          )}
         </Field>
         <Field icon={Mail} label="Email" required error={fieldErrors.email}>
-          <input
-            type="email" value={form.email} onChange={setField('email')}
-            placeholder="jane@example.com"
-            className={inputCls(fieldErrors.email, accent)}
-            autoComplete="email" maxLength={120}
-          />
+          {(a) => (
+            <input
+              {...a}
+              type="email" value={form.email} onChange={setField('email')}
+              placeholder="jane@example.com"
+              className={inputCls(fieldErrors.email, accent)}
+              autoComplete="email" maxLength={120}
+            />
+          )}
         </Field>
         <Field icon={Phone} label="Phone" required error={fieldErrors.phone}>
-          <input
-            type="tel" value={form.phone} onChange={setField('phone')}
-            placeholder="+1 555 123 4567"
-            className={inputCls(fieldErrors.phone, accent)}
-            autoComplete="tel" maxLength={30}
-          />
+          {(a) => (
+            <input
+              {...a}
+              type="tel" value={form.phone} onChange={setField('phone')}
+              placeholder="+1 555 123 4567"
+              className={inputCls(fieldErrors.phone, accent)}
+              autoComplete="tel" maxLength={30}
+            />
+          )}
         </Field>
         <Field icon={Linkedin} label="LinkedIn profile" required error={fieldErrors.linkedinUrl}>
-          <input
-            type="url" value={form.linkedinUrl} onChange={setField('linkedinUrl')}
-            placeholder="https://linkedin.com/in/your-handle"
-            className={inputCls(fieldErrors.linkedinUrl, accent)}
-            maxLength={250}
-          />
+          {(a) => (
+            <input
+              {...a}
+              type="url" value={form.linkedinUrl} onChange={setField('linkedinUrl')}
+              placeholder="https://linkedin.com/in/your-handle"
+              className={inputCls(fieldErrors.linkedinUrl, accent)}
+              autoComplete="url" maxLength={250}
+            />
+          )}
         </Field>
 
         <div>
           <label className="block text-xs font-medium text-zinc-600 mb-1.5">
-            Resume <span className="text-red-500">*</span>
+            Resume <span className="text-red-600">*</span>
           </label>
           <label
             className={`flex items-center justify-between gap-3 px-4 py-3 border border-dashed rounded-xl cursor-pointer transition-colors ${
@@ -519,9 +585,15 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
               </div>
             </div>
             <span className="text-xs font-medium text-zinc-700 hover:text-zinc-900">Browse</span>
-            <input ref={fileRef} type="file" accept={RESUME_ACCEPT} onChange={handleFileChange} className="hidden" />
+            <input
+              ref={fileRef} type="file" accept={RESUME_ACCEPT} onChange={handleFileChange}
+              className="hidden"
+              aria-label={`Resume, required. PDF, DOC or DOCX up to ${MAX_RESUME_MB} MB.`}
+              aria-invalid={fieldErrors.resume ? true : undefined}
+              aria-describedby={fieldErrors.resume ? 'resume-err' : undefined}
+            />
           </label>
-          {fieldErrors.resume && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.resume}</p>}
+          {fieldErrors.resume && <p id="resume-err" className="mt-1.5 text-xs text-red-600">{fieldErrors.resume}</p>}
         </div>
 
         {turnstileActive && (
@@ -537,8 +609,8 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
           type="submit"
           disabled={submitting || (turnstileActive && !turnstileToken)}
           whileTap={{ scale: 0.98 }}
-          className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm font-medium text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ background: accent }}
+          className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm font-medium shadow-sm hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ background: accent, color: readableOn(accent) }}
         >
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           {submitting ? 'Submitting…' : 'Submit application'}
@@ -554,17 +626,39 @@ function ApplyCard({ orgSlug, publicSlug, accent, turnstile, jobName, embedded =
 
 // ─── small pieces ──────────────────────────────────────────────────────────
 
+/**
+ * Labelled field for the apply form.
+ *
+ * The label used to be a SIBLING of the control with no `htmlFor` and no
+ * wrapping, so every input on a public job application — name, email, phone,
+ * LinkedIn — reached assistive tech with no accessible name at all. Confirmed
+ * in the browser before fixing: all four resolved to `null`.
+ *
+ * `children` is now a render prop so the generated ids can be handed to the
+ * control: `id` for the label association, and `aria-describedby` so the
+ * validation message is read out with the field rather than sitting beside it
+ * unannounced.
+ */
 function Field({ icon: Icon, label, required, error, children }) {
+  const id = useId();
+  const errId = `${id}-err`;
   return (
     <div>
-      <label className="block text-xs font-medium text-zinc-600 mb-1.5">
+      <label htmlFor={id} className="block text-xs font-medium text-zinc-600 mb-1.5">
         <span className="inline-flex items-center gap-1.5">
           <Icon size={12} className="text-zinc-400" />
-          {label} {required && <span className="text-red-500">*</span>}
+          {label} {required && <span className="text-red-600" aria-hidden>*</span>}
         </span>
       </label>
-      {children}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {/* `aria-required`, deliberately NOT the native `required` attribute.
+          Adding `required` here turned on native HTML5 validation, which
+          preempts the submit event entirely — so `validate()` never ran and
+          none of this form's own messages ("Enter your LinkedIn profile URL",
+          which is the only thing telling a candidate a generic URL won't do)
+          could ever appear. `aria-required` announces the same thing to
+          assistive tech and changes no behaviour. */}
+      {children({ id, 'aria-required': required || undefined, 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? errId : undefined })}
+      {error && <p id={errId} className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }
@@ -638,8 +732,8 @@ function Footer({ org }) {
   return (
     <footer className="border-t border-zinc-200/70 mt-12 hidden lg:block">
       <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8 flex items-center justify-between gap-3">
-        <p className="text-xs text-zinc-400">© {new Date().getFullYear()} {org?.name} · All rights reserved.</p>
-        <p className="text-xs text-zinc-400">Powered by <a href="https://www.rivvra.com" className="text-zinc-600 hover:text-zinc-900 transition-colors">Rivvra</a></p>
+        <p className="text-xs text-zinc-500">© {new Date().getFullYear()} {org?.name} · All rights reserved.</p>
+        <p className="text-xs text-zinc-500">Powered by <a href="https://www.rivvra.com" className="text-zinc-600 hover:text-zinc-900 transition-colors">Rivvra</a></p>
       </div>
     </footer>
   );

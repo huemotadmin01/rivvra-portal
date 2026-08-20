@@ -16,9 +16,10 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   motion, useScroll, useSpring, useTransform,
-  useMotionValue, animate, AnimatePresence,
+  useMotionValue, animate, AnimatePresence, MotionConfig, useReducedMotion,
 } from 'framer-motion';
 import { API_BASE_URL } from '../../utils/config';
+import { readableOn, accentInk } from './accent';
 import {
   Loader2, Briefcase, MapPin, Clock, Search, ArrowRight,
   Building2, AlertCircle, Filter as FilterIcon, ChevronDown, Sparkles,
@@ -34,17 +35,24 @@ function fmtDate(iso) {
 }
 
 // Tiny hook: animate an integer from 0 → target over a duration.
+// Reduced-motion users get the final number immediately — a counter spinning
+// up is motion, and `MotionConfig` cannot reach it because this animates a
+// state value rather than a transform.
 function useCountUp(target, duration = 1.2) {
   const mv = useMotionValue(0);
+  const reduce = useReducedMotion();
   const [display, setDisplay] = useState(0);
   useEffect(() => {
+    if (reduce) return undefined;
     const controls = animate(mv, target, {
       duration, ease: [0.16, 1, 0.3, 1],
       onUpdate: (v) => setDisplay(Math.round(v)),
     });
     return () => controls.stop();
-  }, [target, duration, mv]);
-  return display;
+  }, [target, duration, mv, reduce]);
+  // Derived, not set in the effect — the reduced-motion value is a function of
+  // the props, so there is nothing to synchronise.
+  return reduce ? target : display;
 }
 
 export default function CareersHome() {
@@ -151,6 +159,7 @@ export default function CareersHome() {
   if (error) return <ErrorState />;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="min-h-screen bg-[#fafafa] text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white" style={{ '--accent': accent }}>
       <TopBar org={org} orgSlug={orgSlug} accent={accent} />
       <Hero org={org} totalJobs={totalJobs} companiesCount={companiesCount} accent={accent} jobs={jobs} />
@@ -214,6 +223,7 @@ export default function CareersHome() {
 
       <Footer org={org} accent={accent} />
     </div>
+    </MotionConfig>
   );
 }
 
@@ -325,7 +335,11 @@ function Hero({ org, totalJobs, companiesCount, accent, jobs }) {
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-semibold tracking-[-0.02em] text-zinc-900 leading-[1.02]">
-              {tagline ? tagline : <>Build what's next, <span style={{ color: accent }}>with us.</span></>}
+              {/* accentInk, not the raw accent: as ink on #fafafa the customer's
+                  colour is frequently unreadable (teal measured 2.45:1). `large`
+                  uses WCAG's 3:1 display bar, which keeps this as close to their
+                  actual brand colour as legibility allows. */}
+              {tagline ? tagline : <>Build what's next, <span style={{ color: accentInk(accent, { large: true }) }}>with us.</span></>}
             </h1>
 
             <motion.p
@@ -346,7 +360,10 @@ function Hero({ org, totalJobs, companiesCount, accent, jobs }) {
                 transition={{ duration: 0.7, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
                 className="mt-8 flex items-center gap-3"
               >
-                <a href="#openings" className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-medium text-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5" style={{ background: accent, boxShadow: `0 8px 24px -10px ${accent}80` }}>
+                {/* The fill stays the customer's exact colour; only the text on
+                    top is chosen by luminance. Hardcoded white measured 2.56:1
+                    on the staging accent. */}
+                <a href="#openings" className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-medium shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5" style={{ background: accent, color: readableOn(accent), boxShadow: `0 8px 24px -10px ${accent}80` }}>
                   See open roles <ArrowRight size={16} />
                 </a>
                 <ScrollHint />
@@ -432,7 +449,9 @@ function HeroStatsCard({ totalJobs, companiesCount, departmentsCount, recent, or
 function StatTile({ value, label, accent, muted = false }) {
   return (
     <div className="rounded-2xl bg-white/60 border border-zinc-200/60 p-3.5 text-center">
-      <div className="text-lg sm:text-3xl font-semibold tabular-nums tracking-tight" style={{ color: muted ? '#18181b' : accent }}>
+      {/* Sits on white, not #fafafa — and drops to 18px on mobile, below the
+          large-text bar, so this one takes the full 4.5:1 target. */}
+      <div className="text-lg sm:text-3xl font-semibold tabular-nums tracking-tight" style={{ color: muted ? '#18181b' : accentInk(accent, { bg: '#ffffff' }) }}>
         {value}
       </div>
       <div className="text-[11px] text-zinc-500 mt-0.5 lowercase tracking-wide">{label}</div>
@@ -509,12 +528,15 @@ function StickyFilters({
       <div className="max-w-6xl mx-auto px-6 sm:px-8 py-4 flex flex-wrap gap-y-2 items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+          {/* A placeholder is not a label — it vanishes on first keystroke and
+              is not reliably announced. This control had no accessible name. */}
           <input
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by title or department…"
-            className="w-full pl-10 pr-3 py-2.5 bg-white border border-zinc-200 rounded-full text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 transition-all"
+            aria-label="Search openings by title or department"
+            className="w-full pl-10 pr-3 py-2.5 bg-white border border-zinc-200 rounded-full text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:ring-2 transition-all"
             style={{ '--tw-ring-color': `${accent}30` }}
           />
         </div>
@@ -554,9 +576,12 @@ function StickyFilters({
 function Select({ value, onChange, options, label }) {
   return (
     <div className="relative">
+      {/* `label` used to reach the DOM only inside the "All departments" option
+          text, so all three selects announced as an unnamed combo box. */}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-label={`Filter by ${label.toLowerCase()}`}
         className="w-full appearance-none pl-3.5 pr-10 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-200 focus:border-zinc-300"
       >
         {options.map((o) => (
@@ -683,10 +708,11 @@ function Footer({ org, accent }) {
           <OrgLogo org={org} />
           <div>
             <p className="text-sm font-medium text-zinc-700">{org?.name}</p>
-            <p className="text-xs text-zinc-400">© {new Date().getFullYear()} All rights reserved.</p>
+            {/* zinc-400 on #fafafa is 2.51:1. zinc-500 is 4.83:1. */}
+            <p className="text-xs text-zinc-500">© {new Date().getFullYear()} All rights reserved.</p>
           </div>
         </div>
-        <p className="text-xs text-zinc-400">Powered by <a href="https://www.rivvra.com" className="text-zinc-600 hover:text-zinc-900 transition-colors">Rivvra</a></p>
+        <p className="text-xs text-zinc-500">Powered by <a href="https://www.rivvra.com" className="text-zinc-600 hover:text-zinc-900 transition-colors">Rivvra</a></p>
       </div>
     </footer>
   );
