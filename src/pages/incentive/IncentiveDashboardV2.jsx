@@ -37,7 +37,7 @@ import {
   TrendingUp, CheckCircle2, Clock, FileText, Users, Hourglass,
   AlertTriangle,
 } from 'lucide-react';
-import { Button, Chip, EmptyState, Panel, Spinner, Stat } from '../../components/ds';
+import { Button, Chip, EmptyState, Field, Input, Modal, Panel, Spinner, Stat } from '../../components/ds';
 import { formatMoney } from '../../utils/formatCurrency';
 
 // Legacy passed Tailwind tint classes; map them to semantic tokens so the
@@ -77,7 +77,12 @@ export default function IncentiveDashboardV2() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState('');
   const [data, setData] = useState(null);
-  const [waiting, setWaiting] = useState({ count: 0, groups: [] });
+  const [waiting, setWaiting] = useState({ count: 0, groups: [], otherIssues: null });
+  // "Create anyway" — the consultant is on hold and a decision has been made not
+  // to wait for payroll that may never come.
+  const [createTarget, setCreateTarget] = useState(null);
+  const [createSalary, setCreateSalary] = useState('');
+  const [creatingKey, setCreatingKey] = useState(null);
   const [waitingOpen, setWaitingOpen] = useState(false);
   const [waitingError, setWaitingError] = useState(false);
 
@@ -203,7 +208,48 @@ export default function IncentiveDashboardV2() {
         onToggle={() => setWaitingOpen((v) => !v)}
         error={waitingError}
         onRetry={load}
+        otherIssues={waiting.otherIssues}
+        creatingKey={creatingKey}
+        onCreateAnyway={(g) => {
+          setCreateTarget(g);
+          // Default to the salary payroll computed and then withheld. It is
+          // knowable, and it keeps the incentive from swinging on whether the
+          // consultant was eventually paid. ₹0 stays one keystroke away.
+          setCreateSalary(g.heldSalary != null ? String(g.heldSalary) : '');
+        }}
       />
+
+      {createTarget && (
+        <CreateAnywayModal
+          group={createTarget}
+          salary={createSalary}
+          onSalary={setCreateSalary}
+          busy={!!creatingKey}
+          money={money}
+          onCancel={() => { setCreateTarget(null); setCreateSalary(''); }}
+          onConfirm={async () => {
+            const g = createTarget;
+            const key = `${g.consultantEmployeeId}|${g.serviceMonth}`;
+            setCreatingKey(key);
+            try {
+              await incentiveApi.createWithSalary(orgSlug, {
+                invoiceId: (g.invoiceIds || [])[0],
+                consultantEmployeeId: g.consultantEmployeeId,
+                serviceMonth: g.serviceMonth,
+                consultantSalarySnapshot: Number(createSalary),
+              });
+              showToast('Incentive draft created');
+              setCreateTarget(null);
+              setCreateSalary('');
+              load();
+            } catch (err) {
+              showToast(err?.message || 'Could not create the draft', 'error');
+            } finally {
+              setCreatingKey(null);
+            }
+          }}
+        />
+      )}
 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -301,7 +347,80 @@ export default function IncentiveDashboardV2() {
 // `money` is passed in: this component sits at module scope and cannot see
 // the page's company-scoped formatter. Threading it keeps one currency
 // source for the whole page.
-function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, money }) {
+// Creating a draft the salary gate skipped.
+//
+// The whole point is that the cost basis is a DECISION, not a default, so the
+// modal states both readings plainly rather than quietly picking one:
+//   • the salary payroll computed and withheld — margin as originally intended,
+//     and it does not move if the consultant is eventually paid after all
+//   • ₹0 — we are never paying them, so the full invoice is margin and the
+//     incentive comes out larger
+//
+// `valid` is spliced verbatim. `salary !== ''` before Number.isFinite is what
+// stops an empty box being read as 0 — the difference between "no decision
+// yet" and "we are paying them nothing", which are opposite answers here.
+function CreateAnywayModal({ group, salary, onSalary, busy, money, onCancel, onConfirm }) {
+  const held = group.heldSalary;
+  const n = Number(salary);
+  const valid = salary !== '' && Number.isFinite(n) && n >= 0;
+  return (
+    <Modal
+      open
+      onClose={busy ? undefined : onCancel}
+      size="sm"
+      tone="warn"
+      icon={<AlertTriangle size={16} />}
+      title="Create incentive draft"
+      sub={`${group.consultantName || 'Consultant'} · ${group.serviceMonth}${(group.invoiceNumbers || []).length > 0 ? ` · ${group.invoiceNumbers.join(', ')}` : ''}`}
+      footer={(
+        <>
+          <Button variant="ghost" block onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button block onClick={onConfirm} disabled={busy || !valid}>
+            {busy ? 'Creating…' : 'Create draft'}
+          </Button>
+        </>
+      )}
+    >
+      <div style={{ display: 'grid', gap: 14 }}>
+        <p style={{ font: "450 13px/1.55 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+          This consultant&apos;s salary is on hold, so no draft was created. Choose the
+          cost basis to calculate margin from — it decides what the recruiter and
+          account manager earn.
+        </p>
+
+        <Field label="Consultant cost for this month" htmlFor="inc-cost">
+          <Input
+            id="inc-cost"
+            type="number"
+            min="0"
+            value={salary}
+            onChange={(e) => onSalary(e.target.value)}
+            placeholder="0"
+          />
+        </Field>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {held != null && (
+            <Button variant="secondary" size="sm" onClick={() => onSalary(String(held))}>
+              Use held salary ({money ? money(held) : `₹${Math.round(held).toLocaleString('en-IN')}`})
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => onSalary('0')}>
+            Not paying — ₹0
+          </Button>
+        </div>
+
+        <p style={{ font: "450 11.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+          ₹0 treats the full invoice as margin, so the incentive comes out higher.
+          The held figure keeps it as originally intended, and stays correct if
+          you end up paying them later.
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, money, onCreateAnyway, creatingKey, otherIssues }) {
   if (error) {
     return (
       <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-4 flex items-center justify-between gap-3">
@@ -364,6 +483,7 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, m
                 <th className="text-left px-3 py-2 font-medium">Invoices</th>
                 <th className="text-right px-3 py-2 font-medium">Value</th>
                 <th className="text-left px-3 py-2 font-medium">Reason</th>
+                <th className="text-right px-3 py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -385,11 +505,43 @@ function WaitingOnPayrollCard({ count, groups, open, onToggle, error, onRetry, m
                       ? 'Salary on hold'
                       : 'Payslip not released'}
                   </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {/* Only for a hold. "Payslip not released" resolves itself
+                        when payroll runs, and overriding it would pre-empt a
+                        figure that is about to arrive on its own. */}
+                    {(g.reason === 'salary_hold' || g.reason === 'salary_on_hold') && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onCreateAnyway(g)}
+                        disabled={!!creatingKey}
+                        title="Create the incentive draft now, using a cost basis you choose"
+                      >
+                        {creatingKey === `${g.consultantEmployeeId}|${g.serviceMonth}`
+                          ? 'Creating…' : 'Create anyway'}
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table></div>
         </div>
+      )}
+
+      {/* Reasons the ledger sees that the old live scan never could — a line
+          with no consultant, unusable service dates. Real, but a different job:
+          someone fixes an invoice, nobody picks a salary basis. Kept as a count
+          so they cannot bury the rows that need a decision. */}
+      {open && otherIssues?.count > 0 && (
+        <p style={{ marginTop: 12, font: "450 11.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)' }}>
+          Also {otherIssues.count} invoice line{otherIssues.count === 1 ? '' : 's'} with a data problem
+          {Object.entries(otherIssues.byReason || {}).length > 0 && ' — '}
+          {Object.entries(otherIssues.byReason || {})
+            .map(([reason, n]) => `${n} ${reason.replace(/_/g, ' ')}`)
+            .join(', ')}
+          . These need the invoice fixed, not a salary decision.
+        </p>
       )}
     </div>
   );
