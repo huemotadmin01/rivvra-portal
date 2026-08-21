@@ -3902,11 +3902,15 @@ only moves when a legacy file is kept alongside its replacement.
 2. **`AnnouncementBanner`** — renders inside `PlatformLayoutV2` today. When it
    migrates, `BannerPreview` in `AdminAnnouncementsPageV2` must move in the same
    commit (phase 36).
-3. ~~**The person picker.**~~ Done in phase 42. `shared/PersonLookup` now wraps
-   ds `EntityLookup` and all 8 V2-only call sites use it. Two shared modules
-   (`applicationDetailParts.jsx`, `QuickAddClientModal.jsx`) still import
-   `EmployeeLookup` because legacy pages import them too — they move when the
-   last legacy importer does.
+3. ~~**The person picker.**~~ Done in phase 42. `shared/PersonLookup` wraps ds
+   `EntityLookup` and all 8 V2-only call sites use it. Of the two shared
+   modules that still imported `EmployeeLookup`: `QuickAddClientModal` was
+   forked to `QuickAddClientModalV2` on ds (phase 43), and
+   `applicationDetailParts.jsx` is **deferred to legacy retirement** (phase 44
+   — a fork was written and then deleted; see the reversal there). Its two
+   picker sites are the last `EmployeeLookup` users on any V2 surface, and they
+   are harmless where they are: `legacy-bridge.css` themes those modals inside
+   `.ds-shell`.
 4. **`text-rivvra-400` as body text** — 176 files still use it. The completed
    `--brand-as-text` sweep covered ds surfaces, not the legacy Tailwind tail.
 
@@ -4219,23 +4223,46 @@ Verified on staging, all writes blocked, "Create Client" never pressed:
   swap would have produced.
 - `canSubmit` gate intact: Create disabled until a salesperson is chosen.
 
-### `applicationDetailParts.jsx` — decided, not deferred
+### `applicationDetailParts.jsx` — REVERSED: deferred after all
 
-Same blocker, much bigger: V2 imports 14 exports totalling **1975 of the
-module's 2059 exported lines**, so a fork is effectively a full copy. Only
-`StageBar`, `KANBAN_COLORS` and two layout helpers (84 lines) are legacy-only.
+> This section originally read "decided, not deferred" and recorded a decision
+> to fork. **That decision was made on the wrong premise and has been undone.**
+> The fork was written, then deleted before it was ever committed or wired.
 
-**Decision: fork**, rather than migrate in place or wait for legacy to retire.
+The premise was the 1.01:1 "live light-theme hole" corrected at the top of this
+phase. `legacy-bridge.css` already themes these modals inside `.ds-shell`, so
+there is no defect to race. Without urgency the trade collapses:
 
-- Waiting bets a live defect on "~26 Aug", which is a projection in the table
-  above — a table that already carries three predictions marked **Wrong**.
-- Migrating in place would restyle a module that live legacy
-  `AtsApplicationDetail` depends on. Legacy is the *revert path*: a V2 bug
-  flips users to legacy, and they would land on the same freshly-rewritten
-  modals. That destroys the value of `PageSwitch` precisely when it is needed.
-- The fork unwinds mechanically — delete the legacy module, rename the fork.
-  The copies never need syncing, because legacy's is frozen at the fork.
+- **Cost:** ~2,000 duplicated lines, including a 911-line `HireModal` carrying
+  offer and salary fields — the highest-risk code in the module — kept in two
+  copies for as long as legacy lives.
+- **Benefit:** tidiness. The modals already follow the theme, and the picker
+  work that actually needed doing (phase 42) is finished elsewhere.
 
-⚠️ `HireModal` is 928 of those lines and carries offer/salary fields. Money and
-date expressions get spliced verbatim under string-count assertion; nothing
-that changes salary *display* ships without being proposed first.
+**Decision: defer**, exactly as the deferral table said all along — migrate in
+place once legacy `AtsApplicationDetail` retires, when the module stops being
+shared and the work costs no duplication and carries no legacy risk.
+
+What stays true from the fork attempt, and is worth keeping for whoever does it:
+
+- V2 imports 14 exports totalling **1975 of the module's 2059 exported lines**.
+  Only `StageBar`, `KANBAN_COLORS` and two layout helpers (84 lines) are
+  legacy-only — so an in-place migration is very nearly the whole file.
+- Both `EmployeeLookup` sites live in `CreateEmployeeDrawer` and
+  `InterviewScheduleModal`. Nothing else in the module holds a picker.
+- `FormSection` and `FieldLabel` are used **only** by `CreateEmployeeDrawer`,
+  so they can move with it without touching `HireModal`.
+- Where a modal is a real `<form>`, keep the form and reach it from a ds footer
+  button via `form="…"`. Re-wiring to `onClick` would make `required`
+  decorative.
+- ⚠️ `HireModal` carries offer/salary fields. Splice money and date expressions
+  verbatim; propose, never ship, anything that changes salary display.
+
+**Method note — two failures worth not repeating.** A naive `s.index("…")` on a
+content marker silently gutted `HireModal`: the marker occurred five times and
+the first hit was in another component, while a `count(old)==1` assertion passed
+because `old` had been sliced out of the file itself. Locate components by their
+declaration and a **brace match**, and after every edit assert that every OTHER
+component is byte-identical to the source. Separately, an aborted script was
+misread as a stale-module cache when in fact the import rewrite had simply never
+been written — check the file before blaming the bundler.
