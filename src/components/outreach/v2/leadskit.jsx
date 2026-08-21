@@ -75,6 +75,27 @@ export function ReplyIntentChip({ lead }) {
   );
 }
 
+// ICP fit badge (2026-08-21, growth-plan A2). Score 0-100 stamped nightly by
+// cron/icpScoring.js against the org's mined ICP profile.
+//
+// The gate is spliced verbatim from the legacy `IcpScoreBadge`: only high and
+// medium bands render, because "low fit stays quiet rather than shaming every
+// row" — that is a product decision about what a rep sees on every line, not
+// styling, so it is copied rather than re-derived. `Number.isFinite` (not a
+// truthiness check) is deliberate too: a genuine score of 0 is data, and
+// `if (!lead.icpScore)` would silently hide it.
+export function IcpScoreChip({ lead }) {
+  if (!Number.isFinite(lead?.icpScore) || lead.icpBand === 'low') return null;
+  return (
+    <span
+      title={lead.icpReason || 'ICP fit score from your win/loss history'}
+      style={{ marginLeft: 6, display: 'inline-block' }}
+    >
+      <Chip tone={lead.icpBand === 'high' ? 'brand' : 'warn'}>ICP {lead.icpScore}</Chip>
+    </span>
+  );
+}
+
 export function ProfileTypeChip({ type }) {
   if (type === 'client') return <Chip tone="info">Client</Chip>;
   if (type === 'candidate') return <Chip tone="info" style={{ color: 'var(--a-ats, #8b5cf6)', background: 'color-mix(in srgb, var(--a-ats, #8b5cf6) 14%, transparent)' }}>Candidate</Chip>;
@@ -329,7 +350,7 @@ export function LeadsTableV2({
               </td>
             )}
             <td style={td()}><ProfileTypeChip type={lead.profileType} /></td>
-            <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /><ReplyIntentChip lead={lead} /></td>
+            <td style={td()}><OutreachStatusChip status={lead.outreachStatus} /><ReplyIntentChip lead={lead} /><IcpScoreChip lead={lead} /></td>
             <td style={td({ color: 'var(--fg-3)' })}>{lead.companyName || lead.company || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
             <td style={td({ color: 'var(--fg-3)' })}>{lead.location || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>
             <td style={td({ color: 'var(--fg-3)' })}>

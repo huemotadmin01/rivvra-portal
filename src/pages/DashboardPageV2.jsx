@@ -49,6 +49,7 @@ import api from '../utils/api';
 import { exportLeadsToCSV } from '../utils/csvExport';
 import ComingSoonModal from '../components/ComingSoonModal';
 import { useExtensionDetector } from '../hooks/useExtensionDetector';
+import HiringSignalsCard from '../components/outreach/HiringSignalsCard';
 import {
   Panel, Chip, Button, Input, Select, Field, Modal,
   EmptyState, Meter, Pagination, Avatar, Stat,
@@ -388,7 +389,7 @@ function AddToListModal({ isOpen, onClose, lists, onSelect, onCreateList, lead }
 // ==================== Main Dashboard Page ====================
 function DashboardPageV2() {
   const { user, isAuthenticated } = useAuth();
-  const { hasAppAccess } = useOrg();
+  const { hasAppAccess, currentOrg } = useOrg();
   const { orgPath } = usePlatform();
   const { installed: extInstalled, dismiss: dismissExt, isDismissed: isExtDismissed, chromeStoreUrl } = useExtensionDetector();
   const [extBannerDismissed, setExtBannerDismissed] = useState(false);
@@ -897,6 +898,14 @@ function DashboardPageV2() {
                   orgPath={orgPath}
                 />
               )}
+
+              {/* Hiring Signals (2026-08-20) — fresh postings at watched companies.
+                  Ported from the legacy dashboard 2026-08-22. The card is still
+                  legacy Tailwind, and stays that way on purpose: this page renders
+                  inside PlatformLayoutV2's `.ds-shell`, where legacy-bridge.css
+                  remaps the dark-* scale onto ds tokens. Forking it to ds would
+                  duplicate a component `main` is still actively changing. */}
+              {currentOrg?.slug && <HiringSignalsCard orgSlug={currentOrg.slug} />}
 
               {/* Extension Install Banner */}
               {!extInstalled && !extBannerDismissed && !isExtDismissed() && (
