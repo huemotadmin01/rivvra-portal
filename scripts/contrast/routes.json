@@ -1,27 +1,103 @@
 {
   "_comment": [
-    "Routes the contrast gate renders. PUBLIC ONLY, on purpose: a gate that",
-    "needs staging credentials is a gate that gets disabled the first time a",
-    "token rotates. Everything here renders for a logged-out visitor.",
+    "Routes the contrast gate renders.",
     "",
-    "Authenticated surfaces (the ~135 V2 app pages) are NOT covered yet — they",
-    "need a seeded session, which is a follow-up. What is covered is every",
-    "surface a stranger can reach, which is also where a contrast bug is most",
-    "expensive.",
+    "`routes` are PUBLIC and always run. A gate that needs credentials to do",
+    "anything is a gate that dies the first time a token rotates, so the public",
+    "set stands alone.",
     "",
-    "`settle` is extra ms to wait past networkidle, for pages whose intro",
-    "animations land on their final colours late."
+    "`authedRoutes` run ONLY when a session is available (see below). When it is",
+    "not, they are SKIPPED and reported \u2014 never failed. Otherwise every fork PR",
+    "and dependabot bump would go red for lacking a secret it cannot have.",
+    "",
+    "A session comes from either:",
+    "  CONTRAST_AUTH_STORAGE - JSON (or a path to a JSON file) shaped",
+    "      { \"localStorage\": { \"<key>\": \"<value>\", ... } }",
+    "      seeded before any app code runs. Key names are not hardcoded here, so",
+    "      the gate survives a change to the auth storage shape.",
+    "  a dev server with devAuthBoot active, which seeds itself - which is how",
+    "      this is verified locally without anyone handling a token.",
+    "",
+    "`:slug` in an authed path is replaced with CONTRAST_ORG_SLUG.",
+    "",
+    "`settle` is extra ms past networkidle, for pages whose intro animations land",
+    "on their final colours late."
   ],
   "routes": [
-    { "path": "/",                     "name": "Landing",         "settle": 1200 },
-    { "path": "/pricing",              "name": "Pricing",         "settle": 900 },
-    { "path": "/features",             "name": "Features",        "settle": 900 },
-    { "path": "/terms",                "name": "Terms" },
-    { "path": "/privacy",              "name": "Privacy" },
-    { "path": "/find-workspace",       "name": "Find workspace" },
-    { "path": "/forgot-password",      "name": "Forgot password" },
-    { "path": "/reset-password",       "name": "Reset password (no token → error state)" },
-    { "path": "/invite",               "name": "Invite accept (no token → error state)" },
-    { "path": "/org/no-such-org/login","name": "Org login (unknown org → error state)" }
+    {
+      "path": "/",
+      "name": "Landing",
+      "settle": 1200
+    },
+    {
+      "path": "/pricing",
+      "name": "Pricing",
+      "settle": 900
+    },
+    {
+      "path": "/features",
+      "name": "Features",
+      "settle": 900
+    },
+    {
+      "path": "/terms",
+      "name": "Terms"
+    },
+    {
+      "path": "/privacy",
+      "name": "Privacy"
+    },
+    {
+      "path": "/find-workspace",
+      "name": "Find workspace"
+    },
+    {
+      "path": "/forgot-password",
+      "name": "Forgot password"
+    },
+    {
+      "path": "/reset-password",
+      "name": "Reset password (no token \u2192 error state)"
+    },
+    {
+      "path": "/invite",
+      "name": "Invite accept (no token \u2192 error state)"
+    },
+    {
+      "path": "/org/no-such-org/login",
+      "name": "Org login (unknown org \u2192 error state)"
+    }
+  ],
+  "authedRoutes": [
+    {
+      "path": "/org/:slug/home",
+      "name": "Org home",
+      "settle": 900
+    },
+    {
+      "path": "/org/:slug/ats/jobs",
+      "name": "ATS jobs list",
+      "settle": 1200
+    },
+    {
+      "path": "/org/:slug/ats/dashboard",
+      "name": "ATS dashboard",
+      "settle": 1500
+    },
+    {
+      "path": "/org/:slug/crm/pipeline",
+      "name": "CRM pipeline",
+      "settle": 1200
+    },
+    {
+      "path": "/org/:slug/employee/directory",
+      "name": "Employee directory",
+      "settle": 1200
+    },
+    {
+      "path": "/org/:slug/settings",
+      "name": "Org settings",
+      "settle": 900
+    }
   ]
 }
