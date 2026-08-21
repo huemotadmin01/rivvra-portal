@@ -25,7 +25,7 @@ function ImpersonationBannerV2() {
   if (!isImpersonating) return null;
   return (
     <div style={{
-      position: 'sticky', top: 0, zIndex: 50, height: 40,
+      position: 'sticky', top: 'var(--staging-offset, 0px)', zIndex: 50, height: 40,
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
       background: 'var(--warn)', color: '#1C1914', font: '500 13px/1 var(--font)',
     }}>
