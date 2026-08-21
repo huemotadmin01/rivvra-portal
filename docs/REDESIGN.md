@@ -4130,3 +4130,78 @@ their last legacy importer does.
   create-form pickers.
 - Inline variant contrast on its caller-supplied surface, fresh load per theme
   (never after a toggle — catalogue #9/#11): 15.40 dark, 15.93 light.
+
+## Phase 43 — QuickAddClientModal, and the fixed-dark discovery
+
+Follows phase 42, which left two shared modules on the legacy picker because
+each is imported by a legacy page as well as a V2 one.
+
+### The picker swap is not a picker swap
+
+The naive move — repoint the import — is **wrong**, and measurably so.
+
+Both modules are fixed-dark Tailwind. `tailwind.config.js` defines the `dark`
+palette as literal hexes (`dark-800` = `#1e293b`, `dark-900` = `#0f172a`), so
+these surfaces do **not** follow the theme. That was harmless while everything
+inside them was also fixed-dark.
+
+It stops being harmless the moment a ds component goes in. ds reads `--fg`,
+which in LIGHT theme is `#16191D`. Measured on those panels:
+
+| text on the fixed-dark modal | ratio |
+|---|---|
+| ds `--fg` (what PersonLookup would render) | **1.01:1** |
+| ds `--fg-4` (its placeholder ink) | 3.16:1 |
+| legacy `text-white` (what is there today) | 17.85:1 |
+
+1.01:1 is invisible. So **"swap the picker" and "move the surface to ds" are
+one job**, not two — and the surface has to move first.
+
+This also means the V2 pages have a live light-theme hole *today*, independent
+of the picker: these modals render as dark slabs on a light page.
+
+### What shipped
+
+`QuickAddClientModalV2` — forked, not migrated in place, because the legacy
+file serves `EmployeeDetail` as well as `EmployeeDetailV2`. Only V2 points at
+the fork; the import keeps the local name `QuickAddClientModal`, so the call
+site is unchanged.
+
+Spliced verbatim: the create payload (especially `countryCode: 'India'` /
+`defaultCurrency: 'INR'`, which decide the contact's country and the currency
+every future invoice inherits), `canSubmit`, the `!contact?._id` throw that
+treats an id-less 200 as failure, and the reset effect that stops a second
+client inheriting the first one's owner.
+
+The picker passes `confirmsSave={false}` — nothing is written until "Create
+Client", so the green tick would claim a write that has not happened.
+
+Verified on staging, all writes blocked, "Create Client" never pressed:
+- Module identity confirmed by a `Building2` icon canary before measuring —
+  per catalogue #12, a repointed import does not prove which module rendered.
+- Light: 8 text nodes, **0 contrast failures, min 5.02** (white panel).
+- Dark: 8 text nodes, **0 failures, min 6.74**.
+- Picked salesperson renders at **17.63:1**, against the 1.01:1 the naive
+  swap would have produced.
+- `canSubmit` gate intact: Create disabled until a salesperson is chosen.
+
+### `applicationDetailParts.jsx` — decided, not deferred
+
+Same blocker, much bigger: V2 imports 14 exports totalling **1975 of the
+module's 2059 exported lines**, so a fork is effectively a full copy. Only
+`StageBar`, `KANBAN_COLORS` and two layout helpers (84 lines) are legacy-only.
+
+**Decision: fork**, rather than migrate in place or wait for legacy to retire.
+
+- Waiting bets a live defect on "~26 Aug", which is a projection in the table
+  above — a table that already carries three predictions marked **Wrong**.
+- Migrating in place would restyle a module that live legacy
+  `AtsApplicationDetail` depends on. Legacy is the *revert path*: a V2 bug
+  flips users to legacy, and they would land on the same freshly-rewritten
+  modals. That destroys the value of `PageSwitch` precisely when it is needed.
+- The fork unwinds mechanically — delete the legacy module, rename the fork.
+  The copies never need syncing, because legacy's is frozen at the fork.
+
+⚠️ `HireModal` is 928 of those lines and carries offer/salary fields. Money and
+date expressions get spliced verbatim under string-count assertion; nothing
+that changes salary *display* ships without being proposed first.
