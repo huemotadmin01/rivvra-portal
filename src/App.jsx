@@ -31,7 +31,9 @@ import InviteAcceptPage from './pages/InviteAcceptPage';
 // Universal (Salesforce-style) login at /login — resolves org from email,
 // then routes to /org/:slug/home. Branded /org/:slug/login still available.
 import UniversalLoginPage from './pages/UniversalLoginPage';
-import OrgLoginPage from './pages/OrgLoginPage';
+// /org/:slug/login is outside OrgProvider, so PageSwitch (useOrg throws
+// there) cannot gate it. Ships directly; legacy kept unreferenced.
+import OrgLoginPage from './pages/OrgLoginPageV2';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
