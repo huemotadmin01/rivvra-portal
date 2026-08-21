@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "Known contrast failures that are ACCEPTED, each with a reason. Every entry",
+    "is a decision someone made on purpose \u2014 not a way to quiet the gate.",
+    "",
+    "Match is on route + exact text + a selector fragment. Deliberately narrow:",
+    "if the element is restyled or the copy changes, the entry stops matching",
+    "and the gate speaks up again.",
+    "",
+    "An entry without a `reason` is rejected by the runner."
+  ],
+  "allow": [
+    {
+      "route": "/",
+      "text": "01",
+      "selector": "text-rivvra-400/30",
+      "reason": "Decorative step numeral, text-rivvra-400/30 on --surface-2 = 2.04:1 vs 3.0 needed. Brand green at 30% alpha is a deliberate marketing choice; raising it to ~/45 would clear AA. Flagged to the design owner 2026-08-21, not changed unilaterally."
+    },
+    {
+      "route": "/",
+      "text": "02",
+      "selector": "text-rivvra-400/30",
+      "reason": "Same decorative step numeral as 01."
+    },
+    {
+      "route": "/",
+      "text": "03",
+      "selector": "text-rivvra-400/30",
+      "reason": "Same decorative step numeral as 01."
+    }
+  ]
+}

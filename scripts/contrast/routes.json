@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "Routes the contrast gate renders. PUBLIC ONLY, on purpose: a gate that",
+    "needs staging credentials is a gate that gets disabled the first time a",
+    "token rotates. Everything here renders for a logged-out visitor.",
+    "",
+    "Authenticated surfaces (the ~135 V2 app pages) are NOT covered yet — they",
+    "need a seeded session, which is a follow-up. What is covered is every",
+    "surface a stranger can reach, which is also where a contrast bug is most",
+    "expensive.",
+    "",
+    "`settle` is extra ms to wait past networkidle, for pages whose intro",
+    "animations land on their final colours late."
+  ],
+  "routes": [
+    { "path": "/",                     "name": "Landing",         "settle": 1200 },
+    { "path": "/pricing",              "name": "Pricing",         "settle": 900 },
+    { "path": "/features",             "name": "Features",        "settle": 900 },
+    { "path": "/terms",                "name": "Terms" },
+    { "path": "/privacy",              "name": "Privacy" },
+    { "path": "/find-workspace",       "name": "Find workspace" },
+    { "path": "/forgot-password",      "name": "Forgot password" },
+    { "path": "/reset-password",       "name": "Reset password (no token → error state)" },
+    { "path": "/invite",               "name": "Invite accept (no token → error state)" },
+    { "path": "/org/no-such-org/login","name": "Org login (unknown org → error state)" }
+  ]
+}
