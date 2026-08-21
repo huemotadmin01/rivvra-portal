@@ -553,6 +553,14 @@ function getSampleValue(placeholder) {
     interviewLink: 'https://meet.google.com/abc-defg-hij',
     approverName: 'Jane Smith',
     portalLink: 'https://www.rivvra.com/#/org/acme-corp/ats',
+    // Ported from the legacy page 2026-08-22 (added on `main` with the Job
+    // On Hold / Job Closed templates). Without these four the V2 preview
+    // renders those placeholders EMPTY, which is the exact failure mode the
+    // sample table exists to prevent.
+    portalUrl: 'https://www.rivvra.com/#/org/acme-corp/ats/jobs',
+    recruiterName: 'HR Team',
+    department: 'IT',
+    changedByName: 'Jane Smith',
   };
   return samples[placeholder] || `[${placeholder}]`;
 }
