@@ -62,7 +62,7 @@ import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import ReleaseDocumentsPanel from '../../components/employee/ReleaseDocumentsPanel';
 import { withFromContext } from '../../utils/entityDescribe';
 import ComboSelect from '../../components/ComboSelect';
-import QuickAddClientModal from '../../components/QuickAddClientModal';
+import QuickAddClientModal from '../../components/QuickAddClientModalV2';
 import AssignmentDocs from '../../components/employee/AssignmentDocs';
 import { Paperclip } from 'lucide-react';
 
