@@ -33,6 +33,9 @@ export default function StatutoryConfigPage({ embedded = false }) {
   const { showToast } = useToast();
   const [data, setData] = useState([]);
   const [ptStates, setPtStates] = useState([]);
+  // { orgPtState, companyState } — the fallbacks the payroll calculator uses,
+  // so this screen can show the effective setting rather than a local guess.
+  const [defaults, setDefaults] = useState({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
@@ -52,6 +55,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
       ]);
       setData(res.data || []);
       setPtStates(stRes.states || []);
+      setDefaults(res.defaults || {});
     } catch (err) { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
@@ -59,19 +63,43 @@ export default function StatutoryConfigPage({ embedded = false }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [orgSlug, currentCompany?._id]);
 
+  // The PT slab the payroll calculator would use when the employee has none
+  // saved: the active company's own state, else the org-wide default. Matched
+  // by state NAME — address.countryCode holds a state code on these records,
+  // so it is not safe to read as a code.
+  const companyPtState = () => {
+    const name = defaults.companyState || currentCompany?.address?.state;
+    if (!name) return '';
+    const hit = ptStates.find(s => s.name.toLowerCase() === String(name).toLowerCase());
+    return hit?.code || '';
+  };
+
   const openEdit = (item) => {
     const s = item.statutory || {};
+    // PF settings live in two records. Mirror the calculator's precedence so
+    // the screen shows what payroll will ACTUALLY apply — reading only the
+    // statutory doc showed a ticked cap for an employee whose salary record
+    // said false, so the setting looked right and never got corrected.
+    const sal = item.salary || {};
     setForm({
-      pfEnabled: s.pfEnabled ?? true,
-      pfCappedAt15K: s.pfCappedAt15K ?? true,
-      esiEnabled: s.esiEnabled || false,
+      pfEnabled: s.pfEnabled !== false && sal.pfApplicable !== false,
+      pfCappedAt15K: s.pfCappedAt15K ?? sal.pfCappedAt15K ?? true,
+      // `?? true` mirrors the calculator's `esiEnabled !== false`: an absent
+      // flag means enabled, and the ₹21,000 wage ceiling decides eligibility at
+      // run time. `|| false` showed unticked for an employee the run would
+      // treat as ESI-enabled.
+      esiEnabled: s.esiEnabled ?? true,
       // Deliberately NOT the platform's `?? true` policy default. This raises
       // the ESI wage ceiling from ₹21,000 to ₹25,000, and defaulting it on
       // would start deducting ESI from employees earning ₹21K–₹25K who are not
       // entitled to the higher ceiling. Absent value must mean off.
       esiDisabilityCeiling: s.esiDisabilityCeiling === true,
       ptEnabled: s.ptEnabled ?? true,
-      ptState: s.ptState || 'MH',
+      // Was hardcoded 'MH', which matched neither the calculator (which falls
+      // back to the org default) nor the company the employee is hired under.
+      // On an MP-based company it pre-selected Maharashtra, ready to save the
+      // wrong slab for anyone who opened the modal and hit Save.
+      ptState: s.ptState || companyPtState() || defaults.orgPtState || '',
       taxRegime: s.taxRegime || 'new',
       stopSalaryProcessing: s.stopSalaryProcessing || false,
     });
@@ -186,7 +214,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-medium">{item.employee.fullName || item.employee.name || item.employee.email}</span>
-                      {s.stopSalaryProcessing && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium" title="Excluded from payroll runs">Salary on hold</span>}
+                      {s.stopSalaryProcessing && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium" title="Excluded from every payroll run until unticked. Not the same as a monthly salary hold on the run page.">Processing stopped</span>}
                     </div>
                     <div className="text-xs text-dark-400">{item.employee.email}</div>
                   </td>
@@ -207,7 +235,7 @@ export default function StatutoryConfigPage({ embedded = false }) {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {ptOn
-                      ? <span className="text-xs text-dark-300">{s.ptState || 'MH'} slab</span>
+                      ? <span className="text-xs text-dark-300">{s.ptState || companyPtState() || defaults.orgPtState || '—'} slab</span>
                       : <span className="text-xs text-dark-500">Not applicable</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -380,12 +408,21 @@ export default function StatutoryConfigPage({ embedded = false }) {
                 <label className="flex items-start gap-2 text-sm text-dark-300">
                   <input type="checkbox" checked={form.stopSalaryProcessing} onChange={e => setForm(f => ({ ...f, stopSalaryProcessing: e.target.checked }))} className="rounded border-dark-600 mt-0.5" />
                   <span className={form.stopSalaryProcessing ? 'text-red-400' : ''}>
-                    Hold salary — skip this employee in payroll runs
-                    <span className="block text-[11px] text-dark-500">Use for absconding, unpaid-leave or dispute cases. No payslip is generated while this is on.</span>
+                    Stop salary processing — leave this employee out of every payroll run
+                    <span className="block text-[11px] text-dark-500">
+                      Indefinite, for absconding or dispute cases. This is <strong>not</strong> the
+                      monthly &ldquo;salary hold&rdquo; on the payroll run page — that withholds one
+                      month and can be released or marked as decided. This one excludes the employee
+                      from every run until you untick it.
+                    </span>
+                    <span className="block text-[11px] text-amber-500/80 mt-1">
+                      Applies to confirmed employees only. External and billable internal consultants
+                      are not affected by this flag — hold them per month on the run page instead.
+                    </span>
                   </span>
                 </label>
                 {form.stopSalaryProcessing && (
-                  <p className="text-xs text-red-400/70">This employee will be excluded from every payroll run until you untick this.</p>
+                  <p className="text-xs text-red-400/70">This employee will be excluded from every payroll run until you untick this. No payslip is generated meanwhile.</p>
                 )}
               </fieldset>
 

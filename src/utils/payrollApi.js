@@ -229,6 +229,14 @@ export function releaseSalaryHold(orgSlug, runId, holdId, note) {
   return request('POST', `${orgUrl(orgSlug)}/runs/${runId}/salary-hold/${holdId}/release`, { body: { note } });
 }
 
+// Records whether a hold is DECIDED. `will_not_pay` settles the consultant's
+// cost at ₹0 so the incentive can be created; `undecided` returns it to
+// "may pay later". The hold itself stays active either way — the employee is
+// still excluded from bank sheets and payslips.
+export function decideSalaryHold(orgSlug, runId, holdId, decision, note) {
+  return request('POST', `${orgUrl(orgSlug)}/runs/${runId}/salary-hold/${holdId}/decide`, { body: { decision, note } });
+}
+
 // Ad-hoc Earnings/Deductions
 export function setAdHocAdjustment(orgSlug, runId, employeeId, data) {
   return request('PUT', `${orgUrl(orgSlug)}/runs/${runId}/adhoc/${employeeId}`, { body: data });

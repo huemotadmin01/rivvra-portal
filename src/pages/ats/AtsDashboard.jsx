@@ -397,6 +397,113 @@ function TimeInStageCard({ data }) {
   );
 }
 
+/* ── Job Aging / Delivery SLA ─────────────────────────────────────────────
+ * 2026-08-20 (growth-plan P0 #2): per-open-job delivery health. Rows come
+ * pre-sorted oldest-first from the API; flags are computed server-side
+ * against the org's reportingThresholds (jobAgingTargetDays /
+ * jobNoSubmittalDays) so this card never duplicates defaults. Table wraps
+ * in overflow-x-auto (house mobile rule — tables inside overflow-hidden
+ * cards lose columns silently). */
+function JobAgingCard({ jobAging, orgPath }) {
+  const { jobs = [], timeToFill = {}, thresholds = {} } = jobAging || {};
+  const [showAll, setShowAll] = useState(false);
+  const breaching = jobs.filter((j) => j.flag === 'red').length;
+  const visible = showAll ? jobs : jobs.slice(0, 8);
+  const flagStyles = {
+    red: 'bg-red-500/15 text-red-400',
+    amber: 'bg-amber-500/15 text-amber-400',
+    green: 'bg-emerald-500/15 text-emerald-400',
+  };
+  return (
+    <div className="bg-dark-850 rounded-xl p-4 border border-dark-700">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-semibold text-dark-200">Job Aging &amp; Delivery SLA</h3>
+          <p className="text-dark-500 text-[11px]">
+            Open approved jobs by days open — target {thresholds.targetDays ?? 30}d, submittal window {thresholds.noSubmittalDays ?? 7}d
+          </p>
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right">
+            <p className={`text-xl font-bold ${breaching > 0 ? 'text-red-400' : 'text-dark-500'}`}>{breaching}</p>
+            <p className="text-[10px] text-dark-500">breaching SLA</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xl font-bold text-dark-200">
+              {timeToFill.medianDays != null ? `${timeToFill.medianDays}d` : '—'}
+            </p>
+            <p className="text-[10px] text-dark-500">
+              median time-to-fill{timeToFill.count ? ` (n=${timeToFill.count})` : ''}
+            </p>
+          </div>
+        </div>
+      </div>
+      {jobs.length === 0 ? (
+        <p className="text-dark-600 text-xs text-center py-4">No open approved jobs</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-dark-500 border-b border-dark-700">
+                  <th className="py-2 pr-3 font-medium">Job</th>
+                  <th className="py-2 pr-3 font-medium">Client</th>
+                  <th className="py-2 pr-3 font-medium">Recruiter</th>
+                  <th className="py-2 pr-3 font-medium text-right">Days open</th>
+                  <th className="py-2 pr-3 font-medium text-right">Submittals</th>
+                  <th className="py-2 pr-3 font-medium text-right">Last {thresholds.noSubmittalDays ?? 7}d</th>
+                  <th className="py-2 pr-3 font-medium text-right">In pipeline</th>
+                  <th className="py-2 font-medium text-right">Hired</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((j) => (
+                  <tr key={j._id} className="border-b border-dark-800 last:border-0">
+                    <td className="py-2 pr-3 max-w-[180px]">
+                      <Link
+                        to={`${orgPath}/ats/jobs/${j._id}`}
+                        className="text-dark-200 hover:text-rivvra-400 transition-colors block truncate"
+                        title={j.name}
+                      >
+                        {j.name}
+                      </Link>
+                    </td>
+                    <td className="py-2 pr-3 text-dark-400 max-w-[120px] truncate" title={j.clientName || ''}>{j.clientName || '—'}</td>
+                    <td className="py-2 pr-3 text-dark-400 max-w-[110px] truncate" title={j.recruiterName || ''}>{j.recruiterName || '—'}</td>
+                    <td className="py-2 pr-3 text-right">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full font-semibold ${flagStyles[j.flag] || flagStyles.green}`}
+                        title={j.agingFromApproval ? 'Since approval' : 'Since creation (no approval timestamp)'}
+                      >
+                        {j.ageDays}d{!j.agingFromApproval && '*'}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-right text-dark-300">{j.submittals}</td>
+                    <td className={`py-2 pr-3 text-right font-medium ${j.noRecentSubmittal ? 'text-amber-400' : 'text-dark-300'}`}>
+                      {j.recentSubmittals}
+                    </td>
+                    <td className="py-2 pr-3 text-right text-dark-300">{j.activePipeline}</td>
+                    <td className="py-2 text-right text-dark-300">{j.hiredCount}/{j.expectedHires}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {jobs.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="flex items-center gap-1 mt-3 text-xs text-rivvra-400 hover:text-rivvra-300 transition-colors ml-auto"
+            >
+              {showAll ? 'Show fewer' : `Show all ${jobs.length}`} <ArrowRight size={12} />
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Stat Card ────────────────────────────────────────────────────────────
  * 2026-05-14: restyled to match the CRM Dashboard KPICard pattern —
  * tinted full-card background instead of a dark card with a tinted
@@ -917,6 +1024,8 @@ export default function AtsDashboard() {
     todaySubmissions = [],
     openJobsList = [],
     lastWorkingDaySubmissions = [],
+    // 2026-08-20: job-aging SLA card.
+    jobAging = { jobs: [], timeToFill: { medianDays: null, count: 0 }, thresholds: {} },
   } = data;
 
   // 2026-05-19: deep-link scope suffix. Dashboard data is scoped by
@@ -1186,6 +1295,9 @@ export default function AtsDashboard() {
 
       {/* ── Time-in-Stage heatmap (full width on small screens) ─────────── */}
       <TimeInStageCard data={timeInStage} />
+
+      {/* ── Job Aging / Delivery SLA (2026-08-20) ─────────────────────── */}
+      <JobAgingCard jobAging={jobAging} orgPath={orgPath} />
 
       {/* ── Submissions tables: Today + Last Working Day ──────────────────
           Two-column on lg+, stacked below. Each table groups rows by
