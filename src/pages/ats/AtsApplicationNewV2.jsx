@@ -6,7 +6,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
-import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import PersonLookup from '../../components/shared/PersonLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import {
@@ -1257,9 +1257,10 @@ export default function AtsApplicationNewV2() {
                       padding: '2px 10px', borderRadius: 'var(--r-2, 12px)',
                       background: 'var(--surface-2)', boxShadow: '0 0 0 1px var(--line)',
                     }}>
-                      <EmployeeLookup
+                      <PersonLookup
                         orgSlug={orgSlug}
                         variant="inline"
+                        confirmsSave={false}
                         editable
                         allowClear={false}
                         placeholder="Search employees…"

@@ -50,7 +50,7 @@ import { usePlatform } from '../../context/PlatformContext';
 import { useToast } from '../../context/ToastContext';
 import atsApi from '../../utils/atsApi';
 import employeeApi from '../../utils/employeeApi';
-import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import PersonLookup from '../../components/shared/PersonLookup';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ChevronLeft, Loader2, Briefcase, FileText } from 'lucide-react';
 import { Panel, Button, Field, Input, Select, Textarea, EmptyState } from '../../components/ds';
@@ -237,9 +237,10 @@ function AtsJobNewV2() {
                 placeholder="e.g. Indore (Hybrid)" />
             </Field>
 
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={orgSlug}
               label="Approver"
+              confirmsSave={false}
               currentValue={form.approverId}
               currentName={form.approverName}
               placeholder="Search employees… (leave empty to assign later)"

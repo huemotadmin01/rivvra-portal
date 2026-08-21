@@ -15,6 +15,10 @@ const DEBOUNCE_MS = 250;
  * Two shapes:
  *   variant='row'    — a labelled detail-page row, click to edit.
  *   variant='button' — a standalone trigger ("Add person") with no row.
+ *   variant='inline' — the value ALONE, click to edit. No label, no link, no
+ *                      label column. For a picker sitting inside a field box
+ *                      the caller has already labelled and styled, where the
+ *                      row variant's 140px label gutter would misalign it.
  *
  * `onCreate` adds an inline "Create <query>" entry, offered only when the
  * typed text doesn't already match a result exactly. It must resolve to the
@@ -39,11 +43,34 @@ export function EntityLookup({
   editable = false,
   allowClear = true,
   variant = 'row',
+  /**
+   * Whether selecting COMMITS the value somewhere. True (default) on detail
+   * rows, which write immediately — the tick means "it is stored".
+   *
+   * Pass false when the picker only fills in a draft, as on a create form: the
+   * record does not exist yet, so a green "saved" tick would claim a write
+   * that has not happened. Errors and the saving spinner still show, because
+   * `onSelect` may still be doing async work that can fail.
+   */
+  confirmsSave = true,
   /** variant='button' trigger text. */
   triggerLabel = 'Add',
   placeholder = 'Search…',
   /** Read-mode link target for the current selection. */
   href,
+  /**
+   * (value) => Promise<boolean>. Gates whether `href` is offered at all.
+   *
+   * Some id fields hold values that no longer resolve to a linkable record —
+   * a person field pointing at a legacy portal_user with no employee row, a
+   * reference to something archived out of the current scope. Linking those
+   * sends the user to a 404. When a probe is supplied the link stays hidden
+   * until it resolves TRUE, so the failure mode is a missing link rather than
+   * a broken one.
+   *
+   * Omit it and `href` behaves as before: always offered.
+   */
+  hrefProbe,
   labelWidth = 140,
 }) {
   const [status, setStatus] = useState('idle'); // idle | editing | saving | saved | error
@@ -58,11 +85,27 @@ export function EntityLookup({
   const savedTimerRef = useRef(null);
   // Guards against a slow early query overwriting a later, faster one.
   const seqRef = useRef(0);
+  // Whether `href` may be offered. With no probe the link is unconditional;
+  // with one it stays hidden until the probe says the target resolves.
+  const [linkable, setLinkable] = useState(!hrefProbe);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!hrefProbe) { setLinkable(true); return undefined; }
+    if (!href || !value) { setLinkable(false); return undefined; }
+    // Start hidden and only reveal on a positive result, so a slow or failing
+    // probe never flashes a link that turns out to 404.
+    let cancelled = false;
+    setLinkable(false);
+    Promise.resolve(hrefProbe(value))
+      .then((ok) => { if (!cancelled) setLinkable(!!ok); })
+      .catch(() => { if (!cancelled) setLinkable(false); });
+    return () => { cancelled = true; };
+  }, [hrefProbe, href, value]);
 
   const runSearch = useCallback(async (q) => {
     const seq = ++seqRef.current;
@@ -111,8 +154,12 @@ export function EntityLookup({
     setStatus('saving');
     try {
       await onSelect?.(field, nextValue);
-      setStatus('saved');
-      savedTimerRef.current = setTimeout(() => setStatus('idle'), 1500);
+      if (!confirmsSave) {
+        setStatus('idle');
+      } else {
+        setStatus('saved');
+        savedTimerRef.current = setTimeout(() => setStatus('idle'), 1500);
+      }
     } catch (err) {
       setErrMsg(err?.message || 'Failed to save');
       setStatus('error');
@@ -270,6 +317,48 @@ export function EntityLookup({
     );
   }
 
+  /* ── Inline variant ── */
+  // The value cell on its own. The caller owns the label and the surrounding
+  // box, so this renders no label column and no "Open →" link — an inline
+  // picker is used in create forms, where there is nothing to open yet.
+  // Status still surfaces: the spinner and error sit with the value, because
+  // the pessimistic save contract applies to every variant.
+  if (variant === 'inline') {
+    if (!open) {
+      return (
+        <span
+          ref={containerRef}
+          onClick={editable ? startEdit : undefined}
+          className={editable ? 'ds-lookup-inline' : undefined}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
+            cursor: editable ? 'pointer' : 'default',
+            font: `450 13px/1.5 ${FONT}`, color: 'var(--fg, #eef2f6)',
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={displayValue || undefined}>
+            {displayValue || <span style={{ color: 'var(--fg-4, #828e9f)' }}>— None —</span>}
+          </span>
+          {editable && status === 'idle' && (
+            <Pencil size={11} className="ds-lookup-pencil" style={{ color: 'var(--fg-4, #828e9f)', flexShrink: 0, opacity: 0, transition: 'opacity 120ms ease' }} />
+          )}
+          {status === 'saving' && <Loader2 size={11} className="animate-spin" style={{ color: 'var(--fg-4, #828e9f)', flexShrink: 0 }} />}
+          {status === 'saved' && <Check size={12} style={{ color: 'var(--brand, #22c55e)', flexShrink: 0 }} />}
+          {status === 'error' && errMsg && (
+            <span style={{ font: `450 11px/1.4 ${FONT}`, color: 'var(--danger, #ef4444)' }}>{errMsg}</span>
+          )}
+          <style>{'.ds-lookup-inline:hover .ds-lookup-pencil{opacity:1}'}</style>
+        </span>
+      );
+    }
+    return (
+      <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+        {searchBox}
+        {list}
+      </div>
+    );
+  }
+
   /* ── Row variant, read mode (also where errors surface) ── */
   const row = { display: 'grid', gridTemplateColumns: `${labelWidth}px 1fr`, gap: 8, padding: '8px 0' };
   const labelStyle = { font: `450 13px/1.5 ${FONT}`, color: 'var(--fg-4, #828e9f)' };
@@ -292,7 +381,7 @@ export function EntityLookup({
             {status === 'saving' && <Loader2 size={12} className="animate-spin" style={{ color: 'var(--fg-4, #828e9f)', flexShrink: 0 }} />}
             {status === 'saved' && <Check size={13} style={{ color: 'var(--brand, #22c55e)', flexShrink: 0 }} />}
           </span>
-          {href && value && (
+          {href && value && linkable && (
             <a
               href={href}
               onClick={(e) => e.stopPropagation()}

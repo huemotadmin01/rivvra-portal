@@ -3129,17 +3129,24 @@ The archive dialog also correctly stays open when the write fails, and the
 
 ### Two components deliberately not swapped
 
+> **Superseded in phase 42** — the person picker was migrated. See
+> "Phase 42 — the person picker". Two corrections to what follows:
+> `AssetDetailV2` was listed below as keeping `EmployeeLookup`; it does not,
+> and never did — it uses ds `ComboBox` over a preloaded `limit: 100` list.
+> The grep behind that claim matched a *comment*. And `EntityLookup` now does
+> have the link-gate (`hrefProbe`), which is what unblocked the migration.
+
 **`shared/EmployeeLookup` stays.** ds `EntityLookup` nominally supersedes it,
 but EmployeeLookup carries a `probeSalesperson` check gating whether the
 selection renders as a hyperlink — precisely so a legacy `managerId` with no
 employee record does not link to a 404. `EntityLookup` has no equivalent.
 Decisive point: **every other migrated ATS page keeps EmployeeLookup too**
-(`AtsApplicationDetailV2`, `AtsJobDetailV2`, `AtsApplicationNewV2`, plus
-`AssetDetailV2`). Only the two contacts/CRM V2 pages use `EntityLookup`, and
-those pick contacts, not employees. A manager picker that behaved differently
-here than on the application page is the "two places disagreed" shape
-`PageSwitch` itself was extracted to avoid. Migrating the person picker is its
-own job, for all call sites at once.
+(`AtsApplicationDetailV2`, `AtsJobDetailV2`, `AtsApplicationNewV2`). Only the
+two contacts/CRM V2 pages use `EntityLookup`, and those pick contacts, not
+employees. A manager picker that behaved differently here than on the
+application page is the "two places disagreed" shape `PageSwitch` itself was
+extracted to avoid. Migrating the person picker is its own job, for all call
+sites at once.
 
 **`SkillsPicker` / `StageBadge` / `AiResumeInsights`** are ATS-domain
 components shared with the other ATS pages, not chrome.
@@ -3895,9 +3902,11 @@ only moves when a legacy file is kept alongside its replacement.
 2. **`AnnouncementBanner`** — renders inside `PlatformLayoutV2` today. When it
    migrates, `BannerPreview` in `AdminAnnouncementsPageV2` must move in the same
    commit (phase 36).
-3. **The person picker.** `shared/EmployeeLookup` is still used by five migrated
-   V2 pages because ds `EntityLookup` has no equivalent of its
-   `probeSalesperson` link-gate (phase 33). Worth doing once, for all call sites.
+3. ~~**The person picker.**~~ Done in phase 42. `shared/PersonLookup` now wraps
+   ds `EntityLookup` and all 8 V2-only call sites use it. Two shared modules
+   (`applicationDetailParts.jsx`, `QuickAddClientModal.jsx`) still import
+   `EmployeeLookup` because legacy pages import them too — they move when the
+   last legacy importer does.
 4. **`text-rivvra-400` as body text** — 176 files still use it. The completed
    `--brand-as-text` sweep covered ds surfaces, not the legacy Tailwind tail.
 
@@ -4045,3 +4054,79 @@ schedule / review 55 — **0 failures throughout.**
 ### Not triggered
 
 Sequence create, activate, attachment upload, test-email send.
+
+## Phase 42 — the person picker
+
+Closes the item phase 33 deferred: `shared/EmployeeLookup` was still the picker
+on migrated V2 pages, so ATS ran two different pickers side by side.
+
+### What blocked it, and what unblocked it
+
+`EntityLookup` had no answer to `EmployeeLookup`'s `probeSalesperson` gate: the
+check that asks "is this id actually an employee?" before offering a link, so a
+legacy `managerId` with no employee record renders as plain text instead of a
+link to a 404. That gate is the whole reason the legacy component survived.
+
+It is now `hrefProbe` on ds `EntityLookup` — `(value) => Promise<boolean>`,
+generic over entity type. It starts FALSE and only flips true when the promise
+resolves true, so the failure mode is a **missing** link, never a broken one.
+A rejected probe is treated as false.
+
+`shared/PersonLookup` supplies the two app-specific halves — `listSalespersons`
+for search, `probeSalesperson` for the gate — and takes `EmployeeLookup`'s
+prop names, so call sites changed only their tag.
+
+### The behaviour change this forced, which is the point of the phase
+
+`EntityLookup` is **pessimistic**: `onSelect` must reject for a failed save to
+show as failed. `EmployeeLookup` was fire-and-forget — the three ATS detail
+pages caught the error, toasted, and returned undefined. Wiring that unchanged
+would have made a failed save resolve, and the row would have repainted with a
+person who was never assigned.
+
+So `savePerson` in `AtsCandidateDetailV2`, `AtsApplicationDetailV2` and
+`AtsJobDetailV2` now re-throws. The toast stays (same signal users know) and
+the thrown message is the **same string** the toast shows, so the inline error
+does not read differently from the toast beside it.
+
+Verified against a forced 500: the row kept the OLD approver, showed "Request
+failed" inline, and the PUT body carried the correct `{id, name}` pair. Under
+the old contract that same failure would have displayed the new name.
+
+### Two additions the call sites forced
+
+- **`variant='inline'`** — the value alone, no label column, no link. Legacy
+  had this variant; ds had `row` and `button` only. `AtsApplicationNewV2`
+  needs it: its picker sits inside a field box the page already labelled and
+  styled, where the row variant's 140px label gutter would misalign it.
+- **`confirmsSave`** (default true) — create forms pass `false`. On a **New
+  Job** / **New Application** page nothing is persisted on select, so the
+  1500ms green "saved" tick would claim a write that has not happened. Errors
+  and the saving spinner still show. This is a false affordance legacy did not
+  have, and it would have shipped silently.
+
+`ComboBox` was considered for the create forms and rejected: ds's own guidance
+splits the picker family by data source, and these search asynchronously.
+`AssetDetailV2` does pick people with `ComboBox`, but only by preloading
+`limit: 100` — which is the recorded truncation defect, not a precedent.
+
+### What did NOT move
+
+`applicationDetailParts.jsx` and `QuickAddClientModal.jsx` keep
+`EmployeeLookup`: each is imported by a legacy page **and** a V2 page, so
+swapping either would drag the new picker into a legacy surface. They move when
+their last legacy importer does.
+
+### Verified (staging, all writes blocked — nothing written, nothing to clean up)
+
+- 3 pickers on `AtsJobDetailV2`, 1 on `AtsCandidateDetailV2`, 2 on
+  `AtsApplicationDetailV2` (one `editable={false}`), 1 each on the two create
+  forms — 8 total, names matching their records exactly.
+- Probe gate both ways: live probe → "Open →" with the right `?from=` context;
+  probe stubbed empty → link gone, name still shown.
+- Pessimistic failure on two separate rows: value unchanged, inline error and
+  toast agreeing.
+- `confirmsSave={false}`: pencil only, no tick, on both the inline and row
+  create-form pickers.
+- Inline variant contrast on its caller-supplied surface, fresh load per theme
+  (never after a toggle — catalogue #9/#11): 15.40 dark, 15.93 light.

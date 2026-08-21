@@ -18,7 +18,7 @@ import RateConfirmationModal from '../../components/ats/RateConfirmationModal';
 import RefuseModal from '../../components/ats/RefuseModal';
 import DocumentPreviewModal from '../../components/shared/DocumentPreviewModal';
 import { withFromContext } from '../../utils/entityDescribe';
-import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import PersonLookup from '../../components/shared/PersonLookup';
 import ReasonPromptDialog from '../../components/shared/ReasonPromptDialog';
 import { InlineField, Panel, RecordMeta, StageBar as DsStageBar } from '../../components/ds';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -402,7 +402,15 @@ export default function AtsApplicationDetail() {
         setApplication((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
       }
     } catch (err) {
-      showToast(err?.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
+      const msg = err?.message || `Failed to update ${nameField.replace('Name', '')}`;
+      showToast(msg, 'error');
+      // Re-throw. ds `EntityLookup` is PESSIMISTIC — it treats a resolved
+      // `onSelect` as "saved" and repaints the row with the new name. Legacy
+      // `EmployeeLookup` was fire-and-forget, so a failed save toasted while
+      // the row still showed the person who was never actually assigned.
+      // Throwing keeps the displayed value truthful; the message is the same
+      // one the toast shows so the inline error does not read differently.
+      throw new Error(msg);
     }
   };
 
@@ -1549,7 +1557,7 @@ export default function AtsApplicationDetail() {
               )}
             </div>
             <InlineField label="Department" field="jobDepartment" value={application.jobDepartment} editable={false} />
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={orgSlug}
               label="Recruiter"
               currentValue={application.recruiterId}
@@ -1577,7 +1585,7 @@ export default function AtsApplicationDetail() {
             )}
             {/* Account Owner — read-only mirror of the linked Job Position.
                 Edit it on the Job page and it propagates to every app. */}
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={orgSlug}
               label="Account Owner"
               currentValue={application.accountOwnerId}
