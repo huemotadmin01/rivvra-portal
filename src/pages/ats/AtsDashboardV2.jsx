@@ -376,6 +376,118 @@ function SubmissionsTable({ title, subtitle, rows, orgSlug, groupBy = 'team', em
  * window. Surfaces bottlenecks: e.g. "L2 Interview avg 8.7d" tells you
  * which stage is silently eating cycle time. Uses a horizontal bar
  * normalised against the worst-offender stage. */
+/* ── Job Aging / Delivery SLA ─────────────────────────────────────────────
+ * Ported from the legacy dashboard 2026-08-22 (added on `main` 2026-08-20,
+ * growth-plan P0 #2). Rows arrive pre-sorted oldest-first and the red/amber/
+ * green flags are computed SERVER-side against the org's reportingThresholds,
+ * so this card never duplicates the defaults — the `?? 30` / `?? 7` below are
+ * label fallbacks only, never inputs to a decision.
+ *
+ * Spliced verbatim: the destructure defaults, `breaching`, the 8-row cut, and
+ * the `ageDays` + asterisk pair. The asterisk is load-bearing — it marks a job
+ * aged from CREATION because it has no approval timestamp, so the number is
+ * not comparable to the others, and its tooltip says which. Presentation is
+ * ds; the table keeps its own overflow-x so columns cannot be silently lost
+ * (house mobile rule). */
+function JobAgingCard({ jobAging, orgPath }) {
+  const { jobs = [], timeToFill = {}, thresholds = {} } = jobAging || {};
+  const [showAll, setShowAll] = useState(false);
+  const breaching = jobs.filter((j) => j.flag === 'red').length;
+  const visible = showAll ? jobs : jobs.slice(0, 8);
+  const FLAG_TONE = { red: 'danger', amber: 'warn', green: 'brand' };
+
+  const th = { padding: '8px 12px 8px 0', font: "500 11px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', textAlign: 'left', whiteSpace: 'nowrap' };
+  const thR = { ...th, textAlign: 'right' };
+  const td = { padding: '8px 12px 8px 0', font: "450 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' };
+  const tdR = { ...td, textAlign: 'right' };
+  const trunc = { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+  return (
+    <Panel
+      title="Job Aging & Delivery SLA"
+      sub={`Open approved jobs by days open — target ${thresholds.targetDays ?? 30}d, submittal window ${thresholds.noSubmittalDays ?? 7}d`}
+      actions={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0 }}>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ font: "700 19px/1.2 'Inter', system-ui, sans-serif", color: breaching > 0 ? 'var(--danger)' : 'var(--fg-4)' }}>{breaching}</p>
+            <p style={{ font: "450 10px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>breaching SLA</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ font: "700 19px/1.2 'Inter', system-ui, sans-serif", color: 'var(--fg-2)' }}>
+              {timeToFill.medianDays != null ? `${timeToFill.medianDays}d` : '—'}
+            </p>
+            <p style={{ font: "450 10px/1.3 'Inter', system-ui, sans-serif", color: 'var(--fg-4)' }}>
+              median time-to-fill{timeToFill.count ? ` (n=${timeToFill.count})` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+    >
+      {jobs.length === 0 ? (
+        <EmptyState compact>No open approved jobs</EmptyState>
+      ) : (
+        <>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                  <th style={th}>Job</th>
+                  <th style={th}>Client</th>
+                  <th style={th}>Recruiter</th>
+                  <th style={thR}>Days open</th>
+                  <th style={thR}>Submittals</th>
+                  <th style={thR}>Last {thresholds.noSubmittalDays ?? 7}d</th>
+                  <th style={thR}>In pipeline</th>
+                  <th style={{ ...thR, paddingRight: 0 }}>Hired</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((j) => (
+                  <tr key={j._id} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td style={{ ...td, maxWidth: 180 }}>
+                      <Link to={`${orgPath}/ats/jobs/${j._id}`} title={j.name} style={{ ...trunc, color: 'var(--fg-2)' }}>
+                        {j.name}
+                      </Link>
+                    </td>
+                    <td style={{ ...td, maxWidth: 120, color: 'var(--fg-3)' }} title={j.clientName || ''}><span style={trunc}>{j.clientName || '—'}</span></td>
+                    <td style={{ ...td, maxWidth: 110, color: 'var(--fg-3)' }} title={j.recruiterName || ''}><span style={trunc}>{j.recruiterName || '—'}</span></td>
+                    <td style={tdR}>
+                      <Chip
+                        tone={FLAG_TONE[j.flag] || FLAG_TONE.green}
+                        title={j.agingFromApproval ? 'Since approval' : 'Since creation (no approval timestamp)'}
+                      >
+                        {j.ageDays}d{!j.agingFromApproval && '*'}
+                      </Chip>
+                    </td>
+                    <td style={tdR}>{j.submittals}</td>
+                    <td style={{ ...tdR, color: j.noRecentSubmittal ? 'var(--warn-ink)' : 'var(--fg-2)', fontWeight: 500 }}>
+                      {j.recentSubmittals}
+                    </td>
+                    <td style={tdR}>{j.activePipeline}</td>
+                    <td style={{ ...tdR, paddingRight: 0 }}>{j.hiredCount}/{j.expectedHires}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {jobs.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, marginTop: 12, marginLeft: 'auto',
+                background: 'none', font: "450 12px/1.4 'Inter', system-ui, sans-serif", color: 'var(--brand-ink)',
+              }}
+            >
+              {showAll ? 'Show fewer' : `Show all ${jobs.length}`} <ArrowRight size={12} />
+            </button>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function TimeInStageCard({ data }) {
   const ordered = useMemo(() => {
     return [...data]
@@ -940,6 +1052,8 @@ export default function AtsDashboardV2() {
     todaySubmissions = [],
     openJobsList = [],
     lastWorkingDaySubmissions = [],
+    // 2026-08-20: job-aging SLA card.
+    jobAging = { jobs: [], timeToFill: { medianDays: null, count: 0 }, thresholds: {} },
   } = data;
 
   // 2026-05-19: deep-link scope suffix. Dashboard data is scoped by
@@ -1211,6 +1325,9 @@ export default function AtsDashboardV2() {
 
       {/* ── Time-in-Stage heatmap (full width on small screens) ─────────── */}
       <TimeInStageCard data={timeInStage} />
+
+      {/* ── Job Aging / Delivery SLA (2026-08-20) ─────────────────────── */}
+      <JobAgingCard jobAging={jobAging} orgPath={orgPath} />
 
       {/* ── Submissions tables: Today + Last Working Day ──────────────────
           Two-column on lg+, stacked below. Each table groups rows by
