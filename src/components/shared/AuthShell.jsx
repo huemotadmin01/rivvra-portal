@@ -62,6 +62,9 @@ const MESH = `
  *                the workspace's own name there instead of Rivvra's).
  *  - children  : the card body.
  *  - footer    : links under the card.
+ *  - tone      : icon-tile colour — 'brand' (default) | 'danger' | 'warn'.
+ *                Legacy varied this per state (a red tile for an expired
+ *                link, green for success), so it is a prop rather than fixed.
  *  - gradient  : draw the mesh + grid backdrop. Default true.
  *  - width     : card max-width in px. Default 448 (legacy `max-w-md`).
  *  - card      : set false to render children bare, for pages whose content is
@@ -69,6 +72,7 @@ const MESH = `
  */
 export default function AuthShell({
   icon,
+  tone = 'brand',
   title,
   sub,
   brand,
@@ -114,9 +118,9 @@ export default function AuthShell({
                 width: 60, height: 60, marginBottom: 14,
                 borderRadius: 'var(--r-3, 15px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'var(--brand-soft, rgba(34,197,94,.14))',
-                boxShadow: 'inset 0 0 0 1px var(--brand-line, rgba(34,197,94,.3))',
-                color: 'var(--brand-ink, #4ade80)',
+                background: `var(--${tone}-soft)`,
+                boxShadow: `inset 0 0 0 1px var(--${tone}-line, var(--${tone}-soft))`,
+                color: `var(--${tone}-ink, var(--${tone}))`,
               }}>
                 {icon}
               </div>
