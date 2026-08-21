@@ -94,6 +94,9 @@ export default function StatutoryConfigPageV2({ embedded = false }) {
   const { showToast } = useToast();
   const [data, setData] = useState([]);
   const [ptStates, setPtStates] = useState([]);
+  // { orgPtState, companyState } — the fallbacks the payroll calculator uses,
+  // so this screen can show the effective setting rather than a local guess.
+  const [defaults, setDefaults] = useState({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
@@ -113,6 +116,7 @@ export default function StatutoryConfigPageV2({ embedded = false }) {
       ]);
       setData(res.data || []);
       setPtStates(stRes.states || []);
+      setDefaults(res.defaults || {});
     } catch (err) { showToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
@@ -120,19 +124,43 @@ export default function StatutoryConfigPageV2({ embedded = false }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [orgSlug, currentCompany?._id]);
 
+  // The PT slab the payroll calculator would use when the employee has none
+  // saved: the active company's own state, else the org-wide default. Matched
+  // by state NAME — address.countryCode holds a state code on these records,
+  // so it is not safe to read as a code.
+  const companyPtState = () => {
+    const name = defaults.companyState || currentCompany?.address?.state;
+    if (!name) return '';
+    const hit = ptStates.find(s => s.name.toLowerCase() === String(name).toLowerCase());
+    return hit?.code || '';
+  };
+
   const openEdit = (item) => {
     const s = item.statutory || {};
+    // PF settings live in two records. Mirror the calculator's precedence so
+    // the screen shows what payroll will ACTUALLY apply — reading only the
+    // statutory doc showed a ticked cap for an employee whose salary record
+    // said false, so the setting looked right and never got corrected.
+    const sal = item.salary || {};
     setForm({
-      pfEnabled: s.pfEnabled ?? true,
-      pfCappedAt15K: s.pfCappedAt15K ?? true,
-      esiEnabled: s.esiEnabled || false,
+      pfEnabled: s.pfEnabled !== false && sal.pfApplicable !== false,
+      pfCappedAt15K: s.pfCappedAt15K ?? sal.pfCappedAt15K ?? true,
+      // `?? true` mirrors the calculator's `esiEnabled !== false`: an absent
+      // flag means enabled, and the ₹21,000 wage ceiling decides eligibility at
+      // run time. `|| false` showed unticked for an employee the run would
+      // treat as ESI-enabled.
+      esiEnabled: s.esiEnabled ?? true,
       // Deliberately NOT the platform's `?? true` policy default. This raises
       // the ESI wage ceiling from ₹21,000 to ₹25,000, and defaulting it on
       // would start deducting ESI from employees earning ₹21K–₹25K who are not
       // entitled to the higher ceiling. Absent value must mean off.
       esiDisabilityCeiling: s.esiDisabilityCeiling === true,
       ptEnabled: s.ptEnabled ?? true,
-      ptState: s.ptState || 'MH',
+      // Was hardcoded 'MH', which matched neither the calculator (which falls
+      // back to the org default) nor the company the employee is hired under.
+      // On an MP-based company it pre-selected Maharashtra, ready to save the
+      // wrong slab for anyone who opened the modal and hit Save.
+      ptState: s.ptState || companyPtState() || defaults.orgPtState || '',
       taxRegime: s.taxRegime || 'new',
       stopSalaryProcessing: s.stopSalaryProcessing || false,
     });
