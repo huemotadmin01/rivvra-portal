@@ -30,12 +30,6 @@
       "text": "03",
       "selector": "text-rivvra-400/30",
       "reason": "Same decorative step numeral as 01."
-    },
-    {
-      "route": "/org/:slug/home",
-      "text": "Open Outreach",
-      "selector": "rounded-full",
-      "reason": "REAL DEFECT, not an accepted design. AppBentoCard's CTA pill uses colors.iconColor (var(--acc-rivvra)) as TEXT on its own rgba(...,0.15) tint. In light theme --acc-rivvra is #15803D, which measures 4.4:1 against the 4.5 floor. Found by this gate on 2026-08-21, the first run that covered authenticated routes. Fix is a palette change, not a page change: ds-tokens has the -ink convention for exactly this (text-on-tint) but only --acc-purple-ink exists, which is evidence this was hit once and fixed narrowly. The other twelve accents need auditing the same way. Parked rather than started because it touches brand colour."
     }
   ]
 }

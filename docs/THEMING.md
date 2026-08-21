@@ -460,3 +460,51 @@ utility. Reset with the framework's own preflight, or scope resets to a class
 the utilities can beat. And when you fix a foreground, check the background
 it sits on is still being painted — a "fix" that makes text white is only
 correct if the fill survived.
+
+## Accent ink — the accent used as text (2026-08-22)
+
+`--acc-*` is one colour doing two jobs: a **fill** (icon marks, tinted panels,
+glows) and **text**. Those have different contrast floors, and the palette was
+tuned for the fill.
+
+Measured against three backdrops — the accent's own 15% tint (the
+`AppBentoCard` pill), `--surface-1`, and `--surface-2` — taking the worst:
+
+| theme | result |
+|---|---|
+| dark | **13 of 13 pass** (4.64 – 8.12). No change needed. |
+| light | **11 of 13 FAIL** (3.37 – 4.56 against a 4.5 floor). Only `indigo` and `slate` passed. |
+
+The accents were chosen for dark and reused in light without re-checking. The
+tell was already in the file: `--acc-purple-ink` existed alone, which is this
+same bug found once and fixed for one accent.
+
+### The fix
+
+`--acc-<name>-ink` now exists for all 13 in both themes.
+
+- **In dark it equals the accent** — they already passed. The pair exists so a
+  caller can always write `-ink` for text without knowing the theme.
+- **In light it is the accent darkened along the same hue** (channels scaled
+  toward black) to the first value clearing **~4.62** — headroom, so a future
+  surface tweak does not silently drop it under 4.5.
+- **The accents themselves are unchanged.** Fills, icon marks and glows keep
+  the colour they always had; only text moves.
+- `--acc-purple-ink` keeps its existing `#6B21A8` rather than being recomputed.
+  It already cleared, and churning a shipped decision buys nothing.
+
+### The rule
+
+**Use `--acc-<name>-ink` whenever an accent is the `color` of text. Use
+`--acc-<name>` for everything else.** Icons are not text — the 3.0 non-text
+floor applies there, and the plain accent clears it.
+
+Verified by computation (all 26 tokens re-measured from the file after editing)
+and by the contrast gate, which is what found the original defect:
+`AppBentoCard`'s CTA pill at 4.4:1 in light. It now passes with **nothing
+allow-listed** — the parked entry was deleted rather than left to rot.
+
+⚠️ One combination is still below AA and simply is not currently used as text:
+`--acc-fuchsia` (4.25) and `--acc-rose` (4.24) on `--surface-2` in light. The
+gate covers 16 routes and none of them render those as text today. If you ever
+do, use the ink token.

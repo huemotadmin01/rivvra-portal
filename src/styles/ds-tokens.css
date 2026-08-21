@@ -113,6 +113,25 @@
   --acc-sky: #38BDF8;
   --acc-rose: #FB7185;
 
+  /* Accent INK — the accent used as TEXT.
+     Measured 2026-08-22 against three backdrops: the accent's own 15% tint
+     (the AppBentoCard pill), surface-1 and surface-2, taking the worst. In
+     DARK every accent already cleared 4.5, so ink == accent here and the pair
+     exists only so callers can always say `-ink` for text without knowing
+     which theme they are in. */
+  --acc-rivvra-ink:  #4ADE80;
+  --acc-blue-ink:    #60A5FA;
+  --acc-orange-ink:  #FB923C;
+  --acc-cyan-ink:    #22D3EE;
+  --acc-amber-ink:   #FBBF24;
+  --acc-emerald-ink: #34D399;
+  --acc-indigo-ink:  #818CF8;
+  --acc-teal-ink:    #2DD4BF;
+  --acc-fuchsia-ink: #E879F9;
+  --acc-slate-ink:   #CBD5E1;
+  --acc-sky-ink:     #38BDF8;
+  --acc-rose-ink:    #FB7185;
+
   /* Elevation */
   --sh-1: 0 1px 2px rgba(0,0,0,.36);
   --sh-2: 0 4px 14px -4px rgba(0,0,0,.5);
@@ -200,6 +219,30 @@
   --acc-slate: #475569;
   --acc-sky: #0369A1;
   --acc-rose: #E11D48;
+
+  /* Accent INK — see the dark block. In LIGHT, 11 of 13 accents FAILED as
+     text on their own 15% tint (3.37-4.56 against a 4.5 floor): they were
+     chosen for dark and reused here without re-checking. Only indigo and
+     slate passed. `--acc-purple-ink` already existed, which is how this class
+     of bug was found once before and fixed for one accent only.
+
+     These are darkened along the same hue (channels scaled toward black) to
+     the first value clearing ~4.62 — a little headroom so a future surface
+     tweak does not silently drop them under. The accents themselves are
+     UNCHANGED: they are still used for fills, icon marks and glows, where
+     they were never the problem. */
+  --acc-rivvra-ink:  #126D34;
+  --acc-blue-ink:    #2056CC;
+  --acc-orange-ink:  #A9390A;
+  --acc-cyan-ink:    #0C6780;
+  --acc-amber-ink:   #994708;
+  --acc-emerald-ink: #046C4E;
+  --acc-indigo-ink:  #4E45E3;
+  --acc-teal-ink:    #0E6A63;
+  --acc-fuchsia-ink: #9C1FAB;
+  --acc-slate-ink:   #475569;
+  --acc-sky-ink:     #036499;
+  --acc-rose-ink:    #B6173A;
 
   --sh-1: 0 1px 2px rgba(28,25,20,.06);
   --sh-2: 0 4px 12px -3px rgba(28,25,20,.09);

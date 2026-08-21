@@ -13,19 +13,19 @@ import BrandMark, { hasBrandMark } from './BrandMarks';
 // every color the registry assigns. Hover glow / border / icon tint now
 // reflect each app's brand colour.
 const colorConfig = {
-  rivvra:  { rgb: '34, 197, 94',   iconColor: 'var(--acc-rivvra)', glow: 'rgba(34, 197, 94, 0.18)' },
-  blue:    { rgb: '59, 130, 246',  iconColor: 'var(--acc-blue)', glow: 'rgba(59, 130, 246, 0.18)' },
-  purple:  { rgb: '168, 85, 247',  iconColor: 'var(--acc-purple)', glow: 'rgba(168, 85, 247, 0.18)' },
-  orange:  { rgb: '249, 115, 22',  iconColor: 'var(--acc-orange)', glow: 'rgba(249, 115, 22, 0.18)' },
-  cyan:    { rgb: '6, 182, 212',   iconColor: 'var(--acc-cyan)', glow: 'rgba(6, 182, 212, 0.18)' },
-  amber:   { rgb: '245, 158, 11',  iconColor: 'var(--acc-amber)', glow: 'rgba(245, 158, 11, 0.18)' },
-  emerald: { rgb: '16, 185, 129',  iconColor: 'var(--acc-emerald)', glow: 'rgba(16, 185, 129, 0.18)' },
-  indigo:  { rgb: '99, 102, 241',  iconColor: 'var(--acc-indigo)', glow: 'rgba(99, 102, 241, 0.18)' },
-  teal:    { rgb: '20, 184, 166',  iconColor: 'var(--acc-teal)', glow: 'rgba(20, 184, 166, 0.18)' },
-  fuchsia: { rgb: '217, 70, 239',  iconColor: 'var(--acc-fuchsia)', glow: 'rgba(217, 70, 239, 0.18)' },
-  slate:   { rgb: '148, 163, 184', iconColor: 'var(--acc-slate)', glow: 'rgba(148, 163, 184, 0.18)' },
-  sky:     { rgb: '14, 165, 233',  iconColor: 'var(--acc-sky)', glow: 'rgba(14, 165, 233, 0.18)' },
-  rose:    { rgb: '244, 63, 94',   iconColor: 'var(--acc-rose)', glow: 'rgba(244, 63, 94, 0.18)' },
+  rivvra:  { rgb: '34, 197, 94',   iconColor: 'var(--acc-rivvra)', glow: 'rgba(34, 197, 94, 0.18)' , inkColor: 'var(--acc-rivvra-ink)' },
+  blue:    { rgb: '59, 130, 246',  iconColor: 'var(--acc-blue)', glow: 'rgba(59, 130, 246, 0.18)' , inkColor: 'var(--acc-blue-ink)' },
+  purple:  { rgb: '168, 85, 247',  iconColor: 'var(--acc-purple)', glow: 'rgba(168, 85, 247, 0.18)' , inkColor: 'var(--acc-purple-ink)' },
+  orange:  { rgb: '249, 115, 22',  iconColor: 'var(--acc-orange)', glow: 'rgba(249, 115, 22, 0.18)' , inkColor: 'var(--acc-orange-ink)' },
+  cyan:    { rgb: '6, 182, 212',   iconColor: 'var(--acc-cyan)', glow: 'rgba(6, 182, 212, 0.18)' , inkColor: 'var(--acc-cyan-ink)' },
+  amber:   { rgb: '245, 158, 11',  iconColor: 'var(--acc-amber)', glow: 'rgba(245, 158, 11, 0.18)' , inkColor: 'var(--acc-amber-ink)' },
+  emerald: { rgb: '16, 185, 129',  iconColor: 'var(--acc-emerald)', glow: 'rgba(16, 185, 129, 0.18)' , inkColor: 'var(--acc-emerald-ink)' },
+  indigo:  { rgb: '99, 102, 241',  iconColor: 'var(--acc-indigo)', glow: 'rgba(99, 102, 241, 0.18)' , inkColor: 'var(--acc-indigo-ink)' },
+  teal:    { rgb: '20, 184, 166',  iconColor: 'var(--acc-teal)', glow: 'rgba(20, 184, 166, 0.18)' , inkColor: 'var(--acc-teal-ink)' },
+  fuchsia: { rgb: '217, 70, 239',  iconColor: 'var(--acc-fuchsia)', glow: 'rgba(217, 70, 239, 0.18)' , inkColor: 'var(--acc-fuchsia-ink)' },
+  slate:   { rgb: '148, 163, 184', iconColor: 'var(--acc-slate)', glow: 'rgba(148, 163, 184, 0.18)' , inkColor: 'var(--acc-slate-ink)' },
+  sky:     { rgb: '14, 165, 233',  iconColor: 'var(--acc-sky)', glow: 'rgba(14, 165, 233, 0.18)' , inkColor: 'var(--acc-sky-ink)' },
+  rose:    { rgb: '244, 63, 94',   iconColor: 'var(--acc-rose)', glow: 'rgba(244, 63, 94, 0.18)' , inkColor: 'var(--acc-rose-ink)' },
 };
 
 function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 'tile', accent }) {
@@ -77,7 +77,7 @@ function AppBentoCard({ app, index = 0, locked = false, badge = null, variant = 
           <h3 className="text-3xl font-bold text-white mb-2 tracking-tight">{app.name}</h3>
           <p className="text-dark-400 text-sm leading-relaxed mb-6 max-w-[80%]">{app.description}</p>
           {isActive && (
-            <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300" style={{ backgroundColor: hovered ? colors.iconColor : `rgba(${colors.rgb}, 0.15)`, color: hovered ? 'var(--brand-fg, #0a0f0d)' : colors.iconColor }}>
+            <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300" style={{ backgroundColor: hovered ? colors.iconColor : `rgba(${colors.rgb}, 0.15)`, color: hovered ? 'var(--brand-fg, #0a0f0d)' : colors.inkColor }}>
               Open {app.name}<ArrowRight className="w-4 h-4" />
             </span>
           )}
