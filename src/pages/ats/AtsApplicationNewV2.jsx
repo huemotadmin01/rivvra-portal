@@ -742,7 +742,7 @@ export default function AtsApplicationNewV2() {
     <>
       {/* Top breadcrumb bar */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
+        position: 'sticky', top: 'var(--staging-offset, 0px)', zIndex: 10,
         borderBottom: '1px solid var(--line-2)', background: 'var(--surface-1)',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 7 }}>
