@@ -687,7 +687,11 @@ function LandingPage() {
             ].map((item, i) => (
               <Reveal key={item.step} delay={i * 0.1}>
                 <div className="relative h-full rounded-2xl border border-white/[0.06] bg-white/[0.02] p-7">
-                  <span className="font-serif-accent italic text-[40px] text-rivvra-400/30 leading-none">{item.step}</span>
+                  {/* /50 not /30: at 30% these measured 2.03:1 against the card, under the
+                      3.0 floor large text needs. /45 clears at exactly 3.02 — no margin —
+                      so /50 (3.42) is used, the same headroom rule as the accent inks.
+                      Still plainly a faint decorative numeral. */}
+                  <span className="font-serif-accent italic text-[40px] text-rivvra-400/50 leading-none">{item.step}</span>
                   <h3 className="font-marketing text-lg font-semibold text-white mt-3">{item.title}</h3>
                   <p className="text-dark-500 text-sm leading-relaxed mt-2">{item.desc}</p>
                 </div>
