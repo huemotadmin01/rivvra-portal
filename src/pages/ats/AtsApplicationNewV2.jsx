@@ -14,7 +14,9 @@ import {
   Mail, Phone as PhoneIcon, Linkedin, Building2, GitBranch, Users,
   FileText, Check, Award, X, Upload, FileCheck2,
 } from 'lucide-react';
-import { Panel, Chip, Button, Input, Callout, PageSpinner } from '../../components/ds';
+import {
+  Panel, Chip, Button, Input, Callout, PageSpinner, useUnsavedGuard,
+} from '../../components/ds';
 
 /**
  * AtsApplicationNewV2 — routed create flow for new applications under a
@@ -388,26 +390,16 @@ export default function AtsApplicationNewV2() {
     || (Array.isArray(pickedSkills) && pickedSkills.length > 0)
     || !!resumeFile
   );
-  useEffect(() => {
-    if (!isDirty || saving) return undefined;
-    const handler = (e) => {
-      e.preventDefault();
-      // Modern browsers ignore the custom string; the side-effect of
-      // setting returnValue is what triggers the native prompt.
-      e.returnValue = '';
-      return '';
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty, saving]);
-
-  // 2026-05-17 health-check E.2 reverted (2026-05-17): useBlocker
-  // requires React Router's Data Router API (createBrowserRouter); this
-  // app uses the legacy <BrowserRouter> declarative API, so useBlocker
-  // throws "useBlocker must be used within a data router" the moment
-  // the form re-renders. Beforeunload (above) still catches tab close /
-  // hard refresh / external nav. Full SPA-nav block needs a migration
-  // to the data router — out of scope for this fix.
+  // ds `useUnsavedGuard` replaces the hand-rolled beforeunload that used to
+  // live here, and adds in-app link interception on top of it. `enabled` goes
+  // false while saving so the form's own post-submit navigation is not
+  // challenged by the guard it just satisfied.
+  //
+  // The 2026-05-17 note that stood here still holds and now lives in the hook:
+  // useBlocker needs the data-router API and this app mounts <BrowserRouter>,
+  // so a full SPA-nav block remains out of scope. The browser BACK button is
+  // still unguarded — see the hook for why faking it is worse.
+  useUnsavedGuard(isDirty, { enabled: !saving });
 
   const pickExistingCandidate = (cand) => {
     setForm((p) => ({
