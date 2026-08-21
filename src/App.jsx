@@ -27,7 +27,9 @@ import { Loader2 } from 'lucide-react';
 // Public pages (always loaded)
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
-import InviteAcceptPage from './pages/InviteAcceptPage';
+// /invite and /org/:slug/invite are outside OrgProvider, so PageSwitch
+// (useOrg throws there) cannot gate them. Ships directly; legacy unreferenced.
+import InviteAcceptPage from './pages/InviteAcceptPageV2';
 // Universal (Salesforce-style) login at /login — resolves org from email,
 // then routes to /org/:slug/home. Branded /org/:slug/login still available.
 import UniversalLoginPage from './pages/UniversalLoginPage';
