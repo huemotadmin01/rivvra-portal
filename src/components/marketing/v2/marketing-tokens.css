@@ -1,0 +1,96 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Marketing surface → ds tokens.
+
+   The public marketing pages are painted with the fixed Tailwind scale
+   (`dark-*`, `text-white`) plus a white-alpha overlay vocabulary
+   (`bg-white/[0.06]`, `border-white/[0.06]`) that the app's own
+   `legacy-bridge.css` does NOT cover — it bridges `dark-*` and `rivvra-*`
+   only, and only under `.ds-shell`, which these routes are not inside.
+
+   Rather than hand-edit ~1,900 lines of art-directed markup, the colour
+   vocabulary is remapped here, scoped to `.marketing-shell`. Layout classes
+   (max-w-*, grid, md:*) are deliberately untouched — they carry no colour and
+   inline styles cannot express breakpoints.
+
+   MEASURED, not assumed: these routes never receive `data-theme` (only
+   `ThemeToggle` sets it, and it does not mount on a public route), so today
+   every token below resolves to its `:root` dark value and the pages render
+   exactly as before. This is a source-consistency and theme-readiness change,
+   NOT a visual one.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── The marketing surface is PINNED DARK, deliberately ─────────────────────
+   Measured before pinning: with the colour map in place and `data-theme` forced
+   to light, 23 text nodes dropped below AA — not because the map was wrong, but
+   because it is PARTIAL. Text flipped to light-theme ink while the section
+   backgrounds, gradient blobs and the gradient from/to fills did not, leaving dark ink
+   on dark panels.
+
+   A half-flipped surface is worse than an unflipped one: it makes the pages
+   LOOK theme-ready while being unreadable. Completing the map means chasing
+   every gradient across ~1,900 lines of art direction, and even then a
+   marketing site usually wants ONE look — which is exactly why the careers
+   pages were deliberately excluded from theming.
+
+   So the tokens below are re-pinned to their dark values on the shell itself.
+   The pages now render identically under any `data-theme`, and the mapping
+   above still buys what it was for: one colour vocabulary in the source
+   instead of fixed Tailwind hexes.
+
+   These duplicate the `:root` dark values in ds-tokens.css on purpose. If
+   those change, change these too — that is the cost of pinning, and it is
+   cheaper than a half-themed marketing site. */
+.marketing-shell {
+  --bg:         #080B10;
+  --surface-1:  #0E131A;
+  --surface-2:  #141B24;
+  --surface-3:  #1C242F;
+  --fg:         #EEF2F6;
+  --fg-2:       #BAC4D0;
+  --fg-3:       #98A4B2;
+  --fg-4:       #828E9F;
+  --line:       rgba(255, 255, 255, 0.07);
+  --line-2:     rgba(255, 255, 255, 0.11);
+  --brand:      #22C55E;
+  --brand-ink:  #22C55E;
+  --brand-fg:   #041209;
+}
+
+.marketing-shell { background: var(--bg); color: var(--fg); }
+
+/* Text */
+.marketing-shell .text-white { color: var(--fg); }
+.marketing-shell .text-dark-200 { color: var(--fg-2); }
+.marketing-shell .text-dark-300 { color: var(--fg-2); }
+.marketing-shell .text-dark-400 { color: var(--fg-3); }
+.marketing-shell .text-dark-500 { color: var(--fg-4); }
+.marketing-shell .text-dark-600 { color: var(--fg-4); }
+.marketing-shell .text-rivvra-300,
+.marketing-shell .text-rivvra-400 { color: var(--brand-ink); }
+
+/* Hover text — the marketing nav and footer lean on these heavily */
+.marketing-shell .hover\:text-white:hover { color: var(--fg); }
+.marketing-shell .hover\:text-rivvra-300:hover { color: var(--brand-ink); }
+
+/* Surfaces: the white-alpha overlay family */
+.marketing-shell [class*="bg-white\/"] { background-color: var(--surface-2); }
+.marketing-shell .hover\:bg-white\/\[0\.04\]:hover,
+.marketing-shell .hover\:bg-white\/\[0\.06\]:hover { background-color: var(--surface-3, var(--surface-2)); }
+
+/* Lines: both border families. PrivacyPage predates the white-alpha
+   convention and still uses `border-dark-800/50`, so both are mapped. */
+.marketing-shell [class*="border-white\/"] { border-color: var(--line); }
+.marketing-shell [class*="border-dark-7"],
+.marketing-shell [class*="border-dark-8"] { border-color: var(--line); }
+
+/* Page + panel backgrounds */
+.marketing-shell .bg-dark-950 { background-color: var(--bg); }
+.marketing-shell .bg-dark-900 { background-color: var(--surface-1); }
+.marketing-shell .bg-dark-800 { background-color: var(--surface-2); }
+
+/* Brand CTA. `text-dark-950` here is the INK ON the green button, not a
+   background — it must follow the button, not the page. */
+.marketing-shell .bg-rivvra-500 { background-color: var(--brand); }
+.marketing-shell .hover\:bg-rivvra-400:hover { background-color: var(--brand); filter: brightness(1.08); }
+.marketing-shell .bg-rivvra-500.text-dark-950,
+.marketing-shell .bg-rivvra-500 .text-dark-950 { color: var(--brand-fg, #041209); }

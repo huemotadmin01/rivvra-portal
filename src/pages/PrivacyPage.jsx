@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import RivvraLogo from '../components/RivvraLogo';
+import '../components/marketing/v2/marketing-tokens.css';
 
 function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-dark-950 relative">
+    <div className="marketing-shell min-h-screen bg-dark-950 relative">
       {/* Nav */}
       <nav className="relative z-10 border-b border-dark-800/50 bg-dark-950/80 backdrop-blur-md sticky top-0">
         <div className="max-w-7xl mx-auto px-6 py-4">
