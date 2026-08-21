@@ -36,7 +36,10 @@ import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
 import PricingPage from './pages/PricingPage';
-import FindWorkspacePage from './pages/FindWorkspacePage';
+// /find-workspace is outside OrgProvider, so PageSwitch (which calls useOrg,
+// and useOrg throws outside the provider) cannot gate it. Ships directly;
+// legacy ./pages/FindWorkspacePage is kept unreferenced for a one-line revert.
+import FindWorkspacePage from './pages/FindWorkspacePageV2';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import AppLauncherPage from './pages/AppLauncherPage';
