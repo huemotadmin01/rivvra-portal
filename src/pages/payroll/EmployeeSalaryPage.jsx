@@ -22,7 +22,11 @@ export default function EmployeeSalaryPage() {
   const [showForm, setShowForm] = useState(false);
   const [showHistory, setShowHistory] = useState(null);
   const [history, setHistory] = useState([]);
-  const [form, setForm] = useState({ employeeId: '', structureId: '', ctcAnnual: '', effectiveFrom: '', pfApplicable: true, pfCappedAt15K: false });
+  // pfCappedAt15K defaults ON: the ₹15,000 statutory ceiling is the norm for a
+  // confirmed employee, and defaulting it off wrote an explicit `false` onto the
+  // salary record — which then silently beat the Statutory Config screen's
+  // ticked checkbox, because the calculator reads the salary record first.
+  const [form, setForm] = useState({ employeeId: '', structureId: '', ctcAnnual: '', effectiveFrom: '', pfApplicable: true, pfCappedAt15K: true });
   const [revising, setRevising] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -108,7 +112,7 @@ export default function EmployeeSalaryPage() {
       ctcAnnual: '',
       effectiveFrom: todayStr(),
       pfApplicable: true,
-      pfCappedAt15K: false,
+      pfCappedAt15K: true,
     });
     setRevising(null);
     setShowForm(true);

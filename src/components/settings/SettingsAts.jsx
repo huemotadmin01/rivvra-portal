@@ -319,6 +319,9 @@ export default function SettingsAts() {
   const staleDays = Number.isFinite(Number(thresholds.staleDays)) ? thresholds.staleDays : 14;
   const awaitingResultDays = Number.isFinite(Number(thresholds.awaitingResultDays)) ? thresholds.awaitingResultDays : 3;
   const pendingApprovalHours = Number.isFinite(Number(thresholds.pendingApprovalHours)) ? thresholds.pendingApprovalHours : 24;
+  // 2026-08-20 job-aging SLA (dashboard Job Aging card).
+  const jobAgingTargetDays = Number.isFinite(Number(thresholds.jobAgingTargetDays)) ? thresholds.jobAgingTargetDays : 30;
+  const jobNoSubmittalDays = Number.isFinite(Number(thresholds.jobNoSubmittalDays)) ? thresholds.jobNoSubmittalDays : 7;
 
   return (
     <div className="space-y-6">
@@ -420,6 +423,36 @@ export default function SettingsAts() {
                   className="input-field w-24"
                 />
                 <span className="text-xs text-dark-500">hours</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Job aging target</label>
+              <p className="text-xs text-dark-500 mb-2">Open jobs older than this (from approval) flag red on the dashboard's Job Aging card.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={jobAgingTargetDays}
+                  onChange={(e) => updateThreshold('jobAgingTargetDays', Number(e.target.value) || 30)}
+                  className="input-field w-24"
+                />
+                <span className="text-xs text-dark-500">days</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Submittal window</label>
+              <p className="text-xs text-dark-500 mb-2">Open jobs with no new submittal within this window flag amber on the Job Aging card.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={jobNoSubmittalDays}
+                  onChange={(e) => updateThreshold('jobNoSubmittalDays', Number(e.target.value) || 7)}
+                  className="input-field w-24"
+                />
+                <span className="text-xs text-dark-500">days</span>
               </div>
             </div>
           </div>
