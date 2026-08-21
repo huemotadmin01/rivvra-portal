@@ -31,6 +31,43 @@ const argOf = (name, fallback) => {
 const BASE = argOf('base', process.env.CONTRAST_BASE || 'http://localhost:5173').replace(/\/$/, '');
 const THEMES = argOf('themes', 'dark,light').split(',').map((s) => s.trim()).filter(Boolean);
 const JSON_OUT = argOf('json', null);
+const ORG_SLUG = process.env.CONTRAST_ORG_SLUG || argOf('slug', 'huemot-technology');
+const SKIP_AUTHED = args.includes('--public-only');
+
+/**
+ * A session for the authenticated routes, or null.
+ *
+ * CONTRAST_AUTH_STORAGE is either inline JSON or a path to a JSON file, shaped
+ * { localStorage: { key: value, ... } }. Key names live in the secret, not
+ * here, so the gate survives a change to the auth storage shape — and the
+ * token never touches the repo.
+ *
+ * Absent is NOT an error. The public routes still run, the authed ones report
+ * as skipped, and a fork PR that cannot hold a secret stays green.
+ */
+function loadAuthStorage() {
+  if (SKIP_AUTHED) return null;
+  const raw = process.env.CONTRAST_AUTH_STORAGE;
+  if (!raw || !raw.trim()) return null;
+  let text = raw.trim();
+  if (!text.startsWith('{')) {
+    if (!fs.existsSync(text)) {
+      console.error(`CONTRAST_AUTH_STORAGE points at ${text}, which does not exist.`);
+      process.exit(2);
+    }
+    text = fs.readFileSync(text, 'utf8');
+  }
+  let parsed;
+  try { parsed = JSON.parse(text); } catch (e) {
+    console.error('CONTRAST_AUTH_STORAGE is not valid JSON.');
+    process.exit(2);
+  }
+  if (!parsed.localStorage || typeof parsed.localStorage !== 'object') {
+    console.error('CONTRAST_AUTH_STORAGE needs a `localStorage` object.');
+    process.exit(2);
+  }
+  return parsed;
+}
 
 /** The measurement, shared verbatim with anything else that wants it. */
 const CORE_SRC = fs.readFileSync(path.join(HERE, 'audit-core.js'), 'utf8');
@@ -52,8 +89,13 @@ function loadAllowlist() {
   return entries;
 }
 
-const isAllowed = (allow, routePath, f) => allow.some((a) =>
-  a.route === routePath && a.text === f.text && (!a.selector || f.selector.includes(a.selector)));
+// `:slug` in an allowlist route matches whatever org the run used, so an
+// entry does not silently stop matching when CONTRAST_ORG_SLUG changes.
+const isAllowed = (allow, routePath, f) => allow.some((a) => {
+  const route = a.route.replace(':slug', ORG_SLUG);
+  return route === routePath && a.text === f.text
+    && (!a.selector || f.selector.includes(a.selector));
+});
 
 function loadRoutes() {
   const custom = argOf('routes', null);
@@ -66,6 +108,13 @@ function loadRoutes() {
   return JSON.parse(fs.readFileSync(f, 'utf8')).routes;
 }
 
+function loadAuthedRoutes() {
+  if (argOf('routes', null)) return [];
+  const f = path.join(HERE, 'routes.json');
+  const list = JSON.parse(fs.readFileSync(f, 'utf8')).authedRoutes || [];
+  return list.map((r) => ({ ...r, path: r.path.replace(':slug', ORG_SLUG) }));
+}
+
 (async () => {
   let chromium;
   try {
@@ -76,6 +125,8 @@ function loadRoutes() {
   }
 
   const routes = loadRoutes();
+  const authedRoutes = loadAuthedRoutes();
+  const AUTH = loadAuthStorage();
   const ALLOW = loadAllowlist();
   let browser;
   try {
@@ -88,7 +139,30 @@ function loadRoutes() {
   }
 
   const report = { base: BASE, themes: THEMES, routes: [], totals: { checked: 0, failures: 0, skipped: 0 } };
+  let auditedCount = 0;
   let sawFailure = false;
+
+  // A dev server with devAuthBoot seeds its own session, so authed routes are
+  // reachable locally without anyone handling a token. Detected, not assumed:
+  // load an authed route and see whether it stays put or bounces to a login.
+  let DEV_AUTH = false;
+  if (!AUTH && !SKIP_AUTHED && authedRoutes.length) {
+    const probe = await browser.newPage();
+    try {
+      await probe.goto(BASE + authedRoutes[0].path, { waitUntil: 'networkidle', timeout: 30000 });
+      await probe.waitForTimeout(1200);
+      DEV_AUTH = !/\/login|\/find-workspace/.test(probe.url());
+    } catch { DEV_AUTH = false; }
+    await probe.close();
+  }
+
+  if (authedRoutes.length && !AUTH && !DEV_AUTH) {
+    console.log(`  · ${authedRoutes.length} authenticated route(s) SKIPPED — no session.`);
+    console.log('    Set CONTRAST_AUTH_STORAGE to include them. Not a failure: a PR that');
+    console.log('    cannot hold a secret should not go red for it.');
+  } else if (authedRoutes.length) {
+    console.log(`  · ${authedRoutes.length} authenticated route(s) included (${AUTH ? 'CONTRAST_AUTH_STORAGE' : 'dev-server session'}).`);
+  }
 
   for (const theme of THEMES) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -102,8 +176,18 @@ function loadRoutes() {
       });
     }, [theme]);
 
+    if (AUTH) {
+      await ctx.addInitScript((store) => {
+        try {
+          for (const [k, v] of Object.entries(store.localStorage || {})) localStorage.setItem(k, v);
+        } catch { /* ignore */ }
+      }, AUTH);
+    }
+
     const page = await ctx.newPage();
-    for (const route of routes) {
+    const todo = AUTH || DEV_AUTH ? [...routes, ...authedRoutes] : routes;
+    auditedCount = todo.length;
+    for (const route of todo) {
       const url = BASE + route.path;
       let res;
       try {
@@ -148,7 +232,7 @@ function loadRoutes() {
   }
 
   const { checked, failures, skipped } = report.totals;
-  console.log(`\n${checked} text nodes checked across ${routes.length} route(s) × ${THEMES.length} theme(s).`);
+  console.log(`\n${checked} text nodes checked across ${auditedCount} route(s) × ${THEMES.length} theme(s).`);
   console.log(`${failures} below AA, ${skipped} unmeasurable (gradient text and the like — reported, never silently passed), ${report.totals.allowed || 0} allow-listed with a stated reason.`);
 
   if (sawFailure) {
