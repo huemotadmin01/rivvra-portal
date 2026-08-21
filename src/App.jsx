@@ -47,7 +47,9 @@ import FindWorkspacePage from './pages/FindWorkspacePageV2';
 // /reset-password is outside OrgProvider, so PageSwitch (useOrg throws
 // there) cannot gate it. Ships directly; legacy kept unreferenced.
 import ResetPasswordPage from './pages/ResetPasswordPageV2';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
+// /forgot-password is outside OrgProvider, so PageSwitch (useOrg throws
+// there) cannot gate it. Ships directly; legacy kept unreferenced.
+import ForgotPasswordPage from './pages/ForgotPasswordPageV2';
 import AppLauncherPage from './pages/AppLauncherPage';
 import OnboardingGate from './components/OnboardingGate';
 import UpgradePage from './pages/UpgradePage';
