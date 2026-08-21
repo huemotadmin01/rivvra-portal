@@ -193,7 +193,7 @@ it.
 | ~~dashboards — need a ds chart component that does not exist~~ | **Wrong; unblocked in phase 7.** See below. |
 | ~~`CrmPipeline`, `AtsPipeline` — kanban archetype, not yet designed~~ | **Wrong; done in phase 8.** Nothing needed designing — see below. |
 | ~~KB pages~~ | **Assessed in phase 11 and deliberately NOT migrated — see below.** The concern was right. |
-| Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding) | new archetype: multi-step validation, unsaved-change guards |
+| ~~Forms and wizards (`EmployeeForm`, `AtsApplicationNew`, onboarding)~~ | **Done in phase 52.** The primitives already existed; only the unsaved-change guard was missing. See below. |
 | Invoicing (24 pages, 11 money-heavy), payroll (14, 7 money-heavy) | salary/statutory display — parity-proven rendering, reviewed separately |
 | `expenses/ExpenseDetail` | moved here out of group 1: FX arithmetic and totals rendered in the page, plus approval/reimbursement transitions |
 | Sign — `PublicSigningPage` only | **Assessed in phase 12 — the premise was half wrong. It is not dark-broken; it is a deliberate standalone LIGHT surface. Do not migrate it to ds. See below.** |
@@ -4266,3 +4266,65 @@ declaration and a **brace match**, and after every edit assert that every OTHER
 component is byte-identical to the source. Separately, an aborted script was
 misread as a stale-module cache when in fact the import rewrite had simply never
 been written — check the file before blaming the bundler.
+
+## The form archetype (phase 52)
+
+`pages/crm/CrmOpportunityNewV2.jsx` is the reference for a page form;
+`components/todo/TaskFormModalV2.jsx` for a modal one.
+
+The blocker recorded against this archetype was never real. Phase 6a had
+already shipped `Field`, `Input`, `Textarea`, `Select` and `ComboBox` plus two
+working forms — as phase 7 noted, the archetype was "largely built already".
+**The one genuinely missing piece was the unsaved-change guard**, and that is
+what phase 52 adds. Everything else here is documenting what already worked.
+
+The shape:
+
+- **`Field` owns the label, hint, required marker and error.** Do not hand-roll
+  a `<label>` and an error `<p>`; `Field` already renders both and wires
+  `htmlFor`. Pair `error` with the control's `invalid` so the ring and the
+  message agree.
+- **Keep the real `<form>`.** Submit through it, not through a button's
+  `onClick`. Where the primary action sits in a ds `Modal` footer — outside the
+  form element — reach back with `form="the-form-id"` and keep
+  `type="submit"`. Re-wiring to `onClick` silently makes every `required`
+  decorative, which is exactly the trap the careers pass hit from the other
+  direction.
+- **Two validation layers, deliberately.** Native constraints (`required`,
+  `type="email"`) AND the handler's own checks. Native validation preempts
+  submit, so the handler's messages only appear for what native cannot express
+  — which is why removing a `required` changes behaviour far from where it is
+  written.
+- **Gate the submit button on the same condition the handler checks.** Every
+  migrated form disables submit while invalid *and* re-checks inside the
+  handler, so a stray programmatic call cannot post a half-filled record.
+- **`useUnsavedGuard(isDirty, { enabled: !saving })`.** `enabled: !saving`
+  matters: without it the form's own post-submit navigation is challenged by
+  the guard it just satisfied.
+
+### What the guard can and cannot do, and why
+
+`useBlocker` is the obvious answer and does not work here. It calls
+`useDataRouterContext`, which requires the data-router API; this app mounts the
+declarative `<BrowserRouter>`, so it throws on the first re-render. That is not
+a guess — it was tried and reverted on **2026-05-17** (health-check E.2), and
+the invariant is still there in react-router 7.11.
+
+So the guard covers the exits it can cover honestly:
+
+| exit | covered | how |
+|---|---|---|
+| Tab close, hard refresh, other origin | yes | `beforeunload` |
+| In-app link (sidebar, breadcrumb) | yes | capture-phase click interception |
+| Cancel button / programmatic `navigate()` | yes | `confirmDiscard()` |
+| **Browser BACK button** | **no** | see below |
+
+Back is not covered because `beforeunload` does not fire for same-document
+history moves, and the usual workaround — re-pushing a sentinel entry on
+`popstate` — corrupts the history stack so the user's Back then does nothing.
+That is worse than the thing being prevented. **Closing this gap is a routing
+change** (migrate to `createBrowserRouter`), not a form change.
+
+Verified on `AtsApplicationNewV2`, whose hand-rolled `beforeunload` this
+replaces: a clean form navigates with no prompt; a dirty form prompts and
+**stays put** when declined; accepting navigates.
