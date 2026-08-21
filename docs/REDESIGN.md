@@ -3931,3 +3931,117 @@ of them:
   will pass a page that is invisible.
 - **#12 — editing a `lazy()` import path does not swap a loaded module.** Assert
   a version-unique marker before trusting any legacy-vs-v2 comparison.
+
+---
+
+## Phase 41 — the sequence wizard subsystem
+
+The block deferred in phase 40. 7 components + the page shell, all behind
+`PageSwitch` as two complete trees: legacy page → legacy components,
+`SequenceWizardPageV2` → `components/wizard/v2/*`.
+
+**6 verbatim slices, 464 spliced lines, 0 mismatches, 35 assertions.** Every V2
+file matches its legacy sibling's lint count exactly; project total 729 → 735,
+which is precisely the six issues now existing in both copies.
+
+### Two files are deliberately NOT migrated
+
+**`wizardConstants.js`** — pure data and helpers, and **also imported by
+`components/SequenceDetailPage`**. Forking it would put the detail page and the
+wizard on diverging copies of the automation triggers and schedule defaults.
+Imported unchanged.
+
+**`RichBodyEditor.jsx`** — the important call in this subsystem. It is a
+contentEditable **email composer**, and `.rich-body-editor` in `index.css`
+renders it in **Arial/Helvetica 14px/1.6 on white with Gmail's link blue
+`#1a73e8`**. That is not un-migrated legacy styling; it is a deliberate mirror
+of the recipient's client. Re-theming it to ds — Inter, dark surface,
+brand-green links — would mean a writer styling text against a background the
+reader never sees.
+
+It also holds two things no restyle should go near: the DOMPurify `sanitize`
+with its `FORBID_TAGS`/`FORBID_ATTR` list, and the `isInternalChange` ref dance
+that stops the caret jumping to 0 on every keystroke.
+
+Verified in the browser that it survived intact: `rgb(255,255,255)` /
+`rgb(26,26,26)` / `Arial, Helvetica, sans-serif` / `14px`.
+
+### The behaviour that justified splicing the page
+
+`handleActivate` tracks `activated` and `activateErr` separately rather than
+assuming success — legacy's comment records that swallowing the
+`resumeSequence` error once told users a sequence was live when it was still a
+draft.
+
+Proven by stubbing create-succeeds / resume-fails locally (nothing left the
+browser):
+
+```
+POST /api/sequences            → stubbed success
+POST /api/sequences/…/resume   → stubbed failure ("Gmail is not connected")
+claims "created and activated" → false
+surfaced instead               → "Gmail is not connected"
+```
+
+The user is told the truth. **Activation itself was never triggered.**
+
+### Walked end to end
+
+Template → compose → schedule → review, with every write blocked:
+
+| check | result |
+|---|---|
+| `computeEmailDay` over the template's 2/2/4/2 waits | Day 1, 3, 5, 9, 11 |
+| compose totals | 5 emails, waits `2,2,4,2` |
+| `validate()` with no name | "Sequence name is required", 0 network |
+| schedule defaults | Mon–Fri on, Sat/Sun off, their 4 selects **disabled not hidden** |
+| toggle Saturday on | its selects enable with `08:00`/`18:00` **intact** |
+| review totals | "5 emails over 10 days", 4 rules, 1 filter |
+| draft payload | steps normalised to exactly `type,subject,body,days`; **no `_localAttachments`** |
+
+That last row is `buildPayload` doing its job — the transient local-attachment
+field never reaches the API.
+
+### One deliberate behaviour change
+
+Legacy hid each email card's Edit/Delete buttons behind
+`opacity-0 group-hover:opacity-100`. They are now always visible: a hover-only
+control is dead on touch, which is the platform-wide finding from the mobile
+pass. Called out here because it is the only intentional divergence.
+
+### Copy drift — caught a fourth and fifth time
+
+The legacy comparison found two more inventions of mine: the template modal's
+action read **"Use this template"** where legacy says **"Customize template"**
+(which is the more accurate word — the steps are copied in to edit, not applied),
+and I had added a Cancel button legacy does not have. The email cards read
+**"N variables"** where legacy says **"N placeholders"**. Both restored.
+
+Five phases running. The rule is now unavoidable: **the legacy comparison is not
+a formality — diff the copy, every time.**
+
+### False failure #13 — focus-dependent behaviour is untestable in a hidden pane
+
+`lastFocusedRef` decides whether a placeholder pill lands in Subject or Body.
+Every pill went to the body no matter what I focused — which looked like broken
+routing. It was not: `document.hasFocus()` is **false** while the pane is
+backgrounded, so real focus events never fire and the ref stays at its `'body'`
+default.
+
+Dispatching `focusin` — the bubbling event React actually delegates `onFocus`
+to — proved the wiring: `{{lastName}}` landed in the Subject with the body
+untouched.
+
+**Rule: to exercise `onFocus` in this harness, dispatch `focusin`; `.focus()`
+alone does nothing when the document is not focused.** (And `.focus()` on an
+already-focused element fires no event at all, which sent me down the wrong
+path first.)
+
+### Contrast
+
+selection 24 / template modal 47 / compose 67 / compose + editor 38 /
+schedule / review 55 — **0 failures throughout.**
+
+### Not triggered
+
+Sequence create, activate, attachment upload, test-email send.
