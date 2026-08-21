@@ -1320,3 +1320,61 @@
        dots, meter tracks). They read on either surface.
      border-dark-300/30            — a light hairline, already fine.
 */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HOVER variants (2026-08-22)
+
+   The block above bridged 1121 resting-state rules and only SIX hover ones,
+   with a note saying the hover variants "actually in use are listed
+   explicitly". They were not: `hover:bg-dark-700` alone appears 365 times,
+   `hover:bg-dark-800` 155 times, and none of them were mapped.
+
+   The result was a bug you could only see by pointing at something. Resting
+   colours themed correctly, then hover fell back to the raw fixed-dark
+   Tailwind value — so on a LIGHT theme a row turned into a dark slab under
+   the cursor. Reported on the invoicing dashboard's Statutory dues list,
+   whose rows are `hover:bg-dark-800/60`; it was never specific to that page.
+
+   ── Why hover is mapped one surface UP, not to the same token ──────────────
+   Mapping each hover shade to whatever its resting shade maps to would make
+   hover INVISIBLE wherever the two shades are one step apart — which is the
+   normal way this codebase writes it. `StatutoryDuesCard` is exactly that:
+   the card is `bg-dark-850` (→ surface-2) and its rows are
+   `hover:bg-dark-800/60`, which would also land on surface-2. So hover maps
+   one step up, matching how ds components do it themselves (DataTable hovers
+   a row to `--surface-2` from transparent).
+
+   Attribute selectors catch the alpha variants (`/50`, `/60`, `/[0.04]`) the
+   same way the resting rules enumerate them. Full three-digit shades are used
+   so `800` cannot also match `850`.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Surfaces — one step up from the resting mapping */
+.ds-shell [class*="hover:bg-dark-900"]:hover { background-color: var(--surface-2); }
+.ds-shell [class*="hover:bg-dark-850"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-800"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-750"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-700"]:hover { background-color: var(--surface-3); }
+.ds-shell [class*="hover:bg-dark-600"]:hover { background-color: var(--surface-4); }
+
+/* Lines */
+.ds-shell [class*="hover:border-dark-700"]:hover,
+.ds-shell [class*="hover:border-dark-600"]:hover,
+.ds-shell [class*="hover:border-dark-500"]:hover { border-color: var(--line-2); }
+
+/* Text — hovering brightens, so these go one tier warmer than resting */
+.ds-shell [class*="hover:text-dark-100"]:hover,
+.ds-shell [class*="hover:text-dark-200"]:hover,
+.ds-shell [class*="hover:text-dark-300"]:hover { color: var(--fg); }
+.ds-shell [class*="hover:text-dark-400"]:hover { color: var(--fg-2); }
+.ds-shell [class*="hover:text-dark-500"]:hover { color: var(--fg-3); }
+
+/* Brand text on hover — all shades resolve to the AA-safe brand ink */
+.ds-shell [class*="hover:text-rivvra-"]:hover { color: var(--brand-ink); }
+
+/* Brand fills on hover. --brand-hi / --brand-lo already exist for the two
+   directions the codebase uses (400 = lighter, 600/700 = darker). */
+.ds-shell [class*="hover:bg-rivvra-400"]:hover { background-color: var(--brand-hi); }
+.ds-shell [class*="hover:bg-rivvra-500"]:hover { background-color: var(--brand); }
+.ds-shell [class*="hover:bg-rivvra-600"]:hover,
+.ds-shell [class*="hover:bg-rivvra-700"]:hover { background-color: var(--brand-lo); }
