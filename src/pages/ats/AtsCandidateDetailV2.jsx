@@ -78,7 +78,7 @@ import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import SkillsPicker from '../../components/ats/SkillsPicker';
 import StageBadge from '../../components/ats/StageBadge';
 import AiResumeInsights from '../../components/ats/AiResumeInsights';
-import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import PersonLookup from '../../components/shared/PersonLookup';
 import { withFromContext } from '../../utils/entityDescribe';
 import {
   Loader2, ChevronLeft, User, FileText, UserCheck, Star,
@@ -275,7 +275,15 @@ function AtsCandidateDetailV2() {
         setCandidate((prev) => ({ ...prev, [idField]: id || null, [nameField]: name || '' }));
       }
     } catch (err) {
-      showToast(err?.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
+      const msg = err?.message || `Failed to update ${nameField.replace('Name', '')}`;
+      showToast(msg, 'error');
+      // Re-throw. ds `EntityLookup` is PESSIMISTIC — it treats a resolved
+      // `onSelect` as "saved" and repaints the row with the new name. Legacy
+      // `EmployeeLookup` was fire-and-forget, so a failed save toasted while
+      // the row still showed the person who was never actually assigned.
+      // Throwing keeps the displayed value truthful; the message is the same
+      // one the toast shows so the inline error does not read differently.
+      throw new Error(msg);
     }
   };
 
@@ -541,7 +549,7 @@ function AtsCandidateDetailV2() {
         {/* Sidebar */}
         <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
           <Panel title="Owner" icon={<UserCheck size={16} />}>
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={slug}
               label="Manager"
               currentValue={candidate.managerId}

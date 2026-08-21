@@ -11,7 +11,7 @@ import ComboSelect from '../../components/ComboSelect';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import useCompanyScoped404 from '../../hooks/useCompanyScoped404';
 import ActivityPanelV2 from '../../components/shared/v2/ActivityPanelV2';
-import EmployeeLookup from '../../components/shared/EmployeeLookup';
+import PersonLookup from '../../components/shared/PersonLookup';
 import { InlineField, Panel, RecordMeta } from '../../components/ds';
 import StageBadge from '../../components/ats/StageBadge';
 import SuggestedCandidates from '../../components/ats/SuggestedCandidates';
@@ -920,7 +920,13 @@ export default function AtsJobDetail() {
       setActivityRefreshKey(k => k + 1);
       setTimeout(() => setActivityRefreshKey(k => k + 1), 2000);
     } catch (err) {
-      showToast(err.message || `Failed to update ${nameField.replace('Name', '')}`, 'error');
+      const msg = err.message || `Failed to update ${nameField.replace('Name', '')}`;
+      showToast(msg, 'error');
+      // Re-throw — ds `EntityLookup` is PESSIMISTIC and reads a resolved
+      // `onSelect` as "saved". See the identical note in the other two ATS
+      // detail pages. Matters most here: `approverId` gates job approval, so
+      // a silently-failed assignment would show an approver who cannot approve.
+      throw new Error(msg);
     }
   };
 
@@ -1704,7 +1710,7 @@ export default function AtsJobDetail() {
         {/* Sidebar — People, Client, Meta, Activities */}
         <div className="space-y-5">
           <Panel title="People" icon={<UserCheck size={14} />}>
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={orgSlug}
               label="Recruiter"
               currentValue={job.recruiterId}
@@ -1713,7 +1719,7 @@ export default function AtsJobDetail() {
               linkTo={(id) => withFromContext(orgPath(`/employee/${id}`), 'ats_job', jobId)}
               onSelect={(id, name) => savePerson('recruiterId', 'recruiterName', id, name)}
             />
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={orgSlug}
               label="Account Owner"
               currentValue={job.accountOwnerId}
@@ -1729,7 +1735,7 @@ export default function AtsJobDetail() {
                 The field is still captured in the create form for
                 backward-compat with imported data; we just don't
                 surface it for editing on the detail page. */}
-            <EmployeeLookup
+            <PersonLookup
               orgSlug={orgSlug}
               label="Approver"
               currentValue={job.approverId}
