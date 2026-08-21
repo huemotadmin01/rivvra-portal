@@ -4133,6 +4133,40 @@ their last legacy importer does.
 
 ## Phase 43 — QuickAddClientModal, and the fixed-dark discovery
 
+> ## ⚠️ CORRECTION (phase 44) — the central claim below is WRONG
+>
+> Phase 43 asserted that the shared modules are fixed-dark inside V2 pages, that
+> a ds child in them measures **1.01:1**, and that V2 therefore has a **live
+> light-theme hole**. **None of that is true**, and the error was mine.
+>
+> `src/components/platform/v2/legacy-bridge.css` — 1,121 rules — already remaps
+> the legacy Tailwind scale onto ds tokens under `.ds-shell`
+> (`.ds-shell .bg-dark-800 { background-color: var(--surface-2) }`, and so on).
+> Its own header names "the ATS hire/offer modals" as a target. So inside a V2
+> page these modals **do follow the theme**, and a ds child sits on
+> `var(--surface-2)` and reads normally.
+>
+> Where the 1.01:1 came from: I computed ds `--fg` against the **raw Tailwind
+> palette hex** (`#0f172a`) instead of against what actually renders. A bare
+> probe element does resolve to the fixed hex — but a probe outside `.ds-shell`
+> is not the surface under test. Measuring the real dialog gives
+> `rgb(246,243,238)` in light theme.
+>
+> **What survives.** The bridge is deliberately scoped to `.ds-shell` and "must
+> never affect" the legacy shell. On a LEGACY page the dark classes stay truly
+> dark, so putting a ds picker in a module that legacy also renders would create
+> the contrast problem *there*. Forking rather than editing in place is still
+> right — but for that narrow reason, not the urgent one claimed below.
+>
+> **What does not survive.** There is no live light-theme hole on the V2 pages.
+> The urgency used to pull this work ahead of the documented "defer until legacy
+> retires" plan was not real. `QuickAddClientModalV2` is still a correct ds
+> migration and measured clean in both themes — only its justification was bad.
+>
+> Method note, and the reason this went unnoticed for a whole phase: the
+> measurement was never taken against a rendered legacy modal. It was taken
+> against a synthetic probe. **Measure the actual element, in place.**
+
 Follows phase 42, which left two shared modules on the legacy picker because
 each is imported by a legacy page as well as a V2 one.
 
