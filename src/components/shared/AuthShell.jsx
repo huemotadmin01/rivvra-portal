@@ -43,6 +43,19 @@ import { Logo } from '../ds';
 // not quietly add decoration those pages deliberately lacked.
 // ============================================================================
 
+// Icon-tile palettes, as an explicit lookup rather than a `var(--${tone}-…)`
+// string built at render. There is no `--neutral-soft` token, so the string
+// form silently produced an invalid custom property — and an invalid
+// background just renders transparent, which looks like a design choice
+// instead of a bug. A map fails loudly at review time instead.
+const TONES = {
+  brand:   { background: 'var(--brand-soft)',  boxShadow: 'inset 0 0 0 1px var(--brand-line)',  color: 'var(--brand-ink)' },
+  danger:  { background: 'var(--danger-soft)', boxShadow: 'inset 0 0 0 1px var(--danger-soft)', color: 'var(--danger)' },
+  warn:    { background: 'var(--warn-soft)',   boxShadow: 'inset 0 0 0 1px var(--warn-soft)',   color: 'var(--warn-ink)' },
+  info:    { background: 'var(--info-soft)',   boxShadow: 'inset 0 0 0 1px var(--info-soft)',   color: 'var(--info)' },
+  neutral: { background: 'var(--surface-2)',   boxShadow: 'inset 0 0 0 1px var(--line)',        color: 'var(--fg-3)' },
+};
+
 const MESH = `
   radial-gradient(at 40% 20%, rgba(34, 197, 94, 0.15) 0px, transparent 50%),
   radial-gradient(at 80% 0%, rgba(34, 197, 94, 0.1) 0px, transparent 50%),
@@ -62,7 +75,8 @@ const MESH = `
  *                the workspace's own name there instead of Rivvra's).
  *  - children  : the card body.
  *  - footer    : links under the card.
- *  - tone      : icon-tile colour — 'brand' (default) | 'danger' | 'warn'.
+ *  - tone      : icon-tile colour — see TONES ('brand' default, plus
+ *                'danger', 'warn', 'info', 'neutral').
  *                Legacy varied this per state (a red tile for an expired
  *                link, green for success), so it is a prop rather than fixed.
  *  - gradient  : draw the mesh + grid backdrop. Default true.
@@ -118,9 +132,7 @@ export default function AuthShell({
                 width: 60, height: 60, marginBottom: 14,
                 borderRadius: 'var(--r-3, 15px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: `var(--${tone}-soft)`,
-                boxShadow: `inset 0 0 0 1px var(--${tone}-line, var(--${tone}-soft))`,
-                color: `var(--${tone}-ink, var(--${tone}))`,
+                ...(TONES[tone] || TONES.brand),
               }}>
                 {icon}
               </div>
