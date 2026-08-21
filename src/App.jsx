@@ -40,7 +40,9 @@ import PricingPage from './pages/PricingPage';
 // and useOrg throws outside the provider) cannot gate it. Ships directly;
 // legacy ./pages/FindWorkspacePage is kept unreferenced for a one-line revert.
 import FindWorkspacePage from './pages/FindWorkspacePageV2';
-import ResetPasswordPage from './pages/ResetPasswordPage';
+// /reset-password is outside OrgProvider, so PageSwitch (useOrg throws
+// there) cannot gate it. Ships directly; legacy kept unreferenced.
+import ResetPasswordPage from './pages/ResetPasswordPageV2';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import AppLauncherPage from './pages/AppLauncherPage';
 import OnboardingGate from './components/OnboardingGate';
