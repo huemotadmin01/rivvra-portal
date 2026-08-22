@@ -153,11 +153,18 @@
    rule below can still hide it — an inline `display` wins over any
    stylesheet, and this button is 198px wide, which is what pushed the appbar
    past a 375px viewport. Keep its display in CSS. */
-.ds-shell .company-btn {
-  width: auto; padding: 0 10px; gap: 6px; display: flex; align-items: center;
-  font: 500 12.5px/1 var(--font); min-width: 0;
+/* Selector includes `.icon-btn` deliberately. The button carries both
+   classes, and `.ds-shell .icon-btn` below sets `width: 34px; display: grid`
+   at the SAME specificity — so with a bare `.company-btn` the later rule won
+   on source order, collapsed this to a 34px grid cell, and the company name
+   overflowed across the theme toggle. Matching both classes (0-3-0) makes
+   this win wherever it sits in the file. */
+.ds-shell .icon-btn.company-btn {
+  width: auto; max-width: 220px; padding: 0 10px; gap: 6px;
+  display: flex; align-items: center; white-space: nowrap;
+  font: 500 12.5px/1 var(--font); min-width: 0; flex-shrink: 0;
 }
-.ds-shell .company-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-shell .icon-btn.company-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Page container ──────────────────────────────────────────────── */
 .ds-shell .page { flex: 1; padding: var(--s6) var(--s6) var(--s16); }
