@@ -42,8 +42,33 @@ merges, because `PageSwitch` calls `useOrg()`, which throws outside
 
 **These are the surfaces to smoke-test first tomorrow.** They were each
 verified in-browser when built (see phases 45–49), with auth logic spliced
-byte-identical and asserted by diff — but they have never run against
-production data.
+byte-identical and asserted by diff.
+
+**All 16 are now verified on staging against real (pseudonymised) data**, on
+2026-08-22:
+
+- **5 auth pages + Document Vault** — smoke-tested earlier in the session.
+- **10 admin pages** — verified logged in as super-admin. Every one renders
+  live data, not an empty or error state: Dashboard (4 workspaces / 101 users /
+  95 of 110 seats), Workspaces (4 rows with plan, seats, owner), Workspace
+  detail (90 members with per-app access chips, owner card, stats, backups
+  panel, and the `uiV2` toggle itself), Email Templates (66 across 5 groups),
+  Announcements (1 active / 18 dismissed), KB Review (0 drafts / 17 platform
+  articles), Payroll Config (full FY 2026-27 statutory tree — PF, ESI, cess,
+  both tax regimes), Employee Config (4 employment types, 8 separation
+  reasons, country ID fields).
+- **Console:** no application errors. The only three entries are Chrome
+  extension message-channel noise from an extension reconnect.
+
+Navigation was read-only — no state-changing control was clicked.
+
+Two things worth knowing, neither caused by the redesign:
+
+- **PT Master reads `0 states`** on staging. Statutory lookups fall back to the
+  org-level PT state, so this is safe, but check production has its PT master
+  populated.
+- `ats_stage_documents` appears **twice** in Email Templates (dated 22/08/2026
+  and 14/07/2026) — a duplicate data row, not a rendering fault.
 
 ---
 
