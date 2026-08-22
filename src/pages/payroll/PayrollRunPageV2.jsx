@@ -8,12 +8,20 @@ import {
   downloadPFChallan, downloadESIChallan, downloadPTChallan,
   lockInputs, unlockInputs, lockPayroll, unlockPayroll,
   releasePayslips, holdPayslips,
-  setAdHocAdjustment, createSalaryHold, releaseSalaryHold,
+  setAdHocAdjustment, createSalaryHold, releaseSalaryHold, decideSalaryHold,
   downloadPayslipPdf, downloadAllPayslips, downloadBankTransfer, downloadPayrollExport, downloadPayrollSheet,
   downloadBankSheetHdfc, downloadBankSheetNonHdfc,
 } from '../../utils/payrollApi';
 import { useToast } from '../../context/ToastContext';
 import { formatMoney } from '../../utils/formatCurrency';
+// Guided-run decisions live in this shared module, NOT in either page. Both
+// shells import the same functions, so who is releasable, what the next action
+// is, and what finalize will freeze cannot drift between legacy and v2 —
+// there is no second copy to fall out of sync.
+import {
+  isPayslipReleasedFor, isReleasable, splitByRelease, nextAction, finalizeWarning, lockConflicts, LOCK_EFFECTS,
+} from '../../utils/payrollRunGuidance';
+import PayrollRunStepStrip from '../../components/PayrollRunStepStrip';
 import {
   Plus, Play, CheckCircle, Lock, Unlock, Trash2, ArrowLeft, Download,
   X, FileText, IndianRupee, EyeOff, Banknote, FileSpreadsheet,
@@ -150,9 +158,9 @@ function KV({ label, value, valueColor, small, strong, top }) {
 }
 
 /** Uppercase micro-heading used inside the breakdown panels. */
-function Legend({ children, style }) {
+function Legend({ children, style, title }) {
   return (
-    <div style={{
+    <div title={title} style={{
       font: "500 10px/1 'Inter', system-ui, sans-serif", color: 'var(--fg-4)',
       textTransform: 'uppercase', letterSpacing: '0.07em', ...style,
     }}>{children}</div>
@@ -200,6 +208,7 @@ export default function PayrollRunPageV2() {
   const [creating, setCreating] = useState(false);
   const [showMarkPaidConfirm, setShowMarkPaidConfirm] = useState(false);
   const [showHoldPayslipsConfirm, setShowHoldPayslipsConfirm] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [loadError, setLoadError] = useState(null);
   // In-flight guards for the remaining financial / destructive actions
@@ -280,14 +289,18 @@ export default function PayrollRunPageV2() {
     finally { setProcessing(false); }
   };
 
+  // No native confirm() here. Finalizing blocks re-processing, which on a
+  // two-cohort month strands the second cohort — a browser confirm cannot say
+  // that, cannot name who has no payslip yet, and cannot change its own button
+  // to "Finalize anyway". The consequence dialog below does all three.
   const handleFinalize = async () => {
     if (finalizing) return;
-    if (!confirm('Finalize this payroll run? No further edits will be allowed.')) return;
     setFinalizing(true);
     try {
       const res = await finalizePayrollRun(orgSlug, selectedRun._id);
       setSelectedRun(res.run);
       showToast('Finalized');
+      setShowFinalizeConfirm(false);
       loadRuns({ preserveSelection: true });
     } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
     finally { setFinalizing(false); }
@@ -423,6 +436,30 @@ export default function PayrollRunPageV2() {
     finally { setSavingHold(false); }
   };
 
+  // Deciding a hold is NOT releasing it, and those are different things:
+  // undecided leaves the incentive waiting for a payroll release, decided
+  // settles the cost at ₹0 so the incentive can be created. The hold stays
+  // active either way — the employee is still off bank sheets and payslips.
+  const [decidingHoldId, setDecidingHoldId] = useState(null);
+  const handleDecideHold = async (holdId, decision) => {
+    if (decidingHoldId) return;
+    setDecidingHoldId(holdId);
+    try {
+      await decideSalaryHold(orgSlug, selectedRun._id, holdId, decision);
+      setSelectedRun(prev => ({
+        ...prev,
+        items: prev.items.map(i => (i.salaryHold?._id === holdId
+          ? { ...i, salaryHold: { ...i.salaryHold, decision } }
+          : i)),
+      }));
+      showToast(decision === 'will_not_pay'
+        ? 'Marked as not paying — incentive can now be created'
+        : 'Returned to undecided');
+    } catch (err) {
+      showToast(err?.response?.data?.message || err.message || 'Failed', 'error');
+    } finally { setDecidingHoldId(null); }
+  };
+
   const handleReleaseHold = async (holdId) => {
     setReleasingHoldId(holdId);
     try {
@@ -439,7 +476,13 @@ export default function PayrollRunPageV2() {
   // Release payslips with employee selection — on-hold employees excluded
   const openReleaseModal = () => {
     const items = selectedRun?.items || [];
-    setReleaseSelection(new Set(items.filter(i => !i.salaryHold).map(i => i.employeeId)));
+    // Only rows that can actually be released: not already released (that would
+    // re-send an email received weeks ago), not on salary hold, and with pay
+    // actually computed (net 0 would email an empty payslip). The previous
+    // `!i.salaryHold` here caught only the middle case.
+    setReleaseSelection(new Set(
+      items.filter(i => isReleasable(selectedRun, i)).map(i => i.employeeId)
+    ));
     setShowReleaseModal(true);
   };
 
@@ -578,6 +621,35 @@ export default function PayrollRunPageV2() {
         })
       : searchedItems;
     const isFiltered = !!searchQuery || empTypeFilter !== 'all';
+    // ── Re-process affordances ────────────────────────────────────────────
+    // Release is per-employee, so a partially-released run CAN be re-processed:
+    // released rows are frozen server-side and only unreleased employees
+    // recompute. That is what lets external consultants — paid on the 15th of
+    // the following month — be processed after employees were already paid.
+    //
+    // The one case still refused is a legacy release-all: `payslipReleased`
+    // with no `releasedEmployeeIds`, where the server can't tell who was
+    // released. Surface that as a disabled button with the reason, rather than
+    // letting the click dead-end in an error toast.
+    const releasedCount = (run.releasedEmployeeIds || []).length;
+    const isLegacyReleaseAll = !!run.payslipReleased && releasedCount === 0;
+    // Split the run by who has actually been released, so Release and Hold can
+    // both be offered on a partially-released run.
+    const {
+      released: releasedItems,
+      releasable: releasableItems, needsCompute: needsComputeItems,
+    } = splitByRelease(run);
+    // The one next step. Drives both the banner and which button is primary.
+    const next = nextAction(run);
+    const finalizeCaution = finalizeWarning(run);
+    const lockBlockers = lockConflicts(run);
+    const isNext = (key) => next?.key === key;
+    const reprocessBlockedReason = run.payrollLocked
+      ? 'Payroll is locked for this run. Use Unlock Payroll to re-process.'
+      : isLegacyReleaseAll
+        ? 'Payslips were released to everyone without a per-employee list, so figures people have already seen can\'t be protected. Hold payslips first, then re-process.'
+        : null;
+    const frozenDrift = run.reprocessFrozenDrift || [];
     // Header cells: `key` present ⇒ sortable. `num` right-aligns money columns.
     const columns = [
       { key: 'name', label: 'Employee' },
@@ -602,13 +674,19 @@ export default function PayrollRunPageV2() {
         )}
         {run.status === 'processed' && (
           <>
-            {!run.payrollLocked && (
-              <Button variant="secondary" size="sm" onClick={handleProcess} disabled={processing}
-                iconLeft={processing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}>
-                {processing ? 'Processing...' : 'Re-process'}
-              </Button>
-            )}
-            <Button size="sm" onClick={handleFinalize} disabled={finalizing}
+            {/* Disabled with a reason, never hidden. A partially-released run
+                CAN be re-processed — released rows freeze server-side — so
+                hiding the button made a legitimate action look unavailable.
+                Only a legacy release-all genuinely blocks it. */}
+            <Button variant="secondary" size="sm" onClick={handleProcess}
+              disabled={processing || !!reprocessBlockedReason}
+              title={reprocessBlockedReason || 'Recompute this run. Released payslips keep the figures already paid.'}
+              iconLeft={processing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}>
+              {processing ? 'Processing...' : 'Re-process'}
+            </Button>
+            <Button size="sm" variant={isNext('finalize') ? 'primary' : 'secondary'}
+              onClick={() => setShowFinalizeConfirm(true)} disabled={finalizing}
+              title={finalizeCaution || 'Locks the run so it can be marked paid.'}
               iconLeft={finalizing ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}>
               {finalizing ? 'Finalizing...' : 'Finalize'}
             </Button>
@@ -647,7 +725,11 @@ export default function PayrollRunPageV2() {
               {run.payrollLocked && (
                 <span title="Payroll figures are frozen — the normal state for a finished run"><Chip tone="neutral">Payroll Locked</Chip></span>
               )}
-              {run.payslipReleased && <Chip tone="brand">Released</Chip>}
+              {/* Count, not a bare flag: release is per-employee, so "Released"
+                  alone reads as all-done on a run where only some went out. */}
+              {run.payslipReleased && (
+                <Chip tone="brand">Released ({releasedCount}/{(run.items || []).length})</Chip>
+              )}
             </div>
             <p style={{ font: "400 12.5px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '4px 0 0' }}>
               FY {run.financialYear} | {statutoryItems.length} employee{statutoryItems.length === 1 ? '' : 's'}{contractorItems.length > 0 && <>, {contractorItems.length} contractor{contractorItems.length === 1 ? '' : 's'}</>}
@@ -658,6 +740,89 @@ export default function PayrollRunPageV2() {
           {runActions}
         </div>
 
+        {/* Step strip. The shared component from the legacy page, unmodified —
+            it reads runSteps() from payrollRunGuidance, so both shells show the
+            same four steps in the same state. */}
+        {['processed', 'finalized', 'paid'].includes(run.status) && (
+          <div style={{ marginBottom: 14 }}><PayrollRunStepStrip run={run} /></div>
+        )}
+
+        {/* Next action — one sentence saying what to do now, and nothing else.
+            nextAction() returns {key, label, headline, why, caution} and never
+            returns null for a loaded run: 'done' is a key, not an absence. The
+            copy is the helper's, not this page's, so it cannot drift from
+            legacy. `label` is the button text and is deliberately unused here. */}
+        {['processed', 'finalized', 'paid'].includes(run.status) && next && (
+          <Callout
+            tone={next.key === 'done' ? 'brand' : 'info'}
+            icon={next.key === 'done' ? <CheckCircle size={15} /> : <Info size={15} />}
+            title={next.key === 'done' ? next.headline : `Next: ${next.headline}`}
+            style={{ marginBottom: 14 }}
+          >
+            <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+              {next.why}
+            </p>
+            {next.caution && (
+              <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: INK.warn, margin: '6px 0 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <AlertTriangle size={12} style={{ marginTop: 2, flexShrink: 0 }} /> {next.caution}
+              </p>
+            )}
+            {/* A lock only ever needs to announce itself when it is the
+                reason something is unavailable — never as "click me". */}
+            {lockBlockers.map(c => (
+              <p key={c.lock} style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: INK.warn, margin: '6px 0 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <Lock size={12} style={{ marginTop: 2, flexShrink: 0 }} /> {c.message}
+              </p>
+            ))}
+          </Callout>
+        )}
+
+        {/* Frozen-row drift — a released employee's inputs changed after they
+            were paid, so the last re-process kept the paid figure and recorded
+            what it would otherwise have become. Not an error: you file what you
+            actually paid, and a genuine correction goes out as arrears. But it
+            must be visible, or the run and its inputs disagree in silence.
+
+            NOTE: legacy PayrollRunPage.jsx:738 hardcodes the word "July" in this
+            sentence, so it misnames the month in every other run. Using the
+            run's own month here rather than copying that forward — this is the
+            one place this port deliberately does NOT match legacy, and the
+            legacy line needs the same one-word fix. */}
+        {frozenDrift.length > 0 && (
+          <Callout
+            tone="warn"
+            icon={<AlertTriangle size={15} />}
+            title={`${frozenDrift.length} released payslip${frozenDrift.length === 1 ? '' : 's'} kept the figure already paid`}
+            style={{ marginBottom: 14 }}
+          >
+            <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+              {MONTHS[run.month]} data changed after these employees were paid. Their rows were left
+              untouched — recomputing would have moved a figure they have already received. Pay any
+              genuine correction as arrears in a later run.
+            </p>
+            <div style={{ marginTop: 8, overflowX: 'auto' }}>
+              <table style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", minWidth: '100%' }}>
+                <thead>
+                  <tr style={{ color: 'var(--fg-4)' }}>
+                    <th style={{ textAlign: 'left', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Employee</th>
+                    <th style={{ textAlign: 'right', fontWeight: 500, paddingRight: 16, paddingBottom: 4 }}>Paid net</th>
+                    <th style={{ textAlign: 'right', fontWeight: 500, paddingBottom: 4 }}>Would have become</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {frozenDrift.map((d) => (
+                    <tr key={d.employeeId} style={{ color: 'var(--fg-2)' }}>
+                      <td style={{ paddingRight: 16, padding: '2px 16px 2px 0' }}>{d.employeeName}</td>
+                      <td style={{ textAlign: 'right', paddingRight: 16, padding: '2px 16px 2px 0', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(d.storedNet)}</td>
+                      <td style={{ textAlign: 'right', padding: '2px 0', fontVariantNumeric: 'tabular-nums', color: INK.warn }}>{formatMoney(d.wouldBeNet)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Callout>
+        )}
+
         {/* Action Bar — split so that irreversible run-state changes (which lock
             figures or email employees) can never be mistaken for a harmless file
             download. Every existing in-flight guard and modal is preserved. */}
@@ -665,29 +830,56 @@ export default function PayrollRunPageV2() {
           <Panel style={{ marginBottom: 14 }}>
             {/* ── Run state: changes the run, some of it irreversible ── */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-              <Legend style={{ width: '100%', marginBottom: 2 }}>Run state</Legend>
+              {/* Labelled "optional" because they are: a run goes Process →
+                  Release → Finalize → Mark paid without either lock ever being
+                  clicked. Sitting unlabelled next to the real steps is what led
+                  HR to ask which of them to click first. */}
+              <Legend style={{ width: '100%', marginBottom: 2 }}
+                title="Optional safeguards. Neither is a step — a run completes without them.">
+                Safeguards <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, color: 'var(--fg-faint)' }}>(optional)</span>
+              </Legend>
+              {/* Titles come from LOCK_EFFECTS so both shells explain a lock the
+                  same way. "Adjustments", not "Inputs": the lock freezes ad-hoc
+                  adjustments and holds, which is what HR reads it as. */}
               <Button variant="secondary" size="sm" onClick={() => handleToggleLock('inputs')} disabled={!!togglingLock}
-                title={run.inputsLocked ? 'Re-open attendance & timesheet inputs for this run' : 'Freeze attendance & timesheet inputs for this run'}
+                title={run.inputsLocked ? LOCK_EFFECTS.inputs.unlock : LOCK_EFFECTS.inputs.lock}
                 iconLeft={togglingLock === 'inputs' ? <Loader2 size={12} className="animate-spin" /> : run.inputsLocked ? <Unlock size={12} /> : <Lock size={12} />}>
-                {run.inputsLocked ? 'Unlock Inputs' : 'Lock Inputs'}
+                {run.inputsLocked ? 'Unlock Adjustments' : 'Lock Adjustments'}
               </Button>
               <Button variant="secondary" size="sm" onClick={() => handleToggleLock('payroll')} disabled={!!togglingLock}
-                title={run.payrollLocked ? 'Re-open payroll figures for editing' : 'Freeze payroll figures for this run'}
+                title={run.payrollLocked ? LOCK_EFFECTS.payroll.unlock : LOCK_EFFECTS.payroll.lock}
                 iconLeft={togglingLock === 'payroll' ? <Loader2 size={12} className="animate-spin" /> : run.payrollLocked ? <Unlock size={12} /> : <Lock size={12} />}>
                 {run.payrollLocked ? 'Unlock Payroll' : 'Lock Payroll'}
               </Button>
-              {/* Release/Hold — Release EMAILS payslips to employees, so it gets a
-                  filled primary treatment, never the bordered download look. */}
-              {run.payslipReleased ? (
+
+              {/* Payslips are part of the flow, unlike the two locks above —
+                  hence its own label rather than sitting under "Safeguards". */}
+              <Legend style={{ width: '100%', marginBottom: 2 }}>Payslips</Legend>
+
+              {/* Release and Hold are NOT mutually exclusive. A partially
+                  released run has both people still to release and people who
+                  could be held; the previous `run.payslipReleased ? … : …`
+                  here hid Release completely as soon as the first cohort went
+                  out, which is the bug legacy fixed on 2026-08-14. Both are now
+                  driven by splitByRelease(). */}
+              {releasedItems.length > 0 && (
                 <Button variant="secondary" size="sm" onClick={() => setShowHoldPayslipsConfirm(true)} disabled={togglingRelease}
-                  title="Hide released payslips from employees again"
+                  title={`Hide the ${releasedItems.length} released payslip${releasedItems.length === 1 ? '' : 's'} from employees again`}
                   iconLeft={togglingRelease ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />}>
                   Hold Payslips
                 </Button>
-              ) : (
-                <Button size="sm" onClick={openReleaseModal} iconLeft={<Send size={12} />}
+              )}
+              {/* Counts what can ACTUALLY be released, matching the banner and
+                  the modal's default selection. Using the raw unreleased count
+                  promised 37 when only 34 could go out — salary holds and rows
+                  with no computed pay are excluded everywhere else. */}
+              {releasableItems.length > 0 && (
+                <Button size="sm" variant={isNext('release') ? 'primary' : 'secondary'} onClick={openReleaseModal}
+                  iconLeft={<Send size={12} />}
                   title="Emails payslips to the selected employees and makes them visible in ESS">
-                  Release Payslips to Employees
+                  {releasedItems.length > 0
+                    ? `Release Remaining (${releasableItems.length})`
+                    : `Release Payslips to Employees (${releasableItems.length})`}
                 </Button>
               )}
             </div>
@@ -1180,7 +1372,39 @@ export default function PayrollRunPageV2() {
                                     </Button>
                                   )}
                                 >
-                                  {item.salaryHold.reason}
+                                  <p style={{ font: "400 12px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: 0 }}>
+                                    {item.salaryHold.reason}
+                                  </p>
+                                  {/* Deciding is not releasing. The hold stays on either
+                                      way; what changes is whether the incentive for this
+                                      month is still waiting on a payroll release. */}
+                                  {item.salaryHold.decision === 'will_not_pay' && (
+                                    <Chip tone="danger" style={{ marginTop: 6 }}>Decided — not paying</Chip>
+                                  )}
+                                  <p style={{ font: "400 11px/1.5 'Inter', system-ui, sans-serif", color: 'var(--fg-4)', margin: '6px 0 0' }}>
+                                    {item.salaryHold.decision === 'will_not_pay'
+                                      ? 'Cost settled at ₹0, so incentive drafts can be created for this month.'
+                                      : 'Undecided — incentive stays on hold until this is settled or the salary is paid.'}
+                                  </p>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    style={{ marginTop: 8 }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDecideHold(
+                                        item.salaryHold._id,
+                                        item.salaryHold.decision === 'will_not_pay' ? 'undecided' : 'will_not_pay',
+                                      );
+                                    }}
+                                    disabled={decidingHoldId === item.salaryHold._id}
+                                  >
+                                    {decidingHoldId === item.salaryHold._id
+                                      ? 'Saving…'
+                                      : item.salaryHold.decision === 'will_not_pay'
+                                        ? 'Back to undecided'
+                                        : 'We are not paying this month'}
+                                  </Button>
                                 </Callout>
                               )}
 
@@ -1342,35 +1566,47 @@ export default function PayrollRunPageV2() {
               </span>
               <div style={{ display: 'flex', gap: 4 }}>
                 {/* On-hold employees are excluded from Select All and their rows disabled */}
-                <Button variant="ghost" size="sm" onClick={() => setReleaseSelection(new Set(items.filter(i => !i.salaryHold).map(i => i.employeeId)))}>Select All</Button>
+                <Button variant="ghost" size="sm" onClick={() => setReleaseSelection(new Set(items.filter(i => isReleasable(run, i)).map(i => i.employeeId)))}>Select All</Button>
                 <Button variant="ghost" size="sm" onClick={() => setReleaseSelection(new Set())}>Deselect All</Button>
               </div>
             </div>
-            {items.map(item => (
-              <label key={item.employeeId} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 'var(--r-1)',
-                cursor: item.salaryHold ? 'not-allowed' : 'pointer',
-                background: item.salaryHold ? 'var(--surface-2)' : 'transparent',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={releaseSelection.has(item.employeeId)}
-                  disabled={!!item.salaryHold}
-                  onChange={() => {
-                    if (item.salaryHold) return;
-                    const next = new Set(releaseSelection);
-                    next.has(item.employeeId) ? next.delete(item.employeeId) : next.add(item.employeeId);
-                    setReleaseSelection(next);
-                  }}
-                  style={{ accentColor: 'var(--brand)' }}
-                />
-                <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ font: "400 12.5px/1.3 'Inter', system-ui, sans-serif", color: item.salaryHold ? 'var(--fg-4)' : 'var(--fg)' }}>{item.employeeName}</span>
-                  {item.salaryHold && <Chip tone="warn">On Hold</Chip>}
-                </span>
-                <span style={{ font: "400 11.5px/1 'Inter', system-ui, sans-serif", color: INK.net, fontVariantNumeric: 'tabular-nums' }}>{formatMoney(item.netSalary)}</span>
-              </label>
-            ))}
+            {items.map(item => {
+              const alreadyReleased = isPayslipReleasedFor(run, item.employeeId);
+              // Net 0 means nothing was computed — releasing emails an empty
+              // payslip, so the row is locked out the same as a salary hold.
+              const noPay = !alreadyReleased && !item.salaryHold && !(Number(item.netSalary) > 0);
+              // Previously only `item.salaryHold` locked a row, so an employee
+              // already paid weeks ago could be re-ticked and re-emailed.
+              const locked = !!item.salaryHold || alreadyReleased || noPay;
+              return (
+                <label key={item.employeeId} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 'var(--r-1)',
+                  cursor: locked ? 'not-allowed' : 'pointer',
+                  opacity: locked ? 0.5 : 1,
+                  background: locked ? 'var(--surface-2)' : 'transparent',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={releaseSelection.has(item.employeeId)}
+                    disabled={locked}
+                    onChange={() => {
+                      if (locked) return;
+                      const next = new Set(releaseSelection);
+                      next.has(item.employeeId) ? next.delete(item.employeeId) : next.add(item.employeeId);
+                      setReleaseSelection(next);
+                    }}
+                    style={{ accentColor: 'var(--brand)' }}
+                  />
+                  <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span style={{ font: "400 12.5px/1.3 'Inter', system-ui, sans-serif", color: locked ? 'var(--fg-4)' : 'var(--fg)' }}>{item.employeeName}</span>
+                    {item.salaryHold && <Chip tone="warn">On Hold</Chip>}
+                    {alreadyReleased && !item.salaryHold && <Chip tone="brand">Already released</Chip>}
+                    {noPay && <Chip tone="neutral">No pay computed</Chip>}
+                  </span>
+                  <span style={{ font: "400 11.5px/1 'Inter', system-ui, sans-serif", color: INK.net, fontVariantNumeric: 'tabular-nums' }}>{formatMoney(item.netSalary)}</span>
+                </label>
+              );
+            })}
           </div>
         </Modal>
 
@@ -1414,6 +1650,52 @@ export default function PayrollRunPageV2() {
               </div>
             );
           })()}
+        </Modal>
+
+        {/* Finalize consequence dialog. Finalizing does not just "lock" — it
+            makes the run un-processable, which on a two-cohort month blocks the
+            work still to come. State that plainly, and name who has no payslip
+            yet. finalizeWarning() supplies the caution text so it matches
+            legacy word for word. */}
+        <Modal
+          open={showFinalizeConfirm}
+          onClose={() => !finalizing && setShowFinalizeConfirm(false)}
+          size="sm"
+          icon={finalizeCaution ? <AlertTriangle size={18} /> : <Lock size={18} />}
+          tone={finalizeCaution ? 'warn' : undefined}
+          title="Finalize this run?"
+          sub={`${MONTHS[run.month]} ${run.year}`}
+          footer={(
+            <>
+              <div style={{ flex: 1 }} />
+              <Button variant="secondary" size="sm" onClick={() => setShowFinalizeConfirm(false)} disabled={finalizing}>Cancel</Button>
+              <Button size="sm" onClick={handleFinalize} disabled={finalizing}
+                iconLeft={finalizing ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}>
+                {finalizing ? 'Finalizing...' : finalizeCaution ? 'Finalize anyway' : 'Finalize'}
+              </Button>
+            </>
+          )}
+        >
+          <div style={{ display: 'grid', gap: 8 }}>
+            <p style={{ font: "400 12.5px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-2)', margin: 0 }}>
+              Finalizing marks the run complete so it can be paid.{' '}
+              <span style={{ color: 'var(--fg)', fontWeight: 500 }}>It also blocks re-processing</span>
+              {' '}— figures can no longer be recomputed unless you unfinalize.
+            </p>
+            {finalizeCaution && (
+              <Callout tone="warn">
+                <p style={{ font: "500 12px/1.5 'Inter', system-ui, sans-serif", margin: 0 }}>{finalizeCaution}</p>
+                <ul style={{ font: "400 12px/1.6 'Inter', system-ui, sans-serif", color: 'var(--fg-3)', margin: '6px 0 0', paddingLeft: 14 }}>
+                  {releasableItems.length > 0 && (
+                    <li>{releasableItems.length} ready to release but not yet sent.</li>
+                  )}
+                  {needsComputeItems.length > 0 && (
+                    <li>{needsComputeItems.length} with no pay computed — these need a re-process, which finalizing prevents.</li>
+                  )}
+                </ul>
+              </Callout>
+            )}
+          </div>
         </Modal>
 
         {/* Hold Payslips Confirmation — this button sits next to routine actions
